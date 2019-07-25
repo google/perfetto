@@ -270,63 +270,64 @@ ResultCode ExportSlices(const TraceStorage* storage,
       VirtualTrackScope scope = storage->virtual_tracks().scopes()[track_id];
       UniquePid upid = storage->virtual_tracks().upids()[track_id];
 
-      const auto& virtual_track_slices = storage->virtual_track_slices();
-      int64_t thread_end_ts_us = 0;
-      base::Optional<uint32_t> vtrack_slice_row =
-          virtual_track_slices.FindRowForSliceId(i);
-      if (vtrack_slice_row) {
-        int64_t thread_ts_ns =
-            virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
-        if (thread_ts_ns > 0) {
-          int64_t thread_ts_us = thread_ts_ns / 1000;
-          event["use_async_tts"] = Json::Int(1);
-          event["tts"] = Json::Int64(thread_ts_us);
-          int64_t thread_duration_ns =
-              virtual_track_slices.thread_duration_ns()[*vtrack_slice_row];
-          // If the slice didn't finish, the duration may be negative. Don't
-          // write the thread timestamp for the end event in this case.
-          if (thread_duration_ns >= 0)
-            thread_end_ts_us = thread_ts_us + (thread_duration_ns / 1000);
-        }
-      }
-
       if (scope == VirtualTrackScope::kGlobal) {
         event["id2"]["global"] = PrintUint64(track_id);
       } else {
         event["id2"]["local"] = PrintUint64(track_id);
         event["pid"] = storage->GetProcess(upid).pid;
       }
-      if (slices.durations()[i] == 0) {  // Instant async event.
+
+      const auto& virtual_track_slices = storage->virtual_track_slices();
+      int64_t thread_ts_ns = 0;
+      int64_t thread_duration_ns = 0;
+      base::Optional<uint32_t> vtrack_slice_row =
+          virtual_track_slices.FindRowForSliceId(i);
+      if (vtrack_slice_row) {
+        thread_ts_ns =
+            virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
+        thread_duration_ns =
+            virtual_track_slices.thread_duration_ns()[*vtrack_slice_row];
+      }
+
+      if (thread_ts_ns > 0) {
+        event["tts"] = Json::Int64(thread_ts_ns / 1000);
+        event["use_async_tts"] = Json::Int(1);
+      }
+
+      int64_t duration_ns = slices.durations()[i];
+      if (duration_ns == 0) {  // Instant async event.
         event["ph"] = "n";
         writer->WriteCommonEvent(event);
       } else {  // Async start and end.
         event["ph"] = "b";
         writer->WriteCommonEvent(event);
-        event["ph"] = "e";
-        event["ts"] =
-            Json::Int64((slices.start_ns()[i] + slices.durations()[i]) / 1000);
-        if (thread_end_ts_us) {
-          event["tts"] = Json::Int64(thread_end_ts_us);
-        } else {
-          event.removeMember("tts");
-          event.removeMember("use_async_tts");
+        // If the slice didn't finish, the duration may be negative. Don't
+        // write the end event in this case.
+        if (duration_ns > 0) {
+          event["ph"] = "e";
+          event["ts"] =
+              Json::Int64((slices.start_ns()[i] + duration_ns) / 1000);
+          if (thread_ts_ns > 0) {
+            event["tts"] =
+                Json::Int64((thread_ts_ns + thread_duration_ns) / 1000);
+          }
+          event.removeMember("args");
+          writer->WriteCommonEvent(event);
         }
-        event.removeMember("args");
-        writer->WriteCommonEvent(event);
       }
     } else {  // Sync event.
       const auto& thread_slices = storage->thread_slices();
-      int64_t thread_ts_us = 0;
-      int64_t thread_duration_us = 0;
+      int64_t thread_ts_ns = 0;
+      int64_t thread_duration_ns = 0;
       base::Optional<uint32_t> thread_slice_row =
           thread_slices.FindRowForSliceId(i);
       if (thread_slice_row) {
-        thread_ts_us =
-            thread_slices.thread_timestamp_ns()[*thread_slice_row] / 1000;
-        thread_duration_us =
-            thread_slices.thread_duration_ns()[*thread_slice_row] / 1000;
+        thread_ts_ns = thread_slices.thread_timestamp_ns()[*thread_slice_row];
+        thread_duration_ns =
+            thread_slices.thread_duration_ns()[*thread_slice_row];
       }
-      if (slices.durations()[i] == 0) {  // Instant event.
+      int64_t duration_ns = slices.durations()[i];
+      if (duration_ns == 0) {  // Instant event.
         event["ph"] = "i";
         if (slices.types()[i] == RefType::kRefUtid) {
           UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
@@ -334,8 +335,8 @@ ResultCode ExportSlices(const TraceStorage* storage,
           if (thread.upid) {
             event["pid"] = storage->GetProcess(*thread.upid).pid;
           }
-          if (thread_ts_us > 0) {
-            event["tts"] = Json::Int64(thread_ts_us);
+          if (thread_ts_ns > 0) {
+            event["tts"] = Json::Int64(thread_ts_ns / 1000);
           }
           event["tid"] = thread.tid;
           event["s"] = "t";
@@ -353,17 +354,25 @@ ResultCode ExportSlices(const TraceStorage* storage,
         if (slices.types()[i] != RefType::kRefUtid) {
           return kResultWrongRefType;
         }
-        event["ph"] = "X";
-        event["dur"] = Json::Int64(slices.durations()[i] / 1000);
+        if (duration_ns > 0) {
+          event["ph"] = "X";
+          event["dur"] = Json::Int64(duration_ns / 1000);
+        } else {
+          // If the slice didn't finish, the duration may be negative. Only
+          // write a begin event without end event in this case.
+          event["ph"] = "B";
+        }
         UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
         auto thread = storage->GetThread(utid);
         event["tid"] = thread.tid;
         if (thread.upid) {
           event["pid"] = storage->GetProcess(*thread.upid).pid;
         }
-        if (thread_ts_us > 0) {
-          event["tts"] = Json::Int64(thread_ts_us);
-          event["tdur"] = Json::Int64(thread_duration_us);
+        if (thread_ts_ns > 0) {
+          event["tts"] = Json::Int64(thread_ts_ns / 1000);
+          // Only write duration for complete events.
+          if (duration_ns > 0)
+            event["tdur"] = Json::Int64(thread_duration_ns / 1000);
         }
         writer->WriteCommonEvent(event);
       }
