@@ -25,6 +25,7 @@ import {
   RunningStatistics,
   runningStatStr
 } from './perf';
+import {TRACK_SHELL_WIDTH} from './track_constants';
 
 /**
  * If the panel container scrolls, the backing canvas height is
@@ -39,6 +40,7 @@ export type AnyAttrsVnode = m.Vnode<any, {}>;
 interface Attrs {
   panels: AnyAttrsVnode[];
   doesScroll: boolean;
+  kind: 'TRACKS'|'OVERVIEW'|'DETAILS';
 }
 
 export class PanelContainer implements m.ClassComponent<Attrs> {
@@ -149,10 +151,15 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const parentSizeChanged = this.readParentSizeFromDom(vnodeDom.dom);
 
     const canvasSizeShouldChange =
-        this.attrs.doesScroll ? parentSizeChanged : totalPanelHeightChanged;
+        parentSizeChanged || !this.attrs.doesScroll && totalPanelHeightChanged;
     if (canvasSizeShouldChange) {
       this.updateCanvasDimensions();
       this.repositionCanvas();
+      if (this.attrs.kind === 'TRACKS') {
+        globals.frontendLocalState.timeScale.setLimitsPx(
+            0, this.parentWidth - TRACK_SHELL_WIDTH);
+      }
+      this.redrawCanvas();
     }
   }
 
