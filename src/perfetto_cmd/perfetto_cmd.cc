@@ -16,7 +16,6 @@
 
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
-#include <dlfcn.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <signal.h>
@@ -62,6 +61,7 @@
 #include <utils/StrongPointer.h>
 
 #include "src/android_internal/incident_service.h"
+#include "src/android_internal/lazy_library_loader.h"
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 
 namespace perfetto {
@@ -137,24 +137,17 @@ void ClearUmask() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 static bool StartIncidentReport(const TraceConfig::IncidentReportConfig& cfg) {
-  using ScopedDlHandle = base::ScopedResource<void*, dlclose, nullptr>;
-
-  static const char kLibName[] = "libperfetto_android_internal.so";
-  ScopedDlHandle handle(dlopen(kLibName, RTLD_NOW));
-  PERFETTO_CHECK(handle);
-
-  void* fn = dlsym(*handle, "StartIncidentReport");
-  PERFETTO_CHECK(fn);
-  auto start_incident =
-      reinterpret_cast<decltype(&android_internal::StartIncidentReport)>(fn);
-
-  return start_incident(cfg.destination_package().c_str(),
-                        cfg.destination_class().c_str(), cfg.privacy_level());
+  PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, start_incident_fn);
+  if (!start_incident_fn)
+    return false;
+  return start_incident_fn(cfg.destination_package().c_str(),
+                           cfg.destination_class().c_str(),
+                           cfg.privacy_level());
 }
 #else
 static bool StartIncidentReport(const TraceConfig::IncidentReportConfig&) {
   PERFETTO_FATAL("should not be called");
-};
+}
 #endif
 
 }  // namespace
