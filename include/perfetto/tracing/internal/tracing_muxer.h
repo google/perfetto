@@ -98,7 +98,7 @@ class PERFETTO_EXPORT TracingMuxer {
   static TracingMuxer* instance_;
   Platform* const platform_ = nullptr;
 
-  // Incremented upon each data source stop. See comment in tracing_tls.h.
+  // Incremented every time a data source is destroyed. See tracing_tls.h.
   std::atomic<uint32_t> generation_{};
 };
 

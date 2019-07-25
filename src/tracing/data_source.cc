@@ -18,6 +18,7 @@
 
 namespace perfetto {
 
+DataSourceBase::StopArgs::~StopArgs() = default;
 DataSourceBase::~DataSourceBase() = default;
 void DataSourceBase::OnSetup(const SetupArgs&) {}
 void DataSourceBase::OnStart(const StartArgs&) {}
