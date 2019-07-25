@@ -26,6 +26,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/config/power/android_power_config.pbzero.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -33,6 +34,9 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace/trace.pb.h"
+#include "perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/tracing/core/test_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
@@ -41,11 +45,6 @@
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
-
-#include "perfetto/config/power/android_power_config.pbzero.h"
-#include "perfetto/trace/trace.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -71,6 +70,191 @@ std::string RandomTraceFileName() {
   return path;
 }
 
+// This class is a reference to a child process that has in essence been execv
+// to the requested binary. The process will start and then wait for Run()
+// before proceeding. We use this to fork new processes before starting any
+// additional threads in the parent proces (otherwise you would risk
+// deadlocks), but pause the forked processes until remaining setup (including
+// any necessary threads) in the parent process is complete.
+class Exec {
+ public:
+  // Starts the forked process that was created. If not null then |stderr_out
+  // will contain the std::cerr output of the process.
+  int Run(std::string* stderr_out = nullptr) {
+    // We can't be the child process.
+    PERFETTO_CHECK(pid_ != 0);
+
+    // Send some random bytes so the child process knows the service is up and
+    // it can connect and execute.
+    PERFETTO_CHECK(PERFETTO_EINTR(write(*start_pipe_.wr, "42", 2)) ==
+                   static_cast<ssize_t>(2));
+    start_pipe_.wr.reset();
+
+    // Setup a large enough buffer and read all of stderr (until the process
+    // closes the err_pipe on process exit).
+    std::string stderr_str = std::string(1024 * 1024, '\0');
+    ssize_t rsize = 0;
+    size_t stderr_pos = 0;
+    while (stderr_pos < stderr_str.size()) {
+      rsize = PERFETTO_EINTR(read(*err_pipe_.rd, &stderr_str[stderr_pos],
+                                  stderr_str.size() - stderr_pos - 1));
+      if (rsize <= 0)
+        break;
+      stderr_pos += static_cast<size_t>(rsize);
+    }
+    stderr_str.resize(stderr_pos);
+
+    // Either output the stderr_out to the provided variable or for the record
+    // it into the info logs.
+    if (stderr_out) {
+      *stderr_out = stderr_str;
+    } else {
+      PERFETTO_LOG("Child proc %d exited with stderr: \"%s\"", pid_,
+                   stderr_str.c_str());
+    }
+
+    int status = 1;
+    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid_, &status, 0)) == pid_);
+    int exit_code;
+    if (WIFEXITED(status)) {
+      exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+      exit_code = -(WTERMSIG(status));
+      PERFETTO_CHECK(exit_code < 0);
+    } else {
+      PERFETTO_FATAL("Unexpected exit status: %d", status);
+    }
+    return exit_code;
+  }
+
+ private:
+  Exec(pid_t pid, base::Pipe err, base::Pipe start)
+      : pid_(pid), err_pipe_(std::move(err)), start_pipe_(std::move(start)) {}
+
+  static Exec Create(const std::string& argv0,
+                     std::initializer_list<std::string> args,
+                     std::string input = "") {
+    if (argv0 != "perfetto" && argv0 != "trigger_perfetto") {
+      PERFETTO_FATAL(
+          "Received argv0: \"%s\" which isn't supported. Supported binaries "
+          "are \"perfetto\" or \"trigger_perfetto\".",
+          argv0.c_str());
+    }
+
+    // |in_pipe| == std::cin, |err_pipe| == std::cerr for the process we're
+    // about to fork. |start_pipe| is used to block the process so we can hold
+    // it until we're ready (the service has started up).
+    base::Pipe in_pipe = base::Pipe::Create();
+    base::Pipe err_pipe = base::Pipe::Create();
+    base::Pipe start_pipe = base::Pipe::Create();
+
+    pid_t pid = fork();
+    PERFETTO_CHECK(pid >= 0);
+    if (pid == 0) {
+      // Child process, we need to block the child process until we've been
+      // signaled on the |start_pipe|.
+      std::string junk = std::string(4, '\0');
+      start_pipe.wr.reset();
+      ssize_t rsize = 0;
+      rsize = PERFETTO_EINTR(read(*start_pipe.rd, &junk[0], junk.size() - 1));
+      PERFETTO_CHECK(rsize >= 0);
+      start_pipe.rd.reset();
+
+      // We've been signalled to start so execute in a sub function.
+      _exit(RunChild(argv0, std::move(args), std::move(in_pipe),
+                     std::move(err_pipe)));
+    } else {
+      // Parent, we don't need to write to the childs std::cerr nor do we need
+      // to read the start_pipe.
+      err_pipe.wr.reset();
+      start_pipe.rd.reset();
+
+      // This is generally an unsafe pattern because the child process might
+      // be blocked on stdout and stall the stdin reads. It's pragmatically
+      // okay for our test cases because stdin is not expected to exceed the
+      // pipe buffer.
+      //
+      // We need to write this now up front (rather than in Run(), because in
+      // some tests we create multiple Exec classes, and if we don't close the
+      // input pipe up front then future Exec's will have a reference and the
+      // pipe won't close properly.
+      PERFETTO_CHECK(input.size() <= base::kPageSize);
+      PERFETTO_CHECK(
+          PERFETTO_EINTR(write(*in_pipe.wr, input.data(), input.size())) ==
+          static_cast<ssize_t>(input.size()));
+      in_pipe.wr.reset();
+      // Close the input pipe only after the write so we don't get an EPIPE
+      // signal in the cases when the child process earlies out without
+      // reading stdin.
+      in_pipe.rd.reset();
+
+      return Exec(pid, std::move(err_pipe), std::move(start_pipe));
+    }
+  }
+
+  // Wrapper to contain all the work the child process needs to do.
+  static int RunChild(const std::string& argv0,
+                      std::initializer_list<std::string> args,
+                      base::Pipe in_pipe,
+                      base::Pipe err_pipe) {
+    // This sets up the char** argv buffer we're going to provide to the main
+    // function for |argv0| binary.
+    std::vector<char> argv_buffer;
+    std::vector<size_t> argv_offsets;
+    std::vector<char*> argv;
+    argv_offsets.push_back(0);
+
+    argv_buffer.insert(argv_buffer.end(), argv0.begin(), argv0.end());
+    argv_buffer.push_back('\0');
+
+    for (const std::string& arg : args) {
+      argv_offsets.push_back(argv_buffer.size());
+      argv_buffer.insert(argv_buffer.end(), arg.begin(), arg.end());
+      argv_buffer.push_back('\0');
+    }
+
+    for (size_t off : argv_offsets)
+      argv.push_back(&argv_buffer[off]);
+    argv.push_back(nullptr);
+
+    // We aren't reading std::cerr nor writing to std::cin.
+    err_pipe.rd.reset();
+    in_pipe.wr.reset();
+
+    // This makes it so the binaries below will correctly write their std::cin
+    // and std::cerr to the right pipes.
+    int devnull = open("/dev/null", O_RDWR);
+    PERFETTO_CHECK(devnull >= 0);
+    PERFETTO_CHECK(dup2(*in_pipe.rd, STDIN_FILENO) != -1);
+    PERFETTO_CHECK(dup2(devnull, STDOUT_FILENO) != -1);
+    PERFETTO_CHECK(dup2(*err_pipe.wr, STDERR_FILENO) != -1);
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+    setenv("PERFETTO_CONSUMER_SOCK_NAME", TestHelper::GetConsumerSocketName(),
+           1);
+    setenv("PERFETTO_PRODUCER_SOCK_NAME", TestHelper::GetProducerSocketName(),
+           1);
+    if (argv0 == "perfetto") {
+      return PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data());
+    } else if (argv0 == "trigger_perfetto") {
+      return TriggerPerfettoMain(static_cast<int>(argv.size() - 1),
+                                 argv.data());
+    } else {
+      PERFETTO_FATAL("Unknown binary: %s", argv0.c_str());
+      return 4;
+    }
+#else
+    execv((std::string("/system/bin/") + argv0).c_str(), &argv[0]);
+    return 3;
+#endif
+  }
+
+  friend class PerfettoCmdlineTest;
+
+  pid_t pid_;
+  base::Pipe err_pipe_;
+  base::Pipe start_pipe_;
+};
+
 class PerfettoTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -95,121 +279,55 @@ class PerfettoTest : public ::testing::Test {
 
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
-  void SetUp() override { test_helper_.StartServiceIfRequired(); }
+  void SetUp() override { exec_allowed_ = true; }
 
   void TearDown() override {}
 
-  int ExecPerfetto(std::initializer_list<std::string> args,
-                   std::string input = "") {
-    return Exec("perfetto", args, input);
+  void StartServiceIfRequiredNoNewExecsAfterThis() {
+    exec_allowed_ = false;
+    test_helper_.StartServiceIfRequired();
   }
 
-  int ExecTrigger(std::initializer_list<std::string> args,
-                  std::string input = "") {
-    return Exec("trigger_perfetto", args, input);
+  FakeProducer* ConnectFakeProducer() {
+    return test_helper_.ConnectFakeProducer();
   }
 
-  // Fork() + executes the perfetto cmdline client with the given args and
-  // returns the exit code.
-  int Exec(const std::string& argv0,
-           std::initializer_list<std::string> args,
-           std::string input = "") {
-    std::vector<char> argv_buffer;
-    std::vector<size_t> argv_offsets;
-    std::vector<char*> argv;
-    argv_offsets.push_back(0);
-
-    argv_buffer.insert(argv_buffer.end(), argv0.begin(), argv0.end());
-    argv_buffer.push_back('\0');
-
-    for (const std::string& arg : args) {
-      argv_offsets.push_back(argv_buffer.size());
-      argv_buffer.insert(argv_buffer.end(), arg.begin(), arg.end());
-      argv_buffer.push_back('\0');
-    }
-
-    for (size_t off : argv_offsets)
-      argv.push_back(&argv_buffer[off]);
-    argv.push_back(nullptr);
-
-    // Create the pipe for the child process to return stderr.
-    base::Pipe err_pipe = base::Pipe::Create();
-    base::Pipe in_pipe = base::Pipe::Create();
-
-    pid_t pid = fork();
-    PERFETTO_CHECK(pid >= 0);
-    if (pid == 0) {
-      // Child process.
-      err_pipe.rd.reset();
-      in_pipe.wr.reset();
-
-      int devnull = open("/dev/null", O_RDWR);
-      PERFETTO_CHECK(devnull >= 0);
-      PERFETTO_CHECK(dup2(*in_pipe.rd, STDIN_FILENO) != -1);
-      PERFETTO_CHECK(dup2(devnull, STDOUT_FILENO) != -1);
-      PERFETTO_CHECK(dup2(*err_pipe.wr, STDERR_FILENO) != -1);
-#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-      setenv("PERFETTO_CONSUMER_SOCK_NAME", TestHelper::GetConsumerSocketName(),
-             1);
-      setenv("PERFETTO_PRODUCER_SOCK_NAME", TestHelper::GetProducerSocketName(),
-             1);
-      if (argv0 == "perfetto") {
-        _exit(PerfettoCmdMain(static_cast<int>(argv.size() - 1), argv.data()));
-      } else if (argv0 == "trigger_perfetto") {
-        _exit(TriggerPerfettoMain(static_cast<int>(argv.size() - 1),
-                                  argv.data()));
-      } else {
-        ADD_FAILURE() << "Unknown binary: " << argv0.c_str();
-      }
-#else
-      execv((std::string("/system/bin/") + argv0).c_str(), &argv[0]);
-      _exit(3);
-#endif
-    }
-
-    // Parent.
-    err_pipe.wr.reset();
-    stderr_ = std::string(1024 * 1024, '\0');
-
-    // This is generally an unsafe pattern because the child process might be
-    // blocked on stdout and stall the stdin reads. It's pragmatically okay for
-    // our test cases because stdin is not expected to exceed the pipe buffer.
-    PERFETTO_CHECK(input.size() <= base::kPageSize);
-    PERFETTO_CHECK(
-        PERFETTO_EINTR(write(*in_pipe.wr, input.data(), input.size())) ==
-        static_cast<ssize_t>(input.size()));
-    in_pipe.wr.reset();
-
-    // Close the input pipe only after the write so we don't get an EPIPE signal
-    // in the cases when the child process earlies out without reading stdin.
-    in_pipe.rd.reset();
-
-    ssize_t rsize = 0;
-    size_t stderr_pos = 0;
-    while (stderr_pos < stderr_.size()) {
-      rsize = PERFETTO_EINTR(read(*err_pipe.rd, &stderr_[stderr_pos],
-                                  stderr_.size() - stderr_pos - 1));
-      if (rsize <= 0)
-        break;
-      stderr_pos += static_cast<size_t>(rsize);
-    }
-    stderr_.resize(stderr_pos);
-    int status = 1;
-    PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, &status, 0)) == pid);
-    int exit_code;
-    if (WIFEXITED(status)) {
-      exit_code = WEXITSTATUS(status);
-    } else if (WIFSIGNALED(status)) {
-      exit_code = -(WTERMSIG(status));
-      PERFETTO_CHECK(exit_code < 0);
-    } else {
-      PERFETTO_FATAL("Unexpected exit status: %d", status);
-    }
-    return exit_code;
+  std::function<void()> WrapTask(const std::function<void()>& function) {
+    return test_helper_.WrapTask(function);
   }
 
+  void WaitForProducerSetup() { test_helper_.WaitForProducerSetup(); }
+
+  void WaitForProducerEnabled() { test_helper_.WaitForProducerEnabled(); }
+
+  // Creates a process that represents the perfetto binary that will
+  // start when Run() is called. |args| will be passed as part of
+  // the command line and |std_in| will be piped into std::cin.
+  Exec ExecPerfetto(std::initializer_list<std::string> args,
+                    std::string std_in = "") {
+    // You can not fork after you've started the service due to risk of
+    // deadlocks.
+    PERFETTO_CHECK(exec_allowed_);
+    return Exec::Create("perfetto", std::move(args), std::move(std_in));
+  }
+
+  // Creates a process that represents the trigger_perfetto binary that will
+  // start when Run() is called. |args| will be passed as part of
+  // the command line and |std_in| will be piped into std::cin.
+  Exec ExecTrigger(std::initializer_list<std::string> args,
+                   std::string std_in = "") {
+    // You can not fork after you've started the service due to risk of
+    // deadlocks.
+    PERFETTO_CHECK(exec_allowed_);
+    return Exec::Create("trigger_perfetto", std::move(args), std::move(std_in));
+  }
+
+  // Tests are allowed to freely use these variables.
   std::string stderr_;
   base::TestTaskRunner task_runner_;
+
+ private:
+  bool exec_allowed_;
   TestHelper test_helper_{&task_runner_};
 };
 
@@ -577,74 +695,120 @@ TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
 TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   std::string cfg("duration_ms: 100");
 
-  EXPECT_EQ(1, ExecPerfetto({"--invalid-arg"}));
+  auto invalid_arg = ExecPerfetto({"--invalid-arg"});
+  auto empty_config = ExecPerfetto({"-c", "-", "-o", "-"}, "");
 
-  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "-o", "-"}, ""));
+  // Cannot make assertions on --dropbox because on standalone builds it fails
+  // prematurely due to lack of dropbox.
+  auto missing_dropbox =
+      ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg);
+  auto either_out_or_dropbox = ExecPerfetto({"-c", "-", "--txt"}, cfg);
+
+  // Disallow mixing simple and file config.
+  auto simple_and_file_1 =
+      ExecPerfetto({"-o", "-", "-c", "-", "-t", "2s"}, cfg);
+  auto simple_and_file_2 =
+      ExecPerfetto({"-o", "-", "-c", "-", "-b", "2m"}, cfg);
+  auto simple_and_file_3 =
+      ExecPerfetto({"-o", "-", "-c", "-", "-s", "2m"}, cfg);
+
+  // Invalid --attach / --detach cases.
+  auto invalid_stop =
+      ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg);
+  auto attach_and_config_1 =
+      ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg);
+  auto attach_and_config_2 =
+      ExecPerfetto({"-t", "2s", "-o", "-", "--attach=foo"}, cfg);
+  auto attach_needs_argument = ExecPerfetto({"--attach"}, cfg);
+  auto detach_needs_argument =
+      ExecPerfetto({"-t", "2s", "-o", "-", "--detach"}, cfg);
+  auto detach_without_out_or_dropbox =
+      ExecPerfetto({"-t", "2s", "--detach=foo"}, cfg);
+
+  // Cannot trace and use --query.
+  auto trace_and_query_1 = ExecPerfetto({"-t", "2s", "--query"}, cfg);
+  auto trace_and_query_2 = ExecPerfetto({"-c", "-", "--query"}, cfg);
+
+  // Ensure all Exec:: calls have been saved to prevent deadlocks.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  EXPECT_EQ(1, invalid_arg.Run(&stderr_));
+
+  EXPECT_EQ(1, empty_config.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("TraceConfig is empty"));
 
   // Cannot make assertions on --dropbox because on standalone builds it fails
   // prematurely due to lack of dropbox.
-  EXPECT_EQ(
-      1, ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--dropbox=foo"}, cfg));
+  EXPECT_EQ(1, missing_dropbox.Run(&stderr_));
 
-  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--txt"}, cfg));
+  EXPECT_EQ(1, either_out_or_dropbox.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Either --out or --dropbox"));
 
   // Disallow mixing simple and file config.
-  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-t", "2s"}, cfg));
+  EXPECT_EQ(1, simple_and_file_1.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-b", "2m"}, cfg));
+  EXPECT_EQ(1, simple_and_file_2.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-o", "-", "-c", "-", "-s", "2m"}, cfg));
+  EXPECT_EQ(1, simple_and_file_3.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify both -c"));
 
   // Invalid --attach / --detach cases.
-  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--stop"}, cfg));
+  EXPECT_EQ(1, invalid_stop.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("--stop is supported only in combination"));
 
-  EXPECT_EQ(1,
-            ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_EQ(1, attach_and_config_1.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
+  EXPECT_EQ(1, attach_and_config_2.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 
-  EXPECT_EQ(1, ExecPerfetto({"--attach"}, cfg));
+  EXPECT_EQ(1, attach_needs_argument.Run(&stderr_));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--attach.*requires an argument"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--detach"}, cfg));
+  EXPECT_EQ(1, detach_needs_argument.Run(&stderr_));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--detach.*requires an argument"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "--detach=foo"}, cfg));
+  EXPECT_EQ(1, detach_without_out_or_dropbox.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("--out or --dropbox is required"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "--query"}, cfg));
+  // Cannot trace and use --query.
+  EXPECT_EQ(1, trace_and_query_1.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 
-  EXPECT_EQ(1, ExecPerfetto({"-c", "-", "--query"}, cfg));
+  EXPECT_EQ(1, trace_and_query_2.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
   std::string cfg("duration_ms: 100");
-  EXPECT_EQ(0, ExecPerfetto({"-c", "-", "--txt", "-o", "-"}, cfg)) << stderr_;
+  auto perfetto = ExecPerfetto({"-c", "-", "--txt", "-o", "-"}, cfg);
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(SimpleConfig)) {
-  EXPECT_EQ(0, ExecPerfetto({"-o", "-", "-c", "-", "-t", "100ms"}));
+  auto perfetto = ExecPerfetto({"-o", "-", "-c", "-", "-t", "100ms"});
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(DetachAndAttach)) {
-  EXPECT_NE(0, ExecPerfetto({"--attach=not_existent"}));
-  EXPECT_THAT(stderr_, HasSubstr("Session re-attach failed"));
+  auto attach_to_not_existing = ExecPerfetto({"--attach=not_existent"});
 
   std::string cfg("duration_ms: 10000; write_into_file: true");
-  EXPECT_EQ(0, ExecPerfetto(
-                   {"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg))
-      << stderr_;
-  EXPECT_EQ(0, ExecPerfetto({"--attach=valid_stop", "--stop"}));
+  auto detach_valid_stop =
+      ExecPerfetto({"-o", "-", "-c", "-", "--txt", "--detach=valid_stop"}, cfg);
+  auto stop_valid_stop = ExecPerfetto({"--attach=valid_stop", "--stop"});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  EXPECT_NE(0, attach_to_not_existing.Run(&stderr_));
+  EXPECT_THAT(stderr_, HasSubstr("Session re-attach failed"));
+
+  EXPECT_EQ(0, detach_valid_stop.Run(&stderr_)) << stderr_;
+  EXPECT_EQ(0, stop_valid_stop.Run(&stderr_));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
@@ -674,30 +838,43 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   // trigger config we have an additional ReceivedTriggers packet.
   constexpr size_t kPreamblePackets = 7;
 
-  base::TestTaskRunner task_runner;
-
-  // Enable tracing and detach as soon as it gets started.
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
-  auto* fake_producer = helper.ConnectFakeProducer();
-  EXPECT_TRUE(fake_producer);
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
-  std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, ExecPerfetto(
-                     {
-                         "-o", path, "-c", "-",
-                     },
-                     trace_config.SerializeAsString()));
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  auto trigger_proc = ExecTrigger({"trigger_name"});
+
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  auto* fake_producer = ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  // Start a background thread that will deliver the config now that we've
+  // started the service. See |perfetto_proc| above for the args passed.
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  helper.WaitForProducerSetup();
-  EXPECT_EQ(0, ExecTrigger({"trigger_name"})) << "stderr: " << stderr_;
+  WaitForProducerSetup();
+  EXPECT_EQ(0, trigger_proc.Run(&stderr_));
 
   // Wait for the producer to start, and then write out 11 packets.
-  helper.WaitForProducerEnabled();
-  auto on_data_written = task_runner.CreateCheckpoint("data_written");
-  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
-  task_runner.RunUntilCheckpoint("data_written");
+  WaitForProducerEnabled();
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written");
+  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written");
   background_trace.join();
 
   std::string trace_str;
@@ -751,33 +928,43 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   // trigger config we have an additional ReceivedTriggers packet.
   constexpr size_t kPreamblePackets = 8;
 
-  base::TestTaskRunner task_runner;
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
+  const std::string path = RandomTraceFileName();
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
 
-  // Enable tracing and detach as soon as it gets started.
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
-  auto* fake_producer = helper.ConnectFakeProducer();
+  auto trigger_proc =
+      ExecTrigger({"trigger_name_2", "trigger_name", "trigger_name_3"});
+
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
-  const std::string path = RandomTraceFileName();
-  std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, ExecPerfetto(
-                     {
-                         "-o", path, "-c", "-",
-                     },
-                     trace_config.SerializeAsString()));
+  // Start a background thread that will deliver the config now that we've
+  // started the service. See |perfetto_proc| above for the args passed.
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  helper.WaitForProducerEnabled();
+  WaitForProducerEnabled();
   // Wait for the producer to start, and then write out 11 packets, before the
   // trace actually starts (the trigger is seen).
-  auto on_data_written = task_runner.CreateCheckpoint("data_written_1");
-  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
-  task_runner.RunUntilCheckpoint("data_written_1");
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written_1");
 
-  EXPECT_EQ(0,
-            ExecTrigger({"trigger_name_2", "trigger_name", "trigger_name_3"}))
-      << "stderr: " << stderr_;
+  EXPECT_EQ(0, trigger_proc.Run(&stderr_)) << "stderr: " << stderr_;
 
   background_trace.join();
 
@@ -838,23 +1025,32 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   trigger->set_stop_delay_ms(500);
   trigger = trigger_cfg->add_triggers();
 
-  // Enable tracing and detach as soon as it gets started.
-  base::TestTaskRunner task_runner;
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
-  auto* fake_producer = helper.ConnectFakeProducer();
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
+  const std::string path = RandomTraceFileName();
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "--dropbox",
+          "TAG",
+          "--no-guardrails",
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
-  std::thread background_trace([&trace_config, this]() {
-    EXPECT_EQ(0, ExecPerfetto(
-                     {
-                         "--dropbox", "TAG", "--no-guardrails", "-c", "-",
-                     },
-                     trace_config.SerializeAsString()));
+  std::string stderr_str;
+  std::thread background_trace([&perfetto_proc, &stderr_str]() {
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str));
   });
   background_trace.join();
 
-  EXPECT_THAT(stderr_,
+  EXPECT_THAT(stderr_str,
               ::testing::HasSubstr("Skipping write to dropbox. Empty trace."));
 }
 
@@ -883,45 +1079,53 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   trigger->set_name("trigger_name_3");
   trigger->set_stop_delay_ms(60000);
 
-  // We have 5 normal preample packets (trace config, clock, system info, sync
-  // marker, stats) and then since this is a trace with a trigger config we have
-  // an additional ReceivedTriggers packet.
-  base::TestTaskRunner task_runner;
-
-  // Enable tracing and detach as soon as it gets started.
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
-  auto* fake_producer = helper.ConnectFakeProducer();
-  EXPECT_TRUE(fake_producer);
-
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
-  std::thread background_trace([&path, &trace_config, this]() {
-    EXPECT_EQ(0, ExecPerfetto(
-                     {
-                         "-o", path, "-c", "-",
-                     },
-                     trace_config.SerializeAsString()));
-  });
-
-  helper.WaitForProducerEnabled();
-  // Wait for the producer to start, and then write out 11 packets, before the
-  // trace actually starts (the trigger is seen).
-  auto on_data_written = task_runner.CreateCheckpoint("data_written_1");
-  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
-  task_runner.RunUntilCheckpoint("data_written_1");
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+      },
+      trace_config.SerializeAsString());
 
   std::string triggers = R"(
     activate_triggers: "trigger_name_2"
     activate_triggers: "trigger_name"
     activate_triggers: "trigger_name_3"
   )";
+  auto perfetto_proc_2 = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+          "--txt",
+      },
+      triggers);
 
-  EXPECT_EQ(0, ExecPerfetto(
-                   {
-                       "-o", path, "-c", "-", "--txt",
-                   },
-                   triggers))
-      << "stderr: " << stderr_;
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread background_trace([&perfetto_proc]() {
+    std::string stderr_str;
+    EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+  });
+
+  WaitForProducerEnabled();
+  // Wait for the producer to start, and then write out 11 packets, before the
+  // trace actually starts (the trigger is seen).
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
+  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written_1");
+
+  EXPECT_EQ(0, perfetto_proc_2.Run(&stderr_)) << "stderr: " << stderr_;
 
   background_trace.join();
 
@@ -977,41 +1181,45 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
   trigger->set_name("trigger_name_3");
   trigger->set_stop_delay_ms(60000);
 
-  // We have 5 normal preample packets (trace config, clock, system info, sync
-  // marker, stats) and then since this is a trace with a trigger config we have
-  // an additional ReceivedTriggers packet.
-  base::TestTaskRunner task_runner;
-
-  // Enable tracing and detach as soon as it gets started.
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
-  auto* fake_producer = helper.ConnectFakeProducer();
-  EXPECT_TRUE(fake_producer);
-
+  // We have to construct all the processes we want to fork before we start the
+  // service with |StartServiceIfRequired()|. this is because it is unsafe
+  // (could deadlock) to fork after we've spawned some threads which might
+  // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
-
-  std::string trace_str;
-  EXPECT_FALSE(base::ReadFile(path, &trace_str));
-
   std::string triggers = R"(
     activate_triggers: "trigger_name_2"
     activate_triggers: "trigger_name"
     activate_triggers: "trigger_name_3"
   )";
+  auto perfetto_proc = ExecPerfetto(
+      {
+          "-o",
+          path,
+          "-c",
+          "-",
+          "--txt",
+      },
+      triggers);
 
-  EXPECT_EQ(0, ExecPerfetto(
-                   {
-                       "-o", path, "-c", "-", "--txt",
-                   },
-                   triggers))
-      << "stderr: " << stderr_;
+  // Start the service and connect a simple fake producer.
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  auto* fake_producer = ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::string trace_str;
+  EXPECT_FALSE(base::ReadFile(path, &trace_str));
+
+  EXPECT_EQ(0, perfetto_proc.Run(&stderr_)) << "stderr: " << stderr_;
 
   EXPECT_FALSE(base::ReadFile(path, &trace_str));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(Query)) {
-  EXPECT_EQ(0, ExecPerfetto({"--query"})) << stderr_;
-  EXPECT_EQ(0, ExecPerfetto({"--query-raw"})) << stderr_;
+  auto query = ExecPerfetto({"--query"});
+  auto query_raw = ExecPerfetto({"--query-raw"});
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(0, query.Run(&stderr_)) << stderr_;
+  EXPECT_EQ(0, query_raw.Run(&stderr_)) << stderr_;
 }
 
 }  // namespace perfetto
