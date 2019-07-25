@@ -86,6 +86,8 @@ struct TestDataSourceHandle {
   WaitableTestEvent on_stop;
   MockDataSource* instance;
   perfetto::DataSourceConfig config;
+  bool handle_stop_asynchronously = false;
+  std::function<void()> async_stop_closure;
 };
 
 class MockDataSource : public perfetto::DataSource<MockDataSource> {
@@ -179,8 +181,10 @@ void MockDataSource::OnStart(const StartArgs&) {
   handle_->on_start.Notify();
 }
 
-void MockDataSource::OnStop(const StopArgs&) {
+void MockDataSource::OnStop(const StopArgs& args) {
   EXPECT_NE(handle_, nullptr);
+  if (handle_->handle_stop_asynchronously)
+    handle_->async_stop_closure = args.HandleStopAsynchronously();
   handle_->on_stop.Notify();
 }
 
@@ -295,6 +299,70 @@ TEST_F(PerfettoApiTest, BlockingStartAndStopOnEmptySession) {
   EXPECT_TRUE(tracing_session->on_stop.notified());
 }
 
+TEST_F(PerfettoApiTest, WriteEventsAfterDeferredStop) {
+  auto* data_source = &data_sources_["my_data_source"];
+  data_source->handle_stop_asynchronously = true;
+
+  // Setup the trace config and start the tracing session.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // Stop and wait for the producer to have seen the stop event.
+  WaitableTestEvent consumer_stop_signal;
+  tracing_session->get()->SetOnStopCallback(
+      [&consumer_stop_signal] { consumer_stop_signal.Notify(); });
+  tracing_session->get()->Stop();
+  data_source->on_stop.Wait();
+
+  // At this point tracing should be still allowed because of the
+  // HandleStopAsynchronously() call.
+  bool lambda_called = false;
+
+  // This usleep is here just to prevent that we accidentally pass the test
+  // just by virtue of hitting some race. We should be able to trace up until
+  // 5 seconds after seeing the stop when using the deferred stop mechanism.
+  usleep(250 * 1000);
+
+  MockDataSource::Trace([&lambda_called](MockDataSource::TraceContext ctx) {
+    auto packet = ctx.NewTracePacket();
+    packet->set_for_testing()->set_str("event written after OnStop");
+    packet->Finalize();
+    ctx.Flush();
+    lambda_called = true;
+  });
+  ASSERT_TRUE(lambda_called);
+
+  // Now call the async stop closure. This acks the stop to the service and
+  // disallows further Trace() calls.
+  EXPECT_TRUE(data_source->async_stop_closure);
+  data_source->async_stop_closure();
+
+  // Wait that the stop is propagated to the consumer.
+  consumer_stop_signal.Wait();
+
+  MockDataSource::Trace([](MockDataSource::TraceContext) {
+    FAIL() << "Should not be called after the stop is acked";
+  });
+
+  // Check the contents of the trace.
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  ASSERT_GE(raw_trace.size(), 0u);
+  perfetto::protos::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  int test_packet_found = 0;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_for_testing())
+      continue;
+    EXPECT_EQ(packet.for_testing().str(), "event written after OnStop");
+    test_packet_found++;
+  }
+  EXPECT_EQ(test_packet_found, 1);
+}
 }  // namespace
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);

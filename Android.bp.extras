@@ -72,7 +72,7 @@ java_library_host {
 cc_binary {
   name: "libperfetto_client_example",
   srcs: [
-    "test/android_client_api_example.cc",
+    "test/client_api_example.cc",
   ],
   static_libs: [
     "libperfetto_client_experimental",
