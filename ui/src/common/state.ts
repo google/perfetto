@@ -99,6 +99,11 @@ export interface SliceSelection {
   id: number;
 }
 
+export interface ChromeSliceSelection {
+  kind: 'CHROME_SLICE';
+  id: number;
+}
+
 export interface TimeSpanSelection {
   kind: 'TIMESPAN';
   startTs: number;
@@ -113,8 +118,8 @@ export interface ThreadStateSelection {
   state: string;
 }
 
-type Selection =
-    NoteSelection|SliceSelection|TimeSpanSelection|ThreadStateSelection;
+type Selection = NoteSelection|SliceSelection|ChromeSliceSelection|
+    TimeSpanSelection|ThreadStateSelection;
 
 export interface LogsPagination {
   offset: number;

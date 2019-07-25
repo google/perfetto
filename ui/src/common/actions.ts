@@ -293,7 +293,9 @@ export const StateActions = {
     }
   },
 
-  addNote(state: StateDraft, args: {timestamp: number, color: string, isMovie: boolean}): void {
+  addNote(
+      state: StateDraft,
+      args: {timestamp: number, color: string, isMovie: boolean}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
       id,
@@ -345,6 +347,10 @@ export const StateActions = {
       utid: args.utid,
       id: args.id,
     };
+  },
+
+  selectChromeSlice(state: StateDraft, args: {slice_id: number}): void {
+    state.currentSelection = {kind: 'CHROME_SLICE', id: args.slice_id};
   },
 
   selectTimeSpan(

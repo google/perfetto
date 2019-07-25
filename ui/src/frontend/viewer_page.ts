@@ -19,6 +19,7 @@ import {LogExists, LogExistsKey} from '../common/logs';
 import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
+import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {copyToClipboard} from './clipboard';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
@@ -295,6 +296,9 @@ class TraceViewer implements m.ClassComponent {
             key: 'slice',
             utid: curSelection.utid,
           }));
+          break;
+        case 'CHROME_SLICE':
+          detailsPanels.push(m(ChromeSliceDetailsPanel));
           break;
         case 'THREAD_STATE':
           detailsPanels.push(m(ThreadStatePanel, {
