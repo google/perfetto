@@ -306,11 +306,21 @@ export const StateActions = {
       text: '',
       isMovie: args.isMovie
     };
+    if (args.isMovie) {
+      state.videoNoteIds.push(id);
+    }
     this.selectNote(state, {id});
   },
 
   toggleVideo(state: StateDraft): void {
     state.videoEnabled = !state.videoEnabled;
+    if (!state.videoEnabled) {
+      state.video = null;
+      state.flagPauseEnabled = false;
+      state.videoNoteIds.forEach(id => {
+        this.removeNote(state, {id: id});
+      });
+    }
   },
 
   toggleFlagPause(state: StateDraft): void {
@@ -335,6 +345,11 @@ export const StateActions = {
   },
 
   removeNote(state: StateDraft, args: {id: string}): void {
+    if (state.notes[args.id].isMovie) {
+      state.videoNoteIds = state.videoNoteIds.filter(function(id) {
+        return id != args.id;
+      });
+    }
     delete state.notes[args.id];
     if (state.currentSelection === null) return;
     if (state.currentSelection.kind === 'NOTE' &&
