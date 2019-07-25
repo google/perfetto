@@ -53,6 +53,17 @@ source_set("end_to_end_integrationtests") {
   }
 }
 
+executable("client_api_example") {
+  sources = [
+    "client_api_example.cc",
+  ]
+  deps = [
+    "..:libperfetto_client_experimental",
+    "../gn:default_deps",
+    "../protos/perfetto/trace:zero",
+  ]
+}
+
 perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
   sources = [
     "end_to_end_shared_memory_fuzzer.cc",

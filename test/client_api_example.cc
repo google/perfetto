@@ -16,12 +16,15 @@
 
 #include "perfetto/tracing.h"
 
+#include <thread>
+
 #include "perfetto/trace/test_event.pbzero.h"
-#include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
 // header public -> non-public dependency while building this file.
+
+namespace {
 
 class MyDataSource : public perfetto::DataSource<MyDataSource> {
  public:
@@ -33,8 +36,31 @@ class MyDataSource : public perfetto::DataSource<MyDataSource> {
 
   void OnStart(const StartArgs&) override { PERFETTO_ILOG("OnStart called"); }
 
-  void OnStop(const StopArgs&) override { PERFETTO_ILOG("OnStop called"); }
+  void OnStop(const StopArgs& args) override {
+    PERFETTO_ILOG("OnStop called");
+
+    // Demonstrates the ability to defer stop and handle it asynchronously,
+    // writing data at the very end of the trace.
+    auto stop_closure = args.HandleStopAsynchronously();
+    std::thread another_thread([stop_closure] {
+      sleep(2);
+      MyDataSource::Trace([](MyDataSource::TraceContext ctx) {
+        PERFETTO_LOG("Tracing lambda called while stopping");
+        auto packet = ctx.NewTracePacket();
+        packet->set_for_testing()->set_str("event recorded while stopping");
+        packet->Finalize();  //  Required because of the Flush below.
+
+        // This explicit Flush() is required because the service doesn't issue
+        // any other flush requests after the Stop() signal.
+        ctx.Flush();
+      });
+      stop_closure();
+    });
+    another_thread.detach();
+  }
 };
+
+}  // namespace
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MyDataSource);
 
