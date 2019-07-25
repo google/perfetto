@@ -741,13 +741,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
     thread_desc->set_reference_thread_time_us(2000);
+    thread_desc->set_reference_thread_instruction_count(3000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->set_timestamp_delta_us(10);              // absolute: 1010.
+    event->set_thread_time_delta_us(5);             // absolute: 2005.
+    event->set_thread_instruction_count_delta(20);  // absolute: 3020.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -767,6 +769,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto* event = packet->set_track_event();
     event->set_timestamp_absolute_us(1040);
     event->set_thread_time_absolute_us(2030);
+    event->set_thread_instruction_count_absolute(3100);
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -788,8 +791,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1020.
-    event->set_thread_time_delta_us(5);  // absolute: 2010.
+    event->set_timestamp_delta_us(10);              // absolute: 1020.
+    event->set_thread_time_delta_us(5);             // absolute: 2010.
+    event->set_thread_instruction_count_delta(20);  // absolute: 3040.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -801,13 +805,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto* event = packet->set_track_event();
     event->set_timestamp_absolute_us(1005);
     event->set_thread_time_absolute_us(2003);
+    event->set_thread_instruction_count_absolute(3010);
     event->add_category_iids(2);
     event->add_category_iids(3);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(2);
     legacy_event->set_phase('X');
-    legacy_event->set_duration_us(23);         // absolute end: 1028.
-    legacy_event->set_thread_duration_us(12);  // absolute end: 2015.
+    legacy_event->set_duration_us(23);               // absolute end: 1028.
+    legacy_event->set_thread_duration_us(12);        // absolute end: 2015.
+    legacy_event->set_thread_instruction_delta(50);  // absolute end: 3060.
 
     auto* interned_data = packet->set_interned_data();
     auto cat2 = interned_data->add_event_categories();
@@ -877,12 +883,18 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   EXPECT_EQ(storage_->thread_slices().slice_ids()[0], 0u);
   EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[0], 2003000);
   EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[0], 12000);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_counts()[0], 3010);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_deltas()[0], 50);
   EXPECT_EQ(storage_->thread_slices().slice_ids()[1], 1u);
   EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[1], 2005000);
   EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[1], 5000);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_counts()[1], 3020);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_deltas()[1], 20);
   EXPECT_EQ(storage_->thread_slices().slice_ids()[2], 2u);
   EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[2], 2030000);
   EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[2], 0);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_counts()[2], 3100);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_deltas()[2], 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
@@ -898,13 +910,15 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
     thread_desc->set_reference_thread_time_us(2000);
+    thread_desc->set_reference_thread_instruction_count(3000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->set_timestamp_delta_us(10);              // absolute: 1010.
+    event->set_thread_time_delta_us(5);             // absolute: 2005.
+    event->set_thread_instruction_count_delta(20);  // absolute: 3020.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -924,8 +938,9 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1020.
-    event->set_thread_time_delta_us(5);  // absolute: 2010.
+    event->set_timestamp_delta_us(10);              // absolute: 1020.
+    event->set_thread_time_delta_us(5);             // absolute: 2010.
+    event->set_thread_instruction_count_delta(20);  // absolute: 3040.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1011,6 +1026,10 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);
   EXPECT_EQ(storage_->virtual_track_slices().thread_timestamp_ns()[0], 2005000);
   EXPECT_EQ(storage_->virtual_track_slices().thread_duration_ns()[0], 5000);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_counts()[0],
+            3020);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
+            20);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
