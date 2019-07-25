@@ -20,23 +20,26 @@ import {warmupWasmEngine} from '../common/wasm_engine_proxy';
 import {AppController} from './app_controller';
 import {globals} from './globals';
 
-function main(port: MessagePort) {
+function main() {
   warmupWasmEngine();
-  let receivedFrontendPort = false;
-  port.onmessage = ({data}) => {
-    if (receivedFrontendPort) {
-      globals.dispatch(data);
+  let initialized = false;
+  self.onmessage = ({data}) => {
+    if (initialized) {
+      console.error('Already initialized');
       return;
     }
+    initialized = true;
+    const frontendPort = data.frontendPort as MessagePort;
+    const controllerPort = data.controllerPort as MessagePort;
 
-    const frontendPort = data as MessagePort;
     const frontend = new Remote(frontendPort);
+    controllerPort.onmessage = ({data}) => globals.dispatch(data);
+
     globals.initialize(new AppController(), frontend);
-    receivedFrontendPort = true;
   };
 }
 
-main(self as {} as MessagePort);
+main();
 
 // For devtools-based debugging.
 (self as {} as {globals: {}}).globals = globals;
