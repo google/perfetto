@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/graphics_frame_event_parser.h"
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
@@ -143,6 +144,8 @@ class ProtoTraceParser : public TraceParser {
 
  private:
   TraceProcessorContext* context_;
+  std::unique_ptr<GraphicsFrameEventParser> graphics_frame_event_parser_;
+
   const StringId utid_name_id_;
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;

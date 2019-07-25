@@ -213,6 +213,7 @@ constexpr int64_t kPendingThreadInstructionDelta = -1;
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
+      graphics_frame_event_parser_(new GraphicsFrameEventParser(context_)),
       utid_name_id_(context->storage->InternString("utid")),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
@@ -460,6 +461,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_packages_list()) {
     ParseAndroidPackagesList(packet.packages_list());
+  }
+
+  if (packet.has_graphics_frame_event()) {
+    graphics_frame_event_parser_->ParseEvent(ts, packet.graphics_frame_event());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
