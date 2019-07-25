@@ -100,11 +100,13 @@ class ProtoTraceParser : public TraceParser {
   void ParseSystemInfo(ConstBytes);
   void ParseTrackEvent(int64_t ts,
                        int64_t tts,
+                       int64_t ticount,
                        ProtoIncrementalState::PacketSequenceState*,
                        ConstBytes);
   void ParseLegacyEventAsRawEvent(
       int64_t ts,
       int64_t tts,
+      int64_t ticount,
       UniqueTid utid,
       StringId category_id,
       StringId name_id,
@@ -172,6 +174,8 @@ class ProtoTraceParser : public TraceParser {
   const StringId legacy_event_duration_ns_key_id_;
   const StringId legacy_event_thread_timestamp_ns_key_id_;
   const StringId legacy_event_thread_duration_ns_key_id_;
+  const StringId legacy_event_thread_instruction_count_key_id_;
+  const StringId legacy_event_thread_instruction_delta_key_id_;
   const StringId legacy_event_use_async_tts_key_id_;
   const StringId legacy_event_global_id_key_id_;
   const StringId legacy_event_local_id_key_id_;
