@@ -93,7 +93,7 @@ body {
       "sidebar alerts"
       "sidebar page";
     grid-template-rows: var(--topbar-height) auto 1fr;
-    grid-template-columns: var(--sidebar-width) auto;
+    grid-template-columns: auto 1fr;
     color: #121212;
 }
 
