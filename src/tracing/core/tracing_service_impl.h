@@ -469,6 +469,9 @@ class TracingServiceImpl : public TracingService {
     // The number of received triggers we've emitted into the trace output.
     size_t num_triggers_emitted_into_trace = 0;
 
+    // Packets that failed validation of the TrustedPacket.
+    uint64_t invalid_packets = 0;
+
     // Initial clock snapshot, captured at trace start time (when state goes
     // to TracingSession::STARTED). Emitted into the trace when the consumer
     // first begins reading the trace.
