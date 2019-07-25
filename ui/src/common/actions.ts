@@ -318,7 +318,7 @@ export const StateActions = {
       state.video = null;
       state.flagPauseEnabled = false;
       state.videoNoteIds.forEach(id => {
-        this.removeNote(state, {id: id});
+        this.removeNote(state, {id});
       });
     }
   },
@@ -346,8 +346,8 @@ export const StateActions = {
 
   removeNote(state: StateDraft, args: {id: string}): void {
     if (state.notes[args.id].isMovie) {
-      state.videoNoteIds = state.videoNoteIds.filter(function(id) {
-        return id != args.id;
+      state.videoNoteIds = state.videoNoteIds.filter(id => {
+        return id !== args.id;
       });
     }
     delete state.notes[args.id];

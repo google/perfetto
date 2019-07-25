@@ -161,7 +161,7 @@ export interface State {
   video: string | null;
   videoEnabled: boolean;
   flagPauseEnabled: boolean;
-  videoNoteIds: Array<string>;
+  videoNoteIds: string[];
 }
 
 export const defaultTraceTime = {
