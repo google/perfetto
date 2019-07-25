@@ -318,7 +318,9 @@ def comment_and_vote_cl(handler):
     msg += 'PASS:\n'
     msg += ''.join([' %s/%s\n' % (log_url, job_id) for job_id in passed_jobs])
   if ui_links:
-    msg += 'ARTIFACTS:\n' + ''.join(' %s\n' % link for link in ui_links)
+    msg += 'Artifacts:\n' + ''.join(' %s\n' % link for link in ui_links)
+  msg += 'CI page for this CL:\n'
+  msg += ' https://ci.perfetto.dev/#!/cls/%s\n' % cl_and_ps.split('-')[0]
   body = {'labels': {'Code-Review': cl_vote}, 'message': msg}
   logging.info('Posting results for CL %s', cl_and_ps)
   url = 'https://%s/a/changes/%s/revisions/%s/review' % (
