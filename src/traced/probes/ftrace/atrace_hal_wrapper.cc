@@ -15,9 +15,8 @@
  */
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 
-#include <dlfcn.h>
-
 #include "src/android_internal/atrace_hal.h"
+#include "src/android_internal/lazy_library_loader.h"
 
 namespace perfetto {
 
@@ -26,22 +25,7 @@ constexpr size_t kMaxNumCategories = 64;
 }
 
 struct AtraceHalWrapper::DynamicLibLoader {
-  using ScopedDlHandle = base::ScopedResource<void*, dlclose, nullptr>;
-
-  DynamicLibLoader() {
-    static const char kLibName[] = "libperfetto_android_internal.so";
-    handle_.reset(dlopen(kLibName, RTLD_NOW));
-    if (!handle_) {
-      PERFETTO_PLOG("dlopen(%s) failed", kLibName);
-      return;
-    }
-    void* fn = dlsym(*handle_, "GetCategories");
-    if (!fn) {
-      PERFETTO_PLOG("dlsym(GetCategories) failed");
-      return;
-    }
-    get_categories_ = reinterpret_cast<decltype(get_categories_)>(fn);
-  }
+  PERFETTO_LAZY_LOAD(android_internal::GetCategories, get_categories_);
 
   std::vector<android_internal::TracingVendorCategory> GetCategories() {
     if (!get_categories_)
@@ -54,10 +38,6 @@ struct AtraceHalWrapper::DynamicLibLoader {
     categories.resize(num_cat);
     return categories;
   }
-
- private:
-  decltype(&android_internal::GetCategories) get_categories_ = nullptr;
-  ScopedDlHandle handle_;
 };
 
 AtraceHalWrapper::AtraceHalWrapper() {
