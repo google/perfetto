@@ -109,7 +109,8 @@ class TracingMuxerImpl : public TracingMuxer {
                        DataSourceInstanceID,
                        const DataSourceConfig&);
   void StartDataSource(TracingBackendId, DataSourceInstanceID);
-  void StopDataSource(TracingBackendId, DataSourceInstanceID);
+  void StopDataSource_AsyncBegin(TracingBackendId, DataSourceInstanceID);
+  void StopDataSource_AsyncEnd(TracingBackendId, DataSourceInstanceID);
 
   // Consumer-side bookkeeping methods.
   void SetupTracingSession(TracingSessionGlobalID,
@@ -270,6 +271,18 @@ class TracingMuxerImpl : public TracingMuxer {
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
+
+  struct FindDataSourceRes {
+    FindDataSourceRes() = default;
+    FindDataSourceRes(DataSourceStaticState* a, DataSourceState* b, uint32_t c)
+        : static_state(a), internal_state(b), instance_idx(c) {}
+    explicit operator bool() const { return !!internal_state; }
+
+    DataSourceStaticState* static_state = nullptr;
+    DataSourceState* internal_state = nullptr;
+    uint32_t instance_idx = 0;
+  };
+  FindDataSourceRes FindDataSource(TracingBackendId, DataSourceInstanceID);
 
   std::unique_ptr<base::TaskRunner> task_runner_;
   std::vector<RegisteredDataSource> data_sources_;

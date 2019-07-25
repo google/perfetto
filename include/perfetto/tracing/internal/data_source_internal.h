@@ -44,10 +44,20 @@ class TracingTLS;
 // There is one of these object per DataSource instance (up to
 // kMaxDataSourceInstances).
 struct DataSourceState {
-  // If false the data source is initialized but not started yet (or stopped).
-  // This is set right before calling OnStart() and cleared right before calling
-  // OnStop()
-  bool started = false;
+  // This boolean flag determines whether the DataSource::Trace() method should
+  // do something or be a no-op. This flag doesn't give the full guarantee
+  // that tracing data will be visible in the trace, it just makes it so that
+  // the client attemps writing trace data and interacting with the service.
+  // For instance, when a tracing session ends the service will reject data
+  // commits that arrive too late even if the producer hasn't received the stop
+  // IPC message.
+  // This flag is set right before calling OnStart() and cleared right before
+  // calling OnStop(), unless using HandleStopAsynchronously() (see comments
+  // in data_source.h).
+  // Keep this flag as the first field. This allows the compiler to directly
+  // dereference the DataSourceState* pointer in the trace fast-path without
+  // doing extra pointr arithmetic.
+  bool trace_lambda_enabled = false;
 
   // The central buffer id that all TraceWriter(s) created by this data source
   // must target.
