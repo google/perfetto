@@ -94,6 +94,47 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_FALSE(event.isMember("args"));
+}
+TEST(ExportJsonTest, StorageWithOneUnfinishedSlice) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kDuration = -1;
+  const int64_t kThreadTimestamp = 20000000;
+  const int64_t kThreadDuration = -1;
+  const int64_t kThreadID = 100;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+
+  TraceStorage storage;
+  UniqueTid utid = storage.AddEmptyThread(kThreadID);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  storage.mutable_nestable_slices()->AddSlice(
+      kTimestamp, kDuration, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
+  storage.mutable_thread_slices()->AddThreadSlice(0, kThreadTimestamp,
+                                                  kThreadDuration, 0, 0);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), "B");
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_FALSE(event.isMember("dur"));
+  EXPECT_EQ(event["tts"].asInt64(), kThreadTimestamp / 1000);
+  EXPECT_FALSE(event.isMember("tdur"));
+  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_FALSE(event.isMember("args"));
 }
 
 TEST(ExportJsonTest, StorageWithThreadName) {
@@ -616,6 +657,49 @@ TEST(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   EXPECT_EQ(end_event["id2"]["local"].asString(), "0x0");
   EXPECT_EQ(end_event["cat"].asString(), kCategory);
   EXPECT_EQ(end_event["name"].asString(), kName);
+}
+
+TEST(ExportJsonTest, UnfinishedAsyncEvent) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kDuration = -1;
+  const int64_t kThreadTimestamp = 10000001;
+  const int64_t kThreadDuration = -1;
+  const int64_t kProcessID = 100;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+
+  TraceStorage storage;
+  UniquePid upid = storage.AddEmptyProcess(kProcessID);
+  StringId cat_id = storage.InternString(base::StringView(kCategory));
+  StringId name_id = storage.InternString(base::StringView(kName));
+  uint32_t track_id = storage.mutable_virtual_tracks()->AddVirtualTrack(
+      0, 0, VirtualTrackScope::kProcess, upid);
+  auto slice_id = storage.mutable_nestable_slices()->AddSlice(
+      kTimestamp, kDuration, track_id, RefType::kRefTrack, cat_id, name_id, 0,
+      0, 0);
+  storage.mutable_virtual_track_slices()->AddVirtualTrackSlice(
+      slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value begin_event = result["traceEvents"][0];
+  EXPECT_EQ(begin_event["ph"].asString(), "b");
+  EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
+  EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(begin_event["cat"].asString(), kCategory);
+  EXPECT_EQ(begin_event["name"].asString(), kName);
 }
 
 TEST(ExportJsonTest, AsyncInstantEvent) {
