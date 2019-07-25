@@ -383,7 +383,8 @@ void ProtoTraceTokenizer::ParseThreadDescriptorPacket(
   state->SetThreadDescriptor(
       thread_descriptor_decoder.pid(), thread_descriptor_decoder.tid(),
       thread_descriptor_decoder.reference_timestamp_us() * 1000,
-      thread_descriptor_decoder.reference_thread_time_us() * 1000);
+      thread_descriptor_decoder.reference_thread_time_us() * 1000,
+      thread_descriptor_decoder.reference_thread_instruction_count());
 
   base::StringView name;
   if (thread_descriptor_decoder.has_thread_name()) {
@@ -455,6 +456,10 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
       protos::pbzero::TrackEvent::kThreadTimeDeltaUsFieldNumber;
   constexpr auto kThreadTimeAbsoluteUsFieldNumber =
       protos::pbzero::TrackEvent::kThreadTimeAbsoluteUsFieldNumber;
+  constexpr auto kThreadInstructionCountDeltaFieldNumber =
+      protos::pbzero::TrackEvent::kThreadInstructionCountDeltaFieldNumber;
+  constexpr auto kThreadInstructionCountAbsoluteFieldNumber =
+      protos::pbzero::TrackEvent::kThreadInstructionCountAbsoluteFieldNumber;
 
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("TrackEvent packet without trusted_packet_sequence_id");
@@ -478,6 +483,7 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
 
   int64_t timestamp;
   int64_t thread_timestamp = 0;
+  int64_t thread_instructions = 0;
 
   if (auto ts_delta_field =
           event_decoder.FindField(kTimestampDeltaUsFieldNumber)) {
@@ -503,7 +509,19 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
     thread_timestamp = tt_absolute_field.as_int64() * 1000;
   }
 
-  context_->sorter->PushTrackEventPacket(timestamp, thread_timestamp, state,
+  if (auto ti_delta_field =
+          event_decoder.FindField(kThreadInstructionCountDeltaFieldNumber)) {
+    thread_instructions =
+        state->IncrementAndGetTrackEventThreadInstructionCount(
+            ti_delta_field.as_int64());
+  } else if (auto ti_absolute_field = event_decoder.FindField(
+                 kThreadInstructionCountAbsoluteFieldNumber)) {
+    // One-off absolute timestamps don't affect delta computation.
+    thread_instructions = ti_absolute_field.as_int64();
+  }
+
+  context_->sorter->PushTrackEventPacket(timestamp, thread_timestamp,
+                                         thread_instructions, state,
                                          std::move(packet));
 }
 

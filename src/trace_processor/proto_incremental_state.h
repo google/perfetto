@@ -119,6 +119,12 @@ class ProtoIncrementalState {
       return track_event_thread_timestamp_ns_;
     }
 
+    int64_t IncrementAndGetTrackEventThreadInstructionCount(int64_t delta) {
+      PERFETTO_DCHECK(IsTrackEventStateValid());
+      track_event_thread_instruction_count_ += delta;
+      return track_event_thread_instruction_count_;
+    }
+
     void OnPacketLoss() {
       packet_loss_ = true;
       thread_descriptor_seen_ = false;
@@ -129,12 +135,14 @@ class ProtoIncrementalState {
     void SetThreadDescriptor(int32_t pid,
                              int32_t tid,
                              int64_t timestamp_ns,
-                             int64_t thread_timestamp_ns) {
+                             int64_t thread_timestamp_ns,
+                             int64_t thread_instruction_count) {
       thread_descriptor_seen_ = true;
       pid_ = pid;
       tid_ = tid;
       track_event_timestamp_ns_ = timestamp_ns;
       track_event_thread_timestamp_ns_ = thread_timestamp_ns;
+      track_event_thread_instruction_count_ = thread_instruction_count;
     }
 
     bool IsIncrementalStateValid() const { return !packet_loss_; }
@@ -165,10 +173,11 @@ class ProtoIncrementalState {
     int32_t pid_ = 0;
     int32_t tid_ = 0;
 
-    // Current wall/thread timestamps used as reference for the next TrackEvent
-    // delta timestamp.
+    // Current wall/thread timestamps/counters used as reference for the next
+    // TrackEvent delta timestamp.
     int64_t track_event_timestamp_ns_ = 0;
     int64_t track_event_thread_timestamp_ns_ = 0;
+    int64_t track_event_thread_instruction_count_ = 0;
 
     InternedDataMap<protos::pbzero::EventCategory> event_categories_;
     InternedDataMap<protos::pbzero::LegacyEventName> legacy_event_names_;
