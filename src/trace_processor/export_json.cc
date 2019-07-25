@@ -269,6 +269,27 @@ ResultCode ExportSlices(const TraceStorage* storage,
       uint32_t track_id = static_cast<uint32_t>(slices.refs()[i]);
       VirtualTrackScope scope = storage->virtual_tracks().scopes()[track_id];
       UniquePid upid = storage->virtual_tracks().upids()[track_id];
+
+      const auto& virtual_track_slices = storage->virtual_track_slices();
+      int64_t thread_end_ts_us = 0;
+      base::Optional<uint32_t> vtrack_slice_row =
+          virtual_track_slices.FindRowForSliceId(i);
+      if (vtrack_slice_row) {
+        int64_t thread_ts_ns =
+            virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
+        if (thread_ts_ns > 0) {
+          int64_t thread_ts_us = thread_ts_ns / 1000;
+          event["use_async_tts"] = Json::Int(1);
+          event["tts"] = Json::Int64(thread_ts_us);
+          int64_t thread_duration_ns =
+              virtual_track_slices.thread_duration_ns()[*vtrack_slice_row];
+          // If the slice didn't finish, the duration may be negative. Don't
+          // write the thread timestamp for the end event in this case.
+          if (thread_duration_ns >= 0)
+            thread_end_ts_us = thread_ts_us + (thread_duration_ns / 1000);
+        }
+      }
+
       if (scope == VirtualTrackScope::kGlobal) {
         event["id2"]["global"] = PrintUint64(track_id);
       } else {
@@ -284,6 +305,12 @@ ResultCode ExportSlices(const TraceStorage* storage,
         event["ph"] = "e";
         event["ts"] =
             Json::Int64((slices.start_ns()[i] + slices.durations()[i]) / 1000);
+        if (thread_end_ts_us) {
+          event["tts"] = Json::Int64(thread_end_ts_us);
+        } else {
+          event.removeMember("tts");
+          event.removeMember("use_async_tts");
+        }
         event.removeMember("args");
         writer->WriteCommonEvent(event);
       }
