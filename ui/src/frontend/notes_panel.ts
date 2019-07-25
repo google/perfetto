@@ -60,7 +60,7 @@ export class NotesPanel extends Panel {
       '.notes-panel',
       {
         onclick: (e: MouseEvent) => {
-          const isMovie = e.buttons === 4;
+          const isMovie = globals.state.flagPauseEnabled;
           this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY, isMovie);
           e.stopPropagation();
         },
@@ -138,7 +138,7 @@ export class NotesPanel extends Panel {
 
   private drawFlag(
       ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-      fill?: boolean, isMovie = false) {
+      fill?: boolean, isMovie = globals.state.flagPauseEnabled) {
     const prevFont = ctx.font;
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
