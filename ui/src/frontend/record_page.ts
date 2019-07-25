@@ -513,9 +513,10 @@ function AdvancedSettings(cssClass: string) {
           set: (cfg, val) => cfg.ftraceExtraEvents = val,
           get: (cfg) => cfg.ftraceExtraEvents
         } as TextareaAttrs)),
+      globals.state.videoEnabled ?
       m(Probe,
         {
-          title: 'Screen Recording',
+          title: 'Screen recording',
           img: '',
           descr: `Records the screen along with running a trace. Max
                   time of recording is 3 minutes (180 seconds).`,
@@ -530,7 +531,7 @@ function AdvancedSettings(cssClass: string) {
           unit: 'm:s',
           set: (cfg, val) => cfg.durationMs = val,
           get: (cfg) => cfg.durationMs,
-        } as SliderAttrs),));
+        } as SliderAttrs),) : null);
 }
 
 function Instructions(cssClass: string) {
@@ -548,12 +549,10 @@ function Instructions(cssClass: string) {
 
   const pbtx = data ? data.pbtxt : '';
   let cmd = '';
-
   if (cfg.screenRecord) {
     cmd += `adb shell screenrecord --time-limit ${time}`;
     cmd += ' "/sdcard/tracescr.mp4" &\\\n';
   }
-
   cmd += 'adb shell perfetto \\\n';
   cmd += '  -c - --txt \\\n';
   cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
