@@ -15,7 +15,8 @@
     grid-area: sidebar;
     z-index: 4;
     background-color: #262f3c;
-    overflow-y: auto;
+    overflow: visible;
+    width: var(--sidebar-width);
     >* {
         border-bottom: 1px solid #404854;
     }
@@ -30,6 +31,7 @@
         font-weight: 400;
         font-size: 24px;
         letter-spacing: 0.5px;
+        overflow: visible;
         &:before {
             width: 32px;
             height: 32px;
@@ -40,6 +42,19 @@
             background-size: contain;
             background-repeat: no-repeat;
             margin-right: 15px;
+        }
+        >.sidebar-button {
+          display: inline-block;
+          position: relative;
+          height: inherit;
+          background-color: #262f3c;
+          overflow: visible;
+          padding: 0 10px;
+          border-radius: 0 5px 5px 0;
+          border-bottom: inherit;
+          >button {
+            vertical-align: middle;
+          }
         }
     }
     >section {
@@ -123,4 +138,8 @@
             }
         }
     }
+}
+
+.hide-sidebar {
+  margin-left: calc(var(--sidebar-width) * -1);
 }
