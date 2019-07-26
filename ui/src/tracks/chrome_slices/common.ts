@@ -25,6 +25,7 @@ export interface Config {
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   strings: string[];
+  slice_ids: Float64Array;
   starts: Float64Array;
   ends: Float64Array;
   depths: Uint16Array;
