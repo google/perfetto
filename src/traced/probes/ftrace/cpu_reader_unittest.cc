@@ -304,6 +304,43 @@ TEST(ReadAndAdvanceTest, Underruns) {
   EXPECT_EQ(actual, expected);
 }
 
+TEST(ParsePageHeaderTest, WithOverrun) {
+  std::string text = R"(
+    00000000: 3ef3 db77 67a2 0100 f00f 0080 ffff ffff
+    )";
+  auto page = PageFromXxd(text);
+
+  // parse as if we're on a 32 bit kernel (4 byte "commit" field)
+  {
+    const uint8_t* ptr = page.get();
+    auto ret = CpuReader::ParsePageHeader(&ptr, 4u);
+    ASSERT_TRUE(ret.has_value());
+    CpuReader::PageHeader parsed = ret.value();
+
+    ASSERT_EQ(parsed.timestamp, 0x0001A26777DBF33Eull);  // first 8 bytes
+    ASSERT_EQ(parsed.size, 0x0ff0);                      // 4080
+    ASSERT_TRUE(parsed.lost_events);
+
+    // pointer advanced past the header (8+4 bytes)
+    ASSERT_EQ(ptr, page.get() + 12);
+  }
+
+  // parse as if we're on a 64 bit kernel (8 byte "commit" field)
+  {
+    const uint8_t* ptr = page.get();
+    auto ret = CpuReader::ParsePageHeader(&ptr, 8u);
+    ASSERT_TRUE(ret.has_value());
+    CpuReader::PageHeader parsed = ret.value();
+
+    ASSERT_EQ(parsed.timestamp, 0x0001A26777DBF33Eull);  // first 8 bytes
+    ASSERT_EQ(parsed.size, 0x0ff0);                      // 4080
+    ASSERT_TRUE(parsed.lost_events);
+
+    // pointer advanced past the header (8+8 bytes)
+    ASSERT_EQ(ptr, page.get() + 16);
+  }
+}
+
 // clang-format off
 // # tracer: nop
 // #
@@ -347,7 +384,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 0ul);
+  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 1);
   const protos::FtraceEvent& event = bundle->event().Get(0);
   EXPECT_EQ(event.pid(), 28712ul);
@@ -498,7 +535,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 0ul);
+  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 1);
   // Although one field is malformed we still see data for the rest
   // since we write the fields as we parse them for speed.
@@ -523,7 +560,7 @@ TEST(CpuReaderTest, FilterByEvent) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 0ul);
+  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 0);
 }
 
@@ -578,7 +615,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 0ul);
+  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 3);
 
   {
@@ -674,7 +711,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 0ul);
+  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 6);
 
   {
@@ -1371,7 +1408,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 0ul);
+  EXPECT_FALSE(metadata.lost_events);
   EXPECT_EQ(bundle->event().size(), 59);
 }
 
@@ -1802,7 +1839,7 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_EQ(metadata.overwrite_count, 192ul);
+  EXPECT_TRUE(metadata.lost_events);
 }
 
 }  // namespace perfetto

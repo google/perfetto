@@ -21,12 +21,10 @@ import "perfetto/trace/ftrace/ftrace_event.proto";
 
 package perfetto.protos;
 
+// One parsed page from per-cpu ftrace buffer.
 message FtraceEventBundle {
   optional uint32 cpu = 1;
   repeated FtraceEvent event = 2;
-  // Total of all overwrite fields from the headers of all kernel
-  // ftrace pages we parsed into this FtraceEventBundle. Zero if
-  // no overwriting occurred, a number larger than zero if some overwriting
-  // occurred.
-  optional uint32 overwrite_count = 3;
+  // True if this cpu's ftrace kernel buffer lost events since the last read.
+  optional bool lost_events = 3;
 }
