@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <fcntl.h>
+
 #include <chrono>
 #include <condition_variable>
 #include <functional>
@@ -32,7 +34,6 @@
 // Deliberately not pulling any non-public perfetto header to spot accidental
 // header public -> non-public dependency while building this file.
 
-// TODO(primiano): move these generated classes to /public/.
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 
@@ -131,6 +132,8 @@ class PerfettoApiTest : public ::testing::Test {
       was_initialized = true;
       RegisterDataSource<MockDataSource>("my_data_source");
     }
+    // Make sure our data source always has a valid handle.
+    data_sources_["my_data_source"];
   }
 
   void TearDown() override { instance = nullptr; }
@@ -145,13 +148,14 @@ class PerfettoApiTest : public ::testing::Test {
     return handle;
   }
 
-  TestTracingSessionHandle* NewTrace(const perfetto::TraceConfig& cfg) {
+  TestTracingSessionHandle* NewTrace(const perfetto::TraceConfig& cfg,
+                                     int fd = -1) {
     sessions_.emplace_back();
     TestTracingSessionHandle* handle = &sessions_.back();
     handle->session =
         perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend);
     handle->session->SetOnStopCallback([handle] { handle->on_stop.Notify(); });
-    handle->session->Setup(cfg);
+    handle->session->Setup(cfg, fd);
     return handle;
   }
 
@@ -363,6 +367,34 @@ TEST_F(PerfettoApiTest, WriteEventsAfterDeferredStop) {
   }
   EXPECT_EQ(test_packet_found, 1);
 }
+
+TEST_F(PerfettoApiTest, SetupWithFile) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";
+#else
+  char temp_file[] = "/tmp/perfetto-XXXXXXXX";
+#endif
+  int fd = mkstemp(temp_file);
+  ASSERT_TRUE(fd >= 0);
+
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  // Write a trace into |fd|.
+  auto* tracing_session = NewTrace(cfg, fd);
+  tracing_session->get()->StartBlocking();
+  tracing_session->get()->StopBlocking();
+  // Check that |fd| didn't get closed.
+  EXPECT_EQ(0, fcntl(fd, F_GETFD, 0));
+  // Check that the trace got written.
+  EXPECT_GT(lseek(fd, 0, SEEK_END), 0);
+  EXPECT_EQ(0, close(fd));
+  // Clean up.
+  EXPECT_EQ(0, unlink(temp_file));
+}
+
 }  // namespace
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
