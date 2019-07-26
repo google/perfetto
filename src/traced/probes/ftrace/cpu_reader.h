@@ -26,6 +26,7 @@
 #include <set>
 #include <thread>
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -52,6 +53,12 @@ class FtraceEventBundle;
 class CpuReader {
  public:
   using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
+
+  struct PageHeader {
+    uint64_t timestamp;
+    uint64_t size;
+    bool lost_events;
+  };
 
   CpuReader(const ProtoTranslationTable* table,
             size_t cpu,
@@ -141,6 +148,11 @@ class CpuReader {
         ((maj & 0xfffff000ULL) << 32) | ((maj & 0xfffULL) << 8) |
         ((min & 0xffffff00ULL) << 12) | ((min & 0xffULL)));
   }
+
+  // Returns a parsed representation of the given raw ftrace page's header.
+  static base::Optional<CpuReader::PageHeader> ParsePageHeader(
+      const uint8_t** ptr,
+      uint16_t page_header_size_len);
 
   // Parse a raw ftrace page beginning at ptr and write the events a protos
   // into the provided bundle respecting the given event filter.
