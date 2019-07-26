@@ -469,12 +469,12 @@ TEST(FtraceMetadataTest, Clear) {
   FtraceMetadata metadata;
   metadata.inode_and_device.push_back(std::make_pair(1, 1));
   metadata.pids.push_back(2);
-  metadata.overwrite_count = 3;
+  metadata.lost_events = true;
   metadata.last_seen_device_id = 100;
   metadata.Clear();
   EXPECT_THAT(metadata.inode_and_device, IsEmpty());
   EXPECT_THAT(metadata.pids, IsEmpty());
-  EXPECT_EQ(0u, metadata.overwrite_count);
+  EXPECT_FALSE(metadata.lost_events);
   EXPECT_EQ(BlockDeviceID(0), metadata.last_seen_device_id);
 }
 
