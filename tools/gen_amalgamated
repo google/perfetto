@@ -193,6 +193,7 @@ class AmalgamatedProject(object):
         self.source_deps = source_deps
         self.header = []
         self.source = []
+        self.source_defines = []
         # Note that we don't support multi-arg flags.
         self.cflags = set(default_cflags)
         self.ldflags = set()
@@ -410,6 +411,15 @@ class AmalgamatedProject(object):
 
         Call save() to persist the result.
         """
+        self.source_defines.append('// %s: predefined macros' % tool_name)
+        def add_define(name):
+            # Valued macros aren't supported for now.
+            assert '=' not in name
+            self.source_defines.append('#if !defined(%s)' % name)
+            self.source_defines.append('#define %s' % name)
+            self.source_defines.append('#endif')
+        for name in self.defines:
+            add_define(name)
 
         source_files = []
         for node in self._dependency_tree.iterate_depth_first():
@@ -438,7 +448,9 @@ class AmalgamatedProject(object):
             f.write('\n'.join([preamble] + self.header + ['\n']))
         with open(source_file, 'w') as f:
             include_stmt = '#include "%s"' % os.path.basename(header_file)
-            f.write('\n'.join([preamble, include_stmt] + self.source + ['\n']))
+            f.write('\n'.join(
+                [preamble] + self.source_defines + [include_stmt] +
+                self.source + ['\n']))
         build_cmd = self.get_build_command(output_prefix)
 
         return """Amalgamated project written to %s and %s.
@@ -447,13 +459,12 @@ Build settings:
  - cflags:    %s
  - ldflags:   %s
  - libs:      %s
- - defines:   %s
 
 Example build command:
 
 %s
 """ % (header_file, source_file, ' '.join(self.cflags), ' '.join(self.ldflags),
-       ' '.join(self.libs), ' '.join(self.defines), ' '.join(build_cmd))
+       ' '.join(self.libs), ' '.join(build_cmd))
 
     def get_build_command(self, output_prefix):
         """Returns an example command line for building the output source."""
@@ -463,8 +474,6 @@ Example build command:
             sorted(self.cflags) + sorted(self.ldflags)
         for lib in sorted(self.libs):
             build_cmd.append('-l%s' % lib)
-        for define in sorted(self.defines):
-            build_cmd.append('-D%s' % define)
         return build_cmd
 
 
