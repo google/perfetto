@@ -283,9 +283,10 @@ button.close {
             grid-area: title;
             margin: 0;
             font-size: 14px;
+            overflow: hidden;
             text-overflow: ellipsis;
             text-align: left;
-            direction: rtl;
+            white-space: nowrap;
             font-family: 'Google Sans';
             color: hsl(213, 22%, 30%);
         }
@@ -609,10 +610,11 @@ button.query-ctrl {
     h1 {
       grid-area: title;
       font-size: 14px;
+      overflow: hidden;
       text-overflow: ellipsis;
       font-family: 'Google Sans';
+      white-space: nowrap;
       text-align: left;
-      direction: rtl;
     }
     .fold-button {
       grid-area: fold-button;
