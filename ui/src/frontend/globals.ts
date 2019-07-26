@@ -30,6 +30,8 @@ export interface SliceDetails {
   wakeupTs?: number;
   wakerUtid?: number;
   wakerCpu?: number;
+  category?: string;
+  name?: string;
 }
 
 export interface QuantizedLoad {
