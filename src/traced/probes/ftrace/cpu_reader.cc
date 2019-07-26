@@ -51,12 +51,6 @@ constexpr uint32_t kTypePadding = 29;
 constexpr uint32_t kTypeTimeExtend = 30;
 constexpr uint32_t kTypeTimeStamp = 31;
 
-struct PageHeader {
-  uint64_t timestamp;
-  uint64_t size;
-  uint64_t overwrite;
-};
-
 struct EventHeader {
   uint32_t type_or_length : 5;
   uint32_t time_delta : 27;
@@ -112,40 +106,6 @@ bool SetBlocking(int fd, bool is_blocking) {
   int flags = fcntl(fd, F_GETFL, 0);
   flags = (is_blocking) ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
   return fcntl(fd, F_SETFL, flags) == 0;
-}
-
-// TODO(rsavitski): |overwrite| extraction seems wrong, the top part of the
-// second ("commit") field is a bit mask (see RB_MISSED_FLAGS in kernel
-// sources), not the direct count. The kernel conditionally appends the missed
-// events count to the end of the page (if there's space), which we might
-// also need to account for when parsing the page.
-base::Optional<PageHeader> ParsePageHeader(const uint8_t** ptr,
-                                           uint16_t page_header_size_len) {
-  const uint8_t* end_of_page = *ptr + base::kPageSize;
-  PageHeader page_header;
-  if (!CpuReader::ReadAndAdvance<uint64_t>(ptr, end_of_page,
-                                           &page_header.timestamp))
-    return base::nullopt;
-
-  uint32_t overwrite_and_size;
-
-  // On little endian, we can just read a uint32_t and reject the rest of the
-  // number later.
-  if (!CpuReader::ReadAndAdvance<uint32_t>(
-          ptr, end_of_page, base::AssumeLittleEndian(&overwrite_and_size)))
-    return base::nullopt;
-
-  page_header.size = (overwrite_and_size & 0x000000000000ffffull) >> 0;
-  page_header.overwrite = (overwrite_and_size & 0x00000000ff000000ull) >> 24;
-  PERFETTO_DCHECK(page_header.size <= base::kPageSize);
-
-  // Reject rest of the number, if applicable. On 32-bit, size_bytes - 4 will
-  // evaluate to 0 and this will be a no-op. On 64-bit, this will advance by 4
-  // bytes.
-  PERFETTO_DCHECK(page_header_size_len >= 4);
-  *ptr += page_header_size_len - 4;
-
-  return base::make_optional(page_header);
 }
 
 }  // namespace
@@ -287,19 +247,68 @@ size_t CpuReader::ReadAndProcessBatch(
 
       size_t evt_size = ParsePage(curr_page, filter, bundle, table_, metadata);
       PERFETTO_DCHECK(evt_size);
-      bundle->set_overwrite_count(metadata->overwrite_count);
+      bundle->set_lost_events(metadata->lost_events);
     }
   }
   return pages_read;
 }
 
-// The structure of a raw trace buffer page is as follows:
-// First a page header:
-//   8 bytes of timestamp
-//   8 bytes of page length TODO(hjd): other fields also defined here?
-// // TODO(hjd): Document rest of format.
-// Some information about the layout of the page header is available in user
-// space at: /sys/kernel/debug/tracing/events/header_event
+// A page header consists of:
+// * timestamp: 8 bytes
+// * commit: 8 bytes on 64 bit, 4 bytes on 32 bit kernels
+//
+// The kernel reports this at /sys/kernel/debug/tracing/events/header_page.
+//
+// |commit|'s bottom bits represent the length of the payload following this
+// header. The top bits have been repurposed as a bitset of flags pertaining to
+// data loss. We look only at the "there has been some data lost" flag
+// (RB_MISSED_EVENTS), and ignore the relatively tricky "appended the precise
+// lost events count past the end of the valid data, as there was room to do so"
+// flag (RB_MISSED_STORED).
+//
+// static
+base::Optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
+    const uint8_t** ptr,
+    uint16_t page_header_size_len) {
+  // Mask for the data length portion of the |commit| field. Note that the
+  // kernel implementation never explicitly defines the boundary (beyond using
+  // bits 30 and 31 as flags), but 27 bits are mentioned as sufficient in the
+  // original commit message, and is the constant used by trace-cmd.
+  constexpr static uint64_t kDataSizeMask = (1ull << 27) - 1;
+  // If set, indicates that the relevant cpu has lost events since the last read
+  // (clearing the bit internally).
+  constexpr static uint64_t kMissedEventsFlag = (1ull << 31);
+
+  const uint8_t* end_of_page = *ptr + base::kPageSize;
+  PageHeader page_header;
+  if (!CpuReader::ReadAndAdvance<uint64_t>(ptr, end_of_page,
+                                           &page_header.timestamp))
+    return base::nullopt;
+
+  uint32_t size_and_flags;
+
+  // On little endian, we can just read a uint32_t and reject the rest of the
+  // number later.
+  if (!CpuReader::ReadAndAdvance<uint32_t>(
+          ptr, end_of_page, base::AssumeLittleEndian(&size_and_flags)))
+    return base::nullopt;
+
+  page_header.size = size_and_flags & kDataSizeMask;
+  page_header.lost_events = bool(size_and_flags & kMissedEventsFlag);
+  PERFETTO_DCHECK(page_header.size <= base::kPageSize);
+
+  // Reject rest of the number, if applicable. On 32-bit, size_bytes - 4 will
+  // evaluate to 0 and this will be a no-op. On 64-bit, this will advance by 4
+  // bytes.
+  PERFETTO_DCHECK(page_header_size_len >= 4);
+  *ptr += page_header_size_len - 4;
+
+  return base::make_optional(page_header);
+}
+
+// A raw ftrace buffer page consists of a header followed by a sequence of
+// binary ftrace events. See |ParsePageHeader| for the format of the earlier.
+//
 // This method is deliberately static so it can be tested independently.
 size_t CpuReader::ParsePage(const uint8_t* ptr,
                             const EventFilter* filter,
@@ -315,7 +324,7 @@ size_t CpuReader::ParsePage(const uint8_t* ptr,
 
   // ParsePageHeader advances |ptr| to point past the end of the header.
 
-  metadata->overwrite_count = static_cast<uint32_t>(page_header->overwrite);
+  metadata->lost_events = static_cast<uint32_t>(page_header->lost_events);
   const uint8_t* const end = ptr + page_header->size;
   if (end > end_of_page)
     return 0;
