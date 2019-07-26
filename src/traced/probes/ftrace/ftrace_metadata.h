@@ -34,7 +34,7 @@ using Inode = decltype(stat::st_ino);
 struct FtraceMetadata {
   FtraceMetadata();
 
-  uint32_t overwrite_count = 0;
+  bool lost_events = false;
   BlockDeviceID last_seen_device_id = 0;
 #if PERFETTO_DCHECK_IS_ON()
   bool seen_device_id = false;
