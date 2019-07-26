@@ -46,7 +46,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
 
       await this.query(
           `create view ${this.tableName('small')} as ` +
-          `select ts,dur,depth,cat,name from slices ` +
+          `select ts,dur,depth,cat,name,slice_id from slices ` +
           `where utid = ${this.config.utid} ` +
           `and ts >= ${startNs} - dur ` +
           `and ts <= ${endNs} ` +
@@ -73,7 +73,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
 
     await this.query(
         `create view ${this.tableName('small')} as ` +
-        `select ts,dur,depth,cat,name from slices ` +
+        `select ts,dur,depth,cat,name, slice_id from slices ` +
         `where utid = ${this.config.utid} ` +
         `and ts >= ${startNs} - dur ` +
         `and ts <= ${endNs} ` +
@@ -82,7 +82,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
 
     await this.query(
         `create view ${this.tableName('big')} as ` +
-        `select ts,dur,depth,cat,name from slices ` +
+        `select ts,dur,depth,cat,name, slice_id from slices ` +
         `where utid = ${this.config.utid} ` +
         `and ts >= ${startNs} - dur ` +
         `and ts <= ${endNs} ` +
@@ -94,7 +94,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       ${minNs} as dur,
       depth,
       cat,
-      'Busy' as name
+      'Busy' as name,
+      -1 as slice_id
       from ${this.tableName('span')}
       group by cat, depth, quantum_ts;`);
 
@@ -116,6 +117,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       strings: [],
+      slice_ids: new Float64Array(numRows),
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       depths: new Uint16Array(numRows),
@@ -141,6 +143,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.depths[row] = +cols[2].longValues![row];
       slices.categories[row] = internString(cols[3].stringValues![row]);
       slices.titles[row] = internString(cols[4].stringValues![row]);
+      slices.slice_ids[row] = +cols[5].longValues![row];
     }
     this.publish(slices);
   }

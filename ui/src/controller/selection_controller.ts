@@ -27,6 +27,7 @@ export interface SelectionControllerArgs {
 // been clicked.
 export class SelectionController extends Controller<'main'> {
   private lastSelectedSlice?: number;
+  private lastSelectedKind?: string;
   constructor(private args: SelectionControllerArgs) {
     super('main');
   }
@@ -34,22 +35,26 @@ export class SelectionController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (selection === null ||
-        selection.kind !== 'SLICE' ||
-        selection.id === this.lastSelectedSlice) {
+        (selection.kind !== 'SLICE' && selection.kind !== 'CHROME_SLICE') ||
+        (selection.id === this.lastSelectedSlice &&
+         selection.kind === this.lastSelectedKind)) {
       return;
     }
     const selectedSlice = selection.id;
+    const selectedSliceKind = selection.kind;
     this.lastSelectedSlice = selectedSlice;
+    this.lastSelectedKind = selectedSliceKind;
 
-    if (selectedSlice !== undefined) {
+    if (selectedSlice === undefined) return;
+
+    if (selectedSliceKind === 'SLICE') {
       const sqlQuery = `SELECT ts, dur, priority, end_state, utid FROM sched
                         WHERE row_id = ${selectedSlice}`;
       this.args.engine.query(sqlQuery).then(result => {
         // Check selection is still the same on completion of query.
         const selection = globals.state.currentSelection;
-        if (result.numRecords === 1 &&
-            selection &&
-            selection.kind === 'SLICE' &&
+        if (result.numRecords === 1 && selection &&
+            selection.kind === selectedSliceKind &&
             selection.id === selectedSlice) {
           const ts = result.columns[0].longValues![0] as number;
           const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
@@ -63,6 +68,31 @@ export class SelectionController extends Controller<'main'> {
             Object.assign(selected, wakeResult);
             globals.publish('SliceDetails', selected);
           });
+        }
+      });
+    } else if (selectedSliceKind === 'CHROME_SLICE') {
+      if (selectedSlice === -1) {
+        globals.publish('SliceDetails', {ts: 0, name: 'Summarized slice'});
+        return;
+      }
+      const sqlQuery = `SELECT ts, dur, name, cat FROM slices
+      WHERE slice_id = ${selectedSlice}`;
+      this.args.engine.query(sqlQuery).then(result => {
+        console.log('query resulted for chrome slices!');
+        // Check selection is still the same on completion of query.
+        const selection = globals.state.currentSelection;
+        if (result.numRecords === 1 && selection &&
+            selection.kind === selectedSliceKind &&
+            selection.id === selectedSlice) {
+          const ts = result.columns[0].longValues![0] as number;
+          const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
+          const name = result.columns[2].stringValues![0];
+          const dur = fromNs(result.columns[1].longValues![0] as number);
+          const category = result.columns[3].stringValues![0];
+          // TODO(nicomazz): Add arguments and thread timestamps
+          const selected:
+              SliceDetails = {ts: timeFromStart, dur, category, name};
+          globals.publish('SliceDetails', selected);
         }
       });
     }

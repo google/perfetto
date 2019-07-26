@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -103,7 +104,7 @@ class ChromeSliceTrack extends Track<Config, Data> {
     }
   }
 
-  onMouseMove({x, y}: {x: number, y: number}) {
+  getSliceIndex({x, y}: {x: number, y: number}): number|void {
     const data = this.data();
     this.hoveredTitleId = -1;
     if (data === undefined) return;
@@ -114,16 +115,36 @@ class ChromeSliceTrack extends Track<Config, Data> {
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
-      const titleId = data.titles[i];
       if (tStart <= t && t <= tEnd && depth === data.depths[i]) {
-        this.hoveredTitleId = titleId;
-        break;
+        return i;
       }
     }
   }
 
+  onMouseMove({x, y}: {x: number, y: number}) {
+    const sliceIndex = this.getSliceIndex({x, y});
+    if (sliceIndex === undefined) return;
+    const data = this.data();
+    if (data === undefined) return;
+    const titleId = data.titles[sliceIndex];
+    this.hoveredTitleId = titleId;
+  }
+
   onMouseOut() {
     this.hoveredTitleId = -1;
+  }
+
+  onMouseClick({x, y}: {x: number, y: number}): boolean {
+    const sliceIndex = this.getSliceIndex({x, y});
+    if (sliceIndex === undefined) return false;
+    const data = this.data();
+    if (data === undefined) return false;
+    const sliceId = data.slice_ids[sliceIndex];
+    if (sliceId) {
+      globals.dispatch(Actions.selectChromeSlice({slice_id: sliceId}));
+      return true;
+    }
+    return false;
   }
 
   getHeight() {

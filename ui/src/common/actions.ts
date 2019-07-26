@@ -366,6 +366,10 @@ export const StateActions = {
     };
   },
 
+  selectChromeSlice(state: StateDraft, args: {slice_id: number}): void {
+    state.currentSelection = {kind: 'CHROME_SLICE', id: args.slice_id};
+  },
+
   selectTimeSpan(
       state: StateDraft, args: {startTs: number, endTs: number}): void {
     state.currentSelection = {
