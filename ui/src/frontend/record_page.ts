@@ -672,7 +672,7 @@ export const RecordPage = createPage({
                   m('.sub', 'CPU usage, scheduling, wakeups'))),
               m('a[href="#!/record?p=gpu"]',
                 m(`li${routePage === 'gpu' ? '.active' : ''}`,
-                  m('i.material-icons', 'subtitles'),
+                  m('i.material-icons', 'aspect_ratio'),
                   m('.title', 'GPU'),
                   m('.sub', 'GPU frequency'))),
               m('a[href="#!/record?p=power"]',
