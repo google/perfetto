@@ -31,17 +31,9 @@ TrackId VirtualTrackTracker::GetOrCreateTrack(SourceIdTuple id_tuple,
   if (it != tracks_.end())
     return it->second;
 
-  // TODO(eseckler): Obtain the |track_id| by adding the virtual track to the
-  // |tracks| table once it exists.
-  TrackId track_id = context_->storage->virtual_tracks().virtual_track_count();
-  uint32_t virtual_track_row =
-      context_->storage->mutable_virtual_tracks()->AddVirtualTrack(
-          track_id, track_name, id_tuple.scope, id_tuple.upid);
-
-  // Until we have a |tracks| table, track_ids should be indexes into the
-  // |virtual_tracks| storage.
-  PERFETTO_DCHECK(track_id == virtual_track_row);
-
+  TrackId track_id = context_->storage->mutable_tracks()->AddTrack(track_name);
+  context_->storage->mutable_virtual_tracks()->AddVirtualTrack(
+      track_id, id_tuple.scope, id_tuple.upid);
   tracks_[id_tuple] = track_id;
   return track_id;
 }
