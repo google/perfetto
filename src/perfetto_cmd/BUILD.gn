@@ -44,13 +44,8 @@ source_set("perfetto_cmd") {
     "rate_limiter.cc",
     "rate_limiter.h",
   ]
-  if (perfetto_build_with_android) {
-    deps += [ "../base:android_task_runner" ]
-    libs = [
-      "binder",
-      "services",
-      "utils",
-    ]
+  if (is_android) {
+    sources += [ "perfetto_cmd_android.cc" ]
   }
 }
 
