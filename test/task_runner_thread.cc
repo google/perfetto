@@ -85,7 +85,7 @@ void TaskRunnerThread::Run(std::unique_ptr<ThreadDelegate> delegate) {
 #endif
 
   // Create the task runner and execute the specicalised code.
-  base::PlatformTaskRunner task_runner;
+  base::UnixTaskRunner task_runner;
   delegate->Initialize(&task_runner);
 
   // Pass the runner back to the main thread.
