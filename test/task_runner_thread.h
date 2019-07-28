@@ -61,7 +61,7 @@ class TaskRunnerThread {
 
   // All variables below this point are protected by |mutex_|.
   std::mutex mutex_;
-  base::PlatformTaskRunner* runner_ = nullptr;
+  base::UnixTaskRunner* runner_ = nullptr;
 };
 
 }  // namespace perfetto

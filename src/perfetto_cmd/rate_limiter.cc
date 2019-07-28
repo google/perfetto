@@ -164,7 +164,7 @@ bool RateLimiter::OnTraceDone(const Args& args, bool success, uint64_t bytes) {
 }
 
 std::string RateLimiter::GetStateFilePath() const {
-  return std::string(kTempDropBoxTraceDir) + "/.guardraildata";
+  return std::string(kStateDir) + "/.guardraildata";
 }
 
 bool RateLimiter::StateFileExists() {
