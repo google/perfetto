@@ -57,26 +57,6 @@ source_set("base") {
   }
 }
 
-# The "android_task_runner" should be depended on only by targets that
-# explicitly need it, as it pulls in a dependency on libandroid.so that in turn
-# pulls dozen of other .so(s).
-if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
-  source_set("android_task_runner") {
-    deps = [
-      ":base",
-      "../../gn:default_deps",
-    ]
-    sources = [
-      "android_task_runner.cc",
-    ]
-    all_dependent_configs = [ ":android_config" ]
-  }
-
-  config("android_config") {
-    libs = [ "android" ]
-  }
-}
-
 if (is_debug && perfetto_build_standalone && !is_wasm) {
   source_set("debug_crash_stack_trace") {
     sources = [
@@ -139,10 +119,6 @@ source_set("unittests") {
     "../../gn:gtest_and_gmock",
   ]
 
-  if (is_android &&
-      (perfetto_build_standalone || perfetto_build_with_android)) {
-    deps += [ ":android_task_runner" ]
-  }
   sources = [
     "circular_queue_unittest.cc",
     "copyable_ptr_unittest.cc",

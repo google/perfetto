@@ -2,7 +2,6 @@
 cc_library_static {
   name: "perfetto_cts_deps",
   srcs: [
-    "src/base/android_task_runner.cc",
     "src/base/test/test_task_runner.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/event_info.cc",
@@ -37,7 +36,6 @@ cc_library_static {
 cc_library_static {
   name: "perfetto_cts_jni_deps",
   srcs: [
-    "src/base/android_task_runner.cc",
     "src/base/test/test_task_runner.cc",
     "test/fake_producer.cc",
     "test/task_runner_thread_delegates.cc",
