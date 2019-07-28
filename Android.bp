@@ -393,6 +393,7 @@ cc_library_shared {
   name: "libperfetto_android_internal",
   srcs: [
     "src/android_internal/atrace_hal.cc",
+    "src/android_internal/dropbox_service.cc",
     "src/android_internal/health_hal.cc",
     "src/android_internal/incident_service.cc",
     "src/android_internal/power_stats_hal.cc",
@@ -406,6 +407,7 @@ cc_library_shared {
     "libhidlbase",
     "libincident",
     "liblog",
+    "libservices",
     "libutils",
   ],
   static_libs: [
@@ -417,6 +419,11 @@ cc_library_shared {
   cflags: [
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
+  product_variables: {
+    pdk: {
+      enabled: false,
+    },
+  },
 }
 
 // GN target: //:libperfetto_client_experimental
@@ -598,7 +605,6 @@ cc_binary {
     ":perfetto_src_ipc_wire_protocol_gen",
     ":perfetto_src_perfetto_cmd_protos_gen",
     "src/android_internal/lazy_library_loader.cc",
-    "src/base/android_task_runner.cc",
     "src/base/event_fd.cc",
     "src/base/file_utils.cc",
     "src/base/metatrace.cc",
@@ -627,6 +633,7 @@ cc_binary {
     "src/perfetto_cmd/packet_writer.cc",
     "src/perfetto_cmd/pbtxt_to_pb.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
+    "src/perfetto_cmd/perfetto_cmd_android.cc",
     "src/perfetto_cmd/rate_limiter.cc",
     "src/perfetto_cmd/trigger_producer.cc",
     "src/protozero/message.cc",
@@ -661,12 +668,8 @@ cc_binary {
     "src/tracing/trace_writer_base.cc",
   ],
   shared_libs: [
-    "libandroid",
-    "libbinder",
     "liblog",
     "libprotobuf-cpp-lite",
-    "libservices",
-    "libutils",
     "libz",
   ],
   static_libs: [
@@ -705,11 +708,6 @@ cc_binary {
     "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
-  product_variables: {
-    pdk: {
-      enabled: false,
-    },
-  },
 }
 
 cc_defaults {
@@ -778,7 +776,6 @@ cc_test {
     ":perfetto_protos_perfetto_trace_zero_gen",
     ":perfetto_src_ipc_wire_protocol_gen",
     "src/android_internal/lazy_library_loader.cc",
-    "src/base/android_task_runner.cc",
     "src/base/event_fd.cc",
     "src/base/file_utils.cc",
     "src/base/metatrace.cc",
@@ -897,7 +894,6 @@ cc_test {
     "test/test_helper.cc",
   ],
   shared_libs: [
-    "libandroid",
     "libbase",
     "liblog",
     "libprocinfo",
@@ -953,11 +949,6 @@ cc_test {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
-  product_variables: {
-    pdk: {
-      enabled: false,
-    },
-  },
 }
 
 // GN target: //protos/perfetto/common:lite_gen
@@ -3402,7 +3393,6 @@ cc_test {
     ":perfetto_src_traced_probes_ftrace_test_messages_lite_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_zero_gen",
     "src/android_internal/lazy_library_loader.cc",
-    "src/base/android_task_runner.cc",
     "src/base/circular_queue_unittest.cc",
     "src/base/copyable_ptr_unittest.cc",
     "src/base/event_fd.cc",
@@ -3461,6 +3451,7 @@ cc_test {
     "src/perfetto_cmd/pbtxt_to_pb.cc",
     "src/perfetto_cmd/pbtxt_to_pb_unittest.cc",
     "src/perfetto_cmd/perfetto_cmd.cc",
+    "src/perfetto_cmd/perfetto_cmd_android.cc",
     "src/perfetto_cmd/rate_limiter.cc",
     "src/perfetto_cmd/rate_limiter_unittest.cc",
     "src/perfetto_cmd/trigger_producer.cc",
@@ -3605,16 +3596,12 @@ cc_test {
     "tools/sanitizers_unittests/sanitizers_unittest.cc",
   ],
   shared_libs: [
-    "libandroid",
     "libbase",
-    "libbinder",
     "liblog",
     "libprocinfo",
     "libprotobuf-cpp-full",
     "libprotobuf-cpp-lite",
-    "libservices",
     "libunwindstack",
-    "libutils",
     "libz",
   ],
   static_libs: [
@@ -3672,11 +3659,6 @@ cc_test {
     "-DHAVE_HIDDEN",
     "-DPERFETTO_BUILD_WITH_ANDROID",
   ],
-  product_variables: {
-    pdk: {
-      enabled: false,
-    },
-  },
 }
 
 // GN target: //:trace_processor_shell
@@ -4186,7 +4168,6 @@ cc_binary {
 cc_library_static {
   name: "perfetto_cts_deps",
   srcs: [
-    "src/base/android_task_runner.cc",
     "src/base/test/test_task_runner.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/event_info.cc",
@@ -4221,7 +4202,6 @@ cc_library_static {
 cc_library_static {
   name: "perfetto_cts_jni_deps",
   srcs: [
-    "src/base/android_task_runner.cc",
     "src/base/test/test_task_runner.cc",
     "test/fake_producer.cc",
     "test/task_runner_thread_delegates.cc",

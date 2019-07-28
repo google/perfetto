@@ -34,23 +34,13 @@
 
 #include "src/perfetto_cmd/perfetto_cmd_state.pb.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-#include "perfetto/ext/base/android_task_runner.h"
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-
 namespace perfetto {
 
 class PacketWriter;
 
-// Temporary directory for DropBox traces. Note that this is automatically
+// Directory for local state and temporary files. This is automatically
 // created by the system by setting setprop persist.traced.enable=1.
-extern const char* kTempDropBoxTraceDir;
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-using PlatformTaskRunner = base::AndroidTaskRunner;
-#else
-using PlatformTaskRunner = base::UnixTaskRunner;
-#endif
+extern const char* kStateDir;
 
 class PerfettoCmd : public Consumer {
  public:
@@ -77,10 +67,15 @@ class PerfettoCmd : public Consumer {
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  static base::ScopedFile OpenDropboxTmpFile();
+  void SaveTraceIntoDropboxAndIncidentOrCrash();
   void SaveOutputToDropboxOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
+#endif
 
-  PlatformTaskRunner task_runner_;
+  base::UnixTaskRunner task_runner_;
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
