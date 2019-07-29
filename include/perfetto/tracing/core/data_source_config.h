@@ -79,6 +79,9 @@ class PERFETTO_EXPORT DataSourceConfig {
   uint32_t trace_duration_ms() const { return trace_duration_ms_; }
   void set_trace_duration_ms(uint32_t value) { trace_duration_ms_ = value; }
 
+  uint32_t stop_timeout_ms() const { return stop_timeout_ms_; }
+  void set_stop_timeout_ms(uint32_t value) { stop_timeout_ms_ = value; }
+
   bool enable_extra_guardrails() const { return enable_extra_guardrails_; }
   void set_enable_extra_guardrails(bool value) {
     enable_extra_guardrails_ = value;
@@ -155,6 +158,7 @@ class PERFETTO_EXPORT DataSourceConfig {
   std::string name_{};
   uint32_t target_buffer_{};
   uint32_t trace_duration_ms_{};
+  uint32_t stop_timeout_ms_{};
   bool enable_extra_guardrails_{};
   uint64_t tracing_session_id_{};
   std::string ftrace_config_;         // [lazy=true]

@@ -198,6 +198,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::map<pid_t, ProcessState> process_states;
     std::vector<std::string> normalized_cmdlines;
     DumpState::InternState intern_state;
+    bool shutting_down = false;
+    uint32_t stop_timeout_ms;
   };
 
   struct PendingProcess {
@@ -215,9 +217,9 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void IncreaseConnectionBackoff();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
-  bool Dump(DataSourceInstanceID id,
-            FlushRequestID flush_id,
-            bool has_flush_id);
+  bool DumpProcessesInDataSource(DataSourceInstanceID id);
+  void DumpProcessState(DataSource* ds, pid_t pid, ProcessState* process);
+
   void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
 
   UnwindingWorker& UnwinderForPID(pid_t);
@@ -236,6 +238,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // the on-connection callback.
   // Specific to mode_ == kChild
   void AdoptTargetProcessSocket();
+
+  bool MaybeFinishDataSource(DataSource* ds);
 
   // Class state:
 
