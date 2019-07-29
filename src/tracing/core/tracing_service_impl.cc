@@ -1842,6 +1842,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
 
   DataSourceConfig& ds_config = ds_instance->config;
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());
+  ds_config.set_stop_timeout_ms(tracing_session->data_source_stop_timeout_ms());
   ds_config.set_enable_extra_guardrails(
       tracing_session->config.enable_extra_guardrails());
   ds_config.set_tracing_session_id(tracing_session->id);
