@@ -90,8 +90,11 @@ class PERFETTO_EXPORT TracingSession {
   virtual ~TracingSession();
 
   // Configure the session passing the trace config.
+  // If a writable file handle is given through |fd|, the trace will
+  // automatically written to that file. Otherwise you should call ReadTrace()
+  // to retrieve the trace data. This call does not take ownership of |fd|.
   // TODO(primiano): add an error callback.
-  virtual void Setup(const TraceConfig&) = 0;
+  virtual void Setup(const TraceConfig&, int fd = -1) = 0;
 
   // Enable tracing asynchronously.
   virtual void Start() = 0;
