@@ -162,7 +162,7 @@ uint16_t MergeFields(const std::vector<FtraceEvent::Field>& ftrace_fields,
                      const char* event_name_for_debug) {
   uint16_t fields_end = 0;
 
-  // Loop over each Field in |fields| modifiying it with information from the
+  // Loop over each Field in |fields| modifying it with information from the
   // matching |ftrace_fields| field or removing it.
   auto field = fields->begin();
   while (field != fields->end()) {

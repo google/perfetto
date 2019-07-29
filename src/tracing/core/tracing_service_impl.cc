@@ -386,7 +386,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     for (auto& kv : tracing_sessions_) {
       if (kv.second.config.unique_session_name() == name) {
         PERFETTO_ELOG(
-            "A trace wtih this unique session name (%s) already exists",
+            "A trace with this unique session name (%s) already exists",
             name.c_str());
         return false;
       }
