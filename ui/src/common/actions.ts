@@ -307,6 +307,7 @@ export const StateActions = {
     if (!state.videoEnabled) {
       state.video = null;
       state.flagPauseEnabled = false;
+      state.scrubbingEnabled = false;
       state.videoNoteIds.forEach(id => {
         this.removeNote(state, {id});
       });
@@ -314,10 +315,14 @@ export const StateActions = {
   },
 
   toggleFlagPause(state: StateDraft): void {
-    if (state.video === null) {
-      state.flagPauseEnabled = false;
-    } else {
+    if (state.video != null) {
       state.flagPauseEnabled = !state.flagPauseEnabled;
+    }
+  },
+
+  toggleScrubbing(state: StateDraft): void {
+    if (state.video != null) {
+      state.scrubbingEnabled = !state.scrubbingEnabled;
     }
   },
 
