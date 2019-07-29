@@ -28,7 +28,6 @@ import {
 
 class CounterTrackController extends TrackController<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
-  private busy = false;
   private setup = false;
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
@@ -39,13 +38,9 @@ class CounterTrackController extends TrackController<Config, Data> {
 
   private async update(start: number, end: number, resolution: number):
       Promise<void> {
-    // TODO: we should really call TraceProcessor.Interrupt() at this point.
-    if (this.busy) return;
-
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
-    this.busy = true;
     if (!this.setup) {
       const result = await this.query(`
       select max(value), min(value) from
@@ -133,7 +128,6 @@ class CounterTrackController extends TrackController<Config, Data> {
     }
 
     this.publish(data);
-    this.busy = false;
   }
 
   private maximumValue() {

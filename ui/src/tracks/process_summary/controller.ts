@@ -28,7 +28,6 @@ import {
 
 class ProcessSummaryTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SUMMARY_TRACK;
-  private busy = false;
   private setup = false;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
@@ -37,10 +36,6 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
   private async update(start: number, end: number, resolution: number):
       Promise<void> {
-    // TODO: we should really call TraceProcessor.Interrupt() at this point.
-    if (this.busy) return;
-    this.busy = true;
-
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
@@ -82,7 +77,6 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
     this.publish(await this.computeSummary(
         fromNs(windowStartNs), end, resolution, bucketSizeNs));
-    this.busy = false;
   }
 
   private async computeSummary(
