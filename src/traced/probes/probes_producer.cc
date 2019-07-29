@@ -153,7 +153,7 @@ void ProbesProducer::OnDisconnect() {
 void ProbesProducer::Restart() {
   // We lost the connection with the tracing service. At this point we need
   // to reset all the data sources. Trying to handle that manually is going to
-  // be error prone. What we do here is simply desroying the instance and
+  // be error prone. What we do here is simply destroying the instance and
   // recreating it again.
   // TODO(hjd): Add e2e test for this.
 
