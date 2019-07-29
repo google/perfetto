@@ -26,8 +26,8 @@ StorageSchema::StorageSchema(Columns columns,
                              std::vector<std::string> primary_keys)
     : columns_(std::move(columns)), primary_keys_(std::move(primary_keys)) {}
 
-Table::Schema StorageSchema::ToTableSchema() {
-  std::vector<Table::Column> columns;
+SqliteTable::Schema StorageSchema::ToTableSchema() {
+  std::vector<SqliteTable::Column> columns;
   size_t i = 0;
   for (const auto& col : columns_)
     columns.emplace_back(i++, col->name(), col->GetType(), col->hidden());
@@ -35,7 +35,7 @@ Table::Schema StorageSchema::ToTableSchema() {
   std::vector<size_t> primary_keys;
   for (const auto& p_key : primary_keys_)
     primary_keys.emplace_back(ColumnIndexFromName(p_key));
-  return Table::Schema(std::move(columns), std::move(primary_keys));
+  return SqliteTable::Schema(std::move(columns), std::move(primary_keys));
 }
 
 size_t StorageSchema::ColumnIndexFromName(const std::string& name) const {
