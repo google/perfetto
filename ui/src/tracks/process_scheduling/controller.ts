@@ -30,7 +30,6 @@ import {
 
 class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
-  private busy = false;
   private setup = false;
   private numCpus = 0;
 
@@ -40,9 +39,6 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   private async update(start: number, end: number, resolution: number):
       Promise<void> {
-    // TODO: we should really call TraceProcessor.Interrupt() at this point.
-    if (this.busy) return;
-
     if (!this.config.upid) {
       return;
     }
@@ -50,7 +46,6 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
-    this.busy = true;
     if (this.setup === false) {
       await this.query(
           `create virtual table ${this.tableName('window')} using window;`);
@@ -87,7 +82,6 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       this.publish(
           await this.computeSlices(fromNs(windowStartNs), end, resolution));
     }
-    this.busy = false;
   }
 
   private async computeSummary(

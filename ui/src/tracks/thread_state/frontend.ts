@@ -52,10 +52,6 @@ class ThreadStateTrack extends Track<Config, Data> {
     const data = this.data();
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    if (this.shouldRequestData(
-            data, visibleWindowTime.start, visibleWindowTime.end)) {
-      globals.requestTrackData(this.trackState.id);
-    }
     if (data === undefined) return;  // Can't possibly draw anything.
 
     for (let i = 0; i < data.starts.length; i++) {

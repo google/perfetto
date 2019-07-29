@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {Actions, DeferredAction} from '../common/actions';
+import {DeferredAction} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 
 import {FrontendLocalState} from './frontend_local_state';
@@ -138,24 +138,6 @@ class Globals {
     // Truncate the resolution to the closest power of 10.
     const resolution = this.frontendLocalState.timeScale.deltaPxToDuration(1);
     return Math.pow(10, Math.floor(Math.log10(resolution)));
-  }
-
-  requestTrackData(trackId: string) {
-    const pending = assertExists(this._pendingTrackRequests);
-    if (pending.has(trackId)) return;
-
-    const {visibleWindowTime} = globals.frontendLocalState;
-    const resolution = this.getCurResolution();
-    const start = visibleWindowTime.start - visibleWindowTime.duration;
-    const end = visibleWindowTime.end + visibleWindowTime.duration;
-
-    pending.add(trackId);
-    globals.dispatch(Actions.reqTrackData({
-      trackId,
-      start,
-      end,
-      resolution,
-    }));
   }
 
   resetForTesting() {

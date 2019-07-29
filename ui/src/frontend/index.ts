@@ -51,7 +51,7 @@ class FrontendApi {
 
     // Only redraw if something other than the frontendLocalState changed.
     for (const key in globals.state) {
-      if (key !== 'frontendLocalState' &&
+      if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
           oldState[key] !== globals.state[key]) {
         this.redraw();
         return;
