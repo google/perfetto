@@ -146,4 +146,8 @@ message TraceStats {
   // Num. patches that were discarded by the service before attempting to apply
   // them to a buffer, e.g. because the producer specified an invalid buffer ID.
   optional uint64 patches_discarded = 9;
+
+  // Packets that failed validation of the TrustedPacket. If this is > 0, there
+  // is a bug in the producer.
+  optional uint64 invalid_packets = 10;
 }

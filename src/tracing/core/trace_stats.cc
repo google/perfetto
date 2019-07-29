@@ -49,7 +49,8 @@ bool TraceStats::operator==(const TraceStats& other) const {
          (tracing_sessions_ == other.tracing_sessions_) &&
          (total_buffers_ == other.total_buffers_) &&
          (chunks_discarded_ == other.chunks_discarded_) &&
-         (patches_discarded_ == other.patches_discarded_);
+         (patches_discarded_ == other.patches_discarded_) &&
+         (invalid_packets_ == other.invalid_packets_);
 }
 #pragma GCC diagnostic pop
 
@@ -106,6 +107,11 @@ void TraceStats::FromProto(const perfetto::protos::TraceStats& proto) {
                 "size mismatch");
   patches_discarded_ =
       static_cast<decltype(patches_discarded_)>(proto.patches_discarded());
+
+  static_assert(sizeof(invalid_packets_) == sizeof(proto.invalid_packets()),
+                "size mismatch");
+  invalid_packets_ =
+      static_cast<decltype(invalid_packets_)>(proto.invalid_packets());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -162,6 +168,11 @@ void TraceStats::ToProto(perfetto::protos::TraceStats* proto) const {
       "size mismatch");
   proto->set_patches_discarded(
       static_cast<decltype(proto->patches_discarded())>(patches_discarded_));
+
+  static_assert(sizeof(invalid_packets_) == sizeof(proto->invalid_packets()),
+                "size mismatch");
+  proto->set_invalid_packets(
+      static_cast<decltype(proto->invalid_packets())>(invalid_packets_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
