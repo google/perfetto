@@ -1499,6 +1499,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
       PERFETTO_DCHECK(sequence_properties.producer_uid_trusted != kInvalidUid);
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
+        tracing_session->invalid_packets++;
         PERFETTO_DLOG("Dropping invalid packet");
         continue;
       }
@@ -2220,6 +2221,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   trace_stats.set_total_buffers(static_cast<uint32_t>(buffers_.size()));
   trace_stats.set_chunks_discarded(chunks_discarded_);
   trace_stats.set_patches_discarded(patches_discarded_);
+  trace_stats.set_invalid_packets(tracing_session->invalid_packets);
 
   for (BufferID buf_id : tracing_session->buffers_index) {
     TraceBuffer* buf = GetBufferByID(buf_id);
