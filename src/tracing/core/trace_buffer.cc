@@ -362,11 +362,11 @@ ssize_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
         index_delete.push_back(it);
         will_remove = true;
       }
-      TRACE_BUFFER_DLOG("  del index {%" PRIu32 ",%" PRIu32
-                        ",%u} @ [%lu - %lu] %d",
-                        key.producer_id, key.writer_id, key.chunk_id,
-                        next_chunk_ptr - begin(),
-                        next_chunk_ptr - begin() + next_chunk.size, removed);
+      TRACE_BUFFER_DLOG(
+          "  del index {%" PRIu32 ",%" PRIu32 ",%u} @ [%lu - %lu] %d",
+          key.producer_id, key.writer_id, key.chunk_id,
+          next_chunk_ptr - begin(), next_chunk_ptr - begin() + next_chunk.size,
+          will_remove);
       PERFETTO_DCHECK(will_remove);
     } else {
       padding_bytes_cleared += next_chunk.size;
