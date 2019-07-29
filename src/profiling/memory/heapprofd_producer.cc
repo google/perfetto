@@ -151,6 +151,7 @@ void HeapprofdProducer::OnConnect() {
 
   DataSourceDescriptor desc;
   desc.set_name(kHeapprofdDataSource);
+  desc.set_will_notify_on_stop(true);
   endpoint_->RegisterDataSource(desc);
 }
 
@@ -353,6 +354,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   cli_config.block_client = heapprofd_config.block_client();
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
+  data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
 
   WriteFixedInternings(data_source.trace_writer.get());
   data_sources_.emplace(id, std::move(data_source));
@@ -468,20 +470,55 @@ void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
   }
 
   DataSource& data_source = it->second;
+  data_source.shutting_down = true;
+
+  // If no processes connected, or all of them have already disconnected
+  // (and have been dumped) and no PIDs have been rejected,
+  // MaybeFinishDataSource can tear down the data source.
+  if (MaybeFinishDataSource(&data_source))
+    return;
+
+  if (!data_source.rejected_pids.empty()) {
+    auto trace_packet = data_source.trace_writer->NewTracePacket();
+    ProfilePacket* profile_packet = trace_packet->set_profile_packet();
+    for (pid_t rejected_pid : data_source.rejected_pids) {
+      ProfilePacket::ProcessHeapSamples* proto =
+          profile_packet->add_process_dumps();
+      proto->set_pid(static_cast<uint64_t>(rejected_pid));
+      proto->set_rejected_concurrent(true);
+    }
+    trace_packet->Finalize();
+    data_source.rejected_pids.clear();
+    if (MaybeFinishDataSource(&data_source))
+      return;
+  }
+
   for (const auto& pid_and_process_state : data_source.process_states) {
     pid_t pid = pid_and_process_state.first;
     UnwinderForPID(pid).PostDisconnectSocket(pid);
   }
-
-  data_sources_.erase(it);
-
-  if (mode_ == HeapprofdMode::kChild)
-    TerminateProcess(/*exit_status=*/0);  // does not return
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_producer, id] {
+        if (!weak_producer)
+          return;
+        auto ds_it = weak_producer->data_sources_.find(id);
+        if (ds_it != weak_producer->data_sources_.end()) {
+          PERFETTO_ELOG("Final dump timed out.");
+          DataSource& ds = ds_it->second;
+          // Do not dump any stragglers, just trigger the Flush and tear down
+          // the data source.
+          ds.process_states.clear();
+          ds.rejected_pids.clear();
+          PERFETTO_CHECK(weak_producer->MaybeFinishDataSource(&ds));
+        }
+      },
+      data_source.stop_timeout_ms);
 }
 
 void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
                                          uint32_t dump_interval) {
-  if (!Dump(id, 0 /* flush_id */, false /* is_flush */))
+  if (!DumpProcessesInDataSource(id))
     return;
   auto weak_producer = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
@@ -493,9 +530,72 @@ void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
       dump_interval);
 }
 
-bool HeapprofdProducer::Dump(DataSourceInstanceID id,
-                             FlushRequestID flush_id,
-                             bool has_flush_id) {
+void HeapprofdProducer::DumpProcessState(DataSource* data_source,
+                                         pid_t pid,
+                                         ProcessState* process_state) {
+  HeapTracker& heap_tracker = process_state->heap_tracker;
+
+  bool from_startup =
+      data_source->signaled_pids.find(pid) == data_source->signaled_pids.cend();
+  uint64_t dump_timestamp;
+  if (data_source->config.dump_at_max())
+    dump_timestamp = heap_tracker.max_timestamp();
+  else
+    dump_timestamp = heap_tracker.committed_timestamp();
+  auto new_heapsamples = [pid, from_startup, dump_timestamp, process_state](
+                             ProfilePacket::ProcessHeapSamples* proto) {
+    proto->set_pid(static_cast<uint64_t>(pid));
+    proto->set_timestamp(dump_timestamp);
+    proto->set_from_startup(from_startup);
+    proto->set_disconnected(process_state->disconnected);
+    proto->set_buffer_overran(process_state->buffer_overran);
+    proto->set_buffer_corrupted(process_state->buffer_corrupted);
+    auto* stats = proto->set_stats();
+    stats->set_unwinding_errors(process_state->unwinding_errors);
+    stats->set_heap_samples(process_state->heap_samples);
+    stats->set_map_reparses(process_state->map_reparses);
+    stats->set_total_unwinding_time_us(process_state->total_unwinding_time_us);
+    auto* unwinding_hist = stats->set_unwinding_time_us();
+    for (const auto& p : process_state->unwinding_time_us.GetData()) {
+      auto* bucket = unwinding_hist->add_buckets();
+      if (p.first == LogHistogram::kMaxBucket)
+        bucket->set_max_bucket(true);
+      else
+        bucket->set_upper_limit(p.first);
+      bucket->set_count(p.second);
+    }
+  };
+
+  DumpState dump_state(data_source->trace_writer.get(),
+                       std::move(new_heapsamples), &data_source->intern_state);
+
+  if (process_state->page_idle_checker) {
+    PageIdleChecker& page_idle_checker = *process_state->page_idle_checker;
+    heap_tracker.GetAllocations(
+        [&dump_state, &page_idle_checker](uint64_t addr, uint64_t,
+                                          uint64_t alloc_size,
+                                          uintptr_t callstack_id) {
+          int64_t idle = page_idle_checker.OnIdlePage(addr, alloc_size);
+          if (idle < 0) {
+            PERFETTO_PLOG("OnIdlePage.");
+            return;
+          }
+          if (idle > 0)
+            dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
+        });
+  }
+
+  heap_tracker.GetCallstackAllocations(
+      [&dump_state,
+       &data_source](const HeapTracker::CallstackAllocations& alloc) {
+        dump_state.WriteAllocation(alloc, data_source->config.dump_at_max());
+      });
+  if (process_state->page_idle_checker)
+    process_state->page_idle_checker->MarkPagesIdle();
+  dump_state.DumpCallstacks(&callsites_);
+}
+
+bool HeapprofdProducer::DumpProcessesInDataSource(DataSourceInstanceID id) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
     PERFETTO_LOG(
@@ -504,101 +604,20 @@ bool HeapprofdProducer::Dump(DataSourceInstanceID id,
   }
   DataSource& data_source = it->second;
 
-  if (!data_source.rejected_pids.empty()) {
-    auto trace_packet = data_source.trace_writer->NewTracePacket();
-    ProfilePacket* profile_packet = trace_packet->set_profile_packet();
-    for (pid_t rejected_pid : data_source.rejected_pids) {
-      ProfilePacket::ProcessHeapSamples* proto =
-          profile_packet->add_process_dumps();
-      proto->set_pid(static_cast<uint64_t>(rejected_pid));
-      proto->set_rejected_concurrent(true);
-    }
-  }
 
   for (std::pair<const pid_t, ProcessState>& pid_and_process_state :
        data_source.process_states) {
     pid_t pid = pid_and_process_state.first;
     ProcessState& process_state = pid_and_process_state.second;
-    HeapTracker& heap_tracker = process_state.heap_tracker;
-
-    bool from_startup =
-        data_source.signaled_pids.find(pid) == data_source.signaled_pids.cend();
-    uint64_t dump_timestamp;
-    if (data_source.config.dump_at_max())
-      dump_timestamp = heap_tracker.max_timestamp();
-    else
-      dump_timestamp = heap_tracker.committed_timestamp();
-    auto new_heapsamples = [pid, from_startup, dump_timestamp, &process_state](
-                               ProfilePacket::ProcessHeapSamples* proto) {
-      proto->set_pid(static_cast<uint64_t>(pid));
-      proto->set_timestamp(dump_timestamp);
-      proto->set_from_startup(from_startup);
-      proto->set_disconnected(process_state.disconnected);
-      proto->set_buffer_overran(process_state.buffer_overran);
-      proto->set_buffer_corrupted(process_state.buffer_corrupted);
-      auto* stats = proto->set_stats();
-      stats->set_unwinding_errors(process_state.unwinding_errors);
-      stats->set_heap_samples(process_state.heap_samples);
-      stats->set_map_reparses(process_state.map_reparses);
-      stats->set_total_unwinding_time_us(process_state.total_unwinding_time_us);
-      auto* unwinding_hist = stats->set_unwinding_time_us();
-      for (const auto& p : process_state.unwinding_time_us.GetData()) {
-        auto* bucket = unwinding_hist->add_buckets();
-        if (p.first == LogHistogram::kMaxBucket)
-          bucket->set_max_bucket(true);
-        else
-          bucket->set_upper_limit(p.first);
-        bucket->set_count(p.second);
-      }
-    };
-
-    DumpState dump_state(data_source.trace_writer.get(),
-                         std::move(new_heapsamples), &data_source.intern_state);
-
-    if (process_state.page_idle_checker) {
-      PageIdleChecker& page_idle_checker = *process_state.page_idle_checker;
-      heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
-                                      uint64_t addr, uint64_t,
-                                      uint64_t alloc_size,
-                                      uintptr_t callstack_id) {
-        int64_t idle = page_idle_checker.OnIdlePage(addr, alloc_size);
-        if (idle < 0) {
-          PERFETTO_PLOG("OnIdlePage.");
-          return;
-        }
-        if (idle > 0)
-          dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
-      });
-    }
-
-    heap_tracker.GetCallstackAllocations(
-        [&dump_state,
-         &data_source](const HeapTracker::CallstackAllocations& alloc) {
-          dump_state.WriteAllocation(alloc, data_source.config.dump_at_max());
-        });
-    if (process_state.page_idle_checker)
-      process_state.page_idle_checker->MarkPagesIdle();
-    dump_state.DumpCallstacks(&callsites_);
+    DumpProcessState(&data_source, pid, &process_state);
   }
 
-
-  if (has_flush_id) {
-    auto weak_producer = weak_factory_.GetWeakPtr();
-    auto callback = [weak_producer, flush_id] {
-      if (weak_producer)
-        return weak_producer->task_runner_->PostTask([weak_producer, flush_id] {
-          if (weak_producer)
-            return weak_producer->FinishDataSourceFlush(flush_id);
-        });
-    };
-    data_source.trace_writer->Flush(std::move(callback));
-  }
   return true;
 }
 
 void HeapprofdProducer::DumpAll() {
   for (const auto& id_and_data_source : data_sources_) {
-    if (!Dump(id_and_data_source.first, 0 /* flush_id */, false /* is_flush */))
+    if (!DumpProcessesInDataSource(id_and_data_source.first))
       PERFETTO_DLOG("Failed to dump %" PRIu64, id_and_data_source.first);
   }
 }
@@ -612,8 +631,27 @@ void HeapprofdProducer::Flush(FlushRequestID flush_id,
   size_t& flush_in_progress = flushes_in_progress_[flush_id];
   PERFETTO_DCHECK(flush_in_progress == 0);
   flush_in_progress = num_ids;
-  for (size_t i = 0; i < num_ids; ++i)
-    Dump(ids[i], flush_id, true);
+  for (size_t i = 0; i < num_ids; ++i) {
+    auto it = data_sources_.find(ids[i]);
+    if (it == data_sources_.end()) {
+      PERFETTO_DFATAL_OR_ELOG("Trying to flush unknown data-source %" PRIu64,
+                              ids[i]);
+      continue;
+    }
+    DataSource& data_source = it->second;
+    auto weak_producer = weak_factory_.GetWeakPtr();
+
+    auto callback = [weak_producer, flush_id] {
+      if (weak_producer)
+        // Reposting because this task runner could be on a different thread
+        // than the IPC task runner.
+        return weak_producer->task_runner_->PostTask([weak_producer, flush_id] {
+          if (weak_producer)
+            return weak_producer->FinishDataSourceFlush(flush_id);
+        });
+    };
+    data_source.trace_writer->Flush(std::move(callback));
+  }
 }
 
 void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
@@ -676,8 +714,14 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
       producer_->pending_processes_.erase(it);
       return;
     }
-
     DataSource& data_source = ds_it->second;
+
+    if (data_source.shutting_down) {
+      producer_->pending_processes_.erase(it);
+      PERFETTO_LOG("Got handshake for DS that is shutting down. Rejecting.");
+      return;
+    }
+
     auto it_and_inserted = data_source.process_states.emplace(
         std::piecewise_construct, std::forward_as_tuple(self->peer_pid()),
         std::forward_as_tuple(&producer_->callsites_,
@@ -888,11 +932,38 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
 }
 
+bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {
+  if (!ds->process_states.empty() || !ds->rejected_pids.empty() ||
+      !ds->shutting_down) {
+    return false;
+  }
+  DataSourceInstanceID ds_id = ds->id;
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  ds->trace_writer->Flush([weak_producer, ds_id] {
+    if (!weak_producer)
+      return;
+
+    weak_producer->endpoint_->NotifyDataSourceStopped(ds_id);
+    weak_producer->data_sources_.erase(ds_id);
+
+    if (weak_producer->mode_ == HeapprofdMode::kChild) {
+      // Post this as a task to allow NotifyDataSourceStopped to post tasks.
+      weak_producer->task_runner_->PostTask([weak_producer] {
+        if (!weak_producer)
+          return;
+        weak_producer->TerminateProcess(
+            /*exit_status=*/0);  // does not return
+      });
+    }
+  });
+  return true;
+}
+
 void HeapprofdProducer::HandleSocketDisconnected(
-    DataSourceInstanceID id,
+    DataSourceInstanceID ds_id,
     pid_t pid,
     SharedRingBuffer::Stats stats) {
-  auto it = data_sources_.find(id);
+  auto it = data_sources_.find(ds_id);
   if (it == data_sources_.end())
     return;
   DataSource& ds = it->second;
@@ -901,15 +972,15 @@ void HeapprofdProducer::HandleSocketDisconnected(
   if (process_state_it == ds.process_states.end())
     return;
   ProcessState& process_state = process_state_it->second;
-  process_state.disconnected = true;
+  process_state.disconnected = !ds.shutting_down;
   process_state.buffer_overran =
       stats.num_writes_overflow > 0 && !ds.config.block_client();
   process_state.buffer_corrupted =
       stats.num_writes_corrupt > 0 || stats.num_reads_corrupt > 0;
 
-  // TODO(fmayer): Dump on process disconnect rather than data source
-  // destruction. This prevents us needing to hold onto the bookkeeping data
-  // after the process disconnected.
+  DumpProcessState(&ds, pid, &process_state);
+  ds.process_states.erase(pid);
+  MaybeFinishDataSource(&ds);
 }
 
 }  // namespace profiling

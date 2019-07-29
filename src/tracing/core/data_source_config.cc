@@ -50,6 +50,7 @@ DataSourceConfig& DataSourceConfig::operator=(DataSourceConfig&&) = default;
 bool DataSourceConfig::operator==(const DataSourceConfig& other) const {
   return (name_ == other.name_) && (target_buffer_ == other.target_buffer_) &&
          (trace_duration_ms_ == other.trace_duration_ms_) &&
+         (stop_timeout_ms_ == other.stop_timeout_ms_) &&
          (enable_extra_guardrails_ == other.enable_extra_guardrails_) &&
          (tracing_session_id_ == other.tracing_session_id_) &&
          (ftrace_config_ == other.ftrace_config_) &&
@@ -86,6 +87,11 @@ void DataSourceConfig::FromProto(
                 "size mismatch");
   trace_duration_ms_ =
       static_cast<decltype(trace_duration_ms_)>(proto.trace_duration_ms());
+
+  static_assert(sizeof(stop_timeout_ms_) == sizeof(proto.stop_timeout_ms()),
+                "size mismatch");
+  stop_timeout_ms_ =
+      static_cast<decltype(stop_timeout_ms_)>(proto.stop_timeout_ms());
 
   static_assert(sizeof(enable_extra_guardrails_) ==
                     sizeof(proto.enable_extra_guardrails()),
@@ -144,6 +150,11 @@ void DataSourceConfig::ToProto(
       "size mismatch");
   proto->set_trace_duration_ms(
       static_cast<decltype(proto->trace_duration_ms())>(trace_duration_ms_));
+
+  static_assert(sizeof(stop_timeout_ms_) == sizeof(proto->stop_timeout_ms()),
+                "size mismatch");
+  proto->set_stop_timeout_ms(
+      static_cast<decltype(proto->stop_timeout_ms())>(stop_timeout_ms_));
 
   static_assert(sizeof(enable_extra_guardrails_) ==
                     sizeof(proto->enable_extra_guardrails()),
