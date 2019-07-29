@@ -41,6 +41,11 @@ export class NotesPanel extends Panel {
     dom.addEventListener('mousemove', (e: Event) => {
       this.hoveredX =
         (e as MouseEvent).layerX - TRACK_SHELL_WIDTH - MOUSE_OFFSET;
+      if (globals.state.scrubbingEnabled) {
+        const timescale = globals.frontendLocalState.timeScale;
+        const timestamp = timescale.pxToTime(this.hoveredX)
+        globals.frontendLocalState.setVidTimestamp(timestamp);
+      }
       globals.rafScheduler.scheduleRedraw();
     }, {passive: true});
     dom.addEventListener('mouseenter', (e: Event) => {
