@@ -41,7 +41,7 @@ bool IsRequiredColumn(const std::string& name) {
 }
 
 base::Optional<std::string> HasDuplicateColumns(
-    const std::vector<Table::Column>& cols) {
+    const std::vector<SqliteTable::Column>& cols) {
   std::set<std::string> names;
   for (const auto& col : cols) {
     if (names.count(col.name()) > 0)
@@ -58,17 +58,17 @@ SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
 
 void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
                                           const TraceStorage* storage) {
-  Table::Register<SpanJoinOperatorTable>(db, storage, "span_join",
-                                         /* read_write */ false,
-                                         /* requires_args */ true);
+  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_join",
+                                               /* read_write */ false,
+                                               /* requires_args */ true);
 
-  Table::Register<SpanJoinOperatorTable>(db, storage, "span_left_join",
-                                         /* read_write */ false,
-                                         /* requires_args */ true);
+  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_left_join",
+                                               /* read_write */ false,
+                                               /* requires_args */ true);
 
-  Table::Register<SpanJoinOperatorTable>(db, storage, "span_outer_join",
-                                         /* read_write */ false,
-                                         /* requires_args */ true);
+  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_outer_join",
+                                               /* read_write */ false,
+                                               /* requires_args */ true);
 }
 
 util::Status SpanJoinOperatorTable::Init(int argc,
@@ -122,7 +122,7 @@ util::Status SpanJoinOperatorTable::Init(int argc,
   if (!status.ok())
     return status;
 
-  std::vector<Table::Column> cols;
+  std::vector<SqliteTable::Column> cols;
   // Ensure the shared columns are consistently ordered and are not
   // present twice in the final schema
   cols.emplace_back(Column::kTimestamp, kTsColumnName, ColumnType::kLong);
@@ -149,7 +149,7 @@ util::Status SpanJoinOperatorTable::Init(int argc,
 
 void SpanJoinOperatorTable::CreateSchemaColsForDefn(
     const TableDefinition& defn,
-    std::vector<Table::Column>* cols) {
+    std::vector<SqliteTable::Column>* cols) {
   for (size_t i = 0; i < defn.columns().size(); i++) {
     const auto& n = defn.columns()[i].name();
     if (IsRequiredColumn(n) || n == defn.partition_col())
@@ -163,7 +163,7 @@ void SpanJoinOperatorTable::CreateSchemaColsForDefn(
   }
 }
 
-std::unique_ptr<Table::Cursor> SpanJoinOperatorTable::CreateCursor() {
+std::unique_ptr<SqliteTable::Cursor> SpanJoinOperatorTable::CreateCursor() {
   return std::unique_ptr<SpanJoinOperatorTable::Cursor>(new Cursor(this, db_));
 }
 
@@ -218,8 +218,8 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
     auto col = cols[i];
     if (IsRequiredColumn(col.name())) {
       ++required_columns_found;
-      if (col.type() != Table::ColumnType::kLong &&
-          col.type() != Table::ColumnType::kUnknown) {
+      if (col.type() != SqliteTable::ColumnType::kLong &&
+          col.type() != SqliteTable::ColumnType::kUnknown) {
         return util::ErrStatus(
             "SPAN_JOIN: Invalid type for column %s in table %s",
             col.name().c_str(), desc.name.c_str());
@@ -270,7 +270,7 @@ std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
 }
 
 SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
-    : Table::Cursor(table),
+    : SqliteTable::Cursor(table),
       t1_(table, &table->t1_defn_, db),
       t2_(table, &table->t2_defn_, db),
       table_(table) {}
@@ -616,7 +616,7 @@ SpanJoinOperatorTable::Query::StepRet SpanJoinOperatorTable::Query::StepUntil(
 std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
     const std::vector<std::string>& cs) const {
   std::vector<std::string> col_names;
-  for (const Table::Column& c : defn_->columns()) {
+  for (const SqliteTable::Column& c : defn_->columns()) {
     col_names.push_back("`" + c.name() + "`");
   }
 
@@ -682,7 +682,7 @@ void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
 SpanJoinOperatorTable::TableDefinition::TableDefinition(
     std::string name,
     std::string partition_col,
-    std::vector<Table::Column> cols,
+    std::vector<SqliteTable::Column> cols,
     bool emit_shadow_slices,
     uint32_t ts_idx,
     uint32_t dur_idx,

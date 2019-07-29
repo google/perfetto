@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TABLE_H_
-#define SRC_TRACE_PROCESSOR_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_TABLE_H_
 
 #include <functional>
 #include <memory>
@@ -37,10 +37,11 @@ class TraceStorage;
 // Abstract base class representing a SQLite virtual table. Implements the
 // common bookeeping required across all tables and allows subclasses to
 // implement a friendlier API than that required by SQLite.
-class Table : public sqlite3_vtab {
+class SqliteTable : public sqlite3_vtab {
  public:
   using Factory =
-      std::function<std::unique_ptr<Table>(sqlite3*, const TraceStorage*)>;
+      std::function<std::unique_ptr<SqliteTable>(sqlite3*,
+                                                 const TraceStorage*)>;
 
   // Allowed types for columns in a table.
   enum ColumnType {
@@ -74,13 +75,13 @@ class Table : public sqlite3_vtab {
   static bool debug;
 
   // Public for unique_ptr destructor calls.
-  virtual ~Table();
+  virtual ~SqliteTable();
 
   // Abstract base class representing an SQLite Cursor. Presents a friendlier
   // API for subclasses to implement.
   class Cursor : public sqlite3_vtab_cursor {
    public:
-    Cursor(Table* table);
+    Cursor(SqliteTable* table);
     virtual ~Cursor();
 
     // Methods to be implemented by derived table classes.
@@ -109,9 +110,9 @@ class Table : public sqlite3_vtab {
     Cursor& operator=(Cursor&&) = default;
 
    private:
-    friend class Table;
+    friend class SqliteTable;
 
-    Table* table_ = nullptr;
+    SqliteTable* table_ = nullptr;
   };
 
   // The schema of the table. Created by subclasses to allow the table class to
@@ -148,13 +149,13 @@ class Table : public sqlite3_vtab {
   };
 
   struct TableDescriptor {
-    Table::Factory factory;
+    SqliteTable::Factory factory;
     const TraceStorage* storage = nullptr;
     std::string name;
     sqlite3_module module = {};
   };
 
-  Table();
+  SqliteTable();
 
   // Called by derived classes to register themselves with the SQLite db.
   // |read_write| specifies whether the table can also be written to.
@@ -300,7 +301,7 @@ class Table : public sqlite3_vtab {
   template <typename TableType>
   static Factory GetFactory() {
     return [](sqlite3* db, const TraceStorage* storage) {
-      return std::unique_ptr<Table>(new TableType(db, storage));
+      return std::unique_ptr<SqliteTable>(new TableType(db, storage));
     };
   }
 
@@ -319,8 +320,8 @@ class Table : public sqlite3_vtab {
   int OpenInternal(sqlite3_vtab_cursor**);
   int BestIndexInternal(sqlite3_index_info*);
 
-  Table(const Table&) = delete;
-  Table& operator=(const Table&) = delete;
+  SqliteTable(const SqliteTable&) = delete;
+  SqliteTable& operator=(const SqliteTable&) = delete;
 
   std::string name_;
   Schema schema_;
@@ -333,4 +334,4 @@ class Table : public sqlite3_vtab {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_TABLE_H_

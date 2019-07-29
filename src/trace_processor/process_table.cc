@@ -33,25 +33,26 @@ ProcessTable::ProcessTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
 void ProcessTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<ProcessTable>(db, storage, "process");
+  SqliteTable::Register<ProcessTable>(db, storage, "process");
 }
 
 util::Status ProcessTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
-          Table::Column(Column::kUpid, "upid", ColumnType::kInt),
-          Table::Column(Column::kName, "name", ColumnType::kString),
-          Table::Column(Column::kPid, "pid", ColumnType::kUint),
-          Table::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
-          Table::Column(Column::kEndTs, "end_ts", ColumnType::kLong),
-          Table::Column(Column::kParentUpid, "parent_upid", ColumnType::kInt),
+          SqliteTable::Column(Column::kUpid, "upid", ColumnType::kInt),
+          SqliteTable::Column(Column::kName, "name", ColumnType::kString),
+          SqliteTable::Column(Column::kPid, "pid", ColumnType::kUint),
+          SqliteTable::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
+          SqliteTable::Column(Column::kEndTs, "end_ts", ColumnType::kLong),
+          SqliteTable::Column(Column::kParentUpid, "parent_upid",
+                              ColumnType::kInt),
       },
       {Column::kUpid});
   return util::OkStatus();
 }
 
-std::unique_ptr<Table::Cursor> ProcessTable::CreateCursor() {
-  return std::unique_ptr<Table::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::Cursor> ProcessTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
 }
 
 int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -68,7 +69,7 @@ int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 }
 
 ProcessTable::Cursor::Cursor(ProcessTable* table)
-    : Table::Cursor(table), storage_(table->storage_) {}
+    : SqliteTable::Cursor(table), storage_(table->storage_) {}
 
 int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
                                  sqlite3_value** argv) {

@@ -29,7 +29,7 @@ WindowOperatorTable::WindowOperatorTable(sqlite3*, const TraceStorage*) {}
 
 void WindowOperatorTable::RegisterTable(sqlite3* db,
                                         const TraceStorage* storage) {
-  Table::Register<WindowOperatorTable>(db, storage, "window", true);
+  SqliteTable::Register<WindowOperatorTable>(db, storage, "window", true);
 }
 
 util::Status WindowOperatorTable::Init(int,
@@ -39,24 +39,26 @@ util::Status WindowOperatorTable::Init(int,
   *schema = Schema(
       {
           // These are the operator columns:
-          Table::Column(Column::kRowId, "rowid", ColumnType::kLong, kHidden),
-          Table::Column(Column::kQuantum, "quantum", ColumnType::kLong,
-                        kHidden),
-          Table::Column(Column::kWindowStart, "window_start", ColumnType::kLong,
-                        kHidden),
-          Table::Column(Column::kWindowDur, "window_dur", ColumnType::kLong,
-                        kHidden),
+          SqliteTable::Column(Column::kRowId, "rowid", ColumnType::kLong,
+                              kHidden),
+          SqliteTable::Column(Column::kQuantum, "quantum", ColumnType::kLong,
+                              kHidden),
+          SqliteTable::Column(Column::kWindowStart, "window_start",
+                              ColumnType::kLong, kHidden),
+          SqliteTable::Column(Column::kWindowDur, "window_dur",
+                              ColumnType::kLong, kHidden),
           // These are the ouput columns:
-          Table::Column(Column::kTs, "ts", ColumnType::kLong),
-          Table::Column(Column::kDuration, "dur", ColumnType::kLong),
-          Table::Column(Column::kQuantumTs, "quantum_ts", ColumnType::kLong),
+          SqliteTable::Column(Column::kTs, "ts", ColumnType::kLong),
+          SqliteTable::Column(Column::kDuration, "dur", ColumnType::kLong),
+          SqliteTable::Column(Column::kQuantumTs, "quantum_ts",
+                              ColumnType::kLong),
       },
       {Column::kRowId});
   return util::OkStatus();
 }
 
-std::unique_ptr<Table::Cursor> WindowOperatorTable::CreateCursor() {
-  return std::unique_ptr<Table::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::Cursor> WindowOperatorTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
 }
 
 int WindowOperatorTable::BestIndex(const QueryConstraints& qc,
@@ -95,7 +97,7 @@ int WindowOperatorTable::Update(int argc,
 }
 
 WindowOperatorTable::Cursor::Cursor(WindowOperatorTable* table)
-    : Table::Cursor(table), table_(table) {}
+    : SqliteTable::Cursor(table), table_(table) {}
 
 int WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                         sqlite3_value** argv) {

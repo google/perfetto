@@ -27,7 +27,7 @@ InstantsTable::InstantsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
 void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<InstantsTable>(db, storage, "instants");
+  SqliteTable::Register<InstantsTable>(db, storage, "instants");
 }
 
 StorageSchema InstantsTable::CreateStorageSchema() {

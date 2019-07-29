@@ -24,7 +24,7 @@ CounterValuesTable::CounterValuesTable(sqlite3*, const TraceStorage* storage)
 
 void CounterValuesTable::RegisterTable(sqlite3* db,
                                        const TraceStorage* storage) {
-  Table::Register<CounterValuesTable>(db, storage, "counter_values");
+  SqliteTable::Register<CounterValuesTable>(db, storage, "counter_values");
 }
 
 StorageSchema CounterValuesTable::CreateStorageSchema() {
