@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {TrackState} from '../common/state';
-import {LIMIT, TrackData} from '../common/track_data';
+import {TrackData} from '../common/track_data';
 
 import {globals} from './globals';
 
@@ -37,7 +37,7 @@ export interface TrackCreator {
  */
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   constructor(protected trackState: TrackState) {}
-  abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+  protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
   get config(): Config {
     return this.trackState.config as Config;
@@ -63,22 +63,8 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
 
   onMouseOut() {}
 
-  shouldRequestData(
-      data: Data|undefined, windowStart: number, windowEnd: number): boolean {
-    if (data === undefined) return true;
-
-    // If at the limit only request more data if the view has moved.
-    const atLimit = data.length === LIMIT;
-    if (atLimit) {
-      // We request more data than the window, so add window duration to find
-      // the previous window.
-      const prevWindowStart = data.start + (windowEnd - windowStart);
-      return windowStart !== prevWindowStart;
-    }
-
-    // Otherwise request more data only when out of range of current data or
-    // resolution has changed.
-    const inRange = windowStart >= data.start && windowEnd <= data.end;
-    return !inRange || data.resolution !== globals.getCurResolution();
+  render(ctx: CanvasRenderingContext2D) {
+    globals.frontendLocalState.addVisibleTrack(this.trackState.id);
+    this.renderCanvas(ctx);
   }
 }

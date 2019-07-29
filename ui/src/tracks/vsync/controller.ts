@@ -24,7 +24,6 @@ import {Config, Data, KIND} from './common';
 
 class VsyncTrackController extends TrackController<Config, Data> {
   static readonly kind = KIND;
-  private busy = false;
   private setup = false;
 
   onBoundsChange(start: number, end: number, resolution: number) {
@@ -32,10 +31,6 @@ class VsyncTrackController extends TrackController<Config, Data> {
   }
 
   private async update(start: number, end: number, resolution: number) {
-    // TODO(hjd): we should really call TraceProcessor.Interrupt() here.
-    if (this.busy) return;
-    this.busy = true;
-
     if (this.setup === false) {
       await this.query(
           `create virtual table window_${this.trackState.id} using window;`);
@@ -50,7 +45,6 @@ class VsyncTrackController extends TrackController<Config, Data> {
       select ts from counters
         where name like "${this.config.counterName}%"
         order by ts limit ${LIMIT};`);
-    this.busy = false;
     const rowCount = +rawResult.numRecords;
     const result = {
       start,

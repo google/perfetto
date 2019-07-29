@@ -50,11 +50,6 @@ class CounterTrack extends Track<Config, Data> {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const data = this.data();
 
-    if (this.shouldRequestData(
-            data, visibleWindowTime.start, visibleWindowTime.end)) {
-      globals.requestTrackData(this.trackState.id);
-    }
-
     if (data === undefined) return;  // Can't possibly draw anything.
 
     assertTrue(data.timestamps.length === data.values.length);

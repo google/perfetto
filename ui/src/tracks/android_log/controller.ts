@@ -23,17 +23,12 @@ import {ANDROID_LOGS_TRACK_KIND, Config, Data} from './common';
 
 class AndroidLogTrackController extends TrackController<Config, Data> {
   static readonly kind = ANDROID_LOGS_TRACK_KIND;
-  private busy = false;
 
   onBoundsChange(start: number, end: number, resolution: number) {
     this.update(start, end, resolution);
   }
 
   private async update(start: number, end: number, resolution: number) {
-    // TODO(hjd): we should really call TraceProcessor.Interrupt() here.
-    if (this.busy) return;
-    this.busy = true;
-
     const startNs = Math.floor(start * 1e9);
     const endNs = Math.ceil(end * 1e9);
 
@@ -49,7 +44,6 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       where ts >= ${startNs} and ts <= ${endNs}
       group by ts_quant, prio
       order by ts_quant, prio limit ${LIMIT};`);
-    this.busy = false;
 
     const rowCount = +rawResult.numRecords;
     const result = {

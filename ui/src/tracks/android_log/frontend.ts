@@ -53,11 +53,6 @@ class AndroidLogTrack extends Track<Config, Data> {
 
     const data = this.data();
 
-    if (this.shouldRequestData(
-            data, visibleWindowTime.start, visibleWindowTime.end)) {
-      globals.requestTrackData(this.trackState.id);
-    }
-
     if (data === undefined) return;  // Can't possibly draw anything.
 
     const dataStartPx = timeScale.timeToPx(data.start);
