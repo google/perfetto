@@ -29,7 +29,6 @@ export interface TrackState {
   kind: string;
   name: string;
   trackGroup?: string;
-  dataReq?: TrackDataRequest;
   config: {};
 }
 
@@ -40,12 +39,6 @@ export interface TrackGroupState {
   collapsed: boolean;
   tracks: string[];  // Child track ids.
   summaryTrackId: string;
-}
-
-export interface TrackDataRequest {
-  start: number;
-  end: number;
-  resolution: number;
 }
 
 export interface EngineConfig {
@@ -72,6 +65,7 @@ export interface TraceTime {
 
 export interface FrontendLocalState {
   visibleTraceTime: TraceTime;
+  curResolution: number;
   lastUpdate: number;  // Epoch in seconds (Date.now() / 1000).
 }
 
@@ -145,6 +139,7 @@ export interface State {
   traceTime: TraceTime;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
+  visibleTracks: string[];
   scrollingTracks: string[];
   pinnedTracks: string[];
   queries: ObjectById<QueryConfig>;
@@ -288,6 +283,7 @@ export function createEmptyState(): State {
     traceTime: {...defaultTraceTime},
     tracks: {},
     trackGroups: {},
+    visibleTracks: [],
     pinnedTracks: [],
     scrollingTracks: [],
     queries: {},
@@ -300,6 +296,7 @@ export function createEmptyState(): State {
     frontendLocalState: {
       visibleTraceTime: {...defaultTraceTime},
       lastUpdate: 0,
+      curResolution: 0,
     },
 
     logsPagination: {
