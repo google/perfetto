@@ -73,7 +73,7 @@ class FtraceProcfs {
   // Disables tracing, does not clear the buffer.
   bool DisableTracing();
 
-  // Enabls/disables tracing, does not clear the buffer.
+  // Enables/disables tracing, does not clear the buffer.
   bool SetTracingOn(bool enable);
 
   // Returns true iff tracing is enabled.
@@ -88,7 +88,7 @@ class FtraceProcfs {
   // Get the currently set clock.
   std::string GetClock();
 
-  // Get all the avaiable clocks.
+  // Get all the available clocks.
   std::set<std::string> AvailableClocks();
 
   // Open the raw pipe for |cpu|.
