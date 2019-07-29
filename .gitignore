@@ -19,3 +19,4 @@ TAGS
 .vscode
 *.code-workspace
 /fuzz_out/
+/bazel-*
