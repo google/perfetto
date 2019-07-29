@@ -31,25 +31,26 @@ SqlStatsTable::SqlStatsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
 void SqlStatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<SqlStatsTable>(db, storage, "sqlstats");
+  SqliteTable::Register<SqlStatsTable>(db, storage, "sqlstats");
 }
 
 util::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
-          Table::Column(Column::kQuery, "query", ColumnType::kString),
-          Table::Column(Column::kTimeQueued, "queued", ColumnType::kLong),
-          Table::Column(Column::kTimeStarted, "started", ColumnType::kLong),
-          Table::Column(Column::kTimeFirstNext, "first_next",
-                        ColumnType::kLong),
-          Table::Column(Column::kTimeEnded, "ended", ColumnType::kLong),
+          SqliteTable::Column(Column::kQuery, "query", ColumnType::kString),
+          SqliteTable::Column(Column::kTimeQueued, "queued", ColumnType::kLong),
+          SqliteTable::Column(Column::kTimeStarted, "started",
+                              ColumnType::kLong),
+          SqliteTable::Column(Column::kTimeFirstNext, "first_next",
+                              ColumnType::kLong),
+          SqliteTable::Column(Column::kTimeEnded, "ended", ColumnType::kLong),
       },
       {Column::kTimeQueued});
   return util::OkStatus();
 }
 
-std::unique_ptr<Table::Cursor> SqlStatsTable::CreateCursor() {
-  return std::unique_ptr<Table::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::Cursor> SqlStatsTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
 }
 
 int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
@@ -58,7 +59,7 @@ int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
 }
 
 SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
-    : Table::Cursor(table), storage_(table->storage_), table_(table) {}
+    : SqliteTable::Cursor(table), storage_(table->storage_), table_(table) {}
 
 SqlStatsTable::Cursor::~Cursor() = default;
 

@@ -15,7 +15,8 @@
  */
 
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/table.h"
+
+#include "src/trace_processor/sqlite_table.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
 namespace perfetto {
@@ -62,7 +63,7 @@ util::Status TraceProcessor::Iterator::Status() {
 void EnableSQLiteVtableDebugging() {
   // This level of indirection is required to avoid clients to depend on table.h
   // which in turn requires sqlite headers.
-  Table::debug = true;
+  SqliteTable::debug = true;
 }
 }  // namespace trace_processor
 }  // namespace perfetto
