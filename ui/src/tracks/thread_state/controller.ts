@@ -29,7 +29,6 @@ import {
 
 class ThreadStateTrackController extends TrackController<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
-  private busy = false;
   private setup = false;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
@@ -38,9 +37,6 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
   private async update(start: number, end: number, resolution: number):
       Promise<void> {
-    if (this.busy) return;
-    this.busy = true;
-
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
     let minNs = 0;
@@ -199,7 +195,6 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     }
 
     this.publish(summary);
-    this.busy = false;
   }
 
   private async query(query: string) {

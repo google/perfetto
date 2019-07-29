@@ -30,7 +30,6 @@ import {
 
 class CpuSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
-  private busy = false;
   private setup = false;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
@@ -39,13 +38,10 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
 
   private async update(start: number, end: number, resolution: number):
       Promise<void> {
-    // TODO: we should really call TraceProcessor.Interrupt() at this point.
-    if (this.busy) return;
 
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
-    this.busy = true;
     if (this.setup === false) {
       await this.query(
           `create virtual table ${this.tableName('window')} using window;`);
@@ -77,7 +73,6 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       this.publish(
           await this.computeSlices(fromNs(windowStartNs), end, resolution));
     }
-    this.busy = false;
   }
 
   private async computeSummary(
