@@ -214,31 +214,52 @@ class TraceStorage {
     std::unordered_map<ArgSetHash, uint32_t> arg_row_for_hash_;
   };
 
+  class Tracks {
+   public:
+    inline uint32_t AddTrack(StringId name) {
+      names_.emplace_back(name);
+      return track_count() - 1;
+    }
+
+    uint32_t track_count() const {
+      return static_cast<uint32_t>(names_.size());
+    }
+
+    const std::deque<StringId>& names() const { return names_; }
+
+   private:
+    std::deque<StringId> names_;
+  };
+
   class VirtualTracks {
    public:
-    inline uint32_t AddVirtualTrack(TrackId track_id,
-                                    StringId name,
-                                    VirtualTrackScope scope,
-                                    UniquePid upid = 0u) {
+    inline void AddVirtualTrack(TrackId track_id,
+                                VirtualTrackScope scope,
+                                UniquePid upid = 0u) {
       track_ids_.emplace_back(track_id);
-      names_.emplace_back(name);
       scopes_.emplace_back(scope);
       upids_.emplace_back(upid);
-      return virtual_track_count() - 1;
     }
 
     uint32_t virtual_track_count() const {
       return static_cast<uint32_t>(track_ids_.size());
     }
 
+    base::Optional<uint32_t> FindRowForTrackId(uint32_t track_id) const {
+      auto it =
+          std::lower_bound(track_ids().begin(), track_ids().end(), track_id);
+      if (it != track_ids().end() && *it == track_id) {
+        return static_cast<uint32_t>(std::distance(track_ids().begin(), it));
+      }
+      return base::nullopt;
+    }
+
     const std::deque<uint32_t>& track_ids() const { return track_ids_; }
-    const std::deque<StringId>& names() const { return names_; }
     const std::deque<VirtualTrackScope>& scopes() const { return scopes_; }
     const std::deque<UniquePid>& upids() const { return upids_; }
 
    private:
     std::deque<uint32_t> track_ids_;
-    std::deque<StringId> names_;
     std::deque<VirtualTrackScope> scopes_;
     std::deque<UniquePid> upids_;
   };
@@ -1085,6 +1106,9 @@ class TraceStorage {
     return std::make_pair(table_id, row);
   }
 
+  const Tracks& tracks() const { return tracks_; }
+  Tracks* mutable_tracks() { return &tracks_; }
+
   const VirtualTracks& virtual_tracks() const { return virtual_tracks_; }
   VirtualTracks* mutable_virtual_tracks() { return &virtual_tracks_; }
 
@@ -1197,6 +1221,9 @@ class TraceStorage {
   // * metadata from chrome and benchmarking infrastructure
   // * descriptions of android packages
   Metadata metadata_{};
+
+  // Metadata for tracks.
+  Tracks tracks_;
 
   // Metadata for virtual slice tracks.
   VirtualTracks virtual_tracks_;
