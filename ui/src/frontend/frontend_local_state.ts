@@ -36,6 +36,8 @@ export class FrontendLocalState {
   showTimeSelectPreview = false;
   showNotePreview = false;
   localOnlyMode = false;
+  visibleTracks = new Set<string>();
+  prevVisibleTracks = new Set<string>();
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
@@ -49,6 +51,7 @@ export class FrontendLocalState {
 
     // Post a delayed update to the controller.
     if (this.pendingGlobalTimeUpdate) return;
+    this.pendingGlobalTimeUpdate = true;
     setTimeout(() => {
       this._lastUpdate = Date.now() / 1000;
       globals.dispatch(Actions.setVisibleTraceTime({
@@ -57,9 +60,10 @@ export class FrontendLocalState {
           endSec: this.visibleWindowTime.end,
         },
         lastUpdate: this._lastUpdate,
+        res: globals.getCurResolution(),
       }));
       this.pendingGlobalTimeUpdate = false;
-    }, 100);
+    }, 50);
   }
 
   mergeState(frontendLocalState: FrontendState): void {
@@ -102,5 +106,25 @@ export class FrontendLocalState {
   setShowTimeSelectPreview(show: boolean) {
     this.showTimeSelectPreview = show;
     globals.rafScheduler.scheduleRedraw();
+  }
+
+  addVisibleTrack(trackId: string) {
+    this.visibleTracks.add(trackId);
+  }
+
+  // Called when beginning a canvas redraw.
+  clearVisibleTracks() {
+    this.prevVisibleTracks = new Set(this.visibleTracks);
+    this.visibleTracks.clear();
+  }
+
+  // Called when the canvas redraw is complete.
+  sendVisibleTracks() {
+    if (this.prevVisibleTracks.size !== this.visibleTracks.size ||
+        ![...this.prevVisibleTracks].every(
+            value => this.visibleTracks.has(value))) {
+      globals.dispatch(
+          Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
+    }
   }
 }

@@ -23,7 +23,6 @@ import {Config, Data, SLICE_TRACK_KIND} from './common';
 
 class ChromeSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = SLICE_TRACK_KIND;
-  private busy = false;
   private setup = false;
 
   onBoundsChange(start: number, end: number, resolution: number): void {
@@ -31,14 +30,10 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
   }
 
   private async update(start: number, end: number, resolution: number) {
-    // TODO: we should really call TraceProcessor.Interrupt() at this point.
-    if (this.busy) return;
-
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
     // Ns in 1px width. We want all slices smaller than 1px to be grouped.
     const minNs = Math.round(resolution * 1e9);
-    this.busy = true;
 
     if (!this.setup) {
       await this.query(
@@ -103,7 +98,6 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         `select * from ${this.tableName('big')} order by ts limit ${LIMIT}`;
 
     const rawResult = await this.query(query);
-    this.busy = false;
 
     if (rawResult.error) {
       throw new Error(`Query error "${query}": ${rawResult.error}`);

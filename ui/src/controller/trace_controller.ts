@@ -30,8 +30,8 @@ import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
-import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
+import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
 } from '../tracks/process_scheduling/common';
@@ -209,10 +209,10 @@ export class TraceController extends Controller<States> {
     ];
 
     if (globals.state.frontendLocalState.lastUpdate === 0) {
-      actions.push(Actions.setVisibleTraceTime({
-        time: traceTimeState,
-        lastUpdate: Date.now() / 1000,
-      }));
+      // We don't know the resolution at this point. However this will be
+      // replaced in 50ms so a guess is fine.
+      actions.push(Actions.setVisibleTraceTime(
+          {time: traceTimeState, lastUpdate: Date.now() / 1000, res: 0.008}));
     }
 
     globals.dispatchMultiple(actions);

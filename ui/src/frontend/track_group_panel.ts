@@ -113,7 +113,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
     ctx.translate(this.shellWidth, 0);
     if (this.summaryTrack) {
-      this.summaryTrack.renderCanvas(ctx);
+      this.summaryTrack.render(ctx);
     }
     ctx.restore();
 
