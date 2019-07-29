@@ -237,5 +237,31 @@ TEST(ProtoDecoderTest, FindField) {
   EXPECT_FALSE(field2);
 }
 
+TEST(ProtoDecoderTest, MoveTypedDecoder) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 10);
+  std::vector<uint8_t> proto = message.SerializeAsArray();
+
+  // Construct a decoder that uses inline storage (i.e., the fields are stored
+  // within the object itself).
+  using Decoder = TypedProtoDecoder<32, false>;
+  std::unique_ptr<Decoder> decoder(new Decoder(proto.data(), proto.size()));
+  ASSERT_GE(reinterpret_cast<uintptr_t>(&decoder->at<1>()),
+            reinterpret_cast<uintptr_t>(decoder.get()));
+  ASSERT_LT(reinterpret_cast<uintptr_t>(&decoder->at<1>()),
+            reinterpret_cast<uintptr_t>(decoder.get()) + sizeof(Decoder));
+
+  // Move the decoder into another object and deallocate the original object.
+  Decoder decoder2(std::move(*decoder));
+  decoder.reset();
+
+  // Check that the contents got moved correctly.
+  EXPECT_EQ(decoder2.Get(1).as_int32(), 10);
+  ASSERT_GE(reinterpret_cast<uintptr_t>(&decoder2.at<1>()),
+            reinterpret_cast<uintptr_t>(&decoder2));
+  ASSERT_LT(reinterpret_cast<uintptr_t>(&decoder2.at<1>()),
+            reinterpret_cast<uintptr_t>(&decoder2) + sizeof(Decoder));
+}
+
 }  // namespace
 }  // namespace protozero
