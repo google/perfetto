@@ -23,7 +23,7 @@ AndroidLogsTable::AndroidLogsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
 void AndroidLogsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<AndroidLogsTable>(db, storage, "android_logs");
+  SqliteTable::Register<AndroidLogsTable>(db, storage, "android_logs");
 }
 
 StorageSchema AndroidLogsTable::CreateStorageSchema() {

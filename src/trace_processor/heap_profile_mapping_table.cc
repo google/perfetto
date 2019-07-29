@@ -25,7 +25,8 @@ HeapProfileMappingTable::HeapProfileMappingTable(sqlite3*,
 
 void HeapProfileMappingTable::RegisterTable(sqlite3* db,
                                             const TraceStorage* storage) {
-  Table::Register<HeapProfileMappingTable>(db, storage, "heap_profile_mapping");
+  SqliteTable::Register<HeapProfileMappingTable>(db, storage,
+                                                 "heap_profile_mapping");
 }
 
 StorageSchema HeapProfileMappingTable::CreateStorageSchema() {

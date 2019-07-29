@@ -20,8 +20,8 @@
 #include <limits>
 #include <memory>
 
+#include "src/trace_processor/sqlite_table.h"
 #include "src/trace_processor/stats.h"
-#include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -30,14 +30,14 @@ namespace trace_processor {
 // The stats table contains diagnostic info and errors that are either:
 // - Collected at trace time (e.g., ftrace buffer overruns).
 // - Generated at parsing time (e.g., clock events out-of-order).
-class StatsTable : public Table {
+class StatsTable : public SqliteTable {
  public:
   enum Column { kName = 0, kIndex, kSeverity, kSource, kValue };
-  class Cursor : public Table::Cursor {
+  class Cursor : public SqliteTable::Cursor {
    public:
     Cursor(StatsTable*);
 
-    // Implementation of Table::Cursor.
+    // Implementation of SqliteTable::Cursor.
     int Filter(const QueryConstraints&, sqlite3_value**) override;
     int Next() override;
     int Eof() override;
@@ -61,8 +61,8 @@ class StatsTable : public Table {
   StatsTable(sqlite3*, const TraceStorage*);
 
   // Table implementation.
-  util::Status Init(int, const char* const*, Table::Schema*) override;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  util::Status Init(int, const char* const*, SqliteTable::Schema*) override;
+  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:

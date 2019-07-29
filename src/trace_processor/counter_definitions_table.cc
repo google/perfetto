@@ -29,7 +29,8 @@ CounterDefinitionsTable::CounterDefinitionsTable(sqlite3*,
 
 void CounterDefinitionsTable::RegisterTable(sqlite3* db,
                                             const TraceStorage* storage) {
-  Table::Register<CounterDefinitionsTable>(db, storage, "counter_definitions");
+  SqliteTable::Register<CounterDefinitionsTable>(db, storage,
+                                                 "counter_definitions");
 }
 
 StorageSchema CounterDefinitionsTable::CreateStorageSchema() {

@@ -28,7 +28,7 @@ util::Status StorageTable::Init(int, const char* const*, Schema* schema) {
   return util::OkStatus();
 }
 
-std::unique_ptr<Table::Cursor> StorageTable::CreateCursor() {
+std::unique_ptr<SqliteTable::Cursor> StorageTable::CreateCursor() {
   return std::unique_ptr<Cursor>(new Cursor(this));
 }
 
@@ -167,7 +167,7 @@ bool StorageTable::HasEqConstraint(const QueryConstraints& qc,
 }
 
 StorageTable::Cursor::Cursor(StorageTable* table)
-    : Table::Cursor(table), table_(table) {}
+    : SqliteTable::Cursor(table), table_(table) {}
 
 int StorageTable::Cursor::Filter(const QueryConstraints& qc,
                                  sqlite3_value** argv) {
