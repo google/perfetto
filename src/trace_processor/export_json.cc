@@ -266,14 +266,18 @@ ResultCode ExportSlices(const TraceStorage* storage,
     }
 
     if (slices.types()[i] == RefType::kRefTrack) {  // Async event.
-      uint32_t track_id = static_cast<uint32_t>(slices.refs()[i]);
-      VirtualTrackScope scope = storage->virtual_tracks().scopes()[track_id];
-      UniquePid upid = storage->virtual_tracks().upids()[track_id];
+      TrackId track_id = static_cast<TrackId>(slices.refs()[i]);
+      base::Optional<uint32_t> opt_row =
+          storage->virtual_tracks().FindRowForTrackId(track_id);
+      PERFETTO_DCHECK(opt_row.has_value());
+
+      VirtualTrackScope scope = storage->virtual_tracks().scopes()[*opt_row];
+      UniquePid upid = storage->virtual_tracks().upids()[*opt_row];
 
       if (scope == VirtualTrackScope::kGlobal) {
-        event["id2"]["global"] = PrintUint64(track_id);
+        event["id2"]["global"] = PrintUint64(*opt_row);
       } else {
-        event["id2"]["local"] = PrintUint64(track_id);
+        event["id2"]["local"] = PrintUint64(*opt_row);
         event["pid"] = storage->GetProcess(upid).pid;
       }
 
