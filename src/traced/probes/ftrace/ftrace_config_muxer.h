@@ -30,14 +30,14 @@ namespace perfetto {
 constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
 constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
 
-// Ftrace is a bunch of globaly modifiable persistent state.
+// Ftrace is a bunch of globally modifiable persistent state.
 // Given a number of FtraceConfig's we need to find the best union of all
-// the settings to make eveyone happy while also watching out for anybody
+// the settings to make everyone happy while also watching out for anybody
 // messing with the ftrace settings at the same time as us.
 
 // Specifically FtraceConfigMuxer takes in a *requested* FtraceConfig
 // (|SetupConfig|), makes a best effort attempt to modify the ftrace
-// debugfs files to honor those settings without interupting other perfetto
+// debugfs files to honor those settings without interrupting other perfetto
 // traces already in progress or other users of ftrace, then returns an
 // FtraceConfigId representing that config or zero on failure.
 
@@ -56,7 +56,7 @@ class FtraceConfigMuxer {
   // config or zero on failure.
   // This is best effort. FtraceConfigMuxer may not be able to adjust the
   // buffer size right now. Events may be missing or there may be extra events
-  // (if you enable an atrace catagory we try to give you the matching events).
+  // (if you enable an atrace category we try to give you the matching events).
   // If someone else is tracing we won't touch atrace (since it resets the
   // buffer).
   // To see the config you ended up with use |GetConfig|.
