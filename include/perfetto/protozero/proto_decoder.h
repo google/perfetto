@@ -251,6 +251,17 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
     return fields_[FIELD_ID];
   }
 
+  TypedProtoDecoder(TypedProtoDecoder&& other) noexcept
+      : TypedProtoDecoderBase(std::move(other)) {
+    // If the moved-from decoder was using on-stack storage, we need to update
+    // our pointer to point to this decoder's on-stack storage.
+    if (fields_ == other.on_stack_storage_) {
+      fields_ = on_stack_storage_;
+      memcpy(on_stack_storage_, other.on_stack_storage_,
+             sizeof(on_stack_storage_));
+    }
+  }
+
  private:
   // In the case of non-repeated fields, this constant defines the highest field
   // id we are able to decode. This is to limit the on-stack storage.
