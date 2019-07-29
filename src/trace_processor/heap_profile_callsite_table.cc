@@ -25,8 +25,8 @@ HeapProfileCallsiteTable::HeapProfileCallsiteTable(sqlite3*,
 
 void HeapProfileCallsiteTable::RegisterTable(sqlite3* db,
                                              const TraceStorage* storage) {
-  Table::Register<HeapProfileCallsiteTable>(db, storage,
-                                            "heap_profile_callsite");
+  SqliteTable::Register<HeapProfileCallsiteTable>(db, storage,
+                                                  "heap_profile_callsite");
 }
 
 StorageSchema HeapProfileCallsiteTable::CreateStorageSchema() {

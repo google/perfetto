@@ -25,7 +25,7 @@ SliceTable::SliceTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
 void SliceTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<SliceTable>(db, storage, "internal_slice");
+  SqliteTable::Register<SliceTable>(db, storage, "internal_slice");
 }
 
 StorageSchema SliceTable::CreateStorageSchema() {
