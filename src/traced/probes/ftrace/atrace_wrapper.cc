@@ -131,7 +131,7 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
     // Wait for the value of the timeout.
     auto ret = poll(fds, kFdCount, timeout_ms);
     if (ret == 0 || (ret < 0 && errno == EINTR)) {
-      // Either timeout occured in poll (in which case continue so that this
+      // Either timeout occurred in poll (in which case continue so that this
       // will be picked up by our own timeout logic) or we received an EINTR and
       // we should try again.
       continue;

@@ -29,7 +29,7 @@ int __attribute__((visibility("default"))) ServiceMain(int, char**) {
   svc = ServiceIPCHost::CreateInstance(&task_runner);
 
   // When built as part of the Android tree, the two socket are created and
-  // bonund by init and their fd number is passed in two env variables.
+  // bound by init and their fd number is passed in two env variables.
   // See libcutils' android_get_control_socket().
   const char* env_prod = getenv("ANDROID_SOCKET_traced_producer");
   const char* env_cons = getenv("ANDROID_SOCKET_traced_consumer");
