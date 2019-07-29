@@ -85,11 +85,15 @@ function pull {
   fi
 }
 
-background=0
+BACKGROUND=0
+SKIP_CONVERTERS=0
+TMUX_LAYOUT="even-vertical"
 
-while getopts b o; do
+while getopts "bl:n" o; do
   case "$o" in
-    b) background=1;;
+    b) BACKGROUND=1;;
+    l) TMUX_LAYOUT=${OPTARG};;
+    n) SKIP_CONVERTERS=1;;
     *) echo "Invalid option $o"; exit;;
   esac
 done
@@ -158,7 +162,7 @@ fi
 
 POSTFIX=""
 
-if [[ background -eq 1 ]]; then
+if [[ BACKGROUND -eq 1 ]]; then
   PREFIX="$PREFIX nohup"
   POSTFIX=" &> /dev/null &"
 fi
@@ -180,7 +184,7 @@ fi
 tmux split-window -v
 tmux split-window -v
 
-tmux select-layout even-vertical
+tmux select-layout ${TMUX_LAYOUT}
 
 tmux select-pane -t 0
 tmux send-keys "clear" C-m
@@ -204,27 +208,27 @@ sleep 2
 
 tmux select-pane -t 1
 tmux_ensure_bash
-tmux send-keys "PS1='[traced_probes]$ '" Enter
+tmux send-keys "PS1='[traced]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX ./traced $POSTFIX" Enter
+tmux send-keys "$PREFIX ./traced 2>&1 | tee traced.log $POSTFIX" Enter
 
 tmux select-pane -t 0
 tmux_ensure_bash
-tmux send-keys "PS1='[traced]$ '" Enter
+tmux send-keys "PS1='[traced_probes]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX ./traced_probes $POSTFIX" Enter
+tmux send-keys "$PREFIX ./traced_probes 2>&1 | tee traced_probes.log $POSTFIX" Enter
 
 tmux select-pane -t 2
 tmux_ensure_bash
 tmux send-keys "PS1='[consumer]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace $POSTFIX"
+tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace 2>&1 | tee perfetto.log $POSTFIX"
 
 # Select consumer pane.
 tmux select-pane -t 2
 
 tmux -2 attach-session -t demo
-if [[ background -eq 1 ]]; then
+if [[ BACKGROUND -eq 1 ]]; then
   exit 0;
 fi
 
@@ -232,8 +236,11 @@ reset_tracing
 
 TRACE=$HOME/Downloads/trace
 pull trace /tmp/trace.protobuf
-echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-$OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
-echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
-$OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
-# Keep this last so it can fail.
+
+if [[ SKIP_CONVERTERS -eq 0 ]]; then
+  echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
+  $OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
+  echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
+  $OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
+  # Keep this last so it can fail.
+fi
