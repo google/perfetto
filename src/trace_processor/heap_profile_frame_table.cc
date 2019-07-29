@@ -25,7 +25,8 @@ HeapProfileFrameTable::HeapProfileFrameTable(sqlite3*,
 
 void HeapProfileFrameTable::RegisterTable(sqlite3* db,
                                           const TraceStorage* storage) {
-  Table::Register<HeapProfileFrameTable>(db, storage, "heap_profile_frame");
+  SqliteTable::Register<HeapProfileFrameTable>(db, storage,
+                                               "heap_profile_frame");
 }
 
 StorageSchema HeapProfileFrameTable::CreateStorageSchema() {

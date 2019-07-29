@@ -27,7 +27,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/scoped_db.h"
 #include "src/trace_processor/sqlite.h"
-#include "src/trace_processor/table.h"
+#include "src/trace_processor/sqlite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -394,7 +394,7 @@ inline std::string SqliteValueAsString(sqlite3_value* value) {
   }
 }
 
-inline std::vector<Table::Column> GetColumnsForTable(
+inline std::vector<SqliteTable::Column> GetColumnsForTable(
     sqlite3* db,
     const std::string& raw_table_name) {
   char sql[1024];
@@ -411,7 +411,7 @@ inline std::vector<Table::Column> GetColumnsForTable(
   ScopedStmt stmt(raw_stmt);
   PERFETTO_DCHECK(sqlite3_column_count(*stmt) == 2);
 
-  std::vector<Table::Column> columns;
+  std::vector<SqliteTable::Column> columns;
   for (;;) {
     err = sqlite3_step(raw_stmt);
     if (err == SQLITE_DONE)
@@ -431,23 +431,23 @@ inline std::vector<Table::Column> GetColumnsForTable(
                      raw_table_name.c_str());
     }
 
-    Table::ColumnType type;
+    SqliteTable::ColumnType type;
     if (strcmp(raw_type, "UNSIGNED INT") == 0) {
-      type = Table::ColumnType::kUint;
+      type = SqliteTable::ColumnType::kUint;
     } else if (strcmp(raw_type, "BIG INT") == 0) {
-      type = Table::ColumnType::kLong;
+      type = SqliteTable::ColumnType::kLong;
     } else if (strcmp(raw_type, "INT") == 0) {
-      type = Table::ColumnType::kInt;
+      type = SqliteTable::ColumnType::kInt;
     } else if (strcmp(raw_type, "STRING") == 0) {
-      type = Table::ColumnType::kString;
+      type = SqliteTable::ColumnType::kString;
     } else if (strcmp(raw_type, "DOUBLE") == 0) {
-      type = Table::ColumnType::kDouble;
+      type = SqliteTable::ColumnType::kDouble;
     } else if (strcmp(raw_type, "BOOLEAN") == 0) {
-      type = Table::ColumnType::kBool;
+      type = SqliteTable::ColumnType::kBool;
     } else if (!*raw_type) {
       PERFETTO_DLOG("Unknown column type for %s %s", raw_table_name.c_str(),
                     name);
-      type = Table::ColumnType::kUnknown;
+      type = SqliteTable::ColumnType::kUnknown;
     } else {
       PERFETTO_FATAL("Unknown column type '%s' on table %s", raw_type,
                      raw_table_name.c_str());

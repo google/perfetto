@@ -45,7 +45,7 @@ RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
 }
 
 void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  Table::Register<RawTable>(db, storage, "raw");
+  SqliteTable::Register<RawTable>(db, storage, "raw");
 }
 
 StorageSchema RawTable::CreateStorageSchema() {

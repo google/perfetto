@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/table.h"
+#include "src/trace_processor/sqlite_table.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -27,21 +27,21 @@ namespace trace_processor {
 
 namespace {
 
-std::string TypeToString(Table::ColumnType type) {
+std::string TypeToString(SqliteTable::ColumnType type) {
   switch (type) {
-    case Table::ColumnType::kString:
+    case SqliteTable::ColumnType::kString:
       return "STRING";
-    case Table::ColumnType::kUint:
+    case SqliteTable::ColumnType::kUint:
       return "UNSIGNED INT";
-    case Table::ColumnType::kLong:
+    case SqliteTable::ColumnType::kLong:
       return "BIG INT";
-    case Table::ColumnType::kInt:
+    case SqliteTable::ColumnType::kInt:
       return "INT";
-    case Table::ColumnType::kDouble:
+    case SqliteTable::ColumnType::kDouble:
       return "DOUBLE";
-    case Table::ColumnType::kBool:
+    case SqliteTable::ColumnType::kBool:
       return "BOOLEAN";
-    case Table::ColumnType::kUnknown:
+    case SqliteTable::ColumnType::kUnknown:
       PERFETTO_FATAL("Cannot map unknown column type");
   }
   PERFETTO_FATAL("Not reached");  // For gcc
@@ -50,18 +50,18 @@ std::string TypeToString(Table::ColumnType type) {
 }  // namespace
 
 // static
-bool Table::debug = false;
+bool SqliteTable::debug = false;
 
-Table::Table() = default;
-Table::~Table() = default;
+SqliteTable::SqliteTable() = default;
+SqliteTable::~SqliteTable() = default;
 
-int Table::OpenInternal(sqlite3_vtab_cursor** ppCursor) {
+int SqliteTable::OpenInternal(sqlite3_vtab_cursor** ppCursor) {
   // Freed in xClose().
   *ppCursor = static_cast<sqlite3_vtab_cursor*>(CreateCursor().release());
   return SQLITE_OK;
 }
 
-int Table::BestIndexInternal(sqlite3_index_info* idx) {
+int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
   QueryConstraints query_constraints;
 
   for (int i = 0; i < idx->nOrderBy; i++) {
@@ -86,7 +86,7 @@ int Table::BestIndexInternal(sqlite3_index_info* idx) {
 
   int ret = BestIndex(query_constraints, &info);
 
-  if (Table::debug) {
+  if (SqliteTable::debug) {
     PERFETTO_LOG(
         "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%d",
         name_.c_str(), query_constraints.ToNewSqlite3String().get(),
@@ -116,49 +116,49 @@ int Table::BestIndexInternal(sqlite3_index_info* idx) {
   return SQLITE_OK;
 }
 
-int Table::FindFunction(const char*, FindFunctionFn, void**) {
+int SqliteTable::FindFunction(const char*, FindFunctionFn, void**) {
   return 0;
 }
 
-int Table::Update(int, sqlite3_value**, sqlite3_int64*) {
+int SqliteTable::Update(int, sqlite3_value**, sqlite3_int64*) {
   return SQLITE_READONLY;
 }
 
-const QueryConstraints& Table::ParseConstraints(int idxNum,
-                                                const char* idxStr,
-                                                int argc) {
+const QueryConstraints& SqliteTable::ParseConstraints(int idxNum,
+                                                      const char* idxStr,
+                                                      int argc) {
   bool cache_hit = true;
   if (idxNum != qc_hash_) {
     qc_cache_ = QueryConstraints::FromString(idxStr);
     qc_hash_ = idxNum;
     cache_hit = false;
   }
-  if (Table::debug) {
+  if (SqliteTable::debug) {
     PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d cache_hit=%d",
                  name_.c_str(), idxStr, argc, cache_hit);
   }
   return qc_cache_;
 }
 
-Table::Cursor::Cursor(Table* table) : table_(table) {
+SqliteTable::Cursor::Cursor(SqliteTable* table) : table_(table) {
   // This is required to prevent us from leaving this field uninitialised if
   // we ever move construct the Cursor.
   pVtab = table;
 }
-Table::Cursor::~Cursor() = default;
+SqliteTable::Cursor::~Cursor() = default;
 
-int Table::Cursor::RowId(sqlite3_int64*) {
+int SqliteTable::Cursor::RowId(sqlite3_int64*) {
   return SQLITE_ERROR;
 }
 
-Table::Column::Column(size_t index,
-                      std::string name,
-                      ColumnType type,
-                      bool hidden)
+SqliteTable::Column::Column(size_t index,
+                            std::string name,
+                            ColumnType type,
+                            bool hidden)
     : index_(index), name_(name), type_(type), hidden_(hidden) {}
 
-Table::Schema::Schema(std::vector<Column> columns,
-                      std::vector<size_t> primary_keys)
+SqliteTable::Schema::Schema(std::vector<Column> columns,
+                            std::vector<size_t> primary_keys)
     : columns_(std::move(columns)), primary_keys_(std::move(primary_keys)) {
   for (size_t i = 0; i < columns_.size(); i++) {
     PERFETTO_CHECK(columns_[i].index() == i);
@@ -168,11 +168,11 @@ Table::Schema::Schema(std::vector<Column> columns,
   }
 }
 
-Table::Schema::Schema() = default;
-Table::Schema::Schema(const Schema&) = default;
-Table::Schema& Table::Schema::operator=(const Schema&) = default;
+SqliteTable::Schema::Schema() = default;
+SqliteTable::Schema::Schema(const Schema&) = default;
+SqliteTable::Schema& SqliteTable::Schema::operator=(const Schema&) = default;
 
-std::string Table::Schema::ToCreateTableStmt() const {
+std::string SqliteTable::Schema::ToCreateTableStmt() const {
   std::string stmt = "CREATE TABLE x(";
   for (size_t i = 0; i < columns_.size(); ++i) {
     const Column& col = columns_[i];

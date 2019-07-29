@@ -18,25 +18,25 @@
 #include <set>
 
 #include "src/trace_processor/row_iterators.h"
+#include "src/trace_processor/sqlite_table.h"
 #include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_schema.h"
-#include "src/trace_processor/table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 // Base class for all table implementations which are backed by some data
 // storage.
-class StorageTable : public Table {
+class StorageTable : public SqliteTable {
  public:
   // A cursor which abstracts common patterns found in storage backed tables. It
   // takes a strategy to iterate through rows and a column reporter for each
   // column to implement the Cursor interface.
-  class Cursor final : public Table::Cursor {
+  class Cursor final : public SqliteTable::Cursor {
    public:
     Cursor(StorageTable* table);
 
-    // Implementation of Table::Cursor.
+    // Implementation of SqliteTable::Cursor.
     int Filter(const QueryConstraints& qc, sqlite3_value** argv) override;
     int Next() override;
     int Eof() override;
@@ -52,8 +52,10 @@ class StorageTable : public Table {
   virtual ~StorageTable() override;
 
   // Table implementation.
-  util::Status Init(int, const char* const*, Table::Schema*) override final;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  util::Status Init(int,
+                    const char* const*,
+                    SqliteTable::Schema*) override final;
+  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
 
   // Required methods for subclasses to implement.
   virtual StorageSchema CreateStorageSchema() = 0;

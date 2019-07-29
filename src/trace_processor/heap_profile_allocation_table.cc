@@ -26,8 +26,8 @@ HeapProfileAllocationTable::HeapProfileAllocationTable(
 
 void HeapProfileAllocationTable::RegisterTable(sqlite3* db,
                                                const TraceStorage* storage) {
-  Table::Register<HeapProfileAllocationTable>(db, storage,
-                                              "heap_profile_allocation");
+  SqliteTable::Register<HeapProfileAllocationTable>(db, storage,
+                                                    "heap_profile_allocation");
 }
 
 StorageSchema HeapProfileAllocationTable::CreateStorageSchema() {
