@@ -274,12 +274,17 @@ TracingMuxerImpl::TracingSessionImpl::~TracingSessionImpl() {
 }
 
 // Can be called from any thread.
-void TracingMuxerImpl::TracingSessionImpl::Setup(const TraceConfig& cfg) {
+void TracingMuxerImpl::TracingSessionImpl::Setup(const TraceConfig& cfg,
+                                                 int fd) {
   auto* muxer = muxer_;
   auto session_id = session_id_;
   std::shared_ptr<TraceConfig> trace_config(new TraceConfig(cfg));
-  muxer->task_runner_->PostTask([muxer, session_id, trace_config] {
-    muxer->SetupTracingSession(session_id, trace_config);
+  if (fd >= 0) {
+    trace_config->set_write_into_file(true);
+    fd = dup(fd);
+  }
+  muxer->task_runner_->PostTask([muxer, session_id, trace_config, fd] {
+    muxer->SetupTracingSession(session_id, trace_config, base::ScopedFile(fd));
   });
 }
 
@@ -643,22 +648,27 @@ void TracingMuxerImpl::UpdateDataSourcesOnAllBackends() {
 
 void TracingMuxerImpl::SetupTracingSession(
     TracingSessionGlobalID session_id,
-    const std::shared_ptr<TraceConfig>& trace_config) {
+    const std::shared_ptr<TraceConfig>& trace_config,
+    base::ScopedFile trace_fd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_CHECK(!trace_fd || trace_config->write_into_file());
 
   auto* consumer = FindConsumer(session_id);
-
   if (!consumer)
     return;
 
   consumer->trace_config_ = trace_config;
+  if (trace_fd)
+    consumer->trace_fd_ = std::move(trace_fd);
 
   if (!consumer->connected_)
     return;
 
   // Only used in the deferred start mode.
-  if (trace_config->deferred_start())
-    consumer->service_->EnableTracing(*trace_config);
+  if (trace_config->deferred_start()) {
+    consumer->service_->EnableTracing(*trace_config,
+                                      std::move(consumer->trace_fd_));
+  }
 }
 
 void TracingMuxerImpl::StartTracingSession(TracingSessionGlobalID session_id) {
@@ -682,7 +692,8 @@ void TracingMuxerImpl::StartTracingSession(TracingSessionGlobalID session_id) {
   if (consumer->trace_config_->deferred_start()) {
     consumer->service_->StartTracing();
   } else {
-    consumer->service_->EnableTracing(*consumer->trace_config_);
+    consumer->service_->EnableTracing(*consumer->trace_config_,
+                                      std::move(consumer->trace_fd_));
   }
 
   // TODO implement support for the deferred-start + fast-triggering case.
