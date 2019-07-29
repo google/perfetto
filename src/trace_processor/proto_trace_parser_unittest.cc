@@ -1011,11 +1011,12 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   context_.sorter->ExtractEventsForced();
 
+  EXPECT_EQ(storage_->tracks().track_count(), 2u);
+  EXPECT_EQ(storage_->tracks().names()[0], 2u);
+  EXPECT_EQ(storage_->tracks().names()[1], 4u);
   EXPECT_EQ(storage_->virtual_tracks().virtual_track_count(), 2u);
   EXPECT_EQ(storage_->virtual_tracks().track_ids()[0], 0u);
   EXPECT_EQ(storage_->virtual_tracks().track_ids()[1], 1u);
-  EXPECT_EQ(storage_->virtual_tracks().names()[0], 2u);
-  EXPECT_EQ(storage_->virtual_tracks().names()[1], 4u);
   EXPECT_EQ(storage_->virtual_tracks().scopes()[0], VirtualTrackScope::kGlobal);
   EXPECT_EQ(storage_->virtual_tracks().scopes()[1],
             VirtualTrackScope::kProcess);
