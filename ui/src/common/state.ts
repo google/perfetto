@@ -160,6 +160,7 @@ export interface State {
 
   video: string | null;
   videoEnabled: boolean;
+  scrubbingEnabled: boolean;
   flagPauseEnabled: boolean;
   videoNoteIds: string[];
 }
@@ -309,6 +310,7 @@ export function createEmptyState(): State {
 
     video: null,
     videoEnabled: false,
+    scrubbingEnabled: false,
     flagPauseEnabled: false,
     videoNoteIds: [],
   };
