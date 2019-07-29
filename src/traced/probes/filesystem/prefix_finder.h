@@ -57,7 +57,7 @@ class PrefixFinder {
     Node& operator=(const Node&) = delete;
 
     // Return string representation of prefix, e.g. /foo/bar.
-    // Does not enclude a trailing /.
+    // Does not include a trailing /.
     std::string ToString() const;
 
    private:

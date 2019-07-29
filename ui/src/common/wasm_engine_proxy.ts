@@ -67,7 +67,7 @@ export function warmupWasmEngine(): void {
 }
 
 /**
- * This implementation of Engine uses a WASM backend hosted in a seperate
+ * This implementation of Engine uses a WASM backend hosted in a separate
  * worker thread.
  */
 export class WasmEngineProxy extends Engine {
