@@ -114,8 +114,7 @@ export const StateActions = {
 
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string;
-    config: {};
+    trackGroup?: string; config: {};
   }): void {
     const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
@@ -393,6 +392,18 @@ export const StateActions = {
   updateLogsPagination(state: StateDraft, args: LogsPagination): void {
     state.logsPagination = args;
   },
+
+  startRecording(state: StateDraft): void {
+    state.recordingInProgress = true;
+  },
+
+  stopRecording(state: StateDraft): void {
+    state.recordingInProgress = false;
+  },
+
+  setExtensionAvailable(state: StateDraft, args: {available: boolean}): void {
+    state.extensionInstalled = args.available;
+  }
 
 };
 

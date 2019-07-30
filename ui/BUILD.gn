@@ -17,6 +17,7 @@ import("../gn/wasm.gni")
 import("../protos/perfetto/trace_processor/proto_files.gni")
 
 ui_dir = "$root_build_dir/ui"
+chrome_extension_dir = "$root_build_dir/chrome_extension"
 ui_gen_dir = "$target_out_dir/gen"
 nodejs_root = "../buildtools/nodejs"
 nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
@@ -28,6 +29,8 @@ group("ui") {
   deps = [
     ":assets_dist",
     ":catapult_dist",
+    ":chrome_extension_assets_dist",
+    ":chrome_extension_bundle_dist",
     ":controller_bundle_dist",
     ":engine_bundle_dist",
     ":frontend_bundle_dist",
@@ -152,6 +155,14 @@ bundle("frontend_bundle") {
   output = "$target_out_dir/frontend_bundle.js"
 }
 
+bundle("chrome_extension_bundle") {
+  deps = [
+    ":transpile_all_ts",
+  ]
+  input = "$target_out_dir/chrome_extension/index.js"
+  output = "$target_out_dir/chrome_extension_bundle.js"
+}
+
 bundle("controller_bundle") {
   deps = [
     ":transpile_all_ts",
@@ -184,7 +195,10 @@ node_bin("protos_to_js") {
   foreach(proto, trace_processor_protos) {
     inputs += [ "../protos/perfetto/trace_processor/$proto.proto" ]
   }
-  inputs += [ "../protos/perfetto/config/perfetto_config.proto" ]
+  inputs += [
+    "../protos/perfetto/config/perfetto_config.proto",
+    "../protos/perfetto/ipc/consumer_port.proto",
+  ]
   outputs = [
     "$ui_gen_dir/protos.js",
   ]
@@ -242,6 +256,7 @@ node_bin("transpile_all_ts") {
     "$target_out_dir/engine/index.js",
     "$target_out_dir/controller/index.js",
     "$target_out_dir/query/index.js",
+    "$target_out_dir/chrome_extension/index.js",
   ]
 
   depfile = root_out_dir + "/tsc.d"
@@ -359,6 +374,16 @@ copy("assets_dist") {
     "$ui_dir/assets/{{source_file_part}}",
   ]
 }
+copy("chrome_extension_assets_dist") {
+  sources = [
+    "src/assets/logo-128.png",
+    "src/assets/logo.png",
+    "src/chrome_extension/manifest.json",
+  ]
+  outputs = [
+    "$chrome_extension_dir/{{source_file_part}}",
+  ]
+}
 
 sorcery("frontend_bundle_dist") {
   deps = [
@@ -366,6 +391,14 @@ sorcery("frontend_bundle_dist") {
   ]
   input = "$target_out_dir/frontend_bundle.js"
   output = "$ui_dir/frontend_bundle.js"
+}
+
+sorcery("chrome_extension_bundle_dist") {
+  deps = [
+    ":chrome_extension_bundle",
+  ]
+  input = "$target_out_dir/chrome_extension_bundle.js"
+  output = "$chrome_extension_dir/chrome_extension_bundle.js"
 }
 
 sorcery("controller_bundle_dist") {
