@@ -1,0 +1,58 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+import "perfetto/trace/profiling/profile_common.proto";
+
+// These messages encode a graph of objects that retain one another. Currently
+// this is used for Android Runtime (i.e. Java and Kotlin) heap graphs.
+
+package perfetto.protos;
+
+message HeapGraphObject {
+  optional uint64 id = 1;
+
+  // Index for InternedData.type_names for the name of the type of this object.
+  optional uint64 type_id = 2;
+
+  // Bytes occupied by this objects.
+  optional uint64 self_size = 3;
+
+  // Indices for InternedData.field_names for the name of the field referring
+  // to the object.
+  repeated uint64 reference_field_id = 4;
+
+  // Ids of the Object that is referred to.
+  repeated uint64 reference_object_id = 5;
+}
+
+message HeapGraph {
+  optional int32 pid = 1;
+
+  // Live objects at the time this dump was taken.
+  repeated HeapGraphObject objects = 2;
+
+  // Type names used in managed heap graph.
+  repeated InternedString type_names = 3;
+
+  // Field names for references in managed heap graph.
+  repeated InternedString field_names = 4;
+
+  optional bool continued = 5;
+  optional uint64 index = 6;
+}
