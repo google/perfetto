@@ -213,6 +213,8 @@ TEST_F(TracingServiceImplTest, AtMostOneConfig) {
 
   consumer_a->DisableTracing();
   consumer_a->WaitForTracingDisabled();
+
+  EXPECT_THAT(consumer_b->ReadBuffers(), ::testing::IsEmpty());
 }
 
 TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
