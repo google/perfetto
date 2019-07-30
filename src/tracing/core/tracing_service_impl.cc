@@ -1377,7 +1377,7 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
 // Note: when this is called to write into a file passed when starting tracing
 // |consumer| will be == nullptr (as opposite to the case of a consumer asking
 // to send the trace data back over IPC).
-void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
+bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
                                      ConsumerEndpointImpl* consumer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
@@ -1385,9 +1385,10 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     // This will be hit systematically from the PostDelayedTask when directly
     // writing into the file (in which case consumer == nullptr). Suppress the
     // log in this case as it's just spam.
-    if (consumer)
+    if (consumer) {
       PERFETTO_DLOG("Cannot ReadBuffers(): no tracing session is active");
-    return;  // TODO(primiano): signal failure?
+    }
+    return false;
   }
 
   // When a tracing session is waiting for a trigger it is considered empty. If
@@ -1397,24 +1398,22 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   // the consumer know there is no data.
   if (!tracing_session->config.trigger_config().triggers().empty() &&
       tracing_session->received_triggers.empty()) {
-    if (consumer)
-      consumer->consumer_->OnTraceData({}, /* has_more = */ false);
     PERFETTO_DLOG(
         "ReadBuffers(): tracing session has not received a trigger yet.");
-    return;
+    return false;
   }
 
   // This can happen if the file is closed by a previous task because it reaches
   // |max_file_size_bytes|.
   if (!tracing_session->write_into_file && !consumer)
-    return;
+    return false;
 
   if (tracing_session->write_into_file && consumer) {
     // If the consumer enabled tracing and asked to save the contents into the
     // passed file makes little sense to also try to read the buffers over IPC,
     // as that would just steal data from the periodic draining task.
     PERFETTO_DFATAL("Consumer trying to read from write_into_file session.");
-    return;
+    return false;
   }
 
   std::vector<TracePacket> packets;
@@ -1622,7 +1621,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
       tracing_session->write_period_ms = 0;
       if (tracing_session->state == TracingSession::STARTED)
         DisableTracing(tsid);
-      return;
+      return true;
     }
 
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
@@ -1632,7 +1631,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
             weak_this->ReadBuffers(tsid, nullptr);
         },
         tracing_session->delay_to_next_write_period_ms());
-    return;
+    return true;
   }  // if (tracing_session->write_into_file)
 
   if (has_more) {
@@ -1647,6 +1646,7 @@ void TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
   // Keep this as tail call, just in case the consumer re-enters.
   consumer->consumer_->OnTraceData(std::move(packets), has_more);
+  return true;
 }
 
 void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
@@ -2373,9 +2373,12 @@ void TracingServiceImpl::ConsumerEndpointImpl::ReadBuffers() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!tracing_session_id_) {
     PERFETTO_LOG("Consumer called ReadBuffers() but tracing was not active");
+    consumer_->OnTraceData({}, /* has_more = */ false);
     return;
   }
-  service_->ReadBuffers(tracing_session_id_, this);
+  if (!service_->ReadBuffers(tracing_session_id_, this)) {
+    consumer_->OnTraceData({}, /* has_more = */ false);
+  }
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
