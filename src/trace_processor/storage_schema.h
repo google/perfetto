@@ -23,9 +23,9 @@
 #include <vector>
 
 #include "src/trace_processor/filtered_row_index.h"
+#include "src/trace_processor/sqlite_table.h"
 #include "src/trace_processor/sqlite_utils.h"
 #include "src/trace_processor/storage_columns.h"
-#include "src/trace_processor/table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -103,7 +103,7 @@ class StorageSchema {
   StorageSchema();
   StorageSchema(Columns columns, std::vector<std::string> primary_keys);
 
-  Table::Schema ToTableSchema();
+  SqliteTable::Schema ToTableSchema();
 
   size_t ColumnIndexFromName(const std::string& name) const;
 

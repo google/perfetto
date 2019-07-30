@@ -20,7 +20,7 @@
 #include <limits>
 #include <memory>
 
-#include "src/trace_processor/table.h"
+#include "src/trace_processor/sqlite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,7 +30,7 @@ class TraceStorage;
 
 // A virtual table that allows to introspect performances of the SQL engine
 // for the kMaxLogEntries queries.
-class SqlStatsTable : public Table {
+class SqlStatsTable : public SqliteTable {
  public:
   enum Column {
     kQuery = 0,
@@ -41,12 +41,12 @@ class SqlStatsTable : public Table {
   };
 
   // Implementation of the SQLite cursor interface.
-  class Cursor : public Table::Cursor {
+  class Cursor : public SqliteTable::Cursor {
    public:
     Cursor(SqlStatsTable* storage);
     ~Cursor() override;
 
-    // Implementation of Table::Cursor.
+    // Implementation of SqliteTable::Cursor.
     int Filter(const QueryConstraints&, sqlite3_value**) override;
     int Next() override;
     int Eof() override;
@@ -71,7 +71,7 @@ class SqlStatsTable : public Table {
 
   // Table implementation.
   util::Status Init(int, const char* const*, Schema*) override;
-  std::unique_ptr<Table::Cursor> CreateCursor() override;
+  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:

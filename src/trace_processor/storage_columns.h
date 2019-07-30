@@ -55,7 +55,7 @@ class StorageColumn {
   virtual Comparator Sort(const QueryConstraints::OrderBy& ob) const = 0;
 
   // Returns the type of this column.
-  virtual Table::ColumnType GetType() const = 0;
+  virtual SqliteTable::ColumnType GetType() const = 0;
 
   // Bounds a filter on this column between a minimum and maximum index.
   // Generally this is only possible if the column is sorted.
@@ -113,8 +113,8 @@ class StringColumn final : public StorageColumn {
     };
   }
 
-  Table::ColumnType GetType() const override {
-    return Table::ColumnType::kString;
+  SqliteTable::ColumnType GetType() const override {
+    return SqliteTable::ColumnType::kString;
   }
 
   bool HasOrdering() const override { return accessor_.HasOrdering(); }
@@ -211,16 +211,16 @@ class NumericColumn : public StorageColumn {
 
   bool HasOrdering() const override { return accessor_.HasOrdering(); }
 
-  Table::ColumnType GetType() const override {
+  SqliteTable::ColumnType GetType() const override {
     if (std::is_same<NumericType, int32_t>::value) {
-      return Table::ColumnType::kInt;
+      return SqliteTable::ColumnType::kInt;
     } else if (std::is_same<NumericType, uint8_t>::value ||
                std::is_same<NumericType, uint32_t>::value) {
-      return Table::ColumnType::kUint;
+      return SqliteTable::ColumnType::kUint;
     } else if (std::is_same<NumericType, int64_t>::value) {
-      return Table::ColumnType::kLong;
+      return SqliteTable::ColumnType::kLong;
     } else if (std::is_same<NumericType, double>::value) {
-      return Table::ColumnType::kDouble;
+      return SqliteTable::ColumnType::kDouble;
     }
     PERFETTO_FATAL("Unexpected column type");
   }
