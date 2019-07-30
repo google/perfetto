@@ -148,7 +148,7 @@ TEST_P(TraceWriterImplTest, FragmentingPacket) {
 // Sets up a scenario in which the SMB is exhausted and TraceWriter fails to get
 // a new chunk while fragmenting a packet. Verifies that data is dropped until
 // the SMB is freed up and TraceWriter can get a new chunk.
-TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhaused) {
+TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhausted) {
   arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
                                              &fake_producer_endpoint_,
                                              task_runner_.get()));
@@ -161,7 +161,7 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhaused) {
   auto packet = writer->NewTracePacket();
   EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
                    ->drop_packets_for_testing());
-  EXPECT_EQ(packet->Finalize(), 0);
+  EXPECT_EQ(packet->Finalize(), 0u);
 
   // Grab all the remaining chunks in the SMB in new writers.
   std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 1> other_writers;
@@ -225,7 +225,7 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhaused) {
 
   // The first packet in the chunk should have the previous_packet_dropped flag
   // set, so shouldn't be empty.
-  EXPECT_GT(packet4->Finalize(), 0);
+  EXPECT_GT(packet4->Finalize(), 0u);
 
   // Flushing the writer causes the chunk to be released again.
   writer->Flush();
