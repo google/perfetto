@@ -134,6 +134,7 @@ void ProbesProducer::OnConnect() {
   {
     DataSourceDescriptor desc;
     desc.set_name(MetatraceDataSource::kDataSourceName);
+    desc.set_will_notify_on_stop(true);
     endpoint_->RegisterDataSource(desc);
   }
 }
@@ -338,6 +339,14 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
     return;
   }
   ProbesDataSource* data_source = it->second.get();
+
+  // MetatraceDataSource special case: re-flush and ack the stop (to record the
+  // flushes of other data sources).
+  if (data_source->type_id == MetatraceDataSource::kTypeId) {
+    data_source->Flush(FlushRequestID{0}, [] {});
+    endpoint_->NotifyDataSourceStopped(id);
+  }
+
   TracingSessionID session_id = data_source->tracing_session_id;
   auto range = session_data_sources_.equal_range(session_id);
   for (auto kv = range.first; kv != range.second; kv++) {
