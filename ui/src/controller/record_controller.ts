@@ -12,17 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
+
 import {
   AndroidLogConfig,
   AndroidLogId,
   AndroidPowerConfig,
   BufferConfig,
   ChromeConfig,
+  ConsumerPort,
   DataSourceConfig,
   FtraceConfig,
   ProcessStatsConfig,
   SysStatsConfig,
-  TraceConfig
+  TraceConfig,
 } from '../common/protos';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {MAX_TIME, RecordConfig} from '../common/state';
@@ -30,11 +33,17 @@ import {MAX_TIME, RecordConfig} from '../common/state';
 import {Controller} from './controller';
 import {App} from './globals';
 
+type RPCImplMethod = (Method|rpc.ServiceMethod<Message<{}>, Message<{}>>);
+
 export function uint8ArrayToBase64(buffer: Uint8Array): string {
   return btoa(String.fromCharCode.apply(null, Array.from(buffer)));
 }
 
 export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
+  return TraceConfig.encode(genConfig(uiCfg)).finish();
+}
+
+export function genConfig(uiCfg: RecordConfig): TraceConfig {
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
 
@@ -326,8 +335,7 @@ export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
     protoCfg.dataSources.push(ds);
   }
 
-  const buffer = TraceConfig.encode(protoCfg).finish();
-  return buffer;
+  return protoCfg;
 }
 
 export function toPbtxt(configBuffer: Uint8Array): string {
@@ -373,15 +381,28 @@ export function toPbtxt(configBuffer: Uint8Array): string {
 export class RecordController extends Controller<'main'> {
   private app: App;
   private config: RecordConfig|null = null;
+  private extensionPort: MessagePort;
+  private recordingInProgress: boolean|null = null;
+  private consumerPort: ConsumerPort;
 
-  constructor(args: {app: App}) {
+  constructor(args: {app: App, extensionPort: MessagePort}) {
     super('main');
     this.app = args.app;
+    this.consumerPort = ConsumerPort.create(this.rpcImpl);
+    this.extensionPort = args.extensionPort;
+    this.extensionPort.onmessage = ({data}) => {
+      // TODO(nicomazz): Handle messages from the extension.
+      console.log('message received from the extension:', data);
+    };
   }
 
   run() {
-    if (this.app.state.recordConfig === this.config) return;
+    if (this.app.state.recordConfig === this.config &&
+        this.app.state.recordingInProgress === this.recordingInProgress) {
+      return;
+    }
     this.config = this.app.state.recordConfig;
+
     const configProto = genConfigProto(this.config);
     const configProtoText = toPbtxt(configProto);
     const commandline = `
@@ -390,13 +411,46 @@ export class RecordController extends Controller<'main'> {
       adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace" &&
       adb pull /data/misc/perfetto-traces/trace /tmp/trace
     `;
+    const traceConfig = genConfig(this.config);
     // TODO(hjd): This should not be TrackData after we unify the stores.
     this.app.publish('TrackData', {
       id: 'config',
-      data: {
-        commandline,
-        pbtxt: configProtoText,
-      }
+      data: {commandline, pbtxt: configProtoText, traceConfig}
     });
+
+    // If the recordingInProgress boolean state is different, it means that we
+    // have to start or stop recording a trace.
+    if (this.app.state.recordingInProgress === this.recordingInProgress) return;
+    this.recordingInProgress = this.app.state.recordingInProgress;
+
+    if (this.recordingInProgress) {
+      this.startRecordTrace(traceConfig);
+    } else {
+      this.stopRecordTrace();
+    }
+  }
+
+  startRecordTrace(traceConfig: TraceConfig) {
+    this.consumerPort.enableTracing({traceConfig});
+    this.consumerPort.startTracing({}, (_error, response) => {
+      // TODO(nicomazz): Expose tracing status to frontend.
+      console.log(response);
+    });
+  }
+
+  stopRecordTrace() {
+    // TODO(nicomazz): Implement stopping trace & retrieving trace data.
+    console.log('Calling stopRecordTrace');
+  }
+
+  // This forwards the messages that have to be sent to the extension to the
+  // frontend. This is necessary because this controller is running in a
+  // separate worker, that can't directly send messages to the extension.
+  private rpcImpl(
+      method: RPCImplMethod, requestData: Uint8Array,
+      _callback: RPCImplCallback) {
+    if (method !== null && method.name !== null) {
+      this.extensionPort.postMessage({method: method.name, requestData});
+    }
   }
 }

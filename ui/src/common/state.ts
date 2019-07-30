@@ -167,6 +167,12 @@ export interface State {
   videoEnabled: boolean;
   flagPauseEnabled: boolean;
   videoNoteIds: string[];
+
+  /**
+   * Trace recording
+   */
+  recordingInProgress: boolean;
+  extensionInstalled: boolean;
 }
 
 export const defaultTraceTime = {
@@ -314,5 +320,8 @@ export function createEmptyState(): State {
     videoEnabled: false,
     flagPauseEnabled: false,
     videoNoteIds: [],
+
+    recordingInProgress: false,
+    extensionInstalled: false,
   };
 }

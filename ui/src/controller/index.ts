@@ -31,11 +31,12 @@ function main() {
     initialized = true;
     const frontendPort = data.frontendPort as MessagePort;
     const controllerPort = data.controllerPort as MessagePort;
+    const extensionPort = data.extensionPort as MessagePort;
 
     const frontend = new Remote(frontendPort);
     controllerPort.onmessage = ({data}) => globals.dispatch(data);
 
-    globals.initialize(new AppController(), frontend);
+    globals.initialize(new AppController(extensionPort), frontend);
   };
 }
 
