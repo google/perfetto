@@ -2717,6 +2717,43 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
+// Begin of protos/perfetto/trace/profiling/heap_graph.proto
+
+message HeapGraphObject {
+  optional uint64 id = 1;
+
+  // Index for InternedData.type_names for the name of the type of this object.
+  optional uint64 type_id = 2;
+
+  // Bytes occupied by this objects.
+  optional uint64 self_size = 3;
+
+  // Indices for InternedData.field_names for the name of the field referring
+  // to the object.
+  repeated uint64 reference_field_id = 4;
+
+  // Ids of the Object that is referred to.
+  repeated uint64 reference_object_id = 5;
+}
+
+message HeapGraph {
+  optional int32 pid = 1;
+
+  // Live objects at the time this dump was taken.
+  repeated HeapGraphObject objects = 2;
+
+  // Type names used in managed heap graph.
+  repeated InternedString type_names = 3;
+
+  // Field names for references in managed heap graph.
+  repeated InternedString field_names = 4;
+
+  optional bool continued = 5;
+  optional uint64 index = 6;
+}
+
+// End of protos/perfetto/trace/profiling/heap_graph.proto
+
 // Begin of protos/perfetto/trace/profiling/profile_common.proto
 
 // The interning fields in this file can refer to 2 different intern tables,
@@ -3077,7 +3114,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 56.
+// Next id: 57.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -3112,6 +3149,7 @@ message TracePacket {
     GpuCounterEvent gpu_counter_event = 52;
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
+    HeapGraph heap_graph = 56;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
