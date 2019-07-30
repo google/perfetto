@@ -19,6 +19,7 @@ import("../../../../gn/protozero_library.gni")
 profiling_proto_names = [
   "profile_common.proto",
   "profile_packet.proto",
+  "heap_graph.proto",
 ]
 
 proto_library("lite") {

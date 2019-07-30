@@ -76,6 +76,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
   'protos/perfetto/trace/power/battery_counters.proto',
   'protos/perfetto/trace/power/power_rails.proto',
+  'protos/perfetto/trace/profiling/heap_graph.proto',
   'protos/perfetto/trace/profiling/profile_common.proto',
   'protos/perfetto/trace/profiling/profile_packet.proto',
   'protos/perfetto/trace/ps/process_stats.proto',
