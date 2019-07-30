@@ -66,6 +66,8 @@ namespace {
 
 perfetto::PerfettoCmd* g_consumer_cmd;
 
+uint32_t kOnTraceDataTimeoutMs = 3000;
+
 class LoggingErrorReporter : public ErrorReporter {
  public:
   LoggingErrorReporter(std::string file_name, const char* config)
@@ -574,6 +576,16 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
+  expected_duration_ms_ = trace_config_->duration_ms();
+  if (!expected_duration_ms_) {
+    uint32_t timeout_ms = trace_config_->trigger_config().trigger_timeout_ms();
+    uint32_t max_stop_delay_ms = 0;
+    for (const auto& trigger : trace_config_->trigger_config().triggers()) {
+      max_stop_delay_ms = std::max(max_stop_delay_ms, trigger.stop_delay_ms());
+    }
+    expected_duration_ms_ = timeout_ms + max_stop_delay_ms;
+  }
+
   if (!limiter.ShouldTrace(args))
     return 1;
 
@@ -592,9 +604,13 @@ void PerfettoCmd::OnConnect() {
     return;
   }
 
-  PERFETTO_LOG(
-      "Connected to the Perfetto traced service, starting tracing for %d ms",
-      trace_config_->duration_ms());
+  if (expected_duration_ms_) {
+    PERFETTO_LOG("Connected to the Perfetto traced service, TTL: %ds",
+                 (expected_duration_ms_ + 999) / 1000);
+  } else {
+    PERFETTO_LOG("Connected to the Perfetto traced service, starting tracing");
+  }
+
   PERFETTO_DCHECK(trace_config_);
   trace_config_->set_enable_extra_guardrails(!dropbox_tag_.empty());
 
@@ -610,9 +626,9 @@ void PerfettoCmd::OnConnect() {
   }
 
   // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
-  if (trace_config_->duration_ms()) {
-    uint32_t trace_timeout = trace_config_->duration_ms() + 10000 +
-                             trace_config_->flush_timeout_ms();
+  if (expected_duration_ms_) {
+    uint32_t trace_timeout =
+        expected_duration_ms_ + 60000 + trace_config_->flush_timeout_ms();
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
                                  trace_timeout);
   }
@@ -628,7 +644,20 @@ void PerfettoCmd::OnTimeout() {
   task_runner_.Quit();
 }
 
+void PerfettoCmd::CheckTraceDataTimeout() {
+  if (trace_data_timeout_armed_) {
+    PERFETTO_ELOG("Timed out while waiting for OnTraceData, aborting");
+    FinalizeTraceAndExit();
+  }
+  trace_data_timeout_armed_ = true;
+  task_runner_.PostDelayedTask(
+      std::bind(&PerfettoCmd::CheckTraceDataTimeout, this),
+      kOnTraceDataTimeoutMs);
+}
+
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+  trace_data_timeout_armed_ = false;
+
   if (!packet_writer_->WritePackets(packets)) {
     PERFETTO_ELOG("Failed to write packets");
     FinalizeTraceAndExit();
@@ -644,6 +673,10 @@ void PerfettoCmd::OnTracingDisabled() {
     // already all the packets.
     return FinalizeTraceAndExit();
   }
+
+  trace_data_timeout_armed_ = false;
+  CheckTraceDataTimeout();
+
   // This will cause a bunch of OnTraceData callbacks. The last one will
   // save the file and exit.
   consumer_endpoint_->ReadBuffers();

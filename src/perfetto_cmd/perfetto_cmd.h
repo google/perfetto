@@ -75,10 +75,20 @@ class PerfettoCmd : public Consumer {
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
+
+  // Once we call ReadBuffers we expect one or more calls to OnTraceData
+  // with the last call having |has_more| set to false. However we should
+  // gracefully handle the service failing to ever call OnTraceData or
+  // setting |has_more| incorrectly. To do this we maintain a timeout
+  // which finalizes and exits the client if we don't receive OnTraceData
+  // within OnTraceDataTimeoutMs of when we expected to.
+  void CheckTraceDataTimeout();
+
   void SaveOutputToDropboxOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
 
   PlatformTaskRunner task_runner_;
+
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
@@ -95,6 +105,10 @@ class PerfettoCmd : public Consumer {
   std::string attach_key_;
   bool stop_trace_once_attached_ = false;
   bool redetach_once_attached_ = false;
+
+  // How long we expect to trace for or 0 if the trace is indefinite.
+  uint32_t expected_duration_ms_ = 0;
+  bool trace_data_timeout_armed_ = false;
 };
 
 }  // namespace perfetto
