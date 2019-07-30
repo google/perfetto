@@ -54,6 +54,7 @@ test('SysConfig', () => {
 test('toPbtxt', () => {
   const config = {
     durationMs: 1000,
+    maxFileSizeBytes: 43,
     buffers: [
       {
         sizeKb: 42,
@@ -94,6 +95,7 @@ duration_ms: 1000
 producers: {
     producer_name: "perfetto.traced_probes"
 }
+max_file_size_bytes: 43
 `);
 });
 
