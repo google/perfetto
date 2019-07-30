@@ -163,6 +163,12 @@ export interface State {
   scrubbingEnabled: boolean;
   flagPauseEnabled: boolean;
   videoNoteIds: string[];
+
+  /**
+   * Trace recording
+   */
+  recordingInProgress: boolean;
+  extensionInstalled: boolean;
 }
 
 export const defaultTraceTime = {
@@ -313,5 +319,8 @@ export function createEmptyState(): State {
     scrubbingEnabled: false,
     flagPauseEnabled: false,
     videoNoteIds: [],
+
+    recordingInProgress: false,
+    extensionInstalled: false,
   };
 }
