@@ -259,7 +259,7 @@ class TracingServiceImpl : public TracingService {
              uint32_t timeout_ms,
              ConsumerEndpoint::FlushCallback);
   void FlushAndDisableTracing(TracingSessionID);
-  void ReadBuffers(TracingSessionID, ConsumerEndpointImpl*);
+  bool ReadBuffers(TracingSessionID, ConsumerEndpointImpl*);
   void FreeBuffers(TracingSessionID);
 
   // Service implementation.
