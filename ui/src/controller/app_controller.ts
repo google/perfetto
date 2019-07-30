@@ -23,8 +23,14 @@ import {TraceController} from './trace_controller';
 // the other controllers (e.g., track and query controllers) according to the
 // global state.
 export class AppController extends Controller<'main'> {
-  constructor() {
+  // extensionPort is needed for the RecordController to communicate with the
+  // extension through the frontend. This is because the controller is running
+  // on a worker, and isn't able to directly send messages to the extension.
+  private extensionPort: MessagePort;
+
+  constructor(extensionPort: MessagePort) {
     super('main');
+    this.extensionPort = extensionPort;
   }
 
   // This is the root method that is called every time the controller tree is
@@ -35,7 +41,10 @@ export class AppController extends Controller<'main'> {
   run() {
     const childControllers: ControllerInitializerAny[] = [
       Child('permalink', PermalinkController, {}),
-      Child('record', RecordController, {app: globals}),
+      Child(
+          'record',
+          RecordController,
+          {app: globals, extensionPort: this.extensionPort}),
     ];
     for (const engineCfg of Object.values(globals.state.engines)) {
       childControllers.push(Child(engineCfg.id, TraceController, engineCfg.id));
