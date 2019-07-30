@@ -24,18 +24,15 @@ import {ANDROID_LOGS_TRACK_KIND, Config, Data} from './common';
 class AndroidLogTrackController extends TrackController<Config, Data> {
   static readonly kind = ANDROID_LOGS_TRACK_KIND;
 
-  onBoundsChange(start: number, end: number, resolution: number) {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number) {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     const startNs = Math.floor(start * 1e9);
     const endNs = Math.ceil(end * 1e9);
 
     // |resolution| is in s/px the frontend wants.
     const quantNs = Math.ceil(resolution * 1e9);
 
-    const rawResult = await this.engine.query(`
+    const rawResult = await this.query(`
       select
         cast(ts / ${quantNs} as integer) * ${quantNs} as ts_quant,
         prio,
@@ -62,7 +59,7 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       result.priorities[i] |= (1 << prio);
       result.numEvents += +cols[2].longValues![i];
     }
-    this.publish(result);
+    return result;
   }
 }
 

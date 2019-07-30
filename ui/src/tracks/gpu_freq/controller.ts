@@ -31,13 +31,8 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
   private setup = false;
   private maximumValueSeen = 0;
 
-  onBoundsChange(start: number, end: number, resolution: number): void {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number):
-      Promise<void> {
-
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
@@ -138,21 +133,13 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
       data.freqKHz[row] = +cols[2].doubleValues![row];
     }
 
-    this.publish(data);
+    return data;
   }
 
   private maximumValue() {
     return Math.max(this.config.maximumValue || 0, this.maximumValueSeen);
   }
 
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
-    return result;
-  }
 }
 
 

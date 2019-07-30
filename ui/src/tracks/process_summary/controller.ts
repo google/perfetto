@@ -30,12 +30,8 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SUMMARY_TRACK;
   private setup = false;
 
-  onBoundsChange(start: number, end: number, resolution: number): void {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number):
-      Promise<void> {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
@@ -75,8 +71,8 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       quantum=${bucketSizeNs}
       where rowid = 0;`);
 
-    this.publish(await this.computeSummary(
-        fromNs(windowStartNs), end, resolution, bucketSizeNs));
+    return this.computeSummary(
+        fromNs(windowStartNs), end, resolution, bucketSizeNs);
   }
 
   private async computeSummary(
@@ -110,16 +106,6 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       summary.utilizations[bucket] = +cols[1].doubleValues![row];
     }
     return summary;
-  }
-
-  // TODO(dproy); Dedup with other controllers.
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
-    return result;
   }
 
   onDestroy(): void {

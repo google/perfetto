@@ -32,12 +32,8 @@ class CounterTrackController extends TrackController<Config, Data> {
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
 
-  onBoundsChange(start: number, end: number, resolution: number): void {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number):
-      Promise<void> {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
 
@@ -127,7 +123,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       data.values[row] = value;
     }
 
-    this.publish(data);
+    return data;
   }
 
   private maximumValue() {
@@ -138,14 +134,6 @@ class CounterTrackController extends TrackController<Config, Data> {
     return Math.min(this.config.minimumValue || 0, this.minimumValueSeen);
   }
 
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
-    return result;
-  }
 }
 
 trackControllerRegistry.register(CounterTrackController);
