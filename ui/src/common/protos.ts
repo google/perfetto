@@ -24,6 +24,7 @@ import BatteryCounters =
     protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
 import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
+import ConsumerPort = protos.perfetto.protos.ConsumerPort;
 import DataSourceConfig = protos.perfetto.protos.DataSourceConfig;
 import FtraceConfig = protos.perfetto.protos.FtraceConfig;
 import IAndroidPowerConfig = protos.perfetto.protos.IAndroidPowerConfig;
@@ -200,6 +201,7 @@ export {
   BatteryCounters,
   BufferConfig,
   ChromeConfig,
+  ConsumerPort,
   DataSourceConfig,
   FtraceConfig,
   IAndroidPowerConfig,
