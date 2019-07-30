@@ -100,6 +100,8 @@ void MetatraceWriter::WriteAllAvailableEvents() {
 void MetatraceWriter::WriteAllAndFlushTraceWriter(
     std::function<void()> callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!started_)
+    return;
   WriteAllAvailableEvents();
   trace_writer_->Flush(std::move(callback));
 }
