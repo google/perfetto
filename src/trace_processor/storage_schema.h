@@ -68,7 +68,7 @@ class StorageSchema {
     template <class Accessor>
     Builder& AddGenericNumericColumn(std::string column_name,
                                      Accessor accessor) {
-      columns_.emplace_back(new NumericColumn<decltype(accessor)>(
+      columns_.emplace_back(new NumericStorageColumn<decltype(accessor)>(
           column_name, false /* hidden */, accessor));
       return *this;
     }
