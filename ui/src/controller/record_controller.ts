@@ -338,11 +338,20 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   }
   // With the ahead of time compiled protos we can't seem to tell which
   // fields are enums.
-  function looksLikeEnum(value: string): boolean {
+  function isEnum(value: string): boolean {
     return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
         value.startsWith('STAT_') || value.startsWith('LID_') ||
         value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
         value === 'RING_BUFFER';
+  }
+  // Since javascript doesn't have 64 bit numbers when converting protos to
+  // json the proto library encodes them as strings. This is lossy since
+  // we can't tell which strings that look like numbers are actually strings
+  // and which are actually numbers. Ideally we would reflect on the proto
+  // definition somehow but for now we just hard code keys which have this
+  // problem in the config.
+  function is64BitNumber(key: string): boolean {
+    return key === 'maxFileSizeBytes';
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
     for (const [key, value] of Object.entries(msg)) {
@@ -351,9 +360,11 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       for (const entry of (isRepeated ? value as Array<{}> : [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (typeof entry === 'string') {
-          yield looksLikeEnum(entry) ?
-              entry :
-              `"${entry.replace(new RegExp('"', 'g'), '\\"')}"`;
+          if (isEnum(entry) || is64BitNumber(key)) {
+            yield entry;
+          } else {
+            yield `"${entry.replace(new RegExp('"', 'g'), '\\"')}"`;
+          }
         } else if (typeof entry === 'number') {
           yield entry.toString();
         } else if (typeof entry === 'boolean') {
