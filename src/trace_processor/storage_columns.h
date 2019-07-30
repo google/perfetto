@@ -128,14 +128,14 @@ class StringColumn final : public StorageColumn {
 // Acessor trait (see below for definition).
 template <typename Accessor,
           typename sqlite_utils::is_numeric<typename Accessor::Type>* = nullptr>
-class NumericColumn : public StorageColumn {
+class NumericStorageColumn : public StorageColumn {
  public:
   // The type of the column. This is one of uint32_t, int32_t, uint64_t etc.
   using NumericType = typename Accessor::Type;
 
-  NumericColumn(std::string col_name, bool hidden, Accessor accessor)
+  NumericStorageColumn(std::string col_name, bool hidden, Accessor accessor)
       : StorageColumn(col_name, hidden), accessor_(accessor) {}
-  ~NumericColumn() override = default;
+  ~NumericStorageColumn() override = default;
 
   void ReportResult(sqlite3_context* ctx, uint32_t row) const override {
     sqlite_utils::ReportSqliteResult(ctx, accessor_.Get(row));
