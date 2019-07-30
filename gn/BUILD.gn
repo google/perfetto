@@ -87,39 +87,15 @@ config("asan_instrumentation") {
   }
 }
 
-if (perfetto_build_with_embedder) {
-  if (is_win) {
-    system_include_flag = "-imsvc"
-  } else {
-    system_include_flag = "-isystem"
-  }
-}
-
 config("gtest_config") {
   if (perfetto_build_with_embedder) {
-    cflags = [
-      # Using -isystem instead of include_dirs (-I), so we don't need to
-      # suppress warnings coming from third-party headers. Doing so would mask
-      # warnings in our own code.
-      system_include_flag,
-      rebase_path("//testing/gtest/include"),
-      system_include_flag,
-      rebase_path("//third_party/googletest/src/googletest/include"),
-    ]
+    include_dirs = [ "//testing/gtest/include" ]
   }
 }
 
 config("gmock_config") {
   if (perfetto_build_with_embedder) {
-    cflags = [
-      # Using -isystem instead of include_dirs (-I), so we don't need to
-      # suppress warnings coming from third-party headers. Doing so would mask
-      # warnings in our own code.
-      system_include_flag,
-      rebase_path("//testing/gmock/include"),
-      system_include_flag,
-      rebase_path("//third_party/googletest/src/googlemock/include"),
-    ]
+    include_dirs = [ "//testing/gmock/include" ]
   }
 }
 
