@@ -102,7 +102,8 @@ max_file_size_bytes: 43
 test('RecordController', () => {
   const app = dingus<App>('globals');
   (app.state.recordConfig as RecordConfig) = createEmptyRecordConfig();
-  const controller = new RecordController({app});
+  const m: MessageChannel = dingus<MessageChannel>('extensionPort');
+  const controller = new RecordController({app, extensionPort: m.port1});
   controller.run();
   controller.run();
   controller.run();
