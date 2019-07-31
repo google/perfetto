@@ -31,7 +31,7 @@ export abstract class TrackController<Config = {},
   readonly trackId: string;
   readonly engine: Engine;
   private data?: TrackData;
-  private pending = false;
+  private requestingData = false;
   private queuedRequest = false;
 
   constructor(args: TrackControllerArgs) {
@@ -43,7 +43,8 @@ export abstract class TrackController<Config = {},
   // Must be overridden by the track implementation. Is invoked when the track
   // frontend runs out of cached data. The derived track controller is expected
   // to publish new track data in response to this call.
-  abstract onBoundsChange(start: number, end: number, resolution: number): void;
+  abstract async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data>;
 
   get trackState(): TrackState {
     return assertExists(globals.state.tracks[this.trackId]);
@@ -56,11 +57,6 @@ export abstract class TrackController<Config = {},
   publish(data: Data): void {
     this.data = data;
     globals.publish('TrackData', {id: this.trackId, data});
-    this.pending = false;
-    if (this.queuedRequest) {
-      this.queuedRequest = false;
-      this.run();
-    }
   }
 
   /**
@@ -78,6 +74,15 @@ export abstract class TrackController<Config = {},
     // |resolution| is in s/px (to nearest power of 10) assuming a display
     // of ~1000px 0.0008 is 0.8s.
     return resolution >= 0.0008;
+  }
+
+  protected async query(query: string) {
+    const result = await this.engine.query(query);
+    if (result.error) {
+      console.error(`Query error "${query}": ${result.error}`);
+      throw new Error(`Query error "${query}": ${result.error}`);
+    }
+    return result;
   }
 
   shouldRequestData(traceTime: TraceTime): boolean {
@@ -107,14 +112,27 @@ export abstract class TrackController<Config = {},
     const dur = visibleTime.endSec - visibleTime.startSec;
     if (globals.state.visibleTracks.includes(this.trackId) &&
         this.shouldRequestData(visibleTime)) {
-      if (this.pending) {
+      if (this.requestingData) {
         this.queuedRequest = true;
       } else {
-        this.pending = true;
+        this.requestingData = true;
         this.onBoundsChange(
-            visibleTime.startSec - dur,
-            visibleTime.endSec + dur,
-            globals.state.frontendLocalState.curResolution);
+                visibleTime.startSec - dur,
+                visibleTime.endSec + dur,
+                globals.state.frontendLocalState.curResolution)
+            .then(data => {
+              this.publish(data);
+            })
+            .catch(error => {
+              console.error(error);
+            })
+            .finally(() => {
+              this.requestingData = false;
+              if (this.queuedRequest) {
+                this.queuedRequest = false;
+                this.run();
+              }
+            });
       }
     }
   }

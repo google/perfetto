@@ -25,11 +25,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = SLICE_TRACK_KIND;
   private setup = false;
 
-  onBoundsChange(start: number, end: number, resolution: number): void {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number) {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
     // Ns in 1px width. We want all slices smaller than 1px to be grouped.
@@ -139,17 +136,9 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.titles[row] = internString(cols[4].stringValues![row]);
       slices.slice_ids[row] = +cols[5].longValues![row];
     }
-    this.publish(slices);
+    return slices;
   }
 
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
-    return result;
-  }
 }
 
 
