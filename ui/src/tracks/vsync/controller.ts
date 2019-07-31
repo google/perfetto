@@ -26,11 +26,8 @@ class VsyncTrackController extends TrackController<Config, Data> {
   static readonly kind = KIND;
   private setup = false;
 
-  onBoundsChange(start: number, end: number, resolution: number) {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number) {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     if (this.setup === false) {
       await this.query(
           `create virtual table window_${this.trackState.id} using window;`);
@@ -57,15 +54,6 @@ class VsyncTrackController extends TrackController<Config, Data> {
     for (let i = 0; i < rowCount; i++) {
       const startSec = fromNs(+cols[0].longValues![i]);
       result.vsyncs[i] = startSec;
-    }
-    this.publish(result);
-  }
-
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
     }
     return result;
   }
