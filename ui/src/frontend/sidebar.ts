@@ -363,12 +363,6 @@ function downloadTrace(e: Event) {
 
 
 export class Sidebar implements m.ClassComponent {
-  private displaySidebar = 'show-sidebar';
-
-  private showing(): boolean {
-    return this.displaySidebar === 'show-sidebar';
-  }
-
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
@@ -430,27 +424,28 @@ export class Sidebar implements m.ClassComponent {
           m('.section-content', m('ul', videoVdomItems))));
     }
     return m(
-        `nav.sidebar.${this.displaySidebar}`,
+        'nav.sidebar',
+        {
+          class: globals.frontendLocalState.sidebarVisible ? 'show-sidebar' :
+                                                             'hide-sidebar'
+        },
         m('header',
           'Perfetto',
-          m('.sidebar-button',
-            {
-              style: {
-                left: (this.showing()) ? '46px' : '96px',
-              }
-            },
-            m('button',
-              m('i.material-icons',
-                {
-                  title: (this.showing()) ? 'Hide menu' : 'Show menu',
-                  onclick: () => {
-                    this.displaySidebar =
-                        (this.showing()) ? 'hide-sidebar' : 'show-sidebar';
-                    globals.rafScheduler.scheduleFullRedraw();
+          m(
+              '.sidebar-button',
+              m('button',
+                m('i.material-icons',
+                  {
+                    title: globals.frontendLocalState.sidebarVisible ?
+                        'Hide menu' :
+                        'Show menu',
+                    onclick: () => {
+                      globals.frontendLocalState.toggleSidebar();
+                    },
                   },
-                },
-                'menu')), )),
+                  'menu')),
+              )),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
-        ...vdomSections);
+        m('.sidebar-content', ...vdomSections));
   }
 }
