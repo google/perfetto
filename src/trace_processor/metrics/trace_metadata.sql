@@ -14,8 +14,8 @@
 -- limitations under the License.
 --
 
-CREATE VIEW stats_view AS
-SELECT TraceStatistics_Entry(
+CREATE VIEW error_stats_view AS
+SELECT TraceMetadata_Entry(
   'name', name,
   'idx', idx,
   'value', value) as entry
@@ -23,9 +23,8 @@ FROM stats
 WHERE severity IN ('data_loss', 'error')
 AND value > 0;
 
-CREATE VIEW error_statistics_output AS
-SELECT TraceStatistics(
-  'entry', (
-    select RepeatedField(entry) from stats_view
-  )
+CREATE VIEW trace_metadata_output AS
+SELECT TraceMetadata(
+  'error_stats_entry', (SELECT RepeatedField(entry) FROM error_stats_view),
+  'trace_duration_ns', (SELECT end_ts - start_ts FROM trace_bounds)
 );
