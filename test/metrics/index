@@ -1,6 +1,6 @@
 # Real traces
 ../data/memory_counters.pb android_mem android_mem_counters.out
-../data/memory_counters.pb error_statistics error_statistics.out
+../data/memory_counters.pb trace_metadata trace_metadata.out
 
 # Synthetic traces
 android_mem_by_priority.py android_mem android_mem_by_priority.out
