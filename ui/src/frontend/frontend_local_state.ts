@@ -36,6 +36,7 @@ export class FrontendLocalState {
   showTimeSelectPreview = false;
   showNotePreview = false;
   localOnlyMode = false;
+  sidebarVisible = true;
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
 
@@ -110,6 +111,11 @@ export class FrontendLocalState {
 
   addVisibleTrack(trackId: string) {
     this.visibleTracks.add(trackId);
+  }
+
+  toggleSidebar() {
+    this.sidebarVisible = !this.sidebarVisible;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   // Called when beginning a canvas redraw.

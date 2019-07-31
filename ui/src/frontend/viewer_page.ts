@@ -44,6 +44,7 @@ const DRAG_HANDLE_HEIGHT_PX = 28;
 const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
+const SIDEBAR_WIDTH = 256;
 
 function hasLogs(): boolean {
   const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
@@ -210,7 +211,7 @@ class TraceViewer implements m.ClassComponent {
 
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
-      contentOffsetX: TRACK_SHELL_WIDTH,
+      contentOffsetX: SIDEBAR_WIDTH,
       onPanned: (pannedPx: number) => {
         this.keepCurrentSelection = true;
         const traceTime = globals.state.traceTime;
