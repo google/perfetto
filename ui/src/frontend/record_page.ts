@@ -254,7 +254,7 @@ function CpuSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'Syscalls',
-        img: '',
+        img: null,
         descr: `Tracks the enter and exit of all syscalls.`,
         setEnabled: (cfg, val) => cfg.cpuSyscall = val,
         isEnabled: (cfg) => cfg.cpuSyscall
@@ -414,7 +414,7 @@ function ChromeSettings(cssClass: string) {
       `.record-section${cssClass}`,
       m(Probe, {
         title: 'Task scheduling',
-        img: 'rec_atrace.png',
+        img: null,
         descr: `Records events about task scheduling and execution on all
                   threads`,
         setEnabled: (cfg, val) => cfg.taskScheduling = val,
@@ -422,7 +422,7 @@ function ChromeSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'IPC flows',
-        img: 'rec_logcat.png',
+        img: null,
         descr: `Records flow events for passing of IPC messages between
                 processes.`,
         setEnabled: (cfg, val) => cfg.ipcFlows = val,
@@ -430,7 +430,7 @@ function ChromeSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'Javascript execution',
-        img: 'rec_logcat.png',
+        img: null,
         descr: `Records events about Javascript execution in the renderer
                     processes.`,
         setEnabled: (cfg, val) => cfg.jsExecution = val,
@@ -438,7 +438,7 @@ function ChromeSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'Web content rendering',
-        img: 'rec_logcat.png',
+        img: null,
         descr: `Records events about rendering, layout, and compositing of
         web content in Blink.`,
         setEnabled: (cfg, val) => cfg.webContentRendering = val,
@@ -446,7 +446,7 @@ function ChromeSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'UI rendering & compositing',
-        img: 'rec_logcat.png',
+        img: null,
         descr: `Records events about rendering of browser UI surfaces and
         compositing of surfaces.`,
         setEnabled: (cfg, val) => cfg.uiRendering = val,
@@ -454,14 +454,14 @@ function ChromeSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'Input events',
-        img: 'rec_logcat.png',
+        img: null,
         descr: `Records input events and their flow between processes.`,
         setEnabled: (cfg, val) => cfg.inputEvents = val,
         isEnabled: (cfg) => cfg.inputEvents
       } as ProbeAttrs),
       m(Probe, {
         title: 'Navigation & Loading',
-        img: 'rec_logcat.png',
+        img: null,
         descr: `Records network events for navigations and resources.`,
         setEnabled: (cfg, val) => cfg.navigationAndLoading = val,
         isEnabled: (cfg) => cfg.navigationAndLoading
@@ -514,24 +514,25 @@ function AdvancedSettings(cssClass: string) {
           get: (cfg) => cfg.ftraceExtraEvents
         } as TextareaAttrs)),
       globals.state.videoEnabled ?
-      m(Probe,
-        {
-          title: 'Screen recording',
-          img: '',
-          descr: `Records the screen along with running a trace. Max
+          m(Probe,
+            {
+              title: 'Screen recording',
+              img: null,
+              descr: `Records the screen along with running a trace. Max
                   time of recording is 3 minutes (180 seconds).`,
-          setEnabled: (cfg, val) => cfg.screenRecord = val,
-          isEnabled: (cfg) => cfg.screenRecord,
-        } as ProbeAttrs,
-        m(Slider, {
-          title: 'Max duration',
-          icon: 'timer',
-          values: [S(10), S(15), S(30), S(60), M(2), M(3)],
-          isTime: true,
-          unit: 'm:s',
-          set: (cfg, val) => cfg.durationMs = val,
-          get: (cfg) => cfg.durationMs,
-        } as SliderAttrs),) : null);
+              setEnabled: (cfg, val) => cfg.screenRecord = val,
+              isEnabled: (cfg) => cfg.screenRecord,
+            } as ProbeAttrs,
+            m(Slider, {
+              title: 'Max duration',
+              icon: 'timer',
+              values: [S(10), S(15), S(30), S(60), M(2), M(3)],
+              isTime: true,
+              unit: 'm:s',
+              set: (cfg, val) => cfg.durationMs = val,
+              get: (cfg) => cfg.durationMs,
+            } as SliderAttrs)) :
+          null);
 }
 
 function Instructions(cssClass: string) {

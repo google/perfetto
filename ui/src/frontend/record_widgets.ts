@@ -32,7 +32,7 @@ declare type Getter<T> = (cfg: RecordConfig) => T;
 
 export interface ProbeAttrs {
   title: string;
-  img: string;
+  img: string|null;
   descr: string;
   isEnabled: Getter<boolean>;
   setEnabled: Setter<boolean>;
@@ -51,7 +51,10 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
 
     return m(
         `.probe${enabled ? '.enabled' : ''}`,
-        m(`img[src=assets/${attrs.img}]`, {onclick: () => onToggle(!enabled)}),
+        attrs.img && m('img', {
+          src: `assets/${attrs.img}`,
+          onclick: () => onToggle(!enabled),
+        }),
         m('label',
           m(`input[type=checkbox]`,
             {checked: enabled, oninput: m.withAttr('checked', onToggle)}),
