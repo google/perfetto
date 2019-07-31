@@ -28,9 +28,9 @@ enum Tags : uint32_t {
   TAG_FTRACE = 1 << 0,
   TAG_PROC_POLLERS = 1 << 1,
   TAG_TRACE_WRITER = 1 << 2,
+  TAG_TRACE_SERVICE = 1 << 3,
 };
 
-// Compile time list of parsing and processing stats.
 // The macros below generate matching enums and arrays of string literals.
 // This is to avoid maintaining string maps manually.
 
@@ -62,10 +62,15 @@ enum Tags : uint32_t {
   F(FTRACE_CPU_READ_BATCH)
 
 // Append only, see above.
+//
+// FTRACE_SERVICE_COMMIT_DATA is a bit-packed representation of an event, see
+// tracing_service_impl.cc for the format.
+//
 #define PERFETTO_METATRACE_COUNTERS(F) \
   F(COUNTER_ZERO_UNUSED),\
   F(FTRACE_PAGES_DRAINED), \
-  F(PS_PIDS_SCANNED)
+  F(PS_PIDS_SCANNED), \
+  F(TRACE_SERVICE_COMMIT_DATA)
 
 // clang-format on
 
