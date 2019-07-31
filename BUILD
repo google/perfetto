@@ -44,7 +44,7 @@ genrule(
         "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
         "src/trace_processor/metrics/android/span_view_stats.sql",
         "src/trace_processor/metrics/android/upid_span_view.sql",
-        "src/trace_processor/metrics/error_statistics.sql",
+        "src/trace_processor/metrics/trace_metadata.sql",
     ],
     outs = [
         "src/trace_processor/metrics/sql_metrics.h",
