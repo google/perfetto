@@ -85,7 +85,7 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
 TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   // If we hit this, the caller is calling NewTracePacket() without having
   // finalized the previous packet.
-  PERFETTO_DCHECK(cur_packet_->is_finalized());
+  PERFETTO_CHECK(cur_packet_->is_finalized());
 
   fragmenting_packet_ = false;
 
