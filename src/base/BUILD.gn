@@ -33,6 +33,7 @@ source_set("base") {
     "string_view.cc",
     "thread_checker.cc",
     "time.cc",
+    "uuid.cc",
     "virtual_destructors.cc",
     "waitable_event.cc",
   ]
@@ -131,6 +132,7 @@ source_set("unittests") {
     "string_view_unittest.cc",
     "string_writer_unittest.cc",
     "time_unittest.cc",
+    "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
 
