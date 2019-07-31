@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {LoadingManager} from '../controller/loading_manager';
+
 import {RawQueryResult, TraceProcessor} from './protos';
 import {TimeSpan} from './time';
 
@@ -30,6 +32,11 @@ export abstract class Engine {
   abstract readonly id: string;
   private _numCpus?: number;
   private _numGpus?: number;
+  private loadingManager: LoadingManager;
+
+  constructor() {
+    this.loadingManager = LoadingManager.getInstance;
+  }
 
   /**
    * Push trace data into the engine. The engine is supposed to automatically
@@ -53,7 +60,10 @@ export abstract class Engine {
    */
   query(sqlQuery: string): Promise<RawQueryResult> {
     const timeQueuedNs = Math.floor(performance.now() * 1e6);
-    return this.rpc.rawQuery({sqlQuery, timeQueuedNs});
+    this.loadingManager.beginLoading();
+    return this.rpc.rawQuery({sqlQuery, timeQueuedNs}).finally(() => {
+      this.loadingManager.endLoading();
+    });
   }
 
   async queryOneRow(query: string): Promise<number[]> {

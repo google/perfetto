@@ -66,7 +66,7 @@ class Globals {
   private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
-  private _pendingTrackRequests?: Set<string> = undefined;
+  private _isLoading = false;
 
   initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
@@ -81,7 +81,6 @@ class Globals {
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
-    this._pendingTrackRequests = new Set<string>();
   }
 
   get state(): State {
@@ -129,9 +128,16 @@ class Globals {
     this._sliceDetails = assertExists(click);
   }
 
+  set loading(isLoading: boolean) {
+    this._isLoading = isLoading;
+  }
+
+  get isLoading() {
+    return this._isLoading;
+  }
+
   setTrackData(id: string, data: {}) {
     this.trackDataStore.set(id, data);
-    assertExists(this._pendingTrackRequests).delete(id);
   }
 
   getCurResolution() {
@@ -152,7 +158,7 @@ class Globals {
     this._overviewStore = undefined;
     this._threadMap = undefined;
     this._sliceDetails = undefined;
-    this._pendingTrackRequests = undefined;
+    this._isLoading = false;
   }
 
   // Used when switching to the legacy TraceViewer UI.
