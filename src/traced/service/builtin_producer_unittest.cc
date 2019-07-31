@@ -14,44 +14,44 @@
  * limitations under the License.
  */
 
-#include "src/traced/service/lazy_producer.h"
-
-#include "src/base/test/test_task_runner.h"
-
-#include "perfetto/tracing/core/data_source_config.h"
+#include "src/traced/service/builtin_producer.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "perfetto/tracing/core/data_source_config.h"
+#include "src/base/test/test_task_runner.h"
+
 namespace perfetto {
 namespace {
 
-constexpr const char* kDataSourceName = "android.heapprofd";
-constexpr const char* kPropertyName = "persist.heapprofd.enable";
+constexpr const char kHeapprofdDataSourceName[] = "android.heapprofd";
+constexpr const char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 
 using ::testing::_;
 using ::testing::InSequence;
-using ::testing::Return;
 using ::testing::InvokeWithoutArgs;
+using ::testing::Return;
 
-class MockLazyProducer : public LazyProducer {
+class MockBuiltinProducer : public BuiltinProducer {
  public:
-  MockLazyProducer(base::TaskRunner* task_runner)
-      : LazyProducer(task_runner, 0, kDataSourceName, kPropertyName) {}
+  MockBuiltinProducer(base::TaskRunner* task_runner)
+      : BuiltinProducer(task_runner, /*lazy_stop_delay_ms=*/0) {}
 
   MOCK_METHOD2(SetAndroidProperty,
                bool(const std::string&, const std::string&));
 };
 
-TEST(LazyProducersTest, Simple) {
+TEST(BuiltinProducerTest, LazyHeapprofdSimple) {
   DataSourceConfig cfg;
-  cfg.set_name(kDataSourceName);
+  cfg.set_name(kHeapprofdDataSourceName);
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
-  MockLazyProducer p(&task_runner);
+  MockBuiltinProducer p(&task_runner);
   InSequence s;
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "1")).WillOnce(Return(true));
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0"))
+  EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "1"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "0"))
       .WillOnce(InvokeWithoutArgs([&done]() {
         done();
         return true;
@@ -61,20 +61,20 @@ TEST(LazyProducersTest, Simple) {
   task_runner.RunUntilCheckpoint("done");
 }
 
-TEST(LazyProducersTest, RefCount) {
+TEST(BuiltinProducerTest, LazyHeapprofdRefCount) {
   DataSourceConfig cfg;
-  cfg.set_name(kDataSourceName);
+  cfg.set_name(kHeapprofdDataSourceName);
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
-  MockLazyProducer p(&task_runner);
+  MockBuiltinProducer p(&task_runner);
   InSequence s;
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "1"))
+  EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "1"))
       .WillRepeatedly(Return(true));
   p.SetupDataSource(1, cfg);
   p.SetupDataSource(2, cfg);
   p.StopDataSource(2);
   task_runner.RunUntilIdle();
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0"))
+  EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "0"))
       .WillOnce(InvokeWithoutArgs([&done]() {
         done();
         return true;
@@ -83,21 +83,21 @@ TEST(LazyProducersTest, RefCount) {
   task_runner.RunUntilCheckpoint("done");
 }
 
-TEST(LazyProducersTest, NoFlap) {
+TEST(BuiltinProducerTest, LazyHeapprofdNoFlap) {
   DataSourceConfig cfg;
-  cfg.set_name(kDataSourceName);
+  cfg.set_name(kHeapprofdDataSourceName);
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
-  MockLazyProducer p(&task_runner);
+  MockBuiltinProducer p(&task_runner);
   InSequence s;
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "1"))
+  EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "1"))
       .WillRepeatedly(Return(true));
   p.SetupDataSource(1, cfg);
   p.StopDataSource(1);
   p.SetupDataSource(2, cfg);
   task_runner.RunUntilIdle();
   p.StopDataSource(2);
-  EXPECT_CALL(p, SetAndroidProperty(kPropertyName, "0"))
+  EXPECT_CALL(p, SetAndroidProperty(kLazyHeapprofdPropertyName, "0"))
       .WillOnce(InvokeWithoutArgs([&done]() {
         done();
         return true;
