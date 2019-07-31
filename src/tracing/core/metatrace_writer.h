@@ -46,6 +46,12 @@ class MetatraceWriter {
 
   MetatraceWriter();
   ~MetatraceWriter();
+
+  MetatraceWriter(const MetatraceWriter&) = delete;
+  MetatraceWriter& operator=(const MetatraceWriter&) = delete;
+  MetatraceWriter(MetatraceWriter&&) = delete;
+  MetatraceWriter& operator=(MetatraceWriter&&) = delete;
+
   void Enable(base::TaskRunner*, std::unique_ptr<TraceWriter>, uint32_t tags);
   void Disable();
   void WriteAllAndFlushTraceWriter(std::function<void()> callback);
