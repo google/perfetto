@@ -85,6 +85,16 @@ inline uint64_t TraceTimeNowNs() {
   return static_cast<uint64_t>(base::GetBootTimeNs().count());
 }
 
+// Returns a relaxed view of whether metatracing is enabled for the given tag.
+// Useful for skipping unnecessary argument computation if metatracing is off.
+inline bool IsEnabled(uint32_t tag) {
+  auto enabled_tags = g_enabled_tags.load(std::memory_order_relaxed);
+  if (PERFETTO_LIKELY((enabled_tags & tag) == 0))
+    return false;
+  else
+    return true;
+}
+
 // Holds the data for a metatrace event or counter.
 struct Record {
   static constexpr uint16_t kTypeMask = 0x8000;
