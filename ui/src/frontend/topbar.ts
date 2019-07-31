@@ -140,14 +140,41 @@ class Omnibox implements m.ClassComponent {
   }
 }
 
-export class Topbar implements m.ClassComponent {
+class Progress implements m.ClassComponent {
+  private loading: () => void;
+  private progressBar?: HTMLElement;
+
+  constructor() {
+    this.loading = () => this.loadingAnimation();
+  }
+
+  oncreate(vnodeDom: m.CVnodeDOM) {
+    this.progressBar = vnodeDom.dom as HTMLElement;
+    globals.rafScheduler.addRedrawCallback(this.loading);
+  }
+
+  onremove() {
+    globals.rafScheduler.removeRedrawCallback(this.loading);
+  }
+
   view() {
-    const progBar = [];
+    return m('.progress');
+  }
+
+  loadingAnimation() {
+    if (this.progressBar === undefined) return;
     const engine: EngineConfig = globals.state.engines['0'];
     if (globals.state.queries[QUERY_ID] !== undefined ||
-        (engine !== undefined && !engine.ready)) {
-      progBar.push(m('.progress'));
+        (engine !== undefined && !engine.ready) || globals.isLoading) {
+      this.progressBar.setAttribute('class', 'progress progress-anim');
+    } else {
+      this.progressBar.setAttribute('class', 'progress');
     }
-    return m('.topbar', m(Omnibox), ...progBar);
+  }
+}
+
+export class Topbar implements m.ClassComponent {
+  view() {
+    return m('.topbar', m(Omnibox), m(Progress));
   }
 }

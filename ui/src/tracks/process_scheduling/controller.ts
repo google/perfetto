@@ -33,14 +33,10 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   private setup = false;
   private numCpus = 0;
 
-  onBoundsChange(start: number, end: number, resolution: number): void {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number):
-      Promise<void> {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     if (!this.config.upid) {
-      return;
+      throw new Error('Upid not set.');
     }
 
     const startNs = Math.round(start * 1e9);
@@ -76,11 +72,10 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       where rowid = 0;`);
 
     if (isQuantized) {
-      this.publish(await this.computeSummary(
-          fromNs(windowStartNs), end, resolution, bucketSizeNs));
+      return this.computeSummary(
+          fromNs(windowStartNs), end, resolution, bucketSizeNs);
     } else {
-      this.publish(
-          await this.computeSlices(fromNs(windowStartNs), end, resolution));
+      return this.computeSlices(fromNs(windowStartNs), end, resolution);
     }
   }
 
@@ -163,15 +158,6 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       slices.end = Math.max(slices.ends[row], slices.end);
     }
     return slices;
-  }
-
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
-    return result;
   }
 
   onDestroy(): void {

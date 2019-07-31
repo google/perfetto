@@ -31,12 +31,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
   private setup = false;
 
-  onBoundsChange(start: number, end: number, resolution: number): void {
-    this.update(start, end, resolution);
-  }
-
-  private async update(start: number, end: number, resolution: number):
-      Promise<void> {
+  async onBoundsChange(start: number, end: number, resolution: number):
+      Promise<Data> {
     const startNs = Math.round(start * 1e9);
     const endNs = Math.round(end * 1e9);
     let minNs = 0;
@@ -194,16 +190,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       summary.state[row] = internString(cols[3].stringValues![row]);
     }
 
-    this.publish(summary);
-  }
-
-  private async query(query: string) {
-    const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
-    return result;
+    return summary;
   }
 
   onDestroy(): void {
