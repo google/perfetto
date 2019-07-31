@@ -139,8 +139,10 @@ export class PanAndZoomHandler {
   }
 
   private onMouseMove(e: MouseEvent) {
-    // TODO(taylori): Content offset is 6px off, why?
-    this.mousePositionX = e.clientX - this.contentOffsetX - 6;
+    const pageOffset =
+        globals.frontendLocalState.sidebarVisible ? this.contentOffsetX : 0;
+    // We can't use layerX here because there are many layers in this element.
+    this.mousePositionX = e.clientX - pageOffset;
     if (this.shiftDown) {
       const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
       const ts =
