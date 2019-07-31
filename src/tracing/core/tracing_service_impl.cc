@@ -40,6 +40,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -108,6 +109,28 @@ uid_t geteuid() {
   return 0;
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+// Partially encodes a CommitDataRequest in an int32 for the purposes of
+// metatracing. Note that it encodes only the bottom 10 bits of the producer id
+// (which is technically 16 bits wide).
+//
+// Format (by bit range):
+// [   31 ][         30 ][             29:20 ][            19:10 ][        9:0]
+// [unused][has flush id][num chunks to patch][num chunks to move][producer id]
+static int32_t EncodeCommitDataRequest(ProducerID producer_id,
+                                       const CommitDataRequest& req_untrusted) {
+  uint32_t cmov = static_cast<uint32_t>(req_untrusted.chunks_to_move_size());
+  uint32_t cpatch = static_cast<uint32_t>(req_untrusted.chunks_to_patch_size());
+  uint32_t has_flush_id = req_untrusted.flush_request_id() != 0;
+
+  uint32_t mask = (1 << 10) - 1;
+  uint32_t acc = 0;
+  acc |= has_flush_id << 30;
+  acc |= (cpatch & mask) << 20;
+  acc |= (cmov & mask) << 10;
+  acc |= (producer_id & mask);
+  return static_cast<int32_t>(acc);
+}
 
 }  // namespace
 
@@ -2614,6 +2637,11 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     const CommitDataRequest& req_untrusted,
     CommitDataCallback callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  if (metatrace::IsEnabled(metatrace::TAG_TRACE_SERVICE)) {
+    PERFETTO_METATRACE_COUNTER(TAG_TRACE_SERVICE, TRACE_SERVICE_COMMIT_DATA,
+                               EncodeCommitDataRequest(id_, req_untrusted));
+  }
 
   if (!shared_memory_) {
     PERFETTO_DLOG(
