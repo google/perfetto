@@ -31,16 +31,17 @@ import "perfetto/metrics/android/startup_metric.proto";
 import "perfetto/metrics/android/heap_profile.proto";
 import "perfetto/metrics/android/package_list.proto";
 
-// Trace processor statistics (taken from the stats table schema and contents).
+// Trace processor metadata (taken from the stats table schema and contents).
 // TODO: perhaps add the other columns once we have enum support
-message TraceStatistics {
+message TraceMetadata {
   message Entry {
     optional string name = 1;
     optional uint32 idx = 2;
     optional int64 value = 3;
   }
 
-  repeated Entry entry = 1;
+  repeated Entry error_stats_entry = 1;
+  optional int64 trace_duration_ns = 2;
 }
 
 // Root message for all Perfetto-based metrics.
@@ -83,8 +84,8 @@ message TraceMetrics {
   // Heap profile stats.
   optional HeapProfile heap_profile = 4;
 
-  // Error statistics (applicable to all traces).
-  optional TraceStatistics error_statistics = 3;
+  // Trace metadata (applicable to all traces).
+  optional TraceMetadata trace_metadata = 3;
 
   // Demo extensions.
   extensions 450 to 499;
