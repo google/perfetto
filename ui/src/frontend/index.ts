@@ -107,6 +107,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishLoading(loading: boolean) {
+    globals.loading = loading;
+    globals.rafScheduler.scheduleRedraw();
+  }
+
   // For opening JSON/HTML traces with the legacy catapult viewer.
   publishLegacyTrace(args: {data: ArrayBuffer, size: number}) {
     const arr = new Uint8Array(args.data, 0, args.size);

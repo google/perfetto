@@ -33,7 +33,7 @@ export interface App {
   dispatch(action: DeferredAction): void;
   publish(
       what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
-            'SliceDetails',
+      'SliceDetails'|'Loading',
       data: {}, transferList?: Array<{}>): void;
 }
 
@@ -104,7 +104,7 @@ class Globals implements App {
   // TODO: this needs to be cleaned up.
   publish(
       what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
-            'SliceDetails',
+      'SliceDetails'|'Loading',
       data: {}, transferList?: Transferable[]) {
     assertExists(this._frontend)
         .send<void>(`publish${what}`, [data], transferList);
