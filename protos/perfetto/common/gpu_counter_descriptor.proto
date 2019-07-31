@@ -31,11 +31,11 @@ message GpuCounterDescriptor {
       int64 int_peak_value = 5;
       double double_peak_value = 6;
     };
-
   }
   repeated GpuCounterSpec specs = 1;
 
-  // Taken from https://developer.android.com/reference/android/icu/util/MeasureUnit
+  // Taken from
+  // https://developer.android.com/reference/android/icu/util/MeasureUnit
   enum MeasureUnit {
     ACRE = 0;
     ACRE_FOOT = 1;

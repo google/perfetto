@@ -130,6 +130,10 @@
         bottom: 0;
         height: 1px;
         width: 100%;
+        background-color: #f2f2f2;
+    }
+
+    .progress-anim {
         &:before {
             content: '';
             position: absolute;
