@@ -683,17 +683,26 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   // Otherwise, write to Dropbox unless there's a special override in the
   // incident report config.
   if (!trace_config_->incident_report_config().skip_dropbox()) {
-    SaveOutputToDropboxOrCrash();
+    if (bytes_written_ == 0) {
+      PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
+    } else {
+      SaveOutputToDropboxOrCrash();
+    }
   }
 
   // Optionally save the trace as an incident. This is either in addition to, or
   // instead of, the Dropbox write.
   if (!trace_config_->incident_report_config().destination_package().empty()) {
-    SaveOutputToIncidentTraceOrCrash();
+    if (bytes_written_ == 0) {
+      PERFETTO_LOG("Skipping incident report. Empty trace.");
+    } else {
+      SaveOutputToIncidentTraceOrCrash();
 
-    // Ask incidentd to create a report, which will read the file we just wrote.
-    PERFETTO_CHECK(
-        StartIncidentReport(trace_config_->incident_report_config()));
+      // Ask incidentd to create a report, which will read the file we just
+      // wrote.
+      PERFETTO_CHECK(
+          StartIncidentReport(trace_config_->incident_report_config()));
+    }
   }
 
   did_process_full_trace_ = true;
@@ -702,10 +711,6 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 
 void PerfettoCmd::SaveOutputToDropboxOrCrash() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  if (bytes_written_ == 0) {
-    PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
-    return;
-  }
   android::sp<android::os::DropBoxManager> dropbox =
       new android::os::DropBoxManager();
   PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
@@ -730,16 +735,12 @@ void PerfettoCmd::SaveOutputToDropboxOrCrash() {
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace
-// contents over, then rename to a final hardcoded path. Such tracing sessions
-// should not normally overlap. We do not use unique unique filenames to avoid
-// creating an unbounded amount of files in case of errors.
+// contents over, then rename to a final hardcoded path (known to incidentd).
+// Such tracing sessions should not normally overlap. We do not use unique
+// unique filenames to avoid creating an unbounded amount of files in case of
+// errors.
 void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  if (bytes_written_ == 0) {
-    PERFETTO_LOG("Skipping incident report. Empty trace.");
-    return;
-  }
-
   PERFETTO_CHECK(unlink(kTempIncidentTraceLocation) == 0 || errno == ENOENT);
 
   // SELinux constrains the set of readers.
