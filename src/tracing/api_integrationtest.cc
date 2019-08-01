@@ -395,6 +395,34 @@ TEST_F(PerfettoApiTest, SetupWithFile) {
   EXPECT_EQ(0, unlink(temp_file));
 }
 
+TEST_F(PerfettoApiTest, MultipleRegistrations) {
+  // Attempt to register the same data source again.
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("my_data_source");
+  EXPECT_TRUE(MockDataSource::Register(dsd));
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // Emit one trace event.
+  std::atomic<int> trace_lambda_calls{0};
+  MockDataSource::Trace([&trace_lambda_calls](MockDataSource::TraceContext) {
+    trace_lambda_calls++;
+  });
+
+  // Make sure the data source got called only once.
+  tracing_session->get()->StopBlocking();
+  EXPECT_EQ(trace_lambda_calls, 1);
+}
+
 }  // namespace
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
