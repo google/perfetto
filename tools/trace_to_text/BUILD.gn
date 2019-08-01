@@ -20,6 +20,7 @@ source_set("utils") {
   public_deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
@@ -27,6 +28,20 @@ source_set("utils") {
   sources = [
     "utils.cc",
     "utils.h",
+  ]
+}
+
+source_set("symbolizer") {
+  public_deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+  ]
+  sources = [
+    "local_symbolizer.cc",
+    "local_symbolizer.h",
+    "symbolizer.cc",
+    "symbolizer.h",
   ]
 }
 
@@ -58,6 +73,7 @@ if (perfetto_build_standalone) {
 source_set("common") {
   deps = [
     ":pprofbuilder",
+    ":symbolizer",
     ":utils",
   ]
   public_deps = [
