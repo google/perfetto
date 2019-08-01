@@ -213,17 +213,8 @@ const vidSection = {
   expanded: true,
   items: [
     {t: 'Open video file', a: popupVideoSelectionDialog, i: 'folder_open'},
-    {t: 'View hotkeys', a: showHotkeys, i: 'description'},
   ],
 };
-
-function showHotkeys() {
-  const hks = `'v': Shows/hides video components \n` +
-              `'p': Enables/disables pause/flag synchronization \n` +
-              `'t': Enables/disables timeline scrubbing`;
-  alert(hks);
-  return false;
-}
 
 function getFileElement(): HTMLInputElement {
   return document.querySelector('input[type=file]')! as HTMLInputElement;
