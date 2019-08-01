@@ -284,6 +284,8 @@ ResultCode ExportSlices(const TraceStorage* storage,
       const auto& virtual_track_slices = storage->virtual_track_slices();
       int64_t thread_ts_ns = 0;
       int64_t thread_duration_ns = 0;
+      int64_t thread_instruction_count = 0;
+      int64_t thread_instruction_delta = 0;
       base::Optional<uint32_t> vtrack_slice_row =
           virtual_track_slices.FindRowForSliceId(i);
       if (vtrack_slice_row) {
@@ -291,10 +293,20 @@ ResultCode ExportSlices(const TraceStorage* storage,
             virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
         thread_duration_ns =
             virtual_track_slices.thread_duration_ns()[*vtrack_slice_row];
+        thread_ts_ns =
+            virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
+        thread_instruction_count =
+            virtual_track_slices.thread_instruction_counts()[*vtrack_slice_row];
+        thread_instruction_delta =
+            virtual_track_slices.thread_instruction_deltas()[*vtrack_slice_row];
       }
 
       if (thread_ts_ns > 0) {
         event["tts"] = Json::Int64(thread_ts_ns / 1000);
+        event["use_async_tts"] = Json::Int(1);
+      }
+      if (thread_instruction_count > 0) {
+        event["ticount"] = Json::Int64(thread_instruction_count);
         event["use_async_tts"] = Json::Int(1);
       }
 
@@ -315,6 +327,10 @@ ResultCode ExportSlices(const TraceStorage* storage,
             event["tts"] =
                 Json::Int64((thread_ts_ns + thread_duration_ns) / 1000);
           }
+          if (thread_instruction_count > 0) {
+            event["ticount"] = Json::Int64(
+                (thread_instruction_count + thread_instruction_delta));
+          }
           event.removeMember("args");
           writer->WriteCommonEvent(event);
         }
@@ -323,12 +339,18 @@ ResultCode ExportSlices(const TraceStorage* storage,
       const auto& thread_slices = storage->thread_slices();
       int64_t thread_ts_ns = 0;
       int64_t thread_duration_ns = 0;
+      int64_t thread_instruction_count = 0;
+      int64_t thread_instruction_delta = 0;
       base::Optional<uint32_t> thread_slice_row =
           thread_slices.FindRowForSliceId(i);
       if (thread_slice_row) {
         thread_ts_ns = thread_slices.thread_timestamp_ns()[*thread_slice_row];
         thread_duration_ns =
             thread_slices.thread_duration_ns()[*thread_slice_row];
+        thread_instruction_count =
+            thread_slices.thread_instruction_counts()[*thread_slice_row];
+        thread_instruction_delta =
+            thread_slices.thread_instruction_deltas()[*thread_slice_row];
       }
       int64_t duration_ns = slices.durations()[i];
       if (duration_ns == 0) {  // Instant event.
@@ -341,6 +363,9 @@ ResultCode ExportSlices(const TraceStorage* storage,
           }
           if (thread_ts_ns > 0) {
             event["tts"] = Json::Int64(thread_ts_ns / 1000);
+          }
+          if (thread_instruction_count > 0) {
+            event["ticount"] = Json::Int64(thread_instruction_count);
           }
           event["tid"] = thread.tid;
           event["s"] = "t";
@@ -374,9 +399,15 @@ ResultCode ExportSlices(const TraceStorage* storage,
         }
         if (thread_ts_ns > 0) {
           event["tts"] = Json::Int64(thread_ts_ns / 1000);
-          // Only write duration for complete events.
+          // Only write thread duration for completed events.
           if (duration_ns > 0)
             event["tdur"] = Json::Int64(thread_duration_ns / 1000);
+        }
+        if (thread_instruction_count > 0) {
+          event["ticount"] = Json::Int64(thread_instruction_count);
+          // Only write thread instruction delta for completed events.
+          if (duration_ns > 0)
+            event["tidelta"] = Json::Int64(thread_instruction_delta);
         }
         writer->WriteCommonEvent(event);
       }
