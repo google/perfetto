@@ -33,28 +33,34 @@ void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
 
   // Otherwise, write to Dropbox unless there's a special override in the
   // incident report config.
-  if (!trace_config_->incident_report_config().skip_dropbox())
-    SaveOutputToDropboxOrCrash();
+  if (!trace_config_->incident_report_config().skip_dropbox()) {
+    if (bytes_written_ == 0) {
+      PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
+    } else {
+      SaveOutputToDropboxOrCrash();
+    }
+  }
 
   // Optionally save the trace as an incident. This is either in addition to, or
   // instead of, the Dropbox write.
   if (!trace_config_->incident_report_config().destination_package().empty()) {
-    SaveOutputToIncidentTraceOrCrash();
+    if (bytes_written_ == 0) {
+      PERFETTO_LOG("Skipping incident report. Empty trace.");
+    } else {
+      SaveOutputToIncidentTraceOrCrash();
 
-    // Ask incidentd to create a report, which will read the file we just wrote.
-    const auto& cfg = trace_config_->incident_report_config();
-    PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
-    PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
-                               cfg.destination_class().c_str(),
-                               cfg.privacy_level()));
+      // Ask incidentd to create a report, which will read the file we just
+      // wrote.
+      const auto& cfg = trace_config_->incident_report_config();
+      PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
+      PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
+                                 cfg.destination_class().c_str(),
+                                 cfg.privacy_level()));
+    }
   }
 }
 
 void PerfettoCmd::SaveOutputToDropboxOrCrash() {
-  if (bytes_written_ == 0) {
-    PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
-    return;
-  }
   PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
 
   // DropBox takes ownership of the file descriptor, so give it a duplicate.
@@ -76,18 +82,11 @@ void PerfettoCmd::SaveOutputToDropboxOrCrash() {
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace
-// contents over, then rename to a final hardcoded path. Such tracing sessions
-// should not normally overlap. We do not use unique unique filenames to avoid
-// creating an unbounded amount of files in case of errors.
+// contents over, then rename to a final hardcoded path (known to incidentd).
+// Such tracing sessions should not normally overlap. We do not use unique
+// unique filenames to avoid creating an unbounded amount of files in case of
+// errors.
 void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
-  if (bytes_written_ == 0) {
-    PERFETTO_LOG("Skipping incident report. Empty trace.");
-    return;
-  }
-
-  // If writing into an incident, the trace is written to a hardcoded location
-  // that is known to incidentd.
-
   char kIncidentTracePath[256];
   sprintf(kIncidentTracePath, "%s/incident-trace", kStateDir);
 
