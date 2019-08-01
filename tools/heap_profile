@@ -269,7 +269,7 @@ def main(argv):
         ['adb', 'shell',
          'mkdir -p /data/local/tmp/heapprofd_profile && '
          'cd /data/local/tmp/heapprofd_profile &&'
-         '(nohup simpleperf record -g -p $(pgrep heapprofd) 2>&1 &) '
+         '(nohup simpleperf record -g -p $(pidof heapprofd) 2>&1 &) '
          '> /dev/null'])
 
   perfetto_pid = subprocess.check_output(
@@ -300,7 +300,7 @@ def main(argv):
     subprocess.check_call(['adb', 'shell', 'killall', '-INT', 'simpleperf'])
     print("Waiting for simpleperf to exit.")
     while subprocess.call(
-        ['adb', 'shell', '[ -f /proc/$(pgrep simpleperf)/exe ]'],
+        ['adb', 'shell', '[ -f /proc/$(pidof simpleperf)/exe ]'],
         **NOOUT) == 0:
       time.sleep(1)
     subprocess.check_call(['adb', 'pull', '/data/local/tmp/heapprofd_profile',
