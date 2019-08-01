@@ -18,14 +18,16 @@ import {globals} from './globals';
 import {Actions} from '../common/actions';
 import {randomColor} from './colorizer';
 
-export class VideoPanel implements m.Component {
-    view() {
-      const offset = globals.state.traceTime.startSec;
-      const ts = globals.frontendLocalState.vidTimestamp - offset;
-      const vid = m('video#video_pane', {
+export class VideoPanel implements m.ClassComponent {
+  view() {
+    const vidSections = [];
+    const offset = globals.state.traceTime.startSec;
+    vidSections.push(
+      m('video', {
+        class: 'video-panel',
         controls: true,
         width: 320,
-        currentTime: ts,
+        currentTime: globals.frontendLocalState.vidTimestamp - offset,
         onpause: (e: Event) => {
           const elem = e.target as HTMLVideoElement;
           if (globals.state.flagPauseEnabled && !(elem.ended)) {
@@ -34,17 +36,42 @@ export class VideoPanel implements m.Component {
             const isMovie = true;
             globals.dispatch(Actions.addNote({timestamp, color, isMovie}));
             elem.currentTime = timestamp - offset;
+            globals.frontendLocalState.setVidTimestamp(timestamp);
           }
         },
         onplaying: (e: Event) => {
           const elem = e.target as HTMLVideoElement;
           if (globals.state.scrubbingEnabled) {
-            elem.currentTime = globals.frontendLocalState.vidTimestamp -
-                               globals.state.traceTime.startSec;
+            elem.currentTime = globals.frontendLocalState.vidTimestamp - offset;
           }
-        }
+        },
       },
-      m('source', { src: globals.state.video, type: 'video/mp4' }));
-      return vid;
-    }
+      m('source', { src: globals.state.video, type: 'video/mp4' })));
+    const vidMessages = [];
+    const pSetting = `Pause/Flag Synchronization: `;
+    const pEnabled = `When you pause the video, a video flag ` +
+    `will be drawn at this position. \n Also, adding a video flag by ` +
+    `clicking on the notes panel (below the time axis) will move the video ` +
+    `to this position.`;
+    const pDisabled = `Press 'p' to enable.`;
+    const tSetting = `Timeline Scrubbing: `;
+    const tEnabled = `When you press play and hover over the notes panel, ` +
+    `the video will skip to the hovered timestamp.`;
+    const tDisabled = `Press 't' to enable.`;
+    function msg(setting: boolean, e: string, d: string) {
+      return m('h1', { class: 'video-panel-message' }, setting ? e : d)
+    };
+    function header(setting: boolean, e: string, d: string) {
+      return m('h1', { class: 'video-panel-setting' }, setting ? e : d)
+    };
+    vidMessages.push(
+      header(globals.state.flagPauseEnabled, pSetting.concat(`Enabled`),
+           pSetting.concat(`Disabled`)),
+      msg(globals.state.flagPauseEnabled, pEnabled, pDisabled),
+      header(globals.state.scrubbingEnabled, tSetting.concat(`Enabled`),
+           tSetting.concat(`Disabled`)),
+      msg(globals.state.scrubbingEnabled, tEnabled, tDisabled))
+    vidSections.push(vidMessages);
+    return m('.video-panel', vidSections);
+  }
 }
