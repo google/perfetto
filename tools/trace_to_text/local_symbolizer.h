@@ -82,9 +82,10 @@ class LocalSymbolizer : public Symbolizer {
  public:
   LocalSymbolizer(std::vector<std::string> roots) : finder_(std::move(roots)) {}
 
-  std::vector<SymbolizedFrame> Symbolize(const std::string& mapping_name,
-                                         const std::string& build_id,
-                                         uint64_t address) override;
+  std::vector<std::vector<SymbolizedFrame>> Symbolize(
+      const std::string& mapping_name,
+      const std::string& build_id,
+      const std::vector<uint64_t>& address) override;
 
   ~LocalSymbolizer() override;
 

@@ -34,7 +34,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/utils.h"
 
 #include "tools/trace_to_text/local_symbolizer.h"
@@ -62,16 +61,6 @@ using ::perfetto::protos::InternedString;
 using ::perfetto::protos::Mapping;
 using ::perfetto::protos::ProfilePacket;
 
-std::vector<std::string> GetRootsForEnv() {
-  std::vector<std::string> roots;
-  const char* root = getenv("PERFETTO_BINARY_PATH");
-  if (root != nullptr) {
-    for (base::StringSplitter sp(std::string(root), ':'); sp.Next();)
-      roots.emplace_back(sp.cur_token(), sp.cur_token_size());
-  }
-  return roots;
-}
-
 class SymbolizedTraceRewriter {
  public:
   SymbolizedTraceRewriter(std::unique_ptr<Symbolizer> symbolizer)
@@ -93,10 +82,10 @@ class SymbolizedTraceRewriter {
     }
     const ResolvedMapping& mapping = it->second;
     auto result = symbolizer_->Symbolize(mapping.mapping_name, mapping.build_id,
-                                         frame->rel_pc());
+                                         {frame->rel_pc()});
     if (!result.empty()) {
       // TODO(fmayer): Better support for inline functions.
-      const SymbolizedFrame& symf = result[0];
+      const SymbolizedFrame& symf = result[0][0];
       if (symf.function_name != "??") {
         uint64_t& id = intern_table_[symf.function_name];
         if (!id)
@@ -158,8 +147,8 @@ void WriteTracePacket(const std::string& str, std::ostream* output) {
 }  // namespace
 
 int SymbolizeProfile(std::istream* input, std::ostream* output) {
-  SymbolizedTraceRewriter symbolizer(
-      std::unique_ptr<Symbolizer>(new LocalSymbolizer(GetRootsForEnv())));
+  SymbolizedTraceRewriter symbolizer(std::unique_ptr<Symbolizer>(
+      new LocalSymbolizer(GetPerfettoBinaryPath())));
 
   ForEachPacketInTrace(input, [&output,
                                &symbolizer](protos::TracePacket packet) {

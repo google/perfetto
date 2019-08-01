@@ -34,10 +34,15 @@ struct SymbolizedFrame {
 
 class Symbolizer {
  public:
-  virtual std::vector<SymbolizedFrame> Symbolize(
+  // For each address in the input vector, output a vector of SymbolizedFrame
+  // representing the functions corresponding to that address. When inlining
+  // occurs, this can be more than one function for a single address.
+  //
+  // On failure, return an empty vector.
+  virtual std::vector<std::vector<SymbolizedFrame>> Symbolize(
       const std::string& mapping_name,
       const std::string& build_id,
-      uint64_t address) = 0;
+      const std::vector<uint64_t>& address) = 0;
   virtual ~Symbolizer();
 };
 

@@ -321,16 +321,19 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
   }
   return result;
 }
-
-std::vector<SymbolizedFrame> LocalSymbolizer::Symbolize(
+std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     const std::string& mapping_name,
     const std::string& build_id,
-    uint64_t address) {
+    const std::vector<uint64_t>& addresses) {
   base::Optional<std::string> binary =
       finder_.FindBinary(mapping_name, build_id);
   if (!binary)
     return {};
-  return llvm_symbolizer_.Symbolize(*binary, address);
+  std::vector<std::vector<SymbolizedFrame>> result;
+  result.reserve(addresses.size());
+  for (uint64_t address : addresses)
+    result.emplace_back(llvm_symbolizer_.Symbolize(*binary, address));
+  return result;
 }
 
 LocalSymbolizer::~LocalSymbolizer() = default;

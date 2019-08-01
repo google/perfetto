@@ -47,6 +47,7 @@ source_set("symbolizer") {
 
 source_set("pprofbuilder") {
   deps = [
+    ":symbolizer",
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
