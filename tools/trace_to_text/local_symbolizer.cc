@@ -151,6 +151,20 @@ class ScopedMmap {
   void* ptr_;
 };
 
+bool ParseLine(std::string line, std::string* file_name, uint64_t* line_no) {
+  base::StringSplitter sp(std::move(line), ':');
+  if (!sp.Next())
+    return false;
+  *file_name = sp.cur_token();
+  if (!sp.Next())
+    return false;
+  char* endptr;
+  auto parsed_line_no = strtoll(sp.cur_token(), &endptr, 10);
+  if (parsed_line_no >= 0)
+    *line_no = static_cast<uint64_t>(parsed_line_no);
+  return *endptr == '\0' && parsed_line_no >= 0;
+}
+
 }  // namespace
 
 base::Optional<std::string> LocalBinaryFinder::FindBinary(
@@ -314,10 +328,17 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
   PERFETTO_DCHECK(lines.size() % 2 == 0);
   result.resize(lines.size() / 2);
   for (size_t i = 0; i < lines.size(); ++i) {
-    if (i % 2 == 0)
-      result[i / 2].function_name = lines[i];
-    else
-      result[i / 2].line_information = lines[i];
+    SymbolizedFrame& cur = result[i / 2];
+    if (i % 2 == 0) {
+      cur.function_name = lines[i];
+    } else {
+      if (!ParseLine(lines[i], &cur.file_name, &cur.line)) {
+        PERFETTO_ELOG("Failed to parse llvm-symbolizer line: %s",
+                      lines[i].c_str());
+        cur.file_name = "";
+        cur.line = 0;
+      }
+    }
   }
   return result;
 }
