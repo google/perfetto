@@ -423,11 +423,15 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   }
 }
 
-// Can be called from any thread.
+// Can be called from any thread (but not concurrently).
 bool TracingMuxerImpl::RegisterDataSource(
     const DataSourceDescriptor& descriptor,
     DataSourceFactory factory,
     DataSourceStaticState* static_state) {
+  // Ignore repeated registrations.
+  if (static_state->index != kMaxDataSources)
+    return true;
+
   static std::atomic<uint32_t> last_id{};
   uint32_t new_index = last_id++;
   if (new_index >= kMaxDataSources - 1) {
