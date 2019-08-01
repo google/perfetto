@@ -92,7 +92,8 @@ struct DataSourceStateStorage {
 
 // Per-DataSource-type global state.
 struct DataSourceStaticState {
-  uint32_t index = 0;  // Unique ID, assigned at registration time.
+  uint32_t index =
+      kMaxDataSources;  // Unique ID, assigned at registration time.
 
   // A bitmap that tells about the validity of each |instances| entry. When the
   // i-th bit of the bitmap it's set, instances[i] is valid.
