@@ -24,6 +24,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 
@@ -50,6 +51,8 @@ void ForEachPacketBlobInTrace(
 void ForEachPacketInTrace(
     std::istream* input,
     const std::function<void(const protos::TracePacket&)>&);
+
+std::vector<std::string> GetPerfettoBinaryPath();
 
 }  // namespace trace_to_text
 }  // namespace perfetto
