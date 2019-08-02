@@ -59,18 +59,22 @@ export class VideoPanel implements m.ClassComponent {
     `the video will skip to the hovered timestamp.`;
     const tDisabled = `Press 't' to enable.`;
     function msg(setting: boolean, e: string, d: string) {
-      return m('h1', { class: 'video-panel-message' }, setting ? e : d)
-    };
+      return m('h1', {class: 'video-panel-message'}, setting ? e : d);
+    }
     function header(setting: boolean, e: string, d: string) {
-      return m('h1', { class: 'video-panel-setting' }, setting ? e : d)
-    };
+      return m('h1', {class: 'video-panel-setting'}, setting ? e : d);
+    }
     vidMessages.push(
-      header(globals.state.flagPauseEnabled, pSetting.concat(`Enabled`),
-           pSetting.concat(`Disabled`)),
-      msg(globals.state.flagPauseEnabled, pEnabled, pDisabled),
-      header(globals.state.scrubbingEnabled, tSetting.concat(`Enabled`),
-           tSetting.concat(`Disabled`)),
-      msg(globals.state.scrubbingEnabled, tEnabled, tDisabled))
+        header(
+            globals.state.flagPauseEnabled,
+            pSetting.concat(`Enabled`),
+            pSetting.concat(`Disabled`)),
+        msg(globals.state.flagPauseEnabled, pEnabled, pDisabled),
+        header(
+            globals.state.scrubbingEnabled,
+            tSetting.concat(`Enabled`),
+            tSetting.concat(`Disabled`)),
+        msg(globals.state.scrubbingEnabled, tEnabled, tDisabled));
     vidSections.push(vidMessages);
     return m('.video-panel', vidSections);
   }
