@@ -100,7 +100,7 @@ function handleStopTracing() {
   chrome.debugger.sendCommand(
       recordingTarget, 'Tracing.end', undefined, results => {
         console.log('tracing stopped:');
-        console.log(results!.toString());
+        console.log(results.toString());
         recordingTarget = null;
       });
 }
