@@ -208,7 +208,8 @@ bool TraceStats::BufferStats::operator==(
          (patches_failed_ == other.patches_failed_) &&
          (readaheads_succeeded_ == other.readaheads_succeeded_) &&
          (readaheads_failed_ == other.readaheads_failed_) &&
-         (abi_violations_ == other.abi_violations_);
+         (abi_violations_ == other.abi_violations_) &&
+         (trace_writer_packet_loss_ == other.trace_writer_packet_loss_);
 }
 #pragma GCC diagnostic pop
 
@@ -311,6 +312,12 @@ void TraceStats::BufferStats::FromProto(
                 "size mismatch");
   abi_violations_ =
       static_cast<decltype(abi_violations_)>(proto.abi_violations());
+
+  static_assert(sizeof(trace_writer_packet_loss_) ==
+                    sizeof(proto.trace_writer_packet_loss()),
+                "size mismatch");
+  trace_writer_packet_loss_ = static_cast<decltype(trace_writer_packet_loss_)>(
+      proto.trace_writer_packet_loss());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -419,6 +426,13 @@ void TraceStats::BufferStats::ToProto(
                 "size mismatch");
   proto->set_abi_violations(
       static_cast<decltype(proto->abi_violations())>(abi_violations_));
+
+  static_assert(sizeof(trace_writer_packet_loss_) ==
+                    sizeof(proto->trace_writer_packet_loss()),
+                "size mismatch");
+  proto->set_trace_writer_packet_loss(
+      static_cast<decltype(proto->trace_writer_packet_loss())>(
+          trace_writer_packet_loss_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
