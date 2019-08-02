@@ -1613,8 +1613,6 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
-  InSequence in_sequence;  // Below slices should be sorted by timestamp.
-
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
@@ -1622,9 +1620,10 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
       .Times(2)
       .WillRepeatedly(Return(3));
-
-  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
+  EXPECT_CALL(*storage_, InternString(base::StringView("?")))
       .WillOnce(Return(4));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
+      .WillOnce(Return(5));
 
   context_.sorter->ExtractEventsForced();
 
@@ -1647,7 +1646,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.name"),
                      Variadic::String(2u)));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.phase"),
-                     Variadic::Integer('?')));
+                     Variadic::String(4u)));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.duration_ns"),
                      Variadic::Integer(23000)));
   EXPECT_TRUE(HasArg(1u,
@@ -1669,7 +1668,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
                      Variadic::Boolean(true)));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.flow_direction"),
                      Variadic::String(storage_->InternString("inout"))));
-  EXPECT_TRUE(HasArg(1u, 4u, Variadic::UnsignedInteger(10u)));
+  EXPECT_TRUE(HasArg(1u, 5u, Variadic::UnsignedInteger(10u)));
 }
 
 TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
