@@ -143,4 +143,5 @@
 "traced_buf_patches_succeeded",0,"info","trace",8215
 "traced_buf_readaheads_failed",0,"info","trace",0
 "traced_buf_readaheads_succeeded",0,"info","trace",0
+"traced_buf_trace_writer_packet_loss",0,"info","trace",0
 "traced_buf_write_wrap_count",0,"info","trace",0

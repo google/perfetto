@@ -119,6 +119,7 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   uint8_t* header = protobuf_stream_writer_.ReserveBytes(kPacketHeaderSize);
   memset(header, 0, kPacketHeaderSize);
   cur_packet_->set_size_field(header);
+  last_packet_size_field_ = header;
 
   TracePacketHandle handle(cur_packet_.get());
   cur_fragment_start_ = protobuf_stream_writer_.write_ptr();
@@ -226,7 +227,22 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
         if (size_field_points_within_chunk)
           nested_msg->set_size_field(nullptr);
       }
-    }  // if (fragmenting_packet_)
+    } else if (!drop_packets_ && last_packet_size_field_) {
+      // If we weren't dropping packets before, we should indicate to the
+      // service that we're about to lose data. We do this by invalidating the
+      // size of the last packet in |cur_chunk_|. The service will record
+      // statistics about packets with kPacketSizeDropPacket size.
+      PERFETTO_DCHECK(cur_packet_->is_finalized());
+      PERFETTO_DCHECK(cur_chunk_.is_valid());
+
+      // |last_packet_size_field_| should point within |cur_chunk_|'s payload.
+      PERFETTO_DCHECK(last_packet_size_field_ >= cur_chunk_.payload_begin() &&
+                      last_packet_size_field_ + kMessageLengthFieldSize <=
+                          cur_chunk_.end());
+
+      WriteRedundantVarInt(SharedMemoryABI::kPacketSizeDropPacket,
+                           last_packet_size_field_);
+    }
 
     if (cur_chunk_.is_valid()) {
       shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_),
@@ -237,6 +253,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     cur_chunk_ = SharedMemoryABI::Chunk();  // Reset to an invalid chunk.
     reached_max_packets_per_chunk_ = false;
     retry_new_chunk_after_packet_ = false;
+    last_packet_size_field_ = nullptr;
 
     PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(&g_garbage_chunk,
                                         sizeof(g_garbage_chunk),
@@ -315,10 +332,12 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   retry_new_chunk_after_packet_ = false;
   next_chunk_id_++;
   cur_chunk_ = std::move(new_chunk);
+  last_packet_size_field_ = nullptr;
 
   uint8_t* payload_begin = cur_chunk_.payload_begin();
   if (fragmenting_packet_) {
     cur_packet_->set_size_field(payload_begin);
+    last_packet_size_field_ = payload_begin;
     memset(payload_begin, 0, kPacketHeaderSize);
     payload_begin += kPacketHeaderSize;
     cur_fragment_start_ = payload_begin;

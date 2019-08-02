@@ -132,6 +132,13 @@ class PERFETTO_EXPORT TraceStats {
     uint64_t abi_violations() const { return abi_violations_; }
     void set_abi_violations(uint64_t value) { abi_violations_ = value; }
 
+    uint64_t trace_writer_packet_loss() const {
+      return trace_writer_packet_loss_;
+    }
+    void set_trace_writer_packet_loss(uint64_t value) {
+      trace_writer_packet_loss_ = value;
+    }
+
    private:
     uint64_t buffer_size_{};
     uint64_t bytes_written_{};
@@ -151,6 +158,7 @@ class PERFETTO_EXPORT TraceStats {
     uint64_t readaheads_succeeded_{};
     uint64_t readaheads_failed_{};
     uint64_t abi_violations_{};
+    uint64_t trace_writer_packet_loss_{};
 
     // Allows to preserve unknown protobuf fields for compatibility
     // with future versions of .proto files.
