@@ -368,6 +368,24 @@ TEST_F(PerfettoApiTest, WriteEventsAfterDeferredStop) {
   EXPECT_EQ(test_packet_found, 1);
 }
 
+TEST_F(PerfettoApiTest, RepeatedStartAndStop) {
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  for (int i = 0; i < 5; i++) {
+    auto* tracing_session = NewTrace(cfg);
+    tracing_session->get()->Start();
+    std::atomic<bool> stop_called{false};
+    tracing_session->get()->SetOnStopCallback(
+        [&stop_called] { stop_called = true; });
+    tracing_session->get()->StopBlocking();
+    EXPECT_TRUE(stop_called);
+  }
+}
+
 TEST_F(PerfettoApiTest, SetupWithFile) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";

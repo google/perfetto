@@ -146,6 +146,8 @@ void TracingMuxerImpl::ConsumerImpl::OnConnect() {
     muxer_->SetupTracingSession(session_id_, trace_config_);
     if (start_pending_)
       muxer_->StartTracingSession(session_id_);
+    if (stop_pending_)
+      muxer_->StopTracingSession(session_id_);
   }
 }
 
@@ -166,14 +168,24 @@ void TracingMuxerImpl::ConsumerImpl::OnTracingDisabled() {
   stopped_ = true;
   // If we're still waiting for the start event, fire it now. This may happen if
   // there are no active data sources in the session.
-  if (stop_complete_callback_) {
-    muxer_->task_runner_->PostTask(std::move(stop_complete_callback_));
-    stop_complete_callback_ = nullptr;
-  }
+  NotifyStartComplete();
+  NotifyStopComplete();
+}
+
+void TracingMuxerImpl::ConsumerImpl::NotifyStartComplete() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (blocking_start_complete_callback_) {
     muxer_->task_runner_->PostTask(
         std::move(blocking_start_complete_callback_));
     blocking_start_complete_callback_ = nullptr;
+  }
+}
+
+void TracingMuxerImpl::ConsumerImpl::NotifyStopComplete() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (stop_complete_callback_) {
+    muxer_->task_runner_->PostTask(std::move(stop_complete_callback_));
+    stop_complete_callback_ = nullptr;
   }
   if (blocking_stop_complete_callback_) {
     muxer_->task_runner_->PostTask(std::move(blocking_stop_complete_callback_));
@@ -239,11 +251,8 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
       bool all_data_sources_started = std::all_of(
           data_source_states_.cbegin(), data_source_states_.cend(),
           [](std::pair<DataSourceHandle, bool> state) { return state.second; });
-      if (all_data_sources_started) {
-        muxer_->task_runner_->PostTask(
-            std::move(blocking_start_complete_callback_));
-        blocking_start_complete_callback_ = nullptr;
-      }
+      if (all_data_sources_started)
+        NotifyStartComplete();
     }
   }
 }
@@ -693,6 +702,7 @@ void TracingMuxerImpl::StartTracingSession(TracingSessionGlobalID session_id) {
     return;
   }
 
+  consumer->start_pending_ = false;
   if (consumer->trace_config_->deferred_start()) {
     consumer->service_->StartTracing();
   } else {
@@ -714,14 +724,17 @@ void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {
     return;
   }
 
-  // If the session was already stopped (e.g., it failed to start), don't try
-  // stopping again.
+  if (consumer->start_pending_) {
+    // If the session hasn't started yet, wait until it does before stopping.
+    consumer->stop_pending_ = true;
+    return;
+  }
+
+  consumer->stop_pending_ = false;
   if (consumer->stopped_) {
-    if (consumer->blocking_stop_complete_callback_) {
-      task_runner_->PostTask(
-          std::move(consumer->blocking_stop_complete_callback_));
-      consumer->blocking_stop_complete_callback_ = nullptr;
-    }
+    // If the session was already stopped (e.g., it failed to start), don't try
+    // stopping again.
+    consumer->NotifyStopComplete();
   } else {
     consumer->service_->DisableTracing();
   }
