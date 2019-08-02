@@ -16,6 +16,7 @@
 
 #include "tools/trace_to_text/symbolize_profile.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <string>
@@ -37,6 +38,7 @@
 #include "perfetto/ext/base/utils.h"
 
 #include "tools/trace_to_text/local_symbolizer.h"
+#include "tools/trace_to_text/profile_visitor.h"
 #include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/utils.h"
 
@@ -55,48 +57,108 @@ using ::protozero::proto_utils::kMessageLengthFieldSize;
 using ::protozero::proto_utils::MakeTagLengthDelimited;
 using ::protozero::proto_utils::WriteVarInt;
 
+using ::perfetto::protos::Callstack;
 using ::perfetto::protos::Frame;
 using ::perfetto::protos::InternedData;
 using ::perfetto::protos::InternedString;
 using ::perfetto::protos::Mapping;
+using ::perfetto::protos::ProfiledFrameSymbols;
 using ::perfetto::protos::ProfilePacket;
 
-class SymbolizedTraceRewriter {
+void WriteTracePacket(const std::string& str, std::ostream* output) {
+  constexpr char kPreamble =
+      MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
+  uint8_t length_field[10];
+  uint8_t* end = WriteVarInt(str.size(), length_field);
+  *output << kPreamble;
+  *output << std::string(length_field, end);
+  *output << str;
+}
+
+class TraceSymbolTable : public ProfileVisitor {
  public:
-  SymbolizedTraceRewriter(std::unique_ptr<Symbolizer> symbolizer)
-      : symbolizer_(std::move(symbolizer)) {}
+  TraceSymbolTable(Symbolizer* symbolizer) : symbolizer_(symbolizer) {}
 
-  void AddInternedString(const InternedString& string) {
+  bool AddCallstack(const Callstack&) override { return true; }
+
+  bool AddInternedString(const InternedString& string) override {
     interned_strings_.emplace(string.iid(), string.str());
+    max_string_intern_id_ =
+        std::max<uint64_t>(string.iid(), max_string_intern_id_);
+    return true;
   }
 
-  void AddMapping(const Mapping& mapping) {
+  bool AddMapping(const Mapping& mapping) override {
     mappings_.emplace(mapping.iid(), ResolveMapping(mapping));
+    return true;
   }
 
-  void SymbolizeFrame(Frame* frame) {
-    auto it = mappings_.find(frame->mapping_id());
+  bool AddFrame(const Frame& frame) override {
+    auto it = mappings_.find(frame.mapping_id());
     if (it == mappings_.end()) {
       PERFETTO_ELOG("Invalid mapping.");
-      return;
+      return false;
     }
     const ResolvedMapping& mapping = it->second;
     auto result = symbolizer_->Symbolize(mapping.mapping_name, mapping.build_id,
-                                         {frame->rel_pc()});
-    if (!result.empty()) {
-      // TODO(fmayer): Better support for inline functions.
-      const SymbolizedFrame& symf = result[0][0];
-      if (symf.function_name != "??") {
-        uint64_t& id = intern_table_[symf.function_name];
-        if (!id)
-          id = --intern_id_;
-        frame->set_function_name_id(id);
-      }
-    }
+                                         {frame.rel_pc()});
+    if (!result.empty())
+      symbols_for_frame_[frame.iid()] = std::move(result[0]);
+    return true;
   }
 
-  const std::map<std::string, uint64_t>& intern_table() const {
-    return intern_table_;
+  void WriteResult(std::ostream* output, uint32_t seq_id) {
+    std::map<std::string, uint64_t> new_interned_strings;
+    protos::TracePacket intern_packet;
+    intern_packet.set_trusted_packet_sequence_id(seq_id);
+    protos::InternedData* interned_data = intern_packet.mutable_interned_data();
+    for (const auto& p : symbols_for_frame_) {
+      const std::vector<SymbolizedFrame>& frames = p.second;
+      for (const SymbolizedFrame& frame : frames) {
+        uint64_t& function_name_id = new_interned_strings[frame.function_name];
+        if (function_name_id == 0) {
+          function_name_id = ++max_string_intern_id_;
+          protos::InternedString* str = interned_data->add_function_names();
+          str->set_iid(function_name_id);
+          str->set_str(
+              reinterpret_cast<const uint8_t*>(frame.function_name.c_str()),
+              frame.function_name.size());
+        }
+
+        uint64_t& source_file_id = new_interned_strings[frame.file_name];
+        if (source_file_id == 0) {
+          source_file_id = ++max_string_intern_id_;
+          protos::InternedString* str = interned_data->add_source_paths();
+          str->set_iid(source_file_id);
+          str->set_str(
+              reinterpret_cast<const uint8_t*>(frame.file_name.c_str()),
+              frame.file_name.size());
+        }
+      }
+    }
+
+    WriteTracePacket(intern_packet.SerializeAsString(), output);
+
+    for (const auto& p : symbols_for_frame_) {
+      uint64_t frame_iid = p.first;
+      const std::vector<SymbolizedFrame>& frames = p.second;
+      protos::TracePacket packet;
+      packet.set_trusted_packet_sequence_id(seq_id);
+      protos::ProfiledFrameSymbols* sym =
+          packet.mutable_profiled_frame_symbols();
+      sym->set_frame_iid(static_cast<int64_t>(frame_iid));
+      for (const SymbolizedFrame& frame : frames) {
+        // TODO(fmayer): Sort out types here. Make the function_name_id and
+        // file_name_id uint64, this requires a Chrome change as well.
+        sym->add_function_name_id(
+            static_cast<int64_t>(new_interned_strings[frame.function_name]));
+        sym->add_line_number(static_cast<int32_t>(frame.line));
+        sym->add_file_name_id(
+            static_cast<int64_t>(new_interned_strings[frame.file_name]));
+      }
+
+      WriteTracePacket(packet.SerializeAsString(), output);
+    }
   }
 
  private:
@@ -121,95 +183,36 @@ class SymbolizedTraceRewriter {
     return {std::move(path), ResolveString(mapping.build_id())};
   }
 
-  std::unique_ptr<Symbolizer> symbolizer_;
+  Symbolizer* symbolizer_;
 
   std::map<uint64_t, std::string> interned_strings_;
   std::map<uint64_t, ResolvedMapping> mappings_;
 
   std::map<std::string, uint64_t> intern_table_;
-  // Use high IDs for the newly interned strings to avoid clashing with
-  // other interned strings. The other solution is to read the trace twice
-  // in order to find out the maximum used interned ID. This means that we
-  // cannot operate on stdin anymore.
-  uint64_t intern_id_ = std::numeric_limits<uint64_t>::max();
-};
+  uint64_t max_string_intern_id_ = 0;
 
-void WriteTracePacket(const std::string& str, std::ostream* output) {
-  constexpr char kPreamble =
-      MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
-  uint8_t length_field[10];
-  uint8_t* end = WriteVarInt(str.size(), length_field);
-  *output << kPreamble;
-  *output << std::string(length_field, end);
-  *output << str;
-}
+  std::map<uint64_t /* frame_id */, std::vector<SymbolizedFrame>>
+      symbols_for_frame_;
+};
 
 }  // namespace
 
+// Ingest profile, and emit a symbolization table for each sequence. This can
+// be prepended to the profile to attach the symbol information.
 int SymbolizeProfile(std::istream* input, std::ostream* output) {
-  SymbolizedTraceRewriter symbolizer(std::unique_ptr<Symbolizer>(
-      new LocalSymbolizer(GetPerfettoBinaryPath())));
+  LocalSymbolizer local_symbolizer(GetPerfettoBinaryPath());
 
-  ForEachPacketInTrace(input, [&output,
-                               &symbolizer](protos::TracePacket packet) {
-    protos::ProfilePacket* profile_packet = nullptr;
-    if (packet.has_profile_packet()) {
-      profile_packet = packet.mutable_profile_packet();
-    }
-    InternedData* data = nullptr;
-    if (packet.has_interned_data())
-      data = packet.mutable_interned_data();
-    if (profile_packet) {
-      for (const InternedString& interned_string : profile_packet->strings())
-        symbolizer.AddInternedString(interned_string);
-    }
-    if (data) {
-      for (const InternedString& interned_string : data->build_ids())
-        symbolizer.AddInternedString(interned_string);
-      for (const InternedString& interned_string : data->mapping_paths())
-        symbolizer.AddInternedString(interned_string);
-      for (const InternedString& interned_string : data->function_names())
-        symbolizer.AddInternedString(interned_string);
-    }
-    if (profile_packet) {
-      for (const Mapping& mapping : profile_packet->mappings())
-        symbolizer.AddMapping(mapping);
-    }
-    if (data) {
-      for (const Mapping& mapping : data->mappings())
-        symbolizer.AddMapping(mapping);
-    }
-    if (profile_packet) {
-      for (Frame& frame : *profile_packet->mutable_frames())
-        symbolizer.SymbolizeFrame(&frame);
-    }
-    if (data) {
-      for (Frame& frame : *data->mutable_frames())
-        symbolizer.SymbolizeFrame(&frame);
-    }
-
-    // As we will write the newly interned strings after, we need to set
-    // continued for the last ProfilePacket.
-    if (profile_packet)
-      profile_packet->set_continued(true);
-    WriteTracePacket(packet.SerializeAsString(), output);
-  });
-
-  // We have to emit a ProfilePacket with continued = false to terminate the
-  // sequence of related ProfilePackets.
-  protos::TracePacket packet;
-  const auto& intern_table = symbolizer.intern_table();
-  if (!intern_table.empty()) {
-    InternedData* data = packet.mutable_interned_data();
-    for (const auto& p : intern_table) {
-      InternedString* str = data->add_function_names();
-      str->set_iid(p.second);
-      str->set_str(p.first);
-    }
-  }
-  packet.mutable_profile_packet();
-  WriteTracePacket(packet.SerializeAsString(), output);
-  return 0;
+  return VisitCompletePacket(
+      input,
+      [&output, &local_symbolizer](
+          uint32_t seq_id, const std::vector<ProfilePacket>& packet_fragments,
+          const std::vector<InternedData>& interned_data) {
+        TraceSymbolTable symbolizer(&local_symbolizer);
+        if (!symbolizer.Visit(packet_fragments, interned_data))
+          return false;
+        symbolizer.WriteResult(output, seq_id);
+        return true;
+      });
 }
 
 }  // namespace trace_to_text
