@@ -1001,4 +1001,5 @@ py_binary(
         "tools/gen_merged_sql_metrics.py",
     ],
     main = "tools/gen_merged_sql_metrics.py",
+    python_version = "PY2",
 )
