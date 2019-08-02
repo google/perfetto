@@ -115,6 +115,10 @@ class TraceWriterImpl : public TraceWriter,
   // least once since the last attempt.
   bool retry_new_chunk_after_packet_ = false;
 
+  // Points to the size field of the last packet we wrote to the current chunk.
+  // If the chunk was already returned, this is reset to |nullptr|.
+  uint8_t* last_packet_size_field_ = nullptr;
+
   // When a packet is fragmented across different chunks, the |size_field| of
   // the outstanding nested protobuf messages is redirected onto Patch entries
   // in this list at the time the Chunk is returned (because at that point we

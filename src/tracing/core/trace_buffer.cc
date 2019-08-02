@@ -851,6 +851,9 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
     if (packet_size != SharedMemoryABI::kPacketSizeDropPacket) {
       stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+    } else {
+      stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() +
+                                          1);
     }
     chunk_meta->cur_fragment_offset = 0;
     chunk_meta->num_fragments_read = chunk_meta->num_fragments;
