@@ -25,7 +25,7 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 19.
+  // Next id: 20.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -110,6 +110,15 @@ message TraceStats {
     // the buffer. This is an indication of either a bug in the producer(s) or
     // malicious producer(s).
     optional uint64 abi_violations = 9;
+
+    // The fields below have been introduced in Android R.
+
+    // Num. of times the service detected packet loss on a trace writer
+    // sequence. This is usually caused by exhaustion of available chunks in the
+    // writer process's SMB. Note that this relies on the client's TraceWriter
+    // indicating this loss to the service -- packets lost for other reasons are
+    // not reflected in this stat.
+    optional uint64 trace_writer_packet_loss = 19;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
