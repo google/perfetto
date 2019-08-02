@@ -85,6 +85,7 @@ namespace stats {
   F(traced_buf_patches_succeeded,             kIndexed, kInfo,     kTrace),    \
   F(traced_buf_readaheads_failed,             kIndexed, kInfo,     kTrace),    \
   F(traced_buf_readaheads_succeeded,          kIndexed, kInfo,     kTrace),    \
+  F(traced_buf_trace_writer_packet_loss,      kIndexed, kInfo,     kTrace),    \
   F(traced_buf_write_wrap_count,              kIndexed, kInfo,     kTrace),    \
   F(traced_chunks_discarded,                  kSingle,  kInfo,     kTrace),    \
   F(traced_data_sources_registered,           kSingle,  kInfo,     kTrace),    \
