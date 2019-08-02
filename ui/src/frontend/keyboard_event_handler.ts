@@ -34,11 +34,22 @@ export function handleKey(key: string, down: boolean) {
 
 function selectSliceSpan() {
   const selection = globals.state.currentSelection;
-  const slice = globals.sliceDetails;
-  if (selection && selection.kind === 'SLICE' &&
-    slice && slice.ts && slice.dur) {
-    const startTs = slice.ts + globals.state.traceTime.startSec;
-    const endTs = startTs + slice.dur;
+  let startTs = -1;
+  let endTs = -1;
+  if (selection === null) return;
+
+  if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+    const slice = globals.sliceDetails;
+    if (slice.ts && slice.dur) {
+      startTs = slice.ts + globals.state.traceTime.startSec;
+      endTs = startTs + slice.dur;
+    }
+  } else if (selection.kind === 'THREAD_STATE') {
+    startTs = selection.ts;
+    endTs = startTs + selection.dur;
+  }
+
+  if (startTs !== -1 && endTs !== -1) {
     globals.dispatch(Actions.selectTimeSpan({startTs, endTs}));
   }
 }
