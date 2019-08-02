@@ -1875,8 +1875,11 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
               legacy_event_category_key_id_, Variadic::String(category_id));
   args.AddArg(row_id, legacy_event_name_key_id_, legacy_event_name_key_id_,
               Variadic::String(name_id));
+
+  std::string phase_string(1, static_cast<char>(legacy_event.phase()));
+  StringId phase_id = context_->storage->InternString(phase_string.c_str());
   args.AddArg(row_id, legacy_event_phase_key_id_, legacy_event_phase_key_id_,
-              Variadic::Integer(legacy_event.phase()));
+              Variadic::String(phase_id));
 
   if (legacy_event.has_duration_us()) {
     args.AddArg(row_id, legacy_event_duration_ns_key_id_,
@@ -1970,6 +1973,9 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
     args.AddArg(row_id, legacy_event_flow_direction_key_id_,
                 legacy_event_flow_direction_key_id_, Variadic::String(value));
   }
+
+  // No need to parse legacy_event.instant_event_scope() because we import
+  // instant events into the slice table.
 
   args_callback(&args, row_id);
 }

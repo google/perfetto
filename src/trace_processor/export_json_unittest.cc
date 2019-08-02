@@ -17,6 +17,8 @@
 #include "src/trace_processor/export_json.h"
 
 #include "perfetto/ext/base/temp_file.h"
+#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/trace_processor_context.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -758,6 +760,104 @@ TEST(ExportJsonTest, AsyncInstantEvent) {
   EXPECT_EQ(event["id2"]["local"].asString(), "0x0");
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
+}
+
+TEST(ExportJsonTest, RawEvent) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kDuration = 10000;
+  const int64_t kThreadTimestamp = 20000000;
+  const int64_t kThreadDuration = 20000;
+  const int64_t kThreadInstructionCount = 30000000;
+  const int64_t kThreadInstructionDelta = 30000;
+  const int64_t kProcessID = 100;
+  const int64_t kThreadID = 200;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  const char* kPhase = "?";
+  const uint64_t kGlobalId = 0xaaffaaffaaffaaff;
+  const char* kIdScope = "my_id";
+  const uint64_t kBindId = 0xaa00aa00aa00aa00;
+  const char* kFlowDirection = "inout";
+  const char* kArgName = "arg_name";
+  const int kArgValue = 123;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  TraceStorage* storage = context.storage.get();
+
+  UniquePid upid = storage->AddEmptyProcess(kProcessID);
+  UniqueTid utid = storage->AddEmptyThread(kThreadID);
+  storage->GetMutableThread(utid)->upid = upid;
+
+  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+      kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
+      utid);
+
+  ArgsTracker args(&context);
+  auto add_arg = [&](const char* key, Variadic value) {
+    StringId key_id = storage->InternString(key);
+    args.AddArg(row_id, key_id, key_id, value);
+  };
+
+  StringId cat_id = storage->InternString(base::StringView(kCategory));
+  add_arg("legacy_event.category", Variadic::String(cat_id));
+  StringId name_id = storage->InternString(base::StringView(kName));
+  add_arg("legacy_event.name", Variadic::String(name_id));
+  StringId phase_id = storage->InternString(base::StringView(kPhase));
+  add_arg("legacy_event.phase", Variadic::String(phase_id));
+
+  add_arg("legacy_event.duration_ns", Variadic::Integer(kDuration));
+  add_arg("legacy_event.thread_timestamp_ns",
+          Variadic::Integer(kThreadTimestamp));
+  add_arg("legacy_event.thread_duration_ns",
+          Variadic::Integer(kThreadDuration));
+  add_arg("legacy_event.thread_instruction_count",
+          Variadic::Integer(kThreadInstructionCount));
+  add_arg("legacy_event.thread_instruction_delta",
+          Variadic::Integer(kThreadInstructionDelta));
+  add_arg("legacy_event.use_async_tts", Variadic::Boolean(true));
+  add_arg("legacy_event.global_id", Variadic::UnsignedInteger(kGlobalId));
+  StringId scope_id = storage->InternString(base::StringView(kIdScope));
+  add_arg("legacy_event.id_scope", Variadic::String(scope_id));
+  add_arg("legacy_event.bind_id", Variadic::UnsignedInteger(kBindId));
+  add_arg("legacy_event.bind_to_enclosing", Variadic::Boolean(true));
+  StringId flow_direction_id = storage->InternString(kFlowDirection);
+  add_arg("legacy_event.flow_direction", Variadic::String(flow_direction_id));
+
+  add_arg(kArgName, Variadic::Integer(kArgValue));
+
+  args.Flush();
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), kPhase);
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["dur"].asInt64(), kDuration / 1000);
+  EXPECT_EQ(event["tts"].asInt64(), kThreadTimestamp / 1000);
+  EXPECT_EQ(event["tdur"].asInt64(), kThreadDuration / 1000);
+  EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
+  EXPECT_EQ(event["tidelta"].asInt64(), kThreadInstructionDelta);
+  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["use_async_tts"].asInt(), 1);
+  EXPECT_EQ(event["id2"]["global"].asString(), "0xaaffaaffaaffaaff");
+  EXPECT_EQ(event["scope"].asString(), kIdScope);
+  EXPECT_EQ(event["bind_id"].asString(), "0xaa00aa00aa00aa00");
+  EXPECT_EQ(event["bp"].asString(), "e");
+  EXPECT_EQ(event["flow_in"].asBool(), true);
+  EXPECT_EQ(event["flow_out"].asBool(), true);
   EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
 }
 
