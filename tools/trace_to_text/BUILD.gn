@@ -24,8 +24,12 @@ source_set("utils") {
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/ftrace:lite",
+    "../../protos/perfetto/trace/interned_data:lite",
+    "../../protos/perfetto/trace/profiling:lite",
   ]
   sources = [
+    "profile_visitor.cc",
+    "profile_visitor.h",
     "utils.cc",
     "utils.h",
   ]
