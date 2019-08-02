@@ -190,6 +190,9 @@ class TracingMuxerImpl : public TracingMuxer {
     void OnTraceStats(bool success, const TraceStats&) override;
     void OnObservableEvents(const ObservableEvents&) override;
 
+    void NotifyStartComplete();
+    void NotifyStopComplete();
+
     TracingMuxerImpl* const muxer_;
     TracingBackendId const backend_id_;
     TracingSessionGlobalID const session_id_;
@@ -199,6 +202,10 @@ class TracingMuxerImpl : public TracingMuxer {
     // arrives before the consumer has connected. In this case we keep around
     // the config and check if we have it after connection.
     bool start_pending_ = false;
+
+    // Similarly if the session is stopped before the consumer was connected, we
+    // need to wait until the session has started before stopping it.
+    bool stop_pending_ = false;
 
     // Whether this session was already stopped. This will happen in response to
     // Stop{,Blocking}, but also if the service stops the session for us
