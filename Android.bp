@@ -3952,6 +3952,7 @@ cc_binary_host {
     "tools/trace_to_text/local_symbolizer.cc",
     "tools/trace_to_text/main.cc",
     "tools/trace_to_text/pprof_builder.cc",
+    "tools/trace_to_text/profile_visitor.cc",
     "tools/trace_to_text/proto_full_utils.cc",
     "tools/trace_to_text/symbolize_profile.cc",
     "tools/trace_to_text/symbolizer.cc",
