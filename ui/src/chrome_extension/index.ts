@@ -1,4 +1,6 @@
+import {assertExists} from '../base/logging';
 import {TraceConfig} from '../common/protos';
+
 console.log(TraceConfig);
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -100,7 +102,7 @@ function handleStopTracing() {
   chrome.debugger.sendCommand(
       recordingTarget, 'Tracing.end', undefined, results => {
         console.log('tracing stopped:');
-        console.log(results.toString());
+        console.log(assertExists(results).toString());
         recordingTarget = null;
       });
 }
