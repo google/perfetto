@@ -19,9 +19,41 @@
 
 #include <iostream>
 
+#include "tools/trace_to_text/profile_visitor.h"
+#include "tools/trace_to_text/symbolizer.h"
+
 namespace perfetto {
 namespace trace_to_text {
 
+class TraceSymbolTable : public ProfileVisitor {
+ public:
+  TraceSymbolTable(Symbolizer* symbolizer) : symbolizer_(symbolizer) {}
+  bool AddCallstack(const protos::Callstack&) override { return true; }
+  bool AddInternedString(const protos::InternedString& string) override;
+  bool AddFrame(const protos::Frame& frame) override;
+  bool AddMapping(const protos::Mapping& mapping) override;
+  void WriteResult(std::ostream* output, uint32_t seq_id);
+
+ private:
+  struct ResolvedMapping {
+    std::string mapping_name;
+    std::string build_id;
+  };
+
+  std::string ResolveString(uint64_t iid);
+  ResolvedMapping ResolveMapping(const protos::Mapping& mapping);
+
+  Symbolizer* symbolizer_;
+
+  std::map<uint64_t, std::string> interned_strings_;
+  std::map<uint64_t, ResolvedMapping> mappings_;
+
+  std::map<std::string, uint64_t> intern_table_;
+  uint64_t max_string_intern_id_ = 0;
+
+  std::map<uint64_t /* frame_id */, std::vector<SymbolizedFrame>>
+      symbols_for_frame_;
+};
 int SymbolizeProfile(std::istream* input, std::ostream* output);
 
 }  // namespace trace_to_text
