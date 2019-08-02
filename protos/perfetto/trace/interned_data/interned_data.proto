@@ -73,6 +73,8 @@ message InternedData {
   repeated InternedString build_ids = 16;
   // Paths to executable files.
   repeated InternedString mapping_paths = 17;
+  // Paths to source files.
+  repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
 
