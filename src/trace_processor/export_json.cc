@@ -19,6 +19,7 @@
 #include <json/value.h>
 #include <json/writer.h>
 #include <stdio.h>
+#include <cstring>
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "src/trace_processor/export_json.h"
@@ -120,8 +121,7 @@ namespace {
 
 class ArgsBuilder {
  public:
-  explicit ArgsBuilder(const TraceStorage* storage)
-      : string_pool_(&storage->string_pool()) {
+  explicit ArgsBuilder(const TraceStorage* storage) : storage_(storage) {
     const TraceStorage::Args& args = storage->args();
     Json::Value empty_value(Json::objectValue);
     if (args.args_count() == 0) {
@@ -131,7 +131,7 @@ class ArgsBuilder {
     args_sets_.resize(args.set_ids().back() + 1, empty_value);
     for (size_t i = 0; i < args.args_count(); ++i) {
       ArgSetId set_id = args.set_ids()[i];
-      const char* key = string_pool_->Get(args.keys()[i]).c_str();
+      const char* key = storage_->GetString(args.keys()[i]).c_str();
       Variadic value = args.arg_values()[i];
       AppendArg(set_id, key, VariadicToJson(value));
     }
@@ -150,7 +150,7 @@ class ArgsBuilder {
       case Variadic::kUint:
         return Json::UInt64(variadic.uint_value);
       case Variadic::kString:
-        return string_pool_->Get(variadic.string_value).c_str();
+        return storage_->GetString(variadic.string_value).c_str();
       case Variadic::kReal:
         return variadic.real_value;
       case Variadic::kPointer:
@@ -160,7 +160,8 @@ class ArgsBuilder {
       case Variadic::kJson:
         Json::Reader reader;
         Json::Value result;
-        reader.parse(string_pool_->Get(variadic.string_value).c_str(), result);
+        reader.parse(storage_->GetString(variadic.string_value).c_str(),
+                     result);
         return result;
     }
     PERFETTO_FATAL("Not reached");  // For gcc.
@@ -218,17 +219,16 @@ class ArgsBuilder {
     }
   }
 
-  const StringPool* string_pool_;
+  const TraceStorage* storage_;
   std::vector<Json::Value> args_sets_;
 };
 
 ResultCode ExportThreadNames(const TraceStorage* storage,
                              TraceFormatWriter* writer) {
-  const StringPool& string_pool = storage->string_pool();
   for (UniqueTid i = 1; i < storage->thread_count(); ++i) {
     auto thread = storage->GetThread(i);
     if (thread.name_id > 0) {
-      const char* thread_name = string_pool.Get(thread.name_id).c_str();
+      const char* thread_name = storage->GetString(thread.name_id).c_str();
       uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
       writer->WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
     }
@@ -238,11 +238,10 @@ ResultCode ExportThreadNames(const TraceStorage* storage,
 
 ResultCode ExportProcessNames(const TraceStorage* storage,
                               TraceFormatWriter* writer) {
-  const StringPool& string_pool = storage->string_pool();
   for (UniquePid i = 1; i < storage->process_count(); ++i) {
     auto process = storage->GetProcess(i);
     if (process.name_id > 0) {
-      const char* process_name = string_pool.Get(process.name_id).c_str();
+      const char* process_name = storage->GetString(process.name_id).c_str();
       writer->WriteMetadataEvent("process_name", process_name, 0, process.pid);
     }
   }
@@ -250,17 +249,16 @@ ResultCode ExportProcessNames(const TraceStorage* storage,
 }
 
 ResultCode ExportSlices(const TraceStorage* storage,
+                        const ArgsBuilder& args_builder,
                         TraceFormatWriter* writer) {
-  const StringPool& string_pool = storage->string_pool();
-  ArgsBuilder args_builder(storage);
   const auto& slices = storage->nestable_slices();
   for (uint32_t i = 0; i < slices.slice_count(); ++i) {
     Json::Value event;
     event["ts"] = Json::Int64(slices.start_ns()[i] / 1000);
-    event["cat"] = string_pool.Get(slices.categories()[i]).c_str();
-    event["name"] = string_pool.Get(slices.names()[i]).c_str();
+    event["cat"] = storage->GetString(slices.categories()[i]).c_str();
+    event["name"] = storage->GetString(slices.names()[i]).c_str();
     event["pid"] = 0;
-    Json::Value args = args_builder.GetArgs(slices.arg_set_ids()[i]);
+    const Json::Value& args = args_builder.GetArgs(slices.arg_set_ids()[i]);
     if (!args.empty()) {
       event["args"] = args;
     }
@@ -416,9 +414,138 @@ ResultCode ExportSlices(const TraceStorage* storage,
   return kResultOk;
 }
 
+ResultCode ExportRawEvents(const TraceStorage* storage,
+                           const ArgsBuilder& args_builder,
+                           TraceFormatWriter* writer) {
+  base::Optional<StringId> raw_legacy_event_key_id =
+      storage->string_pool().GetId("track_event.legacy_event");
+  if (!raw_legacy_event_key_id)
+    return kResultOk;
+
+  const char kLegacyEventArgsKey[] = "legacy_event";
+  const char kLegacyEventCategoryKey[] = "category";
+  const char kLegacyEventNameKey[] = "name";
+  const char kLegacyEventPhaseKey[] = "phase";
+  const char kLegacyEventDurationNsKey[] = "duration_ns";
+  const char kLegacyEventThreadTimestampNsKey[] = "thread_timestamp_ns";
+  const char kLegacyEventThreadDurationNsKey[] = "thread_duration_ns";
+  const char kLegacyEventThreadInstructionCountKey[] =
+      "thread_instruction_count";
+  const char kLegacyEventThreadInstructionDeltaKey[] =
+      "thread_instruction_delta";
+  const char kLegacyEventUseAsyncTtsKey[] = "use_async_tts";
+  const char kLegacyEventGlobalIdKey[] = "global_id";
+  const char kLegacyEventLocalIdKey[] = "local_id";
+  const char kLegacyEventIdScopeKey[] = "id_scope";
+  const char kLegacyEventBindIdKey[] = "bind_id";
+  const char kLegacyEventBindToEnclosingKey[] = "bind_to_enclosing";
+  const char kLegacyEventFlowDirectionKey[] = "flow_direction";
+  const char kFlowDirectionValueIn[] = "in";
+  const char kFlowDirectionValueOut[] = "out";
+  const char kFlowDirectionValueInout[] = "inout";
+
+  const auto& events = storage->raw_events();
+  for (uint32_t i = 0; i < events.raw_event_count(); ++i) {
+    if (events.name_ids()[i] != *raw_legacy_event_key_id)
+      continue;
+
+    Json::Value event;
+    event["ts"] = Json::Int64(events.timestamps()[i] / 1000);
+
+    UniqueTid utid = static_cast<UniqueTid>(events.utids()[i]);
+    auto thread = storage->GetThread(utid);
+    event["tid"] = thread.tid;
+    if (thread.upid) {
+      event["pid"] = storage->GetProcess(*thread.upid).pid;
+    }
+
+    // Raw legacy events store all other params in the arg set. Make a copy of
+    // the converted args here and remove these params.
+    Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+    Json::Value legacy_args = args.removeMember(kLegacyEventArgsKey);
+
+    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
+    event["cat"] = legacy_args[kLegacyEventCategoryKey];
+
+    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventNameKey));
+    event["name"] = legacy_args[kLegacyEventNameKey];
+
+    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventPhaseKey));
+    event["ph"] = legacy_args[kLegacyEventPhaseKey];
+
+    if (legacy_args.isMember(kLegacyEventDurationNsKey)) {
+      event["dur"] = legacy_args[kLegacyEventDurationNsKey].asInt64() / 1000;
+    }
+
+    if (legacy_args.isMember(kLegacyEventThreadTimestampNsKey)) {
+      event["tts"] =
+          legacy_args[kLegacyEventThreadTimestampNsKey].asInt64() / 1000;
+    }
+
+    if (legacy_args.isMember(kLegacyEventThreadDurationNsKey)) {
+      event["tdur"] =
+          legacy_args[kLegacyEventThreadDurationNsKey].asInt64() / 1000;
+    }
+
+    if (legacy_args.isMember(kLegacyEventThreadInstructionCountKey)) {
+      event["ticount"] = legacy_args[kLegacyEventThreadInstructionCountKey];
+    }
+
+    if (legacy_args.isMember(kLegacyEventThreadInstructionDeltaKey)) {
+      event["tidelta"] = legacy_args[kLegacyEventThreadInstructionDeltaKey];
+    }
+
+    if (legacy_args.isMember(kLegacyEventUseAsyncTtsKey)) {
+      event["use_async_tts"] = legacy_args[kLegacyEventUseAsyncTtsKey];
+    }
+
+    if (legacy_args.isMember(kLegacyEventGlobalIdKey)) {
+      event["id2"]["global"] =
+          PrintUint64(legacy_args[kLegacyEventGlobalIdKey].asUInt64());
+    }
+
+    if (legacy_args.isMember(kLegacyEventLocalIdKey)) {
+      event["id2"]["local"] =
+          PrintUint64(legacy_args[kLegacyEventLocalIdKey].asUInt64());
+    }
+
+    if (legacy_args.isMember(kLegacyEventIdScopeKey)) {
+      event["scope"] = legacy_args[kLegacyEventIdScopeKey];
+    }
+
+    if (legacy_args.isMember(kLegacyEventBindIdKey)) {
+      event["bind_id"] =
+          PrintUint64(legacy_args[kLegacyEventBindIdKey].asUInt64());
+    }
+
+    if (legacy_args.isMember(kLegacyEventBindToEnclosingKey)) {
+      event["bp"] = "e";
+    }
+
+    if (legacy_args.isMember(kLegacyEventFlowDirectionKey)) {
+      const char* val = legacy_args[kLegacyEventFlowDirectionKey].asCString();
+      if (strcmp(val, kFlowDirectionValueIn) == 0) {
+        event["flow_in"] = true;
+      } else if (strcmp(val, kFlowDirectionValueOut) == 0) {
+        event["flow_out"] = true;
+      } else {
+        PERFETTO_DCHECK(strcmp(val, kFlowDirectionValueInout) == 0);
+        event["flow_in"] = true;
+        event["flow_out"] = true;
+      }
+    }
+
+    if (!args.empty()) {
+      event["args"] = args;
+    }
+
+    writer->WriteCommonEvent(event);
+  }
+  return kResultOk;
+}
+
 ResultCode ExportMetadata(const TraceStorage* storage,
                           TraceFormatWriter* writer) {
-  const StringPool& string_pool = storage->string_pool();
   const auto& trace_metadata = storage->metadata();
   const auto& keys = trace_metadata.keys();
   const auto& values = trace_metadata.values();
@@ -429,12 +556,12 @@ ResultCode ExportMetadata(const TraceStorage* storage,
       case metadata::benchmark_description:
         writer->AppendTelemetryMetadataString(
             "benchmarkDescriptions",
-            string_pool.Get(values[pos].string_value).c_str());
+            storage->GetString(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_name:
         writer->AppendTelemetryMetadataString(
-            "benchmarks", string_pool.Get(values[pos].string_value).c_str());
+            "benchmarks", storage->GetString(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_start_time_us:
@@ -451,12 +578,12 @@ ResultCode ExportMetadata(const TraceStorage* storage,
 
       case metadata::benchmark_label:
         writer->AppendTelemetryMetadataString(
-            "labels", string_pool.Get(values[pos].string_value).c_str());
+            "labels", storage->GetString(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_story_name:
         writer->AppendTelemetryMetadataString(
-            "stories", string_pool.Get(values[pos].string_value).c_str());
+            "stories", storage->GetString(values[pos].string_value).c_str());
         break;
 
       case metadata::benchmark_story_run_index:
@@ -471,7 +598,7 @@ ResultCode ExportMetadata(const TraceStorage* storage,
 
       case metadata::benchmark_story_tags:  // repeated
         writer->AppendTelemetryMetadataString(
-            "storyTags", string_pool.Get(values[pos].string_value).c_str());
+            "storyTags", storage->GetString(values[pos].string_value).c_str());
         break;
 
       default:
@@ -486,6 +613,7 @@ ResultCode ExportMetadata(const TraceStorage* storage,
 
 ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
   TraceFormatWriter writer(output);
+  ArgsBuilder args_builder(storage);
 
   ResultCode code = ExportThreadNames(storage, &writer);
   if (code != kResultOk)
@@ -495,7 +623,11 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
   if (code != kResultOk)
     return code;
 
-  code = ExportSlices(storage, &writer);
+  code = ExportSlices(storage, args_builder, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportRawEvents(storage, args_builder, &writer);
   if (code != kResultOk)
     return code;
 

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_STRING_POOL_H_
 #define SRC_TRACE_PROCESSOR_STRING_POOL_H_
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "src/trace_processor/null_term_string_view.h"
 
@@ -75,6 +76,19 @@ class StringPool {
       return id_it->second;
     }
     return InsertString(str, hash);
+  }
+
+  base::Optional<Id> GetId(base::StringView str) const {
+    if (str.data() == nullptr)
+      return 0u;
+
+    auto hash = str.Hash();
+    auto id_it = string_index_.find(hash);
+    if (id_it != string_index_.end()) {
+      PERFETTO_DCHECK(Get(id_it->second) == str);
+      return id_it->second;
+    }
+    return base::nullopt;
   }
 
   NullTermStringView Get(Id id) const {
