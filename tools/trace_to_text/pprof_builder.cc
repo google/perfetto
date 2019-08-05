@@ -60,13 +60,13 @@ using ::perfetto::protos::Mapping;
 using ::perfetto::protos::ProfilePacket;
 using ::perfetto::protos::InternedData;
 
-using GLine = ::perftools::profiles::Line;
-using GMapping = ::perftools::profiles::Mapping;
-using GLocation = ::perftools::profiles::Location;
-using GProfile = ::perftools::profiles::Profile;
-using GValueType = ::perftools::profiles::ValueType;
-using GFunction = ::perftools::profiles::Function;
-using GSample = ::perftools::profiles::Sample;
+using GLine = ::perfetto::third_party::perftools::profiles::Line;
+using GMapping = ::perfetto::third_party::perftools::profiles::Mapping;
+using GLocation = ::perfetto::third_party::perftools::profiles::Location;
+using GProfile = ::perfetto::third_party::perftools::profiles::Profile;
+using GValueType = ::perfetto::third_party::perftools::profiles::ValueType;
+using GFunction = ::perfetto::third_party::perftools::profiles::Function;
+using GSample = ::perfetto::third_party::perftools::profiles::Sample;
 
 std::string ToHex(const std::string& build_id) {
   std::string hex_build_id(2 * build_id.size() + 1, ' ');
