@@ -26,6 +26,8 @@
 #include <vector>
 
 #include "tools/trace_to_text/profile_visitor.h"
+#include "tools/trace_to_text/symbolizer.h"
+#include "tools/trace_to_text/trace_symbol_table.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
@@ -89,7 +91,7 @@ enum Strings : int64_t {
 
 class GProfileWriter : public ProfileVisitor {
  public:
-  GProfileWriter() {
+  GProfileWriter(TraceSymbolTable* symbol_table) : symbol_table_(symbol_table) {
     GValueType* value_type = profile_.add_sample_type();
     value_type->set_type(kMaxSpace);
     value_type->set_unit(kBytes);
@@ -114,6 +116,13 @@ class GProfileWriter : public ProfileVisitor {
     value_type = profile_.add_sample_type();
     value_type->set_type(kSpace);
     value_type->set_unit(kBytes);
+  }
+
+  int64_t InternInGProfile(const std::string& str) {
+    decltype(string_table_)::iterator it;
+    std::tie(it, std::ignore) =
+        string_table_.emplace(str, string_table_.size());
+    return static_cast<int64_t>(it->second);
   }
 
   bool AddInternedString(const InternedString& interned_string) override {
@@ -150,17 +159,12 @@ class GProfileWriter : public ProfileVisitor {
       filename += "/" + it->second;
     }
 
-    decltype(string_table_)::iterator it;
-    std::tie(it, std::ignore) =
-        string_table_.emplace(filename, string_table_.size());
-    gmapping->set_filename(static_cast<int64_t>(it->second));
+    gmapping->set_filename(InternInGProfile(filename));
 
     auto str_it = string_lookup_.find(mapping.build_id());
     if (str_it != string_lookup_.end()) {
       const std::string& build_id = str_it->second;
-      std::tie(it, std::ignore) =
-          string_table_.emplace(ToHex(build_id), string_table_.size());
-      gmapping->set_build_id(static_cast<int64_t>(it->second));
+      gmapping->set_build_id(InternInGProfile(ToHex(build_id)));
     }
     return true;
   }
@@ -178,33 +182,46 @@ class GProfileWriter : public ProfileVisitor {
     glocation->set_id(frame.iid());
     glocation->set_mapping_id(frame.mapping_id());
     glocation->set_address(frame.rel_pc() + mapping_base);
-    GLine* gline = glocation->add_line();
-    gline->set_function_id(frame.function_name_id());
-    functions_to_dump_.emplace(frame.function_name_id());
-    return true;
-  }
 
-  bool Finalize() {
-    for (uint64_t function_name_id : functions_to_dump_) {
-      auto str_it = string_lookup_.find(function_name_id);
+    const std::vector<SymbolizedFrame>* symbolized_frames =
+        symbol_table_->Get(frame.iid());
+    std::vector<SymbolizedFrame> frames;
+    if (symbolized_frames == nullptr) {
+      // Write out whatever was in the profile initially.
+      auto str_it = string_lookup_.find(frame.function_name_id());
       if (str_it == string_lookup_.end()) {
         PERFETTO_ELOG("Function referring to invalid string id %" PRIu64,
-                      function_name_id);
+                      static_cast<uint64_t>(frame.function_name_id()));
         return false;
       }
-      decltype(string_table_)::iterator it;
-      std::string function_name = str_it->second;
+      frames.emplace_back(SymbolizedFrame{str_it->second, "", 0});
+    } else {
+      frames = *symbolized_frames;
+    }
+
+    for (const SymbolizedFrame& sym_frame : frames) {
+      GLine* gline = glocation->add_line();
+      uint64_t function_id = ++max_function_id_;
+      gline->set_function_id(function_id);
+      gline->set_line(sym_frame.line);
+      std::string function_name = sym_frame.function_name;
       // This assumes both the device that captured the trace and the host
       // machine use the same mangling scheme. This is a reasonable
       // assumption as the Itanium ABI is the de-facto standard for mangling.
       MaybeDemangle(&function_name);
-      std::tie(it, std::ignore) =
-          string_table_.emplace(std::move(function_name), string_table_.size());
       GFunction* gfunction = profile_.add_function();
-      gfunction->set_id(function_name_id);
-      gfunction->set_name(static_cast<int64_t>(it->second));
+      gfunction->set_id(function_id);
+      gfunction->set_name(InternInGProfile(function_name));
+      gfunction->set_filename(InternInGProfile(sym_frame.file_name));
     }
+    return true;
+  }
 
+  bool AddProfiledFrameSymbols(const protos::ProfiledFrameSymbols&) override {
+    return true;
+  }
+
+  bool Finalize() {
     // We keep the interning table as string -> uint64_t for fast and easy
     // lookup. When dumping, we need to turn it into a uint64_t -> string
     // table so we get it sorted by key order.
@@ -265,7 +282,10 @@ class GProfileWriter : public ProfileVisitor {
   }
 
  private:
+  TraceSymbolTable* symbol_table_;
   GProfile profile_;
+
+  uint64_t max_function_id_ = 0;
 
   std::map<uint64_t, uint64_t> mapping_base_;
   std::set<uint64_t> functions_to_dump_;
@@ -285,8 +305,15 @@ class GProfileWriter : public ProfileVisitor {
 
 bool DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
                        const std::vector<InternedData>& interned_data,
-                       std::vector<SerializedProfile>* output) {
-  GProfileWriter writer;
+                       std::vector<SerializedProfile>* output,
+                       Symbolizer* symbolizer) {
+  TraceSymbolTable symbol_table(symbolizer);
+  if (!symbol_table.Visit(packet_fragments, interned_data))
+    return false;
+  if (!symbol_table.Finalize())
+    return false;
+
+  GProfileWriter writer(&symbol_table);
   if (!writer.Visit(packet_fragments, interned_data))
     return false;
 
@@ -312,13 +339,20 @@ bool DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
 
 }  // namespace
 
-bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
+bool TraceToPprof(std::istream* input,
+                  std::vector<SerializedProfile>* output,
+                  Symbolizer* symbolizer) {
   return VisitCompletePacket(
-      input,
-      [output](uint32_t, const std::vector<ProfilePacket>& packet_fragments,
-               const std::vector<InternedData>& interned_data) {
-        return DumpProfilePacket(packet_fragments, interned_data, output);
+      input, [output, symbolizer](
+                 uint32_t, const std::vector<ProfilePacket>& packet_fragments,
+                 const std::vector<InternedData>& interned_data) {
+        return DumpProfilePacket(packet_fragments, interned_data, output,
+                                 symbolizer);
       });
+}
+
+bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
+  return TraceToPprof(input, output, nullptr);
 }
 
 }  // namespace trace_to_text

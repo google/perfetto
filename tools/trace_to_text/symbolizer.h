@@ -30,7 +30,7 @@ namespace trace_to_text {
 struct SymbolizedFrame {
   std::string function_name;
   std::string file_name;
-  uint64_t line;
+  uint32_t line;
 };
 
 class Symbolizer {

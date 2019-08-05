@@ -24,10 +24,16 @@
 namespace perfetto {
 namespace trace_to_text {
 
+class Symbolizer;
+
 struct SerializedProfile {
   uint64_t pid;
   std::string serialized;
 };
+
+bool TraceToPprof(std::istream* input,
+                  std::vector<SerializedProfile>* output,
+                  Symbolizer* symbolizer);
 
 bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output);
 
