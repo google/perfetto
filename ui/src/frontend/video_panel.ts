@@ -39,7 +39,7 @@ export class VideoPanel implements m.ClassComponent {
             globals.frontendLocalState.setVidTimestamp(timestamp);
           }
         },
-        onplaying: (e: Event) => {
+        ontimeupdate: (e: Event) => {
           const elem = e.target as HTMLVideoElement;
           if (globals.state.scrubbingEnabled) {
             elem.currentTime = globals.frontendLocalState.vidTimestamp - offset;
@@ -55,26 +55,19 @@ export class VideoPanel implements m.ClassComponent {
     `to this position.`;
     const pDisabled = `Press 'p' to enable.`;
     const tSetting = `Timeline Scrubbing: `;
-    const tEnabled = `When you press play and hover over the notes panel, ` +
-    `the video will skip to the hovered timestamp.`;
+    const tEnabled = `When you hover over the notes panel, the video will ` +
+    `skip to the hovered timestamp.`;
     const tDisabled = `Press 't' to enable.`;
-    function msg(setting: boolean, e: string, d: string) {
-      return m('h1', {class: 'video-panel-message'}, setting ? e : d);
-    }
-    function header(setting: boolean, e: string, d: string) {
-      return m('h1', {class: 'video-panel-setting'}, setting ? e : d);
+    function makeMsg(setting: boolean, msgType: string, e: string, d: string) {
+      return m('h1', { class: `video-panel-${msgType}` }, setting ? e : d);
     }
     vidMessages.push(
-        header(
-            globals.state.flagPauseEnabled,
-            pSetting.concat(`Enabled`),
-            pSetting.concat(`Disabled`)),
-        msg(globals.state.flagPauseEnabled, pEnabled, pDisabled),
-        header(
-            globals.state.scrubbingEnabled,
-            tSetting.concat(`Enabled`),
-            tSetting.concat(`Disabled`)),
-        msg(globals.state.scrubbingEnabled, tEnabled, tDisabled));
+      makeMsg(globals.state.flagPauseEnabled, 'setting',
+              pSetting.concat('Enabled'), pSetting.concat('Disabled')),
+      makeMsg(globals.state.flagPauseEnabled, 'message', pEnabled, pDisabled),
+      makeMsg(globals.state.scrubbingEnabled, 'setting',
+              tSetting.concat('Enabled'), tSetting.concat('Disabled')),
+      makeMsg(globals.state.scrubbingEnabled, 'message', tEnabled, tDisabled))
     vidSections.push(vidMessages);
     return m('.video-panel', vidSections);
   }
