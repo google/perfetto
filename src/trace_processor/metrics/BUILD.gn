@@ -31,6 +31,7 @@ sql_files = [
   "android/android_startup_cpu.sql",
   "android/android_package_list.sql",
   "android/heap_profile.sql",
+  "android/heap_profile_frame_stats.sql",
   "android/process_unagg_mem_view.sql",
   "android/process_mem.sql",
   "android/mem_stats_priority_breakdown.sql",
