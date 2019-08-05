@@ -143,7 +143,9 @@ function checkExtensionAvailability() {
 
   chrome.runtime.sendMessage(
       EXTENSION_ID, {method: 'ExtensionVersion'}, resp => {
-        setAvailable(resp.version !== null);
+        setAvailable(
+            chrome.runtime.lastError === undefined && resp !== undefined &&
+            resp.version !== null);
       });
 }
 
@@ -180,7 +182,7 @@ function main() {
   // controller's worker can't access chrome.runtime.
   extensionChannel.port2.onmessage = ({data}) => {
     chrome.runtime.sendMessage(EXTENSION_ID, data, (response) => {
-      extensionChannel.port1.postMessage(response);
+      extensionChannel.port2.postMessage(response);
     });
   };
   checkExtensionAvailability();
