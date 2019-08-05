@@ -28,6 +28,9 @@ import {
   SummaryData
 } from './common';
 
+// This summary is displayed for any processes that have CPU scheduling activity
+// associated with them.
+
 class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
   private setup = false;

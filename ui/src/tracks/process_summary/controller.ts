@@ -26,6 +26,9 @@ import {
   PROCESS_SUMMARY_TRACK,
 } from './common';
 
+// This is the summary displayed when a process only contains chrome slices
+// and no cpu scheduling.
+
 class ProcessSummaryTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SUMMARY_TRACK;
   private setup = false;
