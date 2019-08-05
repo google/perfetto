@@ -141,9 +141,10 @@ class Globals {
   }
 
   getCurResolution() {
-    // Truncate the resolution to the closest power of 10.
+    // Truncate the resolution to the closest power of 2.
+    // This effectively means the resolution changes every 6 zoom levels.
     const resolution = this.frontendLocalState.timeScale.deltaPxToDuration(1);
-    return Math.pow(10, Math.floor(Math.log10(resolution)));
+    return Math.pow(2, Math.floor(Math.log2(resolution)));
   }
 
   resetForTesting() {
