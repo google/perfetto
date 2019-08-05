@@ -27,6 +27,7 @@ if (perfetto_build_standalone) {
       "android_log.cfg",
       "atrace.cfg",
       "background.cfg",
+      "bad_config.cfg",
       "camera.cfg",
       "client_api.cfg",
       "ftrace.cfg",
