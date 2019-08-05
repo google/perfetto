@@ -143,7 +143,6 @@ cc_library(
         "tools/trace_to_text/profile_visitor.cc",
         "tools/trace_to_text/profile_visitor.h",
         "tools/trace_to_text/symbolizer.cc",
-        "tools/trace_to_text/symbolizer.h",
         "tools/trace_to_text/trace_symbol_table.cc",
         "tools/trace_to_text/trace_symbol_table.h",
         "tools/trace_to_text/utils.cc",
@@ -199,6 +198,7 @@ cc_library(
         "include/perfetto/protozero/scattered_stream_null_delegate.h",
         "include/perfetto/protozero/scattered_stream_writer.h",
         "tools/trace_to_text/pprof_builder.h",
+        "tools/trace_to_text/symbolizer.h",
     ],
     deps = [
         "//third_party/perfetto/protos:common_cc_proto",
