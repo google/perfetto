@@ -19,7 +19,11 @@
 #include <string>
 #include <vector>
 
+#ifndef PERFETTO_NOLOCALSYMBOLIZE
+#include "tools/trace_to_text/local_symbolizer.h"
+#endif
 #include "tools/trace_to_text/pprof_builder.h"
+#include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -43,8 +47,20 @@ namespace perfetto {
 namespace trace_to_text {
 
 int TraceToProfile(std::istream* input, std::ostream* output) {
+  std::unique_ptr<Symbolizer> symbolizer;
+  auto binary_path = GetPerfettoBinaryPath();
+  if (!binary_path.empty()) {
+#ifndef PERFETTO_NOLOCALSYMBOLIZE
+    symbolizer.reset(new LocalSymbolizer(GetPerfettoBinaryPath()));
+#else
+    PERFETTO_ELOG(
+        "This build does not support local symbolization. "
+        "Continuing without symbolization.");
+#endif
+  }
+
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(input, &profiles);
+  TraceToPprof(input, &profiles, symbolizer.get());
   if (profiles.empty()) {
     return 0;
   }
