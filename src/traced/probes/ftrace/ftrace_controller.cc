@@ -168,7 +168,7 @@ void FtraceController::StartIfNeeded() {
   if (started_data_sources_.size() > 1)
     return;
   PERFETTO_DCHECK(!started_data_sources_.empty());
-  PERFETTO_DCHECK(cpu_readers_.empty());
+  PERFETTO_DCHECK(per_cpu_.empty());
 
   // Lazily allocate the memory used for reading & parsing ftrace.
   if (!parsing_mem_.IsValid()) {
@@ -176,11 +176,13 @@ void FtraceController::StartIfNeeded() {
         base::PagedMemory::Allocate(base::kPageSize * kParsingBufferSizePages);
   }
 
-  cpu_readers_.clear();
-  cpu_readers_.reserve(ftrace_procfs_->NumberOfCpus());
+  per_cpu_.clear();
+  per_cpu_.reserve(ftrace_procfs_->NumberOfCpus());
+  size_t period_page_quota = ftrace_config_muxer_->GetPerCpuBufferSizePages();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
-    cpu_readers_.emplace_back(
+    auto reader = std::unique_ptr<CpuReader>(
         new CpuReader(table_.get(), cpu, ftrace_procfs_->OpenPipeForCpu(cpu)));
+    per_cpu_.emplace_back(std::move(reader), period_page_quota);
   }
 
   // Start the repeating read tasks.
@@ -195,6 +197,29 @@ void FtraceController::StartIfNeeded() {
       drain_period_ms - (NowMs() % drain_period_ms));
 }
 
+// We handle the ftrace buffers in a repeating task (ReadTick). On a given tick,
+// we iterate over all per-cpu buffers, parse their contents, and then write out
+// the serialized packets. This is handled by |CpuReader| instances, which
+// attempt to read from their respective per-cpu buffer fd until they catch up
+// to the head of the buffer, or hit a transient error.
+//
+// The readers work in batches of |kParsingBufferSizePages| pages for cache
+// locality, and to limit memory usage.
+//
+// However, the reading happens on the primary thread, shared with the rest of
+// the service (including ipc). If there is a lot of ftrace data to read, we
+// want to yield to the event loop, re-enqueueing a continuation task at the end
+// of the immediate queue (letting other enqueued tasks to run before
+// continuing). Therefore we introduce |kMaxPagesPerCpuPerReadTick|.
+//
+// There is also a possibility that the ftrace bandwidth is particularly high.
+// We do not want to continue trying to catch up to the event stream (via
+// continuation tasks) without bound, as we want to limit our cpu% usage.  We
+// assume that given a config saying "per-cpu kernel ftrace buffer is N pages,
+// and drain every T milliseconds", we should not read more than N pages per
+// drain period. Therefore we introduce |per_cpu_.period_page_quota|. If the
+// consumer wants to handle a high bandwidth of ftrace events, they should set
+// the config values appropriately.
 void FtraceController::ReadTick(int generation) {
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_READ_TICK);
@@ -202,14 +227,37 @@ void FtraceController::ReadTick(int generation) {
     return;
   }
 
-  bool all_cpus_caught_up = ReadAllCpuBuffers(kMaxPagesPerCpuPerReadTick);
+  // Read all cpu buffers with remaining per-period quota.
+  bool all_cpus_done = true;
+  uint8_t* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
+  for (size_t i = 0; i < per_cpu_.size(); i++) {
+    size_t orig_quota = per_cpu_[i].period_page_quota;
+    if (orig_quota == 0)
+      continue;
 
-  // The reading for a given cpu will read at most |kMaxPagesPerCpuPerReadTick|
-  // pages. If we hit this limit on at least one cpu, repost the task
-  // at the end of the immediate queue, letting the other tasks get some cpu
-  // time before we continue catching up with the event stream.
+    size_t max_pages = std::min(orig_quota, kMaxPagesPerCpuPerReadTick);
+    size_t pages_read = per_cpu_[i].reader->ReadCycle(
+        parsing_buf, kParsingBufferSizePages, max_pages, started_data_sources_);
+
+    size_t new_quota = (pages_read >= orig_quota) ? 0 : orig_quota - pages_read;
+    per_cpu_[i].period_page_quota = new_quota;
+
+    // Reader got stopped by the cap on the number of pages (to not do too much
+    // work on the shared thread at once), but can read more in this drain
+    // period. Repost the ReadTick (on the immediate queue) to iterate over all
+    // cpus again. In other words, we will keep reposting work for all cpus as
+    // long as at least one of them hits the read page cap each tick. If all
+    // readers catch up to the event stream (pages_read < max_pages), or exceed
+    // their quota, we will stop for the given period.
+    PERFETTO_DCHECK(pages_read <= max_pages);
+    if (pages_read == max_pages && new_quota > 0)
+      all_cpus_done = false;
+  }
+  observer_->OnFtraceDataWrittenIntoDataSourceBuffers();
+
+  // More work to do in this period.
   auto weak_this = weak_factory_.GetWeakPtr();
-  if (!all_cpus_caught_up) {
+  if (!all_cpus_done) {
     PERFETTO_DLOG("Reposting immediate ReadTick as there's more work.");
     task_runner_->PostTask([weak_this, generation] {
       if (weak_this)
@@ -217,6 +265,10 @@ void FtraceController::ReadTick(int generation) {
     });
   } else {
     // Done until next drain period.
+    size_t period_page_quota = ftrace_config_muxer_->GetPerCpuBufferSizePages();
+    for (auto& per_cpu : per_cpu_)
+      per_cpu.period_page_quota = period_page_quota;
+
     auto drain_period_ms = GetDrainPeriodMs();
     task_runner_->PostDelayedTask(
         [weak_this, generation] {
@@ -225,25 +277,6 @@ void FtraceController::ReadTick(int generation) {
         },
         drain_period_ms - (NowMs() % drain_period_ms));
   }
-}
-
-bool FtraceController::ReadAllCpuBuffers(size_t max_pages) {
-  PERFETTO_DCHECK(parsing_mem_.IsValid() &&
-                  parsing_mem_.size() ==
-                      base::kPageSize * kParsingBufferSizePages);
-
-  bool all_cpus_caught_up = true;
-  auto* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
-  for (auto& cpu_reader : cpu_readers_) {
-    size_t pages_read = cpu_reader->ReadCycle(
-        parsing_buf, kParsingBufferSizePages, max_pages, started_data_sources_);
-
-    // ReadCycle gave up early as it was doing too much work.
-    if (pages_read == max_pages)
-      all_cpus_caught_up = false;
-  }
-  observer_->OnFtraceDataWrittenIntoDataSourceBuffers();
-  return all_cpus_caught_up;
 }
 
 uint32_t FtraceController::GetDrainPeriodMs() {
@@ -276,8 +309,15 @@ void FtraceController::Flush(FlushRequestID flush_id) {
   // Read all cpus in one go, limiting the per-cpu read amount to make sure we
   // don't get stuck chasing the writer if there's a very high bandwidth of
   // events.
-  size_t max_pages_per_cpu = kMaxPerCpuBufferSizeKb / (base::kPageSize / 1024);
-  ReadAllCpuBuffers(max_pages_per_cpu);
+  size_t per_cpu_buf_size_pages =
+      ftrace_config_muxer_->GetPerCpuBufferSizePages();
+  uint8_t* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
+  for (size_t i = 0; i < per_cpu_.size(); i++) {
+    per_cpu_[i].reader->ReadCycle(parsing_buf, kParsingBufferSizePages,
+                                  per_cpu_buf_size_pages,
+                                  started_data_sources_);
+  }
+  observer_->OnFtraceDataWrittenIntoDataSourceBuffers();
 
   for (FtraceDataSource* data_source : started_data_sources_)
     data_source->OnFtraceFlushComplete(flush_id);
@@ -291,7 +331,7 @@ void FtraceController::StopIfNeeded() {
   // ask for an explicit flush before stopping, unless it needs to perform a
   // non-graceful stop.
 
-  cpu_readers_.clear();
+  per_cpu_.clear();
 
   if (parsing_mem_.IsValid()) {
     parsing_mem_.AdviseDontNeed(parsing_mem_.Get(), parsing_mem_.size());
