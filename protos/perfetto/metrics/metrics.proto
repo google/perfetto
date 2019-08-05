@@ -28,8 +28,7 @@ import "perfetto/metrics/android/ion_metric.proto";
 import "perfetto/metrics/android/lmk_metric.proto";
 import "perfetto/metrics/android/powrails_metric.proto";
 import "perfetto/metrics/android/startup_metric.proto";
-import "perfetto/metrics/android/heap_profile.proto";
-import "perfetto/metrics/android/heap_profile_frame_stats.proto";
+import "perfetto/metrics/android/heap_profile_callsite_stats.proto";
 import "perfetto/metrics/android/package_list.proto";
 
 // Trace processor metadata (taken from the stats table schema and contents).
@@ -47,8 +46,10 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 14
+// Next id: 15
 message TraceMetrics {
+  reserved 4, 13;
+
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
 
@@ -82,11 +83,8 @@ message TraceMetrics {
   // Startup metrics on Android (owned by the Android Telemetry team).
   optional AndroidStartupMetric android_startup = 2;
 
-  // Heap profiler callsites.
-  optional HeapProfile heap_profile = 4;
-
-  // Heap profiler frame statistics.
-  optional HeapProfileFrameStats heap_profile_frame_stats = 13;
+  // Heap profiler callsite statistics.
+  optional HeapProfileCallsiteStats heap_profile_callsite_stats = 14;
 
   // Trace metadata (applicable to all traces).
   optional TraceMetadata trace_metadata = 3;
