@@ -227,6 +227,10 @@ class Trace(object):
     pinfo.uid = uid
     pinfo.version_code = version_code
 
+  def add_profile_packet(self, ts):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    return packet.profile_packet
 
 def create_trace():
   parser = argparse.ArgumentParser()

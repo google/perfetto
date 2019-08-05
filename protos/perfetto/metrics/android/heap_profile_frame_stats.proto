@@ -13,27 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-message AndroidProcessGrowth {
-  // Next id: 7
-  message InstanceMetrics {
-    optional uint32 pid = 1;
-    optional string process_name = 2;
+message HeapProfileFrameStats {
+  message Frame { optional string name = 1; }
 
-    optional int64 anon_and_swap_start_value = 5;
-    optional int64 anon_and_swap_change_bytes = 3;
+  message FrameStats {
+    optional Frame frame = 1;
 
-    // Bytes allocated via malloc but not freed.
-    // Only applicable with a heap profile.
-    optional int64 malloc_memory_change_bytes = 4;
-    // Total bytes allocated via malloc. Only applicable with a heap profile.
-    optional int64 malloc_memory_total_allocated_bytes = 6;
+    // Count of objects allocated by this frame
+    optional int64 total_count = 2;
+    // Count of bytes allocated by this frame
+    optional int64 total_bytes = 3;
+
+    // Count of allocated objects that were not freed
+    optional int64 delta_count = 4;
+    // Count of allocated bytes that were not freed
+    optional int64 delta_bytes = 5;
   }
 
-  // Process memory per process instance.
-  repeated InstanceMetrics instance_metrics = 1;
+  message ProcessInstanceStats {
+    optional string process_name = 1;
+    repeated FrameStats frame_stats = 2;
+  }
+
+  repeated ProcessInstanceStats instance_stats = 1;
 }

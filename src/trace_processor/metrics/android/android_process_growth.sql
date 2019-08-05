@@ -16,14 +16,18 @@
 
 SELECT RUN_METRIC('android/process_mem.sql');
 
-CREATE VIEW malloc_memory_growth AS
-SELECT
-  upid,
-  SUM(size) AS growth
+CREATE VIEW malloc_memory_delta AS
+SELECT upid, SUM(size) AS delta
 FROM heap_profile_allocation
 GROUP BY 1;
 
-CREATE VIEW anon_and_swap_growth AS
+CREATE VIEW malloc_memory_allocated AS
+SELECT upid, SUM(size) AS total
+FROM heap_profile_allocation
+WHERE size > 0
+GROUP BY 1;
+
+CREATE VIEW anon_and_swap_delta AS
 SELECT DISTINCT
   upid,
   FIRST_VALUE(anon_and_swap_val) OVER upid_window AS start_val,
@@ -39,12 +43,14 @@ CREATE VIEW process_growth AS
 SELECT
   process.pid AS pid,
   process.name AS process_name,
-  CAST(asg.start_val AS BIG INT) AS anon_and_swap_start_value,
-  CAST(asg.end_val - asg.start_val AS BIG INT) AS anon_and_swap_change,
-  malloc_memory_growth.growth AS malloc_change
-FROM anon_and_swap_growth AS asg
+  CAST(asd.start_val AS BIG INT) AS anon_and_swap_start_value,
+  CAST(asd.end_val - asd.start_val AS BIG INT) AS anon_and_swap_change,
+  malloc_memory_delta.delta AS malloc_memory_delta,
+  malloc_memory_allocated.total AS malloc_memory_total
+FROM anon_and_swap_delta AS asd
 JOIN process USING (upid)
-LEFT JOIN malloc_memory_growth USING (upid);
+LEFT JOIN malloc_memory_delta USING (upid)
+LEFT JOIN malloc_memory_allocated USING (upid);
 
 CREATE VIEW instance_metrics_proto AS
 SELECT AndroidProcessGrowth_InstanceMetrics(
@@ -52,7 +58,8 @@ SELECT AndroidProcessGrowth_InstanceMetrics(
   'process_name', process_name,
   'anon_and_swap_start_value', anon_and_swap_start_value,
   'anon_and_swap_change_bytes', anon_and_swap_change,
-  'malloc_memory_change_bytes', malloc_change
+  'malloc_memory_change_bytes', malloc_memory_delta,
+  'malloc_memory_total_allocated_bytes', malloc_memory_total
 ) AS instance_metric
 FROM process_growth;
 
