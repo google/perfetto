@@ -54,6 +54,7 @@ source_set("pprofbuilder") {
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/profiling:lite",
     "../../protos/third_party/pprof:lite",
+    "../../src/base",
   ]
   sources = [
     "pprof_builder.cc",
