@@ -17,6 +17,7 @@
     "@types/pako": "^1.0.1",
     "@types/uuid": "^3.4.4",
     "color-convert": "^2.0.0",
+    "devtools-protocol": "0.0.681549",
     "immer": "^1.12.1",
     "mithril": "^1.1.6",
     "pako": "^1.0.10",
