@@ -36,16 +36,16 @@ message InternedString {
 // that the actual trace need not be rewritten to symbolize the profiles.
 message ProfiledFrameSymbols {
   // Use the frame id as the interning key for the symbols.
-  optional int64 frame_iid = 1;
+  optional uint64 frame_iid = 1;
 
   // These are repeated because when inlining happens, multiple functions'
   // frames can be at a single address. Imagine function Foo calling the
   // std::vector<int> constructor, which gets inlined at 0xf00. We then get
   // both Foo and the std::vector<int> constructor when we symbolize the
   // address.
-  repeated int64 function_name_id = 2;  // key to InternedString
-  repeated int64 file_name_id = 3;      // key to InternedString
-  repeated int32 line_number = 4;
+  repeated uint64 function_name_id = 2;  // key to InternedString
+  repeated uint64 file_name_id = 3;      // key to InternedString
+  repeated uint32 line_number = 4;
 }
 
 message Mapping {

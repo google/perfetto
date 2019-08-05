@@ -35,17 +35,42 @@ source_set("utils") {
   ]
 }
 
-source_set("symbolizer") {
+source_set("local_symbolizer") {
   public_deps = [
+    ":symbolizer",
+    ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
+    "../../include/perfetto/protozero",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/interned_data:lite",
+    "../../protos/perfetto/trace/profiling:lite",
   ]
   sources = [
     "local_symbolizer.cc",
     "local_symbolizer.h",
+  ]
+}
+
+source_set("symbolizer") {
+  public_deps = [
+    ":utils",
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+    "../../include/perfetto/protozero",
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/interned_data:lite",
+    "../../protos/perfetto/trace/profiling:lite",
+  ]
+  sources = [
     "symbolizer.cc",
     "symbolizer.h",
+    "trace_symbol_table.cc",
+    "trace_symbol_table.h",
   ]
 }
 
@@ -96,17 +121,19 @@ source_set("common") {
   ]
   sources = [
     "main.cc",
+    "symbolize_profile.cc",
+    "symbolize_profile.h",
     "trace_to_profile.cc",
     "trace_to_profile.h",
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
     "trace_to_text.h",
   ]
+  defines = []
   if (is_linux || is_android) {
-    sources += [
-      "symbolize_profile.cc",
-      "symbolize_profile.h",
-    ]
+    deps += [ ":local_symbolizer" ]
+  } else {
+    defines += [ "PERFETTO_NOLOCALSYMBOLIZE" ]
   }
   if (perfetto_build_standalone) {
     deps += [ "../../gn/standalone:gen_git_revision" ]
