@@ -276,7 +276,8 @@ TEST(FtraceControllerTest, OneSink) {
   // Verify single posted read task.
   Mock::VerifyAndClearExpectations(controller->runner());
 
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
+  // State clearing on tracing teardown.
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
   EXPECT_CALL(*controller->procfs(),
@@ -321,9 +322,10 @@ TEST(FtraceControllerTest, MultipleSinks) {
 
   data_sourceA.reset();
 
+  // State clearing on tracing teardown.
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kBarEnablePath, "0"));
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"));
@@ -344,6 +346,7 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
+  // State clearing on tracing teardown.
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
@@ -351,7 +354,7 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
               ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
       .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "0"));
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
   controller.reset();
   data_source.reset();
@@ -363,6 +366,11 @@ TEST(FtraceControllerTest, BufferSize) {
   // For this test we don't care about most calls to WriteToFile/ClearFile.
   EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(AnyNumber());
   EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(AnyNumber());
+
+  // Every time a fake data source is destroyed, the controller will reset the
+  // buffer size to a single page.
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"))
+      .Times(AnyNumber());
 
   {
     // No buffer size -> good default.
@@ -395,9 +403,8 @@ TEST(FtraceControllerTest, BufferSize) {
   }
 
   {
-    // Your size ends up with less than 1 page per cpu -> 1 page.
-    EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "4"));
+    // Your size ends up with less than 1 page per cpu -> 1 page (gmock already
+    // covered by the cleanup expectation above).
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_buffer_size_kb(1);
     auto data_source = controller->AddFakeDataSource(config);
