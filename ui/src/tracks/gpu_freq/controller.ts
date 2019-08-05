@@ -75,19 +75,14 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    const isQuantized = this.shouldSummarize(resolution);
-    // |resolution| is in s/px we want # ns for 10px window:
-    const bucketSizeNs = Math.round(resolution * 10 * 1e9);
-    let windowStartNs = startNs;
-    if (isQuantized) {
-      windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
-    }
-    const windowDurNs = Math.max(1, endNs - windowStartNs);
-
     this.query(`update ${this.tableName('window')} set
-      window_start = ${startNs},
-      window_dur = ${windowDurNs},
-      quantum = ${isQuantized ? bucketSizeNs : 0}`);
+    window_start = ${startNs},
+    window_dur = ${Math.max(1, endNs - startNs)},
+    quantum = 0`);
+
+    const result = await this.engine.queryOneRow(`select count(*)
+      from ${this.tableName('activity')}`);
+    const isQuantized = result[0] > LIMIT;
 
     // Cast as double to avoid problem where values are sometimes
     // doubles, sometimes longs.
@@ -95,6 +90,16 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
       from ${this.tableName('activity')} limit ${LIMIT}`;
 
     if (isQuantized) {
+      // |resolution| is in s/px we want # ns for 10px window:
+      const bucketSizeNs = Math.round(resolution * 10 * 1e9);
+      const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
+      const windowDurNs = Math.max(1, endNs - windowStartNs);
+
+      this.query(`update ${this.tableName('window')} set
+      window_start = ${startNs},
+      window_dur = ${windowDurNs},
+      quantum = ${isQuantized ? bucketSizeNs : 0}`);
+
       query = `select
         min(ts) as ts,
         sum(dur) as dur,
