@@ -36,7 +36,9 @@ message HeapProfileFrameStats {
     optional int64 delta_bytes = 5;
   }
 
+  // Next id: 4
   message ProcessInstanceStats {
+    optional uint32 pid = 3;
     optional string process_name = 1;
     repeated FrameStats frame_stats = 2;
   }
