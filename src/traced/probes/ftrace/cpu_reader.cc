@@ -127,24 +127,23 @@ size_t CpuReader::ReadCycle(
     size_t parsing_buf_size_pages,
     size_t max_pages,
     const std::set<FtraceDataSource*>& started_data_sources) {
-  PERFETTO_DCHECK(max_pages >= parsing_buf_size_pages &&
-                  max_pages % parsing_buf_size_pages == 0);
+  PERFETTO_DCHECK(max_pages > 0 && parsing_buf_size_pages > 0);
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_READ_CYCLE);
 
   // Work in batches to keep cache locality, and limit memory usage.
+  size_t batch_pages = std::min(parsing_buf_size_pages, max_pages);
   size_t total_pages_read = 0;
   for (bool is_first_batch = true;; is_first_batch = false) {
-    size_t pages_read =
-        ReadAndProcessBatch(parsing_buf, parsing_buf_size_pages, is_first_batch,
-                            started_data_sources);
+    size_t pages_read = ReadAndProcessBatch(
+        parsing_buf, batch_pages, is_first_batch, started_data_sources);
 
-    PERFETTO_DCHECK(pages_read <= parsing_buf_size_pages);
+    PERFETTO_DCHECK(pages_read <= batch_pages);
     total_pages_read += pages_read;
 
     // Check whether we've caught up to the writer, or possibly giving up on
     // this attempt due to some error.
-    if (pages_read != parsing_buf_size_pages)
+    if (pages_read != batch_pages)
       break;
     // Check if we've hit the limit of work for this cycle.
     if (total_pages_read >= max_pages)

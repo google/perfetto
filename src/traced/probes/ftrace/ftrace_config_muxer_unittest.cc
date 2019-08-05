@@ -385,7 +385,7 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
   EXPECT_THAT(actual_config->ftrace_events(), Not(Contains("foo")));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "0"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "4"));
   EXPECT_CALL(ftrace, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "0"));
@@ -580,7 +580,7 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   EXPECT_THAT(actual_config->ftrace_events(), Contains("cgroup/cgroup_mkdir"));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "0"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "4"));
   EXPECT_CALL(ftrace, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "0"));

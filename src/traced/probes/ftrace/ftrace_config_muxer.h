@@ -27,9 +27,6 @@
 
 namespace perfetto {
 
-constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
-constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
-
 // Ftrace is a bunch of globally modifiable persistent state.
 // Given a number of FtraceConfig's we need to find the best union of all
 // the settings to make everyone happy while also watching out for anybody
@@ -70,6 +67,12 @@ class FtraceConfigMuxer {
   bool RemoveConfig(FtraceConfigId);
 
   const EventFilter* GetEventFilter(FtraceConfigId id);
+
+  // Returns the current per-cpu buffer size, as configured by this muxer
+  // (without consulting debugfs). Constant for a given tracing session.
+  // Note that if there are multiple concurrent tracing sessions, the first
+  // session's buffer size is used for all of them.
+  size_t GetPerCpuBufferSizePages();
 
   // public for testing
   void SetupClockForTesting(const FtraceConfig& request) {
