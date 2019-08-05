@@ -58,6 +58,7 @@ GROUP BY 1;
 
 CREATE VIEW instance_stats_view AS
 SELECT HeapProfileFrameStats_ProcessInstanceStats(
+    'pid', process.pid,
     'process_name', process.name,
     'frame_stats', repeated_frame_stats
 ) AS instance_stats_proto

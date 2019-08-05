@@ -1,5 +1,6 @@
 heap_profile_frame_stats {
   instance_stats {
+    pid: 2
     process_name: "system_server"
     frame_stats {
       frame {
