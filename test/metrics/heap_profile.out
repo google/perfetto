@@ -1,0 +1,20 @@
+heap_profile {
+  profile {
+    process_name: "system_server"
+    callsite_stats {
+      callsite {
+        frame {
+          name: "f3"
+        }
+        frame {
+          name: "f2"
+        }
+        frame {
+          name: "f1"
+        }
+      }
+      allocs_self_count: 1
+      allocs_self_bytes: 1000
+    }
+  }
+}
