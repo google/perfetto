@@ -29,6 +29,9 @@
 namespace perfetto {
 namespace {
 
+constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
+constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
+
 // trace_clocks in preference order.
 constexpr const char* kClocks[] = {"boot", "global", "local"};
 
@@ -510,7 +513,8 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   // configs around. Tear down the rest of the ftrace config only if all
   // configs are removed.
   if (configs_.empty()) {
-    ftrace_->SetCpuBufferSizeInPages(0);
+    if (ftrace_->SetCpuBufferSizeInPages(1))
+      current_state_.cpu_buffer_size_pages = 1;
     ftrace_->DisableAllEvents();
     ftrace_->ClearTrace();
     if (current_state_.atrace_on)
@@ -551,6 +555,10 @@ void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
   size_t pages = ComputeCpuBufferSizeInPages(request.buffer_size_kb());
   ftrace_->SetCpuBufferSizeInPages(pages);
   current_state_.cpu_buffer_size_pages = pages;
+}
+
+size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
+  return current_state_.cpu_buffer_size_pages;
 }
 
 void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
