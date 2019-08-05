@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ungzip} from 'pako';
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 
+import {Actions} from '../common/actions';
 import {
   AndroidLogConfig,
   AndroidLogId,
@@ -31,7 +33,7 @@ import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {MAX_TIME, RecordConfig} from '../common/state';
 
 import {Controller} from './controller';
-import {App} from './globals';
+import {App, globals} from './globals';
 
 type RPCImplMethod = (Method|rpc.ServiceMethod<Message<{}>, Message<{}>>);
 
@@ -399,12 +401,53 @@ export class RecordController extends Controller<'main'> {
   constructor(args: {app: App, extensionPort: MessagePort}) {
     super('main');
     this.app = args.app;
-    this.consumerPort = ConsumerPort.create(this.rpcImpl);
+    this.consumerPort = ConsumerPort.create(this.rpcImpl.bind(this));
     this.extensionPort = args.extensionPort;
-    this.extensionPort.onmessage = ({data}) => {
-      // TODO(nicomazz): Handle messages from the extension.
-      console.log('message received from the extension:', data);
-    };
+    this.extensionPort.onmessage = this.onExtensionMessage.bind(this);
+  }
+
+  requestRecording() {
+    console.log('Requesting recording');
+    if (this.extensionPort) {
+      this.extensionPort.postMessage({method: 'ReadBuffers'});
+    }
+  }
+
+  // TODO(nicomazz): Create different data types for each extension response,
+  // like "TraceCompleteEvent", "ReadBufferResponse"
+  onExtensionMessage(message: {
+    data: {recordingReady: number, traceData: string, readProgress: number}
+  }) {
+    const data = message.data;
+    console.log('message received from the extension:', data);
+    if (data === undefined) return;
+
+    if (data.recordingReady === 1) {
+      this.requestRecording();
+      return;
+    }
+    if (data.traceData !== undefined) {
+      // The trace is gzipped.
+      const compressedTraceProto = this.stringToArrayBuffer(data.traceData);
+      const uncompressedTrace = ungzip(compressedTraceProto);
+
+      // Open trace in UI.
+      globals.dispatch(
+          Actions.openTraceFromBuffer({buffer: uncompressedTrace.buffer}));
+      return;
+    }
+    if (data.readProgress) {
+      // TODO(nicomazz): update loading state
+    }
+  }
+
+  stringToArrayBuffer(str: string): Uint8Array {
+    const buf = new ArrayBuffer(str.length);
+    const bufView = new Uint8Array(buf);
+    for (let i = 0, strLen = str.length; i < strLen; i++) {
+      bufView[i] = str.charCodeAt(i);
+    }
+    return bufView;
   }
 
   run() {
@@ -443,15 +486,10 @@ export class RecordController extends Controller<'main'> {
 
   startRecordTrace(traceConfig: TraceConfig) {
     this.consumerPort.enableTracing({traceConfig});
-    this.consumerPort.startTracing({}, (_error, response) => {
-      // TODO(nicomazz): Expose tracing status to frontend.
-      console.log(response);
-    });
   }
 
   stopRecordTrace() {
     // TODO(nicomazz): Implement stopping trace & retrieving trace data.
-    console.log('Calling stopRecordTrace');
   }
 
   // This forwards the messages that have to be sent to the extension to the
@@ -460,8 +498,9 @@ export class RecordController extends Controller<'main'> {
   private rpcImpl(
       method: RPCImplMethod, requestData: Uint8Array,
       _callback: RPCImplCallback) {
-    if (method !== null && method.name !== null) {
-      this.extensionPort.postMessage({method: method.name, requestData});
+    if (method !== null && method.name !== null && this.config !== null) {
+      this.extensionPort.postMessage(
+          {method: method.name, traceConfig: requestData});
     }
   }
 }
