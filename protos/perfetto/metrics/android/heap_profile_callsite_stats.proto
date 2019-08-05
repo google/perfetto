@@ -19,21 +19,31 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-message HeapProfile {
+message HeapProfileCallsiteStats {
   message Frame { optional string name = 1; }
 
   message Callsite { repeated Frame frame = 1; }
 
   message CallsiteStats {
     optional Callsite callsite = 1;
-    optional int64 allocs_self_count = 2;
-    optional int64 allocs_self_bytes = 3;
+
+    // Count of objects allocated at this callsite
+    optional int64 total_count = 2;
+    // Count of bytes allocated at this callsite
+    optional int64 total_bytes = 3;
+
+    // Count of allocated objects that were not freed
+    optional int64 delta_count = 4;
+    // Count of allocated bytes that were not freed
+    optional int64 delta_bytes = 5;
   }
 
-  message PerProcess {
+  // Next id: 4
+  message InstanceStats {
+    optional uint32 pid = 3;
     optional string process_name = 1;
     repeated CallsiteStats callsite_stats = 2;
   }
 
-  repeated PerProcess profile = 1;
+  repeated InstanceStats instance_stats = 1;
 }
