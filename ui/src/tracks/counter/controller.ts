@@ -60,7 +60,16 @@ class CounterTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    const isQuantized = this.shouldSummarize(resolution);
+    const result = await this.engine.queryOneRow(`select count(*)
+    from (select
+      ts,
+      lead(ts, 1, ts) over (partition by ref_type order by ts) as ts_end,
+      from counters
+      where name = '${this.config.name}' and ref = ${this.config.ref})
+    where ts <= ${endNs} and ${startNs} <= ts_end`);
+
+    // Only quantize if we have too much data to draw.
+    const isQuantized = result[0] > LIMIT;
     // |resolution| is in s/px we want # ns for 10px window:
     const bucketSizeNs = Math.round(resolution * 10 * 1e9);
     let windowStartNs = startNs;
