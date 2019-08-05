@@ -32,11 +32,11 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 
 namespace perfetto {
 
-class CpuReader;
 class FtraceConfigMuxer;
 class FtraceDataSource;
 class FtraceProcfs;
@@ -69,9 +69,8 @@ class FtraceController {
   bool StartDataSource(FtraceDataSource*);
   void RemoveDataSource(FtraceDataSource*);
 
-  // Force a read of the ftrace buffers, including kernel buffer pages that
-  // are not full. Will call OnFtraceFlushComplete() on all
-  // |started_data_sources_| once all workers have flushed (or timed out).
+  // Force a read of the ftrace buffers. Will call OnFtraceFlushComplete() on
+  // all |started_data_sources_|.
   void Flush(FlushRequestID);
 
   void DumpFtraceStats(FtraceStats*);
@@ -94,15 +93,18 @@ class FtraceController {
  private:
   friend class TestFtraceController;
 
+  struct PerCpuState {
+    PerCpuState(std::unique_ptr<CpuReader> _reader, size_t _period_page_quota)
+        : reader(std::move(_reader)), period_page_quota(_period_page_quota) {}
+    std::unique_ptr<CpuReader> reader;
+    size_t period_page_quota = 0;
+  };
+
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 
   // Periodic task that reads all per-cpu ftrace buffers.
   void ReadTick(int generation);
-  // Returns true if we've caught up with the ftrace events for all cpus. False
-  // if we hit |max_pages| on at least one cpu, and are therefore stopping
-  // early (to not hog the thread for too long).
-  bool ReadAllCpuBuffers(size_t max_pages);
 
   uint32_t GetDrainPeriodMs();
 
@@ -117,7 +119,7 @@ class FtraceController {
   std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer_;
   int generation_ = 0;
   bool atrace_running_ = false;
-  std::vector<std::unique_ptr<CpuReader>> cpu_readers_;
+  std::vector<PerCpuState> per_cpu_;  // empty if tracing isn't active
   std::set<FtraceDataSource*> data_sources_;
   std::set<FtraceDataSource*> started_data_sources_;
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
