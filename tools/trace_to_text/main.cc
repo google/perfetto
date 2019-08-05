@@ -23,11 +23,7 @@
 #include "tools/trace_to_text/trace_to_profile.h"
 #include "tools/trace_to_text/trace_to_systrace.h"
 #include "tools/trace_to_text/trace_to_text.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include "tools/trace_to_text/symbolize_profile.h"
-#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #include "perfetto_version.gen.h"
@@ -119,12 +115,9 @@ int main(int argc, char** argv) {
   if (format == "profile")
     return perfetto::trace_to_text::TraceToProfile(input_stream, output_stream);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (format == "symbolize")
     return perfetto::trace_to_text::SymbolizeProfile(input_stream,
                                                      output_stream);
-#endif
 
   return Usage(argv[0]);
 }

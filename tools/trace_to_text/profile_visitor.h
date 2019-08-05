@@ -40,6 +40,8 @@ class ProfileVisitor {
   virtual bool AddCallstack(const protos::Callstack& callstack) = 0;
   virtual bool AddMapping(const protos::Mapping& mapping) = 0;
   virtual bool AddFrame(const protos::Frame& frame) = 0;
+  virtual bool AddProfiledFrameSymbols(
+      const protos::ProfiledFrameSymbols& symbol) = 0;
   virtual ~ProfileVisitor();
 };
 

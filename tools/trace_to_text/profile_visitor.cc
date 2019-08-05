@@ -30,6 +30,7 @@ using ::perfetto::protos::Frame;
 using ::perfetto::protos::InternedData;
 using ::perfetto::protos::InternedString;
 using ::perfetto::protos::Mapping;
+using ::perfetto::protos::ProfiledFrameSymbols;
 using ::perfetto::protos::ProfilePacket;
 }  // namespace
 
@@ -52,6 +53,9 @@ bool ProfileVisitor::Visit(const std::vector<ProfilePacket>& packet_fragments,
         return false;
     for (const InternedString& interned_string : data.source_paths())
       if (!AddInternedString(interned_string))
+        return false;
+    for (const ProfiledFrameSymbols& pfs : data.profiled_frame_symbols())
+      if (!AddProfiledFrameSymbols(pfs))
         return false;
   }
 

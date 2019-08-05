@@ -52,7 +52,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 21.
+// Next id: 22.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -77,6 +77,8 @@ message InternedData {
   repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
+  // Symbols that were added to this trace after the fact.
+  repeated ProfiledFrameSymbols profiled_frame_symbols = 21;
 
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;

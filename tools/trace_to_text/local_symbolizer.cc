@@ -151,7 +151,7 @@ class ScopedMmap {
   void* ptr_;
 };
 
-bool ParseLine(std::string line, std::string* file_name, uint64_t* line_no) {
+bool ParseLine(std::string line, std::string* file_name, uint32_t* line_no) {
   base::StringSplitter sp(std::move(line), ':');
   if (!sp.Next())
     return false;
@@ -161,7 +161,7 @@ bool ParseLine(std::string line, std::string* file_name, uint64_t* line_no) {
   char* endptr;
   auto parsed_line_no = strtoll(sp.cur_token(), &endptr, 10);
   if (parsed_line_no >= 0)
-    *line_no = static_cast<uint64_t>(parsed_line_no);
+    *line_no = static_cast<uint32_t>(parsed_line_no);
   return *endptr == '\0' && parsed_line_no >= 0;
 }
 
@@ -339,6 +339,13 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
         cur.line = 0;
       }
     }
+  }
+
+  for (auto it = result.begin(); it != result.end();) {
+    if (it->function_name == "??")
+      it = result.erase(it);
+    else
+      ++it;
   }
   return result;
 }

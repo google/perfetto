@@ -2614,7 +2614,7 @@ message MmVmscanKswapdSleepFtraceEvent {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 21.
+// Next id: 22.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -2639,6 +2639,8 @@ message InternedData {
   repeated InternedString source_paths = 18;
   // Names of functions used in frames below.
   repeated InternedString function_names = 5;
+  // Symbols that were added to this trace after the fact.
+  repeated ProfiledFrameSymbols profiled_frame_symbols = 21;
 
   // Executable files mapped into processes.
   repeated Mapping mappings = 19;
@@ -2784,16 +2786,16 @@ message InternedString {
 // that the actual trace need not be rewritten to symbolize the profiles.
 message ProfiledFrameSymbols {
   // Use the frame id as the interning key for the symbols.
-  optional int64 frame_iid = 1;
+  optional uint64 frame_iid = 1;
 
   // These are repeated because when inlining happens, multiple functions'
   // frames can be at a single address. Imagine function Foo calling the
   // std::vector<int> constructor, which gets inlined at 0xf00. We then get
   // both Foo and the std::vector<int> constructor when we symbolize the
   // address.
-  repeated int64 function_name_id = 2;  // key to InternedString
-  repeated int64 file_name_id = 3;      // key to InternedString
-  repeated int32 line_number = 4;
+  repeated uint64 function_name_id = 2;  // key to InternedString
+  repeated uint64 file_name_id = 3;      // key to InternedString
+  repeated uint32 line_number = 4;
 }
 
 message Mapping {
