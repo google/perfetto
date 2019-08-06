@@ -829,22 +829,13 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
   for (auto& data_source_inst : tracing_session->data_source_instances) {
     const ProducerID producer_id = data_source_inst.first;
     DataSourceInstance& instance = data_source_inst.second;
-    const DataSourceInstanceID ds_inst_id = instance.instance_id;
     ProducerEndpointImpl* producer = GetProducer(producer_id);
     PERFETTO_DCHECK(producer);
     PERFETTO_DCHECK(instance.state == DataSourceInstance::CONFIGURED ||
                     instance.state == DataSourceInstance::STARTING ||
                     instance.state == DataSourceInstance::STARTED);
-    if (instance.will_notify_on_stop && !disable_immediately) {
-      instance.state = DataSourceInstance::STOPPING;
-    } else {
-      instance.state = DataSourceInstance::STOPPED;
-    }
-    if (tracing_session->consumer_maybe_null) {
-      tracing_session->consumer_maybe_null->OnDataSourceInstanceStateChange(
-          *producer, instance);
-    }
-    producer->StopDataSource(ds_inst_id);
+    StopDataSourceInstance(producer, tracing_session, &instance,
+                           disable_immediately);
   }
 
   // Either this request is flagged with |disable_immediately| or there are no
@@ -917,8 +908,6 @@ void TracingServiceImpl::NotifyDataSourceStopped(
                     instance->state);
       continue;
     }
-    PERFETTO_DCHECK(tracing_session.state ==
-                    TracingSession::DISABLING_WAITING_STOP_ACKS);
 
     instance->state = DataSourceInstance::STOPPED;
 
@@ -930,6 +919,9 @@ void TracingServiceImpl::NotifyDataSourceStopped(
     }
 
     if (!tracing_session.AllDataSourceInstancesStopped())
+      continue;
+
+    if (tracing_session.state != TracingSession::DISABLING_WAITING_STOP_ACKS)
       continue;
 
     // All data sources acked the termination.
@@ -1764,9 +1756,28 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
   }
 }
 
+void TracingServiceImpl::StopDataSourceInstance(ProducerEndpointImpl* producer,
+                                                TracingSession* tracing_session,
+                                                DataSourceInstance* instance,
+                                                bool disable_immediately) {
+  const DataSourceInstanceID ds_inst_id = instance->instance_id;
+  if (instance->will_notify_on_stop && !disable_immediately) {
+    instance->state = DataSourceInstance::STOPPING;
+  } else {
+    instance->state = DataSourceInstance::STOPPED;
+  }
+  if (tracing_session->consumer_maybe_null) {
+    tracing_session->consumer_maybe_null->OnDataSourceInstanceStateChange(
+        *producer, *instance);
+  }
+  producer->StopDataSource(ds_inst_id);
+}
+
 void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
                                               const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DLOG("Producer %" PRIu16 " unregistered data source \"%s\"",
+                producer_id, name.c_str());
   PERFETTO_CHECK(producer_id);
   ProducerEndpointImpl* producer = GetProducer(producer_id);
   PERFETTO_DCHECK(producer);
@@ -1777,7 +1788,8 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
         DataSourceInstanceID ds_inst_id = it->second.instance_id;
         if (it->second.state != DataSourceInstance::STOPPED) {
           if (it->second.state != DataSourceInstance::STOPPING)
-            producer->StopDataSource(ds_inst_id);
+            StopDataSourceInstance(producer, &kv.second, &it->second,
+                                   /* disable_immediately = */ false);
           // Mark the instance as stopped immediately, since we are
           // unregistering it below.
           if (it->second.state == DataSourceInstance::STOPPING)
