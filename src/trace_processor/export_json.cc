@@ -462,7 +462,8 @@ ResultCode ExportRawEvents(const TraceStorage* storage,
     // Raw legacy events store all other params in the arg set. Make a copy of
     // the converted args here and remove these params.
     Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
-    Json::Value legacy_args = args.removeMember(kLegacyEventArgsKey);
+    Json::Value legacy_args = args[kLegacyEventArgsKey];
+    args.removeMember(kLegacyEventArgsKey);
 
     PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
     event["cat"] = legacy_args[kLegacyEventCategoryKey];
