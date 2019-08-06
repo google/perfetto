@@ -63,6 +63,8 @@ source_set("lib") {
     "event_tracker.h",
     "filtered_row_index.cc",
     "filtered_row_index.h",
+    "forwarding_trace_parser.cc",
+    "forwarding_trace_parser.h",
     "ftrace_descriptors.cc",
     "ftrace_descriptors.h",
     "ftrace_utils.cc",
@@ -237,6 +239,7 @@ source_set("unittests") {
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",
+    "forwarding_trace_parser_unittest.cc",
     "ftrace_utils_unittest.cc",
     "fuchsia_trace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
@@ -254,7 +257,6 @@ source_set("unittests") {
     "syscall_tracker_unittest.cc",
     "systrace_parser_unittest.cc",
     "thread_table_unittest.cc",
-    "trace_processor_impl_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
