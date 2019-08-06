@@ -20,7 +20,7 @@
 #include <vector>
 
 #ifndef PERFETTO_NOLOCALSYMBOLIZE
-#include "tools/trace_to_text/local_symbolizer.h"
+#include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
 #endif
 #include "tools/trace_to_text/pprof_builder.h"
 #include "tools/trace_to_text/utils.h"
