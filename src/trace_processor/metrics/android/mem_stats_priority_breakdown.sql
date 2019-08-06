@@ -51,3 +51,16 @@ FROM {{table_name}}_by_oom_span AS span JOIN process USING(upid)
 WHERE process.name IS NOT NULL
 GROUP BY 1, 2
 ORDER BY 1, 2;
+
+DROP VIEW IF EXISTS {{table_name}}_by_priority_stats_proto;
+
+CREATE VIEW {{table_name}}_by_priority_stats_proto AS
+SELECT
+  process_name,
+  priority,
+  AndroidMemoryMetric_Counter(
+    'min', min_value,
+    'max', max_value,
+    'avg', avg_value
+  ) AS proto
+FROM {{table_name}}_by_priority_stats;
