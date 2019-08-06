@@ -21,7 +21,7 @@
 #include "perfetto/base/logging.h"
 
 #ifndef PERFETTO_NOLOCALSYMBOLIZE
-#include "tools/trace_to_text/local_symbolizer.h"
+#include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
 #endif
 
 #include "tools/trace_to_text/symbolizer.h"
