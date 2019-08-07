@@ -1549,8 +1549,8 @@ void ProtoTraceParser::ParseTrackEvent(
 
   // TODO(eseckler): This legacy event field will eventually be replaced by
   // fields in TrackEvent itself.
-  if (PERFETTO_UNLIKELY(!legacy_event.has_phase())) {
-    PERFETTO_ELOG("TrackEvent without phase");
+  if (PERFETTO_UNLIKELY(!event.type() && !legacy_event.has_phase())) {
+    PERFETTO_ELOG("TrackEvent without type or phase");
     return;
   }
 
@@ -1678,7 +1678,23 @@ void ProtoTraceParser::ParseTrackEvent(
     id_scope = storage->InternString(legacy_event.id_scope());
   }
 
-  int32_t phase = legacy_event.phase();
+  int32_t phase = 0;
+  if (legacy_event.has_phase()) {
+    phase = legacy_event.phase();
+  } else {
+    switch (event.type()) {
+      case protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN:
+        phase = 'B';
+        break;
+      case protos::pbzero::TrackEvent::TYPE_SLICE_END:
+        phase = 'E';
+        break;
+      default:
+        PERFETTO_FATAL("unexpected event type %d", event.type());
+        return;
+    }
+  }
+
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
       auto opt_slice_id = slice_tracker->Begin(
