@@ -15,8 +15,10 @@
 import '../tracks/all_frontend';
 
 import {applyPatches, Patch} from 'immer';
+import * as MicroModal from 'micromodal';
 import * as m from 'mithril';
 
+import {assertExists} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {
@@ -187,8 +189,10 @@ function main() {
   };
   checkExtensionAvailability();
 
+  const main = assertExists(document.body.querySelector('main'));
+
   globals.rafScheduler.domRedraw = () =>
-      m.render(document.body, m(router.resolve(globals.state.route)));
+      m.render(main, m(router.resolve(globals.state.route)));
 
   // Add support for opening traces from postMessage().
   window.addEventListener('message', postMessageHandler, {passive: true});
@@ -211,6 +215,8 @@ function main() {
   }, {passive: false});
 
   router.navigateToCurrentHash();
+
+  MicroModal.init();
 }
 
 main();

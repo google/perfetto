@@ -9,6 +9,10 @@
       "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
       "es2018",                            // Need this to use Object.values.
     ],
+    "baseUrl": ".",
+    "paths": {
+      "*" : ["*", "./types/*"]
+    },
     "target": "es6",
     "module": "commonjs",
     "moduleResolution": "node",
