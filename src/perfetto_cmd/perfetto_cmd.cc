@@ -452,6 +452,10 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
+  if (trace_config_->trace_uuid().empty() || !dropbox_tag_.empty()) {
+    trace_config_->set_trace_uuid(base::UuidToString(base::Uuidv4()));
+  }
+
   if (!trace_config_->incident_report_config().destination_package().empty()) {
     if (dropbox_tag_.empty()) {
       PERFETTO_ELOG("Unexpected IncidentReportConfig without --dropbox.");
