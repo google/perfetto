@@ -21,6 +21,7 @@ import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
+import {showModal} from './modal';
 
 const ALL_PROCESSES_QUERY = 'select name, pid from process order by name;';
 
@@ -102,6 +103,11 @@ const SECTIONS = [
     expanded: true,
     items: [
       {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
+      {
+        t: 'Open with legacy UI',
+        a: popupFileSelectionDialogOldUI,
+        i: 'filter_none'
+      },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
       {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
       {
@@ -115,23 +121,6 @@ const SECTIONS = [
         a: downloadTrace,
         i: 'file_download',
         disableInLocalOnlyMode: true,
-      },
-    ],
-  },
-  {
-    title: 'Legacy UI',
-    expanded: true,
-    summary: 'Open trace with legacy UI',
-    items: [
-      {
-        t: 'Open with legacy UI',
-        a: popupFileSelectionDialogOldUI,
-        i: 'folder_open'
-      },
-      {
-        t: 'Truncate and open',
-        a: popupFileSelectionDialogOldUITruncate,
-        i: 'flip'
       },
     ],
   },
@@ -224,23 +213,13 @@ function popupFileSelectionDialog(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['useCatapultLegacyUi'];
   delete getFileElement().dataset['video'];
-  delete getFileElement().dataset['truncate'];
   getFileElement().click();
 }
 
 function popupFileSelectionDialogOldUI(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['video'];
-  delete getFileElement().dataset['truncate'];
   getFileElement().dataset['useCatapultLegacyUi'] = '1';
-  getFileElement().click();
-}
-
-function popupFileSelectionDialogOldUITruncate(e: Event) {
-  e.preventDefault();
-  delete getFileElement().dataset['video'];
-  getFileElement().dataset['useCatapultLegacyUi'] = '1';
-  getFileElement().dataset['truncate'] = '1';
   getFileElement().click();
 }
 
@@ -274,22 +253,54 @@ function onInputElementFileSelectionChanged(e: Event) {
     // Switch back to the old catapult UI.
     if (isLegacyTrace(file.name)) {
       openFileWithLegacyTraceViewer(file);
-    } else {
-      if (e.target.dataset['truncate'] === '1') {
-        globals.dispatch(Actions.convertTraceToJson({file, truncate: true}));
-        return;
-      } else if (file.size > 1024 * 1024 * 50) {
-        const size = Math.round(file.size / (1024 * 1024));
-        const result = confirm(
-            `This trace is ${size}mb, opening it in ` +
-            `the legacy UI may fail.\nPress 'OK' to attempt to open this ` +
-            `trace or press 'Cancel' and use the 'Truncate' button ` +
-            `to load just the first 50mb.\nMore options can be found at ` +
-            `go/opening-large-traces.`);
-        if (!result) return;
-      }
-      globals.dispatch(Actions.convertTraceToJson({file, truncate: false}));
+      return;
     }
+
+    // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
+    if (file.size < 1024 * 1024 * 50) {
+      globals.dispatch(Actions.convertTraceToJson({file, truncate: false}));
+      return;
+    }
+
+    // Give the user the option to truncate larger perfetto traces.
+    const size = Math.round(file.size / (1024 * 1024));
+    showModal({
+      title: 'Legacy UI may fail to open this trace',
+      content:
+          m('div',
+            m('p',
+              `This trace is ${size}mb, opening it in the legacy UI ` +
+                  `may fail.`),
+            m('p',
+              'More options can be found at ',
+              m('a',
+                {
+                  href: 'https://goto.google.com/opening-large-traces',
+                  target: '_blank'
+                },
+                'go/opening-large-traces'),
+              '.')),
+      buttons: [
+        {
+          text: 'Open full trace (not recommended)',
+          primary: false,
+          id: 'open',
+          action: () => {
+            globals.dispatch(
+                Actions.convertTraceToJson({file, truncate: false}));
+          }
+        },
+        {
+          text: 'Open beginning of trace',
+          primary: true,
+          id: 'truncate',
+          action: () => {
+            globals.dispatch(
+                Actions.convertTraceToJson({file, truncate: true}));
+          }
+        }
+      ]
+    });
     return;
   }
 
