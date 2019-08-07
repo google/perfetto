@@ -418,6 +418,7 @@ proto_library(
     name = "trace_android",
     srcs = [
         "perfetto/trace/android/android_log.proto",
+        "perfetto/trace/android/graphics_frame_event.proto",
         "perfetto/trace/android/packages_list.proto",
     ],
     has_services = 1,
@@ -458,6 +459,7 @@ proto_library(
     name = "trace_android_zero",
     srcs = [
         "perfetto/trace/android/android_log.proto",
+        "perfetto/trace/android/graphics_frame_event.proto",
         "perfetto/trace/android/packages_list.proto",
     ],
     deps = [
