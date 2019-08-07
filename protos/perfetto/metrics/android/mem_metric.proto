@@ -37,6 +37,9 @@ message AndroidMemoryMetric {
     optional Counter file_rss = 2;
     optional Counter swap = 3;
     optional Counter anon_and_swap = 4;
+
+    // Available when ART trace events are available.
+    optional Counter java_heap = 5;
   }
 
   message Counter {

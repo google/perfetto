@@ -44,6 +44,17 @@ SELECT
   IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) AS anon_and_swap_val
 FROM anon_and_swap_join;
 
+-- If we have dalvik events enabled (for ART trace points) we can construct the java heap timeline.
+SELECT RUN_METRIC('android/upid_span_view.sql',
+  'table_name', 'java_heap_kb',
+  'counter_name', 'Heap size (KB)');
+
+DROP VIEW IF EXISTS java_heap_span;
+
+CREATE VIEW java_heap_span AS
+SELECT ts, dur, upid, java_heap_kb_val * 1024 AS java_heap_val
+FROM java_heap_kb_span;
+
 -- Create a track for process OOM scores.
 DROP VIEW IF EXISTS oom_score_span;
 
@@ -76,3 +87,8 @@ DROP TABLE IF EXISTS anon_and_swap_by_oom_span;
 
 CREATE VIRTUAL TABLE anon_and_swap_by_oom_span
 USING SPAN_JOIN(anon_and_swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
+
+DROP TABLE IF EXISTS java_heap_by_oom_span;
+
+CREATE VIRTUAL TABLE java_heap_by_oom_span
+USING SPAN_JOIN(java_heap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
