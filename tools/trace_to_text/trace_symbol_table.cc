@@ -22,7 +22,6 @@
 #include <string>
 #include <vector>
 
-#include <elf.h>
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
