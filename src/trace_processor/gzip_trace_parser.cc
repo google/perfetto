@@ -18,7 +18,8 @@
 
 #include <zlib.h>
 
-#include "src/trace_processor/systrace_trace_parser.h"
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/forwarding_trace_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,7 +29,7 @@ GzipTraceParser::GzipTraceParser(TraceProcessorContext* context)
   z_stream_->zalloc = Z_NULL;
   z_stream_->zfree = Z_NULL;
   z_stream_->opaque = Z_NULL;
-  inflateInit(z_stream_.get());
+  inflateInit2(z_stream_.get(), 32 + 15);
 }
 
 GzipTraceParser::~GzipTraceParser() {
@@ -41,13 +42,17 @@ util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
   uint8_t* start = data.get();
   size_t len = size;
 
-  static const char kSystraceFilerHeader[] = "TRACE:\n";
   if (!inner_) {
-    inner_.reset(new SystraceTraceParser(context_));
+    inner_.reset(new ForwardingTraceParser(context_));
 
-    // Strip the header by ignoring the associated bytes.
-    start += strlen(kSystraceFilerHeader);
-    len -= strlen(kSystraceFilerHeader);
+    // .ctrace files begin with "TRACE:" strip this if present.
+    static const char kSystraceFileHeader[] = "TRACE:\n";
+    if (size >= strlen(kSystraceFileHeader) &&
+        strncmp(reinterpret_cast<char*>(start), kSystraceFileHeader,
+                strlen(kSystraceFileHeader)) == 0) {
+      start += strlen(kSystraceFileHeader);
+      len -= strlen(kSystraceFileHeader);
+    }
   }
 
   z_stream_->next_in = start;
