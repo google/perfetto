@@ -23,6 +23,7 @@
 #include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
 #endif
 #include "tools/trace_to_text/pprof_builder.h"
+#include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
