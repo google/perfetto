@@ -18,6 +18,7 @@ import("../../../../gn/protozero_library.gni")
 
 android_proto_names = [
   "android_log.proto",
+  "graphics_frame_event.proto",
   "packages_list.proto",
 ]
 
