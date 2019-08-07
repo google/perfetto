@@ -46,6 +46,7 @@ MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 TRACE_PROTOS = (
   'protos/perfetto/common/trace_stats.proto', # only referenced by trace protos
   'protos/perfetto/trace/android/android_log.proto',
+  'protos/perfetto/trace/android/graphics_frame_event.proto',
   'protos/perfetto/trace/android/packages_list.proto',
   'protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto',
   "protos/perfetto/trace/chrome/chrome_metadata.proto",
