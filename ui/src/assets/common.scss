@@ -65,7 +65,8 @@ html {
 }
 
 html,
-body {
+body,
+body>main {
     height: 100%;
     width: 100%;
     padding: 0;
@@ -86,7 +87,7 @@ table {
     user-select: text;
 }
 
-body {
+body>main {
     display: grid;
     grid-template-areas:
       "sidebar topbar"
