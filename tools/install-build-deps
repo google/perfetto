@@ -195,8 +195,8 @@ BUILD_DEPS_HOST = [
 
   # Example traces for regression tests.
   ('buildtools/test_data.zip',
-   'https://storage.googleapis.com/perfetto/test-data-20190710-183108.zip',
-   'a37e5e7153ae5f0ade0a413add1404b184c57fcc',
+   'https://storage.googleapis.com/perfetto/test-data-20190807-125643.zip',
+   'abd9bc3e9f9e74ec6810b5c9bd1f15713a9a58ec',
    'all',
   ),
 
