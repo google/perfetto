@@ -728,6 +728,71 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[1], 5000);
 }
 
+TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->add_category_iids(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1020.
+    event->set_thread_time_delta_us(5);  // absolute: 2010.
+    event->add_category_iids(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_END);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15))
+      .Times(2)
+      .WillRepeatedly(Return(1));
+
+  MockArgsTracker args(&context_);
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, 0, 0, _))
+      .WillOnce(DoAll(
+          InvokeArgument<5>(
+              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
+          Return(0u)));
+  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 0, 0, _))
+      .WillOnce(DoAll(
+          InvokeArgument<5>(
+              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
+          Return(0u)));
+
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(storage_->thread_slices().slice_count(), 1u);
+  EXPECT_EQ(storage_->thread_slices().slice_ids()[0], 0u);
+  EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[0], 2005000);
+  EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[0], 5000);
+}
+
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));

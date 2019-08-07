@@ -40,7 +40,7 @@ package perfetto.protos;
 // association) are emitted as part of ProcessDescriptor and ThreadDescriptor
 // messages in separate TracePackets instead.
 //
-// Next reserved id: 8 (up to 15).
+// Next reserved id: 10 (up to 15).
 // Next id: 22.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
@@ -79,10 +79,32 @@ message TrackEvent {
     int64 thread_instruction_count_absolute = 20;
   }
 
+  // TODO(eseckler): Add a way to specify Tracks.
+
   // We intend to add a binary symbol version of this in the future.
   repeated uint64 category_iids = 3;  // interned EventCategoryName.
 
   // TODO(eseckler): May also want a debug_name for untyped debug-only events.
+
+  // Type of the TrackEvent (required if |phase| in LegacyEvent is not set).
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+
+    // Slice events are always formed by a pair of BEGIN + END events. END
+    // events do not need to repeat any TrackEvent fields they have in common
+    // with their corresponding BEGIN event. Arguments and debug annotations of
+    // the BEGIN + END pair will be merged during trace import.
+    //
+    // Note that we deliberately chose not to support COMPLETE events since
+    // clients would need to delay writing them until the slice is completed,
+    // which can result in reordered events in the trace and loss of unfinished
+    // events at the end of a trace.
+    TYPE_SLICE_BEGIN = 1;
+    TYPE_SLICE_END = 2;
+
+    // TODO(eseckler): Add support for counters.
+  }
+  optional Type type = 9;
 
   // Unstable key/value annotations shown in the trace viewer but not intended
   // for metrics use.
