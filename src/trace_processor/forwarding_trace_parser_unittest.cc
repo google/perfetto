@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/trace_processor_impl.h"
+#include "src/trace_processor/forwarding_trace_parser.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
