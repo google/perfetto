@@ -20,6 +20,7 @@ option optimize_for = LITE_RUNTIME;
 import "perfetto/common/trace_stats.proto";
 import "perfetto/config/trace_config.proto";
 import "perfetto/trace/android/android_log.proto";
+import "perfetto/trace/android/graphics_frame_event.proto";
 import "perfetto/trace/android/packages_list.proto";
 import "perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "perfetto/trace/chrome/chrome_metadata.proto";
@@ -53,7 +54,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 57.
+// Next id: 58.
 message TracePacket {
   // TODO(primiano): in future we should add a timestamp_clock_domain field to
   // allow mixing timestamps from different clock domains.
@@ -89,6 +90,7 @@ message TracePacket {
     GpuRenderStageEvent gpu_render_stage_event = 53;
     StreamingProfilePacket streaming_profile_packet = 54;
     HeapGraph heap_graph = 56;
+    GraphicsFrameEvent graphics_frame_event = 57;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
