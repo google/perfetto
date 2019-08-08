@@ -258,7 +258,7 @@ function onInputElementFileSelectionChanged(e: Event) {
 
     // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
     if (file.size < 1024 * 1024 * 50) {
-      globals.dispatch(Actions.convertTraceToJson({file, truncate: false}));
+      globals.dispatch(Actions.convertTraceToJson({file}));
       return;
     }
 
@@ -286,19 +286,28 @@ function onInputElementFileSelectionChanged(e: Event) {
           primary: false,
           id: 'open',
           action: () => {
-            globals.dispatch(
-                Actions.convertTraceToJson({file, truncate: false}));
+            globals.dispatch(Actions.convertTraceToJson({file}));
           }
         },
         {
           text: 'Open beginning of trace',
           primary: true,
-          id: 'truncate',
+          id: 'truncate-start',
           action: () => {
             globals.dispatch(
-                Actions.convertTraceToJson({file, truncate: true}));
+                Actions.convertTraceToJson({file, truncate: 'start'}));
+          }
+        },
+        {
+          text: 'Open end of trace',
+          primary: true,
+          id: 'truncate-end',
+          action: () => {
+            globals.dispatch(
+                Actions.convertTraceToJson({file, truncate: 'end'}));
           }
         }
+
       ]
     });
     return;
