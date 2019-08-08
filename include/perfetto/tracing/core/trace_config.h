@@ -647,6 +647,12 @@ class PERFETTO_EXPORT TraceConfig {
     return incident_report_config_.get();
   }
 
+  const std::string& trace_uuid() const { return trace_uuid_; }
+  void set_trace_uuid(const std::string& value) { trace_uuid_ = value; }
+  void set_trace_uuid(const void* p, size_t s) {
+    trace_uuid_.assign(reinterpret_cast<const char*>(p), s);
+  }
+
  private:
   std::vector<BufferConfig> buffers_;
   std::vector<DataSource> data_sources_;
@@ -673,6 +679,7 @@ class PERFETTO_EXPORT TraceConfig {
   std::string unique_session_name_{};
   CompressionType compression_type_{};
   ::perfetto::base::CopyablePtr<IncidentReportConfig> incident_report_config_;
+  std::string trace_uuid_{};
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

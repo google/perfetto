@@ -18,11 +18,16 @@
 #define INCLUDE_PERFETTO_EXT_BASE_UUID_H_
 
 #include <array>
+#include <string>
 
 namespace perfetto {
 namespace base {
 
-std::array<uint8_t, 16> Uuidv4();
+using Uuid = std::array<uint8_t, 16>;
+Uuid Uuidv4();
+
+Uuid StringToUuid(const std::string&);
+std::string UuidToString(const Uuid&);
 
 }  // namespace base
 }  // namespace perfetto
