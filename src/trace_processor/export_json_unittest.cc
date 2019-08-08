@@ -268,6 +268,37 @@ TEST(ExportJsonTest, StorageWithMetadata) {
   EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
 }
 
+TEST(ExportJsonTest, StorageWithStats) {
+  int64_t kProducers = 10;
+  int64_t kBufferSize0 = 1000;
+  int64_t kBufferSize1 = 2000;
+
+  TraceStorage storage;
+
+  storage.SetStats(stats::traced_producers_connected, kProducers);
+  storage.SetIndexedStats(stats::traced_buf_buffer_size, 0, kBufferSize0);
+  storage.SetIndexedStats(stats::traced_buf_buffer_size, 1, kBufferSize1);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(&storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_TRUE(result.isMember("metadata"));
+  EXPECT_TRUE(result["metadata"].isMember("perfetto_trace_stats"));
+  Json::Value stats = result["metadata"]["perfetto_trace_stats"];
+
+  EXPECT_EQ(stats["producers_connected"].asInt(), kProducers);
+  EXPECT_EQ(stats["buffer_stats"].size(), 2u);
+  EXPECT_EQ(stats["buffer_stats"][0]["buffer_size"].asInt(), kBufferSize0);
+  EXPECT_EQ(stats["buffer_stats"][1]["buffer_size"].asInt(), kBufferSize1);
+}
+
 TEST(ExportJsonTest, StorageWithArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
