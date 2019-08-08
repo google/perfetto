@@ -33,6 +33,7 @@
 #include "perfetto/common/sys_stats_counters.pbzero.h"
 #include "perfetto/trace/android/packages_list.pbzero.h"
 #include "perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
+#include "perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -1734,6 +1735,44 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.flow_direction"),
                      Variadic::String(storage_->InternString("inout"))));
   EXPECT_TRUE(HasArg(1u, 5u, Variadic::UnsignedInteger(10u)));
+}
+
+TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
+  static const char kStringName[] = "string_name";
+  static const char kStringValue[] = "string_value";
+  static const char kIntName[] = "int_name";
+  static const int kIntValue = 123;
+
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* bundle = packet->set_chrome_events();
+    auto* metadata = bundle->add_metadata();
+    metadata->set_name(kStringName);
+    metadata->set_string_value(kStringValue);
+    metadata = bundle->add_metadata();
+    metadata->set_name(kIntName);
+    metadata->set_int_value(kIntValue);
+  }
+
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  // Verify raw_events and args contents.
+  const auto& raw_events = storage_->raw_events();
+  EXPECT_EQ(raw_events.raw_event_count(), 1u);
+  EXPECT_EQ(raw_events.name_ids()[0],
+            storage_->InternString("chrome_event.metadata"));
+  EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
+
+  EXPECT_EQ(storage_->args().args_count(), 2u);
+  EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
+                     Variadic::String(storage_->InternString(kStringValue))));
+  EXPECT_TRUE(HasArg(1u, storage_->InternString(kIntName),
+                     Variadic::Integer(kIntValue)));
 }
 
 TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
