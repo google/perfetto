@@ -23,9 +23,14 @@ namespace base {
 namespace {
 
 TEST(Uuid, TwoUuidsShouldBeDifferent) {
-  std::array<uint8_t, 16> a = Uuidv4();
-  std::array<uint8_t, 16> b = Uuidv4();
+  Uuid a = Uuidv4();
+  Uuid b = Uuidv4();
   EXPECT_NE(a, b);
+}
+
+TEST(Uuid, CanRoundTripUuid) {
+  Uuid uuid = Uuidv4();
+  EXPECT_EQ(StringToUuid(UuidToString(uuid)), uuid);
 }
 
 }  // namespace
