@@ -18,9 +18,11 @@
     "@types/uuid": "^3.4.4",
     "color-convert": "^2.0.0",
     "devtools-protocol": "0.0.681549",
+    "events": "^3.0.0",
     "immer": "^1.12.1",
     "micromodal": "^0.4.0",
     "mithril": "^1.1.6",
+    "noice-json-rpc": "^1.2.0",
     "pako": "^1.0.10",
     "protobufjs": "^6.8.8",
     "uuid": "^3.3.2"

@@ -607,6 +607,9 @@ function Instructions(cssClass: string) {
     globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
   };
 
+  const bufferUsagePercentage =
+      ((globals.bufferUsage ? globals.bufferUsage : 0.0) * 100).toFixed(1);
+
   return m(
       `.record-section.instructions${cssClass}`,
       m('header', 'Instructions'),
@@ -623,11 +626,21 @@ function Instructions(cssClass: string) {
       globals.state.extensionInstalled ?
           [
             m('button',
-              {onclick: () => globals.dispatch(Actions.startRecording({}))},
+              {
+                onclick: () => globals.dispatch(Actions.startRecording({})),
+                disabled: globals.state.recordingInProgress
+              },
               'Start Recording'),
             m('button',
-              {onclick: () => globals.dispatch(Actions.stopRecording({}))},
-              'Stop Recording')
+              {
+                onclick: () => globals.dispatch(Actions.stopRecording({})),
+                disabled: !globals.state.recordingInProgress
+              },
+              'Stop Recording'),
+            m('label',
+              globals.state.recordingInProgress ?
+                  'Buffer usage: ' + bufferUsagePercentage + '%' :
+                  '')
           ] :
           []);
 }
