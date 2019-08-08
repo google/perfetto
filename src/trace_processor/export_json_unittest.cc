@@ -282,7 +282,6 @@ TEST(ExportJsonTest, StorageWithStats) {
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
   int code = ExportJson(&storage, output);
-
   EXPECT_EQ(code, kResultOk);
 
   Json::Reader reader;
@@ -297,6 +296,43 @@ TEST(ExportJsonTest, StorageWithStats) {
   EXPECT_EQ(stats["buffer_stats"].size(), 2u);
   EXPECT_EQ(stats["buffer_stats"][0]["buffer_size"].asInt(), kBufferSize0);
   EXPECT_EQ(stats["buffer_stats"][1]["buffer_size"].asInt(), kBufferSize1);
+}
+
+TEST(ExportJsonTest, StorageWithChromeMetadata) {
+  const char* kName1 = "name1";
+  const char* kName2 = "name2";
+  const char* kValue1 = "value1";
+  const int kValue2 = 222;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  TraceStorage* storage = context.storage.get();
+  ArgsTracker args(&context);
+
+  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+      0, storage->InternString("chrome_event.metadata"), 0, 0);
+
+  StringId name1_id = storage->InternString(base::StringView(kName1));
+  StringId name2_id = storage->InternString(base::StringView(kName2));
+  StringId value1_id = storage->InternString(base::StringView(kValue1));
+  args.AddArg(row_id, name1_id, name1_id, Variadic::String(value1_id));
+  args.AddArg(row_id, name2_id, name2_id, Variadic::Integer(kValue2));
+  args.Flush();
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(storage, output);
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_TRUE(result.isMember("metadata"));
+  Json::Value metadata = result["metadata"];
+
+  EXPECT_EQ(metadata[kName1].asString(), kValue1);
+  EXPECT_EQ(metadata[kName2].asInt(), kValue2);
 }
 
 TEST(ExportJsonTest, StorageWithArgs) {
