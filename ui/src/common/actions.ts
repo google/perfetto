@@ -83,10 +83,10 @@ export const StateActions = {
     state.videoEnabled = true;
   },
 
-  convertTraceToJson(_: StateDraft, args: {file: File, truncate: boolean}):
-      void {
-        ConvertTrace(args.file, args.truncate);
-      },
+  convertTraceToJson(
+      _: StateDraft, args: {file: File, truncate?: 'start'|'end'}): void {
+    ConvertTrace(args.file, args.truncate);
+  },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
     clearTraceState(state);
