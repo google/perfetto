@@ -26,14 +26,31 @@ def protoc_path(out_directory):
   return path
 
 
-def call(cmd, *args):
+def call(cmd, *args, **kwargs):
   path = os.path.join('tools', cmd)
   command = [path] + list(args)
-  print 'Running ', ' '.join(command)
+  print 'Running', ' '.join(command)
   try:
+    if kwargs.get('return_output'):
+      return subprocess.check_output(command, cwd=ROOT_DIR)
     subprocess.check_call(command, cwd=ROOT_DIR)
   except subprocess.CalledProcessError as e:
     assert False, 'Command: {} failed'.format(' '.join(command))
+
+
+def check_amalgamated_output():
+  call('gen_amalgamated', '--check', '--quiet')
+  os_deps = {}
+  for os_name in ['android', 'linux', 'mac']:
+    os_deps[os_name] = call(
+        'gen_amalgamated', '--gn_args', 'target_os="%s"' % os_name,
+        '--dump-deps', '--quiet', return_output=True).split('\n')
+  for os_name, deps in os_deps.items():
+    for dep in deps:
+      for other_os, other_deps in os_deps.items():
+        if not dep in other_deps:
+          raise AssertionError('Discrepancy in amalgamated build dependencies: '
+                               '%s is missing on %s.' % (dep, other_os))
 
 
 def main():
@@ -51,7 +68,7 @@ def main():
     call('gen_merged_protos')
     call('gen_binary_descriptors', '--protoc', protoc_path(out))
     call('gen_tracing_cpp_headers_from_protos', out)
-    call('gen_amalgamated', '--check', '--quiet')  # Keep last
+    check_amalgamated_output()  # Keep last.
 
   except AssertionError as e:
     if not str(e):
