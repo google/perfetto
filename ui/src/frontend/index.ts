@@ -126,6 +126,10 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishSearch(args: {}) {
+    console.log('publish search results', args);
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
