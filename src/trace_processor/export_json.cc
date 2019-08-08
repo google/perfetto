@@ -28,6 +28,8 @@
 
 namespace {
 
+using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
+
 class TraceFormatWriter {
  public:
   TraceFormatWriter(FILE* output) : output_(output), first_event_(true) {
@@ -83,6 +85,17 @@ class TraceFormatWriter {
 
   void SetTelemetryMetadataTimestamp(const char* key, int64_t value) {
     metadata_["telemetry"][key] = value / 1000.0;
+  }
+
+  void SetPerfettoStats(const char* key, int64_t value) {
+    metadata_["perfetto_trace_stats"][key] = Json::Int64(value);
+  }
+
+  void SetPerfettoBufferStats(const char* key, const IndexMap& indexed_values) {
+    for (const auto& value : indexed_values) {
+      metadata_["perfetto_trace_stats"]["buffer_stats"][value.first][key] =
+          Json::Int64(value.second);
+    }
   }
 
  private:
@@ -610,6 +623,78 @@ ResultCode ExportMetadata(const TraceStorage* storage,
   return kResultOk;
 }
 
+ResultCode ExportStats(const TraceStorage* storage, TraceFormatWriter* writer) {
+  const auto& stats = storage->stats();
+
+  writer->SetPerfettoStats("producers_connected",
+                           stats[stats::traced_producers_connected].value);
+  writer->SetPerfettoStats("producers_seen",
+                           stats[stats::traced_producers_seen].value);
+  writer->SetPerfettoStats("data_sources_registered",
+                           stats[stats::traced_data_sources_registered].value);
+  writer->SetPerfettoStats("data_sources_seen",
+                           stats[stats::traced_data_sources_seen].value);
+  writer->SetPerfettoStats("tracing_sessions",
+                           stats[stats::traced_tracing_sessions].value);
+  writer->SetPerfettoStats("total_buffers",
+                           stats[stats::traced_total_buffers].value);
+  writer->SetPerfettoStats("chunks_discarded",
+                           stats[stats::traced_chunks_discarded].value);
+  writer->SetPerfettoStats("patches_discarded",
+                           stats[stats::traced_patches_discarded].value);
+
+  writer->SetPerfettoBufferStats(
+      "buffer_size", stats[stats::traced_buf_buffer_size].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "bytes_written", stats[stats::traced_buf_bytes_written].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "bytes_overwritten",
+      stats[stats::traced_buf_bytes_overwritten].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "bytes_read", stats[stats::traced_buf_bytes_read].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "padding_bytes_written",
+      stats[stats::traced_buf_padding_bytes_written].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "padding_bytes_cleared",
+      stats[stats::traced_buf_padding_bytes_cleared].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "chunks_written", stats[stats::traced_buf_chunks_written].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "chunks_rewritten",
+      stats[stats::traced_buf_chunks_rewritten].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "chunks_overwritten",
+      stats[stats::traced_buf_chunks_overwritten].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "chunks_discarded",
+      stats[stats::traced_buf_chunks_discarded].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "chunks_read", stats[stats::traced_buf_chunks_read].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "chunks_committed_out_of_order",
+      stats[stats::traced_buf_chunks_committed_out_of_order].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "write_wrap_count",
+      stats[stats::traced_buf_write_wrap_count].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "patches_succeeded",
+      stats[stats::traced_buf_patches_succeeded].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "patches_failed", stats[stats::traced_buf_patches_failed].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "readaheads_succeeded",
+      stats[stats::traced_buf_readaheads_succeeded].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "readaheads_failed",
+      stats[stats::traced_buf_readaheads_failed].indexed_values);
+  writer->SetPerfettoBufferStats(
+      "trace_writer_packet_loss",
+      stats[stats::traced_buf_trace_writer_packet_loss].indexed_values);
+
+  return kResultOk;
+}
+
 }  // anonymous namespace
 
 ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
@@ -633,6 +718,10 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
     return code;
 
   code = ExportMetadata(storage, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportStats(storage, &writer);
   if (code != kResultOk)
     return code;
 
