@@ -174,7 +174,7 @@ class QueryWriter {
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
-                    uint64_t file_size_limit,
+                    Keep truncate_keep,
                     bool wrap_in_json) {
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
@@ -192,7 +192,7 @@ int TraceToSystrace(std::istream* input,
 #endif
   uint64_t file_size = 0;
 
-  for (int i = 0; file_size < file_size_limit; i++) {
+  for (int i = 0;; i++) {
     if (i % kStderrRate == 0) {
       fprintf(stderr, "Loading trace %.2f MB" PROGRESS_CHAR, file_size / 1.0e6);
       fflush(stderr);
@@ -269,7 +269,14 @@ int TraceToSystrace(std::istream* input,
   fprintf(stderr, "Converting trace events" PROGRESS_CHAR);
   fflush(stderr);
 
-  static const char kRawSql[] = "select to_ftrace(id) from raw";
+  static const char kEstimatSql[] = "select count(1) from raw";
+  uint32_t raw_events = 0;
+  auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
+    raw_events = static_cast<uint32_t>(it->Get(0).long_value);
+  };
+  if (!q_writer.RunQuery(kEstimatSql, e_callback))
+    return 1;
+
   auto raw_callback = [wrap_in_json](Iterator* it, base::StringWriter* writer) {
     const char* line = it->Get(0 /* col */).string_value;
     if (wrap_in_json) {
@@ -309,8 +316,30 @@ int TraceToSystrace(std::istream* input,
       writer->AppendChar('\n');
     }
   };
-  if (!q_writer.RunQuery(kRawSql, raw_callback))
-    return 1;
+
+  // An estimate of 130b per ftrace event, allowing some space for the processes
+  // and threads.
+  const uint32_t max_ftrace_events = (140 * 1024 * 1024) / 130;
+
+  char kEndTrunc[100];
+  sprintf(kEndTrunc,
+          "select to_ftrace(id) from raw limit %d "
+          "offset %d",
+          max_ftrace_events, raw_events - max_ftrace_events);
+  char kStartTruncate[100];
+  sprintf(kStartTruncate, "select to_ftrace(id) from raw limit %d",
+          max_ftrace_events);
+
+  if (truncate_keep == Keep::kEnd && raw_events > max_ftrace_events) {
+    if (!q_writer.RunQuery(kEndTrunc, raw_callback))
+      return 1;
+  } else if (truncate_keep == Keep::kStart) {
+    if (!q_writer.RunQuery(kStartTruncate, raw_callback))
+      return 1;
+  } else {
+    if (!q_writer.RunQuery("select to_ftrace(id) from raw", raw_callback))
+      return 1;
+  }
 
   if (wrap_in_json)
     *output << kTraceFooter;
