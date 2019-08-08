@@ -403,7 +403,11 @@ export const StateActions = {
 
   setExtensionAvailable(state: StateDraft, args: {available: boolean}): void {
     state.extensionInstalled = args.available;
-  }
+  },
+
+  updateBufferUsage(state: StateDraft, args: {percentage: number}): void {
+    state.bufferUsage = args.percentage;
+  },
 
 };
 
