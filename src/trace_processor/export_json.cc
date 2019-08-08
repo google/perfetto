@@ -71,6 +71,12 @@ class TraceFormatWriter {
     first_event_ = false;
   }
 
+  void MergeMetadata(const Json::Value& value) {
+    for (const auto& member : value.getMemberNames()) {
+      metadata_[member] = value[member];
+    }
+  }
+
   void AppendTelemetryMetadataString(const char* key, const char* value) {
     metadata_["telemetry"][key].append(value);
   }
@@ -558,6 +564,24 @@ ResultCode ExportRawEvents(const TraceStorage* storage,
   return kResultOk;
 }
 
+ResultCode ExportChromeMetadata(const TraceStorage* storage,
+                                const ArgsBuilder& args_builder,
+                                TraceFormatWriter* writer) {
+  base::Optional<StringId> raw_chrome_metadata_event_id =
+      storage->string_pool().GetId("chrome_event.metadata");
+  if (!raw_chrome_metadata_event_id)
+    return kResultOk;
+
+  const auto& events = storage->raw_events();
+  for (uint32_t i = 0; i < events.raw_event_count(); ++i) {
+    if (events.name_ids()[i] != *raw_chrome_metadata_event_id)
+      continue;
+    Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+    writer->MergeMetadata(args);
+  }
+  return kResultOk;
+}
+
 ResultCode ExportMetadata(const TraceStorage* storage,
                           TraceFormatWriter* writer) {
   const auto& trace_metadata = storage->metadata();
@@ -714,6 +738,10 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
     return code;
 
   code = ExportRawEvents(storage, args_builder, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportChromeMetadata(storage, args_builder, &writer);
   if (code != kResultOk)
     return code;
 
