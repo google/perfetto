@@ -91,7 +91,7 @@ function createCannedQuery(query: string): (_: Event) => void {
 }
 
 const EXAMPLE_ANDROID_TRACE_URL =
-    'https://storage.googleapis.com/perfetto-misc/example_android_trace_30s_1';
+    'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
 
 const EXAMPLE_CHROME_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_chrome_trace_4s_1.json';
