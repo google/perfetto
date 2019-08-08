@@ -8,6 +8,7 @@ export default {
         nodeResolve({
           mainFields: ['browser'],
           browser: true,
+          preferBuiltins: false,
         }),
 
         // emscripten conditionally executes require('fs') (likewise for
@@ -21,5 +22,5 @@ export default {
             'crypto',
           ]
         }),
-      ]
+      ],
 }
