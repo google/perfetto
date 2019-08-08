@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "src/perfetto_cmd/rate_limiter.h"

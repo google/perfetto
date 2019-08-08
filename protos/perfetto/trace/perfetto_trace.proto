@@ -4227,7 +4227,7 @@ message TestConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 26.
+// Next id: 27.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4502,6 +4502,9 @@ message TraceConfig {
     optional bool skip_dropbox = 4;
   }
   optional IncidentReportConfig incident_report_config = 25;
+
+  // An identifier clients can use to tie this trace to other logging.
+  optional bytes trace_uuid = 26;
 }
 
 // End of protos/perfetto/config/trace_config.proto
