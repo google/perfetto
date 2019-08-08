@@ -48,6 +48,7 @@
 #include "perfetto/trace/android/android_log.pbzero.h"
 #include "perfetto/trace/android/packages_list.pbzero.h"
 #include "perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
+#include "perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "perfetto/trace/clock_snapshot.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -254,6 +255,8 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
           context->storage->InternString("task.posted_from.function_name")),
+      raw_chrome_metadata_event_id_(
+          context->storage->InternString("chrome_event.metadata")),
       raw_legacy_event_id_(
           context->storage->InternString("track_event.legacy_event")),
       legacy_event_category_key_id_(
@@ -428,6 +431,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_chrome_benchmark_metadata()) {
     ParseChromeBenchmarkMetadata(packet.chrome_benchmark_metadata());
+  }
+
+  if (packet.has_chrome_events()) {
+    ParseChromeEvents(packet.chrome_events());
   }
 
   if (packet.has_perfetto_metatrace()) {
@@ -2218,6 +2225,39 @@ void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
     storage->SetMetadata(metadata::benchmark_had_failures,
                          Variadic::Integer(packet.had_failures()));
   }
+}
+
+void ProtoTraceParser::ParseChromeEvents(ConstBytes blob) {
+  TraceStorage* storage = context_->storage.get();
+  protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
+  if (bundle.has_metadata()) {
+    ArgsTracker args(context_);
+    RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+        0, raw_chrome_metadata_event_id_, 0, 0);
+
+    // Metadata is proxied via a special event in the raw table to JSON export.
+    for (auto it = bundle.metadata(); it; ++it) {
+      protos::pbzero::ChromeMetadata::Decoder metadata(it->as_bytes().data,
+                                                       it->as_bytes().size);
+      StringId name_id = storage->InternString(metadata.name());
+      Variadic value;
+      if (metadata.has_string_value()) {
+        value =
+            Variadic::String(storage->InternString(metadata.string_value()));
+      } else if (metadata.has_int_value()) {
+        value = Variadic::Integer(metadata.int_value());
+      } else if (metadata.has_bool_value()) {
+        value = Variadic::Integer(metadata.bool_value());
+      } else if (metadata.has_json_value()) {
+        value = Variadic::Json(storage->InternString(metadata.json_value()));
+      } else {
+        PERFETTO_FATAL("Empty ChromeMetadata message");
+      }
+      args.AddArg(row_id, name_id, name_id, value);
+    }
+  }
+
+  // TODO(khokhlov): parse legacy_ftrace_output and legacy_json_trace.
 }
 
 void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
