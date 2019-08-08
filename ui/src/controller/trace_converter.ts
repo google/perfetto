@@ -27,7 +27,8 @@ export function ConvertTrace(trace: Blob, truncate: boolean) {
       updateStatus('Converting trace');
       const outPath = '/trace.json';
       if (truncate) {
-        mod.callMain(['json', '--truncate', '/fs/trace.proto', outPath]);
+        mod.callMain(
+            ['json', '--truncate', 'start', '/fs/trace.proto', outPath]);
       } else {
         mod.callMain(['json', '/fs/trace.proto', outPath]);
       }
