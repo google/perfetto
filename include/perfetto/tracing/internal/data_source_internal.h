@@ -79,7 +79,7 @@ struct DataSourceState {
   // This is to prevent that accessing the data source on an arbitrary embedder
   // thread races with the internal IPC thread destroying the data source
   // because of a end-of-tracing notification from the service.
-  std::mutex lock;
+  std::recursive_mutex lock;
   std::unique_ptr<DataSourceBase> data_source;
 };
 
