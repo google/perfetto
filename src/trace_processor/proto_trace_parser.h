@@ -128,6 +128,7 @@ class ProtoTraceParser : public TraceParser {
       ArgsTracker* args_tracker,
       RowId row);
   void ParseChromeBenchmarkMetadata(ConstBytes);
+  void ParseChromeEvents(ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
@@ -167,6 +168,7 @@ class ProtoTraceParser : public TraceParser {
   const StringId metatrace_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
+  const StringId raw_chrome_metadata_event_id_;
   const StringId raw_legacy_event_id_;
   const StringId legacy_event_category_key_id_;
   const StringId legacy_event_name_key_id_;
