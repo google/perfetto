@@ -88,6 +88,8 @@ struct TestDataSourceHandle {
   MockDataSource* instance;
   perfetto::DataSourceConfig config;
   bool handle_stop_asynchronously = false;
+  std::function<void()> on_start_callback;
+  std::function<void()> on_stop_callback;
   std::function<void()> async_stop_closure;
 };
 
@@ -182,6 +184,8 @@ void MockDataSource::OnSetup(const SetupArgs& args) {
 
 void MockDataSource::OnStart(const StartArgs&) {
   EXPECT_NE(handle_, nullptr);
+  if (handle_->on_start_callback)
+    handle_->on_start_callback();
   handle_->on_start.Notify();
 }
 
@@ -189,6 +193,8 @@ void MockDataSource::OnStop(const StopArgs& args) {
   EXPECT_NE(handle_, nullptr);
   if (handle_->handle_stop_asynchronously)
     handle_->async_stop_closure = args.HandleStopAsynchronously();
+  if (handle_->on_stop_callback)
+    handle_->on_stop_callback();
   handle_->on_stop.Notify();
 }
 
@@ -439,6 +445,61 @@ TEST_F(PerfettoApiTest, MultipleRegistrations) {
   // Make sure the data source got called only once.
   tracing_session->get()->StopBlocking();
   EXPECT_EQ(trace_lambda_calls, 1);
+}
+
+// Regression test for b/139110180. Checks that GetDataSourceLocked() can be
+// called from OnStart() and OnStop() callbacks without deadlocking.
+TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(1);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  data_source->on_start_callback = [] {
+    MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
+      ctx.NewTracePacket()->set_for_testing()->set_str("on-start");
+      auto ds = ctx.GetDataSourceLocked();
+      ASSERT_TRUE(!!ds);
+      ctx.NewTracePacket()->set_for_testing()->set_str("on-start-locked");
+    });
+  };
+
+  data_source->on_stop_callback = [] {
+    MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
+      ctx.NewTracePacket()->set_for_testing()->set_str("on-stop");
+      auto ds = ctx.GetDataSourceLocked();
+      ASSERT_TRUE(!!ds);
+      ctx.NewTracePacket()->set_for_testing()->set_str("on-stop-locked");
+      ctx.Flush();
+    });
+  };
+
+  tracing_session->get()->Start();
+  data_source->on_stop.Wait();
+  tracing_session->on_stop.Wait();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  ASSERT_GE(raw_trace.size(), 0u);
+
+  perfetto::protos::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  int packets_found = 0;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_for_testing())
+      continue;
+    packets_found |= packet.for_testing().str() == "on-start" ? 1 : 0;
+    packets_found |= packet.for_testing().str() == "on-start-locked" ? 2 : 0;
+    packets_found |= packet.for_testing().str() == "on-stop" ? 4 : 0;
+    packets_found |= packet.for_testing().str() == "on-stop-locked" ? 8 : 0;
+  }
+  EXPECT_EQ(packets_found, 1 | 2 | 4 | 8);
 }
 
 }  // namespace

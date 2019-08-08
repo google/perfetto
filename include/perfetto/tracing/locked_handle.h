@@ -27,7 +27,7 @@ namespace perfetto {
 template <typename T>
 class LockedHandle {
  public:
-  LockedHandle(std::mutex* mutex, T* obj) : lock_(*mutex), obj_(obj) {}
+  LockedHandle(std::recursive_mutex* mtx, T* obj) : lock_(*mtx), obj_(obj) {}
   LockedHandle() = default;  // For the invalid case.
   LockedHandle(LockedHandle&&) = default;
   LockedHandle& operator=(LockedHandle&&) = default;
@@ -43,7 +43,7 @@ class LockedHandle {
   T& operator*() { return *(this->operator->()); }
 
  private:
-  std::unique_lock<std::mutex> lock_;
+  std::unique_lock<std::recursive_mutex> lock_;
   T* obj_ = nullptr;
 };
 
