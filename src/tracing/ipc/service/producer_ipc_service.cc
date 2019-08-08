@@ -78,6 +78,21 @@ void ProducerIPCService::InitializeConnection(
       break;
   }
 
+  bool dcheck_mismatch = false;
+#if PERFETTO_DCHECK_IS_ON()
+  dcheck_mismatch =
+      req.build_flags() ==
+      protos::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF;
+#else
+  dcheck_mismatch = req.build_flags() ==
+                    protos::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_ON;
+#endif
+  if (dcheck_mismatch) {
+    PERFETTO_LOG(
+        "The producer and the service binaries are built using different "
+        "DEBUG/NDEBUG flags. This will likely cause crashes.");
+  }
+
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
       producer.get(), client_info.uid(), req.producer_name(),
@@ -86,8 +101,10 @@ void ProducerIPCService::InitializeConnection(
       req.shared_memory_page_size_hint_bytes());
 
   // Could happen if the service has too many producers connected.
-  if (!producer->service_endpoint)
+  if (!producer->service_endpoint) {
     response.Reject();
+    return;
+  }
 
   producers_.emplace(ipc_client_id, std::move(producer));
   // Because of the std::move() |producer| is invalid after this point.
