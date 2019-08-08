@@ -17,7 +17,7 @@ import * as trace_to_text from '../gen/trace_to_text';
 
 import {globals} from './globals';
 
-export function ConvertTrace(trace: Blob, truncate: boolean) {
+export function ConvertTrace(trace: Blob, truncate?: 'start'|'end') {
   const mod = trace_to_text({
     noInitialRun: true,
     locateFile: (s: string) => s,
@@ -26,11 +26,11 @@ export function ConvertTrace(trace: Blob, truncate: boolean) {
     onRuntimeInitialized: () => {
       updateStatus('Converting trace');
       const outPath = '/trace.json';
-      if (truncate) {
-        mod.callMain(
-            ['json', '--truncate', 'start', '/fs/trace.proto', outPath]);
-      } else {
+      if (truncate === undefined) {
         mod.callMain(['json', '/fs/trace.proto', outPath]);
+      } else {
+        mod.callMain(
+            ['json', '--truncate', truncate, '/fs/trace.proto', outPath]);
       }
       updateStatus('Trace conversion completed');
       const fsNode = mod.FS.lookupPath(outPath).node;
