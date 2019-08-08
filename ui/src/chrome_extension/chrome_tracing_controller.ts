@@ -1,167 +1,173 @@
-import Protocol from 'devtools-protocol';
-// TODO(nicomazz): Use noice-json-rpc.
+// Copyright (C) 2019 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import {Protocol} from 'devtools-protocol';
+import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
+import * as rpc from 'noice-json-rpc';
 import {TraceConfig} from '../common/protos';
+import {
+  GetTraceStatsResponse,
+  ReadBuffersResponse
+} from '../controller/consumer_port_types';
+import {perfetto} from '../gen/protos';
+
+import {DevToolsSocket} from './devtools_socket';
 
 const CHUNK_SIZE: number = 1024 * 1024 * 64;
 
-export class ChromeTraceController {
-  recordingTarget: chrome.debugger.Debuggee|null = null;
-  streamHandle: string|undefined = undefined;
-  startTracingSendResponse: Function|null = null;
-  dataBuffer = '';
+export class ChromeTracingController {
+  private streamHandle: string|undefined = undefined;
+  private uiPort: chrome.runtime.Port;
+  private api: ProtocolProxyApi.ProtocolApi;
+  private devtoolsSocket: DevToolsSocket;
+  private lastBufferUsageEvent: Protocol.Tracing.BufferUsageEvent|undefined;
 
-  constructor() {
-    chrome.debugger.onEvent.addListener(this.onEvent.bind(this));
-    chrome.debugger.onDetach.addListener(this.onDetach.bind(this));
+  constructor(port: chrome.runtime.Port) {
+    this.uiPort = port;
+    this.devtoolsSocket = new DevToolsSocket();
+    this.devtoolsSocket.on('close', () => this.resetState());
+    const rpcClient = new rpc.Client(this.devtoolsSocket);
+    this.api = rpcClient.api();
+    this.api.Tracing.on('tracingComplete', this.onTracingComplete.bind(this));
+    this.api.Tracing.on('bufferUsage', this.onBufferUsage.bind(this));
   }
 
-  onMessage(
-      request: {method: string, traceConfig: Uint8Array},
-      _sender: chrome.runtime.MessageSender, sendResponse: Function) {
-    console.log('OnMessage: ', request);
+  sendMessage(message: object) {
+    this.uiPort.postMessage(message);
+  }
+
+  sendErrorMessage(error: string) {
+    this.uiPort.postMessage({type: 'ErrorResponse', result: {error}});
+  }
+
+  onMessage(request: {method: string, traceConfig: Uint8Array}) {
     switch (request.method) {
       case 'EnableTracing':
-        this.cleanState();
-        this.startTracingSendResponse = sendResponse;
-        const traceConfig =
-            TraceConfig.decode(new Uint8Array(request.traceConfig));
-        this.handleStartTracing(traceConfig);
-        break;
-      case 'StartTracing':
-        sendResponse({
-          answer: 'no-op, start tracing happens when enable tracing is called.'
-        });
+        this.enableTracing(request);
         break;
       case 'FreeBuffers':
-        sendResponse({answer: 'Freeing buffers'});
-        this.handleFreeBuffers();
+        this.freeBuffers();
         break;
       case 'ReadBuffers':
-        this.handleReadBuffers(sendResponse);
+        this.readBuffers();
         break;
-      case 'StopTracing':
-        this.startTracingSendResponse = sendResponse;
-        this.handleStopTracing();
+      case 'DisableTracing':
+        this.disableTracing();
+        break;
+      case 'GetTraceStats':
+        this.getTraceStats();
         break;
       default:
-        sendResponse({error: 'Action not recognised'});
+        this.sendErrorMessage('Action not recognised');
         console.log('Received not recognized message');
         break;
     }
   }
 
-  cleanState() {
-    this.recordingTarget = null;
-    this.streamHandle = undefined;
-    this.startTracingSendResponse = null;
-    this.dataBuffer = '';
+  enableTracing(request: {method: string, traceConfig: Uint8Array}) {
+    this.resetState();
+    const traceConfig = TraceConfig.decode(new Uint8Array(request.traceConfig));
+    const chromeConfig = this.extractChromeConfig(traceConfig);
+    this.handleStartTracing(chromeConfig);
   }
 
-  onEvent(_source: chrome.debugger.Debuggee, method: string, params?: object) {
-    if (method === 'Tracing.tracingComplete' && params) {
-      this.streamHandle =
-          (params as Protocol.Tracing.TracingCompleteEvent).stream;
-      this.notifyFrontendStreamReady();
+  extractChromeConfig(perfettoConfig: TraceConfig):
+      Protocol.Tracing.TraceConfig {
+    for (const ds of perfettoConfig.dataSources) {
+      if (ds.config && ds.config.name === 'org.chromium.trace_event' &&
+          ds.config.chromeConfig && ds.config.chromeConfig.traceConfig) {
+        const chromeConfigJsonString = ds.config.chromeConfig.traceConfig;
+        return JSON.parse(chromeConfigJsonString) as
+            Protocol.Tracing.TraceConfig;
+      }
     }
+    return {};
   }
 
-  notifyFrontendStreamReady() {
-    // TODO(nicomazz): Send the response in a separate way.
-    if (this.startTracingSendResponse) {
-      this.startTracingSendResponse({recordingReady: 1});
+  freeBuffers() {
+    this.devtoolsSocket.detach();
+    this.sendMessage({type: 'FreeBuffersResponse'});
+  }
+
+  async readBuffers(offset = 0) {
+    // TODO(nicomazz): Add error handling also in the frontend.
+    if (!this.devtoolsSocket.isAttached() || this.streamHandle === undefined) {
+      this.sendErrorMessage('No tracing session to read from');
+      return;
     }
-  }
 
-  handleStartTracing(traceConfig: TraceConfig) {
-    const args: Protocol.Tracing.StartRequest = {
-      traceConfig: {includedCategories: []},
-      streamFormat: 'proto',
-      transferMode: 'ReturnAsStream',
-      streamCompression: 'gzip'
+    const res = await this.api.IO.read(
+        {handle: this.streamHandle, offset, size: CHUNK_SIZE});
+    if (res === undefined) return;
+
+    const chunk = res.base64Encoded ? atob(res.data) : res.data;
+    // TODO(nicomazz): remove the conversion to unknown when we stream each
+    // chunk to the trace processor.
+    const response: ReadBuffersResponse = {
+      type: 'ReadBuffersResponse',
+      slices:
+          [{data: chunk as unknown as Uint8Array, lastSliceForPacket: res.eof}]
     };
-    this.findAndAttachTarget(t => {
-      chrome.debugger.sendCommand(t, 'Tracing.start', args, results => {
-        console.log('tracing started with config:', traceConfig, results);
-        // For initial testing, the recording is stopped after 3 seconds.
-        setTimeout(() => {
-          this.handleStopTracing();
-        }, 3000);
-      });
-    });
+    this.sendMessage(response);
+    if (res.eof) return;
+    this.readBuffers(offset + res.data.length);
   }
 
-  findTarget(then: (target: chrome.debugger.Debuggee) => void) {
-    chrome.debugger.getTargets(targets => {
-      const perfettoTab =
-          targets.find((target) => target.title.includes('Perfetto'));
-      if (perfettoTab === undefined) {
-        console.log('No perfetto tab found');
-        return;
-      }
-      const t: chrome.debugger.Debuggee = {targetId: perfettoTab.id};
-      this.recordingTarget = t;
-      then(t);
-    });
+  async disableTracing() {
+    await this.api.Tracing.end();
+    this.sendMessage({type: 'DisableTracingResponse'});
   }
 
-  findAndAttachTarget(then: (target: chrome.debugger.Debuggee) => void) {
-    this.findTarget(t => {
-      chrome.debugger.attach(t, /*requiredVersion=*/ '1.3', () => {
-        then(t);
-      });
-    });
-  }
-
-  handleStopTracing() {
-    if (this.recordingTarget === null) {
-      console.log('No recordings in progress');
-      return;
+  getTraceStats() {
+    let percentFull = 0;  // If the statistics are not available yet, it is 0.
+    if (this.lastBufferUsageEvent && this.lastBufferUsageEvent.percentFull) {
+      percentFull = this.lastBufferUsageEvent.percentFull;
     }
-    chrome.debugger.sendCommand(
-        this.recordingTarget, 'Tracing.end', undefined, _ => {});
+    const stats: perfetto.protos.ITraceStats = {
+      bufferStats:
+          [{bufferSize: 1000, bytesWritten: Math.round(percentFull * 1000)}]
+    };
+    const response: GetTraceStatsResponse = {
+      type: 'GetTraceStatsResponse',
+      traceStats: stats
+    };
+    this.sendMessage(response);
   }
 
-  handleFreeBuffers() {
-    if (this.recordingTarget !== null) {
-      chrome.debugger.detach(this.recordingTarget, () => {
-        this.recordingTarget = null;
-      });
-    }
-  }
-
-  handleReadBuffers(sendResponse: Function, offset = 0) {
-    // TODO(nicomazz): Send back the response each time a chunk is readed.
-    if (this.recordingTarget === null || this.streamHandle === undefined) {
-      return;
-    }
-    this.readBuffer(this.streamHandle, offset, res => {
-      if (res === undefined) return;
-      const chunk = res.base64Encoded ? atob(res.data) : res.data;
-      this.dataBuffer += chunk;
-      if (res.eof) {
-        sendResponse({traceData: this.dataBuffer});
-        return;
-      }
-      this.handleReadBuffers(sendResponse, offset + res.data.length);
-    });
-  }
-
-  readBuffer(
-      handle: string, offset: number,
-      then: (res: Protocol.IO.ReadResponse) => void) {
-    if (this.recordingTarget === null) return;
-    const readRequest:
-        Protocol.IO.ReadRequest = {handle, offset, size: CHUNK_SIZE};
-    chrome.debugger.sendCommand(
-        this.recordingTarget,
-        'IO.read',
-        readRequest,
-        res => then(res as Protocol.IO.ReadResponse));
-  }
-
-  onDetach(source: chrome.debugger.Debuggee, reason: string) {
-    console.log('source detached: ', source, 'reason: ', reason);
-    this.recordingTarget = null;
+  resetState() {
+    this.devtoolsSocket.detach();
     this.streamHandle = undefined;
+  }
+
+  onTracingComplete(params: Protocol.Tracing.TracingCompleteEvent) {
+    this.streamHandle = params.stream;
+    this.sendMessage({type: 'EnableTracingResponse'});
+  }
+
+  onBufferUsage(params: Protocol.Tracing.BufferUsageEvent) {
+    this.lastBufferUsageEvent = params;
+  }
+
+  handleStartTracing(traceConfig: Protocol.Tracing.TraceConfig) {
+    this.devtoolsSocket.findAndAttachTarget(async _ => {
+      await this.api.Tracing.start({
+        traceConfig,
+        streamFormat: 'proto',
+        transferMode: 'ReturnAsStream',
+        streamCompression: 'gzip',
+        bufferUsageReportingInterval: 200
+      });
+    });
   }
 }

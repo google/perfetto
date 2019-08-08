@@ -32,6 +32,14 @@ import {
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {MAX_TIME, RecordConfig} from '../common/state';
 
+import {
+  EnableTracingResponse,
+  GetTraceStatsResponse,
+  isEnableTracingResponse,
+  isGetTraceStatsResponse,
+  isReadBuffersResponse,
+  ReadBuffersResponse
+} from './consumer_port_types';
 import {Controller} from './controller';
 import {App, globals} from './globals';
 
@@ -395,8 +403,10 @@ export class RecordController extends Controller<'main'> {
   private app: App;
   private config: RecordConfig|null = null;
   private extensionPort: MessagePort;
-  private recordingInProgress: boolean|null = null;
+  private recordingInProgress = false;
   private consumerPort: ConsumerPort;
+  private traceBuffer = '';
+  private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
 
   constructor(args: {app: App, extensionPort: MessagePort}) {
     super('main');
@@ -404,50 +414,6 @@ export class RecordController extends Controller<'main'> {
     this.consumerPort = ConsumerPort.create(this.rpcImpl.bind(this));
     this.extensionPort = args.extensionPort;
     this.extensionPort.onmessage = this.onExtensionMessage.bind(this);
-  }
-
-  requestRecording() {
-    console.log('Requesting recording');
-    if (this.extensionPort) {
-      this.extensionPort.postMessage({method: 'ReadBuffers'});
-    }
-  }
-
-  // TODO(nicomazz): Create different data types for each extension response,
-  // like "TraceCompleteEvent", "ReadBufferResponse"
-  onExtensionMessage(message: {
-    data: {recordingReady: number, traceData: string, readProgress: number}
-  }) {
-    const data = message.data;
-    console.log('message received from the extension:', data);
-    if (data === undefined) return;
-
-    if (data.recordingReady === 1) {
-      this.requestRecording();
-      return;
-    }
-    if (data.traceData !== undefined) {
-      // The trace is gzipped.
-      const compressedTraceProto = this.stringToArrayBuffer(data.traceData);
-      const uncompressedTrace = ungzip(compressedTraceProto);
-
-      // Open trace in UI.
-      globals.dispatch(
-          Actions.openTraceFromBuffer({buffer: uncompressedTrace.buffer}));
-      return;
-    }
-    if (data.readProgress) {
-      // TODO(nicomazz): update loading state
-    }
-  }
-
-  stringToArrayBuffer(str: string): Uint8Array {
-    const buf = new ArrayBuffer(str.length);
-    const bufView = new Uint8Array(buf);
-    for (let i = 0, strLen = str.length; i < strLen; i++) {
-      bufView[i] = str.charCodeAt(i);
-    }
-    return bufView;
   }
 
   run() {
@@ -485,11 +451,74 @@ export class RecordController extends Controller<'main'> {
   }
 
   startRecordTrace(traceConfig: TraceConfig) {
+    this.scheduleBufferUpdateRequests();
     this.consumerPort.enableTracing({traceConfig});
   }
 
   stopRecordTrace() {
-    // TODO(nicomazz): Implement stopping trace & retrieving trace data.
+    if (this.bufferUpdateInterval) clearInterval(this.bufferUpdateInterval);
+    this.consumerPort.disableTracing({});
+  }
+
+  scheduleBufferUpdateRequests() {
+    if (this.bufferUpdateInterval) clearInterval(this.bufferUpdateInterval);
+    this.bufferUpdateInterval = setInterval(() => {
+      this.consumerPort.getTraceStats({});
+    }, 200);
+  }
+
+  readBuffers() {
+    if (this.extensionPort) this.consumerPort.readBuffers({});
+  }
+
+  onExtensionMessage(message: {
+    data: EnableTracingResponse|ReadBuffersResponse|GetTraceStatsResponse
+  }) {
+    const data = message.data;
+    if (data === undefined) return;
+
+    // TODO(nicomazz): Add error handling.
+    if (isReadBuffersResponse(data)) {
+      if (!data.slices) return;
+      this.traceBuffer += data.slices[0].data;
+      // TODO(nicomazz): Stream the chunks directly in the trace processor.
+      if (data.slices[0].lastSliceForPacket) this.openTraceInUI();
+    } else if (isEnableTracingResponse(data)) {
+      this.readBuffers();
+    } else if (isGetTraceStatsResponse(data)) {
+      const percentage = this.getBufferUsagePercentage(data);
+      if (percentage) {
+        globals.publish('BufferUsage', {percentage});
+      }
+    }
+  }
+
+  openTraceInUI() {
+    this.consumerPort.freeBuffers({});
+    const trace = ungzip(this.stringToArrayBuffer(this.traceBuffer));
+    globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
+    this.traceBuffer = '';
+  }
+
+  stringToArrayBuffer(str: string): Uint8Array {
+    const buf = new ArrayBuffer(str.length);
+    const bufView = new Uint8Array(buf);
+    for (let i = 0, strLen = str.length; i < strLen; i++) {
+      bufView[i] = str.charCodeAt(i);
+    }
+    return bufView;
+  }
+
+
+  getBufferUsagePercentage(data: GetTraceStatsResponse): number {
+    if (!data.traceStats || !data.traceStats.bufferStats) return 0.0;
+    let used = 0.0, total = 0.0;
+    for (const buffer of data.traceStats.bufferStats) {
+      used += buffer.bytesWritten as number;
+      total += buffer.bufferSize as number;
+    }
+    if (total === 0.0) return 0;
+    return used / total;
   }
 
   // This forwards the messages that have to be sent to the extension to the

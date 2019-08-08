@@ -121,6 +121,11 @@ class FrontendApi {
     openBufferWithLegacyTraceViewer('trace.json', str, 0);
   }
 
+  publishBufferUsage(args: {percentage: number}) {
+    globals.setBufferUsage(args.percentage);
+    this.redraw();
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
@@ -131,25 +136,14 @@ class FrontendApi {
   }
 }
 
-function checkExtensionAvailability() {
-  function setAvailable(available: boolean) {
-    globals.dispatch(Actions.setExtensionAvailable({
-      available,
-    }));
-  }
-  // Check if the extension is installed.
-  if (chrome.runtime === undefined) {
-    setAvailable(false);
-    return;
-  }
-
-  chrome.runtime.sendMessage(
-      EXTENSION_ID, {method: 'ExtensionVersion'}, resp => {
-        setAvailable(
-            chrome.runtime.lastError === undefined && resp !== undefined &&
-            resp.version !== null);
-      });
+function setExtensionAvailability(available: boolean) {
+  if (available) console.log('Extension available!');
+  globals.dispatch(Actions.setExtensionAvailable({
+    available,
+  }));
 }
+
+
 
 function main() {
   const controller = new Worker('controller_bundle.js');
@@ -158,14 +152,20 @@ function main() {
   };
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
-  const extensionChannel = new MessageChannel();
+  const extensionLocalChannel = new MessageChannel();
+
+
   controller.postMessage(
       {
         frontendPort: frontendChannel.port1,
         controllerPort: controllerChannel.port1,
-        extensionPort: extensionChannel.port1
+        extensionPort: extensionLocalChannel.port1
       },
-      [frontendChannel.port1, controllerChannel.port1, extensionChannel.port1]);
+      [
+        frontendChannel.port1,
+        controllerChannel.port1,
+        extensionLocalChannel.port1
+      ]);
 
   const dispatch =
       controllerChannel.port2.postMessage.bind(controllerChannel.port2);
@@ -182,12 +182,23 @@ function main() {
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
-  extensionChannel.port2.onmessage = ({data}) => {
-    chrome.runtime.sendMessage(EXTENSION_ID, data, (response) => {
-      extensionChannel.port2.postMessage(response);
-    });
+  const extensionPort = chrome.runtime !== undefined ?
+      chrome.runtime.connect(EXTENSION_ID) :
+      undefined;  // Will be null if the extension is not installed.
+  setExtensionAvailability(extensionPort !== undefined);
+  if (extensionPort) {
+    // This forwards the messages from the extension to the controller.
+    extensionPort.onMessage.addListener(
+        (message: object, _port: chrome.runtime.Port) => {
+          extensionLocalChannel.port2.postMessage(message);
+        });
+  }
+
+  // This forwards the messages from the controller to the extension
+  extensionLocalChannel.port2.onmessage = ({data}) => {
+    if (extensionPort) extensionPort.postMessage(data);
   };
-  checkExtensionAvailability();
+
 
   const main = assertExists(document.body.querySelector('main'));
 

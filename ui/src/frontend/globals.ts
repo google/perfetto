@@ -67,6 +67,7 @@ class Globals {
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
   private _isLoading = false;
+  private _bufferUsage?: number = undefined;
 
   initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
@@ -134,6 +135,14 @@ class Globals {
 
   get isLoading() {
     return this._isLoading;
+  }
+
+  get bufferUsage() {
+    return this._bufferUsage;
+  }
+
+  setBufferUsage(bufferUsage: number) {
+    this._bufferUsage = bufferUsage;
   }
 
   setTrackData(id: string, data: {}) {
