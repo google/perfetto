@@ -24,9 +24,9 @@ namespace perfetto {
 namespace base {
 
 // See https://www.ietf.org/rfc/rfc4122.txt
-std::array<uint8_t, 16> Uuidv4() {
+Uuid Uuidv4() {
   static std::minstd_rand rng(static_cast<uint32_t>(GetBootTimeNs().count()));
-  std::array<uint8_t, 16> uuid;
+  Uuid uuid;
   for (size_t i = 0; i < 16; ++i)
     uuid[i] = static_cast<uint8_t>(rng());
 
@@ -35,6 +35,19 @@ std::array<uint8_t, 16> Uuidv4() {
   // clock_seq_hi_and_reserved:
   uuid[8] = (uuid[8] & 0x3f) | 0x80;
 
+  return uuid;
+}
+
+std::string UuidToString(const Uuid& uuid) {
+  return std::string(reinterpret_cast<const char*>(uuid.data()), uuid.size());
+}
+
+Uuid StringToUuid(const std::string& s) {
+  Uuid uuid;
+  PERFETTO_CHECK(s.size() == uuid.size());
+  for (size_t i = 0; i < uuid.size(); ++i) {
+    uuid[i] = static_cast<uint8_t>(s[i]);
+  }
   return uuid;
 }
 

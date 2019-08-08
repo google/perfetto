@@ -67,7 +67,8 @@ bool TraceConfig::operator==(const TraceConfig& other) const {
          (allow_user_build_tracing_ == other.allow_user_build_tracing_) &&
          (unique_session_name_ == other.unique_session_name_) &&
          (compression_type_ == other.compression_type_) &&
-         (incident_report_config_ == other.incident_report_config_);
+         (incident_report_config_ == other.incident_report_config_) &&
+         (trace_uuid_ == other.trace_uuid_);
 }
 #pragma GCC diagnostic pop
 
@@ -192,6 +193,10 @@ void TraceConfig::FromProto(const perfetto::protos::TraceConfig& proto) {
       static_cast<decltype(compression_type_)>(proto.compression_type());
 
   incident_report_config_->FromProto(proto.incident_report_config());
+
+  static_assert(sizeof(trace_uuid_) == sizeof(proto.trace_uuid()),
+                "size mismatch");
+  trace_uuid_ = static_cast<decltype(trace_uuid_)>(proto.trace_uuid());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -313,6 +318,11 @@ void TraceConfig::ToProto(perfetto::protos::TraceConfig* proto) const {
       static_cast<decltype(proto->compression_type())>(compression_type_));
 
   incident_report_config_->ToProto(proto->mutable_incident_report_config());
+
+  static_assert(sizeof(trace_uuid_) == sizeof(proto->trace_uuid()),
+                "size mismatch");
+  proto->set_trace_uuid(
+      static_cast<decltype(proto->trace_uuid())>(trace_uuid_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
