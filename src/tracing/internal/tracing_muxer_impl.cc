@@ -488,7 +488,7 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
 
       auto* internal_state =
           reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
-      std::lock_guard<std::mutex> guard(internal_state->lock);
+      std::lock_guard<std::recursive_mutex> guard(internal_state->lock);
       static_assert(
           std::is_same<decltype(internal_state->data_source_instance_id),
                        DataSourceInstanceID>::value,
@@ -527,7 +527,7 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
     return;
   }
 
-  std::lock_guard<std::mutex> guard(ds.internal_state->lock);
+  std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
   ds.internal_state->trace_lambda_enabled = true;
   ds.internal_state->data_source->OnStart(DataSourceBase::StartArgs{});
 }
@@ -558,7 +558,7 @@ void TracingMuxerImpl::StopDataSource_AsyncBegin(
   };
 
   {
-    std::lock_guard<std::mutex> guard(ds.internal_state->lock);
+    std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
     ds.internal_state->data_source->OnStop(stop_args);
   }
 
@@ -592,7 +592,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(
   // a Trace() execution where it called GetDataSourceLocked() while we
   // destroy it.
   {
-    std::lock_guard<std::mutex> guard(ds.internal_state->lock);
+    std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
     ds.internal_state->trace_lambda_enabled = false;
     ds.internal_state->data_source.reset();
   }
