@@ -35,7 +35,7 @@ namespace {
 
 int Usage(const char* argv0) {
   printf(
-      "Usage: %s systrace|json|text|profile [--truncate] [trace.pb] "
+      "Usage: %s systrace|json|text|profile [--truncate start|end] [trace.pb] "
       "[trace.txt]\n",
       argv0);
   return 1;
@@ -44,17 +44,26 @@ int Usage(const char* argv0) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  uint64_t file_size_limit = std::numeric_limits<uint64_t>::max();
   std::vector<const char*> positional_args;
-  bool should_truncate_trace = false;
+  perfetto::trace_to_text::Keep truncate_keep =
+      perfetto::trace_to_text::Keep::kAll;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", PERFETTO_GET_GIT_REVISION());
       return 0;
     } else if (strcmp(argv[i], "-t") == 0 ||
                strcmp(argv[i], "--truncate") == 0) {
-      should_truncate_trace = true;
-      file_size_limit = 1024u * 1024u * 50u;
+      i++;
+      if (i <= argc && strcmp(argv[i], "start") == 0) {
+        truncate_keep = perfetto::trace_to_text::Keep::kStart;
+      } else if (i <= argc && strcmp(argv[i], "end") == 0) {
+        truncate_keep = perfetto::trace_to_text::Keep::kEnd;
+      } else {
+        PERFETTO_ELOG(
+            "--truncate must specify whether to keep the end or the "
+            "start of the trace.");
+        return Usage(argv[0]);
+      }
     } else {
       positional_args.push_back(argv[i]);
     }
@@ -97,13 +106,13 @@ int main(int argc, char** argv) {
 
   if (format == "json")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
-                                                    file_size_limit,
+                                                    truncate_keep,
                                                     /*wrap_in_json=*/true);
   if (format == "systrace")
     return perfetto::trace_to_text::TraceToSystrace(input_stream, output_stream,
-                                                    file_size_limit,
+                                                    truncate_keep,
                                                     /*wrap_in_json=*/false);
-  if (should_truncate_trace) {
+  if (truncate_keep != perfetto::trace_to_text::Keep::kAll) {
     PERFETTO_ELOG(
         "--truncate is unsupported for text|profile|symbolize format.");
     return 1;
