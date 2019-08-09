@@ -356,10 +356,12 @@ void ProducerIPCClientImpl::ActivateTriggers(
 }
 
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
-    BufferID target_buffer) {
+    BufferID target_buffer,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
   // This method can be called by different threads. |shared_memory_arbiter_| is
   // thread-safe but be aware of accessing any other state in this function.
-  return shared_memory_arbiter_->CreateTraceWriter(target_buffer);
+  return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
+                                                   buffer_exhausted_policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::GetInProcessShmemArbiter() {

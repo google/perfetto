@@ -18,6 +18,7 @@
 #define SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -38,7 +39,7 @@ class TraceWriterImpl : public TraceWriter,
   TraceWriterImpl(SharedMemoryArbiterImpl*,
                   WriterID,
                   BufferID,
-                  SharedMemoryArbiter::BufferExhaustedPolicy);
+                  BufferExhaustedPolicy);
   ~TraceWriterImpl() override;
 
   // TraceWriter implementation. See documentation in trace_writer.h.
@@ -73,7 +74,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // Whether GetNewChunk() should stall or return an invalid chunk if the SMB is
   // exhausted.
-  const SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy_;
+  const BufferExhaustedPolicy buffer_exhausted_policy_;
 
   // Monotonic (% wrapping) sequence id of the chunk. Together with the WriterID
   // this allows the Service to reconstruct the linear sequence of packets.

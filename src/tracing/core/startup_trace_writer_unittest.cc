@@ -54,8 +54,8 @@ class StartupTraceWriterTest : public AlignedBufferTest {
 
   std::unique_ptr<StartupTraceWriter> CreateUnboundWriter() {
     std::shared_ptr<StartupTraceWriterRegistryHandle> registry;
-    return std::unique_ptr<StartupTraceWriter>(new StartupTraceWriter(
-        registry, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop));
+    return std::unique_ptr<StartupTraceWriter>(
+        new StartupTraceWriter(registry, BufferExhaustedPolicy::kDrop));
   }
 
   bool BindWriter(StartupTraceWriter* writer, size_t chunks_per_batch = 0) {
@@ -309,10 +309,10 @@ TEST_P(StartupTraceWriterTest, CreateAndBindViaRegistry) {
       new StartupTraceWriterRegistry());
 
   // Create unbound writers.
-  auto writer1 = registry->CreateUnboundTraceWriter(
-      SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
-  auto writer2 = registry->CreateUnboundTraceWriter(
-      SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  auto writer1 =
+      registry->CreateUnboundTraceWriter(BufferExhaustedPolicy::kDrop);
+  auto writer2 =
+      registry->CreateUnboundTraceWriter(BufferExhaustedPolicy::kDrop);
 
   EXPECT_EQ(2u, GetUnboundWriterCount(*registry));
 
@@ -410,8 +410,7 @@ TEST_P(StartupTraceWriterTest, BindAndCommitInBatchesWithSMBExhaustion) {
   static constexpr size_t kTotChunks = kNumPages;
   SharedMemoryABI::Chunk chunks[kTotChunks];
   for (size_t i = 0; i < kTotChunks; i++) {
-    chunks[i] = arbiter_->GetNewChunk(
-        {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+    chunks[i] = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDrop);
     ASSERT_TRUE(chunks[i].is_valid());
   }
 

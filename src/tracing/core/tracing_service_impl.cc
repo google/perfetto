@@ -2771,8 +2771,11 @@ TracingServiceImpl::ProducerEndpointImpl::GetInProcessShmemArbiter() {
 
 // Can be called on any thread.
 std::unique_ptr<TraceWriter>
-TracingServiceImpl::ProducerEndpointImpl::CreateTraceWriter(BufferID buf_id) {
-  return GetInProcessShmemArbiter()->CreateTraceWriter(buf_id);
+TracingServiceImpl::ProducerEndpointImpl::CreateTraceWriter(
+    BufferID buf_id,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
+  return GetInProcessShmemArbiter()->CreateTraceWriter(buf_id,
+                                                       buffer_exhausted_policy);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(

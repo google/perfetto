@@ -36,12 +36,11 @@ namespace {
 
 static constexpr ChunkID kFirstChunkId = 0;
 
-SharedMemoryABI::Chunk NewChunk(
-    SharedMemoryArbiterImpl* arbiter,
-    WriterID writer_id,
-    ChunkID chunk_id,
-    bool fragmenting_packet,
-    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy) {
+SharedMemoryABI::Chunk NewChunk(SharedMemoryArbiterImpl* arbiter,
+                                WriterID writer_id,
+                                ChunkID chunk_id,
+                                bool fragmenting_packet,
+                                BufferExhaustedPolicy buffer_exhausted_policy) {
   ChunkHeader::Packets packets = {};
   if (fragmenting_packet) {
     packets.count = 1;
@@ -133,15 +132,14 @@ class LocalBufferReader {
 // commit before continuing with the remaining data.
 class LocalBufferCommitter {
  public:
-  LocalBufferCommitter(
-      std::unique_ptr<LocalBufferReader> local_buffer_reader,
-      std::unique_ptr<std::vector<uint32_t>> packet_sizes,
-      base::WeakPtr<SharedMemoryArbiterImpl> arbiter,
-      WriterID writer_id,
-      BufferID target_buffer,
-      size_t chunks_per_batch,
-      SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy,
-      SharedMemoryABI::Chunk first_chunk)
+  LocalBufferCommitter(std::unique_ptr<LocalBufferReader> local_buffer_reader,
+                       std::unique_ptr<std::vector<uint32_t>> packet_sizes,
+                       base::WeakPtr<SharedMemoryArbiterImpl> arbiter,
+                       WriterID writer_id,
+                       BufferID target_buffer,
+                       size_t chunks_per_batch,
+                       BufferExhaustedPolicy buffer_exhausted_policy,
+                       SharedMemoryABI::Chunk first_chunk)
       : local_buffer_reader_(std::move(local_buffer_reader)),
         packet_sizes_(std::move(packet_sizes)),
         arbiter_(arbiter),
@@ -340,7 +338,7 @@ class LocalBufferCommitter {
   const WriterID writer_id_;
   const BufferID target_buffer_;
   const size_t chunks_per_batch_;
-  SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy_;
+  BufferExhaustedPolicy buffer_exhausted_policy_;
   SharedMemoryABI::Chunk cur_chunk_;
   // We receive the first chunk in the constructor, thus the next chunk will be
   // the second one.
@@ -354,7 +352,7 @@ class LocalBufferCommitter {
 
 StartupTraceWriter::StartupTraceWriter(
     std::shared_ptr<StartupTraceWriterRegistryHandle> registry_handle,
-    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy)
+    BufferExhaustedPolicy buffer_exhausted_policy)
     : registry_handle_(std::move(registry_handle)),
       buffer_exhausted_policy_(buffer_exhausted_policy),
       memory_buffer_(new protozero::ScatteredHeapBuffer()),
