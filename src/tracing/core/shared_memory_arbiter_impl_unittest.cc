@@ -44,7 +44,9 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
   void ActivateTriggers(const std::vector<std::string>&) {}
   SharedMemory* shared_memory() const override { return nullptr; }
   size_t shared_buffer_page_size_kb() const override { return 0; }
-  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID) override {
+  std::unique_ptr<TraceWriter> CreateTraceWriter(
+      BufferID,
+      BufferExhaustedPolicy) override {
     return nullptr;
   }
   SharedMemoryArbiter* GetInProcessShmemArbiter() override { return nullptr; }
@@ -90,8 +92,7 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   static constexpr size_t kTotChunks = kNumPages * 14;
   SharedMemoryABI::Chunk chunks[kTotChunks];
   for (size_t i = 0; i < 14 * 2 + 2; i++) {
-    chunks[i] = arbiter_->GetNewChunk(
-        {}, SharedMemoryArbiter::BufferExhaustedPolicy::kStall);
+    chunks[i] = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kStall);
     ASSERT_TRUE(chunks[i].is_valid());
   }
 
@@ -175,23 +176,21 @@ TEST_P(SharedMemoryArbiterImplTest, BufferExhaustedPolicyDrop) {
   static constexpr size_t kTotChunks = kNumPages;
   SharedMemoryABI::Chunk chunks[kTotChunks];
   for (size_t i = 0; i < kTotChunks; i++) {
-    chunks[i] = arbiter_->GetNewChunk(
-        {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+    chunks[i] = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDrop);
     ASSERT_TRUE(chunks[i].is_valid());
   }
 
   // SMB is exhausted, thus GetNewChunk() should return an invalid chunk. In
   // kStall mode, this would stall.
-  SharedMemoryABI::Chunk invalid_chunk = arbiter_->GetNewChunk(
-      {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  SharedMemoryABI::Chunk invalid_chunk =
+      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDrop);
   ASSERT_FALSE(invalid_chunk.is_valid());
 
   // Returning the chunk is not enough to be able to reacquire it.
   PatchList ignored;
   arbiter_->ReturnCompletedChunk(std::move(chunks[0]), 0, &ignored);
 
-  invalid_chunk = arbiter_->GetNewChunk(
-      {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  invalid_chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDrop);
   ASSERT_FALSE(invalid_chunk.is_valid());
 
   // After releasing the chunk as free, we can reacquire it.
@@ -200,8 +199,7 @@ TEST_P(SharedMemoryArbiterImplTest, BufferExhaustedPolicyDrop) {
   ASSERT_TRUE(chunks[0].is_valid());
   arbiter_->shmem_abi_for_testing()->ReleaseChunkAsFree(std::move(chunks[0]));
 
-  chunks[0] = arbiter_->GetNewChunk(
-      {}, SharedMemoryArbiter::BufferExhaustedPolicy::kDrop);
+  chunks[0] = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDrop);
   ASSERT_TRUE(chunks[0].is_valid());
 }
 

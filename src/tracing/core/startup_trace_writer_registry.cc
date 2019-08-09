@@ -54,7 +54,7 @@ StartupTraceWriterRegistry::~StartupTraceWriterRegistry() {
 
 std::unique_ptr<StartupTraceWriter>
 StartupTraceWriterRegistry::CreateUnboundTraceWriter(
-    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy) {
+    BufferExhaustedPolicy buffer_exhausted_policy) {
   std::lock_guard<std::mutex> lock(lock_);
   PERFETTO_DCHECK(!arbiter_);  // Should only be called while unbound.
   std::unique_ptr<StartupTraceWriter> writer(
