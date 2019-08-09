@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {fromNs} from '../../common/time';
+import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
-
 import {
   TrackController,
   trackControllerRegistry
@@ -22,8 +21,8 @@ import {
 
 import {
   Config,
-  GPU_FREQ_TRACK_KIND,
   Data,
+  GPU_FREQ_TRACK_KIND,
 } from './common';
 
 class GpuFreqTrackController extends TrackController<Config, Data> {
@@ -33,8 +32,8 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const startNs = Math.round(start * 1e9);
-    const endNs = Math.round(end * 1e9);
+    const startNs = toNs(start);
+    const endNs = toNs(end);
 
     if (!this.setup) {
       const result = await this.query(`
