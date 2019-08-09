@@ -67,7 +67,7 @@ export class VideoPanel implements m.ClassComponent {
       makeMsg(globals.state.flagPauseEnabled, 'message', pEnabled, pDisabled),
       makeMsg(globals.state.scrubbingEnabled, 'setting',
               tSetting.concat('Enabled'), tSetting.concat('Disabled')),
-      makeMsg(globals.state.scrubbingEnabled, 'message', tEnabled, tDisabled))
+      makeMsg(globals.state.scrubbingEnabled, 'message', tEnabled, tDisabled));
     vidSections.push(vidMessages);
     return m('.video-panel', vidSections);
   }
