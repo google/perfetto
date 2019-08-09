@@ -160,10 +160,10 @@ export interface State {
 
   video: string | null;
   videoEnabled: boolean;
+  videoOffset: number;
+  videoNoteIds: string[];
   scrubbingEnabled: boolean;
   flagPauseEnabled: boolean;
-  videoNoteIds: string[];
-
   /**
    * Trace recording
    */
@@ -316,10 +316,10 @@ export function createEmptyState(): State {
 
     video: null,
     videoEnabled: false,
+    videoOffset: 0,
+    videoNoteIds: [],
     scrubbingEnabled: false,
     flagPauseEnabled: false,
-    videoNoteIds: [],
-
     recordingInProgress: false,
     extensionInstalled: false,
   };

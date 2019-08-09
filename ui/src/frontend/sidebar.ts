@@ -15,6 +15,7 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {QueryResponse} from '../common/queries';
 
 import {globals} from './globals';
 import {
@@ -314,10 +315,28 @@ function onInputElementFileSelectionChanged(e: Event) {
   }
 
   if (e.target.dataset['video'] === '1') {
+    // TODO(hjd): Update this to use a controller and publish.
+    globals.dispatch(Actions.executeQuery({
+      engineId: '0', queryId: 'command',
+      query: `select ts from slices where name = 'first_frame' union ` +
+             `select start_ts from trace_bounds`}));
+    setTimeout(() => {
+      const resp = globals.queryResults.get('command') as QueryResponse;
+      // First value is screenrecord trace event timestamp
+      // and second value is trace boundary's start timestamp
+      const offset = (parseInt(resp.rows[1]['ts'].toString()) -
+                      parseInt(resp.rows[0]['ts'].toString())) / 1e9;
+      globals.queryResults.delete('command');
+      globals.rafScheduler.scheduleFullRedraw();
+      globals.dispatch(Actions.deleteQuery({queryId: 'command'}));
+      globals.dispatch(Actions.setVideoOffset({offset}));
+    }, 1000);
     globals.dispatch(Actions.openVideoFromFile({file}));
-  } else {
-    globals.dispatch(Actions.openTraceFromFile({file}));
+    return;
   }
+
+  globals.dispatch(Actions.openTraceFromFile({file}));
+
 }
 
 function navigateRecord(e: Event) {
