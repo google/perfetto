@@ -1222,11 +1222,13 @@ void ProtoTraceParser::ParseClockSnapshot(ConstBytes blob) {
   int64_t clock_realtime = 0;
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(it->data(), it->size());
-    if (clk.type() == protos::pbzero::ClockSnapshot::Clock::BOOTTIME) {
+    if (clk.clock_id() == protos::pbzero::ClockSnapshot::Clock::BOOTTIME) {
       clock_boottime = static_cast<int64_t>(clk.timestamp());
-    } else if (clk.type() == protos::pbzero::ClockSnapshot::Clock::REALTIME) {
+    } else if (clk.clock_id() ==
+               protos::pbzero::ClockSnapshot::Clock::REALTIME) {
       clock_realtime = static_cast<int64_t>(clk.timestamp());
-    } else if (clk.type() == protos::pbzero::ClockSnapshot::Clock::MONOTONIC) {
+    } else if (clk.clock_id() ==
+               protos::pbzero::ClockSnapshot::Clock::MONOTONIC) {
       clock_monotonic = static_cast<int64_t>(clk.timestamp());
     }
   }

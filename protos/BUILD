@@ -387,6 +387,7 @@ proto_library(
         "perfetto/trace/test_event.proto",
         "perfetto/trace/trace.proto",
         "perfetto/trace/trace_packet.proto",
+        "perfetto/trace/trace_packet_defaults.proto",
     ],
     has_services = 1,
     cc_api_version = 2,
@@ -1338,6 +1339,7 @@ proto_library(
         "perfetto/trace/test_event.proto",
         "perfetto/trace/trace.proto",
         "perfetto/trace/trace_packet.proto",
+        "perfetto/trace/trace_packet_defaults.proto",
         "perfetto/trace/trigger.proto",
     ],
     deps = [
