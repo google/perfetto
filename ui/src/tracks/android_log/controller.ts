@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {fromNs} from '../../common/time';
+import {fromNs, toNsCeil, toNsFloor} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
@@ -26,11 +26,11 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const startNs = Math.floor(start * 1e9);
-    const endNs = Math.ceil(end * 1e9);
+    const startNs = toNsFloor(start);
+    const endNs = toNsCeil(end);
 
     // |resolution| is in s/px the frontend wants.
-    const quantNs = Math.ceil(resolution * 1e9);
+    const quantNs = toNsCeil(resolution);
 
     const rawResult = await this.query(`
       select
