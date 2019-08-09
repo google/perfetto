@@ -325,6 +325,10 @@ export const StateActions = {
     }
   },
 
+  setVideoOffset(state: StateDraft, args: {offset: number}): void {
+    state.videoOffset = args.offset;
+  },
+
   changeNoteColor(state: StateDraft, args: {id: string, newColor: string}):
       void {
         const note = state.notes[args.id];
