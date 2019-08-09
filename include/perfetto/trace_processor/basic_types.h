@@ -22,14 +22,15 @@
 #include <stdint.h>
 #include <string>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 namespace trace_processor {
 
-struct Config {
-};
+struct PERFETTO_EXPORT Config {};
 
 // Represents a dynamically typed value returned by SQL.
-struct SqlValue {
+struct PERFETTO_EXPORT SqlValue {
   // Represents the type of the value.
   enum Type {
     kNull = 0,
