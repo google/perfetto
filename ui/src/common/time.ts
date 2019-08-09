@@ -31,6 +31,17 @@ export function fromNs(ns: number) {
   return ns / 1e9;
 }
 
+export function toNsFloor(seconds: number) {
+  return Math.floor(seconds * 1e9);
+}
+
+export function toNsCeil(seconds: number) {
+  return Math.ceil(seconds * 1e9);
+}
+
+export function toNs(seconds: number) {
+  return Math.round(seconds * 1e9);
+}
 
 // 1000000023ns -> "1.000 000 023"
 export function formatTimestamp(sec: number) {
