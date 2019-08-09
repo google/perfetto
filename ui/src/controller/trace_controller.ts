@@ -25,6 +25,7 @@ import {
 import {Engine} from '../common/engine';
 import {NUM, NUM_NULL, rawQueryToRows, STR_NULL} from '../common/protos';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
+import {toNs, toNsCeil, toNsFloor} from '../common/time';
 import {TimeSpan} from '../common/time';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
@@ -571,9 +572,9 @@ export class TraceController extends Controller<States> {
           'Loading overview ' +
           `${Math.round((step + 1) / numSteps * 1000) / 10}%`);
       const startSec = traceTime.start + step * stepSec;
-      const startNs = Math.floor(startSec * 1e9);
+      const startNs = toNsFloor(startSec);
       const endSec = startSec + stepSec;
-      const endNs = Math.ceil(endSec * 1e9);
+      const endNs = toNsCeil(endSec);
 
       // Sched overview.
       const schedRows = await engine.query(
@@ -595,8 +596,8 @@ export class TraceController extends Controller<States> {
     }
 
     // Slices overview.
-    const traceStartNs = traceTime.start * 1e9;
-    const stepSecNs = stepSec * 1e9;
+    const traceStartNs = toNs(traceTime.start);
+    const stepSecNs = toNs(stepSec);
     const sliceSummaryQuery = await engine.query(
         `select bucket, upid, sum(utid_sum) / cast(${stepSecNs} as float) ` +
         `as upid_sum from thread inner join ` +
