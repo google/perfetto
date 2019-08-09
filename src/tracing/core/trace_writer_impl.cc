@@ -40,11 +40,10 @@ constexpr size_t kPacketHeaderSize = SharedMemoryABI::kPacketHeaderSize;
 uint8_t g_garbage_chunk[1024];
 }  // namespace
 
-TraceWriterImpl::TraceWriterImpl(
-    SharedMemoryArbiterImpl* shmem_arbiter,
-    WriterID id,
-    BufferID target_buffer,
-    SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy)
+TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
+                                 WriterID id,
+                                 BufferID target_buffer,
+                                 BufferExhaustedPolicy buffer_exhausted_policy)
     : shmem_arbiter_(shmem_arbiter),
       id_(id),
       target_buffer_(target_buffer),
