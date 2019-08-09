@@ -37,13 +37,19 @@ function onUIMessage(
 }
 
 function enableOnlyOnPerfettoHost() {
-  chrome.declarativeContent.onPageChanged.removeRules(undefined, () => {
-    chrome.declarativeContent.onPageChanged.addRules([{
+  function enableOnHostWithSuffix(suffix: string) {
+    return {
       conditions: [new chrome.declarativeContent.PageStateMatcher({
-        // TODO(nicomazz): Also enable on ui.perfetto.dev once we're ready.
-        pageUrl: {hostContains: 'perfetto.local'},
+        pageUrl: {hostSuffix: suffix},
       })],
       actions: [new chrome.declarativeContent.ShowPageAction()]
-    }]);
+    };
+  }
+  chrome.declarativeContent.onPageChanged.removeRules(undefined, () => {
+    chrome.declarativeContent.onPageChanged.addRules([
+      enableOnHostWithSuffix('.perfetto.local'),
+      enableOnHostWithSuffix('.perfetto.dev'),
+      enableOnHostWithSuffix('-dot-perfetto-ui.appspot.com'),
+    ]);
   });
 }
