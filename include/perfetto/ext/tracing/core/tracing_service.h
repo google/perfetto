@@ -26,6 +26,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 
 namespace perfetto {
@@ -104,7 +105,9 @@ class PERFETTO_EXPORT ProducerEndpoint {
   // upon creation of the data source (StartDataSource()) in the
   // DataSourceConfig.target_buffer().
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
-      BufferID target_buffer) = 0;
+      BufferID target_buffer,
+      BufferExhaustedPolicy buffer_exhausted_policy =
+          BufferExhaustedPolicy::kDefault) = 0;
 
   // If TracingService::ConnectProducer is called with |in_process=true|,
   // this returns the producer's SharedMemoryArbiter which can be used
