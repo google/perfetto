@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/export.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 
@@ -29,7 +30,7 @@ namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
-class TraceProcessor {
+class PERFETTO_EXPORT TraceProcessor {
  public:
   class IteratorImpl;
 
@@ -118,7 +119,7 @@ class TraceProcessor {
 };
 
 // When set, logs SQLite actions on the console.
-void EnableSQLiteVtableDebugging();
+void PERFETTO_EXPORT EnableSQLiteVtableDebugging();
 
 }  // namespace trace_processor
 }  // namespace perfetto
