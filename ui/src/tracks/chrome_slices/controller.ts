@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {fromNs} from '../../common/time';
+import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
@@ -27,10 +27,10 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const startNs = Math.round(start * 1e9);
-    const endNs = Math.round(end * 1e9);
+    const startNs = toNs(start);
+    const endNs = toNs(end);
     // Ns in 1px width. We want all slices smaller than 1px to be grouped.
-    const minNs = Math.round(resolution * 1e9);
+    const minNs = toNs(resolution);
 
     if (!this.setup) {
       await this.query(

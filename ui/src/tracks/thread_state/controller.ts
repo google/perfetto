@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {fromNs} from '../../common/time';
+import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
 
 import {
@@ -33,12 +33,12 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const startNs = Math.round(start * 1e9);
-    const endNs = Math.round(end * 1e9);
+    const startNs = toNs(start);
+    const endNs = toNs(end);
     let minNs = 0;
     if (groupBusyStates(resolution)) {
       // Ns for 1px (the smallest state to display)
-      minNs = Math.round(resolution * 1 * 1e9);
+      minNs = Math.round(resolution * 1e9);
     }
 
     if (this.setup === false) {
