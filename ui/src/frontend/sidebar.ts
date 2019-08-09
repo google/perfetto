@@ -440,22 +440,23 @@ export class Sidebar implements m.ClassComponent {
           class: globals.frontendLocalState.sidebarVisible ? 'show-sidebar' :
                                                              'hide-sidebar'
         },
-        m('header',
-          'Perfetto',
-          m(
-              '.sidebar-button',
-              m('button',
-                m('i.material-icons',
-                  {
-                    title: globals.frontendLocalState.sidebarVisible ?
-                        'Hide menu' :
-                        'Show menu',
-                    onclick: () => {
-                      globals.frontendLocalState.toggleSidebar();
-                    },
-                  },
-                  'menu')),
-              )),
+        m(
+            'header',
+            'Perfetto',
+            m('button.sidebar-button',
+              {
+                onclick: () => {
+                  globals.frontendLocalState.toggleSidebar();
+                },
+              },
+              m('i.material-icons',
+                {
+                  title: globals.frontendLocalState.sidebarVisible ?
+                      'Hide menu' :
+                      'Show menu',
+                },
+                'menu')),
+            ),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
         m('.sidebar-content', ...vdomSections));
   }
