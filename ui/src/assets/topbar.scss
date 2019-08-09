@@ -23,7 +23,10 @@
     overflow: visible;
     background-color: hsl(215, 1%, 95%);
     box-shadow: 0px -3px 14px 2px #bbb;
-    line-height: var(--topbar-height);
+    min-height: var(--topbar-height);
+    display: flex;
+    justify-content: center;
+    align-items: center;
     .omnibox {
         @include omnibox-width();
         @include transition(0.25s);
@@ -33,13 +36,10 @@
         border-radius: 20px;
         background-color: #fcfcfc;
         border: 0;
-        margin: 6px auto 0 auto;
-        height: 36px;
         line-height: 36px;
         &:before {
             @include material-icon('search');
             vertical-align: middle;
-            font-size: 32px;
             margin: 5px;
             color: #aaa;
             grid-area: icon;
@@ -130,10 +130,8 @@
         bottom: 0;
         height: 1px;
         width: 100%;
-        background-color: #f2f2f2;
-    }
-
-    .progress-anim {
+      }
+      .progress-anim {
         &:before {
             content: '';
             position: absolute;
