@@ -14,7 +14,7 @@
 
 import * as rpc from 'noice-json-rpc';
 
-// To really understand how this works it is usefull to see the implementation
+// To really understand how this works it is useful to see the implementation
 // of noice-json-rpc.
 export class DevToolsSocket implements rpc.LikeSocket {
   private messageCallback: Function = (_: string) => {};
