@@ -25,6 +25,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
@@ -43,26 +44,6 @@ class TraceWriter;
 // from the SharedMemory it receives from the Service-side.
 class PERFETTO_EXPORT SharedMemoryArbiter {
  public:
-  // Determines how GetNewChunk() behaves when no free chunks are available.
-  enum class BufferExhaustedPolicy {
-    // SharedMemoryArbiterImpl::GetNewChunk() will stall if no free SMB chunk is
-    // available and wait for the tracing service to free one. Note that this
-    // requires that messages the arbiter sends to the tracing service (from any
-    // TraceWriter thread) will be received by it, even if all TraceWriter
-    // threads are stalled.
-    kStall,
-
-    // SharedMemoryArbiterImpl::GetNewChunk() will return an invalid chunk if no
-    // free SMB chunk is available. In this case, the TraceWriter will fall back
-    // to a garbage chunk and drop written data until acquiring a future chunk
-    // succeeds again.
-    kDrop,
-
-    // TODO(eseckler): Switch to kDrop by default and change the Android code to
-    // explicitly request kStall instead.
-    kDefault = kStall
-  };
-
   virtual ~SharedMemoryArbiter();
 
   // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is

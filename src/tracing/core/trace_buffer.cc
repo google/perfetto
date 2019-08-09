@@ -844,10 +844,10 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
   const uint8_t* next_packet = packet_data + packet_size;
   if (PERFETTO_UNLIKELY(next_packet <= packet_begin ||
                         next_packet > record_end)) {
-    // In SharedMemoryArbiter::BufferExhaustedPolicy::kDrop mode, TraceWriter
-    // may abort a fragmented packet by writing an invalid size in the last
-    // fragment's header. We should handle this case without recording an ABI
-    // violation (since Android R).
+    // In BufferExhaustedPolicy::kDrop mode, TraceWriter may abort a fragmented
+    // packet by writing an invalid size in the last fragment's header. We
+    // should handle this case without recording an ABI violation (since Android
+    // R).
     if (packet_size != SharedMemoryABI::kPacketSizeDropPacket) {
       stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
