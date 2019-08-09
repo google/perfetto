@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -125,7 +126,7 @@ class PERFETTO_EXPORT StartupTraceWriter
   // to by the handle. The writer can later be bound by calling
   // BindToTraceWriter(). The registry handle may be nullptr in tests.
   StartupTraceWriter(std::shared_ptr<StartupTraceWriterRegistryHandle>,
-                     SharedMemoryArbiter::BufferExhaustedPolicy);
+                     BufferExhaustedPolicy);
 
   StartupTraceWriter(const StartupTraceWriter&) = delete;
   StartupTraceWriter& operator=(const StartupTraceWriter&) = delete;
@@ -169,8 +170,8 @@ class PERFETTO_EXPORT StartupTraceWriter
   // check on later calls to NewTracePacket().
   bool was_bound_ = false;
 
-  const SharedMemoryArbiter::BufferExhaustedPolicy buffer_exhausted_policy_ =
-      SharedMemoryArbiter::BufferExhaustedPolicy::kDefault;
+  const BufferExhaustedPolicy buffer_exhausted_policy_ =
+      BufferExhaustedPolicy::kDefault;
 
   // All variables below this point are protected by |lock_|.
   std::mutex lock_;
