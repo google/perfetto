@@ -29,6 +29,9 @@ fi
 tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
 tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS} fuzzers
 
+# Check the amalgamated build here to avoid slowing down all the Linux bots.
+tools/test_gen_amalgamated.py
+
 # Run a single iteration each to make sure they are not crashing.
 for fuzzer in $(find ${OUT_PATH} -name '*_fuzzer' -executable); do
   $fuzzer -runs=1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +14,9 @@
 # limitations under the License.
 
 import os
-import argparse
 import subprocess
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-
-
-def protoc_path(out_directory):
-  path = os.path.join(out_directory, 'gcc_like_host', 'protoc')
-  assert os.path.isfile(path)
-  return path
 
 
 def call(cmd, *args):
@@ -31,34 +24,33 @@ def call(cmd, *args):
   command = [path] + list(args)
   print 'Running', ' '.join(command)
   try:
-    subprocess.check_call(command, cwd=ROOT_DIR)
+    return subprocess.check_output(command, cwd=ROOT_DIR)
   except subprocess.CalledProcessError as e:
     assert False, 'Command: {} failed'.format(' '.join(command))
 
 
+def check_amalgamated_output():
+  call('gen_amalgamated', '--check', '--quiet')
+
+
+def check_amalgamated_dependencies():
+  os_deps = {}
+  for os_name in ['android', 'linux', 'mac']:
+    os_deps[os_name] = call(
+        'gen_amalgamated', '--gn_args', 'target_os="%s"' % os_name,
+        '--dump-deps', '--quiet').split('\n')
+  for os_name, deps in os_deps.items():
+    for dep in deps:
+      for other_os, other_deps in os_deps.items():
+        if not dep in other_deps:
+          raise AssertionError('Discrepancy in amalgamated build dependencies: '
+                               '%s is missing on %s.' % (dep, other_os))
+
+
 def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument('OUT')
-  args = parser.parse_args()
-  out = args.OUT
+  check_amalgamated_output()
+  check_amalgamated_dependencies()
 
-  try:
-    assert os.path.isdir(out), \
-        'Output directory "{}" is not a directory'.format(out)
-    call('fix_include_guards')
-    call('gen_bazel')
-    call('gen_android_bp')
-    call('gen_merged_protos')
-    call('gen_binary_descriptors', '--protoc', protoc_path(out))
-    call('gen_tracing_cpp_headers_from_protos', out)
-
-  except AssertionError as e:
-    if not str(e):
-      raise
-    print('Error: {}'.format(e))
-    return 1
-
-  return 0
 
 if __name__ == '__main__':
   exit(main())
