@@ -19,6 +19,10 @@
     "persistent": false
   },
   "externally_connectable": {
-    "matches": ["*://*.perfetto.local/*"]
+    "matches": [
+      "*://*.perfetto.local/*",
+      "*://*.perfetto.dev/*",
+      "*://*-dot-perfetto-ui.appspot.com/*"
+    ]
   }
 }
