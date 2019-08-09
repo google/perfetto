@@ -22,24 +22,26 @@ import {globals} from './globals';
 
 const QUERY_ID = 'quicksearch';
 
+const SEARCH = Symbol('search');
+const COMMAND = Symbol('command');
+type Mode = typeof SEARCH|typeof COMMAND;
+
+const PLACEHOLDER = {
+  [SEARCH]: 'Search',
+  [COMMAND]: 'e.g. select * from sched left join thread using(utid) limit 10'
+};
+
 let selResult = 0;
 let numResults = 0;
-let mode: 'search'|'command' = 'search';
+let mode: Mode = SEARCH;
 let omniboxValue = '';
-
-function enterCommandMode() {
-  if (mode === 'search') {
-    mode = 'command';
-    globals.rafScheduler.scheduleFullRedraw();
-  }
-}
 
 function clearOmniboxResults(e: Event) {
   globals.queryResults.delete(QUERY_ID);
   globals.dispatch(Actions.deleteQuery({queryId: QUERY_ID}));
   const txt = (e.target as HTMLInputElement);
   if (txt.value.length <= 0) {
-    mode = 'search';
+    mode = SEARCH;
     globals.rafScheduler.scheduleFullRedraw();
   }
 }
@@ -47,6 +49,7 @@ function clearOmniboxResults(e: Event) {
 function onKeyDown(e: Event) {
   e.stopPropagation();
   const key = (e as KeyboardEvent).key;
+  const txt = (e.target as HTMLInputElement);
 
   // Avoid that the global 'a', 'd', 'w', 's' handler sees these keystrokes.
   // TODO: this seems a bug in the pan_and_zoom_handler.ts.
@@ -54,7 +57,20 @@ function onKeyDown(e: Event) {
     e.preventDefault();
     return;
   }
-  const txt = (e.target as HTMLInputElement);
+
+  if (mode === SEARCH && txt.value === '' && key === ':') {
+    e.preventDefault();
+    mode = COMMAND;
+    globals.rafScheduler.scheduleFullRedraw();
+    return;
+  }
+
+  if (mode === COMMAND && txt.value === '' && key === 'Backspace') {
+    mode = SEARCH;
+    globals.rafScheduler.scheduleFullRedraw();
+    return;
+  }
+
   omniboxValue = txt.value;
 }
 
@@ -71,17 +87,17 @@ function onKeyUp(e: Event) {
     globals.rafScheduler.scheduleFullRedraw();
     return;
   }
-  if (txt.value.length <= 0 || key === 'Escape') {
+
+  if (key === 'Escape') {
     globals.queryResults.delete(QUERY_ID);
-    globals.dispatch(Actions.deleteQuery({queryId: QUERY_ID}));
-    mode = 'search';
+    globals.dispatch(Actions.deleteQuery({queryId: 'command'}));
+    mode = SEARCH;
     txt.value = '';
-    omniboxValue = txt.value;
     txt.blur();
     globals.rafScheduler.scheduleFullRedraw();
     return;
   }
-  if (mode === 'command' && key === 'Enter') {
+  if (mode === COMMAND && key === 'Enter') {
     globals.dispatch(Actions.executeQuery(
         {engineId: '0', queryId: 'command', query: txt.value}));
   }
@@ -90,8 +106,6 @@ function onKeyUp(e: Event) {
 class Omnibox implements m.ClassComponent {
   oncreate(vnode: m.VnodeDOM) {
     const txt = vnode.dom.querySelector('input') as HTMLInputElement;
-    txt.addEventListener('focus', enterCommandMode);
-    txt.addEventListener('click', enterCommandMode);
     txt.addEventListener('blur', clearOmniboxResults);
     txt.addEventListener('keydown', onKeyDown);
     txt.addEventListener('keyup', onKeyUp);
@@ -124,15 +138,11 @@ class Omnibox implements m.ClassComponent {
         results.push(m(`div${clazz}`, resp.rows[i][resp.columns[0]]));
       }
     }
-    const placeholder = {
-      search: 'Click to enter command mode',
-      command: 'e.g. select * from sched left join thread using(utid) limit 10'
-    };
-
-    const commandMode = mode === 'command';
+    const commandMode = mode === COMMAND;
     return m(
         `.omnibox${commandMode ? '.command-mode' : ''}`,
-        m(`input[placeholder=${placeholder[mode]}]`, {
+        m('input', {
+          placeholder: PLACEHOLDER[mode],
           onchange: m.withAttr('value', v => omniboxValue = v),
           value: omniboxValue,
         }),
@@ -166,9 +176,9 @@ class Progress implements m.ClassComponent {
     const engine: EngineConfig = globals.state.engines['0'];
     if (globals.state.queries[QUERY_ID] !== undefined ||
         (engine !== undefined && !engine.ready) || globals.isLoading) {
-      this.progressBar.setAttribute('class', 'progress progress-anim');
+      this.progressBar.classList.add('progress-anim');
     } else {
-      this.progressBar.setAttribute('class', 'progress');
+      this.progressBar.classList.remove('progress-anim');
     }
   }
 }
