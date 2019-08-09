@@ -20,15 +20,15 @@ import {
   LogEntriesKey,
   LogExistsKey
 } from '../common/logs';
-import {fromNs, TimeSpan} from '../common/time';
+import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 
 import {Controller} from './controller';
 import {App} from './globals';
 
 async function updateLogBounds(
     engine: Engine, span: TimeSpan): Promise<LogBounds> {
-  const vizStartNs = Math.floor(span.start * 1e9);
-  const vizEndNs = Math.ceil(span.end * 1e9);
+  const vizStartNs = toNsFloor(span.start);
+  const vizEndNs = toNsCeil(span.end);
 
   const countResult = await engine.queryOneRow(`
      select min(ts), max(ts), count(ts)
@@ -63,8 +63,8 @@ async function updateLogBounds(
 async function updateLogEntries(
     engine: Engine, span: TimeSpan, pagination: Pagination):
     Promise<LogEntries> {
-  const vizStartNs = Math.floor(span.start * 1e9);
-  const vizEndNs = Math.ceil(span.end * 1e9);
+  const vizStartNs = toNsFloor(span.start);
+  const vizEndNs = toNsCeil(span.end);
   const vizSqlBounds = `ts >= ${vizStartNs} and ts <= ${vizEndNs}`;
 
   const rowsResult =
