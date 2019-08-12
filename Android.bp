@@ -2117,6 +2117,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trace_packet_defaults.proto",
   ],
   tools: [
     "aprotoc",
@@ -2126,6 +2127,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/trace.pb.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pb.cc",
+    "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pb.cc",
   ],
 }
 
@@ -2136,6 +2138,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trace_packet_defaults.proto",
   ],
   tools: [
     "aprotoc",
@@ -2145,6 +2148,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pb.h",
     "external/perfetto/protos/perfetto/trace/trace.pb.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pb.h",
+    "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pb.h",
   ],
   export_include_dirs: [
     "protos",
@@ -2757,6 +2761,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trace_packet_defaults.proto",
     "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
@@ -2770,6 +2775,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trigger.pbzero.cc",
   ],
 }
@@ -2783,6 +2789,7 @@ genrule {
     "protos/perfetto/trace/test_event.proto",
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
+    "protos/perfetto/trace/trace_packet_defaults.proto",
     "protos/perfetto/trace/trigger.proto",
   ],
   tools: [
@@ -2796,6 +2803,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trigger.pbzero.h",
   ],
   export_include_dirs: [
