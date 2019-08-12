@@ -1216,44 +1216,13 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
 }
 
 void ProtoTraceParser::ParseClockSnapshot(ConstBytes blob) {
+  std::map<ClockTracker::ClockId, int64_t> clock_map;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
-  int64_t clock_boottime = 0;
-  int64_t clock_monotonic = 0;
-  int64_t clock_realtime = 0;
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(it->data(), it->size());
-    if (clk.clock_id() == protos::pbzero::ClockSnapshot::Clock::BOOTTIME) {
-      clock_boottime = static_cast<int64_t>(clk.timestamp());
-    } else if (clk.clock_id() ==
-               protos::pbzero::ClockSnapshot::Clock::REALTIME) {
-      clock_realtime = static_cast<int64_t>(clk.timestamp());
-    } else if (clk.clock_id() ==
-               protos::pbzero::ClockSnapshot::Clock::MONOTONIC) {
-      clock_monotonic = static_cast<int64_t>(clk.timestamp());
-    }
+    clock_map[clk.clock_id()] = static_cast<int64_t>(clk.timestamp());
   }
-
-  // Usually these snapshots come all together.
-  PERFETTO_DCHECK(clock_boottime > 0 && clock_monotonic > 0 &&
-                  clock_realtime > 0);
-
-  if (clock_boottime <= 0) {
-    PERFETTO_ELOG("ClockSnapshot has an invalid BOOTTIME (%" PRId64 ")",
-                  clock_boottime);
-    context_->storage->IncrementStats(stats::invalid_clock_snapshots);
-    return;
-  }
-
-  auto* ct = context_->clock_tracker.get();
-
-  // |clock_boottime| is used as the reference trace time.
-  ct->SyncClocks(ClockDomain::kBootTime, clock_boottime, clock_boottime);
-
-  if (clock_monotonic > 0)
-    ct->SyncClocks(ClockDomain::kMonotonic, clock_monotonic, clock_boottime);
-
-  if (clock_realtime > 0)
-    ct->SyncClocks(ClockDomain::kRealTime, clock_realtime, clock_boottime);
+  context_->clock_tracker->AddSnapshot(clock_map);
 }
 
 void ProtoTraceParser::ParseAndroidLogPacket(ConstBytes blob) {
@@ -1312,8 +1281,8 @@ void ProtoTraceParser::ParseAndroidLogEvent(ConstBytes blob) {
     msg_id = context_->storage->InternString(&arg_msg[1]);
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-  base::Optional<int64_t> opt_trace_time =
-      context_->clock_tracker->ToTraceTime(ClockDomain::kRealTime, ts);
+  base::Optional<int64_t> opt_trace_time = context_->clock_tracker->ToTraceTime(
+      protos::pbzero::ClockSnapshot::Clock::REALTIME, ts);
   if (!opt_trace_time)
     return;
 
@@ -2304,10 +2273,12 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
 
-  protos::pbzero::GpuCounterDescriptor::Decoder desc(event.counter_descriptor());
+  protos::pbzero::GpuCounterDescriptor::Decoder desc(
+      event.counter_descriptor());
   // Add counter spec to ID map.
   for (auto it = desc.specs(); it; ++it) {
-    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(it->data(), it->size());
+    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(
+        it->data(), it->size());
     if (!spec.has_counter_id()) {
       PERFETTO_ELOG("Counter spec missing counter id");
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
@@ -2321,21 +2292,21 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
     auto counter_id = spec.counter_id();
     auto name = spec.name();
     if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
-      gpu_counter_ids_.emplace(
-          counter_id,
-          context_->storage->InternString(name));
+      gpu_counter_ids_.emplace(counter_id,
+                               context_->storage->InternString(name));
     } else {
       // Either counter spec was repeated or it came after counter data.
       PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
-          counter_id,
-          name.ToStdString().c_str());
+                    counter_id, name.ToStdString().c_str());
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
     }
   }
 
   for (auto it = event.counters(); it; ++it) {
-    protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(it->data(), it->size());
-    if (counter.has_counter_id() && (counter.has_int_value() || counter.has_double_value())) {
+    protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(it->data(),
+                                                                it->size());
+    if (counter.has_counter_id() &&
+        (counter.has_int_value() || counter.has_double_value())) {
       auto counter_id = counter.counter_id();
       // Check missing counter_id
       if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
@@ -2344,17 +2315,18 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
         writer.AppendString("gpu_counter(");
         writer.AppendUnsignedInt(counter_id);
         writer.AppendString(")");
-        gpu_counter_ids_.emplace(
-            counter_id,
-            context_->storage->InternString(writer.GetStringView()));
+        gpu_counter_ids_.emplace(counter_id, context_->storage->InternString(
+                                                 writer.GetStringView()));
         context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
       }
       if (counter.has_int_value()) {
-        context_->event_tracker->PushCounter(
-            ts, counter.int_value(), gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
+        context_->event_tracker->PushCounter(ts, counter.int_value(),
+                                             gpu_counter_ids_[counter_id], 0,
+                                             RefType::kRefGpuId);
       } else {
-        context_->event_tracker->PushCounter(
-            ts, counter.double_value(), gpu_counter_ids_[counter_id], 0, RefType::kRefGpuId);
+        context_->event_tracker->PushCounter(ts, counter.double_value(),
+                                             gpu_counter_ids_[counter_id], 0,
+                                             RefType::kRefGpuId);
       }
     }
   }
