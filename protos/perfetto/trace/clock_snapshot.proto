@@ -22,7 +22,7 @@ package perfetto.protos;
 // A snapshot of clock readings to allow for trace alignment.
 message ClockSnapshot {
   message Clock {
-    enum Type {
+    enum BuiltinClocks {
       UNKNOWN = 0;
       REALTIME = 1;
       REALTIME_COARSE = 2;
@@ -32,9 +32,35 @@ message ClockSnapshot {
       BOOTTIME = 6;
       PROCESS_CPUTIME = 7;
       THREAD_CPUTIME = 8;
+      BUILTIN_CLOCK_MAX_ID = 63;
     }
-    optional Type type = 1;
+
+    // Clock IDs have the following semantic:
+    // [1, 63]:    Builtin types, see BuiltinClocks above.
+    // [64, 127]:  User-defined clocks. These clocks are sequence-scoped. They
+    //             are only valid within the same |trusted_packet_sequence_id|
+    //             (i.e. only for TracePacket(s) emitted by the same TraceWriter
+    //             that emitted the clock snapshot).
+    // [128, MAX]: Reserved for future use. The idea is to allow global clock
+    //             IDs and setting this ID to hash(full_clock_name) & ~127.
+    optional uint32 clock_id = 1;
+
+    // Unit is ns unless specified otherwise by the resolution_* fields below.
     optional uint64 timestamp = 2;
+
+    // TODO(eseckler): the fields below and sequence-scoped clock IDs are not
+    // supported yet by the trace processor.
+
+    // When true the timestamp should be interpreted as a delta from the last
+    // TracePacket's timestamp emitted by the same packet_sequence_id.
+    // The first packet timestamp after a ClockSnapshot is relative to the last
+    // ClockSnapshot seen on the packet sequence.
+    // optional bool is_incremental = 3;
+
+    // Allows to specify a custom unit different than the default (ns)
+    // for this clock domain. A multiplier of 1000 means that a timestamp = 3
+    // should be interpreted as 3000 ns = 3 us.
+    // optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;
 }

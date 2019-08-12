@@ -86,6 +86,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/system_info.proto',
   'protos/perfetto/trace/trace.proto',
   'protos/perfetto/trace/trace_packet.proto',
+  'protos/perfetto/trace/trace_packet_defaults.proto',
   'protos/perfetto/trace/track_event/debug_annotation.proto',
   'protos/perfetto/trace/track_event/log_message.proto',
   'protos/perfetto/trace/track_event/process_descriptor.proto',
