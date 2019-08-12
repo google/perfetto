@@ -2182,7 +2182,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   struct {
     clockid_t id;
-    protos::ClockSnapshot::Clock::Type type;
+    protos::ClockSnapshot::Clock::BuiltinClocks type;
     struct timespec ts;
   } clocks[] = {
       {CLOCK_BOOTTIME, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
@@ -2216,7 +2216,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
           static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
     }
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
-    c->set_type(clock.type);
+    c->set_clock_id(clock.type);
     c->set_timestamp(
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
   }
@@ -2225,7 +2225,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
   if (set_root_timestamp)
     packet.set_timestamp(wall_time_ns);
   protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
-  c->set_type(protos::ClockSnapshot::Clock::MONOTONIC);
+  c->set_clock_id(protos::ClockSnapshot::Clock::MONOTONIC);
   c->set_timestamp(wall_time_ns);
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
