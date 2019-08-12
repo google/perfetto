@@ -2,6 +2,7 @@
 ../data/sfgate.json smoke.sql sfgate_smoke.out
 ../data/sfgate.json smoke_slices.sql sfgate_smoke_slices.out
 ../data/android_sched_and_ps.pb smoke.sql android_sched_and_ps_smoke.out
+../data/compressed.pb smoke.sql compressed_smoke.out
 synth_1.py smoke.sql synth_1_smoke.out
 ../data/fuchsia_trace.fxt smoke.sql fuchsia_smoke.out
 ../data/fuchsia_trace.fxt smoke_slices.sql fuchsia_smoke_slices.out
