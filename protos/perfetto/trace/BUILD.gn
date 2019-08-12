@@ -28,6 +28,7 @@ proto_sources_minimal = [
 proto_sources_trusted = [ "trusted_packet.proto" ]
 
 proto_sources = [
+  "trace_packet_defaults.proto",
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
