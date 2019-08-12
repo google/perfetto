@@ -28,6 +28,7 @@ from config import GCS_ARTIFACTS
 from multiprocessing.pool import ThreadPool
 from oauth2client.client import GoogleCredentials
 
+CUR_DIR = os.path.dirname(__file__)
 RESCAN_PERIOD_SEC = 5  # Scan for new artifact directories every X seconds.
 
 tls = threading.local()
@@ -72,6 +73,16 @@ def list_files(path):
         yield fpath
 
 
+def scan_and_upload_perf_folder(job_id, dirpath):
+  perf_folder = os.path.join(dirpath, "perf")
+  if not os.path.isdir(perf_folder):
+    return
+
+  uploader = os.path.join(CUR_DIR, 'perf_metrics_uploader.py')
+  for path in list_files(perf_folder):
+    subprocess.call([uploader, '--job-id', job_id, path])
+
+
 def scan_and_uplod_artifacts(pool, remove_after_upload=False):
   root = os.getenv('ARTIFACTS_DIR')
   for job_id in (x for x in os.listdir(root) if not x.endswith('.tmp')):
@@ -88,6 +99,8 @@ def scan_and_uplod_artifacts(pool, remove_after_upload=False):
       total_size += max(upl_size, 0)
     logging.info('Uploaded artifacts for %s: %d files, %s failures, %d KB',
                  job_id, uploads, failures, total_size / 1e3)
+
+    scan_and_upload_perf_folder(job_id, dirpath)
     if remove_after_upload:
       subprocess.call(['sudo', 'rm', '-rf', dirpath])
 

@@ -23,6 +23,7 @@ RUN pip install oauth2client httplib2
 COPY tmp/config.py /home/perfetto/config.py
 COPY tmp/common_utils.py /home/perfetto/common_utils.py
 COPY artifacts_uploader.py /home/perfetto/
+COPY perf_metrics_uploader.py /home/perfetto/
 COPY run_job.py /home/perfetto/
 COPY worker.py /home/perfetto/
 
