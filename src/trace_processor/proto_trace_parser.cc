@@ -1587,6 +1587,7 @@ void ProtoTraceParser::ParseTrackEvent(
         sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
     auto cat_view_it = map->find(category_iids[0]);
     if (cat_view_it == map->end()) {
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
       PERFETTO_ELOG("Could not find category interning entry for ID %" PRIu64,
                     category_iids[0]);
     } else {
@@ -1612,6 +1613,7 @@ void ProtoTraceParser::ParseTrackEvent(
     for (uint64_t iid : category_iids) {
       auto cat_view_it = map->find(iid);
       if (cat_view_it == map->end()) {
+        context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
         PERFETTO_ELOG("Could not find category interning entry for ID %" PRIu64,
                       iid);
         continue;
@@ -1635,6 +1637,7 @@ void ProtoTraceParser::ParseTrackEvent(
         sequence_state->GetInternedDataMap<protos::pbzero::LegacyEventName>();
     auto name_view_it = map->find(legacy_event.name_iid());
     if (name_view_it == map->end()) {
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
       PERFETTO_ELOG("Could not find event name interning entry for ID %" PRIu64,
                     legacy_event.name_iid());
     } else {
@@ -2021,6 +2024,7 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
       sequence_state->GetInternedDataMap<protos::pbzero::DebugAnnotationName>();
   auto name_view_it = map->find(iid);
   if (name_view_it == map->end()) {
+    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     PERFETTO_ELOG(
         "Could not find debug annotation name interning entry for ID %" PRIu64,
         iid);
@@ -2150,6 +2154,7 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
       sequence_state->GetInternedDataMap<protos::pbzero::SourceLocation>();
   auto location_view_it = map->find(iid);
   if (location_view_it == map->end()) {
+    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     PERFETTO_ELOG(
         "Could not find source location interning entry for ID %" PRIu64, iid);
     return;
