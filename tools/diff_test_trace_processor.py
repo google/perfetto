@@ -23,10 +23,18 @@ import subprocess
 import sys
 import tempfile
 
+from itertools import chain
 from google.protobuf import descriptor, descriptor_pb2, message_factory
 from google.protobuf import reflection, text_format
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+class PerfResult(object):
+  def __init__(self, trace_name, query_or_metric, ingest_time, real_time):
+    self.trace_name = trace_name
+    self.query_or_metric = query_or_metric
+    self.ingest_time = ingest_time
+    self.real_time = real_time
 
 def create_metrics_message_factory(metrics_descriptor_path):
   with open(metrics_descriptor_path, 'r') as metrics_descriptor_file:
@@ -218,8 +226,9 @@ def main():
       trace_shortpath = os.path.relpath(trace_path, test_dir)
 
       assert len(perf_numbers) == 2
-      perf_data.append((trace_shortpath, query_fname_or_metric,
-                        perf_numbers[0], perf_numbers[1]))
+      perf_result = PerfResult(trace_shortpath, query_fname_or_metric,
+                               perf_numbers[0], perf_numbers[1])
+      perf_data.append(perf_result)
     else:
       sys.stderr.write(
         'Expected did not match actual for trace {} and {} {}\n'
@@ -235,19 +244,35 @@ def main():
     print('All tests passed successfully')
 
     if args.perf_file:
-      output_data = {
-        'benchmarks': [
+      metrics = [
+        [
           {
-            'name': '{}|{}'.format(perf_args[0], perf_args[1]),
-            'trace_name': perf_args[0],
-            'query_name': perf_args[1],
-            'ingest_time': perf_args[2],
-            'real_time': perf_args[3],
-            'time_unit': 'ns',
-            'test_type': args.test_type,
+            'metric': 'tp_perf_test_ingest_time',
+            'value': float(perf_args.ingest_time) / 1.0e9,
+            'unit': 's',
+            'tags': {
+              'test_name': '{}-{}'.format(perf_args.trace_name,
+                                          perf_args.query_or_metric),
+              'test_type': args.test_type,
+            },
+            'labels': {},
+          },
+          {
+            'metric': 'perf_test_real_time',
+            'value': float(perf_args.real_time) / 1.0e9,
+            'unit': 's',
+            'tags': {
+              'test_name': '{}-{}'.format(perf_args.trace_name,
+                                          perf_args.query_or_metric),
+              'test_type': args.test_type,
+            },
+            'labels': {},
           }
-          for perf_args in sorted(perf_data)
         ]
+        for perf_args in sorted(perf_data)
+      ]
+      output_data = {
+        'metrics': list(chain.from_iterable(metrics))
       }
       with open(args.perf_file, 'w+') as perf_file:
         perf_file.write(json.dumps(output_data, indent=2))
