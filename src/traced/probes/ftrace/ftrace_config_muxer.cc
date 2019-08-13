@@ -230,6 +230,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("clk", "clk_disable"));
         events.insert(GroupAndName("clk", "clk_enable"));
         events.insert(GroupAndName("power", "cpu_frequency_limits"));
+        events.insert(GroupAndName("power", "suspend_resume"));
         AddEventGroup(table, "msm_bus", &events);
         events.insert(GroupAndName("msm_bus", "bus_update_request_end"));
         events.insert(GroupAndName("msm_bus", "bus_update_request"));
