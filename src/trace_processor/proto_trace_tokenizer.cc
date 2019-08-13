@@ -411,6 +411,12 @@ void ProtoTraceTokenizer::ParseInternedData(
     InternMessage<protos::pbzero::Callstack>(
         context_, state, interned_data.slice(offset, it->size()));
   }
+
+  for (auto it = interned_data_decoder.log_message_body(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::LogMessageBody>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
 }
 
 void ProtoTraceTokenizer::ParseThreadDescriptorPacket(
