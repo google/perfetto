@@ -79,6 +79,7 @@
 #include "perfetto/trace/trace.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "perfetto/trace/track_event/log_message.pbzero.h"
 #include "perfetto/trace/track_event/source_location.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
 
@@ -255,6 +256,8 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
           context->storage->InternString("task.posted_from.function_name")),
+      log_message_body_key_id_(
+          context->storage->InternString("track_event.log_message")),
       raw_chrome_metadata_event_id_(
           context->storage->InternString("chrome_event.metadata")),
       raw_legacy_event_id_(
@@ -1657,7 +1660,7 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  auto args_callback = [this, &event, &sequence_state](
+  auto args_callback = [this, &event, &sequence_state, ts, utid](
                            ArgsTracker* args_tracker, RowId row_id) {
     for (auto it = event.debug_annotations(); it; ++it) {
       ParseDebugAnnotationArgs(it->as_bytes(), sequence_state, args_tracker,
@@ -1667,6 +1670,11 @@ void ProtoTraceParser::ParseTrackEvent(
     if (event.has_task_execution()) {
       ParseTaskExecutionArgs(event.task_execution(), sequence_state,
                              args_tracker, row_id);
+    }
+
+    if (event.has_log_message()) {
+      ParseLogMessage(event.log_message(), sequence_state, ts, utid,
+                      args_tracker, row_id);
     }
   };
 
@@ -2189,6 +2197,58 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
   args_tracker->AddArg(row, task_function_name_args_key_id_,
                        task_function_name_args_key_id_,
                        Variadic::String(function_name_id));
+
+  // TODO(nicomazz): SourceLocation also contains line number now, so it should
+  // be added as an argument here.
+}
+
+void ProtoTraceParser::ParseLogMessage(
+    ConstBytes blob,
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    int64_t ts,
+    uint32_t utid,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::LogMessage::Decoder message(blob.data, blob.size);
+
+  TraceStorage* storage = context_->storage.get();
+
+  StringId log_message_id = 0;
+
+  auto* map =
+      sequence_state->GetInternedDataMap<protos::pbzero::LogMessageBody>();
+  auto message_body_entry = map->find(message.body_iid());
+  if (message_body_entry == map->end()) {
+    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    PERFETTO_ELOG(
+        "Could not find source location interning entry for ID %" PRIu64,
+        message.body_iid());
+    return;
+  }
+  if (message_body_entry->second.storage_refs) {
+    log_message_id = message_body_entry->second.storage_refs->body_id;
+  } else {
+    auto body = message_body_entry->second.CreateDecoder();
+    log_message_id = storage->InternString(body.body());
+
+    // Avoid having to decode & look up the name again in the future.
+    message_body_entry->second.storage_refs =
+        ProtoIncrementalState::StorageReferences<
+            protos::pbzero::LogMessageBody>{log_message_id};
+  }
+
+  // TODO(nicomazz): LogMessage also contains the source of the message (file
+  // and line number). Android logs doesn't support this so far.
+  context_->storage->mutable_android_log()->AddLogEvent(
+      ts, utid,
+      /*priority*/ 0,
+      /*tag_id*/ 0,  // TODO(nicomazz): Abuse tag_id to display
+                     // "file_name:line_number".
+      log_message_id);
+
+  args_tracker->AddArg(row, log_message_body_key_id_, log_message_body_key_id_,
+                       Variadic::String(log_message_id));
+  // TODO(nicomazz): Add the source location as an argument.
 }
 
 void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {

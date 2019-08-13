@@ -29,6 +29,7 @@
 
 #include "perfetto/trace/profiling/profile_common.pbzero.h"
 #include "perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "perfetto/trace/track_event/log_message.pbzero.h"
 #include "perfetto/trace/track_event/source_location.pbzero.h"
 #include "perfetto/trace/track_event/task_execution.pbzero.h"
 #include "perfetto/trace/track_event/track_event.pbzero.h"
@@ -71,6 +72,11 @@ template <>
 struct StorageReferences<protos::pbzero::SourceLocation> {
   StringId file_name_id;
   StringId function_name_id;
+};
+
+template <>
+struct StorageReferences<protos::pbzero::LogMessageBody> {
+  StringId body_id;
 };
 
 }  // namespace proto_incremental_state_internal
@@ -185,6 +191,7 @@ class ProtoIncrementalState {
         debug_annotation_names_;
     InternedDataMap<protos::pbzero::SourceLocation> source_locations_;
     InternedDataMap<protos::pbzero::InternedString> interned_strings_;
+    InternedDataMap<protos::pbzero::LogMessageBody> interned_log_messages_;
     InternedDataMap<protos::pbzero::Mapping> mappings_;
     InternedDataMap<protos::pbzero::Frame> frames_;
     InternedDataMap<protos::pbzero::Callstack> callstacks_;
@@ -234,6 +241,13 @@ inline ProtoIncrementalState::InternedDataMap<protos::pbzero::SourceLocation>*
 ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
     protos::pbzero::SourceLocation>() {
   return &source_locations_;
+}
+
+template <>
+inline ProtoIncrementalState::InternedDataMap<protos::pbzero::LogMessageBody>*
+ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
+    protos::pbzero::LogMessageBody>() {
+  return &interned_log_messages_;
 }
 
 template <>
