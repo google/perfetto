@@ -90,17 +90,28 @@ message TrackEvent {
   enum Type {
     TYPE_UNSPECIFIED = 0;
 
-    // Slice events are always formed by a pair of BEGIN + END events. END
-    // events do not need to repeat any TrackEvent fields they have in common
-    // with their corresponding BEGIN event. Arguments and debug annotations of
-    // the BEGIN + END pair will be merged during trace import.
+    // Slice events are events that have a begin and end timestamp, i.e. a
+    // duration. They can be nested similar to a callstack: If, on the same
+    // track, event B begins after event A, but before A ends, B is a child
+    // event of A and will be drawn as a nested event underneath A in the UI.
+    // Note that child events should always end before their parents (e.g. B
+    // before A).
     //
-    // Note that we deliberately chose not to support COMPLETE events since
-    // clients would need to delay writing them until the slice is completed,
-    // which can result in reordered events in the trace and loss of unfinished
-    // events at the end of a trace.
+    // Each slice event is formed by a pair of BEGIN + END events. The END event
+    // does not need to repeat any TrackEvent fields it has in common with its
+    // corresponding BEGIN event. Arguments and debug annotations of the BEGIN +
+    // END pair will be merged during trace import.
+    //
+    // Note that we deliberately chose not to support COMPLETE events (which
+    // would specify a duration directly) since clients would need to delay
+    // writing them until the slice is completed, which can result in reordered
+    // events in the trace and loss of unfinished events at the end of a trace.
     TYPE_SLICE_BEGIN = 1;
     TYPE_SLICE_END = 2;
+
+    // Instant events are nestable events without duration. They can be children
+    // of slice events on the same track.
+    TYPE_INSTANT = 3;
 
     // TODO(eseckler): Add support for counters.
   }
