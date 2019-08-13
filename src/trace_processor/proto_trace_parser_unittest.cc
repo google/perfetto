@@ -765,11 +765,22 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
   }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_absolute_us(1015);
+    event->set_thread_time_absolute_us(2007);
+    event->add_category_iids(2);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(2);
+  }
 
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(2)
+      .Times(3)
       .WillRepeatedly(Return(1));
 
   MockArgsTracker args(&context_);
@@ -780,6 +791,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
           InvokeArgument<5>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
           Return(0u)));
+  EXPECT_CALL(*slice_, Scoped(1015000, 1, RefType::kRefUtid, 0, 0, 0, _))
+      .WillOnce(DoAll(
+          InvokeArgument<6>(
+              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
+          Return(1u)));
   EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, 0, 0, _))
       .WillOnce(DoAll(
           InvokeArgument<5>(
@@ -788,10 +804,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slices().slice_count(), 1u);
+  EXPECT_EQ(storage_->thread_slices().slice_count(), 2u);
   EXPECT_EQ(storage_->thread_slices().slice_ids()[0], 0u);
   EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[0], 2005000);
   EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[0], 5000);
+  EXPECT_EQ(storage_->thread_slices().slice_ids()[1], 1u);
+  EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[1], 2007000);
+  EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[1], 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
