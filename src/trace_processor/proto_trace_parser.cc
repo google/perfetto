@@ -1701,6 +1701,9 @@ void ProtoTraceParser::ParseTrackEvent(
       case protos::pbzero::TrackEvent::TYPE_SLICE_END:
         phase = 'E';
         break;
+      case protos::pbzero::TrackEvent::TYPE_INSTANT:
+        phase = 'i';
+        break;
       default:
         PERFETTO_FATAL("unexpected event type %d", event.type());
         return;
