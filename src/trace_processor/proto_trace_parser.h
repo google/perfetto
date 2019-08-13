@@ -133,6 +133,12 @@ class ProtoTraceParser : public TraceParser {
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
+  void ParseLogMessage(ConstBytes,
+                       ProtoIncrementalState::PacketSequenceState*,
+                       int64_t,
+                       uint32_t,
+                       ArgsTracker*,
+                       RowId);
 
  private:
   TraceProcessorContext* context_;
@@ -168,6 +174,7 @@ class ProtoTraceParser : public TraceParser {
   const StringId metatrace_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
+  const StringId log_message_body_key_id_;
   const StringId raw_chrome_metadata_event_id_;
   const StringId raw_legacy_event_id_;
   const StringId legacy_event_category_key_id_;
