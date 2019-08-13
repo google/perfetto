@@ -135,7 +135,11 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   if (PERFETTO_UNLIKELY(!chunk_complete)) {
     if (num_fragments > 0) {
       num_fragments--;
+      // These flags should only affect the last packet in the chunk. We clear
+      // them, so that TraceBuffer is able to look at the remaining packets in
+      // this chunk.
       chunk_flags &= ~kLastPacketContinuesOnNextChunk;
+      chunk_flags &= ~kChunkNeedsPatching;
     }
   }
 
