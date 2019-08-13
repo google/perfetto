@@ -81,6 +81,9 @@ group("all") {
         # The diff testing framework depends on these descriptors.
         "protos/perfetto/metrics:descriptor",
         "protos/perfetto/trace:descriptor",
+
+        # Used in the when updating the ftrace protos
+        "protos/perfetto/trace/ftrace:descriptor",
       ]
       if (is_linux || is_android) {
         deps += [ "tools/busy_threads" ]

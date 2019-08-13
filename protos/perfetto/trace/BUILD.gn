@@ -86,7 +86,7 @@ if (perfetto_build_standalone) {
     sources = [
       "trace.proto",
     ]
-    generate_descriptor = "$perfetto_root_path/protos/trace/trace.descriptor"
+    generate_descriptor = "trace.descriptor"
     proto_in_dir = "$perfetto_root_path/protos"
     proto_out_dir = "$perfetto_root_path/protos"
   }

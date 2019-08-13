@@ -150,7 +150,7 @@ def main():
   else:
     out_path = os.path.dirname(args.trace_processor)
     trace_protos_path = os.path.join(
-        out_path, 'gen', 'protos', 'trace')
+        out_path, 'gen', 'protos', 'perfetto', 'trace')
     trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
 
   if args.metrics_descriptor:
