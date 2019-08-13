@@ -16,7 +16,7 @@ else
   fi
 fi
 
-DESCRIPTOR='gen/protos/perfetto/trace/ftrace.descriptor'
+DESCRIPTOR='gen/protos/perfetto/trace/ftrace/ftrace.descriptor'
 "$DIR/ninja" -C "$BUILDDIR" ftrace_proto_gen $DESCRIPTOR
 
 # FIXME(fmayer): make ftrace_proto_gen independent of cwd.
