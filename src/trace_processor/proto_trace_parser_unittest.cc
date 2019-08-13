@@ -1642,6 +1642,84 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   context_.sorter->ExtractEventsForced();
 }
 
+TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+  MockArgsTracker args(&context_);
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_thread_time_delta_us(5);  // absolute: 2005.
+    event->add_category_iids(1);
+
+    auto* log_message = event->set_log_message();
+    log_message->set_body_iid(1);
+    log_message->set_source_location_iid(1);
+
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+    legacy_event->set_phase('I');
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat1");
+
+    auto ev1 = interned_data->add_legacy_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev1");
+
+    auto body = interned_data->add_log_message_body();
+    body->set_iid(1);
+    body->set_body("body1");
+
+    auto loc1 = interned_data->add_source_locations();
+    loc1->set_iid(1);
+    loc1->set_file_name("file1");
+    loc1->set_function_name("func1");
+    loc1->set_line_number(1);
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
+      .WillOnce(Return(2));
+
+  EXPECT_CALL(*slice_, Scoped(1010000, 1, RefType::kRefUtid, 1, 2, 0, _))
+      .WillOnce(DoAll(InvokeArgument<6>(&args, 1u), Return(1u)));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("body1")))
+      .WillOnce(Return(3));
+
+  // Call with logMessageBody (body1 in this case).
+  EXPECT_CALL(args, AddArg(1u, _, _, Variadic::String(3)));
+
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_TRUE(context_.storage->android_logs().size() > 0);
+  EXPECT_EQ(context_.storage->android_logs().timestamps()[0], 1010000);
+  EXPECT_EQ(context_.storage->android_logs().msg_ids()[0], 3u);
+}
+
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
