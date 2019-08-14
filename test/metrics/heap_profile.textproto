@@ -13,6 +13,7 @@ packet {
   }
 }
 packet {
+  trusted_packet_sequence_id: 999
   timestamp: 10
   profile_packet {
     strings {
@@ -61,5 +62,28 @@ packet {
         free_count: 1
       }
     }
+  }
+}
+# Add some symbolization packets
+packet {
+  trusted_packet_sequence_id: 999
+  interned_data {
+    function_names {
+      iid: 1000
+      str: "symbolized f3"
+    }
+    source_paths {
+      iid: 1001
+      str: "f3 file path"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  profiled_frame_symbols {
+    frame_iid: 3
+    function_name_id: 1000
+    file_name_id: 1001
+    line_number: 333
   }
 }
