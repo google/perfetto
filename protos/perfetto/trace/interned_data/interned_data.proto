@@ -62,7 +62,7 @@ message InternedData {
   // within the same tracing session, even after a reset of the emitted
   // interning state.
   repeated EventCategory event_categories = 1;
-  repeated LegacyEventName legacy_event_names = 2;
+  repeated EventName event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
   repeated LogMessageBody log_message_body = 20;
