@@ -96,10 +96,11 @@ bool TraceSymbolTable::AddFrame(const Frame& frame) {
 
 void TraceSymbolTable::WriteResult(std::ostream* output,
                                    uint32_t seq_id) const {
-  auto max_string_intern_id = max_string_intern_id_;
-  std::map<std::string, uint64_t> new_interned_strings;
   protos::TracePacket intern_packet;
   intern_packet.set_trusted_packet_sequence_id(seq_id);
+  std::vector<protos::TracePacket> frame_symbol_packets;
+  auto max_string_intern_id = max_string_intern_id_;
+  std::map<std::string, uint64_t> new_interned_strings;
   protos::InternedData* interned_data = intern_packet.mutable_interned_data();
   for (const auto& p : symbols_for_frame_) {
     uint64_t frame_iid = p.first;
@@ -125,17 +126,25 @@ void TraceSymbolTable::WriteResult(std::ostream* output,
       }
     }
 
+    protos::TracePacket symbol_packet;
+    symbol_packet.set_trusted_packet_sequence_id(seq_id);
     protos::ProfiledFrameSymbols* sym =
-        interned_data->add_profiled_frame_symbols();
+        symbol_packet.mutable_profiled_frame_symbols();
     sym->set_frame_iid(frame_iid);
     for (const SymbolizedFrame& frame : frames) {
       sym->add_function_name_id(new_interned_strings[frame.function_name]);
       sym->add_line_number(frame.line);
       sym->add_file_name_id(new_interned_strings[frame.file_name]);
     }
-  }
+    // TODO(138725313): Cleanup - this should be outside the interned section.
+    *interned_data->add_profiled_frame_symbols() = *sym;
 
+    frame_symbol_packets.push_back(std::move(symbol_packet));
+  }
   WriteTracePacket(intern_packet.SerializeAsString(), output);
+  for (const auto& frame_symbol_packet : frame_symbol_packets) {
+    WriteTracePacket(frame_symbol_packet.SerializeAsString(), output);
+  }
 }
 
 bool TraceSymbolTable::AddProfiledFrameSymbols(

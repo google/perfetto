@@ -424,6 +424,10 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_profile_packet())
     ParseProfilePacket(ts, ttp.packet_sequence_state, packet.profile_packet());
 
+  if (packet.has_profiled_frame_symbols())
+    ParseProfiledFrameSymbols(ttp.packet_sequence_state,
+                              packet.profiled_frame_symbols());
+
   if (packet.has_system_info())
     ParseSystemInfo(packet.system_info());
 
@@ -1497,6 +1501,19 @@ void ProtoTraceParser::ParseProfilePacket(
                                             context_->storage.get());
     context_->heap_profile_tracker->FinalizeProfile(&intern_lookup);
   }
+}
+
+void ProtoTraceParser::ParseProfiledFrameSymbols(
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    ConstBytes blob) {
+  protos::pbzero::ProfiledFrameSymbols::Decoder packet(blob.data, blob.size);
+  ProfilePacketInternLookup intern_lookup(sequence_state,
+                                          context_->storage.get());
+  // We currently only keep the first function_name_id (given currently frames
+  // only map to a single name).
+  context_->heap_profile_tracker->SetFrameName(
+      packet.frame_iid(), packet.function_name_id()->as_uint64(),
+      &intern_lookup);
 }
 
 void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
