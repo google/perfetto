@@ -137,7 +137,6 @@ class FrontendApi {
 }
 
 function setExtensionAvailability(available: boolean) {
-  if (available) console.log('Extension available!');
   globals.dispatch(Actions.setExtensionAvailable({
     available,
   }));
@@ -182,11 +181,17 @@ function main() {
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
-  const extensionPort = chrome.runtime !== undefined ?
-      chrome.runtime.connect(EXTENSION_ID) :
-      undefined;  // Will be null if the extension is not installed.
+  const extensionPort =
+      chrome.runtime ? chrome.runtime.connect(EXTENSION_ID) : undefined;
+
   setExtensionAvailability(extensionPort !== undefined);
+
   if (extensionPort) {
+    extensionPort.onDisconnect.addListener(_ => {
+      setExtensionAvailability(false);
+      // tslint:disable-next-line: no-unused-expression
+      void chrome.runtime.lastError;  // Needed to not receive an error log.
+    });
     // This forwards the messages from the extension to the controller.
     extensionPort.onMessage.addListener(
         (message: object, _port: chrome.runtime.Port) => {
@@ -198,8 +203,6 @@ function main() {
   extensionLocalChannel.port2.onmessage = ({data}) => {
     if (extensionPort) extensionPort.postMessage(data);
   };
-
-
   const main = assertExists(document.body.querySelector('main'));
 
   globals.rafScheduler.domRedraw = () =>
