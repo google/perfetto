@@ -36,7 +36,7 @@ import {RecordPage} from './record_page';
 import {Router} from './router';
 import {ViewerPage} from './viewer_page';
 
-const EXTENSION_ID = 'pebbhcjfokadbgbnlmogdkkaahmamnap';
+const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
 /**
  * The API the main thread exposes to the controller.
