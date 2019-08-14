@@ -2660,7 +2660,7 @@ message MmVmscanKswapdSleepFtraceEvent {
 // Because of the incremental build-up, the interning index will miss data when
 // TracePackets are lost, e.g. because a chunk was overridden in the central
 // ring buffer. To avoid invalidation of the whole trace in such a case, the
-// index is periodically reset (see |incremental_state_cleared| in TracePacket).
+// index is periodically reset (see SEQ_INCREMENTAL_STATE_CLEARED).
 // When packet loss occurs, the reader will only lose interning data up to the
 // next reset.
 // -----------------------------------------------------------------------------
@@ -3340,7 +3340,7 @@ message TracePacket {
   //
   // When packet loss occurs, incrementally emitted data (including interned
   // data) on the sequence should be considered invalid up until the next packet
-  // with |incremental_state_cleared| set.
+  // with SEQ_INCREMENTAL_STATE_CLEARED set.
   optional bool previous_packet_dropped = 42;
 }
 
