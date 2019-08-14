@@ -324,8 +324,9 @@ function onInputElementFileSelectionChanged(e: Event) {
       const resp = globals.queryResults.get('command') as QueryResponse;
       // First value is screenrecord trace event timestamp
       // and second value is trace boundary's start timestamp
-      const offset = (parseInt(resp.rows[1]['ts'].toString()) -
-                      parseInt(resp.rows[0]['ts'].toString())) / 1e9;
+      const offset = (Number(resp.rows[1]['ts'].toString()) -
+                      Number(resp.rows[0]['ts'].toString())) /
+          1e9;
       globals.queryResults.delete('command');
       globals.rafScheduler.scheduleFullRedraw();
       globals.dispatch(Actions.deleteQuery({queryId: 'command'}));
