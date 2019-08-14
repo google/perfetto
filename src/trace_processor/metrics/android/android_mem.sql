@@ -101,7 +101,7 @@ SELECT
     'priority_breakdown', (
       SELECT RepeatedField(priority_breakdown_proto)
       FROM process_priority_view AS ppv
-      WHERE anon_rss_stats_proto.process_name = ppv.process_name
+      WHERE mem_all_processes.process_name = ppv.process_name
     )
   ) AS metric
 FROM
