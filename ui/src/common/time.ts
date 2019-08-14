@@ -14,6 +14,8 @@
 
 import {assertTrue} from '../base/logging';
 
+const EPSILON = 0.0000000001;
+
 // TODO(hjd): Combine with timeToCode.
 export function timeToString(sec: number) {
   const units = ['s', 'ms', 'us', 'ns'];
@@ -89,8 +91,9 @@ export class TimeSpan {
     return new TimeSpan(this.start, this.end);
   }
 
-  equals(other: TimeSpan) {
-    return this.start === other.start && this.end === other.end;
+  equals(other: TimeSpan): boolean {
+    return Math.abs(this.start - other.start) < EPSILON &&
+        Math.abs(this.end - other.end) < EPSILON;
   }
 
   get duration() {
