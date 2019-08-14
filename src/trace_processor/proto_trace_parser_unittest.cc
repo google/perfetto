@@ -844,7 +844,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -907,7 +907,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto cat3 = interned_data->add_event_categories();
     cat3->set_iid(3);
     cat3->set_name("cat3");
-    auto ev2 = interned_data->add_legacy_event_names();
+    auto ev2 = interned_data->add_event_names();
     ev2->set_iid(2);
     ev2->set_name("ev2");
   }
@@ -1015,7 +1015,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -1048,7 +1048,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
     auto cat2 = interned_data->add_event_categories();
     cat2->set_iid(2);
     cat2->set_name("cat2");
-    auto ev2 = interned_data->add_legacy_event_names();
+    auto ev2 = interned_data->add_event_names();
     ev2->set_iid(2);
     ev2->set_name("ev2");
   }
@@ -1300,7 +1300,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
   }
@@ -1329,7 +1329,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev2 = interned_data->add_legacy_event_names();
+    auto ev2 = interned_data->add_event_names();
     ev2->set_iid(1);
     ev2->set_name("ev2");
   }
@@ -1444,7 +1444,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
     auto an1 = interned_data->add_debug_annotation_names();
@@ -1611,7 +1611,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
     auto loc1 = interned_data->add_source_locations();
@@ -1678,7 +1678,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
     cat1->set_iid(1);
     cat1->set_name("cat1");
 
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
 
@@ -1764,7 +1764,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
     auto cat1 = interned_data->add_event_categories();
     cat1->set_iid(1);
     cat1->set_name("cat1");
-    auto ev1 = interned_data->add_legacy_event_names();
+    auto ev1 = interned_data->add_event_names();
     ev1->set_iid(1);
     ev1->set_name("ev1");
     auto an1 = interned_data->add_debug_annotation_names();

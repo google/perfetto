@@ -362,9 +362,9 @@ void ProtoTraceTokenizer::ParseInternedData(
         context_, state, interned_data.slice(offset, it->size()));
   }
 
-  for (auto it = interned_data_decoder.legacy_event_names(); it; ++it) {
+  for (auto it = interned_data_decoder.event_names(); it; ++it) {
     size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::LegacyEventName>(
+    InternMessage<protos::pbzero::EventName>(
         context_, state, interned_data.slice(offset, it->size()));
   }
 
