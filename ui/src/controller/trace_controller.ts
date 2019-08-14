@@ -43,6 +43,7 @@ import {Child, Children, Controller} from './controller';
 import {globals} from './globals';
 import {LogsController} from './logs_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
+import {SearchController} from './search_controller';
 import {
   SelectionController,
   SelectionControllerArgs
@@ -123,6 +124,11 @@ export class TraceController extends Controller<States> {
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
           Child('selection', SelectionController, selectionArgs));
+
+        childControllers.push(Child('search', SearchController, {
+          engine,
+          app: globals,
+        }));
 
         childControllers.push(Child('logs', LogsController, {
           engine,
