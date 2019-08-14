@@ -40,8 +40,8 @@ package perfetto.protos;
 // association) are emitted as part of ProcessDescriptor and ThreadDescriptor
 // messages in separate TracePackets instead.
 //
-// Next reserved id: 10 (up to 15).
-// Next id: 22.
+// Next reserved id: 11 (up to 15).
+// Next id: 24.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
   oneof timestamp {
@@ -81,10 +81,25 @@ message TrackEvent {
 
   // TODO(eseckler): Add a way to specify Tracks.
 
+  // Names of categories of the event. In the client library, categories are a
+  // way to turn groups of individual events on or off.
+  //
   // We intend to add a binary symbol version of this in the future.
   repeated uint64 category_iids = 3;  // interned EventCategoryName.
+  repeated string categories = 22;    // non-interned variant.
 
-  // TODO(eseckler): May also want a debug_name for untyped debug-only events.
+  // Optional name of the event for its display in trace viewer. May be left
+  // unspecified for events with typed arguments.
+  //
+  // Note that metrics should not rely on event names, as they are prone to
+  // changing. Instead, they should use typed arguments to identify the events
+  // they are interested in.
+  //
+  // We intend to add a binary symbol version of this in the future.
+  oneof name_field {
+    uint64 name_iid = 10;  // interned EventName.
+    string name = 23;      // non-interned variant.
+  }
 
   // Type of the TrackEvent (required if |phase| in LegacyEvent is not set).
   enum Type {
@@ -136,7 +151,8 @@ message TrackEvent {
   // Next reserved id: 16 (up to 16).
   // Next id: 20.
   message LegacyEvent {
-    optional uint64 name_iid = 1;  // interned LegacyEventName.
+    // Deprecated, use TrackEvent::name(_iid) instead.
+    optional uint64 name_iid = 1;  // interned EventName.
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
@@ -199,7 +215,7 @@ message EventCategory {
   optional string name = 2;
 }
 
-message LegacyEventName {
+message EventName {
   optional uint64 iid = 1;
   optional string name = 2;
 }
