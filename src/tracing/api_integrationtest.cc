@@ -108,6 +108,28 @@ class MockDataSource2 : public perfetto::DataSource<MockDataSource2> {
   void OnStop(const StopArgs&) override {}
 };
 
+struct TestIncrementalState {
+  TestIncrementalState() { constructed = true; }
+  // Note: a virtual destructor is not required for incremental state.
+  ~TestIncrementalState() { destroyed = true; }
+
+  int count = 100;
+  static bool constructed;
+  static bool destroyed;
+};
+
+bool TestIncrementalState::constructed;
+bool TestIncrementalState::destroyed;
+
+class TestIncrementalDataSource
+    : public perfetto::DataSource<TestIncrementalDataSource,
+                                  TestIncrementalState> {
+ public:
+  void OnSetup(const SetupArgs&) override {}
+  void OnStart(const StartArgs&) override {}
+  void OnStop(const StopArgs&) override {}
+};
+
 // A convenience wrapper around TracingSession that allows to do block on
 //
 struct TestTracingSessionHandle {
@@ -447,6 +469,57 @@ TEST_F(PerfettoApiTest, MultipleRegistrations) {
   EXPECT_EQ(trace_lambda_calls, 1);
 }
 
+TEST_F(PerfettoApiTest, CustomIncrementalState) {
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("incr_data_source");
+  TestIncrementalDataSource::Register(dsd);
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("incr_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // First emit a no-op trace event that initializes the incremental state as a
+  // side effect.
+  TestIncrementalDataSource::Trace(
+      [](TestIncrementalDataSource::TraceContext) {});
+  EXPECT_TRUE(TestIncrementalState::constructed);
+
+  // Check that the incremental state is carried across trace events.
+  TestIncrementalDataSource::Trace(
+      [](TestIncrementalDataSource::TraceContext ctx) {
+        auto* state = ctx.GetIncrementalState();
+        EXPECT_TRUE(state);
+        EXPECT_EQ(100, state->count);
+        state->count++;
+      });
+
+  TestIncrementalDataSource::Trace(
+      [](TestIncrementalDataSource::TraceContext ctx) {
+        auto* state = ctx.GetIncrementalState();
+        EXPECT_EQ(101, state->count);
+      });
+
+  // Make sure the incremental state gets cleaned up between sessions.
+  tracing_session->get()->StopBlocking();
+  tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  TestIncrementalDataSource::Trace(
+      [](TestIncrementalDataSource::TraceContext ctx) {
+        auto* state = ctx.GetIncrementalState();
+        EXPECT_TRUE(TestIncrementalState::destroyed);
+        EXPECT_TRUE(state);
+        EXPECT_EQ(100, state->count);
+      });
+  tracing_session->get()->StopBlocking();
+}
+
 // Regression test for b/139110180. Checks that GetDataSourceLocked() can be
 // called from OnStart() and OnStop() callbacks without deadlocking.
 TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
@@ -506,3 +579,5 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
+PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(TestIncrementalDataSource,
+                                           TestIncrementalState);

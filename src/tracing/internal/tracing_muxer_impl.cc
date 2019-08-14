@@ -117,6 +117,8 @@ void TracingMuxerImpl::ProducerImpl::ClearIncrementalState(
     const DataSourceInstanceID*,
     size_t) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // TODO(skyostil): Mark each affected data source's incremental state as
+  // needing to be cleared.
 }
 // ----- End of TracingMuxerImpl::ProducerImpl methods.
 
