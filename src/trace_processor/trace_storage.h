@@ -836,6 +836,11 @@ class TraceStorage {
       return static_cast<int64_t>(names_.size()) - 1;
     }
 
+    void SetFrameName(size_t row_idx, StringId name_id) {
+      PERFETTO_CHECK(row_idx < names_.size());
+      names_[row_idx] = name_id;
+    }
+
     const std::deque<StringId>& names() const { return names_; }
     const std::deque<int64_t>& mappings() const { return mappings_; }
     const std::deque<int64_t>& rel_pcs() const { return rel_pcs_; }

@@ -245,12 +245,33 @@ void HeapProfileTracker::CommitAllocations(const InternLookup* intern_lookup) {
 
 void HeapProfileTracker::FinalizeProfile(const InternLookup* intern_lookup) {
   CommitAllocations(intern_lookup);
-
   string_map_.clear();
   mappings_.clear();
-  frames_.clear();
   callstacks_from_frames_.clear();
   callstacks_.clear();
+  // We intentionally hold on to the frames_ mappings - we will use them
+  // if we encounter any ProfiledFrameSymbols packets for symbolizing.
+}
+
+void HeapProfileTracker::SetFrameName(SourceFrameId source_frame_id,
+                                      SourceStringId function_name_id,
+                                      const InternLookup* intern_lookup) {
+  auto maybe_frame_row = FindFrame(source_frame_id, intern_lookup);
+  if (!maybe_frame_row) {
+    context_->storage->IncrementStats(stats::heapprofd_invalid_frame_id);
+    PERFETTO_DFATAL_OR_ELOG("Unknown frame iid %" PRIu64 " in symbols.",
+                            source_frame_id);
+  }
+  auto maybe_name_id = FindString(function_name_id, intern_lookup);
+  if (!maybe_name_id) {
+    context_->storage->IncrementStats(stats::heapprofd_invalid_string_id);
+    PERFETTO_DFATAL_OR_ELOG("Invalid string iid %" PRIu64 " in symbols.",
+                            function_name_id);
+  }
+
+  size_t frame_row = static_cast<size_t>(*maybe_frame_row);
+  context_->storage->mutable_heap_profile_frames()->SetFrameName(
+      frame_row, *maybe_name_id);
 }
 
 int64_t HeapProfileTracker::GetDatabaseFrameIdForTesting(
