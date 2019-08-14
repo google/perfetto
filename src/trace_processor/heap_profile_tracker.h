@@ -122,6 +122,14 @@ class HeapProfileTracker {
   // that had been stored using StoreAllocation and clear internal indices
   // for that dump.
   void FinalizeProfile(const InternLookup* lookup);
+
+  // Mutates the frame row in place and remaps it to a different string id.
+  // Used for symbolication.
+  // Must be called after FinalizeProfile.
+  void SetFrameName(SourceFrameId source_frame_id,
+                    SourceStringId function_name_id,
+                    const InternLookup* intern_lookup);
+
   // Only commit the allocations that had been stored using StoreAllocations.
   // This is only needed in tests, use FinalizeProfile instead.
   void CommitAllocations(const InternLookup* lookup);

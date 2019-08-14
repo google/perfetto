@@ -4,7 +4,7 @@ heap_profile_callsite_stats {
     callsite_stats {
       callsite {
         frame {
-          name: "f3"
+          name: "symbolized f3"
         }
         frame {
           name: "f2"
