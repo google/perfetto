@@ -113,3 +113,6 @@ print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 # GPU trace tests
 ../data/gpu_counters.pb gpu_counters.sql gpu_counters.out
 ../data/gpu_trace.pb gpu_render_stages.sql gpu_render_stages.out
+
+# Clock sync
+clock_sync.py clock_sync.sql clock_sync.out

@@ -79,7 +79,6 @@ class ProtoTraceParser : public TraceParser {
   void ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes);
   void ParseMmEventRecord(int64_t ts, uint32_t pid, ConstBytes);
   void ParseSysEvent(int64_t ts, uint32_t pid, bool is_enter, ConstBytes);
-  void ParseClockSnapshot(ConstBytes);
   void ParseAndroidLogPacket(ConstBytes);
   void ParseAndroidLogEvent(ConstBytes);
   void ParseAndroidLogStats(ConstBytes);
