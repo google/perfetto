@@ -100,7 +100,12 @@ class PERFETTO_EXPORT DataSourceBase {
 // Templated base class meant to be derived by embedders to create a custom data
 // source. DataSourceType must be the type of the derived class itself, e.g.:
 // class MyDataSource : public DataSourceBase<MyDataSource> {...}.
-template <typename DataSourceType>
+//
+// |IncrementalStateType| can optionally be used store custom per-sequence
+// incremental data (e.g., interning tables). It should have a Clear() method
+// for when incremental state needs to be cleared. See
+// TraceContext::GetIncrementalState().
+template <typename DataSourceType, typename IncrementalStateType = void>
 class DataSource : public DataSourceBase {
  public:
   // Argument passed to the lambda function passed to Trace() (below).
@@ -113,7 +118,7 @@ class DataSource : public DataSourceBase {
     ~TraceContext() = default;
 
     TracePacketHandle NewTracePacket() {
-      return trace_writer_->NewTracePacket();
+      return tls_inst_->trace_writer->NewTracePacket();
     }
 
     // Forces a commit of the thread-local tracing data written so far to the
@@ -130,7 +135,9 @@ class DataSource : public DataSourceBase {
     // service to ACK the flush and will be invoked on an internal thread after
     // the service has  acknowledged it. The callback might be NEVER INVOKED if
     // the service crashes or the IPC connection is dropped.
-    void Flush(std::function<void()> cb = {}) { trace_writer_->Flush(cb); }
+    void Flush(std::function<void()> cb = {}) {
+      tls_inst_->trace_writer->Flush(cb);
+    }
 
     // Returns a RAII handle to access the data source instance, guaranteeing
     // that it won't be deleted on another thread (because of trace stopping)
@@ -148,14 +155,20 @@ class DataSource : public DataSourceBase {
           static_cast<DataSourceType*>(internal_state->data_source.get()));
     }
 
+    IncrementalStateType* GetIncrementalState() {
+      return reinterpret_cast<IncrementalStateType*>(
+          tls_inst_->incremental_state.get());
+    }
+
    private:
     friend class DataSource;
-    TraceContext(TraceWriterBase* trace_writer, uint32_t instance_index)
-        : trace_writer_(trace_writer), instance_index_(instance_index) {}
+    TraceContext(internal::DataSourceInstanceThreadLocalState* tls_inst,
+                 uint32_t instance_index)
+        : tls_inst_(tls_inst), instance_index_(instance_index) {}
     TraceContext(const TraceContext&) = delete;
     TraceContext& operator=(const TraceContext&) = delete;
 
-    TraceWriterBase* const trace_writer_;
+    internal::DataSourceInstanceThreadLocalState* const tls_inst_;
     uint32_t const instance_index_;
   };
 
@@ -251,9 +264,7 @@ class DataSource : public DataSourceBase {
       // handshaking to make this extremely unrealistic.
 
       auto& tls_inst = tls_state_->per_instance[i];
-      TraceWriterBase* trace_writer = tls_inst.trace_writer.get();
-
-      if (PERFETTO_UNLIKELY(!trace_writer)) {
+      if (PERFETTO_UNLIKELY(!tls_inst.trace_writer)) {
         // Here we need an acquire barrier, which matches the release-store made
         // by TracingMuxerImpl::SetupDataSource(), to ensure that the backend_id
         // and buffer_id are consistent.
@@ -265,14 +276,15 @@ class DataSource : public DataSourceBase {
         tls_inst.backend_id = instance_state->backend_id;
         tls_inst.buffer_id = instance_state->buffer_id;
         tls_inst.trace_writer = tracing_impl->CreateTraceWriter(instance_state);
-        trace_writer = tls_inst.trace_writer.get();
+        CreateIncrementalState(&tls_inst,
+                               static_cast<IncrementalStateType*>(nullptr));
 
         // Even in the case of out-of-IDs, SharedMemoryArbiterImpl returns a
         // NullTraceWriter. The returned pointer should never be null.
-        assert(trace_writer);
+        assert(tls_inst.trace_writer);
       }
 
-      tracing_fn(TraceContext(trace_writer, i));
+      tracing_fn(TraceContext(&tls_inst, i));
     }
   }
 
@@ -299,6 +311,24 @@ class DataSource : public DataSourceBase {
                                             &static_state_);
   }
 
+ private:
+  // Create the user provided incremental state in the given thread-local
+  // storage. Note: The second parameter here is used to specialize the case
+  // where there is no incremental state type.
+  template <typename T>
+  static void CreateIncrementalState(
+      internal::DataSourceInstanceThreadLocalState* tls_inst,
+      const T*) {
+    PERFETTO_DCHECK(!tls_inst->incremental_state);
+    tls_inst->incremental_state =
+        internal::DataSourceInstanceThreadLocalState::IncrementalStatePointer(
+            reinterpret_cast<void*>(new T()),
+            [](void* p) { delete reinterpret_cast<T*>(p); });
+  }
+  static void CreateIncrementalState(
+      internal::DataSourceInstanceThreadLocalState*,
+      const void*) {}
+
   // Static state. Accessed by the static Trace() method fastpaths.
   static internal::DataSourceStaticState static_state_;
 
@@ -316,23 +346,23 @@ class DataSource : public DataSourceBase {
 
 // If a data source is used across translation units, this declaration must be
 // placed into the header file defining the data source.
-#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(X)         \
+#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)       \
   template <>                                                  \
   perfetto::internal::DataSourceStaticState                    \
-      perfetto::DataSource<X>::static_state_;                  \
+      perfetto::DataSource<__VA_ARGS__>::static_state_;        \
   template <>                                                  \
   thread_local perfetto::internal::DataSourceThreadLocalState* \
-      perfetto::DataSource<X>::tls_state_
+      perfetto::DataSource<__VA_ARGS__>::tls_state_
 
 // The API client must use this in a translation unit. This is because it needs
 // to instantiate the static storage for the datasource to allow the fastpath
 // enabled check.
-#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(X)          \
+#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)        \
   template <>                                                  \
   perfetto::internal::DataSourceStaticState                    \
-      perfetto::DataSource<X>::static_state_{};                \
+      perfetto::DataSource<__VA_ARGS__>::static_state_{};      \
   template <>                                                  \
   thread_local perfetto::internal::DataSourceThreadLocalState* \
-      perfetto::DataSource<X>::tls_state_ = nullptr
+      perfetto::DataSource<__VA_ARGS__>::tls_state_ = nullptr
 
 #endif  // INCLUDE_PERFETTO_TRACING_DATA_SOURCE_H_
