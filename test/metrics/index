@@ -18,4 +18,4 @@ android_startup_powrails.py android_powrails android_startup_powrails.out
 
 android_package_list.py android_package_list android_package_list.out
 
-heap_profile.py heap_profile_callsite_stats heap_profile_callsite_stats.out
+heap_profile.textproto heap_profile_callsite_stats heap_profile_callsite_stats.out
