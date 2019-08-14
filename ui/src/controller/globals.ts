@@ -27,14 +27,13 @@ import {
 
 import {ControllerAny} from './controller';
 
+type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
+    'LegacyTrace'|'SliceDetails'|'Loading'|'Search'|'BufferUsage';
 
 export interface App {
   state: State;
   dispatch(action: DeferredAction): void;
-  publish(
-      what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
-      'SliceDetails'|'Loading',
-      data: {}, transferList?: Array<{}>): void;
+  publish(what: PublishKinds, data: {}, transferList?: Array<{}>): void;
 }
 
 /**
@@ -102,10 +101,7 @@ class Globals implements App {
   }
 
   // TODO: this needs to be cleaned up.
-  publish(
-      what: 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
-      'SliceDetails'|'Loading'|'BufferUsage',
-      data: {}, transferList?: Transferable[]) {
+  publish(what: PublishKinds, data: {}, transferList?: Transferable[]) {
     assertExists(this._frontend)
         .send<void>(`publish${what}`, [data], transferList);
   }
