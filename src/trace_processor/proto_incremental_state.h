@@ -59,7 +59,7 @@ struct StorageReferences<protos::pbzero::EventCategory> {
 };
 
 template <>
-struct StorageReferences<protos::pbzero::LegacyEventName> {
+struct StorageReferences<protos::pbzero::EventName> {
   StringId name_id;
 };
 
@@ -186,7 +186,7 @@ class ProtoIncrementalState {
     int64_t track_event_thread_instruction_count_ = 0;
 
     InternedDataMap<protos::pbzero::EventCategory> event_categories_;
-    InternedDataMap<protos::pbzero::LegacyEventName> legacy_event_names_;
+    InternedDataMap<protos::pbzero::EventName> event_names_;
     InternedDataMap<protos::pbzero::DebugAnnotationName>
         debug_annotation_names_;
     InternedDataMap<protos::pbzero::SourceLocation> source_locations_;
@@ -222,10 +222,10 @@ ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
 }
 
 template <>
-inline ProtoIncrementalState::InternedDataMap<protos::pbzero::LegacyEventName>*
+inline ProtoIncrementalState::InternedDataMap<protos::pbzero::EventName>*
 ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
-    protos::pbzero::LegacyEventName>() {
-  return &legacy_event_names_;
+    protos::pbzero::EventName>() {
+  return &event_names_;
 }
 
 template <>
