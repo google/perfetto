@@ -39,7 +39,7 @@ package perfetto.protos;
 // Because of the incremental build-up, the interning index will miss data when
 // TracePackets are lost, e.g. because a chunk was overridden in the central
 // ring buffer. To avoid invalidation of the whole trace in such a case, the
-// index is periodically reset (see |incremental_state_cleared| in TracePacket).
+// index is periodically reset (see SEQ_INCREMENTAL_STATE_CLEARED).
 // When packet loss occurs, the reader will only lose interning data up to the
 // next reset.
 // -----------------------------------------------------------------------------
