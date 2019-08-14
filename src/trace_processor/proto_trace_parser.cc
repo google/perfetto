@@ -1531,6 +1531,7 @@ void ProtoTraceParser::ParseTrackEvent(
   // TODO(eseckler): This legacy event field will eventually be replaced by
   // fields in TrackEvent itself.
   if (PERFETTO_UNLIKELY(!event.type() && !legacy_event.has_phase())) {
+    context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_ELOG("TrackEvent without type or phase");
     return;
   }
@@ -1551,12 +1552,16 @@ void ProtoTraceParser::ParseTrackEvent(
   for (auto it = event.category_iids(); it; ++it) {
     category_iids.push_back(it->as_uint64());
   }
+  std::vector<protozero::ConstChars> category_strings;
+  for (auto it = event.categories(); it; ++it) {
+    category_strings.push_back(it->as_string());
+  }
 
   StringId category_id = 0;
 
   // If there's a single category, we can avoid building a concatenated
   // string.
-  if (PERFETTO_LIKELY(category_iids.size() == 1)) {
+  if (PERFETTO_LIKELY(category_iids.size() == 1 && category_strings.empty())) {
     auto* map =
         sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
     auto cat_view_it = map->find(category_iids[0]);
@@ -1577,7 +1582,9 @@ void ProtoTraceParser::ParseTrackEvent(
                 protos::pbzero::EventCategory>{category_id};
       }
     }
-  } else if (category_iids.size() > 1) {
+  } else if (category_iids.empty() && category_strings.size() == 1) {
+    category_id = storage->InternString(category_strings[0]);
+  } else if (category_iids.size() + category_strings.size() > 1) {
     auto* map =
         sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
     // We concatenate the category strings together since we currently only
@@ -1598,22 +1605,31 @@ void ProtoTraceParser::ParseTrackEvent(
         categories.append(",");
       categories.append(name.data(), name.size());
     }
+    for (const protozero::ConstChars& cat : category_strings) {
+      if (!categories.empty())
+        categories.append(",");
+      categories.append(cat.data, cat.size);
+    }
     if (!categories.empty())
       category_id = storage->InternString(base::StringView(categories));
   } else {
+    context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_ELOG("TrackEvent without category");
   }
 
   StringId name_id = 0;
 
-  if (PERFETTO_LIKELY(legacy_event.name_iid())) {
-    auto* map =
-        sequence_state->GetInternedDataMap<protos::pbzero::LegacyEventName>();
-    auto name_view_it = map->find(legacy_event.name_iid());
+  uint64_t name_iid = event.name_iid();
+  if (!name_iid)
+    name_iid = legacy_event.name_iid();
+
+  if (PERFETTO_LIKELY(name_iid)) {
+    auto* map = sequence_state->GetInternedDataMap<protos::pbzero::EventName>();
+    auto name_view_it = map->find(name_iid);
     if (name_view_it == map->end()) {
       context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
       PERFETTO_ELOG("Could not find event name interning entry for ID %" PRIu64,
-                    legacy_event.name_iid());
+                    name_iid);
     } else {
       // If the name is already in the pool, no need to decode it again.
       if (name_view_it->second.storage_refs) {
@@ -1623,10 +1639,12 @@ void ProtoTraceParser::ParseTrackEvent(
         name_id = storage->InternString(event_name.name());
         // Avoid having to decode & look up the name again in the future.
         name_view_it->second.storage_refs =
-            ProtoIncrementalState::StorageReferences<
-                protos::pbzero::LegacyEventName>{name_id};
+            ProtoIncrementalState::StorageReferences<protos::pbzero::EventName>{
+                name_id};
       }
     }
+  } else if (event.has_name()) {
+    name_id = storage->InternString(event.name());
   }
 
   auto args_callback = [this, &event, &sequence_state, ts, utid](
@@ -1996,42 +2014,49 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ArgsTracker* args_tracker,
     RowId row_id) {
+  TraceStorage* storage = context_->storage.get();
+
   protos::pbzero::DebugAnnotation::Decoder annotation(debug_annotation.data,
                                                       debug_annotation.size);
-  uint64_t iid = annotation.name_iid();
-  if (!iid)
-    return;
 
-  auto* map =
-      sequence_state->GetInternedDataMap<protos::pbzero::DebugAnnotationName>();
-  auto name_view_it = map->find(iid);
-  if (name_view_it == map->end()) {
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
-    PERFETTO_ELOG(
-        "Could not find debug annotation name interning entry for ID %" PRIu64,
-        iid);
-    return;
-  }
-
-  TraceStorage* storage = context_->storage.get();
 
   StringId name_id = 0;
 
-  // If the name is already in the pool, no need to decode it again.
-  if (name_view_it->second.storage_refs) {
-    name_id = name_view_it->second.storage_refs->name_id;
+  uint64_t name_iid = annotation.name_iid();
+  if (PERFETTO_LIKELY(name_iid)) {
+    auto* map = sequence_state
+                    ->GetInternedDataMap<protos::pbzero::DebugAnnotationName>();
+    auto name_view_it = map->find(name_iid);
+    if (name_view_it == map->end()) {
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      PERFETTO_ELOG(
+          "Could not find debug annotation name interning entry for ID "
+          "%" PRIu64,
+          name_iid);
+      return;
+    }
+
+    // If the name is already in the pool, no need to decode it again.
+    if (name_view_it->second.storage_refs) {
+      name_id = name_view_it->second.storage_refs->name_id;
+    } else {
+      // TODO(khokhlov): If there are dots or brackets in argument names, they
+      // will confuse the JSON exporter. Either introduce escape sequences (both
+      // here and in export_json.cc), or find another way to encode such names.
+      auto name = name_view_it->second.CreateDecoder();
+      std::string name_prefixed = "debug." + name.name().ToStdString();
+      name_id = storage->InternString(base::StringView(name_prefixed));
+      // Avoid having to decode & look up the name again in the future.
+      name_view_it->second.storage_refs =
+          ProtoIncrementalState::StorageReferences<
+              protos::pbzero::DebugAnnotationName>{name_id};
+    }
+  } else if (annotation.has_name()) {
+    name_id = storage->InternString(annotation.name());
   } else {
-    // TODO(khokhlov): If there are dots or brackets in argument names,
-    // they will confuse the JSON exporter. Either introduce escape
-    // sequences (both here and in export_json.cc), or find another way
-    // to encode such names.
-    auto name = name_view_it->second.CreateDecoder();
-    std::string name_prefixed = "debug." + name.name().ToStdString();
-    name_id = storage->InternString(base::StringView(name_prefixed));
-    // Avoid having to decode & look up the name again in the future.
-    name_view_it->second.storage_refs =
-        ProtoIncrementalState::StorageReferences<
-            protos::pbzero::DebugAnnotationName>{name_id};
+    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    PERFETTO_ELOG("Debug annotation without name");
+    return;
   }
 
   if (annotation.has_bool_value()) {

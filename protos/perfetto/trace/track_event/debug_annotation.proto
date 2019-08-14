@@ -22,6 +22,8 @@ package perfetto.protos;
 // Key/value annotations provided in untyped TRACE_EVENT macros. These
 // annotations are intended for debug use and are not considered a stable API
 // surface. As such, they should not be relied upon to implement (new) metrics.
+//
+// Next ID: 10.
 message DebugAnnotation {
   message NestedValue {
     enum NestedType {
@@ -40,7 +42,10 @@ message DebugAnnotation {
     optional string string_value = 8;
   }
 
-  optional uint64 name_iid = 1;  // interned DebugAnnotationName.
+  oneof name_field {
+    uint64 name_iid = 1;  // interned DebugAnnotationName.
+    string name = 10;     // non-interned variant.
+  }
 
   oneof value {
     bool bool_value = 2;
