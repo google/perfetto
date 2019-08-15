@@ -102,7 +102,7 @@ message ChromeMetadata {
 message ChromeLegacyJsonTrace {
   enum TraceType {
     USER_TRACE = 0;
-    SYSTEM_TRACE = 1;
+    SYSTEM_TRACE = 1;  // Deprecated.
   }
   optional TraceType type = 1;
   optional string data = 2;

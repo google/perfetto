@@ -1872,6 +1872,69 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
                      Variadic::Integer(kIntValue)));
 }
 
+TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
+  static const char kDataPart0[] = "aaa";
+  static const char kDataPart1[] = "bbb";
+  static const char kFullData[] = "aaabbb";
+
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* bundle = packet->set_chrome_events();
+    bundle->add_legacy_ftrace_output(kDataPart0);
+    bundle->add_legacy_ftrace_output(kDataPart1);
+  }
+
+  Tokenize();
+
+  context_.sorter->ExtractEventsForced();
+
+  // Verify raw_events and args contents.
+  const auto& raw_events = storage_->raw_events();
+  EXPECT_EQ(raw_events.raw_event_count(), 1u);
+  EXPECT_EQ(raw_events.name_ids()[0],
+            storage_->InternString("chrome_event.legacy_system_trace"));
+  EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
+
+  EXPECT_EQ(storage_->args().args_count(), 1u);
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
+                     Variadic::String(storage_->InternString(kFullData))));
+}
+
+TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
+  static const char kUserTraceEvent[] = "{\"user\":1}";
+
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* bundle = packet->set_chrome_events();
+    auto* user_trace = bundle->add_legacy_json_trace();
+    user_trace->set_type(protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE);
+    user_trace->set_data(kUserTraceEvent);
+  }
+
+  Tokenize();
+
+  context_.sorter->ExtractEventsForced();
+
+  // Verify raw_events and args contents.
+  const auto& raw_events = storage_->raw_events();
+  EXPECT_EQ(raw_events.raw_event_count(), 1u);
+  EXPECT_EQ(raw_events.name_ids()[0],
+            storage_->InternString("chrome_event.legacy_user_trace"));
+  EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
+
+  EXPECT_EQ(storage_->args().args_count(), 1u);
+  EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
+                     Variadic::Json(storage_->InternString(kUserTraceEvent))));
+}
+
 TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   static const char kName[] = "name";
   static const char kTag1[] = "tag1";
