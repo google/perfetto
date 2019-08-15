@@ -104,24 +104,32 @@ class TraceFormatWriter {
     }
   }
 
+  void AddSystemTraceData(const std::string& data) {
+    system_trace_data_ += data;
+  }
+
  private:
   void WriteHeader() { fputs("{\"traceEvents\":[\n", output_); }
 
   void WriteFooter() {
-    if (metadata_.empty()) {
-      fputs("]}", output_);
-    } else {
-      fputs("],\n\"metadata\":", output_);
-      Json::FastWriter writer;
-      fputs(writer.write(metadata_).c_str(), output_);
-      fputs("\n}", output_);
+    Json::FastWriter writer;
+    fputs("]", output_);
+    if (!system_trace_data_.empty()) {
+      fputs(",\"systemTraceEvents\":\n", output_);
+      fputs(writer.write(Json::Value(system_trace_data_)).c_str(), output_);
     }
+    if (!metadata_.empty()) {
+      fputs(",\"metadata\":\n", output_);
+      fputs(writer.write(metadata_).c_str(), output_);
+    }
+    fputs("}", output_);
     fflush(output_);
   }
 
   FILE* output_;
   bool first_event_;
   Json::Value metadata_;
+  std::string system_trace_data_;
 };
 
 std::string PrintUint64(uint64_t x) {
@@ -433,14 +441,9 @@ ResultCode ExportSlices(const TraceStorage* storage,
   return kResultOk;
 }
 
-ResultCode ExportRawEvents(const TraceStorage* storage,
-                           const ArgsBuilder& args_builder,
-                           TraceFormatWriter* writer) {
-  base::Optional<StringId> raw_legacy_event_key_id =
-      storage->string_pool().GetId("track_event.legacy_event");
-  if (!raw_legacy_event_key_id)
-    return kResultOk;
-
+Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
+                                        const ArgsBuilder& args_builder,
+                                        uint32_t index) {
   const char kLegacyEventArgsKey[] = "legacy_event";
   const char kLegacyEventCategoryKey[] = "category";
   const char kLegacyEventNameKey[] = "name";
@@ -464,120 +467,134 @@ ResultCode ExportRawEvents(const TraceStorage* storage,
   const char kFlowDirectionValueInout[] = "inout";
 
   const auto& events = storage->raw_events();
-  for (uint32_t i = 0; i < events.raw_event_count(); ++i) {
-    if (events.name_ids()[i] != *raw_legacy_event_key_id)
-      continue;
 
-    Json::Value event;
-    event["ts"] = Json::Int64(events.timestamps()[i] / 1000);
+  Json::Value event;
+  event["ts"] = Json::Int64(events.timestamps()[index] / 1000);
 
-    UniqueTid utid = static_cast<UniqueTid>(events.utids()[i]);
-    auto thread = storage->GetThread(utid);
-    event["tid"] = thread.tid;
-    if (thread.upid) {
-      event["pid"] = storage->GetProcess(*thread.upid).pid;
-    }
-
-    // Raw legacy events store all other params in the arg set. Make a copy of
-    // the converted args here and remove these params.
-    Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
-    Json::Value legacy_args = args[kLegacyEventArgsKey];
-    args.removeMember(kLegacyEventArgsKey);
-
-    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
-    event["cat"] = legacy_args[kLegacyEventCategoryKey];
-
-    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventNameKey));
-    event["name"] = legacy_args[kLegacyEventNameKey];
-
-    PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventPhaseKey));
-    event["ph"] = legacy_args[kLegacyEventPhaseKey];
-
-    if (legacy_args.isMember(kLegacyEventDurationNsKey)) {
-      event["dur"] = legacy_args[kLegacyEventDurationNsKey].asInt64() / 1000;
-    }
-
-    if (legacy_args.isMember(kLegacyEventThreadTimestampNsKey)) {
-      event["tts"] =
-          legacy_args[kLegacyEventThreadTimestampNsKey].asInt64() / 1000;
-    }
-
-    if (legacy_args.isMember(kLegacyEventThreadDurationNsKey)) {
-      event["tdur"] =
-          legacy_args[kLegacyEventThreadDurationNsKey].asInt64() / 1000;
-    }
-
-    if (legacy_args.isMember(kLegacyEventThreadInstructionCountKey)) {
-      event["ticount"] = legacy_args[kLegacyEventThreadInstructionCountKey];
-    }
-
-    if (legacy_args.isMember(kLegacyEventThreadInstructionDeltaKey)) {
-      event["tidelta"] = legacy_args[kLegacyEventThreadInstructionDeltaKey];
-    }
-
-    if (legacy_args.isMember(kLegacyEventUseAsyncTtsKey)) {
-      event["use_async_tts"] = legacy_args[kLegacyEventUseAsyncTtsKey];
-    }
-
-    if (legacy_args.isMember(kLegacyEventGlobalIdKey)) {
-      event["id2"]["global"] =
-          PrintUint64(legacy_args[kLegacyEventGlobalIdKey].asUInt64());
-    }
-
-    if (legacy_args.isMember(kLegacyEventLocalIdKey)) {
-      event["id2"]["local"] =
-          PrintUint64(legacy_args[kLegacyEventLocalIdKey].asUInt64());
-    }
-
-    if (legacy_args.isMember(kLegacyEventIdScopeKey)) {
-      event["scope"] = legacy_args[kLegacyEventIdScopeKey];
-    }
-
-    if (legacy_args.isMember(kLegacyEventBindIdKey)) {
-      event["bind_id"] =
-          PrintUint64(legacy_args[kLegacyEventBindIdKey].asUInt64());
-    }
-
-    if (legacy_args.isMember(kLegacyEventBindToEnclosingKey)) {
-      event["bp"] = "e";
-    }
-
-    if (legacy_args.isMember(kLegacyEventFlowDirectionKey)) {
-      const char* val = legacy_args[kLegacyEventFlowDirectionKey].asCString();
-      if (strcmp(val, kFlowDirectionValueIn) == 0) {
-        event["flow_in"] = true;
-      } else if (strcmp(val, kFlowDirectionValueOut) == 0) {
-        event["flow_out"] = true;
-      } else {
-        PERFETTO_DCHECK(strcmp(val, kFlowDirectionValueInout) == 0);
-        event["flow_in"] = true;
-        event["flow_out"] = true;
-      }
-    }
-
-    if (!args.empty()) {
-      event["args"] = args;
-    }
-
-    writer->WriteCommonEvent(event);
+  UniqueTid utid = static_cast<UniqueTid>(events.utids()[index]);
+  auto thread = storage->GetThread(utid);
+  event["tid"] = thread.tid;
+  if (thread.upid) {
+    event["pid"] = storage->GetProcess(*thread.upid).pid;
   }
-  return kResultOk;
+
+  // Raw legacy events store all other params in the arg set. Make a copy of
+  // the converted args here and remove these params.
+  Json::Value args = args_builder.GetArgs(events.arg_set_ids()[index]);
+  Json::Value legacy_args = args[kLegacyEventArgsKey];
+  args.removeMember(kLegacyEventArgsKey);
+
+  PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
+  event["cat"] = legacy_args[kLegacyEventCategoryKey];
+
+  PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventNameKey));
+  event["name"] = legacy_args[kLegacyEventNameKey];
+
+  PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventPhaseKey));
+  event["ph"] = legacy_args[kLegacyEventPhaseKey];
+
+  if (legacy_args.isMember(kLegacyEventDurationNsKey)) {
+    event["dur"] = legacy_args[kLegacyEventDurationNsKey].asInt64() / 1000;
+  }
+
+  if (legacy_args.isMember(kLegacyEventThreadTimestampNsKey)) {
+    event["tts"] =
+        legacy_args[kLegacyEventThreadTimestampNsKey].asInt64() / 1000;
+  }
+
+  if (legacy_args.isMember(kLegacyEventThreadDurationNsKey)) {
+    event["tdur"] =
+        legacy_args[kLegacyEventThreadDurationNsKey].asInt64() / 1000;
+  }
+
+  if (legacy_args.isMember(kLegacyEventThreadInstructionCountKey)) {
+    event["ticount"] = legacy_args[kLegacyEventThreadInstructionCountKey];
+  }
+
+  if (legacy_args.isMember(kLegacyEventThreadInstructionDeltaKey)) {
+    event["tidelta"] = legacy_args[kLegacyEventThreadInstructionDeltaKey];
+  }
+
+  if (legacy_args.isMember(kLegacyEventUseAsyncTtsKey)) {
+    event["use_async_tts"] = legacy_args[kLegacyEventUseAsyncTtsKey];
+  }
+
+  if (legacy_args.isMember(kLegacyEventGlobalIdKey)) {
+    event["id2"]["global"] =
+        PrintUint64(legacy_args[kLegacyEventGlobalIdKey].asUInt64());
+  }
+
+  if (legacy_args.isMember(kLegacyEventLocalIdKey)) {
+    event["id2"]["local"] =
+        PrintUint64(legacy_args[kLegacyEventLocalIdKey].asUInt64());
+  }
+
+  if (legacy_args.isMember(kLegacyEventIdScopeKey)) {
+    event["scope"] = legacy_args[kLegacyEventIdScopeKey];
+  }
+
+  if (legacy_args.isMember(kLegacyEventBindIdKey)) {
+    event["bind_id"] =
+        PrintUint64(legacy_args[kLegacyEventBindIdKey].asUInt64());
+  }
+
+  if (legacy_args.isMember(kLegacyEventBindToEnclosingKey)) {
+    event["bp"] = "e";
+  }
+
+  if (legacy_args.isMember(kLegacyEventFlowDirectionKey)) {
+    const char* val = legacy_args[kLegacyEventFlowDirectionKey].asCString();
+    if (strcmp(val, kFlowDirectionValueIn) == 0) {
+      event["flow_in"] = true;
+    } else if (strcmp(val, kFlowDirectionValueOut) == 0) {
+      event["flow_out"] = true;
+    } else {
+      PERFETTO_DCHECK(strcmp(val, kFlowDirectionValueInout) == 0);
+      event["flow_in"] = true;
+      event["flow_out"] = true;
+    }
+  }
+
+  if (!args.empty()) {
+    event["args"] = args;
+  }
+
+  return event;
 }
 
-ResultCode ExportChromeMetadata(const TraceStorage* storage,
-                                const ArgsBuilder& args_builder,
-                                TraceFormatWriter* writer) {
+ResultCode ExportRawEvents(const TraceStorage* storage,
+                           const ArgsBuilder& args_builder,
+                           TraceFormatWriter* writer) {
+  base::Optional<StringId> raw_legacy_event_key_id =
+      storage->string_pool().GetId("track_event.legacy_event");
+  base::Optional<StringId> raw_legacy_system_trace_event_id =
+      storage->string_pool().GetId("chrome_event.legacy_system_trace");
+  base::Optional<StringId> raw_legacy_user_trace_event_id =
+      storage->string_pool().GetId("chrome_event.legacy_user_trace");
   base::Optional<StringId> raw_chrome_metadata_event_id =
       storage->string_pool().GetId("chrome_event.metadata");
-  if (!raw_chrome_metadata_event_id)
-    return kResultOk;
 
   const auto& events = storage->raw_events();
   for (uint32_t i = 0; i < events.raw_event_count(); ++i) {
-    if (events.name_ids()[i] != *raw_chrome_metadata_event_id)
-      continue;
-    Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
-    writer->MergeMetadata(args);
+    if (raw_legacy_event_key_id &&
+        events.name_ids()[i] == *raw_legacy_event_key_id) {
+      Json::Value event = ConvertLegacyRawEventToJson(storage, args_builder, i);
+      writer->WriteCommonEvent(event);
+    } else if (raw_legacy_system_trace_event_id &&
+               events.name_ids()[i] == *raw_legacy_system_trace_event_id) {
+      Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+      PERFETTO_DCHECK(args.isMember("data"));
+      writer->AddSystemTraceData(args["data"].asString());
+    } else if (raw_legacy_user_trace_event_id &&
+               events.name_ids()[i] == *raw_legacy_user_trace_event_id) {
+      Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+      PERFETTO_DCHECK(args.isMember("data"));
+      writer->WriteCommonEvent(args["data"]);
+    } else if (raw_chrome_metadata_event_id &&
+               events.name_ids()[i] == *raw_chrome_metadata_event_id) {
+      Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+      writer->MergeMetadata(args);
+    }
   }
   return kResultOk;
 }
@@ -738,10 +755,6 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
     return code;
 
   code = ExportRawEvents(storage, args_builder, &writer);
-  if (code != kResultOk)
-    return code;
-
-  code = ExportChromeMetadata(storage, args_builder, &writer);
   if (code != kResultOk)
     return code;
 
