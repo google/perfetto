@@ -55,6 +55,11 @@ void ClockTracker::AddSnapshot(const std::map<ClockId, int64_t>& clocks) {
     const int64_t timestamp_ns = clock.ToNs(id_and_ts.second);
     ClockSnapshots& vect = clock.snapshots[snapshot_hash];
 
+    // Clock ids in the range [64, 128) are sequence-scoped and must be
+    // translated to global ids via SeqScopedClockIdToGlobal() before calling
+    // this function.
+    PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
+
     // Snapshot IDs must be always monotonic.
     PERFETTO_DCHECK(vect.snapshot_ids.empty() ||
                     vect.snapshot_ids.back() < snapshot_id);
@@ -66,8 +71,9 @@ void ClockTracker::AddSnapshot(const std::map<ClockId, int64_t>& clocks) {
       if (clock_id == trace_time_clock_id_) {
         // The trace clock cannot be non-monotonic.
         PERFETTO_ELOG(
-            "Clock sync error: the trace clock (id=%u) is not monotonic at "
-            "snapshot %" PRIu32 ". %" PRId64 " is not > %" PRId64 ".",
+            "Clock sync error: the trace clock (id=%" PRIu64
+            ") is not "
+            "monotonic at snapshot %" PRIu32 ". %" PRId64 " not > %" PRId64 ".",
             clock_id, snapshot_id, timestamp_ns, vect.timestamps_ns.back());
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
         return;
@@ -158,6 +164,9 @@ base::Optional<int64_t> ClockTracker::Convert(ClockId src_clock_id,
   // TODO(primiano): optimization: I bet A simple LRU cache of the form
   // (src_clock_id, target_clock_id, latest_timestamp, translation_ns) might
   // speed up most conversion allowing to skip FindPath and the iterations.
+
+  PERFETTO_DCHECK(!IsReservedSeqScopedClockId(src_clock_id));
+  PERFETTO_DCHECK(!IsReservedSeqScopedClockId(target_clock_id));
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {

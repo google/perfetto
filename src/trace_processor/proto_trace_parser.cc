@@ -420,9 +420,6 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_ftrace_stats())
     ParseFtraceStats(packet.ftrace_stats());
 
-  if (packet.has_clock_snapshot())
-    ParseClockSnapshot(packet.clock_snapshot());
-
   if (packet.has_android_log())
     ParseAndroidLogPacket(packet.android_log());
 
@@ -1225,16 +1222,6 @@ void ProtoTraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
         break;
     }
   }
-}
-
-void ProtoTraceParser::ParseClockSnapshot(ConstBytes blob) {
-  std::map<ClockTracker::ClockId, int64_t> clock_map;
-  protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
-  for (auto it = evt.clocks(); it; ++it) {
-    protos::pbzero::ClockSnapshot::Clock::Decoder clk(it->data(), it->size());
-    clock_map[clk.clock_id()] = static_cast<int64_t>(clk.timestamp());
-  }
-  context_->clock_tracker->AddSnapshot(clock_map);
 }
 
 void ProtoTraceParser::ParseAndroidLogPacket(ConstBytes blob) {
