@@ -28,6 +28,10 @@
 
 #include "perfetto/trace/trace_packet.pbzero.h"
 
+namespace protozero {
+struct ConstBytes;
+}
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -49,22 +53,20 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t size) override;
 
  private:
+  using ConstBytes = protozero::ConstBytes;
   util::Status ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
                              uint8_t* data,
                              size_t size);
   util::Status ParsePacket(TraceBlobView);
+  util::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   void HandleIncrementalStateCleared(
-      const protos::pbzero::TracePacket::Decoder& packet_decoder);
-  void HandlePreviousPacketDropped(
-      const protos::pbzero::TracePacket::Decoder& packet_decoder);
-  void ParseInternedData(
-      const protos::pbzero::TracePacket::Decoder& packet_decoder,
-      TraceBlobView interned_data);
-  void ParseThreadDescriptorPacket(
-      const protos::pbzero::TracePacket::Decoder& packet_decoder);
-  void ParseTrackEventPacket(
-      const protos::pbzero::TracePacket::Decoder& packet_decoder,
-      TraceBlobView packet);
+      const protos::pbzero::TracePacket::Decoder&);
+  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket::Decoder&);
+  void ParseInternedData(const protos::pbzero::TracePacket::Decoder&,
+                         TraceBlobView interned_data);
+  void ParseThreadDescriptorPacket(const protos::pbzero::TracePacket::Decoder&);
+  void ParseTrackEventPacket(const protos::pbzero::TracePacket::Decoder&,
+                             TraceBlobView packet);
   void ParseFtraceBundle(TraceBlobView);
   void ParseFtraceEvent(uint32_t cpu, TraceBlobView);
 

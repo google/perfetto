@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/stats.h"
@@ -33,6 +34,7 @@
 #include "src/trace_processor/trace_storage.h"
 
 #include "perfetto/config/trace_config.pbzero.h"
+#include "perfetto/trace/clock_snapshot.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -221,12 +223,52 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   auto timestamp = decoder.has_timestamp()
                        ? static_cast<int64_t>(decoder.timestamp())
                        : latest_timestamp_;
+
+  // If the TracePacket specifies a non-zero clock-id, translate the timestamp
+  // into the trace-time clock domain.
+  if (decoder.timestamp_clock_id()) {
+    PERFETTO_DCHECK(decoder.has_timestamp());
+    ClockTracker::ClockId clock_id = decoder.timestamp_clock_id();
+    const uint32_t seq_id = decoder.trusted_packet_sequence_id();
+    bool is_seq_scoped = ClockTracker::IsReservedSeqScopedClockId(clock_id);
+    if (is_seq_scoped) {
+      if (!seq_id) {
+        return util::ErrStatus(
+            "TracePacket specified a sequence-local clock id (%" PRIu32
+            ") but the TraceWriter's sequence_id is zero (the service is "
+            "probably too old)",
+            seq_id);
+      }
+      clock_id = ClockTracker::SeqScopedClockIdToGlobal(
+          seq_id, decoder.timestamp_clock_id());
+    }
+    auto trace_ts = context_->clock_tracker->ToTraceTime(clock_id, timestamp);
+    if (!trace_ts.has_value()) {
+      // ToTraceTime() will increase the |clock_sync_failure| stat on failure.
+      static const char seq_extra_err[] =
+          " Because the clock id is sequence-scoped, the ClockSnapshot must be "
+          "emitted on the same TraceWriter sequence of the packet that refers "
+          "to that clock id.";
+      return util::ErrStatus(
+          "Failed to convert TracePacket's timestamp from clock_id=%" PRIu32
+          " seq_id=%" PRIu32
+          ". This is usually due to the lack of a prior ClockSnapshot proto.%s",
+          decoder.timestamp_clock_id(), seq_id,
+          is_seq_scoped ? seq_extra_err : "");
+    }
+    timestamp = trace_ts.value();
+  }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
   if (decoder.incremental_state_cleared()) {
     HandleIncrementalStateCleared(decoder);
   } else if (decoder.previous_packet_dropped()) {
     HandlePreviousPacketDropped(decoder);
+  }
+
+  if (decoder.has_clock_snapshot()) {
+    return ParseClockSnapshot(decoder.clock_snapshot(),
+                              decoder.trusted_packet_sequence_id());
   }
 
   if (decoder.has_interned_data()) {
@@ -508,6 +550,28 @@ void ProtoTraceTokenizer::ParseThreadDescriptorPacket(
     procs->UpdateThreadName(
         static_cast<uint32_t>(thread_descriptor_decoder.tid()), thread_name_id);
   }
+}
+
+util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
+                                                     uint32_t seq_id) {
+  std::map<ClockTracker::ClockId, int64_t> clock_map;
+  protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
+  for (auto it = evt.clocks(); it; ++it) {
+    protos::pbzero::ClockSnapshot::Clock::Decoder clk(it->data(), it->size());
+    ClockTracker::ClockId clock_id = clk.clock_id();
+    if (ClockTracker::IsReservedSeqScopedClockId(clk.clock_id())) {
+      if (!seq_id) {
+        return util::ErrStatus(
+            "ClockSnapshot packet is specifying a sequence-scoped clock id "
+            "(%" PRIu64 ") but the TracePacket sequence_id is zero",
+            clock_id);
+      }
+      clock_id = ClockTracker::SeqScopedClockIdToGlobal(seq_id, clk.clock_id());
+    }
+    clock_map[clock_id] = static_cast<int64_t>(clk.timestamp());
+  }
+  context_->clock_tracker->AddSnapshot(clock_map);
+  return util::OkStatus();
 }
 
 void ProtoTraceTokenizer::ParseTrackEventPacket(
