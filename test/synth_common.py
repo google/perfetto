@@ -232,6 +232,29 @@ class Trace(object):
     packet.timestamp = ts
     return packet.profile_packet
 
+  def add_clock_snapshot(self, clocks, seq_id=None):
+    packet = self.add_packet()
+    if seq_id is not None:
+      packet.trusted_packet_sequence_id = seq_id
+    snap = self.packet.clock_snapshot
+    for k,v in clocks.iteritems():
+      clock = snap.clocks.add()
+      clock.clock_id = k
+      clock.timestamp = v
+
+  def add_gpu_counter(self, ts, counter_id, value, clock_id=None, seq_id=None):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    if clock_id is not None:
+      packet.timestamp_clock_id = clock_id
+    if seq_id is not None:
+      packet.trusted_packet_sequence_id = seq_id
+    gpu_counters = self.packet.gpu_counter_event
+    gpu_counter = gpu_counters.counters.add()
+    gpu_counter.counter_id = counter_id
+    gpu_counter.int_value = value
+
+
 def create_trace():
   parser = argparse.ArgumentParser()
   parser.add_argument(

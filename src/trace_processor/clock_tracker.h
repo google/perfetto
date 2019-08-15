@@ -108,10 +108,21 @@ class TraceProcessorContext;
 
 class ClockTracker {
  public:
-  // TODO(primiano): we need to disambiguate sequence-scoped clock IDs.
-  // For clock IDs > 63 and < 128 the clock id should become a uint64_t
-  // and contain (sequence_id << 32) || clock_id.
-  using ClockId = uint32_t;
+  using ClockId = uint64_t;
+
+  // IDs in the range [64, 128) are reserved for sequence-scoped clock ids.
+  // They can't be passed directly in ClockTracker calls and must be resolved
+  // to 64-bit global clock ids by calling SeqScopedClockIdToGlobal().
+  static bool IsReservedSeqScopedClockId(ClockId clock_id) {
+    return clock_id >= 64 && clock_id < 128;
+  }
+
+  // Converts a sequence-scoped clock ids to a global clock id that can be
+  // passed as argument to ClockTracker functions.
+  static ClockId SeqScopedClockIdToGlobal(uint32_t seq_id, uint32_t clock_id) {
+    PERFETTO_DCHECK(IsReservedSeqScopedClockId(clock_id));
+    return (static_cast<uint64_t>(seq_id) << 32) | clock_id;
+  }
 
   explicit ClockTracker(TraceProcessorContext*);
   virtual ~ClockTracker();
@@ -124,12 +135,16 @@ class ClockTracker {
                                   int64_t src_timestamp,
                                   ClockId target_clock_id);
 
-  base::Optional<int64_t> ToTraceTime(ClockId src_clock_id,
-                                      int64_t src_timestamp) {
-    return Convert(src_clock_id, src_timestamp, trace_time_clock_id_);
+  base::Optional<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
+    if (clock_id == trace_time_clock_id_)
+      return timestamp;
+    return Convert(clock_id, timestamp, trace_time_clock_id_);
   }
 
-  void SetTraceTimeClock(ClockId clock_id) { trace_time_clock_id_ = clock_id; }
+  void SetTraceTimeClock(ClockId clock_id) {
+    PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
+    trace_time_clock_id_ = clock_id;
+  }
 
  private:
   using SnapshotHash = uint32_t;
