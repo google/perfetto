@@ -22,7 +22,7 @@ namespace perfetto {
 namespace trace_processor {
 
 StringPool::StringPool() {
-  blocks_.emplace_back();
+  blocks_.emplace_back(kDefaultBlockSize);
 
   // Reserve a slot for the null string.
   PERFETTO_CHECK(blocks_.back().TryInsert(NullTermStringView()));
@@ -34,20 +34,21 @@ StringPool::StringPool(StringPool&&) noexcept = default;
 StringPool& StringPool::operator=(StringPool&&) = default;
 
 StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
-  // We shouldn't be writing string with more than 2^16 characters to the pool.
-  PERFETTO_CHECK(str.size() < std::numeric_limits<uint16_t>::max());
-
   // Try and find enough space in the current block for the string and the
-  // metadata (the size of the string + the null terminator + 2 bytes to encode
-  // the size itself).
-  auto* ptr = blocks_.back().TryInsert(str);
+  // metadata (varint-encoded size + the string data + the null terminator).
+  const uint8_t* ptr = blocks_.back().TryInsert(str);
   if (PERFETTO_UNLIKELY(!ptr)) {
     // This means the block did not have enough space. This should only happen
     // on 32-bit platforms as we allocate a 4GB mmap on 64 bit.
     PERFETTO_CHECK(sizeof(uint8_t*) == 4);
 
-    // Add a new block to store the data.
-    blocks_.emplace_back();
+    // Add a new block to store the data. If the string is larger that the
+    // default block size, add a bigger block exlusively for this string.
+    if (str.size() + kMaxMetadataSize > kDefaultBlockSize) {
+      blocks_.emplace_back(str.size() + kMaxMetadataSize);
+    } else {
+      blocks_.emplace_back(kDefaultBlockSize);
+    }
 
     // Try and reserve space again - this time we should definitely succeed.
     ptr = blocks_.back().TryInsert(str);
@@ -61,28 +62,29 @@ StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
   return string_id;
 }
 
-uint8_t* StringPool::Block::TryInsert(base::StringView str) {
+const uint8_t* StringPool::Block::TryInsert(base::StringView str) {
   auto str_size = str.size();
-  auto size = str_size + kMetadataSize;
-  if (static_cast<uint64_t>(pos_) + size >= kBlockSize)
+  if (static_cast<uint64_t>(pos_) + str_size + kMaxMetadataSize > size_)
     return nullptr;
 
   // Get where we should start writing this string.
-  uint8_t* ptr = Get(pos_);
+  uint8_t* begin = Get(pos_);
 
-  // First memcpy the size of the string into the buffer.
-  memcpy(ptr, &str_size, sizeof(str_size));
+  // First write the size of the string using varint encoding.
+  uint8_t* end = protozero::proto_utils::WriteVarInt(str_size, begin);
 
-  // Next the string itself which starts at offset 2.
-  if (PERFETTO_LIKELY(str_size > 0))
-    memcpy(&ptr[2], str.data(), str_size);
+  // Next the string itself.
+  if (PERFETTO_LIKELY(str_size > 0)) {
+    memcpy(end, str.data(), str_size);
+    end += str_size;
+  }
 
   // Finally add a null terminator.
-  ptr[2 + str_size] = '\0';
+  *(end++) = '\0';
 
   // Update the end of the block and return the pointer to the string.
-  pos_ += size;
-  return ptr;
+  pos_ = OffsetOf(end);
+  return begin;
 }
 
 StringPool::Iterator::Iterator(const StringPool* pool) : pool_(pool) {}
@@ -95,8 +97,11 @@ StringPool::Iterator& StringPool::Iterator::operator++() {
 
   // Find the size of the string at the current offset in the block
   // and increment the offset by that size.
-  auto str_size = GetSize(block.Get(block_offset_));
-  block_offset_ += kMetadataSize + str_size;
+  uint32_t str_size = 0;
+  const uint8_t* ptr = block.Get(block_offset_);
+  ptr = ReadSize(ptr, &str_size);
+  ptr += str_size + 1;
+  block_offset_ = block.OffsetOf(ptr);
 
   // If we're out of bounds for this block, go to the start of the next block.
   if (block.pos() <= block_offset_) {
