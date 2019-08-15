@@ -175,7 +175,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
                                          0 /* value */, wakee_utid,
                                          RefType::kRefUtid);
   } else if (fn == "cpu_idle") {
-    auto new_state = static_cast<double>(std::stol(args["state"]));
+    auto new_state = static_cast<double>(std::stoul(args["state"]));
     uint32_t event_cpu = static_cast<uint32_t>(std::stoi(args["cpu_id"]));
     context_->event_tracker->PushCounter(ts, new_state, cpu_idle_name_id_,
                                          event_cpu, RefType::kRefCpuId);
