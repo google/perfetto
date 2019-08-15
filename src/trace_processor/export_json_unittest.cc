@@ -928,6 +928,45 @@ TEST(ExportJsonTest, RawEvent) {
   EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
 }
 
+TEST(ExportJsonTest, LegacyRawEvents) {
+  const char* kLegacyFtraceData = "some \"data\"\nsome :data:";
+  const char* kLegacyJsonData = "{\"user\": 1}";
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  TraceStorage* storage = context.storage.get();
+
+  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+      0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0);
+
+  ArgsTracker args(&context);
+  StringId data_id = storage->InternString("data");
+  StringId ftrace_data_id = storage->InternString(kLegacyFtraceData);
+  args.AddArg(row_id, data_id, data_id, Variadic::String(ftrace_data_id));
+
+  row_id = storage->mutable_raw_events()->AddRawEvent(
+      0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
+  StringId json_data_id = storage->InternString(kLegacyJsonData);
+  args.AddArg(row_id, data_id, data_id, Variadic::Json(json_data_id));
+
+  args.Flush();
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+  Json::Value user_event = result["traceEvents"][0];
+  EXPECT_EQ(user_event["user"].asInt(), 1);
+  EXPECT_EQ(result["systemTraceEvents"].asString(), kLegacyFtraceData);
+}
+
 }  // namespace
 }  // namespace json
 }  // namespace trace_processor
