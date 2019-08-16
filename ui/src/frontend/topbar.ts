@@ -34,6 +34,7 @@ const PLACEHOLDER = {
 let selResult = 0;
 let numResults = 0;
 let mode: Mode = SEARCH;
+let omniboxValue = '';
 
 function clearOmniboxResults(e: Event) {
   globals.queryResults.delete(QUERY_ID);
@@ -69,12 +70,15 @@ function onKeyDown(e: Event) {
     globals.rafScheduler.scheduleFullRedraw();
     return;
   }
+
+  omniboxValue = txt.value;
 }
 
 function onKeyUp(e: Event) {
   e.stopPropagation();
   const key = (e as KeyboardEvent).key;
   const txt = e.target as HTMLInputElement;
+  omniboxValue = txt.value;
   if (key === 'ArrowUp' || key === 'ArrowDown') {
     selResult += (key === 'ArrowUp') ? -1 : 1;
     selResult = Math.max(selResult, 0);
@@ -139,9 +143,8 @@ class Omnibox implements m.ClassComponent {
         `.omnibox${commandMode ? '.command-mode' : ''}`,
         m('input', {
           placeholder: PLACEHOLDER[mode],
-          oninput:
-              m.withAttr('value', v => globals.frontendLocalState.omnibox = v),
-          value: globals.frontendLocalState.omnibox,
+          onchange: m.withAttr('value', v => omniboxValue = v),
+          value: omniboxValue,
         }),
         m('.omnibox-results', results));
   }
