@@ -28,6 +28,10 @@ packet {
       iid: 3
       str: "f3"
     }
+    strings {
+      iid: 4
+      str: "liblib.so"
+    }
     frames {
       iid: 1
       function_name_id: 1
@@ -51,6 +55,7 @@ packet {
     }
     mappings {
       iid: 1
+      path_string_ids: 4
     }
     process_dumps {
       pid: 2
