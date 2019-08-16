@@ -69,21 +69,19 @@ class MockTaskRunner : public base::TaskRunner {
 std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
   std::vector<Field> common_fields;
   std::vector<Event> events;
-
   {
-    Event event;
+    events.push_back(Event{});
+    auto& event = events.back();
     event.name = "foo";
     event.group = "group";
     event.ftrace_event_id = 1;
-    events.push_back(event);
   }
-
   {
-    Event event;
+    events.push_back(Event{});
+    auto& event = events.back();
     event.name = "bar";
     event.group = "group";
     event.ftrace_event_id = 10;
-    events.push_back(event);
   }
 
   return std::unique_ptr<Table>(
