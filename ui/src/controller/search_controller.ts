@@ -37,11 +37,11 @@ export class SearchController extends Controller<'main'> {
   }
 
   run() {
-    const visibleState = this.app.state.frontendLocalState.visibleState;
-    if (visibleState === undefined) {
+    const visibleTime = this.app.state.frontendLocalState.visibleTraceTime;
+    if (visibleTime === undefined) {
       return;
     }
-    const newSpan = new TimeSpan(visibleState.startSec, visibleState.endSec);
+    const newSpan = new TimeSpan(visibleTime.startSec, visibleTime.endSec);
     if (this.previousSpan.equals(newSpan)) {
       return;
     }

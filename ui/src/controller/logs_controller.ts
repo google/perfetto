@@ -171,7 +171,7 @@ export class LogsController extends Controller<'main'> {
   }
 
   run() {
-    const traceTime = this.app.state.frontendLocalState.visibleState;
+    const traceTime = this.app.state.frontendLocalState.visibleTraceTime;
     const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
     const oldSpan = this.span;
 
