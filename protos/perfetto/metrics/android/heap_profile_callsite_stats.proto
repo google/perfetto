@@ -20,7 +20,10 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message HeapProfileCallsiteStats {
-  message Frame { optional string name = 1; }
+  message Frame {
+    optional string name = 1;
+    optional string mapping_name = 2;
+  }
 
   message Callsite { repeated Frame frame = 1; }
 

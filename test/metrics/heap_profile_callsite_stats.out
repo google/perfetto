@@ -5,12 +5,15 @@ heap_profile_callsite_stats {
       callsite {
         frame {
           name: "symbolized f3"
+          mapping_name: "liblib.so"
         }
         frame {
           name: "f2"
+          mapping_name: "liblib.so"
         }
         frame {
           name: "f1"
+          mapping_name: "liblib.so"
         }
       }
       total_count: 2
