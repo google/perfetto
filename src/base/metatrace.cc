@@ -87,8 +87,12 @@ void RingBuffer::Reset() {
   static_assert(PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(Record) &&
                     std::is_trivially_destructible<Record>::value,
                 "Record must be trivial");
-  memset(&records_[0], 0, sizeof(records_));
-  memset(&bankruptcy_record_, 0, sizeof(bankruptcy_record_));
+  // Cast pointers to void* to suppress "-Wclass-memaccess" from gcc, which
+  // triggers as we're doing a raw memory set for a class (Record) that doesn't
+  // have a copy assignment operator (due to the atomic |type_and_id|).
+  memset(static_cast<void*>(records_.data()), 0, sizeof(records_));
+  memset(static_cast<void*>(&bankruptcy_record_), 0,
+         sizeof(bankruptcy_record_));
   wr_index_ = 0;
   rd_index_ = 0;
   has_overruns_ = false;

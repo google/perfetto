@@ -130,10 +130,6 @@ inline const char* ToString(FtraceFieldType v) {
 }
 
 struct Field {
-  Field() = default;
-  Field(uint16_t offset, uint16_t size)
-      : ftrace_offset(offset), ftrace_size(size) {}
-
   uint16_t ftrace_offset;
   uint16_t ftrace_size;
   FtraceFieldType ftrace_type;
@@ -146,10 +142,6 @@ struct Field {
 };
 
 struct Event {
-  Event() = default;
-  Event(const char* event_name, const char* event_group)
-      : name(event_name), group(event_group) {}
-
   const char* name;
   const char* group;
   std::vector<Field> fields;

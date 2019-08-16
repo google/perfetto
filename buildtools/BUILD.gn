@@ -181,6 +181,8 @@ config("protobuf_config") {
       "-Wno-user-defined-warnings",
       "-Wno-tautological-constant-compare",
     ]
+  } else {  # implies gcc
+    cflags = [ "-Wno-return-type" ]
   }
 }
 

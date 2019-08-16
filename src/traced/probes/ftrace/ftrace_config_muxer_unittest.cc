@@ -283,7 +283,7 @@ TEST_F(FtraceConfigMuxerTest, AddAllEvents) {
 
   // Non-generic event.
   std::map<std::string, const Event*> events;
-  Event sched_switch = {"sched_switch", "sched"};
+  Event sched_switch = {"sched_switch", "sched", {}, 0, 0, 0};
   sched_switch.ftrace_event_id = 1;
   ON_CALL(*mock_table, GetOrCreateEvent(GroupAndName("sched", "sched_switch")))
       .WillByDefault(Return(&sched_switch));
