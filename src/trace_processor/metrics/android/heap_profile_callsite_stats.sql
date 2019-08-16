@@ -44,13 +44,18 @@ CREATE VIEW frames_by_callsite_id AS
 SELECT
   callsite_id,
   position,
-  HeapProfileCallsiteStats_Frame('name', heap_profile_frame.name) AS frame_proto
+  HeapProfileCallsiteStats_Frame(
+    'name', heap_profile_frame.name,
+    'mapping_name', heap_profile_mapping.name
+  ) AS frame_proto
 FROM flattened_callsite
 CROSS JOIN heap_profile_callsite
 CROSS JOIN heap_profile_frame
+CROSS JOIN heap_profile_mapping
 WHERE
   flattened_callsite.current_id = heap_profile_callsite.id
   AND heap_profile_callsite.frame_id = heap_profile_frame.id
+  AND heap_profile_frame.mapping = heap_profile_mapping.id
 ORDER BY callsite_id, position;
 
 -- Map callsite ID to proto.
