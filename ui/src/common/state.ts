@@ -19,6 +19,15 @@
  */
 export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
 
+export type Timestamped<T> = {
+  [P in keyof T]: T[P];
+}&{lastUpdate: number};
+
+export type OmniboxState = Timestamped<{omnibox: string;}>;
+
+export type VisibleState =
+    Timestamped<{startSec: number; endSec: number; resolution: number;}>;
+
 export const MAX_TIME = 180;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
@@ -64,9 +73,8 @@ export interface TraceTime {
 }
 
 export interface FrontendLocalState {
-  visibleTraceTime: TraceTime;
-  curResolution: number;
-  lastUpdate: number;  // Epoch in seconds (Date.now() / 1000).
+  omniboxState: OmniboxState;
+  visibleState: VisibleState;
 }
 
 export interface Status {
@@ -301,9 +309,16 @@ export function createEmptyState(): State {
     displayConfigAsPbtxt: false,
 
     frontendLocalState: {
-      visibleTraceTime: {...defaultTraceTime},
-      lastUpdate: 0,
-      curResolution: 0,
+      omniboxState: {
+        lastUpdate: 0,
+        omnibox: '',
+      },
+
+      visibleState: {
+        ...defaultTraceTime,
+        lastUpdate: 0,
+        resolution: 0,
+      },
     },
 
     logsPagination: {
@@ -322,5 +337,6 @@ export function createEmptyState(): State {
     flagPauseEnabled: false,
     recordingInProgress: false,
     extensionInstalled: false,
+
   };
 }
