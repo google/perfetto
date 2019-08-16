@@ -179,11 +179,18 @@ export const defaultTraceTime = {
 export declare type RecordMode =
     'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
 
+// 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
+export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L';
+
+export function isAndroidTarget(target: TargetOs) {
+  return ['Q', 'P', 'O'].includes(target);
+}
+
 export interface RecordConfig {
   [key: string]: null|number|boolean|string|string[];
 
   // Global settings
-  targetOS: string;  // 'Q','P','O' for Android, 'L' for Linux
+  targetOS: TargetOs;
   mode: RecordMode;
   durationMs: number;
   bufferSizeMb: number;
