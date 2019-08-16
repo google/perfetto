@@ -18,6 +18,7 @@ import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
+import {isAndroidTarget, TargetOs} from '../common/state';
 import {MAX_TIME, RecordMode} from '../common/state';
 
 import {globals} from './globals';
@@ -601,15 +602,13 @@ function Instructions(cssClass: string) {
     default:
   }
 
-  const onOsChange = (os: string) => {
+  const onOsChange = (os: TargetOs) => {
     const traceCfg = produce(globals.state.recordConfig, draft => {
       draft.targetOS = os;
     });
     globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
   };
 
-  const bufferUsagePercentage =
-      ((globals.bufferUsage ? globals.bufferUsage : 0.0) * 100).toFixed(1);
 
   return m(
       `.record-section.instructions${cssClass}`,
@@ -621,29 +620,52 @@ function Instructions(cssClass: string) {
           m('option', {value: 'Q'}, 'Android Q+'),
           m('option', {value: 'P'}, 'Android P'),
           m('option', {value: 'O'}, 'Android O-'),
+          m('option', {value: 'C'}, 'Chrome'),
           m('option', {value: 'L'}, 'Linux desktop'))),
       notes.length > 0 ? m('.note', notes) : [],
       m(CodeSnippet, {text: cmd, hardWhitespace: true}),
-      globals.state.extensionInstalled ?
-          [
-            m('button',
-              {
-                onclick: () => globals.dispatch(Actions.startRecording({})),
-                disabled: globals.state.recordingInProgress
-              },
-              'Start Recording'),
-            m('button',
-              {
-                onclick: () => globals.dispatch(Actions.stopRecording({})),
-                disabled: !globals.state.recordingInProgress
-              },
-              'Stop Recording'),
-            m('label',
-              globals.state.recordingInProgress ?
-                  'Buffer usage: ' + bufferUsagePercentage + '%' :
-                  '')
-          ] :
-          []);
+      recordingButtons());
+}
+
+function recordingButtons() {
+  const androidTarget = isAndroidTarget(globals.state.recordConfig.targetOS);
+
+  // TODO(nicomazz): Display the buttons (removing the following line) when the
+  // android target will be supported.
+  if (androidTarget) return [];
+
+  // There are 2 cases in which the buttons are displayed:
+  // 1. The target is an Android device.
+  // 2. The target is Chrome and the extension is installed.
+  if (!globals.state.extensionInstalled && !androidTarget) return [];
+
+  const connectAndroidButton =
+      m('button', {onclick: async () => connectAndroidDevice()}, 'Connect');
+  const startButton =
+      m('button',
+        {onclick: () => globals.dispatch(Actions.startRecording({}))},
+        'Start Recording');
+  const stopButton =
+      m('button',
+        {onclick: () => globals.dispatch(Actions.stopRecording({}))},
+        'Stop Recording');
+
+  const recInProgress = globals.state.recInProgress;
+  const bufferUsageStr =
+      ((globals.bufferUsage ? globals.bufferUsage : 0.0) * 100).toFixed(1);
+  return [
+    androidTarget ? connectAndroidButton : [],
+    startButton,
+    stopButton,  // TODO(nicomazz): Implement stop logic for Android targets.
+    m('label', recInProgress ? 'Buffer usage: ' + bufferUsageStr + '%' : '')
+  ];
+}
+
+// The connection must be done in the frontend. After it, the serial ID will be
+// inserted in the state, and the worker will be able to connect to the phone.
+async function connectAndroidDevice() {
+  console.log('This will be implemented soon!');
+  // TODO(nicomazz): This will be implemented in another CL.
 }
 
 export const RecordPage = createPage({
