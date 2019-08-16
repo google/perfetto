@@ -90,16 +90,18 @@ class PERFETTO_EXPORT ScatteredHeapBuffer
 };
 
 // Helper function to create heap-based protozero messages in one line.
-// This is a convenience wrapper, mostly for tests, to avoid having to do:
-//   MyMessage msg;
-//   ScatteredHeapBuffer shb;
-//   ScatteredStreamWriter writer(&shb);
+// Useful when manually serializing a protozero message (primarily in
+// tests/utilities). So instead of the following:
+//   protozero::MyMessage msg;
+//   protozero::ScatteredHeapBuffer shb;
+//   protozero::ScatteredStreamWriter writer(&shb);
 //   shb.set_writer(&writer);
-//   msg.Reset(&shb);
-// Just to get an easily serializable message. Instead this allows simply:
-//   HeapBuffered<MyMessage> msg;
+//   msg.Reset(&writer);
+//   ...
+// You can write:
+//   protozero::HeapBuffered<protozero::MyMessage> msg;
 //   msg->set_stuff(...);
-//   msg->SerializeAsString();
+//   msg.SerializeAsString();
 template <typename T = ::protozero::Message>
 class HeapBuffered {
  public:
