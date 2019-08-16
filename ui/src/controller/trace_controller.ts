@@ -215,10 +215,12 @@ export class TraceController extends Controller<States> {
       Actions.navigate({route: '/viewer'}),
     ];
 
-    // We don't know the resolution at this point. However this will be
-    // replaced in 50ms so a guess is fine.
-    actions.push(Actions.setVisibleTraceTime(
-        {...traceTimeState, lastUpdate: Date.now() / 1000, resolution: 0.008}));
+    if (globals.state.frontendLocalState.lastUpdate === 0) {
+      // We don't know the resolution at this point. However this will be
+      // replaced in 50ms so a guess is fine.
+      actions.push(Actions.setVisibleTraceTime(
+          {time: traceTimeState, lastUpdate: Date.now() / 1000, res: 0.008}));
+    }
 
     globals.dispatchMultiple(actions);
 

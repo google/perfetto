@@ -103,24 +103,23 @@ export abstract class TrackController<Config = {},
     const inRange = traceTime.startSec >= this.data.start &&
         traceTime.endSec <= this.data.end;
     return !inRange ||
-        this.data.resolution !==
-        globals.state.frontendLocalState.visibleState.resolution;
+        this.data.resolution !== globals.state.frontendLocalState.curResolution;
   }
 
   run() {
-    const visibleState = globals.state.frontendLocalState.visibleState;
-    if (visibleState === undefined) return;
-    const dur = visibleState.endSec - visibleState.startSec;
+    const visibleTime = globals.state.frontendLocalState.visibleTraceTime;
+    if (visibleTime === undefined) return;
+    const dur = visibleTime.endSec - visibleTime.startSec;
     if (globals.state.visibleTracks.includes(this.trackId) &&
-        this.shouldRequestData(visibleState)) {
+        this.shouldRequestData(visibleTime)) {
       if (this.requestingData) {
         this.queuedRequest = true;
       } else {
         this.requestingData = true;
         this.onBoundsChange(
-                visibleState.startSec - dur,
-                visibleState.endSec + dur,
-                visibleState.resolution)
+                visibleTime.startSec - dur,
+                visibleTime.endSec + dur,
+                globals.state.frontendLocalState.curResolution)
             .then(data => {
               this.publish(data);
             })
