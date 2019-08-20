@@ -22,6 +22,10 @@ package perfetto.protos;
 // Metadata for chrome traces.
 message ChromeMetadataPacket {
   optional BackgroundTracingMetadata background_tracing_metadata = 1;
+
+  // Version code of Chrome used by Android's Play Store. This field is only set
+  // on Android.
+  optional int32 chrome_version_code = 2;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.
