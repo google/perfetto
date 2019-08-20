@@ -22,7 +22,11 @@ import sys
 
 COMMON_PROTOS = (
   'protos/perfetto/common/android_log_constants.proto',
+  'protos/perfetto/common/data_source_descriptor.proto',
+  'protos/perfetto/common/gpu_counter_descriptor.proto',
   'protos/perfetto/common/sys_stats_counters.proto',
+  'protos/perfetto/common/trace_stats.proto',
+  'protos/perfetto/common/tracing_service_state.proto',
 )
 
 CONFIG_PROTOS = (
@@ -44,7 +48,6 @@ CONFIG_PROTOS = (
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
 TRACE_PROTOS = (
-  'protos/perfetto/common/trace_stats.proto', # only referenced by trace protos
   'protos/perfetto/trace/android/android_log.proto',
   'protos/perfetto/trace/android/graphics_frame_event.proto',
   'protos/perfetto/trace/android/packages_list.proto',
@@ -97,7 +100,6 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/trigger.proto',
   'protos/perfetto/trace/gpu/gpu_counter_event.proto',
   'protos/perfetto/trace/gpu/gpu_render_stage_event.proto',
-  'protos/perfetto/common/gpu_counter_descriptor.proto',
 )
 
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'
