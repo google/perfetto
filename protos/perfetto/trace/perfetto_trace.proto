@@ -38,6 +38,198 @@ enum AndroidLogPriority {
 
 // End of protos/perfetto/common/android_log_constants.proto
 
+// Begin of protos/perfetto/common/data_source_descriptor.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// This message is sent from Producer(s) to the tracing Service when registering
+// to advertise their capabilities. It describes the structure of tracing
+// protos that will be produced by the data source and the supported filters.
+message DataSourceDescriptor {
+  optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
+
+  // When true the data source is expected to ack the stop request through the
+  // NotifyDataSourceStopped() IPC. This field has been introduced after
+  // Android P in Jul 2018 and is not supported on older versions.
+  optional bool will_notify_on_stop = 2;
+
+  // When true the data source is expected to ack the start request through the
+  // NotifyDataSourceStarted() IPC. This field has been introduced after
+  // Android P in March 2019 and is not supported on older versions.
+  optional bool will_notify_on_start = 3;
+
+  // If true, opt into receiving the ClearIncrementalState() IPC. This should be
+  // set if the data source writes packets that refer to previous trace
+  // contents, and knows how to stop referring to the already-emitted data.
+  optional bool handles_incremental_state_clear = 4;
+
+  // Optional specification about available GPU counters.
+  optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
+}
+
+// End of protos/perfetto/common/data_source_descriptor.proto
+
+// Begin of protos/perfetto/common/gpu_counter_descriptor.proto
+
+// Description of GPU counters.
+// This message is sent by a GPU counter producer to specify the counters available in the hardware.
+message GpuCounterDescriptor {
+  message GpuCounterSpec {
+    optional uint32 counter_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+    optional MeasureUnit unit = 4;
+    oneof peak_value {
+      int64 int_peak_value = 5;
+      double double_peak_value = 6;
+    };
+  }
+  repeated GpuCounterSpec specs = 1;
+
+  // Taken from
+  // https://developer.android.com/reference/android/icu/util/MeasureUnit
+  enum MeasureUnit {
+    ACRE = 0;
+    ACRE_FOOT = 1;
+    AMPERE = 2;
+    ARC_MINUTE = 3;
+    ARC_SECOND = 4;
+    ASTRONOMICAL_UNIT = 5;
+    BIT = 6;
+    BUSHEL = 7;
+    BYTE = 8;
+    CALORIE = 9;
+    CARAT = 10;
+    CELSIUS = 11;
+    CENTILITER = 12;
+    CENTIMETER = 13;
+    CENTURY = 14;
+    CUBIC_CENTIMETER = 15;
+    CUBIC_FOOT = 16;
+    CUBIC_INCH = 17;
+    CUBIC_KILOMETER = 18;
+    CUBIC_METER = 19;
+    CUBIC_MILE = 20;
+    CUBIC_YARD = 21;
+    CUP = 22;
+    CUP_METRIC = 23;
+    DAY = 24;
+    DECILITER = 25;
+    DECIMETER = 26;
+    DEGREE = 27;
+    FAHRENHEIT = 28;
+    FATHOM = 29;
+    FLUID_OUNCE = 30;
+    FOODCALORIE = 31;
+    FOOT = 32;
+    FURLONG = 33;
+    GALLON = 34;
+    GALLON_IMPERIAL = 35;
+    GENERIC_TEMPERATURE = 36;
+    GIGABIT = 37;
+    GIGABYTE = 38;
+    GIGAHERTZ = 39;
+    GIGAWATT = 40;
+    GRAM = 41;
+    G_FORCE = 42;
+    HECTARE = 43;
+    HECTOLITER = 44;
+    HECTOPASCAL = 45;
+    HERTZ = 46;
+    HORSEPOWER = 47;
+    HOUR = 48;
+    INCH = 49;
+    INCH_HG = 50;
+    JOULE = 51;
+    KARAT = 52;
+    KELVIN = 53;
+    KILOBIT = 54;
+    KILOBYTE = 55;
+    KILOCALORIE = 56;
+    KILOGRAM = 57;
+    KILOHERTZ = 58;
+    KILOJOULE = 59;
+    KILOMETER = 60;
+    KILOMETER_PER_HOUR = 61;
+    KILOWATT = 62;
+    KILOWATT_HOUR = 63;
+    KNOT = 64;
+    LIGHT_YEAR = 65;
+    LITER = 66;
+    LITER_PER_100KILOMETERS = 67;
+    LITER_PER_KILOMETER = 68;
+    LUX = 69;
+    MEGABIT = 70;
+    MEGABYTE = 71;
+    MEGAHERTZ = 72;
+    MEGALITER = 73;
+    MEGAWATT = 74;
+    METER = 75;
+    METER_PER_SECOND = 76;
+    METER_PER_SECOND_SQUARED = 77;
+    METRIC_TON = 78;
+    MICROGRAM = 79;
+    MICROMETER = 80;
+    MICROSECOND = 81;
+    MILE = 82;
+    MILE_PER_GALLON = 83;
+    MILE_PER_GALLON_IMPERIAL = 84;
+    MILE_PER_HOUR = 85;
+    MILE_SCANDINAVIAN = 86;
+    MILLIAMPERE = 87;
+    MILLIBAR = 88;
+    MILLIGRAM = 89;
+    MILLIGRAM_PER_DECILITER = 90;
+    MILLILITER = 91;
+    MILLIMETER = 92;
+    MILLIMETER_OF_MERCURY = 93;
+    MILLIMOLE_PER_LITER = 94;
+    MILLISECOND = 95;
+    MILLIWATT = 96;
+    MINUTE = 97;
+    MONTH = 98;
+    NANOMETER = 99;
+    NANOSECOND = 100;
+    NAUTICAL_MILE = 101;
+    OHM = 102;
+    OUNCE = 103;
+    OUNCE_TROY = 104;
+    PARSEC = 105;
+    PART_PER_MILLION = 106;
+    PICOMETER = 107;
+    PINT = 108;
+    PINT_METRIC = 109;
+    POINT = 110;
+    POUND = 111;
+    POUND_PER_SQUARE_INCH = 112;
+    QUART = 113;
+    RADIAN = 114;
+    REVOLUTION_ANGLE = 115;
+    SECOND = 116;
+    SQUARE_CENTIMETER = 117;
+    SQUARE_FOOT = 118;
+    SQUARE_INCH = 119;
+    SQUARE_KILOMETER = 120;
+    SQUARE_METER = 121;
+    SQUARE_MILE = 122;
+    SQUARE_YARD = 123;
+    STONE = 124;
+    TABLESPOON = 125;
+    TEASPOON = 126;
+    TERABIT = 127;
+    TERABYTE = 128;
+    TON = 129;
+    VOLT = 130;
+    WATT = 131;
+    WEEK = 132;
+    YARD = 133;
+    YEAR = 134;
+  };
+}
+
+// End of protos/perfetto/common/gpu_counter_descriptor.proto
+
 // Begin of protos/perfetto/common/sys_stats_counters.proto
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
@@ -327,6 +519,47 @@ message TraceStats {
 }
 
 // End of protos/perfetto/common/trace_stats.proto
+
+// Begin of protos/perfetto/common/tracing_service_state.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// Reports the state of the tracing service. Used to gather details about the
+// data sources connected.
+// See ConsumerPort::QueryServiceState().
+message TracingServiceState {
+  // Describes a producer process.
+  message Producer {
+    optional int32 id = 1;     // Unique ID of the producer (monotonic counter).
+    optional string name = 2;  // Typically matches the process name.
+    optional int32 uid = 3;    // Unix uid of the remote process.
+  }
+
+  // Describes a data source registered by a producer. Data sources are listed
+  // regardless of the fact that they are being used or not.
+  message DataSource {
+    // Descriptor passed by the data source when calling RegisterDataSource().
+    optional DataSourceDescriptor ds_descriptor = 1;
+
+    // ID of the producer, as per Producer.id.
+    optional int32 producer_id = 2;
+  }
+
+  // Lists all the producers connected.
+  repeated Producer producers = 1;
+
+  // Lists the data sources available.
+  repeated DataSource data_sources = 2;
+
+  // Total number of tracing sessions.
+  optional int32 num_sessions = 3;
+
+  // Number of tracing sessions in the started state. Always <= num_sessions.
+  optional int32 num_sessions_started = 4;
+}
+
+// End of protos/perfetto/common/tracing_service_state.proto
 
 // Begin of protos/perfetto/trace/android/android_log.proto
 
@@ -3846,166 +4079,6 @@ message GpuRenderStageEvent {
 }
 
 // End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
-
-// Begin of protos/perfetto/common/gpu_counter_descriptor.proto
-
-// Description of GPU counters.
-// This message is sent by a GPU counter producer to specify the counters available in the hardware.
-message GpuCounterDescriptor {
-  message GpuCounterSpec {
-    optional uint32 counter_id = 1;
-    optional string name = 2;
-    optional string description = 3;
-    optional MeasureUnit unit = 4;
-    oneof peak_value {
-      int64 int_peak_value = 5;
-      double double_peak_value = 6;
-    };
-  }
-  repeated GpuCounterSpec specs = 1;
-
-  // Taken from
-  // https://developer.android.com/reference/android/icu/util/MeasureUnit
-  enum MeasureUnit {
-    ACRE = 0;
-    ACRE_FOOT = 1;
-    AMPERE = 2;
-    ARC_MINUTE = 3;
-    ARC_SECOND = 4;
-    ASTRONOMICAL_UNIT = 5;
-    BIT = 6;
-    BUSHEL = 7;
-    BYTE = 8;
-    CALORIE = 9;
-    CARAT = 10;
-    CELSIUS = 11;
-    CENTILITER = 12;
-    CENTIMETER = 13;
-    CENTURY = 14;
-    CUBIC_CENTIMETER = 15;
-    CUBIC_FOOT = 16;
-    CUBIC_INCH = 17;
-    CUBIC_KILOMETER = 18;
-    CUBIC_METER = 19;
-    CUBIC_MILE = 20;
-    CUBIC_YARD = 21;
-    CUP = 22;
-    CUP_METRIC = 23;
-    DAY = 24;
-    DECILITER = 25;
-    DECIMETER = 26;
-    DEGREE = 27;
-    FAHRENHEIT = 28;
-    FATHOM = 29;
-    FLUID_OUNCE = 30;
-    FOODCALORIE = 31;
-    FOOT = 32;
-    FURLONG = 33;
-    GALLON = 34;
-    GALLON_IMPERIAL = 35;
-    GENERIC_TEMPERATURE = 36;
-    GIGABIT = 37;
-    GIGABYTE = 38;
-    GIGAHERTZ = 39;
-    GIGAWATT = 40;
-    GRAM = 41;
-    G_FORCE = 42;
-    HECTARE = 43;
-    HECTOLITER = 44;
-    HECTOPASCAL = 45;
-    HERTZ = 46;
-    HORSEPOWER = 47;
-    HOUR = 48;
-    INCH = 49;
-    INCH_HG = 50;
-    JOULE = 51;
-    KARAT = 52;
-    KELVIN = 53;
-    KILOBIT = 54;
-    KILOBYTE = 55;
-    KILOCALORIE = 56;
-    KILOGRAM = 57;
-    KILOHERTZ = 58;
-    KILOJOULE = 59;
-    KILOMETER = 60;
-    KILOMETER_PER_HOUR = 61;
-    KILOWATT = 62;
-    KILOWATT_HOUR = 63;
-    KNOT = 64;
-    LIGHT_YEAR = 65;
-    LITER = 66;
-    LITER_PER_100KILOMETERS = 67;
-    LITER_PER_KILOMETER = 68;
-    LUX = 69;
-    MEGABIT = 70;
-    MEGABYTE = 71;
-    MEGAHERTZ = 72;
-    MEGALITER = 73;
-    MEGAWATT = 74;
-    METER = 75;
-    METER_PER_SECOND = 76;
-    METER_PER_SECOND_SQUARED = 77;
-    METRIC_TON = 78;
-    MICROGRAM = 79;
-    MICROMETER = 80;
-    MICROSECOND = 81;
-    MILE = 82;
-    MILE_PER_GALLON = 83;
-    MILE_PER_GALLON_IMPERIAL = 84;
-    MILE_PER_HOUR = 85;
-    MILE_SCANDINAVIAN = 86;
-    MILLIAMPERE = 87;
-    MILLIBAR = 88;
-    MILLIGRAM = 89;
-    MILLIGRAM_PER_DECILITER = 90;
-    MILLILITER = 91;
-    MILLIMETER = 92;
-    MILLIMETER_OF_MERCURY = 93;
-    MILLIMOLE_PER_LITER = 94;
-    MILLISECOND = 95;
-    MILLIWATT = 96;
-    MINUTE = 97;
-    MONTH = 98;
-    NANOMETER = 99;
-    NANOSECOND = 100;
-    NAUTICAL_MILE = 101;
-    OHM = 102;
-    OUNCE = 103;
-    OUNCE_TROY = 104;
-    PARSEC = 105;
-    PART_PER_MILLION = 106;
-    PICOMETER = 107;
-    PINT = 108;
-    PINT_METRIC = 109;
-    POINT = 110;
-    POUND = 111;
-    POUND_PER_SQUARE_INCH = 112;
-    QUART = 113;
-    RADIAN = 114;
-    REVOLUTION_ANGLE = 115;
-    SECOND = 116;
-    SQUARE_CENTIMETER = 117;
-    SQUARE_FOOT = 118;
-    SQUARE_INCH = 119;
-    SQUARE_KILOMETER = 120;
-    SQUARE_METER = 121;
-    SQUARE_MILE = 122;
-    SQUARE_YARD = 123;
-    STONE = 124;
-    TABLESPOON = 125;
-    TEASPOON = 126;
-    TERABIT = 127;
-    TERABYTE = 128;
-    TON = 129;
-    VOLT = 130;
-    WATT = 131;
-    WEEK = 132;
-    YARD = 133;
-    YEAR = 134;
-  };
-}
-
-// End of protos/perfetto/common/gpu_counter_descriptor.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 

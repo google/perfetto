@@ -38,6 +38,198 @@ enum AndroidLogPriority {
 
 // End of protos/perfetto/common/android_log_constants.proto
 
+// Begin of protos/perfetto/common/data_source_descriptor.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// This message is sent from Producer(s) to the tracing Service when registering
+// to advertise their capabilities. It describes the structure of tracing
+// protos that will be produced by the data source and the supported filters.
+message DataSourceDescriptor {
+  optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
+
+  // When true the data source is expected to ack the stop request through the
+  // NotifyDataSourceStopped() IPC. This field has been introduced after
+  // Android P in Jul 2018 and is not supported on older versions.
+  optional bool will_notify_on_stop = 2;
+
+  // When true the data source is expected to ack the start request through the
+  // NotifyDataSourceStarted() IPC. This field has been introduced after
+  // Android P in March 2019 and is not supported on older versions.
+  optional bool will_notify_on_start = 3;
+
+  // If true, opt into receiving the ClearIncrementalState() IPC. This should be
+  // set if the data source writes packets that refer to previous trace
+  // contents, and knows how to stop referring to the already-emitted data.
+  optional bool handles_incremental_state_clear = 4;
+
+  // Optional specification about available GPU counters.
+  optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
+}
+
+// End of protos/perfetto/common/data_source_descriptor.proto
+
+// Begin of protos/perfetto/common/gpu_counter_descriptor.proto
+
+// Description of GPU counters.
+// This message is sent by a GPU counter producer to specify the counters available in the hardware.
+message GpuCounterDescriptor {
+  message GpuCounterSpec {
+    optional uint32 counter_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+    optional MeasureUnit unit = 4;
+    oneof peak_value {
+      int64 int_peak_value = 5;
+      double double_peak_value = 6;
+    };
+  }
+  repeated GpuCounterSpec specs = 1;
+
+  // Taken from
+  // https://developer.android.com/reference/android/icu/util/MeasureUnit
+  enum MeasureUnit {
+    ACRE = 0;
+    ACRE_FOOT = 1;
+    AMPERE = 2;
+    ARC_MINUTE = 3;
+    ARC_SECOND = 4;
+    ASTRONOMICAL_UNIT = 5;
+    BIT = 6;
+    BUSHEL = 7;
+    BYTE = 8;
+    CALORIE = 9;
+    CARAT = 10;
+    CELSIUS = 11;
+    CENTILITER = 12;
+    CENTIMETER = 13;
+    CENTURY = 14;
+    CUBIC_CENTIMETER = 15;
+    CUBIC_FOOT = 16;
+    CUBIC_INCH = 17;
+    CUBIC_KILOMETER = 18;
+    CUBIC_METER = 19;
+    CUBIC_MILE = 20;
+    CUBIC_YARD = 21;
+    CUP = 22;
+    CUP_METRIC = 23;
+    DAY = 24;
+    DECILITER = 25;
+    DECIMETER = 26;
+    DEGREE = 27;
+    FAHRENHEIT = 28;
+    FATHOM = 29;
+    FLUID_OUNCE = 30;
+    FOODCALORIE = 31;
+    FOOT = 32;
+    FURLONG = 33;
+    GALLON = 34;
+    GALLON_IMPERIAL = 35;
+    GENERIC_TEMPERATURE = 36;
+    GIGABIT = 37;
+    GIGABYTE = 38;
+    GIGAHERTZ = 39;
+    GIGAWATT = 40;
+    GRAM = 41;
+    G_FORCE = 42;
+    HECTARE = 43;
+    HECTOLITER = 44;
+    HECTOPASCAL = 45;
+    HERTZ = 46;
+    HORSEPOWER = 47;
+    HOUR = 48;
+    INCH = 49;
+    INCH_HG = 50;
+    JOULE = 51;
+    KARAT = 52;
+    KELVIN = 53;
+    KILOBIT = 54;
+    KILOBYTE = 55;
+    KILOCALORIE = 56;
+    KILOGRAM = 57;
+    KILOHERTZ = 58;
+    KILOJOULE = 59;
+    KILOMETER = 60;
+    KILOMETER_PER_HOUR = 61;
+    KILOWATT = 62;
+    KILOWATT_HOUR = 63;
+    KNOT = 64;
+    LIGHT_YEAR = 65;
+    LITER = 66;
+    LITER_PER_100KILOMETERS = 67;
+    LITER_PER_KILOMETER = 68;
+    LUX = 69;
+    MEGABIT = 70;
+    MEGABYTE = 71;
+    MEGAHERTZ = 72;
+    MEGALITER = 73;
+    MEGAWATT = 74;
+    METER = 75;
+    METER_PER_SECOND = 76;
+    METER_PER_SECOND_SQUARED = 77;
+    METRIC_TON = 78;
+    MICROGRAM = 79;
+    MICROMETER = 80;
+    MICROSECOND = 81;
+    MILE = 82;
+    MILE_PER_GALLON = 83;
+    MILE_PER_GALLON_IMPERIAL = 84;
+    MILE_PER_HOUR = 85;
+    MILE_SCANDINAVIAN = 86;
+    MILLIAMPERE = 87;
+    MILLIBAR = 88;
+    MILLIGRAM = 89;
+    MILLIGRAM_PER_DECILITER = 90;
+    MILLILITER = 91;
+    MILLIMETER = 92;
+    MILLIMETER_OF_MERCURY = 93;
+    MILLIMOLE_PER_LITER = 94;
+    MILLISECOND = 95;
+    MILLIWATT = 96;
+    MINUTE = 97;
+    MONTH = 98;
+    NANOMETER = 99;
+    NANOSECOND = 100;
+    NAUTICAL_MILE = 101;
+    OHM = 102;
+    OUNCE = 103;
+    OUNCE_TROY = 104;
+    PARSEC = 105;
+    PART_PER_MILLION = 106;
+    PICOMETER = 107;
+    PINT = 108;
+    PINT_METRIC = 109;
+    POINT = 110;
+    POUND = 111;
+    POUND_PER_SQUARE_INCH = 112;
+    QUART = 113;
+    RADIAN = 114;
+    REVOLUTION_ANGLE = 115;
+    SECOND = 116;
+    SQUARE_CENTIMETER = 117;
+    SQUARE_FOOT = 118;
+    SQUARE_INCH = 119;
+    SQUARE_KILOMETER = 120;
+    SQUARE_METER = 121;
+    SQUARE_MILE = 122;
+    SQUARE_YARD = 123;
+    STONE = 124;
+    TABLESPOON = 125;
+    TEASPOON = 126;
+    TERABIT = 127;
+    TERABYTE = 128;
+    TON = 129;
+    VOLT = 130;
+    WATT = 131;
+    WEEK = 132;
+    YARD = 133;
+    YEAR = 134;
+  };
+}
+
+// End of protos/perfetto/common/gpu_counter_descriptor.proto
+
 // Begin of protos/perfetto/common/sys_stats_counters.proto
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
@@ -181,6 +373,193 @@ enum VmstatCounters {
   VMSTAT_NR_GPU_HEAP = 95;
 }
 // End of protos/perfetto/common/sys_stats_counters.proto
+
+// Begin of protos/perfetto/common/trace_stats.proto
+
+// Statistics for the internals of the tracing service.
+//
+// Next id: 10.
+message TraceStats {
+  // From TraceBuffer::Stats.
+  //
+  // Next id: 20.
+  message BufferStats {
+    // Size of the circular buffer in bytes.
+    optional uint64 buffer_size = 12;
+
+    // Num. bytes written into the circular buffer, including chunk headers.
+    optional uint64 bytes_written = 1;
+
+    // Num. bytes overwritten before they have been read (i.e. loss of data).
+    optional uint64 bytes_overwritten = 13;
+
+    // Total size of chunks that were fully read from the circular buffer by the
+    // consumer. This may not be equal to |bytes_written| either in the middle
+    // of tracing, or if |chunks_overwritten| is non-zero. Note that this is the
+    // size of the chunks read from the buffer, including chunk headers, which
+    // will be different from the total size of packets returned to the
+    // consumer.
+    //
+    // The current utilization of the trace buffer (mid-tracing) can be obtained
+    // by subtracting |bytes_read| and |bytes_overwritten| from |bytes_written|,
+    // adding the difference of |padding_bytes_written| and
+    // |padding_bytes_cleared|, and comparing this sum to the |buffer_size|.
+    // Note that this represents the total size of buffered data in the buffer,
+    // yet this data may be spread non-contiguously through the buffer and may
+    // be overridden before the utilization reaches 100%.
+    optional uint64 bytes_read = 14;
+
+    // Num. bytes that were allocated as padding between chunks in the circular
+    // buffer.
+    optional uint64 padding_bytes_written = 15;
+
+    // Num. of padding bytes that were removed from the circular buffer when
+    // they were overwritten.
+    //
+    // The difference between |padding_bytes_written| and
+    // |padding_bytes_cleared| denotes the total size of padding currently
+    // present in the buffer.
+    optional uint64 padding_bytes_cleared = 16;
+
+    // Num. chunks (!= packets) written into the buffer.
+    optional uint64 chunks_written = 2;
+
+    // Num. chunks (!= packets) rewritten into the buffer. This means we rewrote
+    // the same chunk with additional packets appended to the end.
+    optional uint64 chunks_rewritten = 10;
+
+    // Num. chunks overwritten before they have been read (i.e. loss of data).
+    optional uint64 chunks_overwritten = 3;
+
+    // Num. chunks discarded (i.e. loss of data). Can be > 0 only when a buffer
+    // is configured with FillPolicy == DISCARD.
+    optional uint64 chunks_discarded = 18;
+
+    // Num. chunks (!= packets) that were fully read from the circular buffer by
+    // the consumer. This may not be equal to |chunks_written| either in the
+    // middle of tracing, or if |chunks_overwritten| is non-zero.
+    optional uint64 chunks_read = 17;
+
+    // Num. chunks that were committed out of order.
+    optional uint64 chunks_committed_out_of_order = 11;
+
+    // Num. times the ring buffer wrapped around.
+    optional uint64 write_wrap_count = 4;
+
+    // Num. out-of-band (OOB) patches that succeeded.
+    optional uint64 patches_succeeded = 5;
+
+    // Num. OOB patches that failed (e.g., the chunk to patch was gone).
+    optional uint64 patches_failed = 6;
+
+    // Num. readaheads (for large multi-chunk packet reads) that ended up in a
+    // successful packet read.
+    optional uint64 readaheads_succeeded = 7;
+
+    // Num. readaheads aborted because of missing chunks in the sequence stream.
+    // Note that a small number > 0 is totally expected: occasionally, when
+    // issuing a read, the very last packet in a sequence might be incomplete
+    // (because the producer is still writing it while we read). The read will
+    // stop at that point, for that sequence, increasing this counter.
+    optional uint64 readaheads_failed = 8;
+
+    // Num. of violations of the SharedMemoryABI found while writing or reading
+    // the buffer. This is an indication of either a bug in the producer(s) or
+    // malicious producer(s).
+    optional uint64 abi_violations = 9;
+
+    // The fields below have been introduced in Android R.
+
+    // Num. of times the service detected packet loss on a trace writer
+    // sequence. This is usually caused by exhaustion of available chunks in the
+    // writer process's SMB. Note that this relies on the client's TraceWriter
+    // indicating this loss to the service -- packets lost for other reasons are
+    // not reflected in this stat.
+    optional uint64 trace_writer_packet_loss = 19;
+  }
+
+  // Stats for the TraceBuffer(s) of the current trace session.
+  repeated BufferStats buffer_stats = 1;
+
+  // Num. producers connected (whether they are involved in the current tracing
+  // session or not).
+  optional uint32 producers_connected = 2;
+
+  // Num. producers ever seen for all trace sessions since startup (it's a good
+  // proxy for inferring num. producers crashed / killed).
+  optional uint64 producers_seen = 3;
+
+  // Num. data sources registered for all trace sessions.
+  optional uint32 data_sources_registered = 4;
+
+  // Num. data sources ever seen for all trace sessions since startup.
+  optional uint64 data_sources_seen = 5;
+
+  // Num. concurrently active tracing sessions.
+  optional uint32 tracing_sessions = 6;
+
+  // Num. buffers for all tracing session (not just the current one). This will
+  // be >= buffer_stats.size(), because the latter is only about the current
+  // session.
+  optional uint32 total_buffers = 7;
+
+  // The fields below have been introduced in Android Q.
+
+  // Num. chunks that were discarded by the service before attempting to commit
+  // them to a buffer, e.g. because the producer specified an invalid buffer ID.
+  optional uint64 chunks_discarded = 8;
+
+  // Num. patches that were discarded by the service before attempting to apply
+  // them to a buffer, e.g. because the producer specified an invalid buffer ID.
+  optional uint64 patches_discarded = 9;
+
+  // Packets that failed validation of the TrustedPacket. If this is > 0, there
+  // is a bug in the producer.
+  optional uint64 invalid_packets = 10;
+}
+
+// End of protos/perfetto/common/trace_stats.proto
+
+// Begin of protos/perfetto/common/tracing_service_state.proto
+
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// to reflect changes in the corresponding C++ headers.
+
+// Reports the state of the tracing service. Used to gather details about the
+// data sources connected.
+// See ConsumerPort::QueryServiceState().
+message TracingServiceState {
+  // Describes a producer process.
+  message Producer {
+    optional int32 id = 1;     // Unique ID of the producer (monotonic counter).
+    optional string name = 2;  // Typically matches the process name.
+    optional int32 uid = 3;    // Unix uid of the remote process.
+  }
+
+  // Describes a data source registered by a producer. Data sources are listed
+  // regardless of the fact that they are being used or not.
+  message DataSource {
+    // Descriptor passed by the data source when calling RegisterDataSource().
+    optional DataSourceDescriptor ds_descriptor = 1;
+
+    // ID of the producer, as per Producer.id.
+    optional int32 producer_id = 2;
+  }
+
+  // Lists all the producers connected.
+  repeated Producer producers = 1;
+
+  // Lists the data sources available.
+  repeated DataSource data_sources = 2;
+
+  // Total number of tracing sessions.
+  optional int32 num_sessions = 3;
+
+  // Number of tracing sessions in the started state. Always <= num_sessions.
+  optional int32 num_sessions_started = 4;
+}
+
+// End of protos/perfetto/common/tracing_service_state.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
