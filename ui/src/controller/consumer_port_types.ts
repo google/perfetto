@@ -25,6 +25,8 @@ export interface EnableTracingResponse extends
 export interface GetTraceStatsResponse extends
     Typed, perfetto.protos.IGetTraceStatsResponse {}
 
+export type ConsumerPortResponse =
+    EnableTracingResponse|ReadBuffersResponse|GetTraceStatsResponse;
 
 export function isReadBuffersResponse(obj: Typed): obj is ReadBuffersResponse {
   return obj.type === 'ReadBuffersResponse';

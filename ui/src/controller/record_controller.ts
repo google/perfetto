@@ -30,15 +30,21 @@ import {
   TraceConfig,
 } from '../common/protos';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
-import {MAX_TIME, RecordConfig} from '../common/state';
-
 import {
-  EnableTracingResponse,
+  isAndroidTarget,
+  isChromeTarget,
+  MAX_TIME,
+  RecordConfig
+} from '../common/state';
+
+import {MockAdb} from './adb_interfaces';
+import {AdbRecordController} from './adb_record_controller';
+import {
+  ConsumerPortResponse,
   GetTraceStatsResponse,
   isEnableTracingResponse,
   isGetTraceStatsResponse,
   isReadBuffersResponse,
-  ReadBuffersResponse
 } from './consumer_port_types';
 import {Controller} from './controller';
 import {App, globals} from './globals';
@@ -412,12 +418,16 @@ export class RecordController extends Controller<'main'> {
   private traceBuffer = '';
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
 
+  // TODO(nicomazz): Replace MockAdb with the true Adb implementation.
+  private adbRecordController = new AdbRecordController(
+      new MockAdb(), this.onConsumerPortMessage.bind(this));
+
   constructor(args: {app: App, extensionPort: MessagePort}) {
     super('main');
     this.app = args.app;
     this.consumerPort = ConsumerPort.create(this.rpcImpl.bind(this));
     this.extensionPort = args.extensionPort;
-    this.extensionPort.onmessage = this.onExtensionMessage.bind(this);
+    this.extensionPort.onmessage = this.onConsumerPortMessage.bind(this);
   }
 
   run() {
@@ -472,13 +482,10 @@ export class RecordController extends Controller<'main'> {
   }
 
   readBuffers() {
-    if (this.extensionPort) this.consumerPort.readBuffers({});
+    this.consumerPort.readBuffers({});
   }
 
-  onExtensionMessage(message: {
-    data: EnableTracingResponse|ReadBuffersResponse|GetTraceStatsResponse
-  }) {
-    const data = message.data;
+  onConsumerPortMessage({data}: {data: ConsumerPortResponse}) {
     if (data === undefined) return;
 
     // TODO(nicomazz): Add error handling.
@@ -525,15 +532,31 @@ export class RecordController extends Controller<'main'> {
     return used / total;
   }
 
-  // This forwards the messages that have to be sent to the extension to the
-  // frontend. This is necessary because this controller is running in a
-  // separate worker, that can't directly send messages to the extension.
+  // Depending on the recording target, different implementation of the
+  // consumer_port will be used.
+  // - Chrome target: This forwards the messages that have to be sent
+  // to the extension to the frontend. This is necessary because this controller
+  // is running in a separate worker, that can't directly send messages to the
+  // extension.
+  // - Android device target: WebUSB is used to communicate using the adb
+  // protocol. Actually, there is no full consumer_port implementation, but only
+  // the support to start tracing and fetch the file.
   private rpcImpl(
       method: RPCImplMethod, requestData: Uint8Array,
       _callback: RPCImplCallback) {
-    if (method !== null && method.name !== null && this.config !== null) {
+    const target = this.app.state.recordConfig.targetOS;
+    if (isChromeTarget(target) && method !== null && method.name !== null &&
+        this.config !== null) {
       this.extensionPort.postMessage(
           {method: method.name, traceConfig: requestData});
+    } else if (isAndroidTarget(target)) {
+      // TODO(nicomazz): In theory requestData should contain the configuration
+      // proto, but in practice there are missing fields. As a temporary
+      // workaround I'm directly passing the configuration.
+      this.adbRecordController.handleCommand(
+          method.name, genConfigProto(this.config!));
+    } else {
+      console.error(`Target ${target} not supported!`);
     }
   }
 }
