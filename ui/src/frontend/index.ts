@@ -130,6 +130,11 @@ class FrontendApi {
     console.log('publish search results', args);
   }
 
+  publishRecordingLog(args: {logs: string}) {
+    globals.setRecordingLog(args.logs);
+    this.redraw();
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
