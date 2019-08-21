@@ -191,6 +191,7 @@ source_set("lib") {
     "../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",
+    "db:lib",
     "metrics:lib",
   ]
   public_deps = [
@@ -276,6 +277,7 @@ source_set("unittests") {
     "../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",
+    "db:unittests",
   ]
   if (perfetto_build_standalone || build_with_chromium) {
     sources += [
