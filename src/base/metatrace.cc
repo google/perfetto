@@ -18,8 +18,8 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/time.h"
 
 namespace perfetto {
 namespace metatrace {

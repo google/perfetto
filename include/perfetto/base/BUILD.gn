@@ -22,5 +22,6 @@ source_set("base") {
     "export.h",
     "logging.h",
     "task_runner.h",
+    "time.h",
   ]
 }

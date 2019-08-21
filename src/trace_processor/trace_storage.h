@@ -26,10 +26,10 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/metadata.h"

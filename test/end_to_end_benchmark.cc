@@ -17,7 +17,7 @@
 #include <benchmark/benchmark.h>
 #include <gtest/gtest.h>
 
-#include "perfetto/ext/base/time.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/test_config.h"

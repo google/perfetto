@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_TIME_H_
-#define INCLUDE_PERFETTO_EXT_BASE_TIME_H_
+#ifndef INCLUDE_PERFETTO_BASE_TIME_H_
+#define INCLUDE_PERFETTO_BASE_TIME_H_
 
 #include <time.h>
 
@@ -161,4 +161,4 @@ inline struct timespec ToPosixTimespec(TimeMillis time) {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_TIME_H_
+#endif  // INCLUDE_PERFETTO_BASE_TIME_H_
