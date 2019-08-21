@@ -15,8 +15,10 @@
 import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
 import * as rpc from 'noice-json-rpc';
+
 import {TraceConfig} from '../common/protos';
 import {
+  ConsumerPortResponse,
   GetTraceStatsResponse,
   ReadBuffersResponse
 } from '../controller/consumer_port_types';
@@ -43,7 +45,7 @@ export class ChromeTracingController {
     this.api.Tracing.on('bufferUsage', this.onBufferUsage.bind(this));
   }
 
-  sendMessage(message: object) {
+  sendMessage(message: ConsumerPortResponse) {
     this.uiPort.postMessage(message);
   }
 

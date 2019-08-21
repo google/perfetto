@@ -169,6 +169,7 @@ export interface State {
    */
   recordingInProgress: boolean;
   extensionInstalled: boolean;
+  serialAndroidDeviceConnected: string|undefined;
 }
 
 export const defaultTraceTime = {
@@ -184,6 +185,10 @@ export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L';
 
 export function isAndroidTarget(target: TargetOs) {
   return ['Q', 'P', 'O'].includes(target);
+}
+
+export function isChromeTarget(target: TargetOs) {
+  return target === 'C';
 }
 
 export interface RecordConfig {
@@ -329,5 +334,6 @@ export function createEmptyState(): State {
     flagPauseEnabled: false,
     recordingInProgress: false,
     extensionInstalled: false,
+    serialAndroidDeviceConnected: undefined,
   };
 }
