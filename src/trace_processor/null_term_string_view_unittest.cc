@@ -16,8 +16,7 @@
 
 #include "src/trace_processor/null_term_string_view.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {

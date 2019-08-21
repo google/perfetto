@@ -18,9 +18,9 @@
 
 #include <stdint.h>
 
-#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "src/base/test/vm_test_utils.h"
+#include "test/gtest_and_gmock.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&    \

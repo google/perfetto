@@ -18,9 +18,7 @@
 
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/process_tracker.h"
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -124,15 +122,15 @@ TEST_F(EventTrackerTest, CounterDuration) {
 
   ASSERT_EQ(context.storage->counter_values().size(), 4ul);
   ASSERT_EQ(context.storage->counter_values().timestamps().at(0), timestamp);
-  ASSERT_EQ(context.storage->counter_values().values().at(0), 1000);
+  ASSERT_DOUBLE_EQ(context.storage->counter_values().values().at(0), 1000);
 
   ASSERT_EQ(context.storage->counter_values().timestamps().at(1),
             timestamp + 1);
-  ASSERT_EQ(context.storage->counter_values().values().at(1), 4000);
+  ASSERT_DOUBLE_EQ(context.storage->counter_values().values().at(1), 4000);
 
   ASSERT_EQ(context.storage->counter_values().timestamps().at(2),
             timestamp + 3);
-  ASSERT_EQ(context.storage->counter_values().values().at(2), 5000);
+  ASSERT_DOUBLE_EQ(context.storage->counter_values().values().at(2), 5000);
 }
 
 }  // namespace

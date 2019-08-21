@@ -29,7 +29,7 @@
 #define TEST_INVALID_CLOSE
 #endif
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

@@ -16,8 +16,7 @@
 
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 using testing::AnyNumber;
 using testing::IsEmpty;

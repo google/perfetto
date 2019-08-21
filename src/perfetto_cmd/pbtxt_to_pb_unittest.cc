@@ -19,8 +19,7 @@
 #include <memory>
 #include <string>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include "perfetto/config/trace_config.pb.h"
@@ -62,7 +61,7 @@ TEST(PbtxtToPb, OneField) {
   protos::TraceConfig config = ToProto(R"(
     duration_ms: 1234
   )");
-  EXPECT_EQ(config.duration_ms(), 1234);
+  EXPECT_EQ(config.duration_ms(), 1234u);
 }
 
 TEST(PbtxtToPb, TwoFields) {
@@ -70,8 +69,8 @@ TEST(PbtxtToPb, TwoFields) {
     duration_ms: 1234
     file_write_period_ms: 5678
   )");
-  EXPECT_EQ(config.duration_ms(), 1234);
-  EXPECT_EQ(config.file_write_period_ms(), 5678);
+  EXPECT_EQ(config.duration_ms(), 1234u);
+  EXPECT_EQ(config.file_write_period_ms(), 5678u);
 }
 
 TEST(PbtxtToPb, Semicolons) {
@@ -79,8 +78,8 @@ TEST(PbtxtToPb, Semicolons) {
     duration_ms: 1234;
     file_write_period_ms: 5678;
   )");
-  EXPECT_EQ(config.duration_ms(), 1234);
-  EXPECT_EQ(config.file_write_period_ms(), 5678);
+  EXPECT_EQ(config.duration_ms(), 1234u);
+  EXPECT_EQ(config.file_write_period_ms(), 5678u);
 }
 
 TEST(PbtxtToPb, NestedMessage) {
@@ -90,7 +89,7 @@ TEST(PbtxtToPb, NestedMessage) {
     }
   )");
   ASSERT_EQ(config.buffers().size(), 1);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 123);
+  EXPECT_EQ(config.buffers().Get(0).size_kb(), 123u);
 }
 
 TEST(PbtxtToPb, SplitNested) {
@@ -104,9 +103,9 @@ TEST(PbtxtToPb, SplitNested) {
     }
   )");
   ASSERT_EQ(config.buffers().size(), 2);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 1);
-  EXPECT_EQ(config.buffers().Get(1).size_kb(), 2);
-  EXPECT_EQ(config.duration_ms(), 1000);
+  EXPECT_EQ(config.buffers().Get(0).size_kb(), 1u);
+  EXPECT_EQ(config.buffers().Get(1).size_kb(), 2u);
+  EXPECT_EQ(config.duration_ms(), 1000u);
 }
 
 TEST(PbtxtToPb, MultipleNestedMessage) {
@@ -119,8 +118,8 @@ TEST(PbtxtToPb, MultipleNestedMessage) {
     }
   )");
   ASSERT_EQ(config.buffers().size(), 2);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 1);
-  EXPECT_EQ(config.buffers().Get(1).size_kb(), 2);
+  EXPECT_EQ(config.buffers().Get(0).size_kb(), 1u);
+  EXPECT_EQ(config.buffers().Get(1).size_kb(), 2u);
 }
 
 TEST(PbtxtToPb, NestedMessageCrossFile) {
@@ -135,7 +134,7 @@ data_sources {
   )");
   ASSERT_EQ(
       config.data_sources().Get(0).config().ftrace_config().drain_period_ms(),
-      42);
+      42u);
 }
 
 TEST(PbtxtToPb, Booleans) {
@@ -207,16 +206,16 @@ data_sources {
   )");
   const auto& fields =
       config.data_sources().Get(0).config().for_testing().dummy_fields();
-  ASSERT_EQ(fields.field_uint32(), 1);
-  ASSERT_EQ(fields.field_uint64(), 2);
+  ASSERT_EQ(fields.field_uint32(), 1u);
+  ASSERT_EQ(fields.field_uint64(), 2u);
   ASSERT_EQ(fields.field_int32(), 3);
   ASSERT_EQ(fields.field_int64(), 4);
-  ASSERT_EQ(fields.field_fixed64(), 5);
+  ASSERT_EQ(fields.field_fixed64(), 5u);
   ASSERT_EQ(fields.field_sfixed64(), 6);
-  ASSERT_EQ(fields.field_fixed32(), 7);
+  ASSERT_EQ(fields.field_fixed32(), 7u);
   ASSERT_EQ(fields.field_sfixed32(), 8);
-  ASSERT_EQ(fields.field_double(), 9);
-  ASSERT_EQ(fields.field_float(), 10);
+  ASSERT_DOUBLE_EQ(fields.field_double(), 9);
+  ASSERT_FLOAT_EQ(fields.field_float(), 10);
   ASSERT_EQ(fields.field_sint64(), 11);
   ASSERT_EQ(fields.field_sint32(), 12);
   ASSERT_EQ(fields.field_string(), "13");
@@ -248,19 +247,19 @@ data_sources {
       config.data_sources().Get(0).config().for_testing().dummy_fields();
   ASSERT_EQ(fields.field_int32(), -1);
   ASSERT_EQ(fields.field_int64(), -2);
-  ASSERT_EQ(fields.field_fixed64(), -3);
+  ASSERT_EQ(fields.field_fixed64(), static_cast<uint64_t>(-3));
   ASSERT_EQ(fields.field_sfixed64(), -4);
-  ASSERT_EQ(fields.field_fixed32(), -5);
+  ASSERT_EQ(fields.field_fixed32(), static_cast<uint32_t>(-5));
   ASSERT_EQ(fields.field_sfixed32(), -6);
-  ASSERT_EQ(fields.field_double(), -7);
-  ASSERT_EQ(fields.field_float(), -8);
+  ASSERT_DOUBLE_EQ(fields.field_double(), -7);
+  ASSERT_FLOAT_EQ(fields.field_float(), -8);
   ASSERT_EQ(fields.field_sint64(), -9);
   ASSERT_EQ(fields.field_sint32(), -10);
 }
 
 TEST(PbtxtToPb, EofEndsNumeric) {
   protos::TraceConfig config = ToProto(R"(duration_ms: 1234)");
-  EXPECT_EQ(config.duration_ms(), 1234);
+  EXPECT_EQ(config.duration_ms(), 1234u);
 }
 
 TEST(PbtxtToPb, EofEndsIdentifier) {
@@ -320,10 +319,10 @@ producers {
 
 duration_ms: 10000
 )");
-  EXPECT_EQ(config.duration_ms(), 10000);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 100024);
+  EXPECT_EQ(config.duration_ms(), 10000u);
+  EXPECT_EQ(config.buffers().Get(0).size_kb(), 100024u);
   EXPECT_EQ(config.data_sources().Get(0).config().name(), "linux.ftrace");
-  EXPECT_EQ(config.data_sources().Get(0).config().target_buffer(), 0);
+  EXPECT_EQ(config.data_sources().Get(0).config().target_buffer(), 0u);
   EXPECT_EQ(config.producers().Get(0).producer_name(),
             "perfetto.traced_probes");
 }

@@ -16,11 +16,9 @@
 
 #include "src/traced/service/builtin_producer.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {

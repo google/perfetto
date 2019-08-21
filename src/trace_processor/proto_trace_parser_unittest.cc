@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/proto_trace_tokenizer.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/args_tracker.h"
@@ -29,6 +27,7 @@
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/virtual_track_tracker.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
 #include "perfetto/trace/android/packages_list.pbzero.h"
@@ -67,6 +66,14 @@ using ::testing::NiceMock;
 using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::UnorderedElementsAreArray;
+
+MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
+  // The IEEE standard says that any comparison operation involving
+  // a NAN must return false.
+  if (isnan(exp) || isnan(arg))
+    return false;
+  return fabs(arg - exp) < 1e-128;
+}
 
 class MockEventTracker : public EventTracker {
  public:
@@ -513,8 +520,9 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value * 1024, _, 0,
-                                   RefType::kRefNoRef, false));
+  EXPECT_CALL(*event_,
+              PushCounter(static_cast<int64_t>(ts), DoubleEq(value * 1024.0), _,
+                          0, RefType::kRefNoRef, false));
   Tokenize();
 }
 
@@ -528,8 +536,8 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), value, _, 0,
-                                   RefType::kRefNoRef, false));
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value), _,
+                                   0, RefType::kRefNoRef, false));
   Tokenize();
 }
 
@@ -543,8 +551,8 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   cpu_freq->set_cpu_id(10);
   cpu_freq->set_state(2000);
 
-  EXPECT_CALL(*event_,
-              PushCounter(1000, 2000, _, 10, RefType::kRefCpuId, false));
+  EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), _, 10,
+                                   RefType::kRefCpuId, false));
   Tokenize();
 }
 

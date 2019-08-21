@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include <array>
 #include <chrono>
 #include <deque>
@@ -24,6 +21,7 @@
 
 #include "perfetto/ext/base/metatrace.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
