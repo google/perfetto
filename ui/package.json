@@ -16,6 +16,7 @@
     "@types/mithril": "^1.1.16",
     "@types/pako": "^1.0.1",
     "@types/uuid": "^3.4.4",
+    "@types/w3c-web-usb": "^1.0.3",
     "color-convert": "^2.0.0",
     "devtools-protocol": "0.0.681549",
     "events": "^3.0.0",
