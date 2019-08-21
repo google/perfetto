@@ -413,6 +413,10 @@ export const StateActions = {
     state.bufferUsage = args.percentage;
   },
 
+  setAndroidDevice(state: StateDraft, args: {serial: string}): void {
+    state.serialAndroidDeviceConnected = args.serial;
+  },
+
 };
 
 // When we are on the frontend side, we don't really want to execute the
