@@ -20,8 +20,7 @@
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 #include <json/reader.h>
 #include <json/value.h>
@@ -259,10 +258,11 @@ TEST(ExportJsonTest, StorageWithMetadata) {
   EXPECT_EQ(telemetry_metadata["storyTags"][0].asString(), kStoryTag1);
   EXPECT_EQ(telemetry_metadata["storyTags"][1].asString(), kStoryTag2);
 
-  EXPECT_EQ(telemetry_metadata["benchmarkStart"].asInt(),
-            kBenchmarkStart / 1000.0);
+  EXPECT_DOUBLE_EQ(telemetry_metadata["benchmarkStart"].asInt(),
+                   kBenchmarkStart / 1000.0);
 
-  EXPECT_EQ(telemetry_metadata["traceStart"].asInt(), kStoryStart / 1000.0);
+  EXPECT_DOUBLE_EQ(telemetry_metadata["traceStart"].asInt(),
+                   kStoryStart / 1000.0);
 
   EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
@@ -418,8 +418,8 @@ TEST(ExportJsonTest, StorageWithListArgs) {
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_EQ(event["args"]["draw_duration_ms"].size(), 2u);
-  EXPECT_EQ(event["args"]["draw_duration_ms"][0].asDouble(), kValues[0]);
-  EXPECT_EQ(event["args"]["draw_duration_ms"][1].asDouble(), kValues[1]);
+  EXPECT_DOUBLE_EQ(event["args"]["draw_duration_ms"][0].asDouble(), kValues[0]);
+  EXPECT_DOUBLE_EQ(event["args"]["draw_duration_ms"][1].asDouble(), kValues[1]);
 }
 
 TEST(ExportJsonTest, StorageWithMultiplePointerArgs) {

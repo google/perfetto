@@ -16,13 +16,12 @@
 
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "test/gtest_and_gmock.h"
 
 using testing::_;
 using testing::Values;
@@ -401,9 +400,9 @@ print fmt: "some format")"));
   EXPECT_EQ(table->EventToFtraceId(group_and_name), 42ul);
 
   // Check getters
-  EXPECT_EQ(table->GetEventById(42)->proto_field_id,
+  EXPECT_EQ(static_cast<int>(table->GetEventById(42)->proto_field_id),
             protos::pbzero::FtraceEvent::kGenericFieldNumber);
-  EXPECT_EQ(table->GetEvent(group_and_name)->proto_field_id,
+  EXPECT_EQ(static_cast<int>(table->GetEvent(group_and_name)->proto_field_id),
             protos::pbzero::FtraceEvent::kGenericFieldNumber);
   EXPECT_EQ(table->GetEventsByGroup("group")->front()->name,
             group_and_name.name());
@@ -413,7 +412,7 @@ print fmt: "some format")"));
   // Check string field
   const auto& str_field = fields[0];
   EXPECT_STREQ(str_field.ftrace_name, "field_a");
-  EXPECT_EQ(str_field.proto_field_id,
+  EXPECT_EQ(static_cast<int>(str_field.proto_field_id),
             protos::pbzero::GenericFtraceEvent::Field::kStrValueFieldNumber);
   EXPECT_EQ(str_field.proto_field_type, ProtoSchemaType::kString);
   EXPECT_EQ(str_field.ftrace_type, kFtraceFixedCString);
@@ -423,7 +422,7 @@ print fmt: "some format")"));
   // Check bool field
   const auto& bool_field = fields[1];
   EXPECT_STREQ(bool_field.ftrace_name, "field_b");
-  EXPECT_EQ(bool_field.proto_field_id,
+  EXPECT_EQ(static_cast<int>(bool_field.proto_field_id),
             protos::pbzero::GenericFtraceEvent::Field::kUintValueFieldNumber);
   EXPECT_EQ(bool_field.proto_field_type, ProtoSchemaType::kUint64);
   EXPECT_EQ(bool_field.ftrace_type, kFtraceBool);
@@ -433,7 +432,7 @@ print fmt: "some format")"));
   // Check int field
   const auto& int_field = fields[2];
   EXPECT_STREQ(int_field.ftrace_name, "field_c");
-  EXPECT_EQ(int_field.proto_field_id,
+  EXPECT_EQ(static_cast<int>(int_field.proto_field_id),
             protos::pbzero::GenericFtraceEvent::Field::kIntValueFieldNumber);
   EXPECT_EQ(int_field.proto_field_type, ProtoSchemaType::kInt64);
   EXPECT_EQ(int_field.ftrace_type, kFtraceInt32);
@@ -443,7 +442,7 @@ print fmt: "some format")"));
   // Check uint field
   const auto& uint_field = fields[3];
   EXPECT_STREQ(uint_field.ftrace_name, "field_d");
-  EXPECT_EQ(uint_field.proto_field_id,
+  EXPECT_EQ(static_cast<int>(uint_field.proto_field_id),
             protos::pbzero::GenericFtraceEvent::Field::kUintValueFieldNumber);
   EXPECT_EQ(uint_field.proto_field_type, ProtoSchemaType::kUint64);
   EXPECT_EQ(uint_field.ftrace_type, kFtraceUint32);

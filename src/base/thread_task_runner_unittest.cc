@@ -18,8 +18,8 @@
 
 #include <thread>
 
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/thread_checker.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

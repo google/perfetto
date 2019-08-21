@@ -22,10 +22,10 @@
 #include <utility>
 #include <vector>
 
-#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 #include "src/base/test/utils.h"
 #include "src/protozero/test/fake_scattered_buffer.h"
+#include "test/gtest_and_gmock.h"
 
 namespace protozero {
 

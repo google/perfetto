@@ -24,8 +24,6 @@
 #include <list>
 #include <thread>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -34,6 +32,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {
@@ -424,7 +423,7 @@ TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
             EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_conn->peer_uid()));
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-            EXPECT_EQ(getpid(), static_cast<uint32_t>(srv_conn->peer_pid()));
+            EXPECT_EQ(getpid(), static_cast<pid_t>(srv_conn->peer_pid()));
 #endif
             srv_connected();
           }));
@@ -454,7 +453,7 @@ TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
   EXPECT_EQ(geteuid(), static_cast<uint32_t>(srv_client_conn->peer_uid()));
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  EXPECT_EQ(getpid(), static_cast<uint32_t>(srv_client_conn->peer_pid()));
+  EXPECT_EQ(getpid(), static_cast<pid_t>(srv_client_conn->peer_pid()));
 #endif
 }
 
@@ -574,19 +573,19 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendPartialFirst) {
   EXPECT_NE(hdr.msg_iov, nullptr);
   EXPECT_EQ(hdr.msg_iov[0].iov_base, &hello[1]);
   EXPECT_EQ(hdr.msg_iov[1].iov_base, &world[0]);
-  EXPECT_EQ(hdr.msg_iovlen, 2);
+  EXPECT_EQ(static_cast<int>(hdr.msg_iovlen), 2);
   EXPECT_STREQ(reinterpret_cast<char*>(hdr.msg_iov[0].iov_base), "ello");
   EXPECT_EQ(iov[0].iov_len, base::ArraySize(hello) - 1);
 
   UnixSocketRaw::ShiftMsgHdr(base::ArraySize(hello) - 1, &hdr);
   EXPECT_EQ(hdr.msg_iov, &iov[1]);
-  EXPECT_EQ(hdr.msg_iovlen, 1);
+  EXPECT_EQ(static_cast<int>(hdr.msg_iovlen), 1);
   EXPECT_STREQ(reinterpret_cast<char*>(hdr.msg_iov[0].iov_base), world);
   EXPECT_EQ(hdr.msg_iov[0].iov_len, base::ArraySize(world));
 
   UnixSocketRaw::ShiftMsgHdr(base::ArraySize(world), &hdr);
   EXPECT_EQ(hdr.msg_iov, nullptr);
-  EXPECT_EQ(hdr.msg_iovlen, 0);
+  EXPECT_EQ(static_cast<int>(hdr.msg_iovlen), 0);
 }
 
 TEST_F(UnixSocketTest, ShiftMsgHdrSendFirstAndPartial) {
@@ -606,13 +605,13 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendFirstAndPartial) {
 
   UnixSocketRaw::ShiftMsgHdr(base::ArraySize(hello) + 1, &hdr);
   EXPECT_NE(hdr.msg_iov, nullptr);
-  EXPECT_EQ(hdr.msg_iovlen, 1);
+  EXPECT_EQ(static_cast<int>(hdr.msg_iovlen), 1);
   EXPECT_STREQ(reinterpret_cast<char*>(hdr.msg_iov[0].iov_base), "orld");
   EXPECT_EQ(hdr.msg_iov[0].iov_len, base::ArraySize(world) - 1);
 
   UnixSocketRaw::ShiftMsgHdr(base::ArraySize(world) - 1, &hdr);
   EXPECT_EQ(hdr.msg_iov, nullptr);
-  EXPECT_EQ(hdr.msg_iovlen, 0);
+  EXPECT_EQ(static_cast<int>(hdr.msg_iovlen), 0);
 }
 
 TEST_F(UnixSocketTest, ShiftMsgHdrSendEverything) {
@@ -633,7 +632,7 @@ TEST_F(UnixSocketTest, ShiftMsgHdrSendEverything) {
   UnixSocketRaw::ShiftMsgHdr(base::ArraySize(world) + base::ArraySize(hello),
                              &hdr);
   EXPECT_EQ(hdr.msg_iov, nullptr);
-  EXPECT_EQ(hdr.msg_iovlen, 0);
+  EXPECT_EQ(static_cast<int>(hdr.msg_iovlen), 0);
 }
 
 void Handler(int) {}
@@ -709,7 +708,7 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
   hdr.msg_iov = iov;
   hdr.msg_iovlen = base::ArraySize(iov);
 
-  ASSERT_EQ(send_sock.SendMsgAll(&hdr), sizeof(send_buf));
+  ASSERT_EQ(send_sock.SendMsgAll(&hdr), static_cast<ssize_t>(sizeof(send_buf)));
   send_sock.Shutdown();
   th.join();
   // Make sure the re-entry logic was actually triggered.
@@ -743,7 +742,8 @@ TEST_F(UnixSocketTest, ReleaseSocket) {
 
   char buf[sizeof("test")];
   ASSERT_TRUE(raw_sock);
-  ASSERT_EQ(raw_sock.Receive(buf, sizeof(buf)), sizeof(buf));
+  ASSERT_EQ(raw_sock.Receive(buf, sizeof(buf)),
+            static_cast<ssize_t>(sizeof(buf)));
   ASSERT_STREQ(buf, "test");
 }
 

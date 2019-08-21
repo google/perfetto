@@ -20,8 +20,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
@@ -29,6 +27,7 @@
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "perfetto/trace/ftrace/ftrace_stats.pbzero.h"
@@ -537,9 +536,9 @@ TEST(FtraceStatsTest, Write) {
 
   protos::TracePacket result_packet = writer->GetOnlyTracePacket();
   auto result = result_packet.ftrace_stats().cpu_stats(0);
-  EXPECT_EQ(result.cpu(), 0);
-  EXPECT_EQ(result.entries(), 1);
-  EXPECT_EQ(result.overrun(), 2);
+  EXPECT_EQ(result.cpu(), 0u);
+  EXPECT_EQ(result.entries(), 1u);
+  EXPECT_EQ(result.overrun(), 2u);
 }
 
 }  // namespace perfetto
