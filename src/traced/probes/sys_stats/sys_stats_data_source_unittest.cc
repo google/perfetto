@@ -16,13 +16,12 @@
 
 #include <unistd.h>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/common/sys_stats_counters.pbzero.h"
 #include "perfetto/config/data_source_config.pbzero.h"
@@ -353,22 +352,22 @@ TEST_F(SysStatsDataSourceTest, StatAll) {
   EXPECT_EQ(sys_stats.cpu_stat(7).system_mode_ns(), 139874 * 10000000ull);
   EXPECT_EQ(sys_stats.cpu_stat(7).softirq_ns(), 13407 * 10000000ull);
 
-  EXPECT_EQ(sys_stats.num_forks(), 243320);
+  EXPECT_EQ(sys_stats.num_forks(), 243320u);
 
-  EXPECT_EQ(sys_stats.num_irq_total(), 238128517);
+  EXPECT_EQ(sys_stats.num_irq_total(), 238128517u);
   ASSERT_EQ(sys_stats.num_irq_size(), 102);
-  EXPECT_EQ(sys_stats.num_irq(0).count(), 63500984);
+  EXPECT_EQ(sys_stats.num_irq(0).count(), 63500984u);
   EXPECT_EQ(sys_stats.num_irq(0).irq(), 3);
-  EXPECT_EQ(sys_stats.num_irq(1).count(), 6253792);
+  EXPECT_EQ(sys_stats.num_irq(1).count(), 6253792u);
   EXPECT_EQ(sys_stats.num_irq(1).irq(), 5);
-  EXPECT_EQ(sys_stats.num_irq(101).count(), 680);
+  EXPECT_EQ(sys_stats.num_irq(101).count(), 680u);
 
-  EXPECT_EQ(sys_stats.num_softirq_total(), 84611084);
+  EXPECT_EQ(sys_stats.num_softirq_total(), 84611084u);
   ASSERT_EQ(sys_stats.num_softirq_size(), 10);
-  EXPECT_EQ(sys_stats.num_softirq(0).count(), 10220177);
-  EXPECT_EQ(sys_stats.num_softirq(9).count(), 16443195);
+  EXPECT_EQ(sys_stats.num_softirq(0).count(), 10220177u);
+  EXPECT_EQ(sys_stats.num_softirq(9).count(), 16443195u);
 
-  EXPECT_EQ(sys_stats.num_softirq_total(), 84611084);
+  EXPECT_EQ(sys_stats.num_softirq_total(), 84611084u);
 }
 
 TEST_F(SysStatsDataSourceTest, StatForksOnly) {
@@ -388,10 +387,10 @@ TEST_F(SysStatsDataSourceTest, StatForksOnly) {
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
   ASSERT_EQ(sys_stats.cpu_stat_size(), 0);
-  EXPECT_EQ(sys_stats.num_forks(), 243320);
-  EXPECT_EQ(sys_stats.num_irq_total(), 0);
+  EXPECT_EQ(sys_stats.num_forks(), 243320u);
+  EXPECT_EQ(sys_stats.num_irq_total(), 0u);
   ASSERT_EQ(sys_stats.num_irq_size(), 0);
-  EXPECT_EQ(sys_stats.num_softirq_total(), 0);
+  EXPECT_EQ(sys_stats.num_softirq_total(), 0u);
   ASSERT_EQ(sys_stats.num_softirq_size(), 0);
 }
 

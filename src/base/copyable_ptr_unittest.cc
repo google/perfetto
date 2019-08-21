@@ -16,7 +16,7 @@
 
 #include "perfetto/base/copyable_ptr.h"
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

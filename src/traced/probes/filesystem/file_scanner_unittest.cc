@@ -16,15 +16,13 @@
 
 #include "src/traced/probes/filesystem/file_scanner.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include <sys/stat.h>
 #include <memory>
 #include <string>
 
 #include "perfetto/base/logging.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {

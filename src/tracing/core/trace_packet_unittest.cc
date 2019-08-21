@@ -18,11 +18,10 @@
 
 #include <string>
 
-#include <gtest/gtest.h>
-
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trusted_packet.pb.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {

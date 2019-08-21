@@ -22,8 +22,8 @@
 #include <thread>
 #include <unordered_map>
 
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/optional.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
@@ -61,13 +61,13 @@ void StructuredTest(SharedRingBuffer* wr, SharedRingBuffer* rd) {
 
   {
     auto buf_and_size = rd->BeginRead();
-    ASSERT_EQ(buf_and_size.size, 4);
+    ASSERT_EQ(buf_and_size.size, 4u);
     ASSERT_STREQ(reinterpret_cast<const char*>(&buf_and_size.data[0]), "foo");
     rd->EndRead(std::move(buf_and_size));
   }
   {
     auto buf_and_size = rd->BeginRead();
-    ASSERT_EQ(buf_and_size.size, 4);
+    ASSERT_EQ(buf_and_size.size, 4u);
     ASSERT_STREQ(reinterpret_cast<const char*>(&buf_and_size.data[0]), "bar");
     rd->EndRead(std::move(buf_and_size));
   }
@@ -75,7 +75,7 @@ void StructuredTest(SharedRingBuffer* wr, SharedRingBuffer* rd) {
   for (int i = 0; i < 3; i++) {
     auto buf_and_size = rd->BeginRead();
     ASSERT_EQ(buf_and_size.data, nullptr);
-    ASSERT_EQ(buf_and_size.size, 0);
+    ASSERT_EQ(buf_and_size.size, 0u);
   }
 
   // Test extremely large writes (fill the buffer)
@@ -204,7 +204,7 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
     std::uniform_int_distribution<size_t> dist(1, base::kPageSize * 8);
     for (int i = 0; i < 1000; i++) {
       size_t size = dist(rnd_engine);
-      ASSERT_GT(size, 0);
+      ASSERT_GT(size, 0u);
       std::string data;
       data.resize(size);
       std::generate(data.begin(), data.end(), rnd_engine);
@@ -230,7 +230,7 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
           continue;
         }
       }
-      ASSERT_GT(buf_and_size.size, 0);
+      ASSERT_GT(buf_and_size.size, 0u);
       std::string data = ToString(buf_and_size);
       std::lock_guard<std::mutex> lock(mutex);
       expected_contents[std::move(data)]--;

@@ -16,8 +16,7 @@
 
 #include "src/profiling/memory/system_property.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
