@@ -17,7 +17,7 @@
 #ifndef SRC_BASE_TEST_GTEST_TEST_SUITE_H_
 #define SRC_BASE_TEST_GTEST_TEST_SUITE_H_
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 // Define newer TEST_SUITE googletest APIs as aliases of the older APIs where
 // necessary. This makes it possible to migrate Perfetto to the newer APIs and

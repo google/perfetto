@@ -18,9 +18,9 @@
 
 #include <limits>
 
-#include <gtest/gtest.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "test/gtest_and_gmock.h"
 
 namespace protozero {
 namespace proto_utils {

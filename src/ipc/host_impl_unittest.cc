@@ -18,8 +18,6 @@
 
 #include <memory>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -30,6 +28,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "src/ipc/test/test_socket.h"
+#include "test/gtest_and_gmock.h"
 
 #include "src/ipc/test/client_unittest_messages.pb.h"
 #include "src/ipc/wire_protocol.pb.h"

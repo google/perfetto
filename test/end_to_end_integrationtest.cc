@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <unistd.h>
 
 #include <chrono>
@@ -42,6 +40,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "test/gtest_and_gmock.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
@@ -881,7 +880,8 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   base::ReadFile(path, &trace_str);
   protos::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_EQ(kPreamblePackets + kMessageCount, trace.packet_size());
+  EXPECT_EQ(static_cast<int>(kPreamblePackets + kMessageCount),
+            trace.packet_size());
   for (const auto& packet : trace.packet()) {
     if (packet.data_case() == protos::TracePacket::kTraceConfig) {
       // Ensure the trace config properly includes the trigger mode we set.
@@ -972,7 +972,8 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   base::ReadFile(path, &trace_str);
   protos::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_EQ(kPreamblePackets + kMessageCount, trace.packet_size());
+  EXPECT_EQ(static_cast<int>(kPreamblePackets + kMessageCount),
+            trace.packet_size());
   bool seen_first_trigger = false;
   for (const auto& packet : trace.packet()) {
     if (packet.data_case() == protos::TracePacket::kTraceConfig) {
@@ -1133,7 +1134,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   base::ReadFile(path, &trace_str);
   protos::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_LT(kMessageCount, trace.packet_size());
+  EXPECT_LT(static_cast<int>(kMessageCount), trace.packet_size());
   bool seen_first_trigger = false;
   for (const auto& packet : trace.packet()) {
     if (packet.data_case() == protos::TracePacket::kTraceConfig) {

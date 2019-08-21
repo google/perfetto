@@ -26,36 +26,23 @@ _buildtools_visibility = [
 ]
 
 # Used to suppress warnings coming from googletest macros expansions.
+# These suppressions apply both to gtest/gmock haders and to perfetto's
+# test translation units. See test/gtest_and_gmock.h for the subset of
+# suppressions that apply only to the gmock/gtest headers.
 config("test_warning_suppressions") {
   visibility = _buildtools_visibility
-  cflags = [
-    "-Wno-unknown-warning-option",
-    "-Wno-global-constructors",
-    "-Wno-covered-switch-default",
-    "-Wno-used-but-marked-unused",
-    "-Wno-covered-switch-default",
-    "-Wno-global-constructors",
-    "-Wno-used-but-marked-unused",
-    "-Wno-inconsistent-missing-override",
-    "-Wno-unused-member-function",
-    "-Wno-zero-as-null-pointer-constant",
-    "-Wno-weak-vtables",
-  ]
-}
-
-# Mimimal config to be used in production (i.e. non-test) targets. This is
-# really just to allowing include "gtest/gtest_prod.h" for the FRIEND_TEST macro
-# and avoid to pull in warning suppressions that are not really necessary for
-# production code.
-config("googletest_prod_config") {
-  visibility = _buildtools_visibility
-  cflags = [
-    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from third-party headers. Doing so would mask warnings in
-    # our own code.
-    "-isystem",
-    rebase_path("googletest/googletest/include", root_build_dir),
-  ]
+  if (is_clang) {
+    cflags = [
+      "-Wno-unknown-warning-option",
+      "-Wno-global-constructors",
+      "-Wno-covered-switch-default",
+      "-Wno-used-but-marked-unused",
+      "-Wno-inconsistent-missing-override",
+      "-Wno-unused-member-function",
+      "-Wno-zero-as-null-pointer-constant",
+      "-Wno-weak-vtables",
+    ]
+  }
 }
 
 config("libunwindstack_config") {
@@ -86,14 +73,9 @@ config("libunwindstack_config") {
 config("googletest_config") {
   visibility = _buildtools_visibility
   defines = [ "GTEST_LANG_CXX11=1" ]
-  cflags = [
-    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from third-party headers. Doing so would mask warnings in
-    # our own code.
-    "-isystem",
-    rebase_path("googletest/googletest/include", root_build_dir),
-    "-isystem",
-    rebase_path("googletest/googlemock/include", root_build_dir),
+  include_dirs = [
+    "googletest/googletest/include",
+    "googletest/googlemock/include",
   ]
   configs = [ ":test_warning_suppressions" ]
 }

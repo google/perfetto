@@ -23,7 +23,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -31,6 +30,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/vm_test_utils.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {

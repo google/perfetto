@@ -21,8 +21,6 @@
 
 #include <random>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <zlib.h>
 
 #include "perfetto/ext/base/file_utils.h"
@@ -35,6 +33,7 @@
 #include "perfetto/trace/trace_packet.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "src/perfetto_cmd/packet_writer.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
@@ -99,7 +98,7 @@ TEST(PacketWriter, FilePacketWriter) {
   fseek(f, 0, SEEK_SET);
   std::string s;
   EXPECT_TRUE(base::ReadFileStream(f, &s));
-  EXPECT_GT(s.size(), 0);
+  EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
   EXPECT_TRUE(trace.ParseFromString(s));
@@ -127,13 +126,13 @@ TEST(PacketWriter, ZipPacketWriter) {
   std::string s;
   fseek(f, 0, SEEK_SET);
   EXPECT_TRUE(base::ReadFileStream(f, &s));
-  EXPECT_GT(s.size(), 0);
+  EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
   EXPECT_TRUE(trace.ParseFromString(s));
 
   const std::string& data = trace.packet().Get(0).compressed_packets();
-  EXPECT_GT(data.size(), 0);
+  EXPECT_GT(data.size(), 0u);
 
   protos::Trace subtrace;
   EXPECT_TRUE(subtrace.ParseFromString(Decompress(data)));
@@ -197,10 +196,10 @@ TEST(PacketWriter, ZipPacketWriter_ShouldCompress) {
   }
 
   std::string s;
-  EXPECT_LT(fseek(f, 0, SEEK_END), uncompressed_size);
+  EXPECT_LT(fseek(f, 0, SEEK_END), static_cast<int>(uncompressed_size));
   fseek(f, 0, SEEK_SET);
   EXPECT_TRUE(base::ReadFileStream(f, &s));
-  EXPECT_GT(s.size(), 0);
+  EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
   EXPECT_TRUE(trace.ParseFromString(s));
@@ -208,8 +207,8 @@ TEST(PacketWriter, ZipPacketWriter_ShouldCompress) {
   size_t packet_count = 0;
   for (const auto& packet : trace.packet()) {
     const std::string& data = packet.compressed_packets();
-    EXPECT_GT(data.size(), 0);
-    EXPECT_LT(data.size(), 500 * 1024);
+    EXPECT_GT(data.size(), 0u);
+    EXPECT_LT(data.size(), 500 * 1024u);
     protos::Trace subtrace;
     EXPECT_TRUE(subtrace.ParseFromString(Decompress(data)));
     for (const auto& subpacket : subtrace.packet()) {
@@ -218,7 +217,7 @@ TEST(PacketWriter, ZipPacketWriter_ShouldCompress) {
     }
   }
 
-  EXPECT_EQ(packet_count, 200 * 2);
+  EXPECT_EQ(packet_count, 200 * 2u);
 }
 
 TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
@@ -257,7 +256,7 @@ TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
   std::string s;
   fseek(f, 0, SEEK_SET);
   EXPECT_TRUE(base::ReadFileStream(f, &s));
-  EXPECT_GT(s.size(), 0);
+  EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
   EXPECT_TRUE(trace.ParseFromString(s));
@@ -265,8 +264,8 @@ TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
   size_t packet_count = 0;
   for (const auto& packet : trace.packet()) {
     const std::string& data = packet.compressed_packets();
-    EXPECT_GT(data.size(), 0);
-    EXPECT_LT(data.size(), 500 * 1024);
+    EXPECT_GT(data.size(), 0u);
+    EXPECT_LT(data.size(), 500 * 1024u);
     protos::Trace subtrace;
     EXPECT_TRUE(subtrace.ParseFromString(Decompress(data)));
     for (const auto& subpacket : subtrace.packet()) {
@@ -274,7 +273,7 @@ TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
     }
   }
 
-  EXPECT_EQ(packet_count, 1000);
+  EXPECT_EQ(packet_count, 1000u);
 }
 
 }  // namespace
