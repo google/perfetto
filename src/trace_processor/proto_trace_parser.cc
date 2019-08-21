@@ -95,9 +95,9 @@ const char kKthreaddName[] = "kthreadd";
 
 using protozero::ProtoDecoder;
 
-HeapProfileTracker::SourceMapping MakeSourceMapping(
+StackProfileTracker::SourceMapping MakeSourceMapping(
     const protos::pbzero::Mapping::Decoder& entry) {
-  HeapProfileTracker::SourceMapping src_mapping{};
+  StackProfileTracker::SourceMapping src_mapping{};
   src_mapping.build_id = entry.build_id();
   src_mapping.exact_offset = entry.exact_offset();
   src_mapping.start_offset = entry.start_offset();
@@ -111,24 +111,24 @@ HeapProfileTracker::SourceMapping MakeSourceMapping(
   return src_mapping;
 }
 
-HeapProfileTracker::SourceFrame MakeSourceFrame(
+StackProfileTracker::SourceFrame MakeSourceFrame(
     const protos::pbzero::Frame::Decoder& entry) {
-  HeapProfileTracker::SourceFrame src_frame;
+  StackProfileTracker::SourceFrame src_frame;
   src_frame.name_id = entry.function_name_id();
   src_frame.mapping_id = entry.mapping_id();
   src_frame.rel_pc = entry.rel_pc();
   return src_frame;
 }
 
-HeapProfileTracker::SourceCallstack MakeSourceCallstack(
+StackProfileTracker::SourceCallstack MakeSourceCallstack(
     const protos::pbzero::Callstack::Decoder& entry) {
-  HeapProfileTracker::SourceCallstack src_callstack;
+  StackProfileTracker::SourceCallstack src_callstack;
   for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
     src_callstack.emplace_back(frame_it->as_uint64());
   return src_callstack;
 }
 
-class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
+class ProfilePacketInternLookup : public StackProfileTracker::InternLookup {
  public:
   ProfilePacketInternLookup(
       ProtoIncrementalState::PacketSequenceState* seq_state,
@@ -136,7 +136,7 @@ class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
       : seq_state_(seq_state), storage_(storage) {}
 
   base::Optional<StringId> GetString(
-      HeapProfileTracker::SourceStringId iid) const override {
+      StackProfileTracker::SourceStringId iid) const override {
     base::Optional<StringId> res;
     auto* map =
         seq_state_->GetInternedDataMap<protos::pbzero::InternedString>();
@@ -152,9 +152,9 @@ class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
     return res;
   }
 
-  base::Optional<HeapProfileTracker::SourceMapping> GetMapping(
-      HeapProfileTracker::SourceMappingId iid) const override {
-    base::Optional<HeapProfileTracker::SourceMapping> res;
+  base::Optional<StackProfileTracker::SourceMapping> GetMapping(
+      StackProfileTracker::SourceMappingId iid) const override {
+    base::Optional<StackProfileTracker::SourceMapping> res;
     auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Mapping>();
     auto it = map->find(iid);
     if (it == map->end()) {
@@ -167,9 +167,9 @@ class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
     return res;
   }
 
-  base::Optional<HeapProfileTracker::SourceFrame> GetFrame(
-      HeapProfileTracker::SourceFrameId iid) const override {
-    base::Optional<HeapProfileTracker::SourceFrame> res;
+  base::Optional<StackProfileTracker::SourceFrame> GetFrame(
+      StackProfileTracker::SourceFrameId iid) const override {
+    base::Optional<StackProfileTracker::SourceFrame> res;
     auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Frame>();
     auto it = map->find(iid);
     if (it == map->end()) {
@@ -182,9 +182,9 @@ class ProfilePacketInternLookup : public HeapProfileTracker::InternLookup {
     return res;
   }
 
-  base::Optional<HeapProfileTracker::SourceCallstack> GetCallstack(
-      HeapProfileTracker::SourceCallstackId iid) const override {
-    base::Optional<HeapProfileTracker::SourceCallstack> res;
+  base::Optional<StackProfileTracker::SourceCallstack> GetCallstack(
+      StackProfileTracker::SourceCallstackId iid) const override {
+    base::Optional<StackProfileTracker::SourceCallstack> res;
     auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Callstack>();
     auto it = map->find(iid);
     if (it == map->end()) {
@@ -1433,26 +1433,26 @@ void ProtoTraceParser::ParseProfilePacket(
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_id = context_->storage->InternString(
         base::StringView(str, entry.str().size));
-    context_->heap_profile_tracker->AddString(entry.iid(), str_id);
+    context_->stack_profile_tracker->AddString(entry.iid(), str_id);
   }
 
   for (auto it = packet.mappings(); it; ++it) {
     protos::pbzero::Mapping::Decoder entry(it->data(), it->size());
-    HeapProfileTracker::SourceMapping src_mapping = MakeSourceMapping(entry);
-    context_->heap_profile_tracker->AddMapping(entry.iid(), src_mapping);
+    StackProfileTracker::SourceMapping src_mapping = MakeSourceMapping(entry);
+    context_->stack_profile_tracker->AddMapping(entry.iid(), src_mapping);
   }
 
   for (auto it = packet.frames(); it; ++it) {
     protos::pbzero::Frame::Decoder entry(it->data(), it->size());
-    HeapProfileTracker::SourceFrame src_frame = MakeSourceFrame(entry);
-    context_->heap_profile_tracker->AddFrame(entry.iid(), src_frame);
+    StackProfileTracker::SourceFrame src_frame = MakeSourceFrame(entry);
+    context_->stack_profile_tracker->AddFrame(entry.iid(), src_frame);
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
     protos::pbzero::Callstack::Decoder entry(it->data(), it->size());
-    HeapProfileTracker::SourceCallstack src_callstack =
+    StackProfileTracker::SourceCallstack src_callstack =
         MakeSourceCallstack(entry);
-    context_->heap_profile_tracker->AddCallstack(entry.iid(), src_callstack);
+    context_->stack_profile_tracker->AddCallstack(entry.iid(), src_callstack);
   }
 
   for (auto it = packet.process_dumps(); it; ++it) {
@@ -1503,7 +1503,7 @@ void ProtoTraceParser::ParseProfiledFrameSymbols(
                                           context_->storage.get());
   // We currently only keep the first function_name_id (given currently frames
   // only map to a single name).
-  context_->heap_profile_tracker->SetFrameName(
+  context_->stack_profile_tracker->SetFrameName(
       packet.frame_iid(), packet.function_name_id()->as_uint64(),
       &intern_lookup);
 }

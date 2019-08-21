@@ -814,7 +814,7 @@ class TraceStorage {
     std::map<metadata::KeyIDs, uint32_t> scalar_indices;
   };
 
-  class HeapProfileFrames {
+  class StackProfileFrames {
    public:
     struct Row {
       StringId name_id;
@@ -851,7 +851,7 @@ class TraceStorage {
     std::deque<int64_t> rel_pcs_;
   };
 
-  class HeapProfileCallsites {
+  class StackProfileCallsites {
    public:
     struct Row {
       int64_t depth;
@@ -885,7 +885,7 @@ class TraceStorage {
     std::deque<int64_t> frame_ids_;
   };
 
-  class HeapProfileMappings {
+  class StackProfileMappings {
    public:
     struct Row {
       StringId build_id;
@@ -1163,25 +1163,25 @@ class TraceStorage {
   const RawEvents& raw_events() const { return raw_events_; }
   RawEvents* mutable_raw_events() { return &raw_events_; }
 
-  const HeapProfileMappings& heap_profile_mappings() const {
-    return heap_profile_mappings_;
+  const StackProfileMappings& stack_profile_mappings() const {
+    return stack_profile_mappings_;
   }
-  HeapProfileMappings* mutable_heap_profile_mappings() {
-    return &heap_profile_mappings_;
-  }
-
-  const HeapProfileFrames& heap_profile_frames() const {
-    return heap_profile_frames_;
-  }
-  HeapProfileFrames* mutable_heap_profile_frames() {
-    return &heap_profile_frames_;
+  StackProfileMappings* mutable_stack_profile_mappings() {
+    return &stack_profile_mappings_;
   }
 
-  const HeapProfileCallsites& heap_profile_callsites() const {
-    return heap_profile_callsites_;
+  const StackProfileFrames& stack_profile_frames() const {
+    return stack_profile_frames_;
   }
-  HeapProfileCallsites* mutable_heap_profile_callsites() {
-    return &heap_profile_callsites_;
+  StackProfileFrames* mutable_stack_profile_frames() {
+    return &stack_profile_frames_;
+  }
+
+  const StackProfileCallsites& stack_profile_callsites() const {
+    return stack_profile_callsites_;
+  }
+  StackProfileCallsites* mutable_stack_profile_callsites() {
+    return &stack_profile_callsites_;
   }
 
   const HeapProfileAllocations& heap_profile_allocations() const {
@@ -1281,9 +1281,9 @@ class TraceStorage {
   RawEvents raw_events_;
   AndroidLogs android_log_;
 
-  HeapProfileMappings heap_profile_mappings_;
-  HeapProfileFrames heap_profile_frames_;
-  HeapProfileCallsites heap_profile_callsites_;
+  StackProfileMappings stack_profile_mappings_;
+  StackProfileFrames stack_profile_frames_;
+  StackProfileCallsites stack_profile_callsites_;
   HeapProfileAllocations heap_profile_allocations_;
 };
 
@@ -1293,9 +1293,10 @@ class TraceStorage {
 namespace std {
 
 template <>
-struct hash<::perfetto::trace_processor::TraceStorage::HeapProfileFrames::Row> {
+struct hash<
+    ::perfetto::trace_processor::TraceStorage::StackProfileFrames::Row> {
   using argument_type =
-      ::perfetto::trace_processor::TraceStorage::HeapProfileFrames::Row;
+      ::perfetto::trace_processor::TraceStorage::StackProfileFrames::Row;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
@@ -1306,9 +1307,9 @@ struct hash<::perfetto::trace_processor::TraceStorage::HeapProfileFrames::Row> {
 
 template <>
 struct hash<
-    ::perfetto::trace_processor::TraceStorage::HeapProfileCallsites::Row> {
+    ::perfetto::trace_processor::TraceStorage::StackProfileCallsites::Row> {
   using argument_type =
-      ::perfetto::trace_processor::TraceStorage::HeapProfileCallsites::Row;
+      ::perfetto::trace_processor::TraceStorage::StackProfileCallsites::Row;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
@@ -1319,9 +1320,9 @@ struct hash<
 
 template <>
 struct hash<
-    ::perfetto::trace_processor::TraceStorage::HeapProfileMappings::Row> {
+    ::perfetto::trace_processor::TraceStorage::StackProfileMappings::Row> {
   using argument_type =
-      ::perfetto::trace_processor::TraceStorage::HeapProfileMappings::Row;
+      ::perfetto::trace_processor::TraceStorage::StackProfileMappings::Row;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
