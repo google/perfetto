@@ -83,6 +83,8 @@ stop-workers:
 	gcloud compute --quiet --project=$(PROJECT) \
 		instance-groups managed delete ${GCE_GROUP_NAME} --zone=${ZONE} || true
 
+# Fix the replicas to 2. Dynamic scaling causes too jobs to be aborted while
+# scaling down.
 start-workers: .deps/gce-template
 	gcloud beta compute --project=$(PROJECT) \
 		instance-groups managed create ${GCE_GROUP_NAME} \
@@ -93,8 +95,8 @@ start-workers: .deps/gce-template
 	gcloud beta compute --quiet --project=$(PROJECT) \
 		instance-groups managed set-autoscaling ${GCE_GROUP_NAME} \
 		--zone ${ZONE} \
-		--min-num-replicas "1" \
-		--max-num-replicas "3" \
+		--min-num-replicas "2" \
+		--max-num-replicas "2" \
 		--cool-down-period "1800" \
 		--stackdriver-metric-filter "resource.type = \"global\"" \
 		--update-stackdriver-metric "custom.googleapis.com/perfetto-ci/ci_job_queue_len" \
