@@ -22,12 +22,11 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {

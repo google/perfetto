@@ -18,16 +18,14 @@
 
 #include <sys/stat.h>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/proto_translation_table.h"
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
+#include "src/traced/probes/ftrace/event_info.h"
+#include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/trace/ftrace/ftrace_event.pb.h"
 #include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -38,19 +36,19 @@
 #include "src/traced/probes/ftrace/test/test_messages.pb.h"
 #include "src/traced/probes/ftrace/test/test_messages.pbzero.h"
 
+using protozero::proto_utils::ProtoSchemaType;
+using testing::_;
+using testing::AnyNumber;
+using testing::Contains;
 using testing::Each;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::EndsWith;
 using testing::Eq;
-using testing::Pair;
-using testing::StartsWith;
-using testing::Contains;
-using testing::_;
-using testing::Return;
-using testing::AnyNumber;
 using testing::NiceMock;
-using protozero::proto_utils::ProtoSchemaType;
+using testing::Pair;
+using testing::Return;
+using testing::StartsWith;
 
 namespace perfetto {
 
@@ -318,7 +316,7 @@ TEST(ParsePageHeaderTest, WithOverrun) {
     CpuReader::PageHeader parsed = ret.value();
 
     ASSERT_EQ(parsed.timestamp, 0x0001A26777DBF33Eull);  // first 8 bytes
-    ASSERT_EQ(parsed.size, 0x0ff0);                      // 4080
+    ASSERT_EQ(parsed.size, 0x0ff0u);                     // 4080
     ASSERT_TRUE(parsed.lost_events);
 
     // pointer advanced past the header (8+4 bytes)
@@ -333,7 +331,7 @@ TEST(ParsePageHeaderTest, WithOverrun) {
     CpuReader::PageHeader parsed = ret.value();
 
     ASSERT_EQ(parsed.timestamp, 0x0001A26777DBF33Eull);  // first 8 bytes
-    ASSERT_EQ(parsed.size, 0x0ff0);                      // 4080
+    ASSERT_EQ(parsed.size, 0x0ff0u);                     // 4080
     ASSERT_TRUE(parsed.lost_events);
 
     // pointer advanced past the header (8+8 bytes)

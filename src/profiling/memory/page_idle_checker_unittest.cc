@@ -16,25 +16,24 @@
 
 #include "src/profiling/memory/page_idle_checker.h"
 
-#include <gtest/gtest.h>
-
 #include "perfetto/ext/base/utils.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
 
 TEST(PageIdleCheckerTest, AllOnFirstPageAligned) {
-  EXPECT_EQ(GetFirstPageShare(0, 10), 10);
+  EXPECT_EQ(GetFirstPageShare(0, 10), 10u);
 }
 
 TEST(PageIdleCheckerTest, AllOnFirstPageUnAligned) {
-  EXPECT_EQ(GetFirstPageShare(10, 10), 10);
+  EXPECT_EQ(GetFirstPageShare(10, 10), 10u);
 }
 
 TEST(PageIdleCheckerTest, WholeFirstPageAligned) {
   EXPECT_EQ(GetFirstPageShare(0, base::kPageSize + 10), base::kPageSize);
-  EXPECT_EQ(GetLastPageShare(0, base::kPageSize + 10), 10);
+  EXPECT_EQ(GetLastPageShare(0, base::kPageSize + 10), 10u);
 }
 
 TEST(PageIdleCheckerTest, WholeLastPageAligned) {
@@ -45,7 +44,7 @@ TEST(PageIdleCheckerTest, WholeLastPageAligned) {
 TEST(PageIdleCheckerTest, SomeFirstAndLast) {
   EXPECT_EQ(GetFirstPageShare(10, 3 * base::kPageSize + 10),
             base::kPageSize - 10);
-  EXPECT_EQ(GetLastPageShare(10, 3 * base::kPageSize + 10), 20);
+  EXPECT_EQ(GetLastPageShare(10, 3 * base::kPageSize + 10), 20u);
 }
 
 }  // namespace

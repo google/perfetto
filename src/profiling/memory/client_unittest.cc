@@ -16,11 +16,11 @@
 
 #include "src/profiling/memory/client.h"
 
-#include <gtest/gtest.h>
+#include <thread>
+
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
-
-#include <thread>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {

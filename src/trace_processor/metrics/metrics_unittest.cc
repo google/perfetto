@@ -18,9 +18,8 @@
 
 #include <vector>
 
-#include <gtest/gtest.h>
-
 #include "perfetto/common/descriptor.pbzero.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -107,7 +106,7 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<false>(result_ser);
   const protozero::Field& db_field = proto.Get(1);
-  ASSERT_EQ(db_field.as_double(), 1.2345);
+  ASSERT_DOUBLE_EQ(db_field.as_double(), 1.2345);
 }
 
 TEST_F(ProtoBuilderTest, AppendString) {

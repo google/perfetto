@@ -20,8 +20,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

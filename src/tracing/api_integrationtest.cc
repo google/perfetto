@@ -23,13 +23,11 @@
 #include <mutex>
 #include <vector>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-
 #include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace.pb.h"
 #include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/tracing.h"
+#include "test/gtest_and_gmock.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
 // header public -> non-public dependency while building this file.
@@ -164,7 +162,7 @@ class PerfettoApiTest : public ::testing::Test {
 
   template <typename DataSourceType>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
-    EXPECT_EQ(data_sources_.count(name), 0);
+    EXPECT_EQ(data_sources_.count(name), 0u);
     TestDataSourceHandle* handle = &data_sources_[name];
     perfetto::DataSourceDescriptor dsd;
     dsd.set_name(name);

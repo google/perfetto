@@ -18,7 +18,7 @@
 
 #include <random>
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
