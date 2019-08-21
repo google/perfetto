@@ -16,7 +16,6 @@
 
 #include "perfetto/ext/base/unix_task_runner.h"
 
-#include <gtest/gtest.h>
 #include <thread>
 
 #include "perfetto/base/build_config.h"
@@ -25,6 +24,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/gtest_test_suite.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

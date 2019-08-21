@@ -15,19 +15,17 @@
  */
 
 #include "src/profiling/memory/unwinding.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/memory/client.h"
-#include "src/profiling/memory/wire_protocol.h"
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 
 #include <cxxabi.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
 #include <unwindstack/RegsGetLocal.h>
+
+#include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/memory/client.h"
+#include "src/profiling/memory/wire_protocol.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
@@ -41,7 +39,7 @@ TEST(UnwindingTest, StackOverlayMemoryOverlay) {
       std::make_shared<FDMemory>(std::move(proc_mem)));
   StackOverlayMemory memory(mem, 0u, fake_stack, 1);
   uint8_t buf[1] = {};
-  ASSERT_EQ(memory.Read(0u, buf, 1), 1);
+  ASSERT_EQ(memory.Read(0u, buf, 1), 1u);
   ASSERT_EQ(buf[0], 120);
 }
 
@@ -55,7 +53,7 @@ TEST(UnwindingTest, StackOverlayMemoryNonOverlay) {
       std::make_shared<FDMemory>(std::move(proc_mem)));
   StackOverlayMemory memory(mem, 0u, fake_stack, 1);
   uint8_t buf[1] = {1};
-  ASSERT_EQ(memory.Read(reinterpret_cast<uint64_t>(&value), buf, 1), 1);
+  ASSERT_EQ(memory.Read(reinterpret_cast<uint64_t>(&value), buf, 1), 1u);
   ASSERT_EQ(buf[0], value);
 }
 

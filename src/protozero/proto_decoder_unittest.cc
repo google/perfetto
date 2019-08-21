@@ -16,12 +16,11 @@
 
 #include "perfetto/protozero/proto_decoder.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "test/gtest_and_gmock.h"
 
 namespace protozero {
 namespace {

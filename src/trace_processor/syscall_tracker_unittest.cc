@@ -17,9 +17,7 @@
 #include "src/trace_processor/syscall_tracker.h"
 
 #include "src/trace_processor/slice_tracker.h"
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {

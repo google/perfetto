@@ -16,7 +16,6 @@
 
 #include "src/tracing/core/trace_writer_impl.h"
 
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -26,6 +25,7 @@
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
 #include "src/tracing/test/fake_producer_endpoint.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/trace/trace_packet.pbzero.h"

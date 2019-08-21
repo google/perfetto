@@ -16,10 +16,10 @@
 
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 
-#include <gtest/gtest.h>
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/tracing/test/aligned_buffer_test.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
