@@ -36,6 +36,7 @@ from oauth2client.client import GoogleCredentials
 from config import DB, SANDBOX_IMG
 from common_utils import init_logging, req, ConcurrentModificationError, SCOPES
 
+CUR_DIR = os.path.dirname(__file__)
 SCOPES.append('https://www.googleapis.com/auth/firebase.database')
 SCOPES.append('https://www.googleapis.com/auth/userinfo.email')
 
@@ -68,7 +69,6 @@ def log_thread(job_id, queue):
       break  # EOF
     req('PATCH', uri, body=batch)
   logging.debug('Uploader thread terminated')
-
 
 
 def main(argv):
@@ -124,10 +124,9 @@ def main(argv):
   artifacts_dir = None
   if os.getenv('ARTIFACTS_DIR'):
     artifacts_dir = os.path.join(os.getenv('ARTIFACTS_DIR'), job_id)
-    artifacts_tmp = artifacts_dir + '.tmp'
-    subprocess.call(['sudo', 'rm', '-rf', artifacts_dir, artifacts_tmp])
-    os.mkdir(artifacts_tmp)
-    cmd += ['--volume=%s:/ci/artifacts' % artifacts_tmp]
+    subprocess.call(['sudo', 'rm', '-rf', artifacts_dir])
+    os.mkdir(artifacts_dir)
+    cmd += ['--volume=%s:/ci/artifacts' % artifacts_dir]
 
   cmd += os.getenv('SANDBOX_NETWORK_ARGS', '').split()
   cmd += [SANDBOX_IMG]
@@ -171,7 +170,9 @@ def main(argv):
   log_thd.join()
 
   if artifacts_dir:
-    os.rename(artifacts_tmp, artifacts_dir)
+    artifacts_uploader = os.path.join(CUR_DIR, 'artifacts_uploader.py')
+    cmd = ['setsid', artifacts_uploader, '--job-id=%s' % job_id, '--rm']
+    subprocess.call(cmd)
 
   return res
 

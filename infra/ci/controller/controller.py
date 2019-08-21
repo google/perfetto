@@ -203,7 +203,7 @@ def check_new_cl(handler):
 
   # This is the first time we see this patchset, enqueue jobs for it.
 
-  # Dequeue jobs forb older patchsets, if any.
+  # Dequeue jobs for older patchsets, if any.
   defer('cancel_older_jobs', cl=cl, patchset=patchset)
 
   src = 'cls/%s-%s' % (cl, patchset)
@@ -232,7 +232,7 @@ def cancel_older_jobs(handler):
     ps = int(cl_and_ps.split('-')[-1])
     if cl_obj.get('time_ended') or ps >= int(patchset):
       continue
-    logging.info('Cancelling job for previous patchset %s', cl_and_ps)
+    logging.info('Cancelling jobs for previous patchset %s', cl_and_ps)
     map(lambda x: defer('cancel_job', job_id=x), cl_obj['jobs'].keys())
 
 
@@ -295,11 +295,14 @@ def comment_and_vote_cl(handler):
 
   cl_vote = 1
   passed_jobs = []
-  failed_jobs = []
+  failed_jobs = {}
   ui_links = []
+  cancelled = False
   for job_id in cl_obj['jobs'].keys():
     job_obj = req('GET', '%s/jobs/%s.json' % (DB, job_id))
     job_config = JOB_CONFIGS.get(job_obj['type'], {})
+    if job_obj['status'] == 'CANCELLED':
+      cancelled = True
     if '-ui-' in job_id:
       ui_links.append('https://storage.googleapis.com/%s/%s/ui/index.html' % (
           GCS_ARTIFACTS, job_id))
@@ -307,13 +310,17 @@ def comment_and_vote_cl(handler):
       passed_jobs.append(job_id)
     elif not job_config.get('SKIP_VOTING', False):
       cl_vote = -1
-      failed_jobs.append(job_id)
+      failed_jobs[job_id] = job_obj['status']
 
   msg = ''
+  if cancelled:
+    msg += 'Some jobs in this CI run were cancelled. This likely happened '
+    msg += 'because a new patchset has been uploaded. Skipping vote.\n'
   log_url = CI_SITE + '/#!/logs'
   if failed_jobs:
     msg += 'FAIL:\n'
-    msg += ''.join([' %s/%s\n' % (log_url, job_id) for job_id in failed_jobs])
+    msg += ''.join([' %s/%s (%s)\n' % (log_url, job_id, status)
+                    for (job_id, status) in failed_jobs.iteritems()])
   if passed_jobs:
     msg += 'PASS:\n'
     msg += ''.join([' %s/%s\n' % (log_url, job_id) for job_id in passed_jobs])
@@ -321,7 +328,9 @@ def comment_and_vote_cl(handler):
     msg += 'Artifacts:\n' + ''.join(' %s\n' % link for link in ui_links)
   msg += 'CI page for this CL:\n'
   msg += ' https://ci.perfetto.dev/#!/cls/%s\n' % cl_and_ps.split('-')[0]
-  body = {'labels': {'Code-Review': cl_vote}, 'message': msg}
+  body = {'labels': {}, 'message': msg}
+  if not cancelled:
+    body['labels']['Code-Review'] = cl_vote
   logging.info('Posting results for CL %s', cl_and_ps)
   url = 'https://%s/a/changes/%s/revisions/%s/review' % (
       GERRIT_HOST, cl_obj['change_id'], cl_obj['revision_id'])
@@ -364,7 +373,7 @@ def queue_postsubmit_jobs(handler):
                      'time_committed': utc_now_iso(time_committed),
                      'time_queued': utc_now_iso(),
                      'jobs': {},
-                    }}
+                     }}
   ref = 'refs/heads/' + branch
   append_jobs(patch_obj, src, ref, now)
   req('PATCH', DB + '.json', body=patch_obj)
