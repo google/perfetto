@@ -68,6 +68,7 @@ class Globals {
   private _sliceDetails?: SliceDetails = undefined;
   private _isLoading = false;
   private _bufferUsage?: number = undefined;
+  private _recordingLog?: string = undefined;
 
   initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
@@ -141,12 +142,20 @@ class Globals {
     return this._bufferUsage;
   }
 
+  get recordingLog() {
+    return this._recordingLog;
+  }
+
   setBufferUsage(bufferUsage: number) {
     this._bufferUsage = bufferUsage;
   }
 
   setTrackData(id: string, data: {}) {
     this.trackDataStore.set(id, data);
+  }
+
+  setRecordingLog(recordingLog: string) {
+    this._recordingLog = recordingLog;
   }
 
   getCurResolution() {
