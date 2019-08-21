@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import httplib2
 import logging
 import mimetypes
 import mmap
 import os
 import subprocess
+import signal
 import sys
 import threading
 import time
@@ -30,6 +32,7 @@ from oauth2client.client import GoogleCredentials
 
 CUR_DIR = os.path.dirname(__file__)
 RESCAN_PERIOD_SEC = 5  # Scan for new artifact directories every X seconds.
+WATCHDOG_SEC = 60 * 6  # Self kill after 5 minutes
 
 tls = threading.local()
 
@@ -51,6 +54,7 @@ def upload_one_file(fpath):
   http = get_http_obj()
   relpath = os.path.relpath(fpath, os.getenv('ARTIFACTS_DIR'))
   logging.debug('Uploading %s', relpath)
+  assert(os.path.exists(fpath))
   fsize = os.path.getsize(fpath)
   mime_type = mimetypes.guess_type(fpath)[0] or 'application/octet-stream'
   mm = ''
@@ -59,10 +63,22 @@ def upload_one_file(fpath):
     with open(fpath, 'rb') as f:
       mm = mmap.mmap(f.fileno(), fsize, access=mmap.ACCESS_READ)
   uri = 'https://%s.storage.googleapis.com/%s' % (GCS_ARTIFACTS, relpath)
-  resp, _ = http.request(uri, method='PUT', headers=hdr, body=mm)
+  resp, res = http.request(uri, method='PUT', headers=hdr, body=mm)
   if fsize > 0:
     mm.close()
-  return fsize if resp.status == 200 else -1
+  if resp.status != 200:
+    logging.error('HTTP request failed with code %d : %s', resp.status, res)
+    return -1
+  return fsize
+
+
+def upload_one_file_with_retries(fpath):
+  for retry in [0.5, 1.5, 3]:
+    res = upload_one_file(fpath)
+    if res >= 0:
+      return res
+    logging.warn('Upload of %s failed, retrying in %s seconds', fpath, retry)
+    time.sleep(retry)
 
 
 def list_files(path):
@@ -74,45 +90,49 @@ def list_files(path):
 
 
 def scan_and_upload_perf_folder(job_id, dirpath):
-  perf_folder = os.path.join(dirpath, "perf")
+  perf_folder = os.path.join(dirpath, 'perf')
   if not os.path.isdir(perf_folder):
     return
-
   uploader = os.path.join(CUR_DIR, 'perf_metrics_uploader.py')
   for path in list_files(perf_folder):
     subprocess.call([uploader, '--job-id', job_id, path])
 
 
-def scan_and_uplod_artifacts(pool, remove_after_upload=False):
-  root = os.getenv('ARTIFACTS_DIR')
-  for job_id in (x for x in os.listdir(root) if not x.endswith('.tmp')):
-    dirpath = os.path.join(root, job_id)
-    if not os.path.isdir(dirpath):
-      continue
-    logging.debug('Uploading %s', dirpath)
-    total_size = 0
-    uploads = 0
-    failures = 0
-    for upl_size in pool.imap_unordered(upload_one_file, list_files(dirpath)):
-      uploads += 1 if upl_size >= 0 else 0
-      failures += 1 if upl_size < 0 else 0
-      total_size += max(upl_size, 0)
-    logging.info('Uploaded artifacts for %s: %d files, %s failures, %d KB',
-                 job_id, uploads, failures, total_size / 1e3)
-
-    scan_and_upload_perf_folder(job_id, dirpath)
-    if remove_after_upload:
-      subprocess.call(['sudo', 'rm', '-rf', dirpath])
-
-
 def main():
   init_logging()
+  signal.alarm(WATCHDOG_SEC)
   mimetypes.add_type('application/wasm', '.wasm')
-  logging.info('Artifacts uploader started')
-  pool = ThreadPool(processes=32)
-  while True:
-    scan_and_uplod_artifacts(pool, remove_after_upload='--rm' in sys.argv)
-    time.sleep(RESCAN_PERIOD_SEC)
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--rm', action='store_true', help='Removes the directory')
+  parser.add_argument('--job-id', type=str, required=True,
+                      help='The Perfetto CI job ID to tie this upload to')
+  args = parser.parse_args()
+  job_id = args.job_id
+  dirpath = os.path.join(os.getenv('ARTIFACTS_DIR', default=os.curdir), job_id)
+  if not os.path.isdir(dirpath):
+    logging.error('Directory not found: %s', dirpath)
+    return 1
+
+  total_size = 0
+  uploads = 0
+  failures = 0
+  files = list_files(dirpath)
+  pool = ThreadPool(processes=10)
+  for upl_size in pool.imap_unordered(upload_one_file_with_retries, files):
+    uploads += 1 if upl_size >= 0 else 0
+    failures += 1 if upl_size < 0 else 0
+    total_size += max(upl_size, 0)
+
+  logging.info('Uploaded artifacts for %s: %d files, %s failures, %d KB',
+               job_id, uploads, failures, total_size / 1e3)
+
+  scan_and_upload_perf_folder(job_id, dirpath)
+
+  if args.rm:
+    subprocess.call(['sudo', 'rm', '-rf', dirpath])
+
+  return 0
 
 
 if __name__ == '__main__':
