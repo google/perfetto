@@ -18,7 +18,7 @@ import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
-import {isAndroidTarget, TargetOs} from '../common/state';
+import {isAndroidTarget, isChromeTarget, TargetOs} from '../common/state';
 import {MAX_TIME, RecordMode} from '../common/state';
 
 import {globals} from './globals';
@@ -535,7 +535,93 @@ function AdvancedSettings(cssClass: string) {
         } as SliderAttrs),) : null);
 }
 
+
 function Instructions(cssClass: string) {
+  const docUrl = '//docs.perfetto.dev/#/build-instructions?id=get-the-code';
+  const extensionURL = `https://chrome.google.com/webstore/a/google.com/detail/
+      perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
+
+  const notes: m.Children = [];
+  const doc =
+      m('span', 'Follow the ', m('a', {href: docUrl}, 'instructions here'));
+
+  const msgFeatNotSupported =
+      m('div', `Some of the probes are only supported in the
+      last version of perfetto running on Android Q+`);
+
+  const msgPerfettoNotSupported =
+      m('div', `Perfetto is not supported natively before Android P.`);
+
+  const msgSideload =
+      m('div',
+        `If you have a rooted device you can sideload the latest version of
+         perfetto. `,
+        doc);
+
+  const msgChrome =
+      m('div',
+        `To trace Chrome from the Perfetto UI, you need to install our `,
+        m('a', {href: extensionURL}, 'Chrome extension'),
+        m('div', ' and then reload this page.'));
+
+  const msgLinux =
+      m('div',
+        `In order to use perfetto on Linux you need to
+      compile it and run the following command from the build
+      output directory. `,
+        doc);
+
+  switch (globals.state.recordConfig.targetOS) {
+    case 'Q':
+      break;
+    case 'P':
+      notes.push(msgFeatNotSupported);
+      notes.push(msgSideload);
+      break;
+    case 'O':
+      notes.push(msgPerfettoNotSupported);
+      notes.push(msgSideload);
+      break;
+    case 'L':
+      notes.push(msgLinux);
+      break;
+    case 'C':
+      notes.push(msgChrome);
+      break;
+    default:
+  }
+
+  const onOsChange = (os: TargetOs) => {
+    const traceCfg = produce(globals.state.recordConfig, draft => {
+      draft.targetOS = os;
+    });
+    globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+  };
+
+  const targetOs = globals.state.recordConfig.targetOS;
+  const commandSnippet = isChromeTarget(targetOs) ?
+      [] :
+      m(CodeSnippet, {text: getRecordCommand(targetOs), hardWhitespace: true});
+
+  return m(
+      `.record-section.instructions${cssClass}`,
+      m('header', 'Instructions'),
+      m('label',
+        'Select target platform',
+        m('select',
+          {onchange: m.withAttr('value', onOsChange)},
+          m('option', {value: 'Q'}, 'Android Q+'),
+          m('option', {value: 'P'}, 'Android P'),
+          m('option', {value: 'O'}, 'Android O-'),
+          m('option', {value: 'C'}, 'Chrome'),
+          m('option', {value: 'L'}, 'Linux desktop'))),
+      notes.length > 0 ? m('.note', notes) : [],
+      commandSnippet,
+      recordingButtons(),
+      recordingLog());
+}
+
+function getRecordCommand(targetOs: TargetOs) {
   const data = globals.trackDataStore.get('config') as
           {commandline: string, pbtxt: string} |
       null;
@@ -555,110 +641,64 @@ function Instructions(cssClass: string) {
     cmd += `(sleep 0.5 && adb shell screenrecord --time-limit ${time}`;
     cmd += ' "/sdcard/tracescr.mp4") &\\\n';
   }
-  cmd += 'adb shell perfetto \\\n';
+  cmd +=
+      isAndroidTarget(targetOs) ? 'adb shell perfetto \\\n' : 'perfetto \\\n';
   cmd += '  -c - --txt \\\n';
   cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
   cmd += '<<EOF\n\n';
   cmd += pbtx;
   cmd += '\nEOF\n';
-  const docUrl = '//docs.perfetto.dev/#/build-instructions?id=get-the-code';
 
-
-  const notes: m.Children = [];
-  const doc =
-      m('span', 'Follow the ', m('a', {href: docUrl}, 'instructions here'));
-
-  const msgFeatNotSupported =
-      m('div', `Some of the probes are only supported in the
-      last version of perfetto running on Android Q+`);
-
-  const msgPerfettoNotSupported =
-      m('div', `Perfetto is not supported natively before Android P.`);
-
-  const msgSideload =
-      m('div',
-        `If you have a rooted device you can sideload the latest version of
-         perfetto. `,
-        doc);
-
-  const msgLinux =
-      m('div', `In order to use perfetto on Linux you need to
-      compile it and run from the standalone build. `, doc);
-
-  switch (globals.state.recordConfig.targetOS) {
-    case 'Q':
-      break;
-    case 'P':
-      notes.push(msgFeatNotSupported);
-      notes.push(msgSideload);
-      break;
-    case 'O':
-      notes.push(msgPerfettoNotSupported);
-      notes.push(msgSideload);
-      break;
-    case 'L':
-      notes.push(msgLinux);
-      break;
-    default:
-  }
-
-  const onOsChange = (os: TargetOs) => {
-    const traceCfg = produce(globals.state.recordConfig, draft => {
-      draft.targetOS = os;
-    });
-    globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
-  };
-
-
-  return m(
-      `.record-section.instructions${cssClass}`,
-      m('header', 'Instructions'),
-      m('label',
-        'Select target platform',
-        m('select',
-          {onchange: m.withAttr('value', onOsChange)},
-          m('option', {value: 'Q'}, 'Android Q+'),
-          m('option', {value: 'P'}, 'Android P'),
-          m('option', {value: 'O'}, 'Android O-'),
-          m('option', {value: 'C'}, 'Chrome'),
-          m('option', {value: 'L'}, 'Linux desktop'))),
-      notes.length > 0 ? m('.note', notes) : [],
-      m(CodeSnippet, {text: cmd, hardWhitespace: true}),
-      recordingButtons());
+  return cmd;
 }
 
 function recordingButtons() {
-  const androidTarget = isAndroidTarget(globals.state.recordConfig.targetOS);
-
-  // TODO(nicomazz): Display the buttons (removing the following line) when the
-  // android target will be supported.
-  if (androidTarget) return [];
-
-  // There are 2 cases in which the buttons are displayed:
-  // 1. The target is an Android device.
-  // 2. The target is Chrome and the extension is installed.
-  if (!globals.state.extensionInstalled && !androidTarget) return [];
+  const state = globals.state;
+  const deviceConnected = state.serialAndroidDeviceConnected !== undefined;
 
   const connectAndroidButton =
-      m('button', {onclick: async () => connectAndroidDevice()}, 'Connect');
+      m(`button${deviceConnected ? '.selected' : ''}`,
+        {onclick: async () => connectAndroidDevice()},
+        'Connect Device');
   const startButton =
-      m('button',
+      m(`button${state.recordingInProgress ? '.selected' : ''}`,
         {onclick: () => globals.dispatch(Actions.startRecording({}))},
         'Start Recording');
   const stopButton =
-      m('button',
+      m(`button${state.recordingInProgress ? '' : '.disabled'}`,
         {onclick: () => globals.dispatch(Actions.stopRecording({}))},
         'Stop Recording');
 
-  const recInProgress = globals.state.recInProgress;
+  const recInProgress = state.recordingInProgress;
   const bufferUsageStr =
       ((globals.bufferUsage ? globals.bufferUsage : 0.0) * 100).toFixed(1);
+
+  const buttons: m.Children = [];
+
+  // TODO(nicomazz): make this persistent after page reloads.
+  const targetOs = state.recordConfig.targetOS;
+  if (isAndroidTarget(targetOs)) {
+    if (deviceConnected) {
+      buttons.push(startButton);
+      if (recInProgress) buttons.push(stopButton);
+    } else {
+      buttons.push(connectAndroidButton);
+    }
+  } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
+    buttons.push(startButton);
+    if (recInProgress) buttons.push(stopButton);
+  }
+
   return [
-    androidTarget ? connectAndroidButton : [],
-    startButton,
-    stopButton,  // TODO(nicomazz): Implement stop logic for Android targets.
-    m('label', recInProgress ? 'Buffer usage: ' + bufferUsageStr + '%' : '')
+    m('.action-button', buttons),
+    recInProgress ? m('label', 'Buffer usage: ' + bufferUsageStr + '%') : []
   ];
+}
+
+function recordingLog() {
+  const logs = globals.recordingLog;
+  if (logs === undefined) return [];
+  return m('.code-snippet.no-top-bar', m('code', logs));
 }
 
 // The connection must be done in the frontend. After it, the serial ID will be

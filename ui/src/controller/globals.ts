@@ -27,8 +27,9 @@ import {
 
 import {ControllerAny} from './controller';
 
-type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
-    'LegacyTrace'|'SliceDetails'|'Loading'|'Search'|'BufferUsage';
+type PublishKinds =
+    'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
+    'SliceDetails'|'Loading'|'Search'|'BufferUsage'|'RecordingLog';
 
 export interface App {
   state: State;
