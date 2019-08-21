@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/fuchsia_trace_utils.h"
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {

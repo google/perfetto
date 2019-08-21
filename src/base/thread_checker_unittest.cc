@@ -21,7 +21,7 @@
 #include <functional>
 #include <memory>
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

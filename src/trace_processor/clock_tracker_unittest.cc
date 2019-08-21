@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "src/trace_processor/clock_tracker.h"
 
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/trace/clock_snapshot.pbzero.h"
 

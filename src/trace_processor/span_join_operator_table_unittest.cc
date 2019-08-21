@@ -16,10 +16,9 @@
 
 #include "src/trace_processor/span_join_operator_table.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {

@@ -18,8 +18,7 @@
 
 #include <ostream>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 using testing::ElementsAre;
 

@@ -28,9 +28,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/core/trace_buffer.h"
 #include "src/tracing/test/fake_packet.h"
-
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 

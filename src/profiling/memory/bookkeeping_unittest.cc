@@ -16,8 +16,7 @@
 
 #include "src/profiling/memory/bookkeeping.h"
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
@@ -62,18 +61,18 @@ TEST(BookkeepingTest, Basic) {
   sequence_number++;
   hd.RecordMalloc(stack2(), 2, 2, 2, sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
-  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 2);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 2u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
   hd.RecordFree(2, sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
-  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
   hd.RecordFree(1, sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 0);
-  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 0u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
 }
 
@@ -90,9 +89,9 @@ TEST(BookkeepingTest, Max) {
   sequence_number++;
   hd.RecordFree(1, sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.max_timestamp(), 200);
-  ASSERT_EQ(hd.GetMaxForTesting(stack()), 5);
-  ASSERT_EQ(hd.GetMaxForTesting(stack2()), 2);
+  ASSERT_EQ(hd.max_timestamp(), 200u);
+  ASSERT_EQ(hd.GetMaxForTesting(stack()), 5u);
+  ASSERT_EQ(hd.GetMaxForTesting(stack2()), 2u);
 }
 
 TEST(BookkeepingTest, TwoHeapTrackers) {
@@ -105,11 +104,11 @@ TEST(BookkeepingTest, TwoHeapTrackers) {
     hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
     hd2.RecordMalloc(stack(), 2, 2, 2, sequence_number, 100 * sequence_number);
     sequence_number++;
-    ASSERT_EQ(hd2.GetSizeForTesting(stack()), 2);
-    ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
+    ASSERT_EQ(hd2.GetSizeForTesting(stack()), 2u);
+    ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
     ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
   }
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5);
+  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
 }
 
 TEST(BookkeepingTest, ReplaceAlloc) {
@@ -121,8 +120,8 @@ TEST(BookkeepingTest, ReplaceAlloc) {
   sequence_number++;
   hd.RecordMalloc(stack2(), 1, 2, 2, sequence_number, 100 * sequence_number);
   sequence_number++;
-  EXPECT_EQ(hd.GetSizeForTesting(stack()), 0);
-  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 2);
+  EXPECT_EQ(hd.GetSizeForTesting(stack()), 0u);
+  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 2u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
 }
 
@@ -132,8 +131,8 @@ TEST(BookkeepingTest, OutOfOrder) {
 
   hd.RecordMalloc(stack(), 1, 5, 5, 2, 2);
   hd.RecordMalloc(stack2(), 1, 2, 2, 1, 1);
-  EXPECT_EQ(hd.GetSizeForTesting(stack()), 5);
-  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 0);
+  EXPECT_EQ(hd.GetSizeForTesting(stack()), 5u);
+  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 0u);
 }
 
 TEST(BookkeepingTest, ManyAllocations) {
@@ -153,7 +152,7 @@ TEST(BookkeepingTest, ManyAllocations) {
     hd.RecordMalloc(stack(), addr, 5, 5, sequence_number, sequence_number);
     sequence_number++;
     batch_frees.emplace_back(addr, sequence_number++);
-    ASSERT_THAT(hd.GetSizeForTesting(stack()), AnyOf(Eq(0), Eq(5)));
+    ASSERT_THAT(hd.GetSizeForTesting(stack()), AnyOf(Eq(0u), Eq(5u)));
   }
 }
 

@@ -19,11 +19,11 @@
 
 #include <memory>
 
-#include <gmock/gmock.h>
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/trace/trace_packet.pb.h"
 

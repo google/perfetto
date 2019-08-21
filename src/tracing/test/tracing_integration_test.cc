@@ -17,8 +17,6 @@
 #include <inttypes.h>
 #include <unistd.h>
 
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -34,6 +32,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
 #include "src/tracing/core/tracing_service_impl.h"
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/config/trace_config.pb.h"
 #include "perfetto/trace/test_event.pbzero.h"
