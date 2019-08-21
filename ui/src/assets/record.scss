@@ -285,6 +285,37 @@
     }
   }  // probe
 
+  .action-button {
+    >* {
+      @include transition(0.2s);
+      cursor: pointer;
+      border-radius: 10px;
+      margin: 10px;
+      text-align: center;
+      background-color: #eee;
+      font-family: 'Raleway', sans-serif;
+      font-size: 17px;
+      @media (max-width: 1280px) {
+        font-size: 1.6vw;
+      }
+      padding: 7px;
+
+      &:hover {
+        background-color: hsl(88, 50%, 84%);
+        box-shadow: 0 0 4px 0px #999;
+      }
+
+      &.selected {
+        background-color: hsl(88, 50%, 67%);
+        box-shadow: 0 0 4px 0px #999;
+      }
+
+      &.disabled {
+        background-color: hsl(0, 0%, 97%);
+      }
+
+    }
+  }
   // The three "Stop when full", "Ring buffer", "Long trace" buttons.
   .record-mode {
     display: grid;
@@ -578,6 +609,13 @@
       content: "";
       display: block;
       background-color: #598eca;
+    }
+
+    &.no-top-bar {
+      white-space: 'pre';
+      &::before {
+        height: 0;
+      }
     }
 
     >code {
