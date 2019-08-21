@@ -15,6 +15,7 @@ import "perfetto/trace/ftrace/f2fs.proto";
 import "perfetto/trace/ftrace/fence.proto";
 import "perfetto/trace/ftrace/filemap.proto";
 import "perfetto/trace/ftrace/ftrace.proto";
+import "perfetto/trace/ftrace/gpu.proto";
 import "perfetto/trace/ftrace/i2c.proto";
 import "perfetto/trace/ftrace/ipi.proto";
 import "perfetto/trace/ftrace/irq.proto";
@@ -395,5 +396,8 @@ message FtraceEvent {
     SysExitFtraceEvent sys_exit = 330;
     ZeroFtraceEvent zero = 331;
     GpuFrequencyFtraceEvent gpu_frequency = 332;
+    GpuSchedEnqueueFtraceEvent gpu_sched_enqueue = 333;
+    GpuSchedSubmitFtraceEvent gpu_sched_submit = 334;
+    GpuSchedCompleteFtraceEvent gpu_sched_complete = 335;
   }
 }

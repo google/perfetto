@@ -5,3 +5,6 @@ kmem:rss_stat
 clk:clk_enable
 clk:clk_disable
 clk:clk_set_rate
+gpu:gpu_sched_enqueue
+gpu:gpu_sched_submit
+gpu:gpu_sched_complete
