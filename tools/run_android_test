@@ -87,6 +87,13 @@ def AdbCall(*args):
   return subprocess.check_call(cmd)
 
 
+def AdbPush(host, device):
+  cmd = [ADB_PATH, 'push', host, device]
+  print '> adb push ' + ' '.join(cmd[2:])
+  with open(os.devnull) as devnull:
+    return subprocess.check_call(cmd, stdout=devnull)
+
+
 def GetProp(prop):
   cmd = [ADB_PATH, 'shell', 'getprop', prop]
   print '> adb ' + ' '.join(cmd)
@@ -143,17 +150,17 @@ def Main():
   # This gets linked into our tests via libundwindstack.so.
   #
   # See https://android.googlesource.com/platform/system/core/+/master/rootdir/etc/ld.config.txt.
-  AdbCall('push', test_bin, "/data/nativetest")
+  AdbPush(test_bin, "/data/nativetest")
 
   if not args.no_data_deps:
     for dep in EnumerateDataDeps():
-      AdbCall('push', os.path.join(ROOT_DIR, dep), target_dir + '/' + dep)
+      AdbPush(os.path.join(ROOT_DIR, dep), target_dir + '/' + dep)
 
   # LLVM sanitizers require to sideload a libclangrtXX.so on the device.
   sanitizer_libs = os.path.join(args.out_dir, 'sanitizer_libs')
   env = ' '.join(args.env if args.env is not None else []) + ' '
   if os.path.exists(sanitizer_libs):
-    AdbCall('push', sanitizer_libs, target_dir)
+    AdbPush(sanitizer_libs, target_dir)
     env += 'LD_LIBRARY_PATH="%s/sanitizer_libs" ' % (target_dir)
   cmd = 'cd %s;' % target_dir;
   binary = env + '/data/nativetest/%s' % args.test_name
@@ -161,15 +168,18 @@ def Main():
   if args.cmd_args:
     actual_args = [arg.replace(args.test_name, binary) for arg in args.cmd_args]
     cmd += ' ' + ' '.join(actual_args)
-  cmd += ';echo -e "\\nTEST_RET_CODE=$?"'
   print cmd
-  test_output = subprocess.check_output([ADB_PATH, 'shell', cmd])
-  print test_output
-  retcode = re.search(r'^TEST_RET_CODE=(\d)', test_output, re.MULTILINE)
-  assert retcode, 'Could not find TEST_RET_CODE=N marker'
-  retcode = int(retcode.group(1))
+  retcode = subprocess.call([ADB_PATH, 'shell', cmd])
   if not args.no_cleanup:
     AdbCall('shell', 'rm -rf "%s"' % target_dir)
+
+  # Smoke test that adb shell is actually propagating retcode. adb has a history
+  # of breaking this.
+  test_code = subprocess.call([ADB_PATH, 'shell', 'echo Done; exit 42'])
+  if test_code != 42:
+    logging.fatal('adb is incorrectly propagating the exit code')
+    return 1
+
   return retcode
 
 
