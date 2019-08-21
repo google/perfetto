@@ -126,6 +126,9 @@ class BitVector {
  private:
   BitVector(std::vector<bool>);
 
+  BitVector(const BitVector&) = delete;
+  BitVector& operator=(const BitVector&) = delete;
+
   std::vector<bool> inner_;
 };
 

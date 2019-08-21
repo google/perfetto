@@ -16,6 +16,8 @@ source_set("lib") {
   sources = [
     "bit_vector.cc",
     "bit_vector.h",
+    "row_map.cc",
+    "row_map.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -27,6 +29,7 @@ source_set("unittests") {
   testonly = true
   sources = [
     "bit_vector_unittest.cc",
+    "row_map_unittest.cc",
   ]
   deps = [
     ":lib",
