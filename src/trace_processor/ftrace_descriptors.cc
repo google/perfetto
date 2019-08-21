@@ -8,7 +8,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 333> descriptors{{
+std::array<MessageDescriptor, 336> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3535,6 +3535,41 @@ std::array<MessageDescriptor, 333> descriptors{{
             {},
             {"gpu_id", ProtoSchemaType::kUint32},
             {"state", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "gpu_sched_enqueue",
+        4,
+        {
+            {},
+            {"ctx_id", ProtoSchemaType::kUint32},
+            {"job_id", ProtoSchemaType::kUint32},
+            {"priority", ProtoSchemaType::kUint32},
+            {"submission_id", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "gpu_sched_submit",
+        5,
+        {
+            {},
+            {"ctx_id", ProtoSchemaType::kUint32},
+            {"hwqueue_id", ProtoSchemaType::kUint32},
+            {"job_id", ProtoSchemaType::kUint32},
+            {"priority", ProtoSchemaType::kUint32},
+            {"submission_id", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "gpu_sched_complete",
+        5,
+        {
+            {},
+            {"ctx_id", ProtoSchemaType::kUint32},
+            {"job_id", ProtoSchemaType::kUint32},
+            {"msg", ProtoSchemaType::kString},
+            {"priority", ProtoSchemaType::kUint32},
+            {"submission_id", ProtoSchemaType::kUint32},
         },
     },
 }};
