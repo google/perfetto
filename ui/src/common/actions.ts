@@ -20,12 +20,14 @@ import {ConvertTrace} from '../controller/trace_converter';
 import {
   createEmptyState,
   LogsPagination,
+  OmniboxState,
   RecordConfig,
   SCROLLING_TRACK_GROUP,
   State,
   Status,
   TraceTime,
   TrackState,
+  VisibleState,
 } from './state';
 
 type StateDraft = Draft<State>;
@@ -247,14 +249,6 @@ export const StateActions = {
     state.traceTime = args;
   },
 
-  setVisibleTraceTime(
-      state: StateDraft,
-      args: {time: TraceTime; res: number, lastUpdate: number;}): void {
-    state.frontendLocalState.visibleTraceTime = args.time;
-    state.frontendLocalState.curResolution = args.res;
-    state.frontendLocalState.lastUpdate = args.lastUpdate;
-  },
-
   updateStatus(state: StateDraft, args: Status): void {
     state.status = args;
   },
@@ -415,6 +409,14 @@ export const StateActions = {
 
   setAndroidDevice(state: StateDraft, args: {serial: string}): void {
     state.serialAndroidDeviceConnected = args.serial;
+  },
+
+  setOmnibox(state: StateDraft, args: OmniboxState): void {
+    state.frontendLocalState.omniboxState = args;
+  },
+
+  setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
+    state.frontendLocalState.visibleState = args;
   },
 
 };

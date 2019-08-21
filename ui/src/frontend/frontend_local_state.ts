@@ -13,11 +13,53 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {FrontendLocalState as FrontendState} from '../common/state';
+import {
+  FrontendLocalState as FrontendState,
+  OmniboxState,
+  Timestamped,
+  VisibleState
+} from '../common/state';
 import {TimeSpan} from '../common/time';
 
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
+
+function chooseLastest<T extends Timestamped<{}>>(current: T, next: T): T {
+  if (next !== current && next.lastUpdate > current.lastUpdate) {
+    return next;
+  }
+  return current;
+}
+
+// Returns a wrapper around |f| which calls f at most once every |ms|ms.
+function ratelimit(f: Function, ms: number): Function {
+  let inProgess = false;
+  return () => {
+    if (inProgess) {
+      return;
+    }
+    inProgess = true;
+    window.setTimeout(() => {
+      f();
+      inProgess = false;
+    }, ms);
+  };
+}
+
+// Returns a wrapper around |f| which waits for a |ms|ms pause in calls
+// before calling |f|.
+function debounce(f: Function, ms: number): Function {
+  let timerId: undefined|number;
+  return () => {
+    if (timerId) {
+      window.clearTimeout(timerId);
+    }
+    timerId = window.setTimeout(() => {
+      f();
+      timerId = undefined;
+    }, ms);
+  };
+}
 
 /**
  * State that is shared between several frontend components, but not the
@@ -26,8 +68,6 @@ import {TimeScale} from './time_scale';
 export class FrontendLocalState {
   visibleWindowTime = new TimeSpan(0, 10);
   timeScale = new TimeScale(this.visibleWindowTime, [0, 0]);
-  private _lastUpdate = 0;
-  private pendingGlobalTimeUpdate = false;
   perfDebug = false;
   hoveredUtid = -1;
   hoveredPid = -1;
@@ -40,40 +80,21 @@ export class FrontendLocalState {
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
 
+  private _omniboxState: OmniboxState = {
+    lastUpdate: 0,
+    omnibox: '',
+  };
+
+  private _visibleState: VisibleState = {
+    lastUpdate: 0,
+    startSec: 0,
+    endSec: 10,
+    resolution: 1,
+  };
+
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
   // place only.
-  updateVisibleTime(ts: TimeSpan) {
-    const startSec = Math.max(ts.start, globals.state.traceTime.startSec);
-    const endSec = Math.min(ts.end, globals.state.traceTime.endSec);
-    this.visibleWindowTime = new TimeSpan(startSec, endSec);
-    this.timeScale.setTimeBounds(this.visibleWindowTime);
-    this._lastUpdate = Date.now() / 1000;
-
-    // Post a delayed update to the controller.
-    if (this.pendingGlobalTimeUpdate) return;
-    this.pendingGlobalTimeUpdate = true;
-    setTimeout(() => {
-      this._lastUpdate = Date.now() / 1000;
-      globals.dispatch(Actions.setVisibleTraceTime({
-        time: {
-          startSec: this.visibleWindowTime.start,
-          endSec: this.visibleWindowTime.end,
-        },
-        lastUpdate: this._lastUpdate,
-        res: globals.getCurResolution(),
-      }));
-      this.pendingGlobalTimeUpdate = false;
-    }, 50);
-  }
-
-  mergeState(frontendLocalState: FrontendState): void {
-    if (this._lastUpdate >= frontendLocalState.lastUpdate) {
-      return;
-    }
-    const visible = frontendLocalState.visibleTraceTime;
-    this.updateVisibleTime(new TimeSpan(visible.startSec, visible.endSec));
-  }
 
   togglePerfDebug() {
     this.perfDebug = !this.perfDebug;
@@ -132,5 +153,46 @@ export class FrontendLocalState {
       globals.dispatch(
           Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
     }
+  }
+
+  mergeState(state: FrontendState): void {
+    this._omniboxState = chooseLastest(this._omniboxState, state.omniboxState);
+    this._visibleState = chooseLastest(this._visibleState, state.visibleState);
+    this.updateLocalTime(
+        new TimeSpan(this._visibleState.startSec, this._visibleState.endSec));
+  }
+
+  private debouncedSetOmnibox = debounce(() => {
+    globals.dispatch(Actions.setOmnibox(this._omniboxState));
+  }, 20);
+
+  set omnibox(value: string) {
+    this._omniboxState.omnibox = value;
+    this._omniboxState.lastUpdate = Date.now() / 1000;
+    this.debouncedSetOmnibox();
+  }
+
+  get omnibox(): string {
+    return this._omniboxState.omnibox;
+  }
+
+  private ratelimitedUpdateVisible = ratelimit(() => {
+    globals.dispatch(Actions.setVisibleTraceTime(this._visibleState));
+  }, 50);
+
+  private updateLocalTime(ts: TimeSpan) {
+    const startSec = Math.max(ts.start, globals.state.traceTime.startSec);
+    const endSec = Math.min(ts.end, globals.state.traceTime.endSec);
+    this.visibleWindowTime = new TimeSpan(startSec, endSec);
+    this.timeScale.setTimeBounds(this.visibleWindowTime);
+  }
+
+  updateVisibleTime(ts: TimeSpan) {
+    this.updateLocalTime(ts);
+    this._visibleState.lastUpdate = Date.now() / 1000;
+    this._visibleState.startSec = this.visibleWindowTime.start;
+    this._visibleState.endSec = this.visibleWindowTime.end;
+    this._visibleState.resolution = globals.getCurResolution();
+    this.ratelimitedUpdateVisible();
   }
 }
