@@ -164,9 +164,6 @@ def main():
   signal.signal(signal.SIGTERM, sig_handler)
   signal.signal(signal.SIGINT, sig_handler)
 
-  cmd = [os.path.join(CUR_DIR, 'artifacts_uploader.py'), '--rm']
-  artifacts_uploader = subprocess.Popen(cmd)
-
   while not sigterm.is_set():
     logging.debug('Starting poll cycle')
     try:
@@ -185,7 +182,6 @@ def main():
   logging.warn('Exiting the worker loop, got signal: %s', sigterm.is_set())
   req('PUT', '%s/workers/%s.json' % (DB, WORKER_NAME),
       body=make_worker_obj('TERMINATED'))
-  artifacts_uploader.kill()
 
 
 if __name__ == '__main__':
