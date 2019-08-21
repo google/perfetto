@@ -18,10 +18,12 @@ source_set("lib") {
     "bit_vector.h",
     "row_map.cc",
     "row_map.h",
+    "sparse_vector.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
   ]
 }
 
@@ -30,6 +32,7 @@ source_set("unittests") {
   sources = [
     "bit_vector_unittest.cc",
     "row_map_unittest.cc",
+    "sparse_vector_unittest.cc",
   ]
   deps = [
     ":lib",
