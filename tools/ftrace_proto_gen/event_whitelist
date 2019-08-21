@@ -327,3 +327,6 @@ raw_syscalls/sys_enter
 raw_syscalls/sys_exit
 systrace/0
 power/gpu_frequency
+gpu/gpu_sched_enqueue
+gpu/gpu_sched_submit
+gpu/gpu_sched_complete

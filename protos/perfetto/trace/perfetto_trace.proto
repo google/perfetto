@@ -2339,6 +2339,9 @@ message FtraceEvent {
     SysExitFtraceEvent sys_exit = 330;
     ZeroFtraceEvent zero = 331;
     GpuFrequencyFtraceEvent gpu_frequency = 332;
+    GpuSchedEnqueueFtraceEvent gpu_sched_enqueue = 333;
+    GpuSchedSubmitFtraceEvent gpu_sched_submit = 334;
+    GpuSchedCompleteFtraceEvent gpu_sched_complete = 335;
   }
 }
 
@@ -2432,6 +2435,31 @@ message GenericFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/generic.proto
+
+// Begin of protos/perfetto/trace/ftrace/gpu.proto
+
+message GpuSchedEnqueueFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional uint32 job_id = 2;
+  optional uint32 priority = 3;
+  optional uint32 submission_id = 4;
+}
+message GpuSchedSubmitFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional uint32 hwqueue_id = 2;
+  optional uint32 job_id = 3;
+  optional uint32 priority = 4;
+  optional uint32 submission_id = 5;
+}
+message GpuSchedCompleteFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional uint32 job_id = 2;
+  optional string msg = 3;
+  optional uint32 priority = 4;
+  optional uint32 submission_id = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/gpu.proto
 
 // Begin of protos/perfetto/trace/ftrace/kmem.proto
 

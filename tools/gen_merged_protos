@@ -66,6 +66,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/ftrace/ftrace_event_bundle.proto',
   'protos/perfetto/trace/ftrace/ftrace_stats.proto',
   'protos/perfetto/trace/ftrace/generic.proto',
+  'protos/perfetto/trace/ftrace/gpu.proto',
   'protos/perfetto/trace/ftrace/kmem.proto',
   'protos/perfetto/trace/ftrace/lowmemorykiller.proto',
   'protos/perfetto/trace/ftrace/mm_event.proto',
