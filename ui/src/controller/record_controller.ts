@@ -129,6 +129,12 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     ftraceEvents.add('power/gpu_frequency');
   }
 
+  if (uiCfg.gpuSched) {
+    ftraceEvents.add('gpu/gpu_sched_enqueue');
+    ftraceEvents.add('gpu/gpu_sched_submit');
+    ftraceEvents.add('gpu/gpu_sched_complete');
+  }
+
   if (uiCfg.cpuSyscall) {
     ftraceEvents.add('raw_syscalls/sys_enter');
     ftraceEvents.add('raw_syscalls/sys_exit');
