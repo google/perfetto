@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "src/base/test/gtest_test_suite.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -106,9 +107,9 @@ TEST_P(RowMapUnittest, RemoveIf) {
   ASSERT_EQ(row_map.Get(1), 3u);
 }
 
-INSTANTIATE_TEST_CASE_P(RowMapUnittestInstatition,
-                        RowMapUnittest,
-                        testing::Values(BitVectorRowMap(), RowVectorRowMap()));
+INSTANTIATE_TEST_SUITE_P(RowMapUnittestInstatition,
+                         RowMapUnittest,
+                         testing::Values(BitVectorRowMap(), RowVectorRowMap()));
 
 }  // namespace
 }  // namespace trace_processor
