@@ -1924,6 +1924,8 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     // TODO(primiano): right now Create() will suicide in case of OOM if the
     // mmap fails. We should instead gracefully fail the request and tell the
     // client to go away.
+    PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"", shm_size / 1024,
+                  producer->name_.c_str());
     auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
     producer->SetSharedMemory(std::move(shared_memory));
     producer->OnTracingSetup();
