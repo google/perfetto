@@ -21,9 +21,9 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/lookup_set.h"
 #include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/time.h"
 #include "src/profiling/memory/interner.h"
 #include "src/profiling/memory/unwound_messages.h"
 

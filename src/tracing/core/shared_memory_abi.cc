@@ -16,7 +16,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/time.h"
+#include "perfetto/base/time.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/mman.h>
