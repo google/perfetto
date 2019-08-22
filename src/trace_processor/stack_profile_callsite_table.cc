@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/heap_profile_callsite_table.h"
+#include "src/trace_processor/stack_profile_callsite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-HeapProfileCallsiteTable::HeapProfileCallsiteTable(sqlite3*,
-                                                   const TraceStorage* storage)
+StackProfileCallsiteTable::StackProfileCallsiteTable(
+    sqlite3*,
+    const TraceStorage* storage)
     : storage_(storage) {}
 
-void HeapProfileCallsiteTable::RegisterTable(sqlite3* db,
-                                             const TraceStorage* storage) {
-  SqliteTable::Register<HeapProfileCallsiteTable>(db, storage,
-                                                  "heap_profile_callsite");
+void StackProfileCallsiteTable::RegisterTable(sqlite3* db,
+                                              const TraceStorage* storage) {
+  SqliteTable::Register<StackProfileCallsiteTable>(db, storage,
+                                                   "stack_profile_callsite");
 }
 
-StorageSchema HeapProfileCallsiteTable::CreateStorageSchema() {
-  const auto& callsites = storage_->heap_profile_callsites();
+StorageSchema StackProfileCallsiteTable::CreateStorageSchema() {
+  const auto& callsites = storage_->stack_profile_callsites();
   return StorageSchema::Builder()
       .AddGenericNumericColumn("id", RowAccessor())
       .AddNumericColumn("depth", &callsites.frame_depths())
@@ -39,12 +40,12 @@ StorageSchema HeapProfileCallsiteTable::CreateStorageSchema() {
       .Build({"id"});
 }
 
-uint32_t HeapProfileCallsiteTable::RowCount() {
-  return storage_->heap_profile_callsites().size();
+uint32_t StackProfileCallsiteTable::RowCount() {
+  return storage_->stack_profile_callsites().size();
 }
 
-int HeapProfileCallsiteTable::BestIndex(const QueryConstraints& qc,
-                                        BestIndexInfo* info) {
+int StackProfileCallsiteTable::BestIndex(const QueryConstraints& qc,
+                                         BestIndexInfo* info) {
   info->order_by_consumed = true;
   info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;

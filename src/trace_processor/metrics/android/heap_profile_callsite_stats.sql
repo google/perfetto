@@ -28,11 +28,11 @@ GROUP BY 1, 2;
 -- For each callsite ID traverse all frames to the root.
 CREATE TABLE flattened_callsite AS
 WITH RECURSIVE callsite_parser(callsite_id, current_id, position) AS (
-  SELECT id, id, 0 FROM heap_profile_callsite
+  SELECT id, id, 0 FROM stack_profile_callsite
   UNION
   SELECT callsite_id, parent_id, position + 1
-  FROM callsite_parser JOIN heap_profile_callsite ON heap_profile_callsite.id = current_id
-  WHERE heap_profile_callsite.depth > 0
+  FROM callsite_parser JOIN stack_profile_callsite ON stack_profile_callsite.id = current_id
+  WHERE stack_profile_callsite.depth > 0
 )
 SELECT *
 FROM callsite_parser;
@@ -45,17 +45,17 @@ SELECT
   callsite_id,
   position,
   HeapProfileCallsiteStats_Frame(
-    'name', heap_profile_frame.name,
-    'mapping_name', heap_profile_mapping.name
+    'name', stack_profile_frame.name,
+    'mapping_name', stack_profile_mapping.name
   ) AS frame_proto
 FROM flattened_callsite
-CROSS JOIN heap_profile_callsite
-CROSS JOIN heap_profile_frame
-CROSS JOIN heap_profile_mapping
+CROSS JOIN stack_profile_callsite
+CROSS JOIN stack_profile_frame
+CROSS JOIN stack_profile_mapping
 WHERE
-  flattened_callsite.current_id = heap_profile_callsite.id
-  AND heap_profile_callsite.frame_id = heap_profile_frame.id
-  AND heap_profile_frame.mapping = heap_profile_mapping.id
+  flattened_callsite.current_id = stack_profile_callsite.id
+  AND stack_profile_callsite.frame_id = stack_profile_frame.id
+  AND stack_profile_frame.mapping = stack_profile_mapping.id
 ORDER BY callsite_id, position;
 
 -- Map callsite ID to proto.
