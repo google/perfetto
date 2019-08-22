@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/heap_profile_frame_table.h"
+#include "src/trace_processor/stack_profile_frame_table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-HeapProfileFrameTable::HeapProfileFrameTable(sqlite3*,
-                                             const TraceStorage* storage)
+StackProfileFrameTable::StackProfileFrameTable(sqlite3*,
+                                               const TraceStorage* storage)
     : storage_(storage) {}
 
-void HeapProfileFrameTable::RegisterTable(sqlite3* db,
-                                          const TraceStorage* storage) {
-  SqliteTable::Register<HeapProfileFrameTable>(db, storage,
-                                               "heap_profile_frame");
+void StackProfileFrameTable::RegisterTable(sqlite3* db,
+                                           const TraceStorage* storage) {
+  SqliteTable::Register<StackProfileFrameTable>(db, storage,
+                                                "stack_profile_frame");
 }
 
-StorageSchema HeapProfileFrameTable::CreateStorageSchema() {
-  const auto& frames = storage_->heap_profile_frames();
+StorageSchema StackProfileFrameTable::CreateStorageSchema() {
+  const auto& frames = storage_->stack_profile_frames();
   return StorageSchema::Builder()
       .AddGenericNumericColumn("id", RowAccessor())
       .AddStringColumn("name", &frames.names(), &storage_->string_pool())
@@ -39,12 +39,12 @@ StorageSchema HeapProfileFrameTable::CreateStorageSchema() {
       .Build({"id"});
 }
 
-uint32_t HeapProfileFrameTable::RowCount() {
-  return storage_->heap_profile_frames().size();
+uint32_t StackProfileFrameTable::RowCount() {
+  return storage_->stack_profile_frames().size();
 }
 
-int HeapProfileFrameTable::BestIndex(const QueryConstraints& qc,
-                                     BestIndexInfo* info) {
+int StackProfileFrameTable::BestIndex(const QueryConstraints& qc,
+                                      BestIndexInfo* info) {
   info->order_by_consumed = true;
   info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;
