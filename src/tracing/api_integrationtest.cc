@@ -299,10 +299,10 @@ TEST_F(PerfettoApiTest, TrackEvent) {
         event_names[it.iid()] = it.name();
     }
 
-    EXPECT_GT(packet.timestamp(), 0);
+    EXPECT_GT(packet.timestamp(), 0u);
     EXPECT_LE(packet.timestamp(), now);
-    EXPECT_EQ(1u, track_event.category_iids().size());
-    EXPECT_GE(track_event.category_iids().Get(0), 1);
+    EXPECT_EQ(track_event.category_iids().size(), 1);
+    EXPECT_GE(track_event.category_iids().Get(0), 1u);
 
     if (track_event.type() == perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN) {
       EXPECT_FALSE(begin_found);
