@@ -55,13 +55,19 @@ class TracingBackend {
     // The Producer object that will receive calls like Start/StopDataSource().
     // The caller has to guarantee that this object is valid as long as the
     // returned ProducerEndpoint is alive.
-    Producer* producer{};
+    Producer* producer = nullptr;
 
     // The task runner where the Producer methods will be called onto.
     // The caller has to guarantee that the passed TaskRunner is valid as long
     // as the returned ProducerEndpoint is alive.
-    ::perfetto::base::TaskRunner* task_runner{};
+    ::perfetto::base::TaskRunner* task_runner = nullptr;
+
+    // These get propagated from TracingInitArgs and are optionally provided by
+    // the client when calling Tracing::Initialize().
+    uint32_t shmem_size_hint_bytes = 0;
+    uint32_t shmem_page_size_hint_bytes = 0;
   };
+
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       const ConnectProducerArgs&) = 0;
 
