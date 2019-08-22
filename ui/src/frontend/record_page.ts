@@ -207,6 +207,13 @@ function GpuSettings(cssClass: string) {
         descr: 'Records gpu frequency via ftrace',
         setEnabled: (cfg, val) => cfg.gpuFreq = val,
         isEnabled: (cfg) => cfg.gpuFreq
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'GPU scheduling',
+        img: 'rec_cpu_wakeup.png',
+        descr: 'Records gpu scheduling via ftrace',
+        setEnabled: (cfg, val) => cfg.gpuSched = val,
+        isEnabled: (cfg) => cfg.gpuSched
       } as ProbeAttrs));
 }
 
@@ -763,7 +770,7 @@ export const RecordPage = createPage({
                   m(`li${routePage === 'gpu' ? '.active' : ''}`,
                     m('i.material-icons', 'aspect_ratio'),
                     m('.title', 'GPU'),
-                    m('.sub', 'GPU frequency'))),
+                    m('.sub', 'GPU frequency, scheduling'))),
                 m('a[href="#!/record?p=power"]',
                   m(`li${routePage === 'power' ? '.active' : ''}`,
                     m('i.material-icons', 'battery_charging_full'),
