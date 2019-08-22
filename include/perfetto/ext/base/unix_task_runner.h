@@ -19,11 +19,11 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/thread_utils.h"
-#include "perfetto/ext/base/time.h"
 
 #include <poll.h>
 #include <chrono>

@@ -20,7 +20,7 @@
 #include <mutex>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/time.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
