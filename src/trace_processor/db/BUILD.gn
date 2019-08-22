@@ -16,9 +16,13 @@ source_set("lib") {
   sources = [
     "bit_vector.cc",
     "bit_vector.h",
+    "column.cc",
+    "column.h",
     "row_map.cc",
     "row_map.h",
     "sparse_vector.h",
+    "table.cc",
+    "table.h",
   ]
   deps = [
     "../../../gn:default_deps",
