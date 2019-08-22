@@ -17,7 +17,7 @@
 #ifndef SRC_PERFETTO_CMD_RATE_LIMITER_H_
 #define SRC_PERFETTO_CMD_RATE_LIMITER_H_
 
-#include "perfetto/ext/base/time.h"
+#include "perfetto/base/time.h"
 #include "src/perfetto_cmd/perfetto_cmd_state.pb.h"
 
 namespace perfetto {

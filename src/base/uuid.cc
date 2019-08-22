@@ -18,7 +18,7 @@
 
 #include <random>
 
-#include "perfetto/ext/base/time.h"
+#include "perfetto/base/time.h"
 
 namespace perfetto {
 namespace base {

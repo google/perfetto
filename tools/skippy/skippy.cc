@@ -20,7 +20,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/time.h"
+#include "perfetto/base/time.h"
 
 // Skippy is a program that produces a visually identifiable stepping pattern
 // in the systrace UI that is useful for debugging dropped or corrupted data.
