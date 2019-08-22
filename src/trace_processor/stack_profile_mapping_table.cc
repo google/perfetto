@@ -14,23 +14,23 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/heap_profile_mapping_table.h"
+#include "src/trace_processor/stack_profile_mapping_table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-HeapProfileMappingTable::HeapProfileMappingTable(sqlite3*,
-                                                 const TraceStorage* storage)
+StackProfileMappingTable::StackProfileMappingTable(sqlite3*,
+                                                   const TraceStorage* storage)
     : storage_(storage) {}
 
-void HeapProfileMappingTable::RegisterTable(sqlite3* db,
-                                            const TraceStorage* storage) {
-  SqliteTable::Register<HeapProfileMappingTable>(db, storage,
-                                                 "heap_profile_mapping");
+void StackProfileMappingTable::RegisterTable(sqlite3* db,
+                                             const TraceStorage* storage) {
+  SqliteTable::Register<StackProfileMappingTable>(db, storage,
+                                                  "stack_profile_mapping");
 }
 
-StorageSchema HeapProfileMappingTable::CreateStorageSchema() {
-  const auto& mappings = storage_->heap_profile_mappings();
+StorageSchema StackProfileMappingTable::CreateStorageSchema() {
+  const auto& mappings = storage_->stack_profile_mappings();
   return StorageSchema::Builder()
       .AddGenericNumericColumn("id", RowAccessor())
       .AddStringColumn("build_id", &mappings.build_ids(),
@@ -44,12 +44,12 @@ StorageSchema HeapProfileMappingTable::CreateStorageSchema() {
       .Build({"id"});
 }
 
-uint32_t HeapProfileMappingTable::RowCount() {
-  return storage_->heap_profile_mappings().size();
+uint32_t StackProfileMappingTable::RowCount() {
+  return storage_->stack_profile_mappings().size();
 }
 
-int HeapProfileMappingTable::BestIndex(const QueryConstraints& qc,
-                                       BestIndexInfo* info) {
+int StackProfileMappingTable::BestIndex(const QueryConstraints& qc,
+                                        BestIndexInfo* info) {
   info->order_by_consumed = true;
   info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;

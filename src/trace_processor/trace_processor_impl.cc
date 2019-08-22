@@ -35,9 +35,6 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
-#include "src/trace_processor/heap_profile_callsite_table.h"
-#include "src/trace_processor/heap_profile_frame_table.h"
-#include "src/trace_processor/heap_profile_mapping_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/metadata_table.h"
@@ -56,6 +53,10 @@
 #include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/sqlite3_str_split.h"
 #include "src/trace_processor/sqlite_table.h"
+#include "src/trace_processor/stack_profile_callsite_table.h"
+#include "src/trace_processor/stack_profile_frame_table.h"
+#include "src/trace_processor/stack_profile_mapping_table.h"
+#include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/stats_table.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
@@ -274,6 +275,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
+  context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
 
@@ -299,9 +301,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
   HeapProfileAllocationTable::RegisterTable(*db_, context_.storage.get());
-  HeapProfileCallsiteTable::RegisterTable(*db_, context_.storage.get());
-  HeapProfileFrameTable::RegisterTable(*db_, context_.storage.get());
-  HeapProfileMappingTable::RegisterTable(*db_, context_.storage.get());
+  StackProfileCallsiteTable::RegisterTable(*db_, context_.storage.get());
+  StackProfileFrameTable::RegisterTable(*db_, context_.storage.get());
+  StackProfileMappingTable::RegisterTable(*db_, context_.storage.get());
   MetadataTable::RegisterTable(*db_, context_.storage.get());
 }
 

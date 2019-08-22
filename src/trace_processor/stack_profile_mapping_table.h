@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_HEAP_PROFILE_MAPPING_TABLE_H_
-#define SRC_TRACE_PROCESSOR_HEAP_PROFILE_MAPPING_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_STACK_PROFILE_MAPPING_TABLE_H_
+#define SRC_TRACE_PROCESSOR_STACK_PROFILE_MAPPING_TABLE_H_
 
 #include "src/trace_processor/storage_table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class HeapProfileMappingTable : public StorageTable {
+class StackProfileMappingTable : public StorageTable {
  public:
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
-  HeapProfileMappingTable(sqlite3*, const TraceStorage*);
+  StackProfileMappingTable(sqlite3*, const TraceStorage*);
 
   // StorageTable implementation.
   StorageSchema CreateStorageSchema() override;
@@ -40,4 +40,4 @@ class HeapProfileMappingTable : public StorageTable {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_HEAP_PROFILE_MAPPING_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_STACK_PROFILE_MAPPING_TABLE_H_
