@@ -30,5 +30,6 @@
 #include "perfetto/tracing/platform.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
+#include "perfetto/tracing/track_event.h"
 
 #endif  // INCLUDE_PERFETTO_TRACING_H_
