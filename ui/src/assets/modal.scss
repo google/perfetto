@@ -167,3 +167,19 @@
 .micromodal-slide .modal-overlay {
   will-change: transform;
 }
+
+.help {
+  table {
+    margin-bottom: 15px;
+    td {
+      min-width: 250px;
+    }
+    td:first-child {
+      font-family: var(--monospace-font);
+    }
+  }
+  h2 {
+    font: inherit;
+    font-weight: bold;
+  }
+}
