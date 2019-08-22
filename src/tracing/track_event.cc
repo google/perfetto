@@ -110,7 +110,7 @@ void TrackEventDataSource::WriteSequenceDescriptors(
     packet->set_timestamp(timestamp);
     auto td = packet->set_thread_descriptor();
     td->set_pid(getpid());
-    td->set_tid(perfetto::base::GetThreadId());
+    td->set_tid(static_cast<int32_t>(perfetto::base::GetThreadId()));
   }
 }
 
