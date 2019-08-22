@@ -815,7 +815,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
 }
 
-TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
+TEST_P(HeapprofdEndToEnd, DISABLED_ConcurrentSession) {
   constexpr size_t kAllocSize = 1024;
 
   pid_t pid = ForkContinuousMalloc(kAllocSize);
