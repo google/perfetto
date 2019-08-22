@@ -26,8 +26,8 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/pipe.h"
-#include "perfetto/ext/base/time.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
