@@ -26,8 +26,8 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/time.h"
 
 // Periodically prints an un-normalized cpu usage ratio (full use of a single
 // core = 1.0) of a target process. Based on /proc/pid/stat utime (userspace) &

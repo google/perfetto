@@ -515,6 +515,7 @@ cc_library_static {
     "src/tracing/platform_posix.cc",
     "src/tracing/trace_writer_base.cc",
     "src/tracing/tracing.cc",
+    "src/tracing/track_event.cc",
     "src/tracing/virtual_destructors.cc",
   ],
   shared_libs: [
@@ -892,6 +893,7 @@ cc_test {
     "src/tracing/platform_posix.cc",
     "src/tracing/trace_writer_base.cc",
     "src/tracing/tracing.cc",
+    "src/tracing/track_event.cc",
     "src/tracing/virtual_destructors.cc",
     "test/end_to_end_integrationtest.cc",
     "test/fake_producer.cc",
