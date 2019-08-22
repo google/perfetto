@@ -16,13 +16,11 @@ import {ChromeTracingController} from './chrome_tracing_controller';
 
 let chromeTraceController: ChromeTracingController|undefined = undefined;
 
-chrome.runtime.onInstalled.addListener(() => {
-  enableOnlyOnPerfettoHost();
-  // Listen for messages from the perfetto ui.
-  chrome.runtime.onConnectExternal.addListener(port => {
-    chromeTraceController = new ChromeTracingController(port);
-    port.onMessage.addListener(onUIMessage);
-  });
+enableOnlyOnPerfettoHost();
+// Listen for messages from the perfetto ui.
+chrome.runtime.onConnectExternal.addListener(port => {
+  chromeTraceController = new ChromeTracingController(port);
+  port.onMessage.addListener(onUIMessage);
 });
 
 function onUIMessage(
@@ -49,7 +47,6 @@ function enableOnlyOnPerfettoHost() {
     chrome.declarativeContent.onPageChanged.addRules([
       enableOnHostWithSuffix('.perfetto.local'),
       enableOnHostWithSuffix('.perfetto.dev'),
-      enableOnHostWithSuffix('-dot-perfetto-ui.appspot.com'),
     ]);
   });
 }
