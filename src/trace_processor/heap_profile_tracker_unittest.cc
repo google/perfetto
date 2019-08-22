@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/heap_profile_tracker.h"
 
+#include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -54,6 +55,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
  public:
   HeapProfileTrackerDupTest() {
     context.storage.reset(new TraceStorage());
+    context.stack_profile_tracker.reset(new StackProfileTracker(&context));
     context.heap_profile_tracker.reset(new HeapProfileTracker(&context));
 
     mapping_name = context.storage->InternString("[mapping]");
@@ -63,12 +65,12 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
 
  protected:
   void InsertMapping(const Packet& packet) {
-    context.heap_profile_tracker->AddString(packet.mapping_name_id,
-                                            mapping_name);
+    context.stack_profile_tracker->AddString(packet.mapping_name_id,
+                                             mapping_name);
 
-    context.heap_profile_tracker->AddString(packet.build_id, build);
+    context.stack_profile_tracker->AddString(packet.build_id, build);
 
-    HeapProfileTracker::SourceMapping first_frame;
+    StackProfileTracker::SourceMapping first_frame;
     first_frame.build_id = packet.build_id;
     first_frame.exact_offset = kMappingExactOffset;
     first_frame.start_offset = kMappingStartOffset;
@@ -77,27 +79,27 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
     first_frame.load_bias = kMappingLoadBias;
     first_frame.name_id = packet.mapping_name_id;
 
-    context.heap_profile_tracker->AddMapping(packet.mapping_id, first_frame);
+    context.stack_profile_tracker->AddMapping(packet.mapping_id, first_frame);
   }
 
   void InsertFrame(const Packet& packet) {
     InsertMapping(packet);
-    context.heap_profile_tracker->AddString(packet.frame_name_id, frame_name);
+    context.stack_profile_tracker->AddString(packet.frame_name_id, frame_name);
 
-    HeapProfileTracker::SourceFrame first_frame;
+    StackProfileTracker::SourceFrame first_frame;
     first_frame.name_id = packet.frame_name_id;
     first_frame.mapping_id = packet.mapping_id;
     first_frame.rel_pc = kFrameRelPc;
 
-    context.heap_profile_tracker->AddFrame(packet.frame_id, first_frame);
+    context.stack_profile_tracker->AddFrame(packet.frame_id, first_frame);
   }
 
   void InsertCallsite(const Packet& packet) {
     InsertFrame(packet);
 
-    HeapProfileTracker::SourceCallstack first_callsite = {packet.frame_id,
-                                                          packet.frame_id};
-    context.heap_profile_tracker->AddCallstack(kCallstackId, first_callsite);
+    StackProfileTracker::SourceCallstack first_callsite = {packet.frame_id,
+                                                           packet.frame_id};
+    context.stack_profile_tracker->AddCallstack(kCallstackId, first_callsite);
   }
 
   StringId mapping_name;
@@ -114,19 +116,19 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
   InsertMapping(kSecondPacket);
   context.heap_profile_tracker->FinalizeProfile(nullptr);
 
-  EXPECT_THAT(context.storage->heap_profile_mappings().build_ids(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().build_ids(),
               ElementsAre(context.storage->InternString({kBuildIDHexName})));
-  EXPECT_THAT(context.storage->heap_profile_mappings().exact_offsets(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().exact_offsets(),
               ElementsAre(kMappingExactOffset));
-  EXPECT_THAT(context.storage->heap_profile_mappings().start_offsets(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().start_offsets(),
               ElementsAre(kMappingStartOffset));
-  EXPECT_THAT(context.storage->heap_profile_mappings().starts(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().starts(),
               ElementsAre(kMappingStart));
-  EXPECT_THAT(context.storage->heap_profile_mappings().ends(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().ends(),
               ElementsAre(kMappingEnd));
-  EXPECT_THAT(context.storage->heap_profile_mappings().load_biases(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().load_biases(),
               ElementsAre(kMappingLoadBias));
-  EXPECT_THAT(context.storage->heap_profile_mappings().names(),
+  EXPECT_THAT(context.storage->stack_profile_mappings().names(),
               ElementsAre(mapping_name));
 }
 
@@ -138,11 +140,11 @@ TEST_F(HeapProfileTrackerDupTest, Frame) {
   InsertFrame(kSecondPacket);
   context.heap_profile_tracker->FinalizeProfile(nullptr);
 
-  EXPECT_THAT(context.storage->heap_profile_frames().names(),
+  EXPECT_THAT(context.storage->stack_profile_frames().names(),
               ElementsAre(frame_name));
-  EXPECT_THAT(context.storage->heap_profile_frames().mappings(),
+  EXPECT_THAT(context.storage->stack_profile_frames().mappings(),
               ElementsAre(0));
-  EXPECT_THAT(context.storage->heap_profile_frames().rel_pcs(),
+  EXPECT_THAT(context.storage->stack_profile_frames().rel_pcs(),
               ElementsAre(kFrameRelPc));
 }
 
@@ -154,11 +156,11 @@ TEST_F(HeapProfileTrackerDupTest, Callstack) {
   InsertCallsite(kSecondPacket);
   context.heap_profile_tracker->FinalizeProfile(nullptr);
 
-  EXPECT_THAT(context.storage->heap_profile_callsites().frame_depths(),
+  EXPECT_THAT(context.storage->stack_profile_callsites().frame_depths(),
               ElementsAre(0, 1));
-  EXPECT_THAT(context.storage->heap_profile_callsites().parent_callsite_ids(),
+  EXPECT_THAT(context.storage->stack_profile_callsites().parent_callsite_ids(),
               ElementsAre(-1, 0));
-  EXPECT_THAT(context.storage->heap_profile_callsites().frame_ids(),
+  EXPECT_THAT(context.storage->stack_profile_callsites().frame_ids(),
               ElementsAre(0, 0));
 }
 
@@ -166,7 +168,7 @@ int64_t FindCallstack(const TraceStorage& storage,
                       int64_t depth,
                       int64_t parent,
                       int64_t frame_id) {
-  const auto& callsites = storage.heap_profile_callsites();
+  const auto& callsites = storage.stack_profile_callsites();
   for (size_t i = 0; i < callsites.frame_depths().size(); ++i) {
     if (callsites.frame_depths()[i] == depth &&
         callsites.parent_callsite_ids()[i] == parent &&
@@ -181,9 +183,11 @@ int64_t FindCallstack(const TraceStorage& storage,
 TEST(HeapProfileTrackerTest, Functional) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.stack_profile_tracker.reset(new StackProfileTracker(&context));
   context.heap_profile_tracker.reset(new HeapProfileTracker(&context));
 
   HeapProfileTracker* hpt = context.heap_profile_tracker.get();
+  StackProfileTracker* spt = context.stack_profile_tracker.get();
 
   uint32_t next_string_intern_id = 1;
 
@@ -197,7 +201,7 @@ TEST(HeapProfileTrackerTest, Functional) {
   for (size_t i = 0; i < base::ArraySize(mapping_names); ++i)
     mapping_name_ids[i] = next_string_intern_id++;
 
-  HeapProfileTracker::SourceMapping mappings[base::ArraySize(mapping_names)] =
+  StackProfileTracker::SourceMapping mappings[base::ArraySize(mapping_names)] =
       {};
   mappings[0].build_id = build_id_ids[0];
   mappings[0].exact_offset = 1;
@@ -228,7 +232,7 @@ TEST(HeapProfileTrackerTest, Functional) {
   for (size_t i = 0; i < base::ArraySize(function_names); ++i)
     function_name_ids[i] = next_string_intern_id++;
 
-  HeapProfileTracker::SourceFrame frames[base::ArraySize(function_names)];
+  StackProfileTracker::SourceFrame frames[base::ArraySize(function_names)];
   frames[0].name_id = function_name_ids[0];
   frames[0].mapping_id = 0;
   frames[0].rel_pc = 123;
@@ -245,7 +249,7 @@ TEST(HeapProfileTrackerTest, Functional) {
   frames[3].mapping_id = 2;
   frames[3].rel_pc = 123;
 
-  HeapProfileTracker::SourceCallstack callstacks[3];
+  StackProfileTracker::SourceCallstack callstacks[3];
   callstacks[0] = {2, 1, 0};
   callstacks[1] = {2, 1, 0, 1, 0};
   callstacks[2] = {0, 2, 0, 1, 2};
@@ -253,33 +257,33 @@ TEST(HeapProfileTrackerTest, Functional) {
   for (size_t i = 0; i < base::ArraySize(build_ids); ++i) {
     auto interned = context.storage->InternString(
         {build_ids[i].data(), build_ids[i].size()});
-    hpt->AddString(build_id_ids[i], interned);
+    spt->AddString(build_id_ids[i], interned);
   }
   for (size_t i = 0; i < base::ArraySize(mapping_names); ++i) {
     auto interned = context.storage->InternString(
         {mapping_names[i].data(), mapping_names[i].size()});
-    hpt->AddString(mapping_name_ids[i], interned);
+    spt->AddString(mapping_name_ids[i], interned);
   }
   for (size_t i = 0; i < base::ArraySize(function_names); ++i) {
     auto interned = context.storage->InternString(
         {function_names[i].data(), function_names[i].size()});
-    hpt->AddString(function_name_ids[i], interned);
+    spt->AddString(function_name_ids[i], interned);
   }
 
   for (uint32_t i = 0; i < base::ArraySize(mappings); ++i)
-    hpt->AddMapping(i, mappings[i]);
+    spt->AddMapping(i, mappings[i]);
   for (uint32_t i = 0; i < base::ArraySize(frames); ++i)
-    hpt->AddFrame(i, frames[i]);
+    spt->AddFrame(i, frames[i]);
   for (uint32_t i = 0; i < base::ArraySize(callstacks); ++i)
-    hpt->AddCallstack(i, callstacks[i]);
+    spt->AddCallstack(i, callstacks[i]);
 
   hpt->CommitAllocations(nullptr);
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
     int64_t parent = -1;
-    const HeapProfileTracker::SourceCallstack& callstack = callstacks[i];
+    const StackProfileTracker::SourceCallstack& callstack = callstacks[i];
     for (size_t depth = 0; depth < callstack.size(); ++depth) {
-      auto frame_id = hpt->GetDatabaseFrameIdForTesting(callstack[depth]);
+      auto frame_id = spt->GetDatabaseFrameIdForTesting(callstack[depth]);
       ASSERT_NE(frame_id, -1);
       int64_t self = FindCallstack(
           *context.storage, static_cast<int64_t>(depth), parent, frame_id);

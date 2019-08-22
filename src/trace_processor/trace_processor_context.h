@@ -31,6 +31,7 @@ class EventTracker;
 class HeapProfileTracker;
 class ProcessTracker;
 class SliceTracker;
+class StackProfileTracker;
 class SyscallTracker;
 class SystraceParser;
 class TraceParser;
@@ -55,6 +56,7 @@ class TraceProcessorContext {
   std::unique_ptr<TraceParser> parser;
   std::unique_ptr<TraceSorter> sorter;
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
+  std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<SystraceParser> systrace_parser;
 };
