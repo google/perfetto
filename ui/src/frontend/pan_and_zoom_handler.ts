@@ -42,7 +42,7 @@ enum Pan {
 }
 function keyToPan(e: KeyboardEvent): Pan {
   if (['a'].includes(e.key)) return Pan.Left;
-  if (['d'].includes(e.key)) return Pan.Right;
+  if (['d', 'e'].includes(e.key)) return Pan.Right;
   return Pan.None;
 }
 
@@ -52,8 +52,8 @@ enum Zoom {
   Out = -1
 }
 function keyToZoom(e: KeyboardEvent): Zoom {
-  if (['w'].includes(e.key)) return Zoom.In;
-  if (['s'].includes(e.key)) return Zoom.Out;
+  if (['w', ','].includes(e.key)) return Zoom.In;
+  if (['s', 'o'].includes(e.key)) return Zoom.Out;
   return Zoom.None;
 }
 
