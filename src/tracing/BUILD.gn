@@ -284,6 +284,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
       "../base",
+      "test:api_test_support",
     ]
     sources = [
       "api_integrationtest.cc",
