@@ -157,6 +157,7 @@ class GpuFreqTrack extends Track<Config, Data> {
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
         ctx,
+        this.getHeight(),
         timeScale.timeToPx(visibleWindowTime.start),
         timeScale.timeToPx(visibleWindowTime.end),
         timeScale.timeToPx(data.start),
