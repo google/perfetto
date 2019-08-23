@@ -97,19 +97,36 @@ pbzero_cc_proto_library(
 proto_library(
     name = "config",
     srcs = [
-        "perfetto/config/android/android_log_config.proto",
-        "perfetto/config/android/packages_list_config.proto",
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
-        "perfetto/config/ftrace/ftrace_config.proto",
-        "perfetto/config/gpu/gpu_counter_config.proto",
-        "perfetto/config/inode_file/inode_file_config.proto",
-        "perfetto/config/power/android_power_config.proto",
-        "perfetto/config/process_stats/process_stats_config.proto",
-        "perfetto/config/profiling/heapprofd_config.proto",
-        "perfetto/config/sys_stats/sys_stats_config.proto",
         "perfetto/config/test_config.proto",
         "perfetto/config/trace_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common",
+        "//third_party/perfetto/protos:config_android",
+        "//third_party/perfetto/protos:config_ftrace",
+        "//third_party/perfetto/protos:config_gpu",
+        "//third_party/perfetto/protos:config_inode_file",
+        "//third_party/perfetto/protos:config_power",
+        "//third_party/perfetto/protos:config_process_stats",
+        "//third_party/perfetto/protos:config_profiling",
+        "//third_party/perfetto/protos:config_sys_stats",
+    ],
+)
+
+# GN target: //protos/perfetto/config/android:lite_gen
+proto_library(
+    name = "config_android",
+    srcs = [
+        "perfetto/config/android/android_log_config.proto",
+        "perfetto/config/android/packages_list_config.proto",
     ],
     has_services = 1,
     cc_api_version = 2,
@@ -122,6 +139,49 @@ proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/config/android:lite_gen
+cc_proto_library(
+    name = "config_android_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_android",
+    ],
+)
+
+# GN target: //protos/perfetto/config/android:lite_gen
+java_proto_library(
+    name = "config_android_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_android",
+    ],
+)
+
+# GN target: //protos/perfetto/config/android:zero_gen
+proto_library(
+    name = "config_android_zero",
+    srcs = [
+        "perfetto/config/android/android_log_config.proto",
+        "perfetto/config/android/packages_list_config.proto",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common_zero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/android:zero_gen
+pbzero_cc_proto_library(
+    name = "config_android_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_android_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
 # GN target: //protos/perfetto/config:lite_gen
 cc_proto_library(
     name = "config_cc_proto",
@@ -130,6 +190,165 @@ cc_proto_library(
     ],
     deps = [
         "//third_party/perfetto/protos:config",
+    ],
+)
+
+# GN target: //protos/perfetto/config/ftrace:lite_gen
+proto_library(
+    name = "config_ftrace",
+    srcs = [
+        "perfetto/config/ftrace/ftrace_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config/ftrace:lite_gen
+cc_proto_library(
+    name = "config_ftrace_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_ftrace",
+    ],
+)
+
+# GN target: //protos/perfetto/config/ftrace:lite_gen
+java_proto_library(
+    name = "config_ftrace_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_ftrace",
+    ],
+)
+
+# GN target: //protos/perfetto/config/ftrace:zero_gen
+proto_library(
+    name = "config_ftrace_zero",
+    srcs = [
+        "perfetto/config/ftrace/ftrace_config.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/config/ftrace:zero_gen
+pbzero_cc_proto_library(
+    name = "config_ftrace_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_ftrace_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/gpu:lite_gen
+proto_library(
+    name = "config_gpu",
+    srcs = [
+        "perfetto/config/gpu/gpu_counter_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config/gpu:lite_gen
+cc_proto_library(
+    name = "config_gpu_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_gpu",
+    ],
+)
+
+# GN target: //protos/perfetto/config/gpu:lite_gen
+java_proto_library(
+    name = "config_gpu_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_gpu",
+    ],
+)
+
+# GN target: //protos/perfetto/config/gpu:zero_gen
+proto_library(
+    name = "config_gpu_zero",
+    srcs = [
+        "perfetto/config/gpu/gpu_counter_config.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/config/gpu:zero_gen
+pbzero_cc_proto_library(
+    name = "config_gpu_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_gpu_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/inode_file:lite_gen
+proto_library(
+    name = "config_inode_file",
+    srcs = [
+        "perfetto/config/inode_file/inode_file_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config/inode_file:lite_gen
+cc_proto_library(
+    name = "config_inode_file_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_inode_file",
+    ],
+)
+
+# GN target: //protos/perfetto/config/inode_file:lite_gen
+java_proto_library(
+    name = "config_inode_file_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_inode_file",
+    ],
+)
+
+# GN target: //protos/perfetto/config/inode_file:zero_gen
+proto_library(
+    name = "config_inode_file_zero",
+    srcs = [
+        "perfetto/config/inode_file/inode_file_config.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/config/inode_file:zero_gen
+pbzero_cc_proto_library(
+    name = "config_inode_file_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_inode_file_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
     ],
 )
 
@@ -180,26 +399,243 @@ java_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/config/power:lite_gen
+proto_library(
+    name = "config_power",
+    srcs = [
+        "perfetto/config/power/android_power_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config/power:lite_gen
+cc_proto_library(
+    name = "config_power_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_power",
+    ],
+)
+
+# GN target: //protos/perfetto/config/power:lite_gen
+java_proto_library(
+    name = "config_power_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_power",
+    ],
+)
+
+# GN target: //protos/perfetto/config/power:zero_gen
+proto_library(
+    name = "config_power_zero",
+    srcs = [
+        "perfetto/config/power/android_power_config.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/config/power:zero_gen
+pbzero_cc_proto_library(
+    name = "config_power_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_power_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/process_stats:lite_gen
+proto_library(
+    name = "config_process_stats",
+    srcs = [
+        "perfetto/config/process_stats/process_stats_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config/process_stats:lite_gen
+cc_proto_library(
+    name = "config_process_stats_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_process_stats",
+    ],
+)
+
+# GN target: //protos/perfetto/config/process_stats:lite_gen
+java_proto_library(
+    name = "config_process_stats_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_process_stats",
+    ],
+)
+
+# GN target: //protos/perfetto/config/process_stats:zero_gen
+proto_library(
+    name = "config_process_stats_zero",
+    srcs = [
+        "perfetto/config/process_stats/process_stats_config.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/config/process_stats:zero_gen
+pbzero_cc_proto_library(
+    name = "config_process_stats_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_process_stats_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/profiling:lite_gen
+proto_library(
+    name = "config_profiling",
+    srcs = [
+        "perfetto/config/profiling/heapprofd_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+)
+
+# GN target: //protos/perfetto/config/profiling:lite_gen
+cc_proto_library(
+    name = "config_profiling_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_profiling",
+    ],
+)
+
+# GN target: //protos/perfetto/config/profiling:lite_gen
+java_proto_library(
+    name = "config_profiling_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_profiling",
+    ],
+)
+
+# GN target: //protos/perfetto/config/profiling:zero_gen
+proto_library(
+    name = "config_profiling_zero",
+    srcs = [
+        "perfetto/config/profiling/heapprofd_config.proto",
+    ],
+)
+
+# GN target: //protos/perfetto/config/profiling:zero_gen
+pbzero_cc_proto_library(
+    name = "config_profiling_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_profiling_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/sys_stats:lite_gen
+proto_library(
+    name = "config_sys_stats",
+    srcs = [
+        "perfetto/config/sys_stats/sys_stats_config.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common",
+    ],
+)
+
+# GN target: //protos/perfetto/config/sys_stats:lite_gen
+cc_proto_library(
+    name = "config_sys_stats_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_sys_stats",
+    ],
+)
+
+# GN target: //protos/perfetto/config/sys_stats:lite_gen
+java_proto_library(
+    name = "config_sys_stats_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:config_sys_stats",
+    ],
+)
+
+# GN target: //protos/perfetto/config/sys_stats:zero_gen
+proto_library(
+    name = "config_sys_stats_zero",
+    srcs = [
+        "perfetto/config/sys_stats/sys_stats_config.proto",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:common_zero",
+    ],
+)
+
+# GN target: //protos/perfetto/config/sys_stats:zero_gen
+pbzero_cc_proto_library(
+    name = "config_sys_stats_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:config_sys_stats_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
 # GN target: //protos/perfetto/config:zero_gen
 proto_library(
     name = "config_zero",
     srcs = [
-        "perfetto/config/android/android_log_config.proto",
-        "perfetto/config/android/packages_list_config.proto",
         "perfetto/config/chrome/chrome_config.proto",
         "perfetto/config/data_source_config.proto",
-        "perfetto/config/ftrace/ftrace_config.proto",
-        "perfetto/config/gpu/gpu_counter_config.proto",
-        "perfetto/config/inode_file/inode_file_config.proto",
-        "perfetto/config/power/android_power_config.proto",
-        "perfetto/config/process_stats/process_stats_config.proto",
-        "perfetto/config/profiling/heapprofd_config.proto",
-        "perfetto/config/sys_stats/sys_stats_config.proto",
         "perfetto/config/test_config.proto",
         "perfetto/config/trace_config.proto",
     ],
     deps = [
         "//third_party/perfetto/protos:common_zero",
+        "//third_party/perfetto/protos:config_android_zero",
+        "//third_party/perfetto/protos:config_ftrace_zero",
+        "//third_party/perfetto/protos:config_gpu_zero",
+        "//third_party/perfetto/protos:config_inode_file_zero",
+        "//third_party/perfetto/protos:config_power_zero",
+        "//third_party/perfetto/protos:config_process_stats_zero",
+        "//third_party/perfetto/protos:config_profiling_zero",
+        "//third_party/perfetto/protos:config_sys_stats_zero",
     ],
 )
 
@@ -398,6 +834,14 @@ proto_library(
     deps = [
         "//third_party/perfetto/protos:common",
         "//third_party/perfetto/protos:config",
+        "//third_party/perfetto/protos:config_android",
+        "//third_party/perfetto/protos:config_ftrace",
+        "//third_party/perfetto/protos:config_gpu",
+        "//third_party/perfetto/protos:config_inode_file",
+        "//third_party/perfetto/protos:config_power",
+        "//third_party/perfetto/protos:config_process_stats",
+        "//third_party/perfetto/protos:config_profiling",
+        "//third_party/perfetto/protos:config_sys_stats",
         "//third_party/perfetto/protos:trace_android",
         "//third_party/perfetto/protos:trace_chrome",
         "//third_party/perfetto/protos:trace_filesystem",
@@ -908,6 +1352,14 @@ proto_library(
     deps = [
         "//third_party/perfetto/protos:common",
         "//third_party/perfetto/protos:config",
+        "//third_party/perfetto/protos:config_android",
+        "//third_party/perfetto/protos:config_ftrace",
+        "//third_party/perfetto/protos:config_gpu",
+        "//third_party/perfetto/protos:config_inode_file",
+        "//third_party/perfetto/protos:config_power",
+        "//third_party/perfetto/protos:config_process_stats",
+        "//third_party/perfetto/protos:config_profiling",
+        "//third_party/perfetto/protos:config_sys_stats",
     ],
 )
 
@@ -1346,6 +1798,14 @@ proto_library(
     ],
     deps = [
         "//third_party/perfetto/protos:common_zero",
+        "//third_party/perfetto/protos:config_android_zero",
+        "//third_party/perfetto/protos:config_ftrace_zero",
+        "//third_party/perfetto/protos:config_gpu_zero",
+        "//third_party/perfetto/protos:config_inode_file_zero",
+        "//third_party/perfetto/protos:config_power_zero",
+        "//third_party/perfetto/protos:config_process_stats_zero",
+        "//third_party/perfetto/protos:config_profiling_zero",
+        "//third_party/perfetto/protos:config_sys_stats_zero",
         "//third_party/perfetto/protos:config_zero",
         "//third_party/perfetto/protos:trace_android_zero",
         "//third_party/perfetto/protos:trace_chrome_zero",

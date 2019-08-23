@@ -27,6 +27,7 @@ source_set("end_to_end_integrationtests") {
     "../include/perfetto/ext/traced",
     "../include/perfetto/protozero",
     "../protos/perfetto/config:zero",
+    "../protos/perfetto/config/power:zero",
     "../protos/perfetto/trace:lite",
     "../protos/perfetto/trace:zero",
     "../src/base:base",

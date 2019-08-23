@@ -22,7 +22,7 @@ source_set("sys_stats") {
     "../../../../include/perfetto/ext/traced",
     "../../../../include/perfetto/ext/traced:sys_stats_counters",
     "../../../../protos/perfetto/common:zero",
-    "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/config/sys_stats:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../base",
   ]
@@ -40,6 +40,7 @@ source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/config/sys_stats:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../../src/base:test_support",
     "../../../../src/tracing:test_support",
