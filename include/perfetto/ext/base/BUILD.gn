@@ -27,6 +27,7 @@ source_set("base") {
     "optional.h",
     "paged_memory.h",
     "pipe.h",
+    "proc_utils.h",
     "scoped_file.h",
     "small_set.h",
     "string_splitter.h",
