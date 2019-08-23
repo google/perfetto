@@ -112,7 +112,7 @@ source_set("ftrace") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
-    "../../../../protos/perfetto/config:lite",
+    "../../../../protos/perfetto/config/ftrace:lite",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero",
