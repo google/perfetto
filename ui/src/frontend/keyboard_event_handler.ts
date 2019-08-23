@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from './globals';
 import {Actions} from '../common/actions';
+
+import {globals} from './globals';
+import {showHelp} from './help_modal';
 
 // Handles all key events than are not handled by the
 // pan and zoom handler.
@@ -34,6 +36,9 @@ export function handleKey(key: string, down: boolean) {
     } else {
       globals.frontendLocalState.setVidTimestamp(Number.MIN_SAFE_INTEGER);
     }
+  }
+  if (down && '?' === key) {
+    showHelp();
   }
 }
 
