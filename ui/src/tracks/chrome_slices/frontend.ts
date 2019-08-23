@@ -58,10 +58,12 @@ class ChromeSliceTrack extends Track<Config, Data> {
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
         ctx,
+        this.getHeight(),
         timeScale.timeToPx(visibleWindowTime.start),
         timeScale.timeToPx(visibleWindowTime.end),
         timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end), );
+        timeScale.timeToPx(data.end),
+    );
 
     ctx.font = '12px Google Sans';
     ctx.textAlign = 'center';

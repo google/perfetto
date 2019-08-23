@@ -61,7 +61,12 @@ class AndroidLogTrack extends Track<Config, Data> {
     const visibleEndPx = timeScale.timeToPx(visibleWindowTime.end);
 
     checkerboardExcept(
-        ctx, visibleStartPx, visibleEndPx, dataStartPx, dataEndPx);
+        ctx,
+        this.getHeight(),
+        visibleStartPx,
+        visibleEndPx,
+        dataStartPx,
+        dataEndPx);
 
     const quantWidth =
         Math.max(EVT_PX, timeScale.deltaTimeToPx(data.resolution));
