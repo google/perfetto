@@ -223,7 +223,7 @@ class CpuSliceTrack extends Track<Config, Data> {
 
       // Draw diamond if the track being drawn is the cpu of the waker.
       if (this.config.cpu === details.wakerCpu && details.wakeupTs) {
-        const wakeupPos = timeScale.timeToPx(details.wakeupTs);
+        const wakeupPos = Math.floor(timeScale.timeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
