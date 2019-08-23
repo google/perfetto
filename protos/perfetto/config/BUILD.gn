@@ -16,6 +16,27 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 import("../../../gn/protozero_library.gni")
 
+# The core config protos, without the [lazy = true] imports pulled by
+# data_source_config.proto.
+core_protos_ = [
+  "chrome/chrome_config.proto",
+  "data_source_config.proto",
+  "test_config.proto",
+  "trace_config.proto",
+]
+
+proto_deps_ = [
+  "../common",
+  "android",
+  "ftrace",
+  "gpu",
+  "inode_file",
+  "power",
+  "process_stats",
+  "profiling",
+  "sys_stats",
+]
+
 proto_library("lite") {
   # Chromium shouldn't ignore the "android/" folder.
   set_sources_assignment_filter([])
@@ -23,24 +44,11 @@ proto_library("lite") {
   generate_python = false
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
-  deps = [
-    "../common:lite",
-  ]
-  sources = [
-    "android/android_log_config.proto",
-    "android/packages_list_config.proto",
-    "chrome/chrome_config.proto",
-    "data_source_config.proto",
-    "ftrace/ftrace_config.proto",
-    "gpu/gpu_counter_config.proto",
-    "inode_file/inode_file_config.proto",
-    "power/android_power_config.proto",
-    "process_stats/process_stats_config.proto",
-    "profiling/heapprofd_config.proto",
-    "sys_stats/sys_stats_config.proto",
-    "test_config.proto",
-    "trace_config.proto",
-  ]
+  deps = []
+  foreach(dep, proto_deps_) {
+    deps += [ "$dep:lite" ]
+  }
+  sources = core_protos_
 }
 
 protozero_library("zero") {
@@ -49,24 +57,11 @@ protozero_library("zero") {
 
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
-  deps = [
-    "../common:zero",
-  ]
-  sources = [
-    "android/android_log_config.proto",
-    "android/packages_list_config.proto",
-    "chrome/chrome_config.proto",
-    "data_source_config.proto",
-    "ftrace/ftrace_config.proto",
-    "gpu/gpu_counter_config.proto",
-    "inode_file/inode_file_config.proto",
-    "power/android_power_config.proto",
-    "process_stats/process_stats_config.proto",
-    "profiling/heapprofd_config.proto",
-    "sys_stats/sys_stats_config.proto",
-    "test_config.proto",
-    "trace_config.proto",
-  ]
+  deps = []
+  foreach(dep, proto_deps_) {
+    deps += [ "$dep:zero" ]
+  }
+  sources = core_protos_
   generator_plugin_options = "wrapper_namespace=pbzero"
 }
 

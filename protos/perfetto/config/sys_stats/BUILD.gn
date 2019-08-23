@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,25 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/proto_library.gni")
-import("../../../gn/protozero_library.gni")
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/proto_library.gni")
+import("../../../../gn/protozero_library.gni")
 
-protos_ = [
-  "android_log_constants.proto",
-  "commit_data_request.proto",
-  "data_source_descriptor.proto",
-  "descriptor.proto",
-  "gpu_counter_descriptor.proto",
-  "observable_events.proto",
-  "sys_stats_counters.proto",
-  "tracing_service_state.proto",
-  "trace_stats.proto",
-]
+protos_ = [ "sys_stats_config.proto" ]
 
-# Proto messages that are required by the IPC service definitions but have also
-# a C++ counterpart in tracing/core (i.e. are used also for the non-IPC cases).
 proto_library("lite") {
+  deps = [
+    "../../common:lite",
+  ]
   generate_python = false
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
@@ -38,6 +29,9 @@ proto_library("lite") {
 }
 
 protozero_library("zero") {
+  deps = [
+    "../../common:zero",
+  ]
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   sources = protos_
