@@ -891,6 +891,7 @@ cc_test {
     "src/tracing/internal/tracing_muxer_impl.cc",
     "src/tracing/platform.cc",
     "src/tracing/platform_posix.cc",
+    "src/tracing/test/api_test_support.cc",
     "src/tracing/trace_writer_base.cc",
     "src/tracing/tracing.cc",
     "src/tracing/track_event.cc",

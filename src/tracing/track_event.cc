@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing/track_event.h"
 
+#include "perfetto/ext/base/proc_utils.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -102,14 +103,14 @@ void TrackEventDataSource::WriteSequenceDescriptors(
     packet->set_timestamp(timestamp);
     packet->set_incremental_state_cleared(true);
     auto pd = packet->set_process_descriptor();
-    pd->set_pid(getpid());
+    pd->set_pid(static_cast<int32_t>(base::GetProcessId()));
     // TODO(skyostil): Record command line.
   }
   {
     auto packet = ctx->NewTracePacket();
     packet->set_timestamp(timestamp);
     auto td = packet->set_thread_descriptor();
-    td->set_pid(getpid());
+    td->set_pid(static_cast<int32_t>(base::GetProcessId()));
     td->set_tid(static_cast<int32_t>(perfetto::base::GetThreadId()));
   }
 }
