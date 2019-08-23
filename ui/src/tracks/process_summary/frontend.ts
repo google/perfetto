@@ -45,6 +45,7 @@ class ProcessSummaryTrack extends Track<Config, Data> {
 
     checkerboardExcept(
         ctx,
+        this.getHeight(),
         timeScale.timeToPx(visibleWindowTime.start),
         timeScale.timeToPx(visibleWindowTime.end),
         timeScale.timeToPx(data.start),
