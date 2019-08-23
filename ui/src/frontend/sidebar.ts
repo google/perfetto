@@ -18,6 +18,7 @@ import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 
 import {globals} from './globals';
+import {showHelp} from './help_modal';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
@@ -183,9 +184,14 @@ const SECTIONS = [
     summary: 'Documentation & Bugs',
     items: [
       {
+        t: 'Controls',
+        a: showHelp,
+        i: 'help',
+      },
+      {
         t: 'Documentation',
         a: 'https://perfetto.dev',
-        i: 'help',
+        i: 'find_in_page',
       },
       {
         t: 'Report a bug',
