@@ -2218,7 +2218,7 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
           static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
     }
     protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
-    c->set_clock_id(clock.type);
+    c->set_clock_id(static_cast<uint32_t>(clock.type));
     c->set_timestamp(
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
   }
