@@ -26,25 +26,29 @@
 namespace perfetto {
 namespace {
 
-static_assert(TracePacket::kPacketFieldNumber ==
-                  protos::Trace::kPacketFieldNumber,
+static_assert(static_cast<int>(TracePacket::kPacketFieldNumber) ==
+                  static_cast<int>(protos::Trace::kPacketFieldNumber),
               "packet field id mismatch");
 
-static_assert(protos::TracePacket::kTrustedUidFieldNumber ==
-                  protos::TrustedPacket::kTrustedUidFieldNumber,
-              "trusted_uid field id mismatch");
+static_assert(
+    static_cast<int>(protos::TracePacket::kTrustedUidFieldNumber) ==
+        static_cast<int>(protos::TrustedPacket::kTrustedUidFieldNumber),
+    "trusted_uid field id mismatch");
 
-static_assert(protos::TracePacket::kTraceConfigFieldNumber ==
-                  protos::TrustedPacket::kTraceConfigFieldNumber,
-              "trace_config field id mismatch");
+static_assert(
+    static_cast<int>(protos::TracePacket::kTraceConfigFieldNumber) ==
+        static_cast<int>(protos::TrustedPacket::kTraceConfigFieldNumber),
+    "trace_config field id mismatch");
 
-static_assert(protos::TracePacket::kTraceStatsFieldNumber ==
-                  protos::TrustedPacket::kTraceStatsFieldNumber,
-              "trace_stats field id mismatch");
+static_assert(
+    static_cast<int>(protos::TracePacket::kTraceStatsFieldNumber) ==
+        static_cast<int>(protos::TrustedPacket::kTraceStatsFieldNumber),
+    "trace_stats field id mismatch");
 
-static_assert(protos::TracePacket::kClockSnapshotFieldNumber ==
-                  protos::TrustedPacket::kClockSnapshotFieldNumber,
-              "clock_snapshot field id mismatch");
+static_assert(
+    static_cast<int>(protos::TracePacket::kClockSnapshotFieldNumber) ==
+        static_cast<int>(protos::TrustedPacket::kClockSnapshotFieldNumber),
+    "clock_snapshot field id mismatch");
 
 TEST(TracePacketTest, Simple) {
   protos::TracePacket proto;
