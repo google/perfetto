@@ -92,10 +92,10 @@ BUILD_DEPS_HOST = [
    'all'
   ),
 
-  # Keep in sync with Chromium's //third_party/protobuf.
+  # Keep in sync with Android's //external/protobuf/README.version.
   ('buildtools/protobuf.zip',
-   'https://github.com/protocolbuffers/protobuf/releases/download/v3.9.0/protobuf-cpp-3.9.0.zip',
-   'c975536dffe9d9a3d362928aef4fb9f199012b98',
+   'https://github.com/google/protobuf/releases/download/v3.0.0-beta-3/protobuf-cpp-3.0.0-beta-3.zip',
+   '3caec60aa9d8eefc8c3c3201b6b8ca19935edb89',
    'all'
   ),
 
