@@ -28,7 +28,6 @@ if (perfetto_build_standalone) {
     deps = [
       ":lib",
       "../../gn:default_deps",
-      "../../gn:sqlite",
       "../../include/perfetto/ext/base",
       "../../protos/perfetto/trace_processor:lite",
     ]
@@ -98,8 +97,6 @@ source_set("lib") {
     "proto_trace_parser.h",
     "proto_trace_tokenizer.cc",
     "proto_trace_tokenizer.h",
-    "query_constraints.cc",
-    "query_constraints.h",
     "raw_table.cc",
     "raw_table.h",
     "row_iterators.cc",
@@ -117,8 +114,6 @@ source_set("lib") {
     "sql_stats_table.h",
     "sqlite3_str_split.cc",
     "sqlite3_str_split.h",
-    "sqlite_table.cc",
-    "sqlite_table.h",
     "sqlite_utils.h",
     "stack_profile_callsite_table.cc",
     "stack_profile_callsite_table.h",
@@ -171,8 +166,8 @@ source_set("lib") {
   ]
 
   deps = [
-    ":sqlite",
     "../../gn:default_deps",
+    "../../gn:sqlite",
     "../../gn:zlib",
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
@@ -195,6 +190,7 @@ source_set("lib") {
     "../protozero",
     "db:lib",
     "metrics:lib",
+    "sqlite",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",
@@ -251,7 +247,6 @@ source_set("unittests") {
     "process_table_unittest.cc",
     "process_tracker_unittest.cc",
     "proto_trace_parser_unittest.cc",
-    "query_constraints_unittest.cc",
     "sched_slice_table_unittest.cc",
     "slice_tracker_unittest.cc",
     "span_join_operator_table_unittest.cc",
@@ -264,9 +259,9 @@ source_set("unittests") {
   ]
   deps = [
     ":lib",
-    ":sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../gn:sqlite",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
@@ -280,6 +275,8 @@ source_set("unittests") {
     "../base",
     "../protozero",
     "db:unittests",
+    "sqlite",
+    "sqlite:unittests",
   ]
   if (perfetto_build_standalone || build_with_chromium) {
     sources += [
@@ -291,16 +288,6 @@ source_set("unittests") {
   }
 }
 
-# Indirection target to allow modifying the path to the SQLite header.
-source_set("sqlite") {
-  sources = [
-    "sqlite.h",
-  ]
-  public_deps = [
-    "../../gn:sqlite",
-  ]
-}
-
 source_set("integrationtests") {
   testonly = true
   sources = [
@@ -308,13 +295,13 @@ source_set("integrationtests") {
   ]
   deps = [
     ":lib",
-    ":sqlite",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace_processor:lite",
     "../base",
     "../base:test_support",
+    "sqlite",
   ]
   if (perfetto_build_standalone || build_with_chromium) {
     deps += [ "../../gn:jsoncpp" ]

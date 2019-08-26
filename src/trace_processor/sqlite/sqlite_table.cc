@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 
 #include <ctype.h>
 #include <string.h>
