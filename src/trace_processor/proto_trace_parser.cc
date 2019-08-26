@@ -2420,15 +2420,36 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
     auto counter_id = spec.counter_id();
     auto name = spec.name();
-    auto desc = spec.description();
     if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
+      auto desc = spec.description();
+
+      StringId unit_id = 0;
+      if (spec.has_numerator_units() || spec.has_denominator_units()) {
+        char buffer[1024];
+        base::StringWriter unit(buffer, sizeof(buffer));
+        for (auto numer = spec.numerator_units(); numer; ++numer) {
+          if (unit.pos()) {
+            unit.AppendChar(':');
+          }
+          unit.AppendInt(numer->as_int64());
+        }
+        char sep = '/';
+        for (auto denom = spec.denominator_units(); denom; ++denom) {
+          unit.AppendChar(sep);
+          unit.AppendInt(denom->as_int64());
+          sep = ':';
+        }
+        unit_id = context_->storage->InternString(unit.GetStringView());
+      }
+
       auto name_id = context_->storage->InternString(name);
       auto desc_id = context_->storage->InternString(desc);
       auto* definitions = context_->storage->mutable_counter_definitions();
       auto defn_id = definitions->AddCounterDefinition(name_id,
                                                        0,
                                                        RefType::kRefGpuId,
-                                                       desc_id);
+                                                       desc_id,
+                                                       unit_id);
       gpu_counter_ids_.emplace(counter_id, defn_id);
     } else {
       // Either counter spec was repeated or it came after counter data.

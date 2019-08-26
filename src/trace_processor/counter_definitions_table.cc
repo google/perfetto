@@ -41,6 +41,7 @@ StorageSchema CounterDefinitionsTable::CreateStorageSchema() {
       .AddNumericColumn("ref", &cs.refs())
       .AddStringColumn("ref_type", &cs.types(), &GetRefTypeStringMap())
       .AddStringColumn("description", &cs.desc_ids(), &storage_->string_pool())
+      .AddStringColumn("unit", &cs.unit_ids(), &storage_->string_pool())
       .Build({"counter_id"});
 }
 
