@@ -643,7 +643,8 @@ class TraceStorage {
 
     inline Id AddCounterDefinition(StringId name_id,
                                    int64_t ref,
-                                   RefType type) {
+                                   RefType type,
+                                   StringId desc_id = 0) {
       base::Hash hash;
       hash.Update(name_id);
       hash.Update(ref);
@@ -659,6 +660,7 @@ class TraceStorage {
       name_ids_.emplace_back(name_id);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
+      desc_ids_.emplace_back(desc_id);
       hash_to_row_idx_.emplace(digest, size() - 1);
       return size() - 1;
     }
@@ -666,6 +668,8 @@ class TraceStorage {
     uint32_t size() const { return static_cast<uint32_t>(name_ids_.size()); }
 
     const std::deque<StringId>& name_ids() const { return name_ids_; }
+
+    const std::deque<StringId>& desc_ids() const { return desc_ids_; }
 
     const std::deque<int64_t>& refs() const { return refs_; }
 
@@ -675,6 +679,7 @@ class TraceStorage {
     std::deque<StringId> name_ids_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
+    std::deque<StringId> desc_ids_;
 
     std::unordered_map<uint64_t, uint32_t> hash_to_row_idx_;
   };

@@ -2402,10 +2402,10 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
 
-  protos::pbzero::GpuCounterDescriptor::Decoder desc(
+  protos::pbzero::GpuCounterDescriptor::Decoder descriptor(
       event.counter_descriptor());
   // Add counter spec to ID map.
-  for (auto it = desc.specs(); it; ++it) {
+  for (auto it = descriptor.specs(); it; ++it) {
     protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(
         it->data(), it->size());
     if (!spec.has_counter_id()) {
@@ -2420,9 +2420,16 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
     auto counter_id = spec.counter_id();
     auto name = spec.name();
+    auto desc = spec.description();
     if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
-      gpu_counter_ids_.emplace(counter_id,
-                               context_->storage->InternString(name));
+      auto name_id = context_->storage->InternString(name);
+      auto desc_id = context_->storage->InternString(desc);
+      auto* definitions = context_->storage->mutable_counter_definitions();
+      auto defn_id = definitions->AddCounterDefinition(name_id,
+                                                       0,
+                                                       RefType::kRefGpuId,
+                                                       desc_id);
+      gpu_counter_ids_.emplace(counter_id, defn_id);
     } else {
       // Either counter spec was repeated or it came after counter data.
       PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
@@ -2444,18 +2451,20 @@ void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
         writer.AppendString("gpu_counter(");
         writer.AppendUnsignedInt(counter_id);
         writer.AppendString(")");
-        gpu_counter_ids_.emplace(counter_id, context_->storage->InternString(
-                                                 writer.GetStringView()));
+        auto name_id = context_->storage->InternString(writer.GetStringView());
+        auto* definitions = context_->storage->mutable_counter_definitions();
+        auto defn_id = definitions->AddCounterDefinition(name_id,
+                                                         0,
+                                                         RefType::kRefGpuId);
+        gpu_counter_ids_.emplace(counter_id, defn_id);
         context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
       }
       if (counter.has_int_value()) {
         context_->event_tracker->PushCounter(ts, counter.int_value(),
-                                             gpu_counter_ids_[counter_id], 0,
-                                             RefType::kRefGpuId);
+                                             gpu_counter_ids_[counter_id]);
       } else {
         context_->event_tracker->PushCounter(ts, counter.double_value(),
-                                             gpu_counter_ids_[counter_id], 0,
-                                             RefType::kRefGpuId);
+                                             gpu_counter_ids_[counter_id]);
       }
     }
   }
