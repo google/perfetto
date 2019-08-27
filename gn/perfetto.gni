@@ -14,60 +14,84 @@
 
 import("//build_overrides/build.gni")
 
-# Summary of our build configurations:
+# Summary of our typical build configurations:
 
 # 1. Standalone builds
-#    perfetto_build_standalone = true
-#    perfetto_build_with_embedder = false
-#    perfetto_build_with_android = false
 #    build_with_chromium = false
+#    is_perfetto_build_generator = false
+#    perfetto_build_standalone = true
+#    perfetto_build_with_android = false
+#    perfetto_build_with_embedder = false
 
 # 2. Android tree builds
+#    build_with_chromium = false
+#    is_perfetto_build_generator = true
 #    perfetto_build_standalone = false
 #    perfetto_build_with_android = true
 #    perfetto_build_with_embedder = false
-#    build_with_chromium = false
 
 # 3. Chromium tree builds
-#    perfetto_build_standalone = false
-#    perfetto_build_with_android = false
-#    perfetto_build_with_embedder = true
 #    build_with_chromium = true
-
-# 4. Builds in other embedder trees
+#    is_perfetto_build_generator = false
 #    perfetto_build_standalone = false
 #    perfetto_build_with_android = false
 #    perfetto_build_with_embedder = true
+
+# 4. Builds in other embedder trees (e.g. V8 standalone)
 #    build_with_chromium = false
+#    is_perfetto_build_generator = false
+#    perfetto_build_standalone = false
+#    perfetto_build_with_android = false
+#    perfetto_build_with_embedder = true
+
+# 5. Amalgamated sources (Client library)
+#    build_with_chromium = false
+#    is_perfetto_build_generator = true
+#    perfetto_build_standalone = false
+#    perfetto_build_with_android = false
+#    perfetto_build_with_embedder = true
 
 # Note that |build_with_chromium| is a global convention used by several
 # projects, set outside of our control.
 
-declare_args() {
-  # The Android blueprint file generator overrides this to true.
-  perfetto_build_with_android = false
-
-  # Whether the ftrace producer and the service should be started
-  # by the integration test or assumed to be running.
-  start_daemons_for_testing = true
-}
-
-# Chromium sets this to true.
+# Chromium sets this to true in its //build_overrides/build.gni.
 if (!defined(build_with_chromium)) {
   build_with_chromium = false
 }
 
-# Embedders can override this to true.
-if (!defined(perfetto_build_with_embedder)) {
-  perfetto_build_with_embedder = build_with_chromium
-}
-
 perfetto_force_dlog_default = ""
-if (perfetto_build_with_embedder) {
+if (build_with_chromium) {
   perfetto_force_dlog_default = "off"
 }
 
 declare_args() {
+  # The Android blueprint file generator set this to true (as well as
+  # is_perfetto_build_generator). This is just about being built in the
+  # Android tree (AOSP and internal) and is NOT related with the target OS.
+  # In standalone Android builds and Chromium Android builds, this is false.
+  perfetto_build_with_android = false
+
+  # All the tools/gen_* scripts set this to true. This is mainly used to locate
+  # .gni files from //gn rather than //build.
+  is_perfetto_build_generator = false
+
+  # This is for override via `gn args` (e.g. for tools/gen_xxx). Embedders
+  # based on GN (e.g. v8) should NOT set this and instead directly sets
+  # perfetto_build_with_embedder=true in their GN files.
+  is_perfetto_embedder = false
+
+  # Whether the ftrace producer and the service should be started
+  # by the integration test or assumed to be running.
+  start_daemons_for_testing = true
+
+  # Allow the embedder to use the IPC layer. In turn this allows to use the
+  # system backend in the client library.
+  # tools/gen_amalgamated sets this to true.
+  enable_perfetto_ipc = false
+
+  # Makes the trace processor targets reachable.
+  enable_perfetto_trace_processor = false
+
   # Whether DLOG should be enabled on debug builds (""), all builds ("on"), or
   # none ("off"). We disable it by default for embedders to avoid spamming their
   # console.
@@ -77,11 +101,21 @@ declare_args() {
 assert(perfetto_force_dlog == "" || perfetto_force_dlog == "on" ||
        perfetto_force_dlog == "off")
 
+# This can be overridden by embedders (e.g. v8) in their .gn(i) files. This must
+# be different from the GN args flag (is_perfetto_embedder) because of the way
+# GN works.
+if (!defined(perfetto_build_with_embedder)) {
+  perfetto_build_with_embedder = build_with_chromium || is_perfetto_embedder
+}
+
 perfetto_build_standalone =
     !perfetto_build_with_android && !build_with_chromium &&
     !perfetto_build_with_embedder
 
-if (perfetto_build_standalone || perfetto_build_with_android) {
+# Only relevant for GN builds. Sets the path where perfetto lives. This is //
+# for standalone builds and //third_party/perfetto/ in embedders. The embedder
+# can ovverride it in its GN files.
+if (perfetto_build_standalone || is_perfetto_build_generator) {
   perfetto_root_path = "//"
 } else if (!defined(perfetto_root_path)) {
   perfetto_root_path = "//third_party/perfetto/"
@@ -92,6 +126,22 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
 if (perfetto_build_with_android) {
   start_daemons_for_testing = false
 }
+
+# Only perfetto itself (standalone or with android) and chromium should link
+# in the IPC layer.
+#
+# This includes building things that rely on POSIX sockets, this places
+# limitations on the supported operating systems.
+perfetto_build_with_ipc_layer =
+    (is_android || is_linux || is_mac) &&
+    (perfetto_build_standalone || perfetto_build_with_android ||
+     build_with_chromium || enable_perfetto_ipc)
+
+# Trace processor is enabled only in standalone, chromium and all generator
+# builds.
+enable_perfetto_trace_processor =
+    perfetto_build_standalone || build_with_chromium ||
+    is_perfetto_build_generator
 
 # Cross-checks.
 
@@ -107,18 +157,13 @@ assert(!(perfetto_build_with_android && perfetto_build_with_embedder))
 # must be true
 assert(!build_with_chromium || perfetto_build_with_embedder)
 
-declare_args() {
-  # Allow the embedder to enable the IPC layer when needed.
-  # tools/gen_amalgamated sets this.
-  perfetto_enable_ipc = false
-}
+# If |perfetto_build_with_android| is true then also
+# |is_perfetto_build_generator| must be true.
+assert(!perfetto_build_with_android || is_perfetto_build_generator)
 
-# Only perfetto itself (standalone or with android) and chromium should link
-# in the IPC layer.
-#
-# This includes building things that rely on POSIX sockets, this places
-# limitations on the supported operating systems.
-perfetto_build_with_ipc_layer =
-    (is_android || is_linux || is_mac) &&
-    (perfetto_build_standalone || perfetto_build_with_android ||
-     build_with_chromium || perfetto_enable_ipc)
+# The IPC layer based on UNIX sockets can't be built on Win.
+assert(!perfetto_build_with_ipc_layer || !is_win)
+
+# We should never end up in a state where is_perfetto_embedder=true but
+# perfetto_build_with_embedder=false.
+assert(!is_perfetto_embedder || perfetto_build_with_embedder)
