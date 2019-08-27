@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite3_str_split.h"
+#include "src/trace_processor/sqlite/sqlite3_str_split.h"
 
-#include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -76,8 +76,9 @@ void sqlite_str_split(sqlite3_context* context,
 
 void sqlite3_str_split_init(sqlite3* db) {
   PERFETTO_CHECK(sqlite3_create_function(db, "str_split", 3,
-                                         SQLITE_UTF8 | SQLITE_DETERMINISTIC, 0,
-                                         &sqlite_str_split, 0, 0) == SQLITE_OK);
+                                         SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                         nullptr, &sqlite_str_split, nullptr,
+                                         nullptr) == SQLITE_OK);
 }
 
 }  // namespace trace_processor

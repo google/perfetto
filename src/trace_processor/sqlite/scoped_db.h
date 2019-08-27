@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SCOPED_DB_H_
-#define SRC_TRACE_PROCESSOR_SCOPED_DB_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_SCOPED_DB_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_SCOPED_DB_H_
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/trace_processor/sqlite/sqlite.h"
@@ -39,4 +39,4 @@ using ScopedStmt = base::ScopedResource<sqlite3_stmt*,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SCOPED_DB_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_SCOPED_DB_H_
