@@ -33,7 +33,7 @@
 #include "src/trace_processor/trace_processor_context.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) && \
-    !PERFETTO_BUILD_WITH_CHROMIUM
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 #error The JSON trace parser is supported only in the standalone and \
 Chromium builds for now.
 #endif

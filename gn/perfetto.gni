@@ -107,6 +107,12 @@ assert(!(perfetto_build_with_android && perfetto_build_with_embedder))
 # must be true
 assert(!build_with_chromium || perfetto_build_with_embedder)
 
+declare_args() {
+  # Allow the embedder to enable the IPC layer when needed.
+  # tools/gen_amalgamated sets this.
+  perfetto_enable_ipc = false
+}
+
 # Only perfetto itself (standalone or with android) and chromium should link
 # in the IPC layer.
 #
@@ -115,4 +121,4 @@ assert(!build_with_chromium || perfetto_build_with_embedder)
 perfetto_build_with_ipc_layer =
     (is_android || is_linux || is_mac) &&
     (perfetto_build_standalone || perfetto_build_with_android ||
-     build_with_chromium)
+     build_with_chromium || perfetto_enable_ipc)
