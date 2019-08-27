@@ -18,7 +18,7 @@ import("../../../../gn/proto_library.gni")
 import("../../../../gn/protozero_library.gni")
 
 # For use_libfuzzer.
-if (perfetto_build_standalone || perfetto_build_with_android) {
+if (perfetto_root_path == "//") {
   import("//gn/standalone/sanitizers/vars.gni")
 } else {
   import("//build/config/sanitizers/sanitizers.gni")

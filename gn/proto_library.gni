@@ -15,7 +15,7 @@
 import("perfetto.gni")
 
 if (!defined(perfetto_protobuf_target_prefix)) {
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  if (perfetto_root_path == "//") {
     perfetto_protobuf_target_prefix = "//buildtools"
   } else {
     perfetto_protobuf_target_prefix = "//third_party/protobuf"
@@ -23,7 +23,7 @@ if (!defined(perfetto_protobuf_target_prefix)) {
 }
 
 if (!defined(perfetto_protobuf_gni)) {
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  if (perfetto_root_path == "//") {
     perfetto_protobuf_gni = "//gn/standalone/proto_library.gni"
   } else {
     perfetto_protobuf_gni = "//third_party/protobuf/proto_library.gni"
