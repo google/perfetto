@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_QUERY_CONSTRAINTS_H_
-#define SRC_TRACE_PROCESSOR_QUERY_CONSTRAINTS_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/trace_processor/sqlite.h"
+#include "src/trace_processor/sqlite/sqlite.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -83,4 +83,4 @@ class QueryConstraints {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_QUERY_CONSTRAINTS_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
