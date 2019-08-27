@@ -51,57 +51,30 @@ def CheckChangeOnCommit(input_api, output_api):
 
 
 def CheckBuild(input_api, output_api):
+  tool = 'tools/gen_bazel'
   # If no GN files were modified, bail out.
   def build_file_filter(x): return input_api.FilterSourceFile(
       x,
-      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_bazel',
-          'BUILD\.extras'))
+      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'BUILD\.extras', tool))
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
-
-  with open('BUILD') as f:
-    current_build = f.read()
-
-  new_build = subprocess.check_output(
-      ['tools/gen_bazel', '--output', '/dev/stdout', '--output-proto',
-       '/dev/null'])
-
-  with open('protos/BUILD') as f:
-    current_proto_build = f.read()
-
-  new_proto_build = subprocess.check_output(
-      ['tools/gen_bazel', '--output', '/dev/null', '--output-proto',
-       '/dev/stdout'])
-
-  if current_build != new_build or current_proto_build != new_proto_build:
-    return [
-        output_api.PresubmitError(
-            'BUILD and/or protos/BUILD is out of date. ' +
-            'Please run tools/gen_bazel to update it.')
-    ]
+  if subprocess.call([tool, '--check-only']):
+    return [output_api.PresubmitError('Bazel BUILD(s) are out of date. Run '
+            + tool + ' to update them.')]
   return []
 
 
 def CheckAndroidBlueprint(input_api, output_api):
+  tool = 'tools/gen_android_bp'
   # If no GN files were modified, bail out.
   def build_file_filter(x): return input_api.FilterSourceFile(
       x,
-      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'tools/gen_android_bp'))
+      white_list=('.*BUILD[.]gn$', '.*[.]gni$', tool))
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
-
-  with open('Android.bp') as f:
-    current_blueprint = f.read()
-
-  new_blueprint = subprocess.check_output(
-      ['tools/gen_android_bp', '--output', '/dev/stdout'])
-
-  if current_blueprint != new_blueprint:
-    return [
-        output_api.PresubmitError(
-            'Android.bp is out of date. Please run tools/gen_android_bp '
-            'to update it.')
-    ]
+  if subprocess.call([tool, '--check-only']):
+    return [output_api.PresubmitError('Android build files are out of date. ' +
+            'Run ' + tool + ' to update them.')]
   return []
 
 
