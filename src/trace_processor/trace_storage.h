@@ -264,6 +264,68 @@ class TraceStorage {
     std::deque<UniquePid> upids_;
   };
 
+  class GpuTracks {
+   public:
+    inline void AddGpuTrack(TrackId track_id,
+                            StringId scope,
+                            // For all below: null == numeric_limits<int_type>::max()
+                            uint64_t context_id) {
+      track_ids_.emplace_back(track_id);
+      scopes_.emplace_back(scope);
+      context_ids_.emplace_back(context_id);
+    }
+
+    uint32_t gpu_track_count() const {
+      return static_cast<uint32_t>(track_ids_.size());
+    }
+
+    base::Optional<uint32_t> FindRowForTrackId(uint32_t track_id) const {
+      auto it =
+          std::lower_bound(track_ids().begin(), track_ids().end(), track_id);
+      if (it != track_ids().end() && *it == track_id) {
+        return static_cast<uint32_t>(std::distance(track_ids().begin(), it));
+      }
+      return base::nullopt;
+    }
+
+    const std::deque<TrackId>& track_ids() const { return track_ids_; }
+    const std::deque<StringId>& scopes() const { return scopes_; }
+    const std::deque<uint64_t>& context_ids() const {
+      return context_ids_;
+    }
+
+   private:
+    std::deque<TrackId> track_ids_;
+    std::deque<StringId> scopes_;
+
+    // For all below: null == numeric_limits<int_type>::max()
+    std::deque<uint64_t> context_ids_;
+  };
+
+  class GpuContexts {
+   public:
+    inline void AddGpuContext(uint64_t context_id,
+                              UniquePid upid,
+                              uint32_t priority) {
+      context_ids_.emplace_back(context_id);
+      upids_.emplace_back(upid);
+      priorities_.emplace_back(priority);
+    }
+
+    uint32_t gpu_context_count() const {
+      return static_cast<uint32_t>(context_ids_.size());
+    }
+
+    const std::deque<uint64_t>& context_ids() const { return context_ids_; }
+    const std::deque<UniquePid>& upids() const { return upids_; }
+    const std::deque<uint32_t>& priorities() const { return priorities_; }
+
+   private:
+    std::deque<uint64_t> context_ids_;
+    std::deque<UniquePid> upids_;
+    std::deque<uint32_t> priorities_;
+  };
+
   class Slices {
    public:
     inline size_t AddSlice(uint32_t cpu,
@@ -513,6 +575,65 @@ class TraceStorage {
     std::deque<int64_t> thread_duration_ns_;
     std::deque<int64_t> thread_instruction_counts_;
     std::deque<int64_t> thread_instruction_deltas_;
+  };
+
+  class GpuSlices {
+   public:
+    inline uint32_t AddGpuSlice(uint32_t slice_id,
+                                // For all below: null == numeric_limits<int_type>::max()
+                                uint64_t context_id,
+                                uint64_t render_target,
+                                uint32_t frame_id,
+                                uint32_t job_id,
+                                uint32_t hw_queue_id) {
+      slice_ids_.emplace_back(slice_id);
+      context_ids_.emplace_back(context_id);
+      render_targets_.emplace_back(render_target);
+      frame_ids_.emplace_back(frame_id);
+      job_ids_.emplace_back(job_id);
+      hw_queue_ids_.emplace_back(hw_queue_id);
+      return slice_count() - 1;
+    }
+
+    uint32_t slice_count() const {
+      return static_cast<uint32_t>(slice_ids_.size());
+    }
+
+    const std::deque<uint32_t>& slice_ids() const { return slice_ids_; }
+    const std::deque<uint64_t>& context_ids() const {
+      return context_ids_;
+    }
+    const std::deque<uint64_t>& render_targets() const {
+      return render_targets_;
+    }
+    const std::deque<uint32_t>& frame_ids() const {
+      return frame_ids_;
+    }
+    const std::deque<uint32_t>& job_ids() const {
+      return job_ids_;
+    }
+    const std::deque<uint32_t>& hw_queue_ids() const {
+      return hw_queue_ids_;
+    }
+
+    base::Optional<uint32_t> FindRowForSliceId(uint32_t slice_id) const {
+      auto it =
+          std::lower_bound(slice_ids().begin(), slice_ids().end(), slice_id);
+      if (it != slice_ids().end() && *it == slice_id) {
+        return static_cast<uint32_t>(std::distance(slice_ids().begin(), it));
+      }
+      return base::nullopt;
+    }
+
+   private:
+    std::deque<uint32_t> slice_ids_;
+
+    // For all below: null == numeric_limits<int_type>::max()
+    std::deque<uint64_t> context_ids_;
+    std::deque<uint64_t> render_targets_;
+    std::deque<uint32_t> frame_ids_;
+    std::deque<uint32_t> job_ids_;
+    std::deque<uint32_t> hw_queue_ids_;
   };
 
   class CounterDefinitions {
@@ -1233,6 +1354,10 @@ class TraceStorage {
   // Metadata for virtual slice tracks.
   VirtualTracks virtual_tracks_;
 
+  // Metadata for gpu tracks.
+  GpuTracks gpu_tracks_;
+  GpuContexts gpu_contexts_;
+
   // One entry for each CPU in the trace.
   Slices slices_;
 
@@ -1259,6 +1384,10 @@ class TraceStorage {
   // Additional attributes for virtual track slices (sub-type of
   // NestableSlices).
   VirtualTrackSlices virtual_track_slices_;
+
+  // Additional attributes for gpu track slices (sub-type of
+  // NestableSlices).
+  GpuSlices gpu_track_slices_;
 
   // The type of counters in the trace. Can be thought of as the "metadata".
   CounterDefinitions counter_definitions_;
