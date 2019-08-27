@@ -14,7 +14,8 @@
 
 import("perfetto.gni")
 import("proto_library.gni")
-if (perfetto_build_standalone || perfetto_build_with_android) {
+
+if (perfetto_root_path == "//") {
   import("//gn/standalone/sanitizers/vars.gni")
 } else {
   import("//build/config/sanitizers/sanitizers.gni")
@@ -24,7 +25,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
 # include directories.
 group("default_deps") {
   public_configs = [ ":default_config" ]
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  if (perfetto_build_standalone) {
     public_deps = [
       "//gn/standalone/libc++:deps",
       "//gn/standalone/sanitizers:deps",
@@ -69,7 +70,7 @@ config("public_config") {
       defines += [ "PERFETTO_BUILD_WITH_CHROMIUM" ]
     }  # if (build_with_chromium)
 
-    if (is_component_build) {
+    if (defined(is_component_build) && is_component_build) {
       defines += [ "PERFETTO_BUILD_AS_COMPONENT" ]
     }  # if (is_component_build)
   }  # if (build_with_embedder)
@@ -91,32 +92,25 @@ config("asan_instrumentation") {
   }
 }
 
-config("gtest_config") {
-  if (perfetto_build_with_embedder) {
-    include_dirs = [ "//testing/gtest/include" ]
-  }
-}
-
-config("gmock_config") {
-  if (perfetto_build_with_embedder) {
-    include_dirs = [ "//testing/gmock/include" ]
+if (perfetto_root_path != "//") {
+  config("gtest_and_gmock_embedder_config") {
+    include_dirs = [
+      "//testing/gtest/include",
+      "//testing/gmock/include",
+    ]
   }
 }
 
 group("gtest_and_gmock") {
   testonly = true
 
-  public_configs = [
-    ":gtest_config",
-    ":gmock_config",
-  ]
-
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  if (perfetto_root_path == "//") {
     public_deps = [
       "//buildtools:gmock",
       "//buildtools:gtest",
     ]
   } else {
+    public_configs = [ ":gtest_and_gmock_embedder_config" ]
     public_deps = [
       "//testing/gmock",
       "//testing/gtest",
@@ -127,7 +121,7 @@ group("gtest_and_gmock") {
 group("gtest_main") {
   testonly = true
 
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  if (perfetto_root_path == "//") {
     public_deps = [
       "//buildtools:gtest_main",
     ]
@@ -138,18 +132,6 @@ group("gtest_main") {
   } else {
     public_deps = [
       "//testing/gtest:gtest_main",
-    ]
-  }
-}
-
-group("sqlite") {
-  if (perfetto_build_standalone || perfetto_build_with_android) {
-    public_deps = [
-      "//buildtools:sqlite",
-    ]
-  } else if (build_with_chromium) {
-    public_deps = [
-      "//third_party/sqlite:sqlite",
     ]
   }
 }
@@ -182,40 +164,11 @@ group("protobuf_lite") {
   ]
 }
 
-# For now JsonCpp is supported only in standalone and Chrome builds,
-# not in Android.
-group("jsoncpp") {
-  if (perfetto_build_standalone) {
-    public_configs = [ "//buildtools:jsoncpp_config" ]
-    public_deps = [
-      "//buildtools:jsoncpp",
-    ]
-  } else if (build_with_chromium) {
-    public_deps = [
-      "//third_party/jsoncpp:jsoncpp",
-    ]
-  }
-}
-
-group("zlib") {
-  if (perfetto_build_standalone || perfetto_build_with_android) {
-    public_configs = [ "//buildtools:zlib_config" ]
-    public_deps = [
-      "//buildtools:zlib",
-    ]
-  } else if (build_with_chromium) {
-    public_configs = [ "//third_party/zlib:zlib_config" ]
-    public_deps = [
-      "//third_party/zlib",
-    ]
-  }
-}
-
 # The Google C++ Benchmark library.
 # Only avilable in standalone builds.
-group("benchmark") {
-  testonly = true
-  if (perfetto_build_standalone) {
+if (perfetto_build_standalone) {
+  group("benchmark") {
+    testonly = true
     public_deps = [
       "//buildtools:benchmark",
     ]
@@ -224,31 +177,78 @@ group("benchmark") {
 
 # Libbacktrace, used for printing stack traces from crash handler, only in
 # standalone debug builds.
-group("libbacktrace") {
-  if (perfetto_build_standalone && (is_linux || is_android)) {
+if (perfetto_build_standalone && (is_linux || is_android)) {
+  group("libbacktrace") {
     public_deps = [
       "//buildtools:libbacktrace",
     ]
   }
 }
 
-# Used by the trace_processor_shell for REPL history.
-# Only avilable in standalone builds.
-group("linenoise") {
-  if (perfetto_build_standalone && (is_linux || is_android || is_mac)) {
-    public_deps = [
-      "//buildtools:linenoise",
-    ]
+if (enable_perfetto_trace_processor) {
+  group("sqlite") {
+    if (perfetto_root_path == "//") {
+      public_deps = [
+        "//buildtools:sqlite",
+      ]
+    } else {
+      public_deps = [
+        "//third_party/sqlite:sqlite",
+      ]
+    }
   }
-}
 
-# Only used by the src/profiling in standalone and android builds.
-group("libunwindstack") {
-  if (perfetto_build_standalone || perfetto_build_with_android) {
+  # For now JsonCpp is supported only in standalone and Chrome builds,
+  # not in Android.
+  group("jsoncpp") {
+    if (perfetto_root_path == "//") {
+      public_configs = [ "//buildtools:jsoncpp_config" ]
+      public_deps = [
+        "//buildtools:jsoncpp",
+      ]
+    } else {
+      public_deps = [
+        "//third_party/jsoncpp:jsoncpp",
+      ]
+    }
+  }
+
+  # Used by the trace_processor_shell for REPL history.
+  # Only avilable in standalone builds.
+  group("linenoise") {
+    if (perfetto_build_standalone && (is_linux || is_android || is_mac)) {
+      public_deps = [
+        "//buildtools:linenoise",
+      ]
+    }
+  }
+}  # if (enable_perfetto_trace_processor)
+
+# Only used by src/profiling in standalone and android builds.
+if (perfetto_build_standalone || perfetto_build_with_android) {
+  group("libunwindstack") {
     public_configs = [ "//buildtools:libunwindstack_config" ]
     public_deps = [
       "//buildtools:libunwindstack",
     ]
+  }
+}
+
+# Zlib is used both by trace_processor and by perfetto_cmd.
+if (enable_perfetto_trace_processor || perfetto_build_standalone ||
+    perfetto_build_with_android) {
+  group("zlib") {
+    if (perfetto_root_path == "//") {
+      public_configs = [ "//buildtools:zlib_config" ]
+      public_deps = [
+        "//buildtools:zlib",
+      ]
+    } else {
+      public_configs = [ "//third_party/zlib:zlib_config" ]
+      public_deps = [
+        "//third_party/zlib",
+      ]
+    }
   }
 }
 
