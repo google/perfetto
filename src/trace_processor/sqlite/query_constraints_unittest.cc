@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/query_constraints.h"
+#include "src/trace_processor/sqlite/query_constraints.h"
+
 #include "perfetto/base/logging.h"
 #include "test/gtest_and_gmock.h"
 
 using testing::ElementsAreArray;
-using testing::Matcher;
 using testing::Field;
-using testing::Pointwise;
+using testing::Matcher;
 using testing::Matches;
+using testing::Pointwise;
 
 namespace perfetto {
 namespace trace_processor {

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_H_
 
 #include "perfetto/base/build_config.h"
 
@@ -26,4 +26,4 @@
 #include "third_party/sqlite/sqlite3.h"
 #endif
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_H_
