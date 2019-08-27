@@ -54,7 +54,11 @@ header = """# Copyright (C) 2019 The Android Open Source Project
 
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
-gn_args = 'target_os="linux" is_debug=false host_os="linux"'
+gn_args = ' '.join([
+    'host_os="linux"',
+    'is_debug=false',
+    'target_os="linux"',
+])
 
 # Default targets to translate to the blueprint file.
 default_targets = [
@@ -69,7 +73,7 @@ default_targets = [
   '//protos/perfetto/metrics:lite_gen'
 ]
 
-# Aliases to add to the BUILD file
+# Aliases to add to the BUILD file.
 alias_targets = {
   '//src/protozero:libprotozero': 'libprotozero',
   '//src/trace_processor:trace_processor': 'trace_processor',
@@ -606,6 +610,9 @@ def main():
   parser = argparse.ArgumentParser(
       description='Generate BUILD from a GN description.')
   parser.add_argument(
+        '--check-only', help='Don\'t keep the generated files',
+        action='store_true')
+  parser.add_argument(
       '--desc',
       help='GN description (e.g., gn desc out --format=json --all-toolchains "//*"'
   )
@@ -641,22 +648,28 @@ def main():
   else:
     desc = gn_utils.create_build_description(gn_args, args.repo_root)
 
+  out_files = []
+
   build_generator = BuildGenerator(desc)
   build, proto_build = build_generator.create_build_for_targets(
       args.targets or default_targets)
-  with open(args.output, 'w') as f:
+
+  # Generate the main BUILD file.
+  out_files.append(args.output + '.swp')
+  with open(out_files[-1], 'w') as f:
     writer = Writer(f)
     build.write(writer)
     writer.newline()
-
     with open(args.extras, 'r') as r:
       for line in r:
         writer.line(line.rstrip("\n\r"))
 
-  with open(args.output_proto, 'w') as f:
+  # Generate the protos/BUILD file.
+  out_files.append(args.output_proto + '.swp')
+  with open(out_files[-1], 'w') as f:
     proto_build.write(Writer(f))
 
-  return 0
+  return gn_utils.check_or_commit_generated_files(out_files, args.check_only)
 
 
 if __name__ == '__main__':
