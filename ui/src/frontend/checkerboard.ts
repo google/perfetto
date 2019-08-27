@@ -18,7 +18,7 @@ let LOADING_TEXT_WIDTH = 0;
 /**
  * Checker board the range [leftPx, rightPx].
  */
-export function checkerboard(
+function checkerboard(
     ctx: CanvasRenderingContext2D,
     heightPx: number,
     leftPx: number,
@@ -28,6 +28,7 @@ export function checkerboard(
   ctx.fillStyle = '#eee';
   ctx.fillRect(leftPx, 0, widthPx, heightPx);
   ctx.fillStyle = '#666';
+  const oldBaseline = ctx.textBaseline;
   ctx.textBaseline = 'middle';
   if (LOADING_TEXT_WIDTH === 0) {
     LOADING_TEXT_WIDTH = ctx.measureText(LOADING_TEXT).width;
@@ -37,6 +38,7 @@ export function checkerboard(
       leftPx + widthPx / 2 - LOADING_TEXT_WIDTH,
       heightPx / 2,
       widthPx);
+  ctx.textBaseline = oldBaseline;
 }
 
 /**
