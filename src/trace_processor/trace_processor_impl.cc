@@ -64,6 +64,7 @@
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/track_table.h"
 #include "src/trace_processor/virtual_track_tracker.h"
 #include "src/trace_processor/window_operator_table.h"
 
@@ -305,6 +306,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   StackProfileFrameTable::RegisterTable(*db_, context_.storage.get());
   StackProfileMappingTable::RegisterTable(*db_, context_.storage.get());
   MetadataTable::RegisterTable(*db_, context_.storage.get());
+  TrackTable::RegisterTable(*db_, context_.storage.get());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {
