@@ -18,7 +18,7 @@
 
 #include <algorithm>
 
-#include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {

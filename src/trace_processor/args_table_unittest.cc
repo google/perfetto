@@ -15,7 +15,7 @@
  */
 
 #include "src/trace_processor/args_table.h"
-#include "src/trace_processor/scoped_db.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 #include "test/gtest_and_gmock.h"

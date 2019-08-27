@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE3_STR_SPLIT_H_
-#define SRC_TRACE_PROCESSOR_SQLITE3_STR_SPLIT_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE3_STR_SPLIT_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE3_STR_SPLIT_H_
 
 struct sqlite3;
 
@@ -27,4 +27,4 @@ void sqlite3_str_split_init(sqlite3* db);
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE3_STR_SPLIT_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE3_STR_SPLIT_H_
