@@ -124,6 +124,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
     this.height = attrs.height;
+    this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
     const elem = dom as HTMLElement;
     new DragGestureHandler(
         elem,
@@ -135,6 +136,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
     this.height = attrs.height;
+    this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
   }
 
   onDrag(_x: number, y: number) {
@@ -317,7 +319,13 @@ class TraceViewer implements m.ClassComponent {
       detailsPanels.push(m(LogPanel, {}));
     }
 
+    const wasShowing = this.showDetailsPanel;
     this.showDetailsPanel = detailsPanels.length > 0;
+    // Pop up details panel on first selection.
+    if (!wasShowing && this.showDetailsPanel &&
+        this.detailsHeight === DRAG_HANDLE_HEIGHT_PX) {
+      this.detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
+    }
 
     return m(
         '.page',
