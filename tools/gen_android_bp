@@ -72,7 +72,12 @@ target_host_only = [
 ]
 
 # Arguments for the GN output directory.
-gn_args = 'target_os="android" target_cpu="arm" is_debug=false perfetto_build_with_android=true'
+gn_args = ' '.join([
+    'is_debug=false',
+    'perfetto_build_with_android=true',
+    'target_cpu="arm"',
+    'target_os="android"',
+])
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
@@ -721,6 +726,9 @@ def main():
     parser = argparse.ArgumentParser(
         description='Generate Android.bp from a GN description.')
     parser.add_argument(
+        '--check-only', help='Don\'t keep the generated files',
+        action='store_true')
+    parser.add_argument(
         '--desc',
         help=
         'GN description (e.g., gn desc out --format=json --all-toolchains "//*"'
@@ -771,8 +779,17 @@ def main():
     with open(args.extras, 'r') as r:
         for line in r:
             output.append(line.rstrip("\n\r"))
-    with open(args.output, 'w') as f:
+
+    out_files = []
+
+    # Generate the Android.bp file.
+    out_files.append(args.output + '.swp')
+    with open(out_files[-1], 'w') as f:
         f.write('\n'.join(output))
+
+
+    # Either check the contents or move the files to their final destination.
+    return gn_utils.check_or_commit_generated_files (out_files, args.check_only)
 
 
 if __name__ == '__main__':
