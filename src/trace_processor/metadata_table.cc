@@ -15,7 +15,7 @@
  */
 
 #include "src/trace_processor/metadata_table.h"
-#include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_schema.h"
 
