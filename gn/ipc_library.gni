@@ -14,7 +14,7 @@
 
 import("perfetto.gni")
 
-if (perfetto_build_standalone || perfetto_build_with_android) {
+if (perfetto_root_path == "//") {
   import("//gn/standalone/proto_library.gni")
 } else {
   import("//third_party/protobuf/proto_library.gni")

@@ -45,6 +45,8 @@ def main():
         with open(fpath) as f:
           lines = f.readlines()
         for line in lines:
+          if '// no-include-violation-check' in line:
+            continue
           m = re.findall(r'^#include "(.*\.h)"', line)
           if not m:
             continue

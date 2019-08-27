@@ -15,16 +15,11 @@
 import("gn/perfetto.gni")
 import("gn/test.gni")
 
-if (perfetto_build_standalone || perfetto_build_with_android) {
+if (perfetto_root_path == "//") {
   import("//gn/standalone/android.gni")
-} else {
-  import("//build/config/android/config.gni")
-}
-
-# For use_libfuzzer.
-if (perfetto_build_standalone || perfetto_build_with_android) {
   import("//gn/standalone/sanitizers/vars.gni")
 } else {
+  import("//build/config/android/config.gni")
   import("//build/config/sanitizers/sanitizers.gni")
 }
 
@@ -48,8 +43,7 @@ group("all") {
     ":perfetto_unittests",
     "src/protozero/protoc_plugin:protozero_plugin($host_toolchain)",
   ]
-  if (perfetto_build_standalone || perfetto_build_with_android ||
-      build_with_chromium) {
+  if (enable_perfetto_trace_processor) {
     deps += [ ":trace_processor_shell" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
@@ -110,8 +104,7 @@ group("default") {
 
 # The trace processor shell executable. An interactive shell that allows to
 # make queries on the trace using the terminal.
-if (perfetto_build_standalone || perfetto_build_with_android ||
-    build_with_chromium) {
+if (enable_perfetto_trace_processor) {
   executable("trace_processor_shell") {
     deps = [
       "gn:default_deps",
@@ -253,23 +246,6 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     ]
   }
 
-  # Client library target for the Android tree.
-  # Still in experimental stage and not API stable yet.
-  # See "libperfetto_client_example" (in Android.bp.extras) for an example
-  # on how to use the Perfetto Client API from the android tree.
-  static_library("libperfetto_client_experimental") {
-    complete_static_lib = true
-    deps = [
-      "gn:default_deps",
-      "src/tracing",
-      "src/tracing:client_api",
-      "src/tracing:platform_posix",
-    ]
-    sources = [
-      "include/perfetto/tracing.h",
-    ]
-  }
-
   if (perfetto_build_with_android) {
     executable("trace_to_text") {
       testonly = true
@@ -297,13 +273,30 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
   }  # if (perfetto_build_with_android)
 }  # if (perfetto_build_standalone || perfetto_build_with_android)
 
-if (perfetto_build_with_embedder) {
-  if (build_with_chromium) {
-    lib_target_type = "component"
-  } else {
-    lib_target_type = "source_set"
+if (!build_with_chromium) {
+  # Client library target.
+  # Still in experimental stage and not API stable yet.
+  # See "libperfetto_client_example" (in Android.bp.extras) for an example
+  # on how to use the Perfetto Client API from the android tree.
+  static_library("libperfetto_client_experimental") {
+    complete_static_lib = true
+    deps = [
+      "gn:default_deps",
+      "src/tracing",
+      "src/tracing:client_api",
+      "src/tracing:platform_posix",
+    ]
+    sources = [
+      "include/perfetto/tracing.h",
+    ]
   }
-  target(lib_target_type, "libperfetto") {
+}
+
+# TODO(primiano): there seem to be two "libperfetto" targets defined within this
+# BUILD.gn file. Rationalize them with eseckler@. For now seems this one is only
+# used from chromium and the other one only from the Android tree.
+if (build_with_chromium) {
+  component("libperfetto") {
     public_configs = [ "gn:public_config" ]
     deps = [
       "src/tracing",
@@ -319,7 +312,7 @@ if (perfetto_build_with_embedder) {
       "protos/perfetto/trace/track_event:zero",
     ]
   }
-  target(lib_target_type, "libtrace_processor") {
+  component("libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [
       "src/trace_processor:lib",
