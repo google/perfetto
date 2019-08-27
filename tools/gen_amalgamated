@@ -44,7 +44,11 @@ default_targets = [
 
 # Arguments for the GN output directory (unless overridden from the command
 # line).
-gn_args = 'is_debug=false perfetto_enable_ipc=true'
+gn_args = ' '.join([
+    'is_debug=false',
+    'perfetto_build_with_embedder=true',
+    'perfetto_enable_ipc=true'
+])
 
 # Compiler flags which aren't filtered out.
 cflag_whitelist = r'^-(W.*|fno-exceptions|fPIC|std.*|fvisibility.*)$'
