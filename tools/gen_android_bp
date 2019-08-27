@@ -74,6 +74,7 @@ target_host_only = [
 # Arguments for the GN output directory.
 gn_args = ' '.join([
     'is_debug=false',
+    'is_perfetto_build_generator=true',
     'perfetto_build_with_android=true',
     'target_cpu="arm"',
     'target_os="android"',
