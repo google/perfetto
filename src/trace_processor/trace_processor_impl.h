@@ -29,7 +29,7 @@
 #include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/scoped_db.h"
-#include "src/trace_processor/sqlite.h"
+#include "src/trace_processor/sqlite/sqlite.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 namespace perfetto {

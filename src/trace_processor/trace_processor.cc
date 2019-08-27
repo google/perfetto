@@ -16,7 +16,7 @@
 
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "src/trace_processor/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
 namespace perfetto {

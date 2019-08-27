@@ -65,8 +65,8 @@ source_set("lib") {
     "metrics.h",
   ]
   deps = [
-    "../:sqlite",
     "../../../gn:default_deps",
+    "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/metrics:zero",
@@ -74,6 +74,7 @@ source_set("lib") {
     "../../../protos/perfetto/trace_processor:metrics_impl_zero",
     "../../base",
     "../../protozero:protozero",
+    "../sqlite",
   ]
   public_deps = [
     ":gen_merged_sql_metrics",

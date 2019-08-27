@@ -20,7 +20,7 @@
 #include <limits>
 #include <memory>
 
-#include "src/trace_processor/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
