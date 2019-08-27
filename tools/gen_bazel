@@ -57,6 +57,7 @@ header = """# Copyright (C) 2019 The Android Open Source Project
 gn_args = ' '.join([
     'host_os="linux"',
     'is_debug=false',
+    'is_perfetto_build_generator=true',
     'target_os="linux"',
 ])
 

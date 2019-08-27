@@ -20,6 +20,10 @@ import sys
 def fix_guards(fpath, checkonly):
   with open(fpath, 'rb') as f:
     lines = [l.strip('\n') for l in f.readlines()]
+
+  if any(x.startswith('// fix_include_guards: off') for x in lines):
+    return 0
+
   res = []
   guard = re.sub(r'[^a-zA-Z0-9_-]', '_', fpath.upper()) + '_'
   replacements = 0

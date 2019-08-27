@@ -46,8 +46,10 @@ default_targets = [
 # line).
 gn_args = ' '.join([
     'is_debug=false',
-    'perfetto_build_with_embedder=true',
-    'perfetto_enable_ipc=true'
+    'is_perfetto_build_generator=true',
+    'is_perfetto_embedder=true',
+    'use_custom_libcxx=false',
+    'enable_perfetto_ipc=true',
 ])
 
 # Compiler flags which aren't filtered out.
