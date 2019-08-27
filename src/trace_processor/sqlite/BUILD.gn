@@ -16,9 +16,13 @@ source_set("sqlite") {
   sources = [
     "query_constraints.cc",
     "query_constraints.h",
+    "scoped_db.h",
     "sqlite.h",
+    "sqlite3_str_split.cc",
+    "sqlite3_str_split.h",
     "sqlite_table.cc",
     "sqlite_table.h",
+    "sqlite_utils.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -33,6 +37,7 @@ source_set("unittests") {
   testonly = true
   sources = [
     "query_constraints_unittest.cc",
+    "sqlite3_str_split_unittest.cc",
   ]
   deps = [
     ":sqlite",

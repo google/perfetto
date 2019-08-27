@@ -19,7 +19,7 @@
 #include <inttypes.h>
 
 #include "src/trace_processor/ftrace_descriptors.h"
-#include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/variadic.h"
 
 #include "perfetto/trace/ftrace/binder.pbzero.h"
