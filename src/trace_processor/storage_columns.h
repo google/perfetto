@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "src/trace_processor/filtered_row_index.h"
-#include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {

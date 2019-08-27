@@ -21,7 +21,7 @@
 #include <numeric>
 
 #include "src/trace_processor/sqlite/sqlite.h"
-#include "src/trace_processor/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
