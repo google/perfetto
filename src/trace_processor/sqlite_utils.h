@@ -26,8 +26,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/scoped_db.h"
-#include "src/trace_processor/sqlite.h"
-#include "src/trace_processor/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
