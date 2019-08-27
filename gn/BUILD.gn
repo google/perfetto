@@ -70,7 +70,7 @@ config("public_config") {
     }  # if (build_with_chromium)
 
     if (is_component_build) {
-      defines += [ "PERFETTO_SHARED_LIBRARY" ]
+      defines += [ "PERFETTO_BUILD_AS_COMPONENT" ]
     }  # if (is_component_build)
   }  # if (build_with_embedder)
 
@@ -78,6 +78,10 @@ config("public_config") {
     defines += [ "PERFETTO_FORCE_DLOG=1" ]
   } else if (perfetto_force_dlog == "off") {
     defines += [ "PERFETTO_FORCE_DLOG=0" ]
+  }
+
+  if (perfetto_build_with_ipc_layer) {
+    defines += [ "PERFETTO_BUILD_IPC" ]
   }
 }
 

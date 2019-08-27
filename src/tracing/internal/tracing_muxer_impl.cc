@@ -410,14 +410,7 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   };
 
   if (args.backends & kSystemBackend) {
-// These buildflags match the |perfetto_build_with_ipc_layer| condition in
-// the //src/tracing:client_api target.
-#if (PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) ||     \
-     PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) ||    \
-     PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)) && \
-    (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||          \
-     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||        \
-     PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX))
+#if (PERFETTO_BUILDFLAG(PERFETTO_IPC))
     add_backend(SystemTracingBackend::GetInstance(), kSystemBackend);
 #else
     PERFETTO_ELOG("System backend not supporteed in the current configuration");

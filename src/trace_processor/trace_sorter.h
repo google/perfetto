@@ -28,7 +28,7 @@
 #include "src/trace_processor/trace_storage.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
-    PERFETTO_BUILD_WITH_CHROMIUM
+    PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
 #include <json/value.h>
 #else
 // Json traces are only supported in standalone and Chromium builds.
