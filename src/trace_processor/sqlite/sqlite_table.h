@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TABLE_H_
 
 #include <functional>
 #include <memory>
@@ -26,8 +26,8 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/query_constraints.h"
-#include "src/trace_processor/sqlite.h"
+#include "src/trace_processor/sqlite/query_constraints.h"
+#include "src/trace_processor/sqlite/sqlite.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -268,7 +268,7 @@ class SqliteTable : public sqlite3_vtab {
       char* insert_sql = sqlite3_mprintf(
           "INSERT INTO perfetto_tables(name) VALUES('%q')", table_name.c_str());
       char* error = nullptr;
-      sqlite3_exec(db, insert_sql, 0, 0, &error);
+      sqlite3_exec(db, insert_sql, nullptr, nullptr, &error);
       sqlite3_free(insert_sql);
       if (error) {
         PERFETTO_ELOG("Error registering table: %s", error);
@@ -334,4 +334,4 @@ class SqliteTable : public sqlite3_vtab {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TABLE_H_
