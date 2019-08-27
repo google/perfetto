@@ -18,7 +18,7 @@
 #include <set>
 
 #include "src/trace_processor/row_iterators.h"
-#include "src/trace_processor/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/storage_columns.h"
 #include "src/trace_processor/storage_schema.h"
 
