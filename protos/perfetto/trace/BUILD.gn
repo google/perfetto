@@ -17,25 +17,54 @@ import("../../../gn/proto_descriptor.gni")
 import("../../../gn/proto_library.gni")
 import("../../../gn/protozero_library.gni")
 
-# Common protos used by both the ":minimal_lite" target (for the service) and
-# the generic ":lite" target
-proto_sources_minimal = [
-  "clock_snapshot.proto",
-  "trigger.proto",
-  "system_info.proto",
-]
+# Trace protos are split logically into two groups:
+# 1. Full set of protos: :zero (for writers) and :lite (for readers).
+# 2. Minimal set: :minimal_zero, :minimal_lite. These are mainly for chrome, to
+#    avoid bloating binary size by pulling unnecessary protos.
+#
+# In practice, however, we need to split them in disjoint targets (minmal and
+# non-minimal) and then use a group() target for the full protos. This is
+# because build systems don't like two targets having genrules for the same
+# .proto files.
 
-proto_sources_trusted = [ "trusted_packet.proto" ]
-
-proto_sources = [
+# By default add new protos here.
+proto_sources_non_minimal = [
   "trace_packet_defaults.proto",
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
 ]
 
-# Protozero generated stubs, for writers.
-protozero_library("zero") {
+proto_sources_minimal = [
+  "clock_snapshot.proto",
+  "trigger.proto",
+  "system_info.proto",
+]
+
+# Used only for packet_stream_validator.cc (in the service).
+proto_sources_trusted = [ "trusted_packet.proto" ]
+
+# Most targets should either depend on :zero (writers) / :lite (readers)
+# or ":minimal_zero" / :minimal_lite (mostly for chrome).
+
+# The full set of protozero-generated sources.
+group("zero") {
+  public_deps = [
+    ":minimal_zero",
+    ":non_minimal_zero",
+  ]
+}
+
+# The full set of libprotobuf-generated sources.
+group("lite") {
+  public_deps = [
+    ":minimal_lite",
+    ":non_minimal_lite",
+  ]
+}
+
+protozero_library("non_minimal_zero") {
+  visibility = [ ":zero" ]
   deps = [
     "../config:zero",
     "android:zero",
@@ -51,17 +80,16 @@ protozero_library("zero") {
     "sys_stats:zero",
     "track_event:zero",
   ]
-  sources = proto_sources_minimal + proto_sources
+  sources = proto_sources_non_minimal
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
   generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
-# Protobuf Lite stubs, for readers.
-proto_library("lite") {
+proto_library("non_minimal_lite") {
+  visibility = [ ":lite" ]
   generate_python = false
   deps = [
-    ":minimal_lite",
     "../config:lite",
     "android:lite",
     "chrome:lite",
@@ -76,23 +104,11 @@ proto_library("lite") {
     "sys_stats:lite",
     "track_event:lite",
   ]
-  sources = proto_sources
+  sources = proto_sources_non_minimal
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
 }
 
-if (perfetto_build_standalone) {
-  proto_descriptor("descriptor") {
-    sources = [
-      "trace.proto",
-    ]
-    generate_descriptor = "trace.descriptor"
-    proto_in_dir = "$perfetto_root_path/protos"
-    proto_out_dir = "$perfetto_root_path/protos"
-  }
-}
-
-# Contains the subprotos of TracePacket that all targets need.
 proto_library("minimal_lite") {
   generate_python = false
   deps = [
@@ -101,6 +117,16 @@ proto_library("minimal_lite") {
   sources = proto_sources_minimal
   proto_in_dir = "$perfetto_root_path/protos"
   proto_out_dir = "$perfetto_root_path/protos"
+}
+
+protozero_library("minimal_zero") {
+  deps = [
+    "../config:zero",
+  ]
+  sources = proto_sources_minimal
+  proto_in_dir = "$perfetto_root_path/protos"
+  proto_out_dir = "$perfetto_root_path/protos"
+  generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
 # Used by the traced service for packet sanitization.
@@ -125,4 +151,15 @@ proto_library("merged_trace") {
   sources = [
     "perfetto_trace.proto",
   ]
+}
+
+if (perfetto_build_standalone) {
+  proto_descriptor("descriptor") {
+    sources = [
+      "trace.proto",
+    ]
+    generate_descriptor = "trace.descriptor"
+    proto_in_dir = "$perfetto_root_path/protos"
+    proto_out_dir = "$perfetto_root_path/protos"
+  }
 }
