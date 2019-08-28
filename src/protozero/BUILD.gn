@@ -102,3 +102,10 @@ perfetto_fuzzer_test("protozero_decoder_fuzzer") {
     "../base",
   ]
 }
+
+# See comments in empty_file.cc for the rationale.
+source_set("empty_file") {
+  sources = [
+    "empty_file.cc",
+  ]
+}
