@@ -78,7 +78,6 @@ export class SelectionController extends Controller<'main'> {
       const sqlQuery = `SELECT ts, dur, name, cat FROM slices
       WHERE slice_id = ${selectedSlice}`;
       this.args.engine.query(sqlQuery).then(result => {
-        console.log('query resulted for chrome slices!');
         // Check selection is still the same on completion of query.
         const selection = globals.state.currentSelection;
         if (result.numRecords === 1 && selection &&
