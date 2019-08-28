@@ -21,10 +21,62 @@ if (perfetto_root_path == "//") {
   import("//build/config/sanitizers/sanitizers.gni")
 }
 
+# Genereates a header files that contains a macro definition for each build flag
+# that is required by the codebase. This is to avoid sprinkling cflags all over
+# the places, which is very fragile especially for our codebase that needs to
+# deal with several build systems.
+# The way this works is the following:
+# - This rule generates a header that contains a bunch of lines like:
+#   #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ANDROID_BUILD() (0)
+#   #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_EMBEDDER_BUILD() (0)
+# - The generated header is included by base/build_config.h
+# - Source files in the codebase #include base/build_config and use the
+#   pattern #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+buildflag_gen_dir_ = "$root_gen_dir/$perfetto_root_path/build_config"
+action("gen_buildflags") {
+  script = "write_buildflag_header.py"
+  gen_header_path = "$buildflag_gen_dir_/perfetto_build_flags.h"
+
+  perfetto_component_build = false
+  if (defined(is_component_build) && is_component_build) {
+    perfetto_component_build = true
+  }
+  perfetto_force_dlog_on = perfetto_force_dlog == "on"
+  perfetto_force_dlog_off = perfetto_force_dlog == "off"
+
+  response_file_contents = [
+    "--flags",  # Keep this marker first.
+    "PERFETTO_ANDROID_BUILD=$perfetto_build_with_android",
+    "PERFETTO_EMBEDDER_BUILD=$perfetto_build_with_embedder",
+    "PERFETTO_CHROMIUM_BUILD=$build_with_chromium",
+    "PERFETTO_STANDALONE_BUILD=$perfetto_build_standalone",
+    "PERFETTO_START_DAEMONS=$start_daemons_for_testing",
+    "PERFETTO_IPC=$perfetto_build_with_ipc_layer",
+    "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
+    "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
+    "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
+  ]
+
+  rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
+  args = [
+    "--out",
+    rel_out_path,
+    "--rsp",
+    "{{response_file_name}}",
+  ]
+
+  outputs = [
+    gen_header_path,
+  ]
+}
+
 # All targets should depend on this target to inherit the right flags and
 # include directories.
 group("default_deps") {
   public_configs = [ ":default_config" ]
+  deps = [
+    ":gen_buildflags",
+  ]
   if (perfetto_build_standalone) {
     public_deps = [
       "//gn/standalone/libc++:deps",
@@ -54,36 +106,13 @@ config("public_config") {
   include_dirs = [
     "../include",
 
+    # For perfetto_build_flags.h
+    buildflag_gen_dir_,
+
     # The below are needed due to generated protobuf headers including other
     # headers with a path relative to the perfetto root.
     "${root_gen_dir}/${perfetto_root_path}/protos",
   ]
-
-  defines = []
-
-  if (perfetto_build_with_android) {
-    defines += [ "PERFETTO_BUILD_WITH_ANDROID" ]
-  } else if (perfetto_build_with_embedder) {
-    defines += [ "PERFETTO_BUILD_WITH_EMBEDDER" ]
-
-    if (build_with_chromium) {
-      defines += [ "PERFETTO_BUILD_WITH_CHROMIUM" ]
-    }  # if (build_with_chromium)
-
-    if (defined(is_component_build) && is_component_build) {
-      defines += [ "PERFETTO_BUILD_AS_COMPONENT" ]
-    }  # if (is_component_build)
-  }  # if (build_with_embedder)
-
-  if (perfetto_force_dlog == "on") {
-    defines += [ "PERFETTO_FORCE_DLOG=1" ]
-  } else if (perfetto_force_dlog == "off") {
-    defines += [ "PERFETTO_FORCE_DLOG=0" ]
-  }
-
-  if (perfetto_build_with_ipc_layer) {
-    defines += [ "PERFETTO_BUILD_IPC" ]
-  }
 }
 
 config("asan_instrumentation") {
