@@ -110,9 +110,12 @@ synth_1.py nulls.sql nulls.out
 # Unsigned integers
 print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 
-# GPU trace tests
+# GPU trace tests.
 ../data/gpu_counters.pb gpu_counters.sql gpu_counters.out
 ../data/gpu_trace.pb gpu_render_stages.sql gpu_render_stages.out
 
 # Clock sync
 clock_sync.py clock_sync.sql clock_sync.out
+
+# Graphics frame event trace tests.
+graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out

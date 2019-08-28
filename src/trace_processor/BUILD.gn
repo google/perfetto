@@ -76,6 +76,8 @@ source_set("lib") {
     "fuchsia_trace_tokenizer.h",
     "fuchsia_trace_utils.cc",
     "fuchsia_trace_utils.h",
+    "graphics_frame_event_parser.cc",
+    "graphics_frame_event_parser.h",
     "gzip_trace_parser.cc",
     "gzip_trace_parser.h",
     "heap_profile_allocation_table.cc",
