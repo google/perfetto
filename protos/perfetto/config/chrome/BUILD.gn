@@ -14,20 +14,9 @@
 
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
-import("../../../../gn/protozero_library.gni")
 
-protos_ = [ "chrome_config.proto" ]
-
-proto_library("lite") {
-  generate_python = false
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  sources = protos_
-}
-
-protozero_library("zero") {
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  sources = protos_
-  generator_plugin_options = "wrapper_namespace=pbzero"
+perfetto_proto_library("@TYPE@") {
+  sources = [
+    "chrome_config.proto",
+  ]
 }

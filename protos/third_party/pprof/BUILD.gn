@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
-proto_library("lite") {
-  generate_python = false
+perfetto_proto_library("lite") {
+  proto_generators = [ "lite" ]
   sources = [
     "profile.proto",
   ]
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
 }

@@ -12,30 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
-import("../../../../gn/protozero_library.gni")
+import("../../../../gn/proto_library.gni")
 
-gpu_proto_names = [
-  "gpu_counter_event.proto",
-  "gpu_render_stage_event.proto",
-]
-
-proto_library("lite") {
-  generate_python = false
+perfetto_proto_library("@TYPE@") {
   deps = [
-    "../../common:lite",
+    "../../common:@TYPE@",
   ]
-  sources = gpu_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-}
-
-protozero_library("zero") {
-  deps = [
-    "../../common:zero",
+  sources = [
+    "gpu_counter_event.proto",
+    "gpu_render_stage_event.proto",
   ]
-  sources = gpu_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  generator_plugin_options = "wrapper_namespace=pbzero"
 }

@@ -15,7 +15,6 @@
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
-import("../../gn/protozero_library.gni")
 
 source_set("protozero") {
   public_configs = [ "../../gn:default_config" ]
@@ -71,25 +70,14 @@ source_set("unittests") {
 
 # Generates both xxx.pbzero.h and xxx.pb.h (official proto).
 
-testing_proto_sources = [
-  "test/example_proto/library.proto",
-  "test/example_proto/library_internals/galaxies.proto",
-  "test/example_proto/test_messages.proto",
-  "test/example_proto/upper_import.proto",
-]
-
-protozero_library("testing_messages_zero") {
-  sources = testing_proto_sources
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = perfetto_root_path
-  generator_plugin_options = "wrapper_namespace=pbzero"
-}
-
-proto_library("testing_messages_lite") {
-  generate_python = false
-  sources = testing_proto_sources
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = perfetto_root_path
+perfetto_proto_library("testing_messages_@TYPE@") {
+  sources = [
+    "test/example_proto/library.proto",
+    "test/example_proto/library_internals/galaxies.proto",
+    "test/example_proto/test_messages.proto",
+    "test/example_proto/upper_import.proto",
+  ]
+  proto_path = perfetto_root_path
 }
 
 perfetto_fuzzer_test("protozero_decoder_fuzzer") {
