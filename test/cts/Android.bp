@@ -33,7 +33,7 @@ cc_test {
     },
   },
   stl: "libc++_static",
-  cflags: [
-    "-DPERFETTO_BUILD_WITH_ANDROID",
+  defaults: [
+    "perfetto_defaults",
   ],
 }

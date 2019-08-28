@@ -28,4 +28,7 @@ cc_library_shared {
   ],
   compile_multilib: "both",
   stl: "libc++_static",
+  defaults: [
+    "perfetto_defaults",
+  ],
 }
