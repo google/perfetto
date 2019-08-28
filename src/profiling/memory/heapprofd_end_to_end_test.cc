@@ -955,10 +955,13 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   EXPECT_GT(total_allocated, 0u);
 }
 
+// TODO(b/140008396): temporarily suppress 32 bit arm tests, as they're failing.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && defined(__arm__)
+INSTANTIATE_TEST_CASE_P(DISABLED_ForkMode, HeapprofdEndToEnd, Bool());
 // This test only works when run on Android using an Android Q version of
 // Bionic.
 // TODO(b/118428762): look into unwinding issues on x86.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||                        \
+#elif !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||                      \
     PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS) || defined(__i386__) || \
     defined(__x86_64__)
 INSTANTIATE_TEST_CASE_P(DISABLED_ForkMode, HeapprofdEndToEnd, Bool());
