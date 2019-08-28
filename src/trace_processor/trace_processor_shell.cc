@@ -56,6 +56,9 @@
 #include <linenoise.h>
 #include <pwd.h>
 #include <sys/types.h>
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
 #include "perfetto_version.gen.h"
 #else
 #define PERFETTO_GET_GIT_REVISION() "unknown"
