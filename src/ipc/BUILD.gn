@@ -41,7 +41,9 @@ source_set("ipc") {
   ]
   sources = [
     "buffered_frame_deserializer.cc",
+    "buffered_frame_deserializer.h",
     "client_impl.cc",
+    "client_impl.h",
     "deferred.cc",
     "host_impl.cc",
     "host_impl.h",

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +19,7 @@ import sys
 
 def main(argv):
   if len(argv) != 2:
-    print 'Usage: %s output_file.h'
+    print('Usage: %s output_file.h' % argv[0])
     return 1
   revision = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
   new_contents = '#define PERFETTO_GET_GIT_REVISION() "%s"\n' % revision
