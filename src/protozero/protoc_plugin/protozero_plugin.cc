@@ -732,7 +732,7 @@ bool ProtoZeroGenerator::Generate(const FileDescriptor* file,
   GeneratorJob job(file, &stub_h_printer);
 
   Printer stub_cc_printer(stub_cc_file_stream.get(), '$');
-  stub_cc_printer.Print("// Intentionally empty\n");
+  stub_cc_printer.Print("// Intentionally empty (crbug.com/998165)\n");
 
   // Parse additional options.
   for (const std::string& option : Split(options, ",")) {
