@@ -242,6 +242,26 @@ class Trace(object):
       clock.clock_id = k
       clock.timestamp = v
 
+  def add_gpu_counter_spec(self,
+                           ts,
+                           counter_id,
+                           name,
+                           description=None,
+                           unit_numerators=[],
+                           unit_denominators=[]):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    gpu_counters = packet.gpu_counter_event
+    counter_desc = gpu_counters.counter_descriptor
+    spec = counter_desc.specs.add()
+    spec.counter_id = counter_id
+    spec.name = name
+    if description is not None:
+      spec.description = description
+    spec.numerator_units.extend(unit_numerators)
+    spec.denominator_units.extend(unit_denominators)
+
+
   def add_gpu_counter(self, ts, counter_id, value, clock_id=None, seq_id=None):
     packet = self.add_packet()
     packet.timestamp = ts
