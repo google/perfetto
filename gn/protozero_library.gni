@@ -32,10 +32,15 @@ template("protozero_library") {
       component_build_force_source_set = true
     }
 
+    # See comments in empty_file.cc for the rationale.
+    deps = []
+    if (!perfetto_build_with_android) {
+      deps = [
+        perfetto_root_path + "src/protozero:empty_file",
+      ]
+    }
     if (defined(invoker.deps)) {
-      deps = invoker.deps
-    } else {
-      deps = []
+      deps += invoker.deps
     }
 
     deps += [ perfetto_root_path + "src/protozero" ]
