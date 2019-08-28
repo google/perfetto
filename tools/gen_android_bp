@@ -111,13 +111,16 @@ tree_path = 'external/perfetto'
 cflag_whitelist = r'^-DPERFETTO.*$'
 
 # Compiler defines which are passed through to the blueprint.
-define_whitelist = r'^(GOOGLE_PROTO.*)|(PERFETTO_BUILD_WITH_ANDROID)|(ZLIB_.*)|(USE_MMAP)|(HAVE_HIDDEN)$'
+define_whitelist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)|(HAVE_HIDDEN)$'
 
 # Shared libraries which are not in PDK.
 library_not_in_pdk = {
     'libandroid',
     'libservices',
 }
+
+# The directory where the generated perfetto_build_flags.h will be copied into.
+buildflags_dir = 'include/perfetto/base/build_configs/android_tree'
 
 # Additional arguments to apply to Android.bp rules.
 additional_args = {
@@ -132,7 +135,6 @@ additional_args = {
       ('static_libs', ['libhealthhalutils']),
     ],
 }
-
 
 def enable_gmock(module):
     module.static_libs.append('libgmock')
@@ -429,6 +431,11 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
         if "gen_merged_sql_metrics" in dep_name:
           dep_mod = create_merged_sql_metrics_target(blueprint, desc, dep_name)
           module.generated_headers.append(dep_mod.name)
+        elif dep_name.startswith(gn_utils.BUILDFLAGS_TARGET):
+            # Ignore the dependency on the gen_buildflags genrule. That is run
+            # separately in this generator and the generated file is copied over
+            # into the repo (see usage of |buildflags_dir| in this script).
+            return
         else:
           create_modules_from_target(blueprint, desc, dep_name)
           # Depend both on the generated sources and headers -- see
@@ -619,6 +626,7 @@ def create_modules_from_target(blueprint, desc, target_name):
         target_name: GN target for module generation.
     """
     target = desc[target_name]
+    export_include_dirs = [ 'include', buildflags_dir ]
     if target['type'] == 'executable':
         if 'host' in target['toolchain'] or target_name in target_host_only:
             module_type = 'cc_binary_host'
@@ -631,12 +639,12 @@ def create_modules_from_target(blueprint, desc, target_name):
         modules = make_genrules_for_action(blueprint, desc, target_name)
     elif target['type'] == 'static_library':
         module = Module('cc_library_static', label_to_module_name(target_name))
-        module.export_include_dirs = ['include']
+        module.export_include_dirs = export_include_dirs
         modules = [module]
     elif target['type'] == 'shared_library':
-        modules = [
-            Module('cc_library_shared', label_to_module_name(target_name))
-        ]
+        module = Module('cc_library_shared', label_to_module_name(target_name))
+        module.export_include_dirs = export_include_dirs
+        modules = [module]
     else:
         raise Error('Unknown target type: %s' % target['type'])
 
@@ -705,7 +713,15 @@ def create_blueprint_for_targets(desc, targets):
 
     # Default settings used by all modules.
     defaults = Module('cc_defaults', defaults_module)
-    defaults.local_include_dirs = ['include']
+
+    # We have to use include_dirs passing the path relative to the android tree.
+    # This is because: (i) perfetto_cc_defaults is used also by
+    # test/**/Android.bp; (ii) if we use local_include_dirs instead, paths
+    # become relative to the Android.bp that *uses* cc_defaults (not the one
+    # that defines it).s
+    defaults.include_dirs = [tree_path,
+                             tree_path + '/include',
+                             tree_path + '/' + buildflags_dir]
     defaults.cflags = [
         '-Wno-error=return-type',
         '-Wno-sign-compare',
@@ -788,6 +804,9 @@ def main():
     with open(out_files[-1], 'w') as f:
         f.write('\n'.join(output))
 
+    # Generate the perfetto_build_flags.h file.
+    out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
+    gn_utils.gen_buildflags(gn_args, out_files[-1])
 
     # Either check the contents or move the files to their final destination.
     return gn_utils.check_or_commit_generated_files (out_files, args.check_only)

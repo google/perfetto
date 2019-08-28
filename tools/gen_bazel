@@ -81,6 +81,9 @@ alias_targets = {
   '//tools/trace_to_text:trace_to_text_host': 'trace_to_text',
 }
 
+# The directory where the generated perfetto_build_flags.h will be copied into.
+buildflags_dir = 'include/perfetto/base/build_configs/bazel'
+
 
 def enable_sqlite(module):
   module.deps.add(Label('//third_party/sqlite'))
@@ -669,6 +672,10 @@ def main():
   out_files.append(args.output_proto + '.swp')
   with open(out_files[-1], 'w') as f:
     proto_build.write(Writer(f))
+
+  # Generate the build flags file.
+  out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
+  gn_utils.gen_buildflags(gn_args, out_files[-1])
 
   return gn_utils.check_or_commit_generated_files(out_files, args.check_only)
 
