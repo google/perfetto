@@ -30,13 +30,17 @@ import tempfile
 import gn_utils
 
 # Default targets to include in the result.
+# TODO(primiano): change this script to recurse into target deps when generating
+# headers, but only for proto targets. .pbzero.h files don't include each other
+# and we need to list targets here individually, which is unmaintainable.
 default_targets = [
     '//:libperfetto_client_experimental',
     "//include/perfetto/protozero:protozero",
     "//protos/perfetto/common:zero",
     "//protos/perfetto/config:zero",
-    "//protos/perfetto/config:zero",
-    "//protos/perfetto/trace:zero",
+    "//protos/perfetto/config/gpu:zero",
+    "//protos/perfetto/trace:minimal_zero",
+    "//protos/perfetto/trace:non_minimal_zero",
     "//protos/perfetto/trace/gpu:zero",
     "//protos/perfetto/trace/interned_data:zero",
     "//protos/perfetto/trace/track_event:zero",
@@ -368,7 +372,7 @@ class AmalgamatedProject(object):
         if not os.path.exists(header_name):
             if self._compute_deps_only:
                 return
-            raise Error('Header file %s not found' % source_name)
+            raise Error('Header file %s not found' % header_name)
         with open(header_name) as f:
             self.header.append(
                 '// %s begin header: %s' % (tool_name, header_name))
