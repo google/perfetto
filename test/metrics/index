@@ -19,3 +19,6 @@ android_startup_powrails.py android_powrails android_startup_powrails.out
 android_package_list.py android_package_list android_package_list.out
 
 heap_profile.textproto heap_profile_callsite_stats heap_profile_callsite_stats.out
+
+# Json output
+../data/memory_counters.pb trace_metadata trace_metadata.json.out
