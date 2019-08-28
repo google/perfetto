@@ -89,6 +89,22 @@ message GpuCounterDescriptor {
   }
   repeated GpuCounterSpec specs = 1;
 
+  // Allow producer to group counters into block to represent counter islands.  A capacity may be
+  // specified to indicate the number of counters that can be enable simultaneously in that block.
+  message GpuCounterBlock {
+    // required. Unique ID for the counter group.
+    optional uint32 block_id = 1;
+    // optional. Number of counters supported by the block. No limit if unset.
+    optional uint32 block_capacity = 2;
+    // optional. Name of block.
+    optional string name = 3;
+    // optional. Description for the block.
+    optional string description = 4;
+    // list of counters that are part of the block.
+    repeated uint32 counter_ids = 5;
+  }
+  repeated GpuCounterBlock blocks = 2;
+
   enum MeasureUnit {
     NONE = 0;
 
