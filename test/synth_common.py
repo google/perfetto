@@ -254,6 +254,17 @@ class Trace(object):
     gpu_counter.counter_id = counter_id
     gpu_counter.int_value = value
 
+  def add_buffer_event_packet(self, ts, buffer_id, layer_name, frame_number, event_type, duration):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    buffer_event = packet.graphics_frame_event.buffer_event
+    if buffer_id >= 0:
+      buffer_event.buffer_id = buffer_id
+    buffer_event.layer_name = layer_name
+    buffer_event.frame_number = frame_number
+    if event_type >= 0:
+      buffer_event.type = event_type
+    buffer_event.duration_ns = duration
 
 def create_trace():
   parser = argparse.ArgumentParser()
