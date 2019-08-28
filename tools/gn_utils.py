@@ -26,6 +26,9 @@ import subprocess
 import sys
 
 
+BUILDFLAGS_TARGET = '//gn:gen_buildflags'
+
+
 def _check_command_output(cmd, cwd):
   try:
     output = subprocess.check_output(
@@ -146,6 +149,20 @@ def label_to_target_name_with_path(label):
   name = re.sub(r'^//:?', '', label)
   name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
   return name
+
+
+def gen_buildflags(gn_args, target_file):
+    """Generates the perfetto_build_flags.h for the given config.
+
+    target_file: the path, relative to the repo root, where the generated
+        buildflag header will be copied into.
+    """
+    tmp_out = prepare_out_directory(gn_args, 'tmp.gen_buildflags')
+    build_targets(tmp_out, [BUILDFLAGS_TARGET], quiet=True)
+    src = os.path.join(tmp_out, 'gen', 'build_config', 'perfetto_build_flags.h')
+    shutil.copy(src, os.path.join(repo_root(), target_file))
+    shutil.rmtree(tmp_out)
+
 
 def check_or_commit_generated_files(tmp_files, check):
     """Checks that gen files are unchanged or renames them to the final location
