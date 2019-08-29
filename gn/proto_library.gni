@@ -116,7 +116,6 @@ template("perfetto_proto_library") {
     "sources",
     "visibility",
     "testonly",
-    "generate_descriptor",
   ]
   type_expansion_token = "@TYPE@"
 
@@ -153,6 +152,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generate_python = false
         generate_cc = false
+        generate_descriptor = invoker.generate_descriptor
         deps = deps_
         forward_variables_from(invoker, vars_to_forward)
       }

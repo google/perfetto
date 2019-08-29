@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/test.gni")
+
 source_set("sqlite") {
   sources = [
     "query_constraints.cc",
     "query_constraints.h",
     "scoped_db.h",
-    "sqlite.h",
     "sqlite3_str_split.cc",
     "sqlite3_str_split.h",
     "sqlite_table.cc",
@@ -33,7 +34,7 @@ source_set("sqlite") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "query_constraints_unittest.cc",

@@ -14,40 +14,38 @@
 
 import("../../gn/perfetto.gni")
 
-if (perfetto_build_standalone) {
-  action_foreach("configs") {
-    testonly = true
-    script = "$root_out_dir/protoc_helper"
+action_foreach("configs") {
+  testonly = true
+  script = "$root_out_dir/protoc_helper"
 
-    deps = [
-      "../../tools:protoc_helper",
-    ]
+  deps = [
+    "../../tools:protoc_helper",
+  ]
 
-    sources = [
-      "android_log.cfg",
-      "atrace.cfg",
-      "background.cfg",
-      "bad_config.cfg",
-      "camera.cfg",
-      "client_api.cfg",
-      "ftrace.cfg",
-      "ftrace_largebuffer.cfg",
-      "heapprofd.cfg",
-      "long_trace.cfg",
-      "processes.cfg",
-      "summary.cfg",
-      "sys_stats.cfg",
-    ]
+  sources = [
+    "android_log.cfg",
+    "atrace.cfg",
+    "background.cfg",
+    "bad_config.cfg",
+    "camera.cfg",
+    "client_api.cfg",
+    "ftrace.cfg",
+    "ftrace_largebuffer.cfg",
+    "heapprofd.cfg",
+    "long_trace.cfg",
+    "processes.cfg",
+    "summary.cfg",
+    "sys_stats.cfg",
+  ]
 
-    outputs = [
-      "$root_out_dir/{{source_file_part}}.protobuf",
-    ]
+  outputs = [
+    "$root_out_dir/{{source_file_part}}.protobuf",
+  ]
 
-    args = [
-      "encode",
-      "--root=" + rebase_path(perfetto_root_path, ""),
-      "--input={{source}}",
-      "--output={{source_file_part}}.protobuf",
-    ]
-  }
+  args = [
+    "encode",
+    "--root=" + rebase_path(perfetto_root_path, ""),
+    "--input={{source}}",
+    "--output={{source_file_part}}.protobuf",
+  ]
 }

@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/span_join_operator_table.h"
 
+#include <sqlite3.h>
 #include <string.h>
+
 #include <algorithm>
 #include <set>
 #include <utility>
@@ -25,7 +27,6 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/sqlite/sqlite.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {

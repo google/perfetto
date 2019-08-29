@@ -2127,8 +2127,7 @@ void TracingServiceImpl::OnStartTriggersTimeout(TracingSessionID tsid) {
 }
 
 void TracingServiceImpl::UpdateMemoryGuardrail() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_EMBEDDER_BUILD) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
   uint64_t total_buffer_bytes = 0;
 
   // Sum up all the shared memory buffers.
