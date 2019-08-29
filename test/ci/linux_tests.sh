@@ -35,13 +35,12 @@ ${OUT_PATH}/perfetto_unittests
 ${OUT_PATH}/perfetto_integrationtests
 BENCHMARK_FUNCTIONAL_TEST_ONLY=true ${OUT_PATH}/perfetto_benchmarks
 
-mkdir -p /ci/artifacts/perf-test-metrics.tmp
+mkdir -p /ci/artifacts/perf
 tools/diff_test_trace_processor.py \
   --test-type=queries \
-  --perf-file=/ci/artifacts/perf-test-metrics.tmp/tp-perf-queries.json \
+  --perf-file=/ci/artifacts/perf/tp-perf-queries.json \
   ${OUT_PATH}/trace_processor_shell
 tools/diff_test_trace_processor.py \
   --test-type=metrics \
-  --perf-file=/ci/artifacts/perf-test-metrics.tmp/tp-perf-metrics.json \
+  --perf-file=/ci/artifacts/perf/tp-perf-metrics.json \
   ${OUT_PATH}/trace_processor_shell
-mv /ci/artifacts/perf-test-metrics.tmp /ci/artifacts/perf-test-metrics
