@@ -925,11 +925,6 @@ proto_library(
         "perfetto/trace/chrome/chrome_metadata.proto",
         "perfetto/trace/chrome/chrome_trace_event.proto",
     ],
-    deps = [
-        "//third_party/perfetto/protos:trace_interned_data_zero",
-        "//third_party/perfetto/protos:trace_profiling_zero",
-        "//third_party/perfetto/protos:trace_track_event_zero",
-    ],
 )
 
 # GN target: //protos/perfetto/trace/chrome:zero_gen

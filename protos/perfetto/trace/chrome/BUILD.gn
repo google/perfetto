@@ -12,45 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
-import("../../../../gn/protozero_library.gni")
+import("../../../../gn/proto_library.gni")
 
-chrome_proto_names = [
-  "chrome_trace_event.proto",
-  "chrome_benchmark_metadata.proto",
-  "chrome_metadata.proto",
-]
-minimal_chrome_proto_names = [ "chrome_trace_packet.proto" ]
-
-proto_library("lite") {
-  generate_python = false
-  sources = chrome_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
+perfetto_proto_library("@TYPE@") {
+  sources = [
+    "chrome_benchmark_metadata.proto",
+    "chrome_metadata.proto",
+    "chrome_trace_event.proto",
+  ]
 }
 
-protozero_library("zero") {
+perfetto_proto_library("minimal_complete_lite") {
+  proto_generators = [ "lite" ]
   deps = [
-    "../interned_data:zero",
-    "../track_event:zero",
+    ":@TYPE@",
+    "../:minimal_@TYPE@",
+    "../../common:@TYPE@",
+    "../../config:@TYPE@",
+    "../interned_data:@TYPE@",
+    "../profiling:@TYPE@",
+    "../track_event:@TYPE@",
   ]
-  sources = chrome_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  generator_plugin_options = "wrapper_namespace=pbzero"
-}
-
-proto_library("minimal_complete_lite") {
-  generate_python = false
-  deps = [
-    ":lite",
-    "../:minimal_lite",
-    "../../common:lite",
-    "../../config:lite",
-    "../interned_data:lite",
-    "../track_event:lite",
+  sources = [
+    "chrome_trace_packet.proto",
   ]
-  sources = minimal_chrome_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
 }

@@ -12,30 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
-import("../../../../gn/protozero_library.gni")
 
-event_proto_names = [ "interned_data.proto" ]
-
-proto_library("lite") {
-  deps = [
-    "../profiling:lite",
-    "../track_event:lite",
+perfetto_proto_library("@TYPE@") {
+  sources = [
+    "interned_data.proto",
   ]
-  generate_python = false
-  sources = event_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-}
-
-protozero_library("zero") {
   deps = [
-    "../profiling:zero",
-    "../track_event:zero",
+    "../profiling:@TYPE@",
+    "../track_event:@TYPE@",
   ]
-  sources = event_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  generator_plugin_options = "wrapper_namespace=pbzero"
 }
