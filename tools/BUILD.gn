@@ -12,27 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-copy("copy_protoc_helper") {
-  testonly = true
-  sources = [
-    "protoc_helper.py",
-  ]
-  outputs = [
-    "${root_out_dir}/protoc_helper",
-  ]
-}
+import("../gn/perfetto.gni")
 
-group("protoc_helper") {
+# Prevent that this file is accidentally included in embedder builds.
+assert(enable_perfetto_tools)
+
+# Lists all tools. The root "all" target depends on this.
+group("tools") {
   testonly = true
-  public_deps = [
-    ":copy_protoc_helper",
-  ]
   deps = [
-    "../gn:protoc($host_toolchain)",
+    ":idle_alloc",
+    ":protoc_helper",
+    "ftrace_proto_gen",
+    "proto_to_cpp",
+    "protoprofile",
+    "trace_to_text",
+    "trace_to_text:trace_to_text_lite",
   ]
+  if (is_linux || is_android) {
+    deps += [
+      "busy_threads",
+      "cpu_utilization",
+      "dump_ftrace_stats",
+      "skippy",
+    ]
+  }
 }
 
-if (is_linux) {
+if (is_linux && enable_perfetto_heapprofd) {
   executable("profiling_sample_distribution") {
     sources = [
       "profiling_sample_distribution.cc",
@@ -43,4 +50,26 @@ if (is_linux) {
       "../src/profiling/memory:client",
     ]
   }
+}
+
+copy("protoc_helper") {
+  testonly = true
+  deps = [
+    "../gn:protoc($host_toolchain)",
+  ]
+  sources = [
+    "protoc_helper.py",
+  ]
+  outputs = [
+    "${root_out_dir}/protoc_helper",
+  ]
+}
+
+executable("idle_alloc") {
+  deps = [
+    "../gn:default_deps",
+  ]
+  sources = [
+    "idle_alloc.cc",
+  ]
 }

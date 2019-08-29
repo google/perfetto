@@ -12,31 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (current_toolchain == host_toolchain) {
-  executable("proto_to_cpp_host") {
-    testonly = true
-    deps = [
-      "../../gn:default_deps",
-      "../../gn:protobuf_full",
-      "../../src/base",
-    ]
-    sources = [
-      "proto_to_cpp.cc",
-    ]
-  }
-}
+import("../../gn/perfetto_host_executable.gni")
 
-copy("proto_to_cpp") {
+perfetto_host_executable("proto_to_cpp") {
   testonly = true
-  host_out_dir_ =
-      get_label_info(":proto_to_cpp_host($host_toolchain)", "root_out_dir")
   deps = [
-    ":proto_to_cpp_host($host_toolchain)",
+    "../../gn:default_deps",
+    "../../gn:protobuf_full",
+    "../../src/base",
   ]
   sources = [
-    "${host_out_dir_}/proto_to_cpp_host",
-  ]
-  outputs = [
-    "${root_out_dir}/proto_to_cpp",
+    "proto_to_cpp.cc",
   ]
 }

@@ -14,7 +14,10 @@
 
 import("//build_overrides/build.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/test.gni")
 import("../../gn/wasm.gni")
+
+enable_stack_trace = is_debug && perfetto_build_standalone && !is_wasm
 
 source_set("base") {
   deps = [
@@ -50,12 +53,12 @@ source_set("base") {
     ]
   }
 
-  if (is_debug && perfetto_build_standalone && !is_wasm) {
+  if (enable_stack_trace) {
     deps += [ ":debug_crash_stack_trace" ]
   }
 }
 
-if (is_debug && perfetto_build_standalone && !is_wasm) {
+if (enable_stack_trace) {
   source_set("debug_crash_stack_trace") {
     sources = [
       "debug_crash_stack_trace.cc",
@@ -72,7 +75,7 @@ if (is_debug && perfetto_build_standalone && !is_wasm) {
   }
 }
 
-if (perfetto_build_with_ipc_layer) {
+if (enable_perfetto_ipc) {
   # This cannot be in :base as it does not build on WASM.
   source_set("unix_socket") {
     deps = [
@@ -108,7 +111,7 @@ source_set("test_support") {
   }
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":base",
@@ -133,7 +136,7 @@ source_set("unittests") {
     "weak_ptr_unittest.cc",
   ]
 
-  # TODO(brucedawson): Enable these for Windows when possible.
+  # TODO: Enable these for Windows when possible.
   if (!is_win) {
     sources += [
       "metatrace_unittest.cc",
@@ -145,6 +148,7 @@ source_set("unittests") {
     ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
+    # This causes some problems on the chromium waterfall.
     sources += [ "unix_socket_unittest.cc" ]
     if (is_linux || is_android) {
       sources += [ "watchdog_unittest.cc" ]

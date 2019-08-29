@@ -13,8 +13,28 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
-import("../../gn/proto_library.gni")
+import("../../gn/perfetto_host_executable.gni")
 import("../../gn/wasm.gni")
+
+perfetto_host_executable("trace_to_text") {
+  testonly = true
+  deps = [
+    ":full",
+    "../../gn:default_deps",
+  ]
+}
+
+# This is just to check that we can build a version of trace_to_text against
+# libprotobuf-lite. This configuration is only used by WASM. Unfortunately,
+# however, the WASM linker is very permissive and failures show up only when
+# loading the executable in the browser.
+perfetto_host_executable("trace_to_text_lite") {
+  testonly = true
+  deps = [
+    ":lite",
+    "../../gn:default_deps",
+  ]
+}
 
 source_set("utils") {
   public_deps = [
@@ -91,12 +111,12 @@ source_set("pprofbuilder") {
   ]
 }
 
-if (perfetto_build_standalone) {
-  static_library("libpprofbuilder") {
-    deps = [
-      ":pprofbuilder",
-    ]
-  }
+# Exposed in bazel builds.
+static_library("libpprofbuilder") {
+  complete_static_lib = true
+  deps = [
+    ":pprofbuilder",
+  ]
 }
 
 # The core source files that are used both by the "full" version (the host
@@ -136,8 +156,8 @@ source_set("common") {
   } else {
     defines += [ "PERFETTO_NOLOCALSYMBOLIZE" ]
   }
-  if (perfetto_build_standalone) {
-    deps += [ "../../gn/standalone:gen_git_revision" ]
+  if (enable_perfetto_version_gen) {
+    deps += [ "//gn/standalone:gen_git_revision" ]
   }
 }
 
@@ -168,47 +188,10 @@ source_set("full") {
   ]
 }
 
-if (current_toolchain == host_toolchain) {
-  executable("trace_to_text_host") {
-    testonly = true
-    deps = [
-      ":full",
-      "../../gn:default_deps",
-    ]
-  }
-
-  # WASM is too permissive, build a normal version of the binary to test for
-  # missing symbols.
-  executable("trace_to_text_lite_host") {
-    deps = [
-      ":lite",
-      "../../gn:default_deps",
-    ]
-  }
-}
-
 wasm_lib("trace_to_text_wasm") {
   name = "trace_to_text"
   deps = [
     ":lite",
     "../../gn:default_deps",
   ]
-}
-
-# The one for the android tree is defined in the top-level BUILD.gn.
-if (!perfetto_build_with_android) {
-  copy("trace_to_text") {
-    testonly = true
-    host_out_dir_ =
-        get_label_info(":trace_to_text_host($host_toolchain)", "root_out_dir")
-    deps = [
-      ":trace_to_text_host($host_toolchain)",
-    ]
-    sources = [
-      "${host_out_dir_}/trace_to_text_host",
-    ]
-    outputs = [
-      "${root_out_dir}/trace_to_text",
-    ]
-  }
 }

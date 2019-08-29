@@ -120,3 +120,12 @@ if (perfetto_build_standalone) {
     ]
   }
 }
+
+# This target exports perfetto trace protos allowing both host and device
+# targets to implement custom parsers based on our protos.
+static_library("perfetto_trace_protos") {
+  complete_static_lib = true
+  deps = [
+    ":lite",
+  ]
+}

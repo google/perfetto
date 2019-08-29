@@ -14,7 +14,7 @@
 
 import("perfetto.gni")
 
-if (perfetto_build_standalone || perfetto_build_with_android) {
+if (perfetto_root_path == "//") {
   template("test") {
     executable(target_name) {
       forward_variables_from(invoker, "*")
@@ -29,6 +29,21 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
     group(target_name) {
       not_needed(invoker, "*")
       testonly = true
+    }
+  }
+}
+
+# This is to avoid that unittest targets get discovered and built in the
+# "default" GN target of embedder builds. See notes in the comments of the
+# root BUILD.gn.
+template("perfetto_unittest_source_set") {
+  if (enable_perfetto_unittests) {
+    source_set(target_name) {
+      forward_variables_from(invoker, "*")
+    }
+  } else {
+    group(target_name) {
+      not_needed(invoker, "*")
     }
   }
 }

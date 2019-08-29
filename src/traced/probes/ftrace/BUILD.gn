@@ -15,6 +15,7 @@
 import("../../../../gn/fuzzer.gni")
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
+import("../../../../gn/test.gni")
 
 # For use_libfuzzer.
 if (perfetto_root_path == "//") {
@@ -40,7 +41,7 @@ source_set("test_support") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":format_parser",
@@ -152,7 +153,7 @@ source_set("format_parser") {
   ]
 }
 
-if (perfetto_build_standalone) {
+if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [

@@ -49,7 +49,7 @@ source_set("base") {
     "watchdog_posix.h",
     "weak_ptr.h",
   ]
-  if (perfetto_build_with_ipc_layer) {
+  if (enable_perfetto_ipc) {
     sources += [ "unix_socket.h" ]
   }
   public_configs = [ "../../../../gn:asan_instrumentation" ]

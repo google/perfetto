@@ -33,43 +33,6 @@ import sys
 
 import gn_utils
 
-# Default targets to translate to the blueprint file.
-default_targets = [
-    '//:libperfetto',
-    '//:libperfetto_client_experimental',
-    '//:libperfetto_android_internal',
-    '//:perfetto_integrationtests',
-    '//:perfetto_trace_protos',
-    '//:perfetto_unittests',
-    '//:perfetto',
-    '//:trace_processor_shell',
-    '//:traced',
-    '//:traced_probes',
-    '//:trace_to_text',
-    '//:heapprofd_client',
-    '//:heapprofd',
-    '//:trigger_perfetto',
-]
-
-# Targets which are testonly but should still be a cc_binary.
-non_test_binaries = [
-    '//:trace_processor_shell',
-]
-
-# Defines a custom init_rc argument to be applied to the corresponding output
-# blueprint target.
-target_initrc = {
-    '//:traced': 'perfetto.rc',
-    '//:heapprofd': 'heapprofd.rc',
-}
-
-target_host_supported = [
-    '//:perfetto_trace_protos',
-]
-
-target_host_only = [
-    '//:trace_to_text',
-]
 
 # Arguments for the GN output directory.
 gn_args = ' '.join([
@@ -79,6 +42,44 @@ gn_args = ' '.join([
     'target_cpu="arm"',
     'target_os="android"',
 ])
+
+# Default targets to translate to the blueprint file.
+default_targets = [
+    '//:libperfetto_client_experimental',
+    '//:libperfetto',
+    '//:perfetto_integrationtests',
+    '//:perfetto_unittests',
+    '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/android_internal:libperfetto_android_internal',
+    '//src/perfetto_cmd:perfetto',
+    '//src/perfetto_cmd:trigger_perfetto',
+    '//src/profiling/memory:heapprofd_client',
+    '//src/profiling/memory:heapprofd',
+    '//src/trace_processor:trace_processor_shell',
+    '//src/traced/probes:traced_probes',
+    '//src/traced/service:traced',
+    '//tools/trace_to_text:trace_to_text',
+]
+
+# Targets which are testonly but should still be a cc_binary.
+non_test_binaries = [
+    '//src/trace_processor:trace_processor_shell',
+]
+
+# Defines a custom init_rc argument to be applied to the corresponding output
+# blueprint target.
+target_initrc = {
+    '//src/traced/service:traced': 'perfetto.rc',
+    '//src/profiling/memory:heapprofd': 'heapprofd.rc',
+}
+
+target_host_supported = [
+    '//protos/perfetto/trace:perfetto_trace_protos',
+]
+
+target_host_only = [
+    '//tools/trace_to_text:trace_to_text',
+]
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
@@ -372,6 +373,12 @@ class Blueprint(object):
 
 def label_to_module_name(label):
     """Turn a GN label (e.g., //:perfetto_tests) into a module name."""
+    # If the label is explicibly listed in the default target list, don't prefix
+    # its name and return just the target name. This is so tools like
+    # "trace_to_text" stay as such in the Android tree.
+    if label in default_targets:
+        return label.split(':')[-1]
+
     module = re.sub(r'^//:?', '', label)
     module = re.sub(r'[^a-zA-Z0-9_]', '_', module)
     if not module.startswith(module_prefix) and label not in default_targets:

@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_SPAN_JOIN_OPERATOR_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SPAN_JOIN_OPERATOR_TABLE_H_
 
+#include <sqlite3.h>
+
 #include <array>
 #include <deque>
 #include <limits>
@@ -29,7 +31,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
