@@ -27,20 +27,15 @@ template("protozero_library") {
     generate_python = false
     generator_plugin_label =
         perfetto_root_path + "src/protozero/protoc_plugin:protozero_plugin"
-    generator_plugin_suffixes = [ ".pbzero.h" ]
+    generator_plugin_suffix = ".pbzero"
     if (build_with_chromium) {
       component_build_force_source_set = true
     }
 
-    # See comments in empty_file.cc for the rationale.
-    deps = []
-    if (!perfetto_build_with_android) {
-      deps = [
-        perfetto_root_path + "src/protozero:empty_file",
-      ]
-    }
     if (defined(invoker.deps)) {
-      deps += invoker.deps
+      deps = invoker.deps
+    } else {
+      deps = []
     }
 
     deps += [ perfetto_root_path + "src/protozero" ]
