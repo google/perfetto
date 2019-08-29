@@ -34,12 +34,12 @@
 // 1 bar 100
 
 #include <iostream>
+#include <map>
 #include <string>
 #include <thread>
 
 #include <unistd.h>
 
-#include "src/profiling/memory/client.h"
 #include "src/profiling/memory/sampler.h"
 
 #include "perfetto/base/logging.h"
@@ -113,36 +113,20 @@ int ProfilingSampleDistributionMain(int argc, char** argv) {
   for (const auto& pair : total_ground_truth)
     std::cout << "g " << pair.first << " " << pair.second << std::endl;
 
-  std::default_random_engine seed_engine(init_seed);
-
   while (times-- > 0) {
-    PThreadKey key(ThreadLocalSamplingData::KeyDestructor);
-    ThreadLocalSamplingData::seed = seed_engine();
-    // We want to use the same API here that the client uses, which involves
-    // TLS. In order to destruct that TLS, we need to spawn a thread because
-    // pthread_key_delete does not delete any associated data, but rather it
-    // gets deleted when the owning thread terminates.
-    //
-    // Sad times.
-    std::thread th([&] {
-      if (!key.valid())
-        PERFETTO_FATAL("Failed to initialize TLS.");
+    Sampler sampler(sampling_interval);
+    std::map<std::string, uint64_t> totals;
+    for (const auto& pair : allocations) {
+      size_t sample_size = sampler.SampleSize(pair.second);
+      // We also want to add 0 to make downstream processing easier, making
+      // sure every iteration has an entry for every key, even if it is
+      // zero.
+      totals[pair.first] += sample_size;
+    }
 
-      std::map<std::string, uint64_t> totals;
-      for (const auto& pair : allocations) {
-        size_t sample_size =
-            SampleSize(key.get(), pair.second, sampling_interval, malloc, free);
-        // We also want to add 0 to make downstream processing easier, making
-        // sure every iteration has an entry for every key, even if it is
-        // zero.
-        totals[pair.first] += sample_size;
-      }
-
-      for (const auto& pair : totals)
-        std::cout << times << " " << pair.first << " " << pair.second
-                  << std::endl;
-    });
-    th.join();
+    for (const auto& pair : totals)
+      std::cout << times << " " << pair.first << " " << pair.second
+                << std::endl;
   }
 
   return 0;
