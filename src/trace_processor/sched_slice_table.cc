@@ -202,8 +202,8 @@ StorageColumn::Comparator SchedSliceTable::EndStateColumn::Sort(
   };
 }
 
-SqliteTable::ColumnType SchedSliceTable::EndStateColumn::GetType() const {
-  return SqliteTable::ColumnType::kString;
+SqlValue::Type SchedSliceTable::EndStateColumn::GetType() const {
+  return SqlValue::Type::kString;
 }
 
 }  // namespace trace_processor
