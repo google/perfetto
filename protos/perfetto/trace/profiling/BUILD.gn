@@ -12,26 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
-import("../../../../gn/protozero_library.gni")
 
-profiling_proto_names = [
-  "profile_common.proto",
-  "profile_packet.proto",
-  "heap_graph.proto",
-]
-
-proto_library("lite") {
-  generate_python = false
-  sources = profiling_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-}
-
-protozero_library("zero") {
-  sources = profiling_proto_names
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  generator_plugin_options = "wrapper_namespace=pbzero"
+perfetto_proto_library("@TYPE@") {
+  sources = [
+    "heap_graph.proto",
+    "profile_common.proto",
+    "profile_packet.proto",
+  ]
 }

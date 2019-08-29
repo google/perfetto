@@ -12,34 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
-import("../../../../gn/protozero_library.gni")
 
-common_sources = [
-  "batt_metric.proto",
-  "cpu_metric.proto",
-  "mem_metric.proto",
-  "mem_unagg_metric.proto",
-  "process_growth.proto",
-  "ion_metric.proto",
-  "lmk_metric.proto",
-  "powrails_metric.proto",
-  "startup_metric.proto",
-  "heap_profile_callsite_stats.proto",
-  "package_list.proto",
-]
-
-proto_library("lite") {
-  generate_python = false
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  sources = common_sources
-}
-
-protozero_library("zero") {
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  sources = common_sources
-  generator_plugin_options = "wrapper_namespace=pbzero"
+perfetto_proto_library("@TYPE@") {
+  sources = [
+    "batt_metric.proto",
+    "cpu_metric.proto",
+    "heap_profile_callsite_stats.proto",
+    "ion_metric.proto",
+    "lmk_metric.proto",
+    "mem_metric.proto",
+    "mem_unagg_metric.proto",
+    "package_list.proto",
+    "powrails_metric.proto",
+    "process_growth.proto",
+    "startup_metric.proto",
+  ]
 }
