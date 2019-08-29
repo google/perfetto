@@ -25,7 +25,7 @@
 #include "tools/trace_to_text/trace_to_text.h"
 #include "tools/trace_to_text/symbolize_profile.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
 #include "perfetto_version.gen.h"
 #else
 #define PERFETTO_GET_GIT_REVISION() "unknown"

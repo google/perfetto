@@ -12,28 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto_host_executable.gni")
+import("perfetto.gni")
 
-perfetto_host_executable("protoprofile") {
-  testonly = true
-  deps = [
-    ":common",
-    "../../gn:default_deps",
-  ]
-}
+perfetto_fuzzers_targets = [
+  "gn:default_deps",
+  "src/ipc:buffered_frame_deserializer_fuzzer",
+  "src/protozero:protozero_decoder_fuzzer",
+  "src/trace_processor:trace_processor_fuzzer",
+  "src/traced/probes/ftrace:cpu_reader_fuzzer",
+  "test:end_to_end_shared_memory_fuzzer",
+  "test:producer_socket_fuzzer",
+]
 
-source_set("common") {
-  testonly = true
-  public_deps = [
-    "../../gn:default_deps",
-    "../../protos/third_party/pprof:lite",
-    "../../src/base",
-    "../../src/protozero",
-  ]
-  sources = [
-    "main.cc",
-  ]
-  deps = [
-    "../../gn:protobuf_full",
+if (enable_perfetto_heapprofd) {
+  perfetto_fuzzers_targets += [
+    "src/profiling/memory:shared_ring_buffer_fuzzer",
+    "src/profiling/memory:shared_ring_buffer_write_fuzzer",
+    "src/profiling/memory:unwinding_fuzzer",
   ]
 }

@@ -17,10 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 
+#include <sqlite3.h>
+
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/trace_processor/sqlite/sqlite.h"
 
 namespace perfetto {
 namespace trace_processor {
