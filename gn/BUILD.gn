@@ -27,8 +27,7 @@ if (perfetto_root_path == "//") {
 # deal with several build systems.
 # The way this works is the following:
 # - This rule generates a header that contains a bunch of lines like:
-#   #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ANDROID_BUILD() (0)
-#   #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_EMBEDDER_BUILD() (0)
+#   #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ANDROID_BUILD()
 # - The generated header is included by base/build_config.h
 # - Source files in the codebase #include base/build_config and use the
 #   pattern #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -43,21 +42,22 @@ action("gen_buildflags") {
   }
   perfetto_force_dlog_on = perfetto_force_dlog == "on"
   perfetto_force_dlog_off = perfetto_force_dlog == "off"
-  perfetto_version_gen =
-      perfetto_build_standalone && !is_perfetto_build_generator
 
   response_file_contents = [
     "--flags",  # Keep this marker first.
     "PERFETTO_ANDROID_BUILD=$perfetto_build_with_android",
-    "PERFETTO_EMBEDDER_BUILD=$perfetto_build_with_embedder",
     "PERFETTO_CHROMIUM_BUILD=$build_with_chromium",
     "PERFETTO_STANDALONE_BUILD=$perfetto_build_standalone",
     "PERFETTO_START_DAEMONS=$start_daemons_for_testing",
-    "PERFETTO_IPC=$perfetto_build_with_ipc_layer",
+    "PERFETTO_IPC=$enable_perfetto_ipc",
+    "PERFETTO_WATCHDOG=$enable_perfetto_watchdog",
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
-    "PERFETTO_VERSION_GEN=$perfetto_version_gen",
+    "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
+    "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
+    "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
+    "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -194,7 +194,7 @@ group("protobuf_lite") {
 
 # The Google C++ Benchmark library.
 # Only avilable in standalone builds.
-if (perfetto_build_standalone) {
+if (enable_perfetto_benchmarks) {
   group("benchmark") {
     testonly = true
     public_deps = [
@@ -213,7 +213,7 @@ if (perfetto_build_standalone && (is_linux || is_android)) {
   }
 }
 
-if (enable_perfetto_trace_processor) {
+if (enable_perfetto_trace_processor_sqlite) {
   group("sqlite") {
     if (perfetto_root_path == "//") {
       public_deps = [
@@ -223,11 +223,16 @@ if (enable_perfetto_trace_processor) {
       public_deps = [
         "//third_party/sqlite:sqlite",
       ]
+      public_configs = [ ":sqlite_third_party_include_path" ]
     }
   }
 
-  # For now JsonCpp is supported only in standalone and Chrome builds,
-  # not in Android.
+  config("sqlite_third_party_include_path") {
+    include_dirs = [ "//third_party/sqlite" ]
+  }
+}  # if (enable_perfetto_trace_processor_sqlite)
+
+if (enable_perfetto_trace_processor_json) {
   group("jsoncpp") {
     if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:jsoncpp_config" ]
@@ -240,20 +245,20 @@ if (enable_perfetto_trace_processor) {
       ]
     }
   }
+}
 
+if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
   # Only avilable in standalone builds.
   group("linenoise") {
-    if (perfetto_build_standalone && (is_linux || is_android || is_mac)) {
-      public_deps = [
-        "//buildtools:linenoise",
-      ]
-    }
+    public_deps = [
+      "//buildtools:linenoise",
+    ]
   }
-}  # if (enable_perfetto_trace_processor)
+}  # if (enable_perfetto_trace_processor_linenoise)
 
 # Only used by src/profiling in standalone and android builds.
-if (perfetto_build_standalone || perfetto_build_with_android) {
+if (enable_perfetto_heapprofd) {
   group("libunwindstack") {
     public_configs = [ "//buildtools:libunwindstack_config" ]
     public_deps = [
@@ -263,8 +268,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
 }
 
 # Zlib is used both by trace_processor and by perfetto_cmd.
-if (enable_perfetto_trace_processor || perfetto_build_standalone ||
-    perfetto_build_with_android) {
+if (enable_perfetto_trace_processor || enable_perfetto_platform_services) {
   group("zlib") {
     if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:zlib_config" ]
@@ -281,12 +285,11 @@ if (enable_perfetto_trace_processor || perfetto_build_standalone ||
 }
 
 # Used by fuzzers.
-if (use_libfuzzer) {
+if (enable_perfetto_fuzzers) {
   group("libfuzzer") {
-    if (perfetto_build_standalone) {
-      public_deps = [
-        "//buildtools:libfuzzer",
-      ]
-    }
+    assert(perfetto_root_path == "//")
+    public_deps = [
+      "//buildtools:libfuzzer",
+    ]
   }
 }

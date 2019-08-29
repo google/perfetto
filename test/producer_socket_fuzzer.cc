@@ -21,14 +21,7 @@
 
 namespace perfetto {
 namespace socket_fuzz {
-// If we're building on Android and starting the daemons ourselves,
-// create the sockets in a world-writable location.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
-    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-#define TEST_PRODUCER_SOCK_NAME "/data/local/tmp/traced_producer"
-#else
-#define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
-#endif
+namespace {
 
 class FakeEventListener : public base::UnixSocket::EventListener {
  public:
@@ -58,8 +51,6 @@ class FakeEventListener : public base::UnixSocket::EventListener {
   std::function<void()> data_sent_;
 };
 
-int FuzzSharedMemory(const uint8_t* data, size_t size);
-
 int FuzzSharedMemory(const uint8_t* data, size_t size) {
   if (!data)
     return 0;
@@ -77,6 +68,7 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
   task_runner.RunUntilCheckpoint("data_sent");
   return 0;
 }
+}  // namespace
 }  // namespace socket_fuzz
 }  // namespace perfetto
 

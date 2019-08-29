@@ -16,7 +16,7 @@
 
 #include "perfetto/ext/base/watchdog.h"
 
-#if PERFETTO_USE_POSIX_WATCHDOG()
+#if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
 
 #include <fcntl.h>
 #include <inttypes.h>
@@ -259,4 +259,4 @@ Watchdog::Timer::Timer(Timer&& other) noexcept {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_USE_POSIX_WATCHDOG()
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)

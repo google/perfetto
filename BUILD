@@ -55,85 +55,9 @@ genrule(
     ],
 )
 
-# GN target: //src/protozero:libprotozero
-cc_library(
-    name = "libprotozero",
-    srcs = [
-        "src/protozero/message.cc",
-        "src/protozero/message_handle.cc",
-        "src/protozero/proto_decoder.cc",
-        "src/protozero/scattered_heap_buffer.cc",
-        "src/protozero/scattered_stream_null_delegate.cc",
-        "src/protozero/scattered_stream_writer.cc",
-    ],
-    hdrs = [
-        "include/perfetto/base/build_config.h",
-        "include/perfetto/base/compiler.h",
-        "include/perfetto/base/copyable_ptr.h",
-        "include/perfetto/base/export.h",
-        "include/perfetto/base/logging.h",
-        "include/perfetto/base/task_runner.h",
-        "include/perfetto/base/time.h",
-        "include/perfetto/ext/base/circular_queue.h",
-        "include/perfetto/ext/base/container_annotations.h",
-        "include/perfetto/ext/base/event_fd.h",
-        "include/perfetto/ext/base/file_utils.h",
-        "include/perfetto/ext/base/hash.h",
-        "include/perfetto/ext/base/lookup_set.h",
-        "include/perfetto/ext/base/metatrace.h",
-        "include/perfetto/ext/base/metatrace_events.h",
-        "include/perfetto/ext/base/no_destructor.h",
-        "include/perfetto/ext/base/optional.h",
-        "include/perfetto/ext/base/paged_memory.h",
-        "include/perfetto/ext/base/pipe.h",
-        "include/perfetto/ext/base/proc_utils.h",
-        "include/perfetto/ext/base/scoped_file.h",
-        "include/perfetto/ext/base/small_set.h",
-        "include/perfetto/ext/base/string_splitter.h",
-        "include/perfetto/ext/base/string_utils.h",
-        "include/perfetto/ext/base/string_view.h",
-        "include/perfetto/ext/base/string_writer.h",
-        "include/perfetto/ext/base/temp_file.h",
-        "include/perfetto/ext/base/thread_annotations.h",
-        "include/perfetto/ext/base/thread_checker.h",
-        "include/perfetto/ext/base/thread_task_runner.h",
-        "include/perfetto/ext/base/thread_utils.h",
-        "include/perfetto/ext/base/unix_socket.h",
-        "include/perfetto/ext/base/unix_task_runner.h",
-        "include/perfetto/ext/base/utils.h",
-        "include/perfetto/ext/base/uuid.h",
-        "include/perfetto/ext/base/waitable_event.h",
-        "include/perfetto/ext/base/watchdog.h",
-        "include/perfetto/ext/base/watchdog_noop.h",
-        "include/perfetto/ext/base/watchdog_posix.h",
-        "include/perfetto/ext/base/weak_ptr.h",
-        "include/perfetto/protozero/contiguous_memory_range.h",
-        "include/perfetto/protozero/field.h",
-        "include/perfetto/protozero/message.h",
-        "include/perfetto/protozero/message_handle.h",
-        "include/perfetto/protozero/proto_decoder.h",
-        "include/perfetto/protozero/proto_utils.h",
-        "include/perfetto/protozero/scattered_heap_buffer.h",
-        "include/perfetto/protozero/scattered_stream_null_delegate.h",
-        "include/perfetto/protozero/scattered_stream_writer.h",
-    ],
-)
-
-# GN target: //src/protozero/protoc_plugin:protozero_plugin
-cc_binary(
-    name = "src_protozero_protoc_plugin_protozero_plugin",
-    srcs = [
-        "src/protozero/protoc_plugin/protozero_plugin.cc",
-    ],
-    deps = [
-        "//third_party/protobuf:libprotoc_legacy",
-        "//third_party/protobuf:protobuf_legacy",
-    ],
-)
-
 # GN target: //tools/trace_to_text:libpprofbuilder
 cc_library(
-    name = "tools_trace_to_text_libpprofbuilder",
+    name = "libpprofbuilder",
     srcs = [
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
@@ -274,6 +198,82 @@ cc_library(
     ],
 )
 
+# GN target: //src/protozero:libprotozero
+cc_library(
+    name = "libprotozero",
+    srcs = [
+        "src/protozero/message.cc",
+        "src/protozero/message_handle.cc",
+        "src/protozero/proto_decoder.cc",
+        "src/protozero/scattered_heap_buffer.cc",
+        "src/protozero/scattered_stream_null_delegate.cc",
+        "src/protozero/scattered_stream_writer.cc",
+    ],
+    hdrs = [
+        "include/perfetto/base/build_config.h",
+        "include/perfetto/base/compiler.h",
+        "include/perfetto/base/copyable_ptr.h",
+        "include/perfetto/base/export.h",
+        "include/perfetto/base/logging.h",
+        "include/perfetto/base/task_runner.h",
+        "include/perfetto/base/time.h",
+        "include/perfetto/ext/base/circular_queue.h",
+        "include/perfetto/ext/base/container_annotations.h",
+        "include/perfetto/ext/base/event_fd.h",
+        "include/perfetto/ext/base/file_utils.h",
+        "include/perfetto/ext/base/hash.h",
+        "include/perfetto/ext/base/lookup_set.h",
+        "include/perfetto/ext/base/metatrace.h",
+        "include/perfetto/ext/base/metatrace_events.h",
+        "include/perfetto/ext/base/no_destructor.h",
+        "include/perfetto/ext/base/optional.h",
+        "include/perfetto/ext/base/paged_memory.h",
+        "include/perfetto/ext/base/pipe.h",
+        "include/perfetto/ext/base/proc_utils.h",
+        "include/perfetto/ext/base/scoped_file.h",
+        "include/perfetto/ext/base/small_set.h",
+        "include/perfetto/ext/base/string_splitter.h",
+        "include/perfetto/ext/base/string_utils.h",
+        "include/perfetto/ext/base/string_view.h",
+        "include/perfetto/ext/base/string_writer.h",
+        "include/perfetto/ext/base/temp_file.h",
+        "include/perfetto/ext/base/thread_annotations.h",
+        "include/perfetto/ext/base/thread_checker.h",
+        "include/perfetto/ext/base/thread_task_runner.h",
+        "include/perfetto/ext/base/thread_utils.h",
+        "include/perfetto/ext/base/unix_socket.h",
+        "include/perfetto/ext/base/unix_task_runner.h",
+        "include/perfetto/ext/base/utils.h",
+        "include/perfetto/ext/base/uuid.h",
+        "include/perfetto/ext/base/waitable_event.h",
+        "include/perfetto/ext/base/watchdog.h",
+        "include/perfetto/ext/base/watchdog_noop.h",
+        "include/perfetto/ext/base/watchdog_posix.h",
+        "include/perfetto/ext/base/weak_ptr.h",
+        "include/perfetto/protozero/contiguous_memory_range.h",
+        "include/perfetto/protozero/field.h",
+        "include/perfetto/protozero/message.h",
+        "include/perfetto/protozero/message_handle.h",
+        "include/perfetto/protozero/proto_decoder.h",
+        "include/perfetto/protozero/proto_utils.h",
+        "include/perfetto/protozero/scattered_heap_buffer.h",
+        "include/perfetto/protozero/scattered_stream_null_delegate.h",
+        "include/perfetto/protozero/scattered_stream_writer.h",
+    ],
+)
+
+# GN target: //src/protozero/protoc_plugin:protozero_plugin
+cc_binary(
+    name = "src_protozero_protoc_plugin_protozero_plugin",
+    srcs = [
+        "src/protozero/protoc_plugin/protozero_plugin.cc",
+    ],
+    deps = [
+        "//third_party/protobuf:libprotoc_legacy",
+        "//third_party/protobuf:protobuf_legacy",
+    ],
+)
+
 # GN target: //src/trace_processor:trace_processor
 cc_library(
     name = "trace_processor",
@@ -395,7 +395,6 @@ cc_library(
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
         "src/trace_processor/sqlite/scoped_db.h",
-        "src/trace_processor/sqlite/sqlite.h",
         "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite3_str_split.h",
         "src/trace_processor/sqlite/sqlite_table.cc",
@@ -545,7 +544,7 @@ cc_library(
     ],
 )
 
-# GN target: //:trace_processor_shell
+# GN target: //src/trace_processor:trace_processor_shell
 cc_binary(
     name = "trace_processor_shell",
     srcs = [
@@ -719,7 +718,6 @@ cc_binary(
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
         "src/trace_processor/sqlite/scoped_db.h",
-        "src/trace_processor/sqlite/sqlite.h",
         "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite3_str_split.h",
         "src/trace_processor/sqlite/sqlite_table.cc",
@@ -783,7 +781,6 @@ cc_binary(
         "//third_party/perfetto:gen_merged_sql_metrics",
         "//third_party/perfetto/google:jsoncpp",
         "//third_party/perfetto/google:linenoise",
-        "//third_party/perfetto/google:perfetto_version",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_android_zero_cc_proto",
         "//third_party/perfetto/protos:config_ftrace_zero_cc_proto",
@@ -819,7 +816,7 @@ cc_binary(
     ],
 )
 
-# GN target: //tools/trace_to_text:trace_to_text_host
+# GN target: //tools/trace_to_text:trace_to_text
 cc_binary(
     name = "trace_to_text",
     srcs = [
@@ -993,7 +990,6 @@ cc_binary(
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
         "src/trace_processor/sqlite/scoped_db.h",
-        "src/trace_processor/sqlite/sqlite.h",
         "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite3_str_split.h",
         "src/trace_processor/sqlite/sqlite_table.cc",
@@ -1078,7 +1074,6 @@ cc_binary(
     deps = [
         "//third_party/perfetto:gen_merged_sql_metrics",
         "//third_party/perfetto/google:jsoncpp",
-        "//third_party/perfetto/google:perfetto_version",
         "//third_party/perfetto/protos:common_cc_proto",
         "//third_party/perfetto/protos:common_zero_cc_proto",
         "//third_party/perfetto/protos:config_android_cc_proto",

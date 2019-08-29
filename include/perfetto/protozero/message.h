@@ -46,9 +46,7 @@ class MessageHandleBase;
 class PERFETTO_EXPORT Message {
  public:
   friend class MessageHandleBase;
-  // Grant end_to_end_shared_memory_fuzzer access in order to write raw
-  // bytes into the buffer.
-  friend class ::perfetto::shm_fuzz::FakeProducer;
+
   // Adjust the |nested_messages_arena_| size when changing this, or the
   // static_assert in the .cc file will bark.
   static constexpr uint32_t kMaxNestingDepth = 10;
@@ -170,6 +168,8 @@ class PERFETTO_EXPORT Message {
     BeginNestedMessageInternal(field_id, message);
     return message;
   }
+
+  ScatteredStreamWriter* stream_writer_for_testing() { return stream_writer_; }
 
  private:
   Message(const Message&) = delete;
