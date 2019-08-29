@@ -39,7 +39,7 @@ def Main():
   aosp_path = os.path.join(root_dir, 'buildtools', 'aosp-arm')
 
   env = {
-      # Travis CI doesn't set this and causes the emulator to fallback in
+      # The CI env doesn't set this and causes the emulator to fallback in
       # 32-bit mode with a "Cannot decide host bitness because $SHELL" error.
       'SHELL': '/bin/bash',
       'LD_LIBRARY_PATH': os.path.join(emulator_root, 'lib64', 'qt', 'lib'),
