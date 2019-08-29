@@ -51,6 +51,7 @@ using UniqueTid = uint32_t;
 
 // StringId is an offset into |string_pool_|.
 using StringId = StringPool::Id;
+static const StringId kNullStringId = StringId(0);
 
 // Identifiers for all the tables in the database.
 enum TableId : uint8_t {

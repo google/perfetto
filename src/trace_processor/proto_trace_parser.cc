@@ -1280,7 +1280,7 @@ void ProtoTraceParser::ParseAndroidLogEvent(ConstBytes blob) {
     prio = protos::pbzero::AndroidLogPriority::PRIO_INFO;
 
   if (arg_str != &arg_msg[0]) {
-    PERFETTO_DCHECK(!msg_id);
+    PERFETTO_DCHECK(!msg_id.is_null());
     // Skip the first space char (" foo=1 bar=2" -> "foo=1 bar=2").
     msg_id = context_->storage->InternString(&arg_msg[1]);
   }
