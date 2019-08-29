@@ -39,19 +39,19 @@ util::Status WindowOperatorTable::Init(int,
   *schema = Schema(
       {
           // These are the operator columns:
-          SqliteTable::Column(Column::kRowId, "rowid", ColumnType::kLong,
+          SqliteTable::Column(Column::kRowId, "rowid", SqlValue::Type::kLong,
                               kHidden),
-          SqliteTable::Column(Column::kQuantum, "quantum", ColumnType::kLong,
-                              kHidden),
+          SqliteTable::Column(Column::kQuantum, "quantum",
+                              SqlValue::Type::kLong, kHidden),
           SqliteTable::Column(Column::kWindowStart, "window_start",
-                              ColumnType::kLong, kHidden),
+                              SqlValue::Type::kLong, kHidden),
           SqliteTable::Column(Column::kWindowDur, "window_dur",
-                              ColumnType::kLong, kHidden),
+                              SqlValue::Type::kLong, kHidden),
           // These are the ouput columns:
-          SqliteTable::Column(Column::kTs, "ts", ColumnType::kLong),
-          SqliteTable::Column(Column::kDuration, "dur", ColumnType::kLong),
+          SqliteTable::Column(Column::kTs, "ts", SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kDuration, "dur", SqlValue::Type::kLong),
           SqliteTable::Column(Column::kQuantumTs, "quantum_ts",
-                              ColumnType::kLong),
+                              SqlValue::Type::kLong),
       },
       {Column::kRowId});
   return util::OkStatus();

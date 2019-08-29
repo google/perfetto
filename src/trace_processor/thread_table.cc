@@ -39,12 +39,13 @@ void ThreadTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 util::Status ThreadTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
-          SqliteTable::Column(Column::kUtid, "utid", ColumnType::kInt),
-          SqliteTable::Column(Column::kUpid, "upid", ColumnType::kInt),
-          SqliteTable::Column(Column::kName, "name", ColumnType::kString),
-          SqliteTable::Column(Column::kTid, "tid", ColumnType::kInt),
-          SqliteTable::Column(Column::kStartTs, "start_ts", ColumnType::kLong),
-          SqliteTable::Column(Column::kEndTs, "end_ts", ColumnType::kLong),
+          SqliteTable::Column(Column::kUtid, "utid", SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kUpid, "upid", SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kName, "name", SqlValue::Type::kString),
+          SqliteTable::Column(Column::kTid, "tid", SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kStartTs, "start_ts",
+                              SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kEndTs, "end_ts", SqlValue::Type::kLong),
       },
       {Column::kUtid});
   return util::OkStatus();
