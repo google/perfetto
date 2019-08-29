@@ -71,6 +71,7 @@ namespace stats {
   F(stackprofile_invalid_mapping_id,          kSingle,  kError,    kTrace),    \
   F(stackprofile_invalid_frame_id,            kSingle,  kError,    kTrace),    \
   F(stackprofile_invalid_callstack_id,        kSingle,  kError,    kTrace),    \
+  F(stackprofile_parser_error,                kSingle,  kError,    kTrace),    \
   F(systrace_parse_failure,                   kSingle,  kError,    kAnalysis), \
   F(task_state_invalid,                       kSingle,  kError,    kAnalysis), \
   F(traced_buf_buffer_size,                   kIndexed, kInfo,     kTrace),    \

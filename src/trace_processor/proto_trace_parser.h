@@ -97,6 +97,8 @@ class ProtoTraceParser : public TraceParser {
   void ParseProfilePacket(int64_t ts,
                           ProtoIncrementalState::PacketSequenceState*,
                           ConstBytes);
+  void ParseStreamingProfilePacket(ProtoIncrementalState::PacketSequenceState*,
+                                   ConstBytes);
   void ParseProfiledFrameSymbols(ProtoIncrementalState::PacketSequenceState*,
                                  ConstBytes);
   void ParseSystemInfo(ConstBytes);
