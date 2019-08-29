@@ -52,22 +52,18 @@ class ArgsTable : public StorageTable {
 
     bool HasOrdering() const override { return false; }
 
-    SqliteTable::ColumnType GetType() const override {
+    SqlValue::Type GetType() const override {
       switch (type_) {
         case Variadic::Type::kInt:
-          return SqliteTable::ColumnType::kLong;
         case Variadic::Type::kUint:
-          return SqliteTable::ColumnType::kLong;
-        case Variadic::Type::kString:
-          return SqliteTable::ColumnType::kString;
-        case Variadic::Type::kReal:
-          return SqliteTable::ColumnType::kDouble;
         case Variadic::Type::kPointer:
-          return SqliteTable::ColumnType::kLong;
         case Variadic::Type::kBool:
-          return SqliteTable::ColumnType::kBool;
+          return SqlValue::Type::kLong;
         case Variadic::Type::kJson:
-          return SqliteTable::ColumnType::kString;
+        case Variadic::Type::kString:
+          return SqlValue::Type::kString;
+        case Variadic::Type::kReal:
+          return SqlValue::Type::kDouble;
       }
       PERFETTO_FATAL("Not reached");  // For gcc
     }
