@@ -191,6 +191,7 @@ source_set("lib") {
     "db:lib",
     "metrics:lib",
     "sqlite",
+    "tables",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",
@@ -276,6 +277,7 @@ source_set("unittests") {
     "db:unittests",
     "sqlite",
     "sqlite:unittests",
+    "tables:unittests",
   ]
   if (perfetto_build_standalone || build_with_chromium) {
     sources += [
