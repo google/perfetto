@@ -70,9 +70,12 @@ export class ChromeTracingController {
       case 'GetTraceStats':
         this.getTraceStats();
         break;
+      case 'GetCategories':
+        this.getCategories();
+        break;
       default:
         this.sendErrorMessage('Action not recognised');
-        console.log('Received not recognized message');
+        console.log('Received not recognized message: ', request.method);
         break;
     }
   }
@@ -145,6 +148,23 @@ export class ChromeTracingController {
       traceStats: stats
     };
     this.sendMessage(response);
+  }
+
+  getCategories() {
+    const fetchCategories = async () => {
+      const categories = (await this.api.Tracing.getCategories()).categories;
+      this.uiPort.postMessage({type: 'GetCategoriesResponse', categories});
+    };
+    // If a target is already attached, we simply fetch the categories.
+    if (this.devtoolsSocket.isAttached()) {
+      fetchCategories();
+      return;
+    }
+    // Otherwise, we find attach to the target temporarily.
+    this.devtoolsSocket.findAndAttachTarget(async _ => {
+      fetchCategories();
+      this.devtoolsSocket.detach();
+    });
   }
 
   resetState() {
