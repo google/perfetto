@@ -17,7 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
-import "perfetto/trace/ftrace/ftrace_event_bundle.proto";
+import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
 
 // TODO(hjd): Move this to ftrace_reader/test/protos.
 message TestBundleWrapper {

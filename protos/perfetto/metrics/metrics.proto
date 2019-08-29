@@ -19,17 +19,17 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-import "perfetto/metrics/android/batt_metric.proto";
-import "perfetto/metrics/android/cpu_metric.proto";
-import "perfetto/metrics/android/mem_metric.proto";
-import "perfetto/metrics/android/mem_unagg_metric.proto";
-import "perfetto/metrics/android/process_growth.proto";
-import "perfetto/metrics/android/ion_metric.proto";
-import "perfetto/metrics/android/lmk_metric.proto";
-import "perfetto/metrics/android/powrails_metric.proto";
-import "perfetto/metrics/android/startup_metric.proto";
-import "perfetto/metrics/android/heap_profile_callsite_stats.proto";
-import "perfetto/metrics/android/package_list.proto";
+import "protos/perfetto/metrics/android/batt_metric.proto";
+import "protos/perfetto/metrics/android/cpu_metric.proto";
+import "protos/perfetto/metrics/android/mem_metric.proto";
+import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
+import "protos/perfetto/metrics/android/process_growth.proto";
+import "protos/perfetto/metrics/android/ion_metric.proto";
+import "protos/perfetto/metrics/android/lmk_metric.proto";
+import "protos/perfetto/metrics/android/powrails_metric.proto";
+import "protos/perfetto/metrics/android/startup_metric.proto";
+import "protos/perfetto/metrics/android/heap_profile_callsite_stats.proto";
+import "protos/perfetto/metrics/android/package_list.proto";
 
 // Trace processor metadata (taken from the stats table schema and contents).
 // TODO: perhaps add the other columns once we have enum support

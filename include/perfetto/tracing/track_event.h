@@ -18,8 +18,8 @@
 #define INCLUDE_PERFETTO_TRACING_TRACK_EVENT_H_
 
 #include "perfetto/base/time.h"
-#include "perfetto/trace/track_event/track_event.pbzero.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 

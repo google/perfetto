@@ -27,7 +27,7 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
-#include "perfetto/config/profiling/heapprofd_config.pbzero.h"
+#include "protos/perfetto/config/profiling/heapprofd_config.pbzero.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
 #endif

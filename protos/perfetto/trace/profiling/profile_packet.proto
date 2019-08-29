@@ -17,7 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/profiling/profile_common.proto";
 
 package perfetto.protos;
 

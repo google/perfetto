@@ -25,8 +25,8 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/config/process_stats/process_stats_config.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/config/process_stats/process_stats_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using ::perfetto::protos::pbzero::ProcessStatsConfig;
 using ::testing::_;

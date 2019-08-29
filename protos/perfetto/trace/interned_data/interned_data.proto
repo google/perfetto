@@ -17,11 +17,11 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "perfetto/trace/track_event/debug_annotation.proto";
-import "perfetto/trace/track_event/log_message.proto";
-import "perfetto/trace/track_event/track_event.proto";
-import "perfetto/trace/track_event/source_location.proto";
-import "perfetto/trace/profiling/profile_common.proto";
+import "protos/perfetto/trace/track_event/debug_annotation.proto";
+import "protos/perfetto/trace/track_event/log_message.proto";
+import "protos/perfetto/trace/track_event/track_event.proto";
+import "protos/perfetto/trace/track_event/source_location.proto";
+import "protos/perfetto/trace/profiling/profile_common.proto";
 
 package perfetto.protos;
 

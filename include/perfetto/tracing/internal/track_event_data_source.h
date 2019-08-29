@@ -17,8 +17,8 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_DATA_SOURCE_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_DATA_SOURCE_H_
 
-#include "perfetto/trace/track_event/track_event.pbzero.h"
 #include "perfetto/tracing/data_source.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 #include <unordered_map>
 

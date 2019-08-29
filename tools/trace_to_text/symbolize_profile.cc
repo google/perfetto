@@ -28,9 +28,9 @@
 #include "tools/trace_to_text/trace_symbol_table.h"
 #include "tools/trace_to_text/utils.h"
 
-#include "perfetto/trace/profiling/profile_common.pb.h"
-#include "perfetto/trace/profiling/profile_packet.pb.h"
-#include "perfetto/trace/interned_data/interned_data.pb.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pb.h"
+#include "protos/perfetto/trace/profiling/profile_common.pb.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pb.h"
 
 namespace perfetto {
 namespace trace_to_text {

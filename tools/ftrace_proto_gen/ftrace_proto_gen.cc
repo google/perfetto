@@ -98,10 +98,11 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
   *fout << "option optimize_for = LITE_RUNTIME;\n\n";
 
   for (const std::string& group : groups) {
-    *fout << R"(import "perfetto/trace/ftrace/)" << group << R"(.proto";)"
+    *fout << R"(import "protos/perfetto/trace/ftrace/)" << group
+          << R"(.proto";)"
           << "\n";
   }
-  *fout << "import \"perfetto/trace/ftrace/generic.proto\";\n";
+  *fout << "import \"protos/perfetto/trace/ftrace/generic.proto\";\n";
   *fout << "\n";
   *fout << "package perfetto.protos;\n\n";
   *fout << R"(message FtraceEvent {

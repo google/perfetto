@@ -17,8 +17,8 @@
 #ifndef INCLUDE_PERFETTO_EXT_TRACED_SYS_STATS_COUNTERS_H_
 #define INCLUDE_PERFETTO_EXT_TRACED_SYS_STATS_COUNTERS_H_
 
-#include "perfetto/common/sys_stats_counters.pbzero.h"
 #include "perfetto/ext/base/utils.h"
+#include "protos/perfetto/common/sys_stats_counters.pbzero.h"
 
 #include <vector>
 

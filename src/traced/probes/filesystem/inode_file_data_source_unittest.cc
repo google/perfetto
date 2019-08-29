@@ -22,8 +22,8 @@
 #include "src/tracing/core/null_trace_writer.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/config/inode_file/inode_file_config.pbzero.h"
-#include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
+#include "protos/perfetto/config/inode_file/inode_file_config.pbzero.h"
+#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
 namespace perfetto {
 namespace {

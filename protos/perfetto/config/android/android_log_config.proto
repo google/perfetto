@@ -18,7 +18,7 @@ syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
-import "perfetto/common/android_log_constants.proto";
+import "protos/perfetto/common/android_log_constants.proto";
 
 message AndroidLogConfig {
   repeated AndroidLogId log_ids = 1;

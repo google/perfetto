@@ -26,10 +26,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
-#include "perfetto/trace/ftrace/ftrace_stats.pb.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.pb.h"
 
-#include "perfetto/trace/trace.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 namespace trace_to_text {
