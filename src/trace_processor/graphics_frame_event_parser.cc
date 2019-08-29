@@ -17,11 +17,12 @@
 #include "src/trace_processor/graphics_frame_event_parser.h"
 
 #include "perfetto/protozero/field.h"
-#include "perfetto/trace/android/graphics_frame_event.pbzero.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/virtual_track_tracker.h"
+
+#include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

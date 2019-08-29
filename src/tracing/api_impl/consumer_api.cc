@@ -49,7 +49,7 @@
 #include <sys/syscall.h>
 #endif
 
-#include "perfetto/config/trace_config.pb.h"
+#include "protos/perfetto/config/trace_config.pb.h"
 
 #define PERFETTO_EXPORTED_API __attribute__((visibility("default")))
 

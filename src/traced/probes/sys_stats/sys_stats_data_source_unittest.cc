@@ -23,10 +23,10 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/common/sys_stats_counters.pbzero.h"
-#include "perfetto/config/data_source_config.pbzero.h"
-#include "perfetto/config/sys_stats/sys_stats_config.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/config/data_source_config.pbzero.h"
+#include "protos/perfetto/config/sys_stats/sys_stats_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using ::testing::_;
 using ::testing::Invoke;

@@ -10,7 +10,8 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "third_party/pprof/profile.pb.h"
+
+#include "protos/third_party/pprof/profile.pb.h"
 
 namespace perfetto {
 namespace protoprofile {
@@ -325,11 +326,11 @@ int Main(int argc, const char** argv) {
 
   const Descriptor* descriptor;
   DiskSourceTree dst;
-  dst.MapPath("perfetto", "protos/perfetto");
+  dst.MapPath("", "");
   MultiFileErrorCollectorImpl mfe;
   Importer importer(&dst, &mfe);
   const FileDescriptor* parsed_file =
-      importer.Import("perfetto/trace/trace.proto");
+      importer.Import("protos/perfetto/trace/trace.proto");
   DynamicMessageFactory dmf;
   descriptor = parsed_file->message_type(0);
 

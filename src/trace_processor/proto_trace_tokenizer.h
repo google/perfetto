@@ -26,7 +26,7 @@
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace protozero {
 struct ConstBytes;

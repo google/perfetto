@@ -21,8 +21,8 @@
 
 #include "perfetto/ext/base/optional.h"
 
-#include "perfetto/trace/profiling/profile_common.pbzero.h"
-#include "perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_storage.h"
 

@@ -25,7 +25,7 @@
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 

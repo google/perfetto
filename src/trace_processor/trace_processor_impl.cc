@@ -68,8 +68,8 @@
 #include "src/trace_processor/virtual_track_tracker.h"
 #include "src/trace_processor/window_operator_table.h"
 
-#include "perfetto/metrics/android/mem_metric.pbzero.h"
-#include "perfetto/metrics/metrics.pbzero.h"
+#include "protos/perfetto/metrics/android/mem_metric.pbzero.h"
+#include "protos/perfetto/metrics/metrics.pbzero.h"
 
 // JSON parsing and exporting is only supported in the standalone and
 // Chromium builds.

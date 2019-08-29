@@ -109,7 +109,7 @@ template("perfetto_proto_library") {
   if (defined(invoker.proto_path)) {
     proto_path = invoker.proto_path
   } else {
-    proto_path = "$perfetto_root_path/protos"
+    proto_path = perfetto_root_path
   }
 
   vars_to_forward = [
