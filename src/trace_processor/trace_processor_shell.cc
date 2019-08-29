@@ -52,7 +52,7 @@
 #define PERFETTO_HAS_AIO_H() 0
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE)
 #include <linenoise.h>
 #include <pwd.h>
 #include <sys/types.h>
@@ -85,7 +85,7 @@ namespace trace_processor {
 namespace {
 TraceProcessor* g_tp;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE)
 
 bool EnsureDir(const std::string& path) {
   return mkdir(path.c_str(), 0755) != -1 || errno == EEXIST;
@@ -163,7 +163,7 @@ char* GetLine(const char* prompt) {
   return line;
 }
 
-#endif
+#endif  // PERFETTO_TP_LINENOISE
 
 bool PrintStats() {
   auto it = g_tp->ExecuteQuery(

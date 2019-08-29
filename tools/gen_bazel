@@ -63,23 +63,16 @@ gn_args = ' '.join([
 
 # Default targets to translate to the blueprint file.
 default_targets = [
-  '//:trace_processor_shell',
+  '//src/trace_processor:trace_processor_shell',
   '//src/protozero:libprotozero',
   '//src/trace_processor:trace_processor',
-  '//tools/trace_to_text:trace_to_text_host(//gn/standalone/toolchain:gcc_like_host)',
+  '//tools/trace_to_text:trace_to_text',
   '//tools/trace_to_text:libpprofbuilder',
   '//protos/perfetto/config:merged_config_gen',
   '//protos/perfetto/trace:merged_trace_gen',
   '//protos/perfetto/trace_processor:lite_gen',
-  '//protos/perfetto/metrics:lite_gen'
+  '//protos/perfetto/metrics:lite_gen',
 ]
-
-# Aliases to add to the BUILD file.
-alias_targets = {
-  '//src/protozero:libprotozero': 'libprotozero',
-  '//src/trace_processor:trace_processor': 'trace_processor',
-  '//tools/trace_to_text:trace_to_text_host': 'trace_to_text',
-}
 
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/bazel'
@@ -596,7 +589,10 @@ class BuildGenerator(object):
 
     label_no_toolchain = gn_utils.label_without_toolchain(gn_target_name)
     target_name_path = gn_utils.label_to_target_name_with_path(label_no_toolchain)
-    target_name = alias_targets.get(label_no_toolchain, target_name_path)
+    if label_no_toolchain in default_targets:
+        target_name = label_no_toolchain.split(':')[-1]
+    else:
+      target_name = target_name_path
     target = Target(target_type, target_name, gn_name=label_no_toolchain)
     target.srcs.update(
         Label(gn_utils.label_to_path(src))

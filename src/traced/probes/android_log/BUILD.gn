@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/test.gni")
+
 source_set("android_log") {
   public_deps = [
     "../../../tracing",
@@ -31,7 +33,7 @@ source_set("android_log") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":android_log",

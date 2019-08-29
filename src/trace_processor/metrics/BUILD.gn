@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 sql_files = [
   "trace_metadata.sql",
@@ -81,7 +82,7 @@ source_set("lib") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "metrics_unittest.cc",

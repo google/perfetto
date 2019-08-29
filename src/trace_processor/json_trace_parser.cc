@@ -32,10 +32,8 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#error The JSON trace parser is supported only in the standalone and \
-Chromium builds for now.
+#if !PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#error JSON parsing and exporting is not supported in this build configuration
 #endif
 
 namespace perfetto {
