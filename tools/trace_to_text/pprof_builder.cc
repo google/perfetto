@@ -32,12 +32,11 @@
 
 #include "perfetto/base/logging.h"
 
-#include "perfetto/trace/profiling/profile_common.pb.h"
-#include "perfetto/trace/profiling/profile_packet.pb.h"
-#include "perfetto/trace/trace.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
-
-#include "third_party/pprof/profile.pb.h"
+#include "protos/perfetto/trace/profiling/profile_common.pb.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pb.h"
+#include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/third_party/pprof/profile.pb.h"
 
 namespace perfetto {
 namespace trace_to_text {

@@ -25,8 +25,8 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
 
-#include "perfetto/common/descriptor.pbzero.h"
-#include "perfetto/trace_processor/metrics_impl.pbzero.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

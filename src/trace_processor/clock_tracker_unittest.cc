@@ -21,7 +21,7 @@
 #include "src/trace_processor/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

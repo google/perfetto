@@ -21,8 +21,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "perfetto/trace_processor/raw_query.pb.h"
-#include "perfetto/trace_processor/sched.pb.h"
+#include "protos/perfetto/trace_processor/raw_query.pb.h"
+#include "protos/perfetto/trace_processor/sched.pb.h"
 
 namespace perfetto {
 namespace trace_processor {

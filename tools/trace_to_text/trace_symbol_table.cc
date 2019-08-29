@@ -39,12 +39,12 @@
 #include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/utils.h"
 
-#include "perfetto/trace/profiling/profile_common.pb.h"
-#include "perfetto/trace/profiling/profile_packet.pb.h"
-#include "perfetto/trace/trace.pbzero.h"
-#include "perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/profiling/profile_common.pb.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pb.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
-#include "perfetto/trace/interned_data/interned_data.pb.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pb.h"
 
 namespace perfetto {
 namespace trace_to_text {

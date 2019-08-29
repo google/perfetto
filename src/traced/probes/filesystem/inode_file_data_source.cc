@@ -28,8 +28,8 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 
-#include "perfetto/config/inode_file/inode_file_config.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/config/inode_file/inode_file_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/traced/probes/filesystem/file_scanner.h"
 
 namespace perfetto {

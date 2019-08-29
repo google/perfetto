@@ -29,10 +29,10 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
-#include "perfetto/config/process_stats/process_stats_config.pbzero.h"
-#include "perfetto/trace/ps/process_stats.pbzero.h"
-#include "perfetto/trace/ps/process_tree.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/config/process_stats/process_stats_config.pbzero.h"
+#include "protos/perfetto/trace/ps/process_stats.pbzero.h"
+#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 // TODO(primiano): the code in this file assumes that PIDs are never recycled
 // and that processes/threads never change names. Neither is always true.

@@ -34,10 +34,10 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 
-#include "perfetto/common/sys_stats_counters.pbzero.h"
-#include "perfetto/config/sys_stats/sys_stats_config.pbzero.h"
-#include "perfetto/trace/sys_stats/sys_stats.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/config/sys_stats/sys_stats_config.pbzero.h"
+#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 

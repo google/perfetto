@@ -111,10 +111,6 @@ config("public_config") {
 
     # For perfetto_build_flags.h
     buildflag_gen_dir_,
-
-    # The below are needed due to generated protobuf headers including other
-    # headers with a path relative to the perfetto root.
-    "${root_gen_dir}/${perfetto_root_path}/protos",
   ]
 }
 

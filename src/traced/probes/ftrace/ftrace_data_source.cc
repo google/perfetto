@@ -19,9 +19,9 @@
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 
-#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "perfetto/trace/ftrace/ftrace_stats.pbzero.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 

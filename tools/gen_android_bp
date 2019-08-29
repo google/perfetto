@@ -505,6 +505,7 @@ def make_genrules_for_action(blueprint, desc, target_name):
     assert gen_dir.startswith('gen/')
     gen_dir = gen_dir[4:]
     cpp_out_dir = ('$(genDir)/%s/%s' % (tree_path, gen_dir)).rstrip('/')
+    gen_dir = gen_dir or '.'
 
     # TODO(skyostil): Is there a way to avoid hardcoding the tree path here?
     # TODO(skyostil): Find a way to avoid creating the directory.
@@ -528,12 +529,18 @@ def make_genrules_for_action(blueprint, desc, target_name):
                            label_to_module_name(target_name) + '_headers')
     header_module.srcs = source_module.srcs[:]
     header_module.tools = source_module.tools[:]
-    header_module.export_include_dirs = [gen_dir or '.']
+
+    # TODO(primiano): at some point we should remove this. This was introduced
+    # by aosp/1108421 when adding "protos/" to .proto include paths, in order to
+    # avoid doing multi-repo changes and allow old clients in the android tree
+    # to still do the old #include "perfetto/..." rather than
+    # #include "protos/perfetto/...".
+    header_module.export_include_dirs = [gen_dir, 'protos']
 
     # In GN builds the proto path is always relative to the output directory
     # (out/tmp.xxx).
-    assert args.proto_path.startswith('../../')
-    cmd += [ '--proto_path=%s/%s' % (tree_path, args.proto_path[6:])]
+    assert args.proto_path == '../../'
+    cmd += [ '--proto_path=%s' % tree_path ]
 
     namespaces = ['pb']
     if args.plugin:
