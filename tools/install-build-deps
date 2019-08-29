@@ -26,9 +26,6 @@ import zipfile
 
 from collections import namedtuple
 
-# When adding a new git dependency here please also add a corresponding entry in
-# .travis.yml under the "cache:" section.
-
 # The format for the deps below is the following:
 # (target_folder, source_url, sha1, target_platform)
 # |source_url| can be either a git repo or a http url.
