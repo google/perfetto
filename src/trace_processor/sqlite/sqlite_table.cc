@@ -27,21 +27,17 @@ namespace trace_processor {
 
 namespace {
 
-std::string TypeToString(SqliteTable::ColumnType type) {
+std::string TypeToString(SqlValue::Type type) {
   switch (type) {
-    case SqliteTable::ColumnType::kString:
+    case SqlValue::Type::kString:
       return "STRING";
-    case SqliteTable::ColumnType::kUint:
-      return "UNSIGNED INT";
-    case SqliteTable::ColumnType::kLong:
+    case SqlValue::Type::kLong:
       return "BIG INT";
-    case SqliteTable::ColumnType::kInt:
-      return "INT";
-    case SqliteTable::ColumnType::kDouble:
+    case SqlValue::Type::kDouble:
       return "DOUBLE";
-    case SqliteTable::ColumnType::kBool:
-      return "BOOLEAN";
-    case SqliteTable::ColumnType::kUnknown:
+    case SqlValue::Type::kBytes:
+      return "BLOB";
+    case SqlValue::Type::kNull:
       PERFETTO_FATAL("Cannot map unknown column type");
   }
   PERFETTO_FATAL("Not reached");  // For gcc
@@ -153,7 +149,7 @@ int SqliteTable::Cursor::RowId(sqlite3_int64*) {
 
 SqliteTable::Column::Column(size_t index,
                             std::string name,
-                            ColumnType type,
+                            SqlValue::Type type,
                             bool hidden)
     : index_(index), name_(name), type_(type), hidden_(hidden) {}
 
@@ -178,7 +174,7 @@ std::string SqliteTable::Schema::ToCreateTableStmt() const {
     const Column& col = columns_[i];
     stmt += " " + col.name();
 
-    if (col.type() != ColumnType::kUnknown) {
+    if (col.type() != SqlValue::Type::kNull) {
       stmt += " " + TypeToString(col.type());
     } else if (std::find(primary_keys_.begin(), primary_keys_.end(), i) !=
                primary_keys_.end()) {
