@@ -36,14 +36,8 @@ import gn_utils
 default_targets = [
     '//:libperfetto_client_experimental',
     "//include/perfetto/protozero:protozero",
-    "//protos/perfetto/common:zero",
     "//protos/perfetto/config:zero",
-    "//protos/perfetto/config/gpu:zero",
-    "//protos/perfetto/trace:minimal_zero",
-    "//protos/perfetto/trace:non_minimal_zero",
-    "//protos/perfetto/trace/gpu:zero",
-    "//protos/perfetto/trace/interned_data:zero",
-    "//protos/perfetto/trace/track_event:zero",
+    "//protos/perfetto/trace:zero",
 ]
 
 # Arguments for the GN output directory (unless overridden from the command
@@ -55,6 +49,14 @@ gn_args = ' '.join([
     'use_custom_libcxx=false',
     'enable_perfetto_ipc=true',
 ])
+
+# By default, the amalgamated .h only recurses in #includes but not in the
+# target deps. In the case of protos we want to follow deps even in lieu of
+# direct #includes. This is because, by design, protozero headers don't
+# inlcude each other but rely on forward declarations. The alternative would
+# be adding each proto sub-target individually (e.g. //proto/trace/gpu:zero),
+# but doing that is unmaintainable.
+recurse_in_header_deps = '^//protos/.*'
 
 # Compiler flags which aren't filtered out.
 cflag_whitelist = r'^-(W.*|fno-exceptions|fPIC|std.*|fvisibility.*)$'
@@ -215,6 +217,7 @@ class AmalgamatedProject(object):
         self._dependency_tree = DependencyTree()
         self._processed_sources = set()
         self._processed_headers = set()
+        self._processed_header_deps = set()
         self._processed_source_headers = set()  # Header files included from .cc
         self._include_re = re.compile(r'#include "(.*)"')
         self._compute_deps_only = compute_deps_only
@@ -225,6 +228,15 @@ class AmalgamatedProject(object):
         self._add_target_dependencies(target_name)
         self._add_target_flags(target_name)
         self._add_target_headers(target_name)
+
+        # Recurse into target deps, but only for protos. This generates headers
+        # for all the .pbzero.h files, even if they don't #include each other.
+        for _, dep in self._iterate_dep_edges(target_name):
+            if (dep not in self._processed_header_deps and
+                re.match(recurse_in_header_deps, dep)):
+                self._processed_header_deps.add(dep)
+                self.add_target(dep)
+
 
     def _iterate_dep_edges(self, target_name):
         target = self.desc[target_name]
