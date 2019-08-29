@@ -78,14 +78,12 @@ source_set("trigger_producer") {
   ]
 }
 
-proto_library("protos") {
-  generate_python = false
-  deps = []
+perfetto_proto_library("protos") {
+  proto_generators = [ "lite" ]
   sources = [
     "perfetto_cmd_state.proto",
   ]
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = perfetto_root_path
+  proto_path = perfetto_root_path
 }
 
 source_set("unittests") {
