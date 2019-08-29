@@ -427,6 +427,11 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_profile_packet())
     ParseProfilePacket(ts, ttp.packet_sequence_state, packet.profile_packet());
 
+  if (packet.has_streaming_profile_packet()) {
+    ParseStreamingProfilePacket(ttp.packet_sequence_state,
+                                packet.streaming_profile_packet());
+  }
+
   if (packet.has_profiled_frame_symbols())
     ParseProfiledFrameSymbols(ttp.packet_sequence_state,
                               packet.profiled_frame_symbols());
@@ -1497,6 +1502,49 @@ void ProtoTraceParser::ParseProfilePacket(
     ProfilePacketInternLookup intern_lookup(sequence_state,
                                             context_->storage.get());
     context_->heap_profile_tracker->FinalizeProfile(&intern_lookup);
+  }
+}
+
+void ProtoTraceParser::ParseStreamingProfilePacket(
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    ConstBytes blob) {
+  protos::pbzero::StreamingProfilePacket::Decoder packet(blob.data, blob.size);
+
+  ProcessTracker* procs = context_->process_tracker.get();
+  TraceStorage* storage = context_->storage.get();
+  StackProfileTracker* stack_profile_tracker =
+      context_->stack_profile_tracker.get();
+  ProfilePacketInternLookup intern_lookup(sequence_state, storage);
+
+  uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
+  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+  UniqueTid utid = procs->UpdateThread(tid, pid);
+
+  auto timestamp_it = packet.timestamp_delta_us();
+  for (auto callstack_it = packet.callstack_iid(); callstack_it;
+       ++callstack_it, ++timestamp_it) {
+    if (!timestamp_it) {
+      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      PERFETTO_ELOG(
+          "StreamingProfilePacket has less callstack IDs than timestamps!");
+      break;
+    }
+
+    auto maybe_callstack_id = stack_profile_tracker->FindCallstack(
+        callstack_it->as_uint64(), &intern_lookup);
+    if (!maybe_callstack_id) {
+      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      PERFETTO_ELOG("StreamingProfilePacket referencing invalid callstack!");
+      continue;
+    }
+
+    int64_t callstack_id = *maybe_callstack_id;
+
+    TraceStorage::CpuProfileStackSamples::Row sample_row{
+        sequence_state->IncrementAndGetTrackEventTimeNs(
+            timestamp_it->as_int64()),
+        callstack_id, utid};
+    storage->mutable_cpu_profile_stack_samples()->Insert(sample_row);
   }
 }
 
