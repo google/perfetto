@@ -151,7 +151,19 @@ function setExtensionAvailability(available: boolean) {
   }));
 }
 
+function fetchChromeTracingCategoriesFromExtension(
+    extensionPort: chrome.runtime.Port) {
+  extensionPort.postMessage({method: 'GetCategories'});
+}
 
+function onExtensionMessage(message: object) {
+  const typedObject = message as {type: string};
+  if (typedObject.type === 'GetCategoriesResponse') {
+    const categoriesMessage = message as {categories: string[]};
+    globals.dispatch(Actions.setChromeCategories(
+        {categories: categoriesMessage.categories}));
+  }
+}
 
 function main() {
   const controller = new Worker('controller_bundle.js');
@@ -204,8 +216,10 @@ function main() {
     // This forwards the messages from the extension to the controller.
     extensionPort.onMessage.addListener(
         (message: object, _port: chrome.runtime.Port) => {
+          onExtensionMessage(message);
           extensionLocalChannel.port2.postMessage(message);
         });
+    fetchChromeTracingCategoriesFromExtension(extensionPort);
   }
 
   // This forwards the messages from the controller to the extension

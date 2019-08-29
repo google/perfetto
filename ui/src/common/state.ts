@@ -178,6 +178,7 @@ export interface State {
   recordingInProgress: boolean;
   extensionInstalled: boolean;
   serialAndroidDeviceConnected: string|undefined;
+  chromeCategories: string[]|undefined;
 }
 
 export const defaultTraceTime = {
@@ -352,5 +353,6 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     extensionInstalled: false,
     serialAndroidDeviceConnected: undefined,
+    chromeCategories: undefined,
   };
 }
