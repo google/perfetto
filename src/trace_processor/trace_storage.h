@@ -1254,6 +1254,9 @@ class TraceStorage {
     return &virtual_track_slices_;
   }
 
+  const GpuSlices& gpu_track_slices() const { return gpu_track_slices_; }
+  GpuSlices* mutable_gpu_track_slices() { return &gpu_track_slices_; }
+
   const CounterDefinitions& counter_definitions() const {
     return counter_definitions_;
   }
@@ -1311,6 +1314,9 @@ class TraceStorage {
   HeapProfileAllocations* mutable_heap_profile_allocations() {
     return &heap_profile_allocations_;
   }
+
+  const GpuTracks& gpu_tracks() const { return gpu_tracks_; }
+  GpuTracks* mutable_gpu_tracks() { return &gpu_tracks_; }
 
   const StringPool& string_pool() const { return string_pool_; }
 
