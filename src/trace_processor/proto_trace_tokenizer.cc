@@ -33,17 +33,17 @@
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
 
-#include "perfetto/config/trace_config.pbzero.h"
-#include "perfetto/trace/clock_snapshot.pbzero.h"
-#include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "perfetto/trace/profiling/profile_common.pbzero.h"
-#include "perfetto/trace/trace.pbzero.h"
-#include "perfetto/trace/track_event/source_location.pbzero.h"
-#include "perfetto/trace/track_event/task_execution.pbzero.h"
-#include "perfetto/trace/track_event/thread_descriptor.pbzero.h"
-#include "perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
+#include "protos/perfetto/trace/track_event/task_execution.pbzero.h"
+#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

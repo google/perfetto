@@ -36,7 +36,7 @@
 #include "src/traced/probes/filesystem/lru_inode_cache.h"
 #include "src/traced/probes/probes_data_source.h"
 
-#include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
+#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
 namespace perfetto {
 

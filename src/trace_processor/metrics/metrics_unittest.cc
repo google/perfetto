@@ -18,7 +18,7 @@
 
 #include <vector>
 
-#include "perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

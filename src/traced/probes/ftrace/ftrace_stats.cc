@@ -16,7 +16,7 @@
 
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 
-#include "perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 
 namespace perfetto {
 

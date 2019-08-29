@@ -57,7 +57,7 @@ class PERFETTO_EXPORT TracePacket {
   const Slices& slices() const { return slices_; }
 
   // Decodes the packet. This function requires that the caller:
-  // 1) Does #include "perfetto/trace/trace_packet.pb.h"
+  // 1) Does #include "protos/perfetto/trace/trace_packet.pb.h"
   // 2) Links against the //protos/trace:lite target.
   // The core service code deliberately doesn't link against that in order to
   // avoid binary bloat. This is the reason why this is a templated function.

@@ -32,7 +32,7 @@
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
-#include "perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

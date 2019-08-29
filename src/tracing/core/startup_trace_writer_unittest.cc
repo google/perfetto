@@ -29,9 +29,9 @@
 #include "src/tracing/test/fake_producer_endpoint.h"
 #include "test/gtest_and_gmock.h"
 
-#include "perfetto/trace/test_event.pbzero.h"
-#include "perfetto/trace/trace_packet.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 

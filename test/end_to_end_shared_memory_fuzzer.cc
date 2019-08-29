@@ -26,15 +26,15 @@
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
-#include "perfetto/trace/test_event.pbzero.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
 
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace shm_fuzz {
