@@ -206,7 +206,7 @@ class ProtoTraceParser : public TraceParser {
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
   std::vector<StringId> power_rails_strs_id_;
-  std::unordered_map<uint32_t, const StringId> gpu_counter_ids_;
+  std::unordered_map<uint32_t, const TraceStorage::CounterDefinitions::Id> gpu_counter_ids_;
   std::vector<StringId> gpu_hw_queue_ids_;
   std::vector<StringId> gpu_render_stage_ids_;
 

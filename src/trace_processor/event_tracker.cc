@@ -140,15 +140,6 @@ RowId EventTracker::PushCounter(int64_t timestamp,
                                 int64_t ref,
                                 RefType ref_type,
                                 bool resolve_utid_to_upid) {
-  if (timestamp < prev_timestamp_) {
-    PERFETTO_DLOG("counter event (ts: %" PRId64
-                  ") out of order by %.4f ms, skipping",
-                  timestamp, (prev_timestamp_ - timestamp) / 1e6);
-    context_->storage->IncrementStats(stats::counter_events_out_of_order);
-    return kInvalidRowId;
-  }
-  prev_timestamp_ = timestamp;
-
   PERFETTO_DCHECK(!resolve_utid_to_upid || ref_type == RefType::kRefUtid);
 
   auto* definitions = context_->storage->mutable_counter_definitions();
@@ -158,16 +149,32 @@ RowId EventTracker::PushCounter(int64_t timestamp,
   } else {
     defn_id = definitions->AddCounterDefinition(name_id, ref, ref_type);
   }
-
-  auto* counter_values = context_->storage->mutable_counter_values();
-  uint32_t idx = counter_values->AddCounterValue(defn_id, timestamp, value);
+  RowId row_id = PushCounter(timestamp, value, defn_id);
   if (resolve_utid_to_upid) {
+    auto table_and_row = TraceStorage::ParseRowId(row_id);
     PendingUpidResolutionCounter pending;
-    pending.row = idx;
+    pending.row = table_and_row.second;
     pending.utid = static_cast<UniqueTid>(ref);
     pending.name_id = name_id;
     pending_upid_resolution_counter_.emplace_back(pending);
   }
+  return row_id;
+}
+
+RowId EventTracker::PushCounter(int64_t timestamp,
+                                double value,
+                                TraceStorage::CounterDefinitions::Id defn_id) {
+  if (timestamp < prev_timestamp_) {
+    PERFETTO_DLOG("counter event (ts: %" PRId64
+                  ") out of order by %.4f ms, skipping",
+                  timestamp, (prev_timestamp_ - timestamp) / 1e6);
+    context_->storage->IncrementStats(stats::counter_events_out_of_order);
+    return kInvalidRowId;
+  }
+  prev_timestamp_ = timestamp;
+
+  auto* counter_values = context_->storage->mutable_counter_values();
+  uint32_t idx = counter_values->AddCounterValue(defn_id, timestamp, value);
   return TraceStorage::CreateRowId(TableId::kCounterValues,
                                    static_cast<uint32_t>(idx));
 }
