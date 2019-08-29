@@ -13,37 +13,23 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
-import("../../../gn/proto_descriptor.gni")
 import("../../../gn/proto_library.gni")
-import("../../../gn/protozero_library.gni")
 
-common_sources = [ "metrics.proto" ]
-
-proto_library("lite") {
+perfetto_proto_library("@TYPE@") {
   deps = [
-    "android:lite",
+    "android:@TYPE@",
   ]
-  generate_python = false
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  sources = common_sources
-}
-
-protozero_library("zero") {
-  deps = [
-    "android:zero",
+  sources = [
+    "metrics.proto",
   ]
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
-  sources = common_sources
-  generator_plugin_options = "wrapper_namespace=pbzero"
 }
 
 if (perfetto_build_standalone) {
-  proto_descriptor("descriptor") {
-    proto_in_dir = "$perfetto_root_path/protos"
-    proto_out_dir = "$perfetto_root_path/protos"
-    sources = common_sources
+  perfetto_proto_library("descriptor") {
+    proto_generators = [ "descriptor" ]
     generate_descriptor = "metrics.descriptor"
+    sources = [
+      "metrics.proto",
+    ]
   }
 }
