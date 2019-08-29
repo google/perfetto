@@ -24,6 +24,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/virtual_track_tracker.h"
@@ -41,6 +42,7 @@
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -199,6 +201,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
     context_.systrace_parser.reset(new SystraceParser(&context_));
+    context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
   }
 
   void ResetTraceBuffers() {
@@ -2064,6 +2067,86 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   EXPECT_EQ(find_arg(second_set_id, "profileable_from_shell").bool_value,
             false);
   EXPECT_EQ(find_arg(second_set_id, "version_code").int_value, 43);
+}
+
+TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1);
+    thread_desc->set_reference_thread_time_us(2);
+
+    auto* interned_data = packet->set_interned_data();
+
+    auto mapping = interned_data->add_mappings();
+    mapping->set_iid(1);
+
+    auto frame = interned_data->add_frames();
+    frame->set_iid(1);
+    frame->set_rel_pc(0x42);
+    frame->set_mapping_id(1);
+
+    auto frame2 = interned_data->add_frames();
+    frame2->set_iid(2);
+    frame2->set_rel_pc(0x4242);
+    frame2->set_mapping_id(1);
+
+    auto callstack = interned_data->add_callstacks();
+    callstack->set_iid(1);
+    callstack->add_frame_ids(1);
+
+    auto callstack2 = interned_data->add_callstacks();
+    callstack2->set_iid(42);
+    callstack2->add_frame_ids(2);
+  }
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+
+    auto* samples = packet->set_streaming_profile_packet();
+    samples->add_callstack_iid(42);
+    samples->add_timestamp_delta_us(10);
+
+    samples->add_callstack_iid(1);
+    samples->add_timestamp_delta_us(15);
+  }
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* samples = packet->set_streaming_profile_packet();
+
+    samples->add_callstack_iid(42);
+    samples->add_timestamp_delta_us(42);
+  }
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15))
+      .Times(2)
+      .WillRepeatedly(Return(1));
+
+  Tokenize();
+
+  // Verify cpu_profile_samples.
+  const auto& samples = storage_->cpu_profile_stack_samples();
+  EXPECT_EQ(samples.size(), 3u);
+
+  EXPECT_EQ(samples.timestamps()[0], 1010);
+  EXPECT_EQ(samples.callsite_ids()[0], 0);
+  EXPECT_EQ(samples.utids()[0], 1u);
+
+  EXPECT_EQ(samples.timestamps()[1], 1025);
+  EXPECT_EQ(samples.callsite_ids()[1], 1);
+  EXPECT_EQ(samples.utids()[1], 1u);
+
+  EXPECT_EQ(samples.timestamps()[2], 1067);
+  EXPECT_EQ(samples.callsite_ids()[2], 0);
+  EXPECT_EQ(samples.utids()[2], 1u);
 }
 
 }  // namespace
