@@ -35,12 +35,12 @@
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/locked_handle.h"
 #include "perfetto/tracing/trace_writer_base.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 

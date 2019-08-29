@@ -52,8 +52,8 @@ def main():
             continue
           incl = m[0]
 
-          # Allow only #include "perfetto/..." and not "src/..." from include/.
-          if not incl.startswith('perfetto/'):
+          # Allow only #include "perfetto/..." or "protos/..." but not "src/".
+          if not (incl.startswith('perfetto/') or incl.startswith('protos/')):
             sys.stderr.write(
                 ('Public header %s is trying to include %s which is outside ' +
                  'of include/. If you are trying to include a library use ' +

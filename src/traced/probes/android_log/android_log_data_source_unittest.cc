@@ -16,10 +16,10 @@
 
 #include "src/traced/probes/android_log/android_log_data_source.h"
 
-#include "perfetto/common/android_log_constants.pbzero.h"
-#include "perfetto/config/android/android_log_config.pbzero.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "protos/perfetto/common/android_log_constants.pbzero.h"
+#include "protos/perfetto/config/android/android_log_config.pbzero.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"

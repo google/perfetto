@@ -17,7 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "perfetto/trace_processor/raw_query.proto";
+import "protos/perfetto/trace_processor/raw_query.proto";
 
 package perfetto.protos;
 

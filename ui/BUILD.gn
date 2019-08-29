@@ -209,7 +209,7 @@ node_bin("protos_to_js") {
            "-w",
            "commonjs",
            "-p",
-           rebase_path("../protos", root_build_dir),
+           rebase_path("..", root_build_dir),
            "-o",
            rebase_path(outputs[0], root_build_dir),
          ] + rebase_path(inputs, root_build_dir)
@@ -230,7 +230,7 @@ node_bin("protos_to_ts") {
   node_cmd = "pbts"
   args = [
     "-p",
-    rebase_path("../protos", root_build_dir),
+    rebase_path("..", root_build_dir),
     "-o",
     rebase_path(outputs[0], root_build_dir),
     rebase_path(inputs[0], root_build_dir),

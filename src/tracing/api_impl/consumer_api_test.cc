@@ -22,8 +22,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/public/consumer_api.h"
 
-#include "perfetto/config/trace_config.pb.h"
-#include "perfetto/trace/trace.pb.h"
+#include "protos/perfetto/config/trace_config.pb.h"
+#include "protos/perfetto/trace/trace.pb.h"
 
 using namespace perfetto::consumer;
 

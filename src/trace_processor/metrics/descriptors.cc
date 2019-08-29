@@ -17,7 +17,7 @@
 #include "src/trace_processor/metrics/descriptors.h"
 #include "perfetto/ext/base/string_view.h"
 
-#include "perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

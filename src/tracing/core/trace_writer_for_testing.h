@@ -21,7 +21,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 
