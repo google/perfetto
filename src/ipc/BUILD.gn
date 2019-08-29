@@ -83,13 +83,12 @@ source_set("unittests") {
   ]
 }
 
-proto_library("wire_protocol") {
-  generate_python = false
+perfetto_proto_library("wire_protocol") {
+  proto_generators = [ "lite" ]
   sources = [
     "wire_protocol.proto",
   ]
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = perfetto_root_path
+  proto_path = perfetto_root_path
 }
 
 ipc_library("test_messages") {
