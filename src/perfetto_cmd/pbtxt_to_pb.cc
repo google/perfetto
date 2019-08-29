@@ -24,13 +24,13 @@
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/common/descriptor.pb.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/common/descriptor.pb.h"
 #include "src/perfetto_cmd/perfetto_config.descriptor.h"
 
 namespace perfetto {

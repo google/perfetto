@@ -51,8 +51,8 @@
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
-#include "perfetto/common/tracing_service_state.pb.h"
-#include "perfetto/config/trace_config.pb.h"
+#include "protos/perfetto/common/tracing_service_state.pb.h"
+#include "protos/perfetto/config/trace_config.pb.h"
 
 namespace perfetto {
 namespace {

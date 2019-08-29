@@ -17,9 +17,9 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "perfetto/common/commit_data_request.proto";
-import "perfetto/config/data_source_config.proto";
-import "perfetto/common/data_source_descriptor.proto";
+import "protos/perfetto/common/commit_data_request.proto";
+import "protos/perfetto/config/data_source_config.proto";
+import "protos/perfetto/common/data_source_descriptor.proto";
 
 package perfetto.protos;
 

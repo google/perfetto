@@ -17,10 +17,10 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "perfetto/common/observable_events.proto";
-import "perfetto/common/tracing_service_state.proto";
-import "perfetto/common/trace_stats.proto";
-import "perfetto/config/trace_config.proto";
+import "protos/perfetto/common/observable_events.proto";
+import "protos/perfetto/common/tracing_service_state.proto";
+import "protos/perfetto/common/trace_stats.proto";
+import "protos/perfetto/config/trace_config.proto";
 
 package perfetto.protos;
 

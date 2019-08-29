@@ -121,7 +121,7 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-import "perfetto/metrics/metrics.proto";
+import "protos/perfetto/metrics/metrics.proto";
 
 message ProcessInfo {
   optional string process_name = 1;

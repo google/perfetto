@@ -17,9 +17,9 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-import "perfetto/trace/track_event/debug_annotation.proto";
-import "perfetto/trace/track_event/log_message.proto";
-import "perfetto/trace/track_event/task_execution.proto";
+import "protos/perfetto/trace/track_event/debug_annotation.proto";
+import "protos/perfetto/trace/track_event/log_message.proto";
+import "protos/perfetto/trace/track_event/task_execution.proto";
 
 package perfetto.protos;
 

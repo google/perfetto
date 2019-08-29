@@ -78,7 +78,7 @@ def generate(source, target, protoc_path):
     subprocess.check_call([
         protoc_path,
         '--include_imports',
-        '--proto_path=protos',
+        '--proto_path=.',
         '--descriptor_set_out={}'.format(fdescriptor.name),
         source,
     ], cwd=ROOT_DIR)

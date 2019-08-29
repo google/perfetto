@@ -27,7 +27,7 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using protozero::proto_utils::kMessageLengthFieldSize;
 using protozero::proto_utils::WriteRedundantVarInt;

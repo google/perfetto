@@ -35,13 +35,13 @@ void GenerateFtraceDescriptors(
   *fout << std::string("// ") + __FILE__ + "\n";
   *fout << "// Do not edit.\n";
   *fout << R"(
-  #include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/ftrace_descriptors.h"
 
-  namespace perfetto {
-  namespace trace_processor {
-  namespace {
+namespace perfetto {
+namespace trace_processor {
+namespace {
 
-  std::array<MessageDescriptor,
+std::array<MessageDescriptor,
   )";
   *fout << std::to_string(max_id + 1) + "> descriptors{{";
 
@@ -82,16 +82,16 @@ void GenerateFtraceDescriptors(
   }
   *fout << "}};\n";
   *fout << R"(
-  } // namespace
+} // namespace
 
-  MessageDescriptor* GetMessageDescriptorForId(size_t id) {
-    PERFETTO_CHECK(id < descriptors.size());
-    return &descriptors[id];
-  }
+MessageDescriptor* GetMessageDescriptorForId(size_t id) {
+  PERFETTO_CHECK(id < descriptors.size());
+  return &descriptors[id];
+}
 
-  size_t GetDescriptorsSize() {
-    return descriptors.size();
-  }
+size_t GetDescriptorsSize() {
+  return descriptors.size();
+}
   )";
   *fout << "} // namespace trace_processor\n} // namespace perfetto\n";
 }
