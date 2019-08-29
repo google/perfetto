@@ -191,6 +191,10 @@ std::string FormatStats(const protos::ProfilePacket_ProcessStats& stats) {
          "unwinding_time_us: " + FormatHistogram(stats.unwinding_time_us());
 }
 
+std::string TestSuffix(const ::testing::TestParamInfo<bool>& info) {
+  return info.param ? "ForkMode" : "CentralMode";
+}
+
 class HeapprofdEndToEnd : public ::testing::TestWithParam<bool> {
  public:
   HeapprofdEndToEnd() {
@@ -957,16 +961,16 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 
 // TODO(b/140008396): temporarily suppress 32 bit arm tests, as they're failing.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && defined(__arm__)
-INSTANTIATE_TEST_CASE_P(DISABLED_ForkMode, HeapprofdEndToEnd, Bool());
+INSTANTIATE_TEST_CASE_P(DISABLED_Run, HeapprofdEndToEnd, Bool(), TestSuffix);
 // This test only works when run on Android using an Android Q version of
 // Bionic.
 // TODO(b/118428762): look into unwinding issues on x86.
 #elif !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||                      \
     PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS) || defined(__i386__) || \
     defined(__x86_64__)
-INSTANTIATE_TEST_CASE_P(DISABLED_ForkMode, HeapprofdEndToEnd, Bool());
+INSTANTIATE_TEST_CASE_P(DISABLED_Run, HeapprofdEndToEnd, Bool(), TestSuffix);
 #else
-INSTANTIATE_TEST_CASE_P(ForkMode, HeapprofdEndToEnd, Bool());
+INSTANTIATE_TEST_CASE_P(Run, HeapprofdEndToEnd, Bool(), TestSuffix);
 #endif
 
 }  // namespace
