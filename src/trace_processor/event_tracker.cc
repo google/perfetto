@@ -27,8 +27,8 @@
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/variadic.h"
 
-#include "perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "perfetto/trace/ftrace/sched.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

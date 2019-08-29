@@ -31,7 +31,7 @@
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 
-#include "perfetto/trace/filesystem/inode_file_map.pbzero.h"
+#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
 
 namespace perfetto {
 

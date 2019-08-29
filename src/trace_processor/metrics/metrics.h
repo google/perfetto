@@ -29,7 +29,7 @@
 #include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/sqlite/sqlite.h"
 
-#include "perfetto/trace_processor/metrics_impl.pbzero.h"
+#include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

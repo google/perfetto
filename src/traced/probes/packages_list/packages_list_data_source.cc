@@ -20,7 +20,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using perfetto::protos::pbzero::PackagesListConfig;
 

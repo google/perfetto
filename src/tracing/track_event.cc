@@ -18,12 +18,12 @@
 
 #include "perfetto/ext/base/proc_utils.h"
 #include "perfetto/ext/base/thread_utils.h"
-#include "perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "perfetto/trace/track_event/process_descriptor.pbzero.h"
-#include "perfetto/trace/track_event/thread_descriptor.pbzero.h"
-#include "perfetto/trace/track_event/track_event.pbzero.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/data_source.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace internal {

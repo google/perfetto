@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
 import("../../../gn/ipc_library.gni")
+import("../../../gn/perfetto.gni")
 
 # IPC service definitions.
 ipc_library("ipc") {
@@ -21,8 +21,8 @@ ipc_library("ipc") {
     "../common:lite",
     "../config:lite",
   ]
-  proto_in_dir = "$perfetto_root_path/protos"
-  proto_out_dir = "$perfetto_root_path/protos"
+  proto_in_dir = perfetto_root_path
+  proto_out_dir = perfetto_root_path
   sources = [
     "consumer_port.proto",
     "producer_port.proto",

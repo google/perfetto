@@ -76,11 +76,11 @@ int TraceToText(std::istream* input, std::ostream* output) {
   }
 
   DiskSourceTree dst;
-  dst.MapPath("perfetto", "protos/perfetto");
+  dst.MapPath("", "");
   MultiFileErrorCollectorImpl mfe;
   Importer importer(&dst, &mfe);
   const FileDescriptor* parsed_file =
-      importer.Import("perfetto/trace/trace_packet.proto");
+      importer.Import("protos/perfetto/trace/trace_packet.proto");
 
   DynamicMessageFactory dmf;
   const Descriptor* trace_descriptor = parsed_file->message_type(0);

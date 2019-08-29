@@ -21,7 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/trace/trusted_packet.pb.h"
+#include "protos/perfetto/trace/trusted_packet.pb.h"
 
 namespace perfetto {
 

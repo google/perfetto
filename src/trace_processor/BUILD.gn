@@ -263,6 +263,7 @@ source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../../gn:sqlite",
     "../../protos/perfetto/common:zero",
+    "../../protos/perfetto/trace:minimal_zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/chrome:zero",

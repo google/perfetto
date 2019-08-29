@@ -23,10 +23,10 @@
 #include <mutex>
 #include <vector>
 
-#include "perfetto/trace/test_event.pbzero.h"
-#include "perfetto/trace/trace.pb.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
 #include "perfetto/tracing.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental

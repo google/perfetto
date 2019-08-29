@@ -23,7 +23,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 

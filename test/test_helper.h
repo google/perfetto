@@ -26,7 +26,7 @@
 #include "test/fake_producer.h"
 #include "test/task_runner_thread.h"
 
-#include "perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
 

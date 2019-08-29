@@ -16,8 +16,8 @@
 
 #include "tools/trace_to_text/profile_visitor.h"
 
-#include "perfetto/trace/trace.pb.h"
-#include "perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
 #include "perfetto/ext/base/string_splitter.h"
 
