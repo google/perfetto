@@ -31,13 +31,14 @@ void StatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
-          SqliteTable::Column(Column::kName, "name", ColumnType::kString),
+          SqliteTable::Column(Column::kName, "name", SqlValue::Type::kString),
           // Calling a column "index" causes sqlite to silently fail, hence idx.
-          SqliteTable::Column(Column::kIndex, "idx", ColumnType::kUint),
+          SqliteTable::Column(Column::kIndex, "idx", SqlValue::Type::kLong),
           SqliteTable::Column(Column::kSeverity, "severity",
-                              ColumnType::kString),
-          SqliteTable::Column(Column::kSource, "source", ColumnType::kString),
-          SqliteTable::Column(Column::kValue, "value", ColumnType::kLong),
+                              SqlValue::Type::kString),
+          SqliteTable::Column(Column::kSource, "source",
+                              SqlValue::Type::kString),
+          SqliteTable::Column(Column::kValue, "value", SqlValue::Type::kLong),
       },
       {Column::kName});
   return util::OkStatus();

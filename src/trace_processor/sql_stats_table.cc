@@ -37,13 +37,15 @@ void SqlStatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 util::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
-          SqliteTable::Column(Column::kQuery, "query", ColumnType::kString),
-          SqliteTable::Column(Column::kTimeQueued, "queued", ColumnType::kLong),
+          SqliteTable::Column(Column::kQuery, "query", SqlValue::Type::kString),
+          SqliteTable::Column(Column::kTimeQueued, "queued",
+                              SqlValue::Type::kLong),
           SqliteTable::Column(Column::kTimeStarted, "started",
-                              ColumnType::kLong),
+                              SqlValue::Type::kLong),
           SqliteTable::Column(Column::kTimeFirstNext, "first_next",
-                              ColumnType::kLong),
-          SqliteTable::Column(Column::kTimeEnded, "ended", ColumnType::kLong),
+                              SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kTimeEnded, "ended",
+                              SqlValue::Type::kLong),
       },
       {Column::kTimeQueued});
   return util::OkStatus();

@@ -51,7 +51,7 @@ class SchedSliceTable : public StorageTable {
 
     Comparator Sort(const QueryConstraints::OrderBy&) const override;
 
-    SqliteTable::ColumnType GetType() const override;
+    SqlValue::Type GetType() const override;
 
    private:
     static constexpr uint16_t kNumStateStrings =

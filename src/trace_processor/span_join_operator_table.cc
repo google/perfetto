@@ -125,10 +125,11 @@ util::Status SpanJoinOperatorTable::Init(int argc,
   std::vector<SqliteTable::Column> cols;
   // Ensure the shared columns are consistently ordered and are not
   // present twice in the final schema
-  cols.emplace_back(Column::kTimestamp, kTsColumnName, ColumnType::kLong);
-  cols.emplace_back(Column::kDuration, kDurColumnName, ColumnType::kLong);
+  cols.emplace_back(Column::kTimestamp, kTsColumnName, SqlValue::Type::kLong);
+  cols.emplace_back(Column::kDuration, kDurColumnName, SqlValue::Type::kLong);
   if (partitioning_ != PartitioningType::kNoPartitioning)
-    cols.emplace_back(Column::kPartition, partition_col(), ColumnType::kLong);
+    cols.emplace_back(Column::kPartition, partition_col(),
+                      SqlValue::Type::kLong);
 
   CreateSchemaColsForDefn(t1_defn_, &cols);
   CreateSchemaColsForDefn(t2_defn_, &cols);
@@ -218,8 +219,8 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
     auto col = cols[i];
     if (IsRequiredColumn(col.name())) {
       ++required_columns_found;
-      if (col.type() != SqliteTable::ColumnType::kLong &&
-          col.type() != SqliteTable::ColumnType::kUnknown) {
+      if (col.type() != SqlValue::Type::kLong &&
+          col.type() != SqlValue::Type::kNull) {
         return util::ErrStatus(
             "SPAN_JOIN: Invalid type for column %s in table %s",
             col.name().c_str(), desc.name.c_str());
