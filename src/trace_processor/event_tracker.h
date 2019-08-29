@@ -57,6 +57,11 @@ class EventTracker {
                             RefType ref_type,
                             bool resolve_utid_to_upid = false);
 
+  // This method is called when a counter event is seen in the trace.
+  virtual RowId PushCounter(int64_t timestamp,
+                            double value,
+                            TraceStorage::CounterDefinitions::Id defn_id);
+
   // This method is called when a instant event is seen in the trace.
   virtual RowId PushInstant(int64_t timestamp,
                             StringId name_id,
