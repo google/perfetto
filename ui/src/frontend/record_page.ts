@@ -474,7 +474,25 @@ function ChromeSettings(cssClass: string) {
         descr: `Records network events for navigations and resources.`,
         setEnabled: (cfg, val) => cfg.navigationAndLoading = val,
         isEnabled: (cfg) => cfg.navigationAndLoading
-      } as ProbeAttrs));
+      } as ProbeAttrs),
+      ChromeCategoriesSelection());
+}
+
+function ChromeCategoriesSelection() {
+  // The categories are displayed only if the extension is installed, because
+  // they come from the chrome.debugging API, not available from normal web
+  // pages.
+  const categories = globals.state.chromeCategories;
+  if (!categories) return [];
+  const categoriesMap = new Map<string, string>();
+  categories.forEach(cat => categoriesMap.set(cat, cat));
+  return m(Dropdown, {
+    title: 'Additional Chrome categories',
+    cssClass: '.multicolumn.two-columns.chrome-categories',
+    options: categoriesMap,
+    set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+    get: (cfg) => cfg.chromeCategoriesSelected
+  } as DropdownAttrs);
 }
 
 function AdvancedSettings(cssClass: string) {
