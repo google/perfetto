@@ -563,6 +563,24 @@
         }
         margin: 0;
       }
+
+      &.two-columns {
+        height: 400px;
+        width: auto;
+        margin: var(--record-section-padding);
+        optgroup {
+          display: grid;
+          padding: 0;
+          grid-template-columns: 1fr 1fr;
+        }
+        option {
+          &:nth-of-type(2n + 1) {
+            border-left: 1px solid #eee;
+            border-right: 1px solid #eee;
+          }
+          margin: 0;
+        }
+      }
     }
   }
 
@@ -571,6 +589,10 @@
   }
 
   .ftrace-events {
+    height: 152px;
+  }
+
+  .chrome-categories {
     height: 152px;
   }
 
@@ -594,7 +616,6 @@
     border-radius: 4px;
     user-select: text;
     box-shadow: 0 0 12px #999;
-
 
     @keyframes ripple{
       0% { transform: scale(1.00); }
