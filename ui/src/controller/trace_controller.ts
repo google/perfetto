@@ -238,7 +238,6 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Loading tracks');
 
     const engine = assertExists<Engine>(this.engine);
-    const numCpus = await engine.getNumberOfCpus();
     const numGpus = await engine.getNumberOfGpus();
     const tracksToAdd: AddTrackArgs[] = [];
 
@@ -267,7 +266,9 @@ export class TraceController extends Controller<States> {
      where name = 'cpufreq';
     `);
 
-    for (let cpu = 0; cpu < numCpus; cpu++) {
+    const cpus = await engine.getCpus();
+
+    for (const cpu of cpus) {
       tracksToAdd.push({
         engineId: this.engineId,
         kind: CPU_SLICE_TRACK_KIND,
@@ -279,7 +280,7 @@ export class TraceController extends Controller<States> {
       });
     }
 
-    for (let cpu = 0; cpu < numCpus; cpu++) {
+    for (const cpu of cpus) {
       // Only add a cpu freq track if we have
       // cpu freq data.
       // TODO(taylori): Find a way to display cpu idle
