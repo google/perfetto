@@ -257,6 +257,8 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
           context->storage->InternString("task.posted_from.function_name")),
+      task_line_number_args_key_id_(
+          context->storage->InternString("task.posted_from.line_number")),
       log_message_body_key_id_(
           context->storage->InternString("track_event.log_message")),
       data_name_id_(context->storage->InternString("data")),
@@ -2231,20 +2233,24 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
 
   StringId file_name_id = 0;
   StringId function_name_id = 0;
+  uint32_t line_number = 0;
 
   // If the names are already in the pool, no need to decode them again.
   if (location_view_it->second.storage_refs) {
     file_name_id = location_view_it->second.storage_refs->file_name_id;
     function_name_id = location_view_it->second.storage_refs->function_name_id;
+    line_number = location_view_it->second.storage_refs->line_number;
   } else {
     TraceStorage* storage = context_->storage.get();
     auto location = location_view_it->second.CreateDecoder();
     file_name_id = storage->InternString(location.file_name());
     function_name_id = storage->InternString(location.function_name());
+    line_number = location.line_number();
     // Avoid having to decode & look up the names again in the future.
     location_view_it->second.storage_refs =
         ProtoIncrementalState::StorageReferences<
-            protos::pbzero::SourceLocation>{file_name_id, function_name_id};
+            protos::pbzero::SourceLocation>{file_name_id, function_name_id,
+                                            line_number};
   }
 
   args_tracker->AddArg(row, task_file_name_args_key_id_,
@@ -2254,8 +2260,9 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
                        task_function_name_args_key_id_,
                        Variadic::String(function_name_id));
 
-  // TODO(nicomazz): SourceLocation also contains line number now, so it should
-  // be added as an argument here.
+  args_tracker->AddArg(row, task_line_number_args_key_id_,
+                       task_line_number_args_key_id_,
+                       Variadic::UnsignedInteger(line_number));
 }
 
 void ProtoTraceParser::ParseLogMessage(
