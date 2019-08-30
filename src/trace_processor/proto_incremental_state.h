@@ -72,6 +72,7 @@ template <>
 struct StorageReferences<protos::pbzero::SourceLocation> {
   StringId file_name_id;
   StringId function_name_id;
+  uint32_t line_number;
 };
 
 template <>
