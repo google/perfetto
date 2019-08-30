@@ -37,9 +37,9 @@ declare_args() {
   # 2) The libstdc++ situation is too wild on Linux. Modern debian distros are
   #    fine but Ubuntu Trusty still ships a libstdc++ that doesn't fully
   #    support C++11. Hence we enable this flag on Linux by default.
-  #    We still retain libstdc++ coverage on the Travis bots by overriding
+  #    We still retain libstdc++ coverage on the CI bots by overriding
   #    use_custom_libcxx=false when we target a modern library (see the
-  #    GCC7 target in .travis.yml).
+  #    GCC target in infra/ci/config.py).
   use_custom_libcxx = is_linux && is_clang && !is_wasm
   custom_libcxx_is_static = !using_sanitizer
 }
