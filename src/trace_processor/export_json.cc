@@ -254,7 +254,7 @@ ResultCode ExportThreadNames(const TraceStorage* storage,
                              TraceFormatWriter* writer) {
   for (UniqueTid i = 1; i < storage->thread_count(); ++i) {
     auto thread = storage->GetThread(i);
-    if (thread.name_id > 0) {
+    if (!thread.name_id.is_null()) {
       const char* thread_name = storage->GetString(thread.name_id).c_str();
       uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
       writer->WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
@@ -267,7 +267,7 @@ ResultCode ExportProcessNames(const TraceStorage* storage,
                               TraceFormatWriter* writer) {
   for (UniquePid i = 1; i < storage->process_count(); ++i) {
     auto process = storage->GetProcess(i);
-    if (process.name_id > 0) {
+    if (!process.name_id.is_null()) {
       const char* process_name = storage->GetString(process.name_id).c_str();
       writer->WriteMetadataEvent("process_name", process_name, 0, process.pid);
     }
