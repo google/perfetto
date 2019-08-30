@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/test.gni")
+
 source_set("packages_list") {
   public_deps = [
     "../../../tracing",
@@ -31,7 +33,7 @@ source_set("packages_list") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":packages_list",

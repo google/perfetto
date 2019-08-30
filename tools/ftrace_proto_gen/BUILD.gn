@@ -12,10 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("unittests") {
+import("../../gn/perfetto_host_executable.gni")
+import("../../gn/test.gni")
+
+perfetto_host_executable("ftrace_proto_gen") {
+  testonly = true
+  sources = [
+    "main.cc",
+  ]
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../gn:protobuf_full",
+    "../../src/base",
+    "../../src/traced/probes/ftrace:format_parser",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":ftrace_proto_gen_src",
+    ":lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../gn:protobuf_full",
@@ -25,7 +42,7 @@ source_set("unittests") {
   ]
 }
 
-source_set("ftrace_proto_gen_src") {
+source_set("lib") {
   testonly = true
   sources = [
     "ftrace_descriptor_gen.cc",
@@ -36,20 +53,6 @@ source_set("ftrace_proto_gen_src") {
     "proto_gen_utils.h",
   ]
   deps = [
-    "../../gn:default_deps",
-    "../../gn:protobuf_full",
-    "../../src/base",
-    "../../src/traced/probes/ftrace:format_parser",
-  ]
-}
-
-executable("ftrace_proto_gen") {
-  testonly = true
-  sources = [
-    "main.cc",
-  ]
-  deps = [
-    ":ftrace_proto_gen_src",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../src/base",
