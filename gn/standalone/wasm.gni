@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-wasm_toolchain = "//gn/standalone/toolchain:wasm"
-is_wasm = current_toolchain == wasm_toolchain
+import("../wasm_vars.gni")
+
 emsdk_dir = rebase_path("//buildtools/emsdk", "")
 nodejs_dir = rebase_path("//buildtools/nodejs", "")
 

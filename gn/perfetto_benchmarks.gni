@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +14,9 @@
 
 import("perfetto.gni")
 
-if (perfetto_root_path == "//") {
-  import("//gn/standalone/fuzzer.gni")
-} else {
-  # TODO: integrate fuzzer support for chromium builds.
-  # For now just create a dummy template to avoid GN warnings.
-  template("perfetto_fuzzer_test") {
-    not_needed(invoker, "*")
-    group(target_name) {
-    }
-  }
-}
+perfetto_benchmarks_targets = [
+  "gn:default_deps",
+  "src/traced/probes/ftrace:benchmarks",
+  "test:benchmark_main",
+  "test:end_to_end_benchmarks",
+]

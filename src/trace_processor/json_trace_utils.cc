@@ -19,10 +19,10 @@
 #include <json/value.h>
 #include <limits>
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
-#error The JSON trace parser is supported only in the standalone and \
-Chromium builds for now.
+#include "perfetto/base/build_config.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#error JSON parsing and exporting is not supported in this build configuration
 #endif
 
 namespace perfetto {

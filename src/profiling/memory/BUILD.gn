@@ -12,16 +12,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build_overrides/build.gni")
 import("../../../gn/fuzzer.gni")
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
-# For use_libfuzzer.
-if (!build_with_chromium) {
-  import("//gn/standalone/sanitizers/vars.gni")
-} else {
-  import("//build/config/sanitizers/sanitizers.gni")
+assert(enable_perfetto_heapprofd)
+
+# The Android heap profiling daemon.
+executable("heapprofd") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/trace:zero",
+    "../../../src/base",
+    "../../../src/base:unix_socket",
+    "../../../src/profiling/memory:daemon",
+    "../../../src/profiling/memory:wire_protocol",
+    "../../../src/tracing:ipc",
+  ]
+  sources = [
+    "main.cc",
+  ]
 }
+
+# This library gets loaded into (and executes in) arbitrary android processes.
+# Logging must be non-allocating. This is achieved by defining
+# PERFETTO_ANDROID_ASYNC_SAFE_LOG, which needs to be set for all perfetto code
+# being compiled for this library. When generating Android.bp, the |cflags|
+# entry on this target is sufficient (as all sources are flattened into a
+# single bp target). However this is not correctly reflected in the gn
+# structure (which is a tree of targets) as the dependencies would not pick
+# up the flag (and thus use the wrong logging macro).
+#
+# This builds only in the Android tree, when using the generated Android.bp.
+if (perfetto_build_with_android) {
+  shared_library("heapprofd_client") {
+    configs -= [ "//gn/standalone:android_liblog" ]
+    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
+    deps = [
+      ":malloc_hooks",
+    ]
+  }
+
+  # This will export publicly visible symbols for the malloc_hooks.
+  source_set("malloc_hooks") {
+    deps = [
+      ":client",
+      ":proc_utils",
+      ":scoped_spinlock",
+      ":wire_protocol",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../base:unix_socket",
+    ]
+    cflags = [
+      "-isystem",
+      rebase_path("../../../buildtools/bionic/libc", root_build_dir),
+    ]
+    sources = [
+      "malloc_hooks.cc",
+    ]
+  }
+}  # if (perfetto_build_with_android)
 
 source_set("wire_protocol") {
   public_deps = [
@@ -134,9 +185,11 @@ source_set("client") {
     ":scoped_spinlock",
     ":wire_protocol",
     "../../../gn:default_deps",
-    "../../../gn:libunwindstack",
     "../../base",
     "../../base:unix_socket",
+  ]
+  public_deps = [
+    "../../../gn:libunwindstack",
   ]
   sources = [
     "client.cc",
@@ -145,7 +198,7 @@ source_set("client") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":client",
@@ -194,26 +247,6 @@ source_set("end_to_end_tests") {
   if (start_daemons_for_testing) {
     defines = [ "PERFETTO_START_DAEMONS_FOR_TESTING" ]
   }
-}
-
-# This will export publicly visibile symbols for the malloc_hooks.
-source_set("malloc_hooks") {
-  deps = [
-    ":client",
-    ":proc_utils",
-    ":scoped_spinlock",
-    ":wire_protocol",
-    "../../../gn:default_deps",
-    "../../base",
-    "../../base:unix_socket",
-  ]
-  cflags = [
-    "-isystem",
-    rebase_path("../../../buildtools/bionic/libc", root_build_dir),
-  ]
-  sources = [
-    "malloc_hooks.cc",
-  ]
 }
 
 perfetto_fuzzer_test("unwinding_fuzzer") {

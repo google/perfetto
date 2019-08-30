@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//gn/standalone/libc++/libc++.gni")
 import("../gn/perfetto.gni")
+import("../gn/standalone/libc++/libc++.gni")
+
+# We should never get here in embedder builds.
+assert(perfetto_build_standalone || is_perfetto_build_generator)
 
 # This is to make sure that we don't add accidental dependencies from build
 # files in src/ or include/ to buildtools. All deps (outside of /gn/*) should

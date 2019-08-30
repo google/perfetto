@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("perfetto.gni")
-
-if (perfetto_root_path == "//") {
-  import("//gn/standalone/fuzzer.gni")
-} else {
-  # TODO: integrate fuzzer support for chromium builds.
-  # For now just create a dummy template to avoid GN warnings.
-  template("perfetto_fuzzer_test") {
-    not_needed(invoker, "*")
-    group(target_name) {
-    }
-  }
-}
+wasm_toolchain = "//gn/standalone/toolchain:wasm"
+is_wasm = current_toolchain == wasm_toolchain

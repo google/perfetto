@@ -36,9 +36,6 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace shm_fuzz {
-
 // If we're building on Android and starting the daemons ourselves,
 // create the sockets in a world-writable location.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
@@ -47,6 +44,10 @@ namespace shm_fuzz {
 #else
 #define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
 #endif
+
+namespace perfetto {
+namespace shm_fuzz {
+namespace {
 
 // Fake producer writing a protozero message of data into shared memory
 // buffer, followed by a sentinel message to signal completion to the
@@ -84,7 +85,7 @@ class FakeProducer : public Producer {
         static_cast<BufferID>(source_config.target_buffer()));
     {
       auto packet = trace_writer->NewTracePacket();
-      packet->stream_writer_->WriteBytes(data_, size_);
+      packet->stream_writer_for_testing()->WriteBytes(data_, size_);
     }
     trace_writer->Flush();
 
@@ -164,6 +165,7 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
   return 0;
 }
 
+}  // namespace
 }  // namespace shm_fuzz
 }  // namespace perfetto
 

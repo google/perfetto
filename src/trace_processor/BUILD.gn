@@ -14,9 +14,13 @@
 
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-if (perfetto_build_standalone) {
+# Prevent that this file is accidentally included in embedder builds.
+assert(enable_perfetto_trace_processor)
+
+if (enable_perfetto_ui) {
   wasm_lib("trace_processor_wasm") {
     name = "trace_processor"
     sources = [
@@ -198,7 +202,7 @@ source_set("lib") {
   public_deps = [
     "../../include/perfetto/trace_processor",
   ]
-  if (perfetto_build_standalone || build_with_chromium) {
+  if (enable_perfetto_trace_processor_json) {
     sources += [
       "export_json.cc",
       "export_json.h",
@@ -213,7 +217,7 @@ source_set("lib") {
   }
 }
 
-source_set("trace_processor_shell") {
+executable("trace_processor_shell") {
   testonly = true  # We need this for proto full.
   deps = [
     ":lib",
@@ -222,11 +226,11 @@ source_set("trace_processor_shell") {
     "../base",
     "metrics:lib",
   ]
-  if (perfetto_build_standalone) {
-    deps += [
-      "../../gn:linenoise",
-      "../../gn/standalone:gen_git_revision",
-    ]
+  if (enable_perfetto_version_gen) {
+    deps += [ "../../gn/standalone:gen_git_revision" ]
+  }
+  if (enable_perfetto_trace_processor_linenoise) {
+    deps += [ "../../gn:linenoise" ]
   }
 
   sources = [
@@ -234,7 +238,7 @@ source_set("trace_processor_shell") {
   ]
 }
 
-source_set("unittests") {
+perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "args_table_unittest.cc",
@@ -283,7 +287,7 @@ source_set("unittests") {
     "sqlite:unittests",
     "tables:unittests",
   ]
-  if (perfetto_build_standalone || build_with_chromium) {
+  if (enable_perfetto_trace_processor_json) {
     sources += [
       "export_json_unittest.cc",
       "json_trace_tokenizer_unittest.cc",
@@ -308,7 +312,7 @@ source_set("integrationtests") {
     "../base:test_support",
     "sqlite",
   ]
-  if (perfetto_build_standalone || build_with_chromium) {
+  if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
   }
 }
