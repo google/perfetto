@@ -101,6 +101,7 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
   const atraceCats = new Set<string>(uiCfg.atrace ? uiCfg.atraceCats : []);
   const atraceApps = new Set<string>();
   const chromeCategories = new Set<string>();
+  uiCfg.chromeCategoriesSelected.forEach(it => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
