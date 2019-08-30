@@ -180,6 +180,7 @@ class ProtoTraceParser : public TraceParser {
   const StringId metatrace_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
+  const StringId task_line_number_args_key_id_;
   const StringId log_message_body_key_id_;
   const StringId data_name_id_;
   const StringId raw_chrome_metadata_event_id_;
