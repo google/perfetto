@@ -4403,6 +4403,7 @@ cc_test {
     "src/trace_processor/clock_tracker_unittest.cc",
     "src/trace_processor/counter_definitions_table.cc",
     "src/trace_processor/counter_values_table.cc",
+    "src/trace_processor/cpu_profile_stack_sample_table.cc",
     "src/trace_processor/db/bit_vector.cc",
     "src/trace_processor/db/bit_vector_unittest.cc",
     "src/trace_processor/db/column.cc",
