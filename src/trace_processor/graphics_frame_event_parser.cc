@@ -122,7 +122,7 @@ void GraphicsFrameEventParser::ParseEvent(int64_t timestamp, ConstBytes blob) {
       event.has_frame_number() ? event.frame_number() : 0;
 
   const TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
-      {VirtualTrackScope::kGlobal, 0 /* upid */, track_name_id,
+      {VirtualTrackScope::kGlobal, 0 /* upid */, track_name_id.id,
        graphics_event_scope_id_},
       track_name_id);
 
