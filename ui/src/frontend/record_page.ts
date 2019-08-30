@@ -20,6 +20,7 @@ import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {isAndroidTarget, isChromeTarget, TargetOs} from '../common/state';
 import {MAX_TIME, RecordMode} from '../common/state';
+import {AdbOverWebUsb} from '../controller/adb';
 
 import {globals} from './globals';
 import {createPage} from './pages';
@@ -711,8 +712,13 @@ function recordingLog() {
 // The connection must be done in the frontend. After it, the serial ID will be
 // inserted in the state, and the worker will be able to connect to the phone.
 async function connectAndroidDevice() {
-  console.log('This will be implemented soon!');
-  // TODO(nicomazz): This will be implemented in another CL.
+  const device = await new AdbOverWebUsb().findDevice();
+
+  if (!device.serialNumber) {
+    console.error('serial number undefined');
+    return;
+  }
+  globals.dispatch(Actions.setAndroidDevice({serial: device.serialNumber}));
 }
 
 export const RecordPage = createPage({
