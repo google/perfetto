@@ -165,9 +165,9 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
 
   // If we are trying to close mismatching slices (e.g., slices that began
   // before tracing started), bail out.
-  if (category && slices->categories()[slice_idx] != category)
+  if (!category.is_null() && slices->categories()[slice_idx] != category)
     return base::nullopt;
-  if (name && slices->names()[slice_idx] != name)
+  if (!name.is_null() && slices->names()[slice_idx] != name)
     return base::nullopt;
 
   PERFETTO_DCHECK(slices->durations()[slice_idx] == kPendingDuration);

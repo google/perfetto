@@ -65,9 +65,11 @@ class SyscallTrackerTest : public ::testing::Test {
 TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
   StringId begin_name = 0;
   StringId end_name = 0;
-  EXPECT_CALL(*slice_tracker, Begin(100, 42, RefType::kRefUtid, 0, _, _))
+  EXPECT_CALL(*slice_tracker,
+              Begin(100, 42, RefType::kRefUtid, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<4>(&begin_name), Return(base::nullopt)));
-  EXPECT_CALL(*slice_tracker, End(110, 42, RefType::kRefUtid, 0, _, _))
+  EXPECT_CALL(*slice_tracker,
+              End(110, 42, RefType::kRefUtid, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<4>(&end_name), Return(base::nullopt)));
 
   context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
@@ -88,9 +90,11 @@ TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
 TEST_F(SyscallTrackerTest, Aarch64) {
   StringId begin_name = 0;
   StringId end_name = 0;
-  EXPECT_CALL(*slice_tracker, Begin(100, 42, RefType::kRefUtid, 0, _, _))
+  EXPECT_CALL(*slice_tracker,
+              Begin(100, 42, RefType::kRefUtid, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<4>(&begin_name), Return(base::nullopt)));
-  EXPECT_CALL(*slice_tracker, End(110, 42, RefType::kRefUtid, 0, _, _))
+  EXPECT_CALL(*slice_tracker,
+              End(110, 42, RefType::kRefUtid, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<4>(&end_name), Return(base::nullopt)));
 
   context.syscall_tracker->SetArchitecture(kAarch64);
@@ -103,9 +107,11 @@ TEST_F(SyscallTrackerTest, Aarch64) {
 TEST_F(SyscallTrackerTest, x8664) {
   StringId begin_name = 0;
   StringId end_name = 0;
-  EXPECT_CALL(*slice_tracker, Begin(100, 42, RefType::kRefUtid, 0, _, _))
+  EXPECT_CALL(*slice_tracker,
+              Begin(100, 42, RefType::kRefUtid, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<4>(&begin_name), Return(base::nullopt)));
-  EXPECT_CALL(*slice_tracker, End(110, 42, RefType::kRefUtid, 0, _, _))
+  EXPECT_CALL(*slice_tracker,
+              End(110, 42, RefType::kRefUtid, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<4>(&end_name), Return(base::nullopt)));
 
   context.syscall_tracker->SetArchitecture(kX86_64);

@@ -82,7 +82,7 @@ UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
 UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
                                            StringId thread_name_id) {
   auto utid = GetOrCreateThread(tid);
-  if (thread_name_id) {
+  if (!thread_name_id.is_null()) {
     TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
     thread->name_id = thread_name_id;
   }
