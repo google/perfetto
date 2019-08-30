@@ -17,6 +17,7 @@
 #include "src/trace_processor/string_pool.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -45,7 +46,8 @@ StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
     // Add a new block to store the data. If the string is larger that the
     // default block size, add a bigger block exlusively for this string.
     if (str.size() + kMaxMetadataSize > kDefaultBlockSize) {
-      blocks_.emplace_back(str.size() + kMaxMetadataSize);
+      blocks_.emplace_back(str.size() +
+                           base::AlignUp<base::kPageSize>(kMaxMetadataSize));
     } else {
       blocks_.emplace_back(kDefaultBlockSize);
     }

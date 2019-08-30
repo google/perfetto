@@ -124,12 +124,11 @@ TEST(StringPoolTest, StressTest) {
 
 TEST(StringPoolTest, BigString) {
   constexpr size_t kBigStringSize = 33 * 1024 * 1024;
-  std::minstd_rand0 rnd_engine(0);
   std::unique_ptr<char[]> str1(new char[kBigStringSize + 1]);
   std::unique_ptr<char[]> str2(new char[kBigStringSize + 1]);
   for (size_t i = 0; i < kBigStringSize; i++) {
-    str1.get()[i] = 'A' + (rnd_engine() % 26);
-    str2.get()[i] = 'A' + (rnd_engine() % 26);
+    str1.get()[i] = 'A' + static_cast<char>(i % 32);
+    str2.get()[i] = 'A' + static_cast<char>((i + 7) % 32);
   }
   str1.get()[kBigStringSize] = '\0';
   str2.get()[kBigStringSize] = '\0';
