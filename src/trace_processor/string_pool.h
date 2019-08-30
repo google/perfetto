@@ -41,7 +41,18 @@ constexpr size_t kDefaultBlockSize =
 // be used to retrieve the string in O(1).
 class StringPool {
  public:
-  using Id = uint32_t;
+  struct Id {
+    Id() = default;
+    constexpr Id(uint32_t i) : id(i) {}
+
+    bool operator==(const Id& other) const { return other.id == id; }
+    bool operator!=(const Id& other) const { return !(other == *this); }
+    bool operator<(const Id& other) const { return id < other.id; }
+
+    bool is_null() const { return id == 0u; }
+
+    uint32_t id;
+  };
 
   // Iterator over the strings in the pool.
   class Iterator {
@@ -73,7 +84,7 @@ class StringPool {
 
   Id InternString(base::StringView str) {
     if (str.data() == nullptr)
-      return 0;
+      return Id(0);
 
     auto hash = str.Hash();
     auto id_it = string_index_.find(hash);
@@ -86,7 +97,7 @@ class StringPool {
 
   base::Optional<Id> GetId(base::StringView str) const {
     if (str.data() == nullptr)
-      return 0u;
+      return Id(0u);
 
     auto hash = str.Hash();
     auto id_it = string_index_.find(hash);
@@ -98,7 +109,7 @@ class StringPool {
   }
 
   NullTermStringView Get(Id id) const {
-    if (id == 0)
+    if (id.id == 0)
       return NullTermStringView();
     return GetFromPtr(IdToPtr(id));
   }
@@ -160,14 +171,14 @@ class StringPool {
     // the one and only 4GB block.
     if (sizeof(void*) == 8) {
       PERFETTO_DCHECK(blocks_.size() == 1);
-      return blocks_.back().OffsetOf(ptr);
+      return Id(blocks_.back().OffsetOf(ptr));
     }
 
     // On 32 bit architectures, the size of the pointer is 32-bit so we simply
     // use the pointer itself as the id.
     // Double cast needed because, on 64 archs, the compiler complains that we
     // are losing information.
-    return static_cast<Id>(reinterpret_cast<uintptr_t>(ptr));
+    return Id(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ptr)));
   }
 
   // The returned pointer points to the start of the string metadata (i.e. the
@@ -177,10 +188,10 @@ class StringPool {
     // the base of the 4GB block and adding the offset given by |id|.
     if (sizeof(void*) == 8) {
       PERFETTO_DCHECK(blocks_.size() == 1);
-      return blocks_.back().Get(id);
+      return blocks_.back().Get(id.id);
     }
     // On a 32 bit architecture, the pointer is the same as the id.
-    return reinterpret_cast<uint8_t*>(id);
+    return reinterpret_cast<uint8_t*>(id.id);
   }
 
   // |ptr| should point to the start of the string metadata (i.e. the first byte
@@ -215,5 +226,19 @@ class StringPool {
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+namespace std {
+
+template <>
+struct hash< ::perfetto::trace_processor::StringPool::Id> {
+  using argument_type = ::perfetto::trace_processor::StringPool::Id;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& r) const {
+    return std::hash<uint32_t>{}(r.id);
+  }
+};
+
+}  // namespace std
 
 #endif  // SRC_TRACE_PROCESSOR_STRING_POOL_H_
