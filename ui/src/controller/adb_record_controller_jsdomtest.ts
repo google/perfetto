@@ -72,12 +72,14 @@ test('enableTracing', async () => {
   adbController.generateStartTracingCommand = (_) => 'CMD';
 
   await adbController.enableTracing(mockIntArray);
+  expect(adbShell).toBeCalledWith('CMD');
+  expect(sendMessage).toHaveBeenCalledTimes(0);
+  expect(findDevice).toHaveBeenCalledTimes(1);
+  expect(connectToDevice).toHaveBeenCalledTimes(1);
+
   stream.onData('starting tracing Wrote 123 bytes', mockIntArray);
   stream.onClose();
 
-  expect(findDevice).toHaveBeenCalledTimes(1);
-  expect(connectToDevice).toHaveBeenCalledTimes(1);
-  expect(adbShell).toBeCalledWith('CMD');
   expect(adbController.sendErrorMessage).toHaveBeenCalledTimes(0);
   expect(sendMessage).toBeCalledWith({type: 'EnableTracingResponse'});
 });
