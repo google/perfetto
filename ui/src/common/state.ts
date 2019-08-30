@@ -250,6 +250,8 @@ export interface RecordConfig {
 
   procStats: boolean;
   procStatsPeriodMs: number;
+
+  chromeCategoriesSelected: string[];
 }
 
 export function createEmptyRecordConfig(): RecordConfig {
@@ -302,6 +304,8 @@ export function createEmptyRecordConfig(): RecordConfig {
     memLmk: false,
     procStats: false,
     procStatsPeriodMs: 1000,
+
+    chromeCategoriesSelected: [],
   };
 }
 
