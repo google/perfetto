@@ -37,7 +37,7 @@ import {
   RecordConfig
 } from '../common/state';
 
-import {MockAdb} from './adb_interfaces';
+import {AdbOverWebUsb} from './adb';
 import {AdbRecordController} from './adb_record_controller';
 import {
   ConsumerPortResponse,
@@ -424,10 +424,8 @@ export class RecordController extends Controller<'main'> {
   private traceBuffer = '';
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
 
-  // TODO(nicomazz): Replace MockAdb with the true Adb implementation.
   private adbRecordController = new AdbRecordController(
-      new MockAdb(), this.onConsumerPortMessage.bind(this));
-
+      new AdbOverWebUsb(), this.onConsumerPortMessage.bind(this));
   constructor(args: {app: App, extensionPort: MessagePort}) {
     super('main');
     this.app = args.app;
