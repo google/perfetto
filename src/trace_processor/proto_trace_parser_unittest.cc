@@ -1631,6 +1631,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
     loc1->set_iid(1);
     loc1->set_file_name("file1");
     loc1->set_function_name("func1");
+    loc1->set_line_number(42);
   }
 
   Tokenize();
@@ -1651,6 +1652,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
       .WillOnce(Return(4));
   EXPECT_CALL(args, AddArg(1u, _, _, Variadic::String(3)));
   EXPECT_CALL(args, AddArg(1u, _, _, Variadic::String(4)));
+  EXPECT_CALL(args, AddArg(1u, _, _, Variadic::UnsignedInteger(42)));
 
   context_.sorter->ExtractEventsForced();
 }
