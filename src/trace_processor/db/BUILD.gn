@@ -27,9 +27,11 @@ source_set("lib") {
     "table.h",
   ]
   deps = [
+    "../:common",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor",
   ]
 }
 

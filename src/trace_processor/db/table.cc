@@ -19,7 +19,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-Table::Table(const Table* parent) {
+Table::Table(const StringPool* pool, const Table* parent) : string_pool_(pool) {
   if (!parent)
     return;
 
@@ -106,7 +106,7 @@ Table Table::Sort(const std::vector<Order>& od) const {
 Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
   // The join table will have the same size and RowMaps as the left (this)
   // table because the left column is indexing the right table.
-  Table table(nullptr);
+  Table table(string_pool_, nullptr);
   table.size_ = size_;
   for (const RowMap& rm : row_maps_) {
     table.row_maps_.emplace_back(rm.Copy());
@@ -129,9 +129,9 @@ Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
   // in the right table.
   std::vector<uint32_t> indices(size_);
   for (uint32_t i = 0; i < size_; ++i) {
-    base::Optional<int64_t> val = left_col.Get(i);
-    PERFETTO_CHECK(val.has_value());
-    indices[i] = right_col.IndexOf(static_cast<uint32_t>(val.value())).value();
+    SqlValue val = left_col.Get(i);
+    PERFETTO_CHECK(val.type != SqlValue::Type::kNull);
+    indices[i] = right_col.IndexOf(val).value();
   }
 
   // Apply the computed RowMap to each of the right RowMaps, adding it to the
