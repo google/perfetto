@@ -234,6 +234,8 @@ executable("trace_processor_shell") {
   }
 
   sources = [
+    "proto_to_json.cc",
+    "proto_to_json.h",
     "trace_processor_shell.cc",
   ]
 }
