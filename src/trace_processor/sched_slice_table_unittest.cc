@@ -35,6 +35,7 @@ class SchedSliceTableTest : public ::testing::Test {
  public:
   SchedSliceTableTest() {
     sqlite3* db = nullptr;
+    PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
 
