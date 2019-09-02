@@ -701,6 +701,8 @@ cc_binary(
         "src/trace_processor/process_tracker.cc",
         "src/trace_processor/process_tracker.h",
         "src/trace_processor/proto_incremental_state.h",
+        "src/trace_processor/proto_to_json.cc",
+        "src/trace_processor/proto_to_json.h",
         "src/trace_processor/proto_trace_parser.cc",
         "src/trace_processor/proto_trace_parser.h",
         "src/trace_processor/proto_trace_tokenizer.cc",
