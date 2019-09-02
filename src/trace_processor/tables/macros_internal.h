@@ -38,7 +38,8 @@ class RootParentTable : public Table {
 // code size.
 class MacroTable : public Table {
  public:
-  MacroTable(Table* parent) : Table(parent), parent_(parent) {
+  MacroTable(const StringPool* pool, Table* parent)
+      : Table(pool, parent), parent_(parent) {
     if (!parent) {
       columns_.emplace_back(
           Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
@@ -131,8 +132,8 @@ class MacroTable : public Table {
 #define PERFETTO_TP_TABLE_INTERNAL(class_name, parent_class_name, DEF)        \
   class class_name : public macros_internal::MacroTable {                     \
    public:                                                                    \
-    class_name(parent_class_name* parent)                                     \
-        : macros_internal::MacroTable(parent), parent_(parent) {              \
+    class_name(const StringPool* pool, parent_class_name* parent)             \
+        : macros_internal::MacroTable(pool, parent), parent_(parent) {        \
       /* Expands to                                                           \
        * columns_.emplace_back("col1", col1_, this, columns_.size(),          \
        *                       row_maps_.size() - 1);                         \

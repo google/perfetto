@@ -21,26 +21,29 @@
 namespace perfetto {
 namespace trace_processor {
 
-void Column::FilterInto(FilterOp op, int64_t value, RowMap* iv) const {
+Column::Column(const char* name,
+               ColumnType type,
+               Table* table,
+               uint32_t col_idx,
+               uint32_t row_map_idx)
+    : name_(name),
+      table_(table),
+      string_pool_(table->string_pool_),
+      col_idx_(col_idx),
+      row_map_idx_(row_map_idx),
+      type_(type) {}
+
+void Column::FilterInto(FilterOp op, SqlValue value, RowMap* iv) const {
   // Assume op == kEq.
   switch (op) {
     case FilterOp::kLt:
-      iv->RemoveIf([this, value](uint32_t row) {
-        auto opt_value = Get(row);
-        return !opt_value || opt_value.value() >= value;
-      });
+      iv->RemoveIf([this, value](uint32_t row) { return Get(row) >= value; });
       break;
     case FilterOp::kEq:
-      iv->RemoveIf([this, value](uint32_t row) {
-        auto opt_value = Get(row);
-        return !opt_value || opt_value.value() != value;
-      });
+      iv->RemoveIf([this, value](uint32_t row) { return Get(row) != value; });
       break;
     case FilterOp::kGt:
-      iv->RemoveIf([this, value](uint32_t row) {
-        auto opt_value = Get(row);
-        return !opt_value || opt_value.value() <= value;
-      });
+      iv->RemoveIf([this, value](uint32_t row) { return Get(row) <= value; });
       break;
   }
 }
