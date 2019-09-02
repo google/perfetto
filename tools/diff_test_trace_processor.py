@@ -95,30 +95,35 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
   with open(expected_path, 'r') as expected_file:
     expected = expected_file.read()
 
+  json_output = os.path.basename(expected_path).endswith('.json.out')
   cmd = [
     trace_processor_path,
     '--run-metrics',
     metric,
-    '--metrics-output=binary',
+    '--metrics-output=%s' % ('json' if json_output else 'binary'),
     gen_trace_path,
     '--perf-file',
     perf_path,
   ]
   actual = subprocess.check_output(cmd)
 
-  # Expected will be in text proto format and we'll need to parse it to a real
-  # proto.
-  expected_message = metrics_message_factory()
-  text_format.Merge(expected, expected_message)
+  if json_output:
+    expected_text = expected
+    actual_text = actual
+  else:
+    # Expected will be in text proto format and we'll need to parse it to a real
+    # proto.
+    expected_message = metrics_message_factory()
+    text_format.Merge(expected, expected_message)
 
-  # Actual will be the raw bytes of the proto and we'll need to parse it into
-  # a message.
-  actual_message = metrics_message_factory()
-  actual_message.ParseFromString(actual)
+    # Actual will be the raw bytes of the proto and we'll need to parse it into
+    # a message.
+    actual_message = metrics_message_factory()
+    actual_message.ParseFromString(actual)
 
-  # Convert both back to text format.
-  expected_text = text_format.MessageToString(expected_message)
-  actual_text = text_format.MessageToString(actual_message)
+    # Convert both back to text format.
+    expected_text = text_format.MessageToString(expected_message)
+    actual_text = text_format.MessageToString(actual_message)
 
   return TestResult('metric', metric, cmd, expected_text, actual_text)
 

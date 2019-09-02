@@ -4775,6 +4775,7 @@ cc_binary {
     "src/trace_processor/metrics/metrics.cc",
     "src/trace_processor/process_table.cc",
     "src/trace_processor/process_tracker.cc",
+    "src/trace_processor/proto_to_json.cc",
     "src/trace_processor/proto_trace_parser.cc",
     "src/trace_processor/proto_trace_tokenizer.cc",
     "src/trace_processor/raw_table.cc",
