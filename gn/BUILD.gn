@@ -285,7 +285,7 @@ if (enable_perfetto_trace_processor || enable_perfetto_platform_services) {
 }
 
 # Used by fuzzers.
-if (enable_perfetto_fuzzers) {
+if (enable_perfetto_fuzzers && use_libfuzzer) {
   group("libfuzzer") {
     assert(perfetto_root_path == "//")
     public_deps = [
