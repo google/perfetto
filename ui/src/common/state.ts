@@ -200,6 +200,10 @@ export function isChromeTarget(target: TargetOs) {
   return target === 'C';
 }
 
+export function isLinuxTarget(target: TargetOs) {
+  return target === 'L';
+}
+
 export interface RecordConfig {
   [key: string]: null|number|boolean|string|string[];
 
