@@ -18,11 +18,14 @@
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_BASIC_TYPES_H_
 
 #include <assert.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <functional>
 #include <string>
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,16 +37,67 @@ struct PERFETTO_EXPORT SqlValue {
   // Represents the type of the value.
   enum Type {
     kNull = 0,
-    kString,
     kLong,
     kDouble,
+    kString,
     kBytes,
   };
+
+  SqlValue() = default;
+
+  static SqlValue Long(int64_t v) {
+    SqlValue value;
+    value.long_value = v;
+    value.type = Type::kLong;
+    return value;
+  }
+
+  static SqlValue String(const char* v) {
+    SqlValue value;
+    value.string_value = v;
+    value.type = Type::kString;
+    return value;
+  }
 
   double AsDouble() {
     assert(type == kDouble);
     return double_value;
   }
+
+  int Compare(const SqlValue& value) const {
+    // TODO(lalitm): this is almost the same as what SQLite does with the
+    // exception of comparisions between long and double - we choose (for
+    // performance reasons) to omit comparisions between them.
+    if (type != value.type)
+      return type - value.type;
+
+    switch (type) {
+      case Type::kNull:
+        return 0;
+      case Type::kLong:
+        return signbit(long_value - value.long_value);
+      case Type::kDouble:
+        return signbit(double_value - value.double_value);
+      case Type::kString:
+        return strcmp(string_value, value.string_value);
+      case Type::kBytes: {
+        size_t bytes = std::min(bytes_count, value.bytes_count);
+        int ret = memcmp(bytes_value, value.bytes_value, bytes);
+        if (ret != 0)
+          return ret;
+        return signbit(bytes_count - value.bytes_count);
+      }
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+  bool operator==(const SqlValue& value) const { return Compare(value) == 0; }
+  bool operator<(const SqlValue& value) const { return Compare(value) < 0; }
+  bool operator!=(const SqlValue& value) const { return !(*this == value); }
+  bool operator>=(const SqlValue& value) const { return !(*this < value); }
+  bool operator<=(const SqlValue& value) const { return !(value < *this); }
+  bool operator>(const SqlValue& value) const { return value < *this; }
+
+  bool is_null() const { return type == Type::kNull; }
 
   // Up to 1 of these fields can be accessed depending on |type|.
   union {
