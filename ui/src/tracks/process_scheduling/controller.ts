@@ -34,7 +34,7 @@ import {
 class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
   private setup = false;
-  private numCpus = 0;
+  private maxCpu = 0;
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
@@ -55,7 +55,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       await this.query(`create virtual table ${this.tableName('span')}
               using span_join(${this.tableName('process')} PARTITIONED cpu,
                               ${this.tableName('window')});`);
-      this.numCpus = await this.engine.getNumberOfCpus();
+      this.maxCpu = Math.max(...await this.engine.getCpus()) + 1;
       this.setup = true;
     }
 
@@ -89,15 +89,15 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
     const numBuckets = Math.ceil((endNs - startNs) / bucketSizeNs);
 
-    // cpu < numCpus improves perfomance a lot since the window table can
+    // cpu < maxCpu improves perfomance a lot since the window table can
     // avoid generating many rows.
     const query = `select
         quantum_ts as bucket,
-        sum(dur)/cast(${bucketSizeNs * this.numCpus} as float) as utilization
+        sum(dur)/cast(${bucketSizeNs * this.maxCpu} as float) as utilization
         from ${this.tableName('span')}
         where upid = ${this.config.upid}
         and utid != 0
-        and cpu < ${this.numCpus}
+        and cpu < ${this.maxCpu}
         group by quantum_ts
         limit ${LIMIT}`;
 
@@ -123,14 +123,14 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   private async computeSlices(start: number, end: number, resolution: number):
       Promise<SliceData> {
-    // cpu < numCpus improves perfomance a lot since the window table can
+    // cpu < maxCpu improves perfomance a lot since the window table can
     // avoid generating many rows.
     const query = `select ts,dur,cpu,utid from ${this.tableName('span')}
         join
         (select utid from thread where upid = ${this.config.upid})
         using(utid)
         where
-        cpu < ${this.numCpus}
+        cpu < ${this.maxCpu}
         order by
         cpu,
         ts
@@ -144,7 +144,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: numRows,
-      numCpus: this.numCpus,
+      maxCpu: this.maxCpu,
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       cpus: new Uint32Array(numRows),

@@ -30,7 +30,7 @@ import {TimeSpan} from './time';
  */
 export abstract class Engine {
   abstract readonly id: string;
-  private _numCpus?: number;
+  private _cpus?: number[];
   private _numGpus?: number;
   private loadingManager: LoadingManager;
 
@@ -74,13 +74,13 @@ export abstract class Engine {
   }
 
   // TODO(hjd): When streaming must invalidate this somehow.
-  async getNumberOfCpus(): Promise<number> {
-    if (!this._numCpus) {
-      const result = await this.query(
-          'select count(distinct(cpu)) as cpuCount from sched;');
-      this._numCpus = +result.columns[0].longValues![0];
+  async getCpus(): Promise<number[]> {
+    if (!this._cpus) {
+      const result =
+          await this.query('select distinct(cpu) from sched order by cpu;');
+      this._cpus = result.columns[0].longValues!.map(n => +n);
     }
-    return this._numCpus;
+    return this._cpus;
   }
 
   async getNumberOfGpus(): Promise<number> {
