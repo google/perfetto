@@ -107,7 +107,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.numCpus);
+    const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
 
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
@@ -181,7 +181,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
       return;
     }
 
-    const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.numCpus);
+    const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
     const cpu = Math.floor((y - MARGIN_TOP) / (cpuTrackHeight + 1));
     const {timeScale} = globals.frontendLocalState;
     const t = timeScale.pxToTime(x);
