@@ -144,7 +144,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
 
   // start tracing
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(4000 /*ms*/);
+  helper.WaitForTracingDisabled(10000 /*ms*/);
   helper.ReadData();
   helper.WaitForReadData();
 
