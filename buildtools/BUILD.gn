@@ -14,6 +14,7 @@
 
 import("../gn/perfetto.gni")
 import("../gn/standalone/libc++/libc++.gni")
+import("../gn/standalone/sanitizers/vars.gni")
 
 # We should never get here in embedder builds.
 assert(perfetto_build_standalone || is_perfetto_build_generator)
