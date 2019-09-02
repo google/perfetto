@@ -19,7 +19,7 @@ import hashlib
 import sys
 
 from config import DB, PROJECT
-from common_utils import req
+from common_utils import req, SCOPES
 
 '''
 Uploads the performance metrics of the Perfetto tests to StackDriver and
@@ -48,6 +48,9 @@ The expected format of the JSON is as follows:
 
 
 STACKDRIVER_API = 'https://monitoring.googleapis.com/v3/projects/%s' % PROJECT
+SCOPES.append('https://www.googleapis.com/auth/firebase.database')
+SCOPES.append('https://www.googleapis.com/auth/userinfo.email')
+SCOPES.append('https://www.googleapis.com/auth/monitoring.write')
 
 
 def sha1(obj):
