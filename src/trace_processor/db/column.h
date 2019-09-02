@@ -21,8 +21,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/row_map.h"
 #include "src/trace_processor/db/sparse_vector.h"
+#include "src/trace_processor/string_pool.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -38,7 +40,7 @@ enum FilterOp {
 struct Constraint {
   uint32_t col_idx;
   FilterOp op;
-  int64_t value;
+  SqlValue value;
 };
 
 // Represents an order by operation on a column.
@@ -68,6 +70,19 @@ class Column {
     data_.int64_sv = storage;
   }
 
+  // Create an nullable string Column.
+  // Note: |name| must be a long lived string.
+  // TODO(lalitm): change this to a std::deque instead as StringIds already
+  // have the concept of nullability in them.
+  Column(const char* name,
+         const SparseVector<StringPool::Id>* storage,
+         Table* table,
+         uint32_t col_idx,
+         uint32_t row_map_idx)
+      : Column(name, ColumnType::kString, table, col_idx, row_map_idx) {
+    data_.string_sv = storage;
+  }
+
   // Create a Column has the same name and is backed by the same data as
   // |column| but is associated to a different table.
   Column(const Column& column,
@@ -87,44 +102,64 @@ class Column {
   }
 
   // Gets the value of the Column at the given |row|
-  base::Optional<int64_t> Get(uint32_t row) const {
-    auto opt_idx = row_map().Get(row);
+  SqlValue Get(uint32_t row) const {
+    auto idx = row_map().Get(row);
     switch (type_) {
-      case ColumnType::kInt64:
-        return data_.int64_sv->Get(opt_idx);
+      case ColumnType::kInt64: {
+        auto opt_value = data_.int64_sv->Get(idx);
+        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
+      case ColumnType::kString: {
+        auto opt_id = data_.string_sv->Get(idx);
+        // We DCHECK here because although we are using SparseVector, the null
+        // info is handled by the StringPool rather than by the SparseVector.
+        // The value returned by the SparseVector should always be non-null.
+        // TODO(lalitm): remove this check when we support std::deque<StringId>.
+        PERFETTO_DCHECK(opt_id.has_value());
+        auto str = string_pool_->Get(*opt_id).c_str();
+        return str == nullptr ? SqlValue() : SqlValue::String(str);
+      }
       case ColumnType::kId:
-        return opt_idx;
+        return SqlValue::Long(idx);
     }
     PERFETTO_FATAL("For GCC");
   }
 
   // Returns the row containing the given value in the Column.
-  base::Optional<uint32_t> IndexOf(int64_t value) const {
+  base::Optional<uint32_t> IndexOf(SqlValue value) const {
     switch (type_) {
+      // TODO(lalitm): investigate whether we could make this more efficient
+      // by first checking the type of the column and comparing explicitly
+      // based on that type.
       case ColumnType::kInt64:
+      case ColumnType::kString: {
         for (uint32_t i = 0; i < row_map().size(); i++) {
           if (Get(i) == value)
             return i;
         }
         return base::nullopt;
-      case ColumnType::kId:
-        return row_map().IndexOf(static_cast<uint32_t>(value));
+      }
+      case ColumnType::kId: {
+        if (value.type != SqlValue::Type::kLong)
+          return base::nullopt;
+        return row_map().IndexOf(static_cast<uint32_t>(value.long_value));
+      }
     }
     PERFETTO_FATAL("For GCC");
   }
 
   // Updates the given RowMap by only keeping rows where this column meets the
   // given filter constraint.
-  void FilterInto(FilterOp, int64_t value, RowMap*) const;
+  void FilterInto(FilterOp, SqlValue value, RowMap*) const;
 
   // Returns a Constraint for each type of filter operation for this Column.
-  Constraint eq(int64_t value) const {
+  Constraint eq(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kEq, value};
   }
-  Constraint gt(int64_t value) const {
+  Constraint gt(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kGt, value};
   }
-  Constraint lt(int64_t value) const {
+  Constraint lt(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kLt, value};
   }
 
@@ -144,6 +179,7 @@ class Column {
   enum ColumnType {
     // Standard primitive types.
     kInt64,
+    kString,
 
     // Types generated on the fly.
     kId,
@@ -153,18 +189,14 @@ class Column {
          ColumnType type,
          Table* table,
          uint32_t col_idx,
-         uint32_t row_map_idx)
-      : name_(name),
-        table_(table),
-        col_idx_(col_idx),
-        row_map_idx_(row_map_idx),
-        type_(type) {}
+         uint32_t row_map_idx);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
 
   const char* name_ = nullptr;
-  Table* table_ = nullptr;
+  const Table* table_ = nullptr;
+  const StringPool* string_pool_ = nullptr;
   uint32_t col_idx_ = 0;
   uint32_t row_map_idx_ = 0;
 
@@ -172,6 +204,9 @@ class Column {
   union {
     // Valid when |type_| == ColumnType::kInt64.
     const SparseVector<int64_t>* int64_sv = nullptr;
+
+    // Valid when |type_| == ColumnType::kString.
+    const SparseVector<StringPool::Id>* string_sv;
   } data_;
 };
 
