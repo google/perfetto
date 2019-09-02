@@ -25,7 +25,7 @@ export interface SummaryData extends TrackData {
 
 export interface SliceData extends TrackData {
   kind: 'slice';
-  numCpus: number;
+  maxCpu: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
   starts: Float64Array;
