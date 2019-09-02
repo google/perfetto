@@ -95,7 +95,6 @@ source_set("lib") {
     "metadata.h",
     "metadata_table.cc",
     "metadata_table.h",
-    "null_term_string_view.h",
     "process_table.cc",
     "process_table.h",
     "process_tracker.cc",
@@ -136,8 +135,6 @@ source_set("lib") {
     "storage_schema.h",
     "storage_table.cc",
     "storage_table.h",
-    "string_pool.cc",
-    "string_pool.h",
     "syscall_tracker.cc",
     "syscall_tracker.h",
     "syscalls_aarch32.h",
@@ -172,6 +169,7 @@ source_set("lib") {
   ]
 
   deps = [
+    ":common",
     "../../gn:default_deps",
     "../../gn:sqlite",
     "../../gn:zlib",
@@ -215,6 +213,21 @@ source_set("lib") {
     ]
     deps += [ "../../gn:jsoncpp" ]
   }
+}
+
+# TODO(lalitm): we need to find a better home for the classes here.
+source_set("common") {
+  sources = [
+    "null_term_string_view.h",
+    "string_pool.cc",
+    "string_pool.h",
+  ]
+
+  deps = [
+    "../../gn:default_deps",
+    "../base",
+    "../protozero",
+  ]
 }
 
 executable("trace_processor_shell") {
@@ -266,6 +279,7 @@ perfetto_unittest_source_set("unittests") {
     "trace_sorter_unittest.cc",
   ]
   deps = [
+    ":common",
     ":lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
