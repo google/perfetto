@@ -57,6 +57,15 @@ class SparseVector {
   // Adds a null value to the SparseVector.
   void AppendNull() { valid_.Append(false); }
 
+  // Adds the given optional value to the SparseVector.
+  void Append(base::Optional<T> val) {
+    if (val) {
+      Append(*val);
+    } else {
+      AppendNull();
+    }
+  }
+
   // Sets the value at |idx| to the given |val|.
   void Set(uint32_t idx, T val) {
     uint32_t data_idx = valid_.GetNumBitsSet(idx);
