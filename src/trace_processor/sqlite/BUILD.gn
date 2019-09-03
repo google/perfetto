@@ -16,6 +16,8 @@ import("../../../gn/test.gni")
 
 source_set("sqlite") {
   sources = [
+    "db_sqlite_table.cc",
+    "db_sqlite_table.h",
     "query_constraints.cc",
     "query_constraints.h",
     "scoped_db.h",
