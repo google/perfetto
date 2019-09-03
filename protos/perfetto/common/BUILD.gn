@@ -28,5 +28,6 @@ perfetto_proto_library("@TYPE@") {
     "sys_stats_counters.proto",
     "trace_stats.proto",
     "tracing_service_state.proto",
+    "track_event_descriptor.proto",
   ]
 }
