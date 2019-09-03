@@ -18,16 +18,7 @@ import os
 import subprocess
 import sys
 
-
-def run(encode_or_decode, protoc_path, proto, root, input, output):
-  cmd = [
-      protoc_path,
-      '--{}=perfetto.protos.{}'.format(encode_or_decode, proto),
-      os.path.join(root, 'protos/perfetto/config/trace_config.proto'),
-      os.path.join(root, 'protos/perfetto/trace/trace.proto'),
-      '--proto_path={}'.format(root),
-  ]
-  subprocess.check_call(cmd, stdin=input, stdout=output, stderr=sys.stderr)
+ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
 def main():
@@ -39,26 +30,24 @@ def main():
   )
   parser.add_argument('--proto_name', default='TraceConfig',
       help='name of proto to encode/decode (default: TraceConfig).')
-  parser.add_argument('--protoc_path', default=None,
-      help='path to protoc')
-  parser.add_argument('--root', default='.',
-      help='root directory (default: "repo root")')
+  parser.add_argument('--protoc', default='protoc',
+      help='Path to the protoc executable')
   parser.add_argument('--input', default='-',
       help='input file, or "-" for stdin (default: "-")')
   parser.add_argument('--output', default='-',
       help='output file, or "-" for stdout (default: "-")')
   args = parser.parse_args()
 
-  encode_or_decode = args.encode_or_decode
-  proto_name = args.proto_name
-  protoc_path =  args.protoc_path
-  root =  args.root
-  input = sys.stdin if args.input == '-' else open(args.input, 'rb')
-  output = sys.stdout if args.output == '-' else open(args.output, 'wb')
-  if not protoc_path:
-    directory = os.path.dirname(__file__)
-    protoc_path = os.path.join(directory, 'gcc_like_host', 'protoc')
-  run(encode_or_decode, protoc_path, proto_name, root, input, output)
+  cmd = [
+      args.protoc,
+      '--%s=perfetto.protos.%s' % (args.encode_or_decode, args.proto_name),
+      '--proto_path=%s' % ROOT_DIR,
+      os.path.join(ROOT_DIR, 'protos/perfetto/config/trace_config.proto'),
+      os.path.join(ROOT_DIR, 'protos/perfetto/trace/trace.proto'),
+  ]
+  in_file = sys.stdin if args.input == '-' else open(args.input, 'rb')
+  out_file = sys.stdout if args.output == '-' else open(args.output, 'wb')
+  subprocess.check_call(cmd, stdin=in_file, stdout=out_file, stderr=sys.stderr)
   return 0
 
 

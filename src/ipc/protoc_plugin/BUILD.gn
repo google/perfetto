@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-if (current_toolchain == host_toolchain) {
-  executable("ipc_plugin") {
-    sources = [
-      "ipc_plugin.cc",
-    ]
-    deps = [
-      "../../../gn:default_deps",
-      "../../../gn:protoc_lib",
-    ]
-  }
-}  # host_toolchain
+import("../../../gn/perfetto_host_executable.gni")
+
+perfetto_host_executable("ipc_plugin") {
+  sources = [
+    "ipc_plugin.cc",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:protoc_lib",
+  ]
+}

@@ -21,7 +21,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
 def protoc_path(out_directory):
-  path = os.path.join(out_directory, 'gcc_like_host', 'protoc')
+  path = os.path.join(out_directory, 'protoc')
   assert os.path.isfile(path)
   return path
 
