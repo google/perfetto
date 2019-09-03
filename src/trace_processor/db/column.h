@@ -59,7 +59,7 @@ class Table;
 // Represents a named, strongly typed list of data.
 class Column {
  public:
-  // Create an nullable int64 Column.
+  // Create a nullable int64 Column.
   // Note: |name| must be a long lived string.
   Column(const char* name,
          const SparseVector<int64_t>* storage,
@@ -72,8 +72,8 @@ class Column {
 
   // Create an nullable string Column.
   // Note: |name| must be a long lived string.
-  // TODO(lalitm): change this to a std::deque instead as StringIds already
-  // have the concept of nullability in them.
+  // TODO(lalitm): investigate changing this to a std::deque instead as
+  // StringIds already have the concept of nullability in them.
   Column(const char* name,
          const SparseVector<StringPool::Id>* storage,
          Table* table,
@@ -114,7 +114,8 @@ class Column {
         // We DCHECK here because although we are using SparseVector, the null
         // info is handled by the StringPool rather than by the SparseVector.
         // The value returned by the SparseVector should always be non-null.
-        // TODO(lalitm): remove this check when we support std::deque<StringId>.
+        // TODO(lalitm): investigate removing this check if/when we support
+        // std::deque<StringId>.
         PERFETTO_DCHECK(opt_id.has_value());
         auto str = string_pool_->Get(*opt_id).c_str();
         return str == nullptr ? SqlValue() : SqlValue::String(str);
