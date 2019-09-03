@@ -31,8 +31,8 @@
         @include omnibox-width();
         @include transition(0.25s);
         display: grid;
-        grid-template-areas: "icon input";
-        grid-template-columns: 34px auto;
+        grid-template-areas: "icon input stepthrough";
+        grid-template-columns: 34px auto max-content;
         border-radius: 20px;
         background-color: #fcfcfc;
         border: 0;
@@ -93,6 +93,23 @@
             &:before {
                 content: 'bubble_chart';
             }
+        }
+        .stepthrough {
+          grid-area: stepthrough;
+          display: flex;
+          font: inherit;
+          font-size: 14px;
+          font-family: 'Google Sans';
+          color: #aaa;
+          .current {
+            padding-right: 10px;
+          }
+          .material-icons {
+            vertical-align: middle;
+            &.left {
+              border-right: rgb(218, 217, 217) solid 1px;
+            }
+          }
         }
     }
     .omnibox-results {
