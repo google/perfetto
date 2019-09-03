@@ -489,8 +489,18 @@ function ChromeCategoriesSelection() {
   // pages.
   const categories = globals.state.chromeCategories;
   if (!categories) return [];
+
+  // Show "disabled-by-default" categories last.
   const categoriesMap = new Map<string, string>();
-  categories.forEach(cat => categoriesMap.set(cat, cat));
+  const disabledByDefaultCategories: string[] = [];
+  categories.forEach(cat => {
+    if (cat.startsWith('disabled')) {
+      disabledByDefaultCategories.push(cat);
+    } else {
+      categoriesMap.set(cat, cat);
+    }
+  });
+  disabledByDefaultCategories.forEach(cat => categoriesMap.set(cat, cat));
   return m(Dropdown, {
     title: 'Additional Chrome categories',
     cssClass: '.multicolumn.two-columns.chrome-categories',
@@ -578,6 +588,11 @@ function RecordHeader() {
 }
 
 function RecordingPlatformSelection() {
+  if (globals.state.serialAndroidDeviceConnected ||
+      globals.state.recordingInProgress) {
+    return [];
+  }
+
   const onOsChange = (os: TargetOs) => {
     const traceCfg = produce(globals.state.recordConfig, draft => {
       draft.targetOS = os;
@@ -683,8 +698,10 @@ function RecordingSnippet() {
   // We don't need commands to start tracing on chrome
   if (isChromeTarget(targetOs)) {
     return globals.state.extensionInstalled ?
-        m('label', `To trace Chrome from the Perfetto UI you just have to press
-         'Start Recording'.`) :
+        m('div',
+          m('label',
+            `To trace Chrome from the Perfetto UI you just have to press
+         'Start Recording'.`)) :
         [];
   }
   return m(
@@ -728,8 +745,10 @@ function recordingButtons() {
 
   const connectAndroidButton =
       m(`button${deviceConnected ? '.selected' : ''}`,
-        {onclick: async () => connectAndroidDevice()},
+        {onclick: connectAndroidDevice},
         'Connect Device');
+  const disconnectAndroidButton =
+      m(`button`, {onclick: disconnectAndroidDevice}, 'Disconnect Device');
   const startButton =
       m(`button${state.recordingInProgress ? '.selected' : ''}`,
         {onclick: onStartRecordingPressed},
@@ -755,10 +774,10 @@ function recordingButtons() {
   if (isAndroidTarget(targetOs)) {
     buttons.push(showCmdButton);
     if (deviceConnected) {
+      if (!recInProgress) buttons.push(disconnectAndroidButton);
       buttons.push(startButton);
     } else {
       buttons.push(connectAndroidButton);
-      // TODO(nicomazz): Add a disconnect button.
     }
   } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
     buttons.push(startButton);
@@ -807,9 +826,19 @@ async function connectAndroidDevice() {
   globals.dispatch(Actions.setAndroidDevice({serial: device.serialNumber}));
 }
 
-// TODO(nicomazz): Only show the probes available on the selected target
-// platform/device.
+async function disconnectAndroidDevice() {
+  globals.dispatch(Actions.setAndroidDevice({serial: undefined}));
+}
+
 function recordMenu(routePage: string) {
+  const targetOS = globals.state.recordConfig.targetOS;
+  const chromeProbe =
+      m('a[href="#!/record?p=chrome"]',
+        m(`li${routePage === 'chrome' ? '.active' : ''}`,
+          m('i.material-icons', 'laptop_chromebook'),
+          m('.title', 'Chrome'),
+          m('.sub', 'Chrome traces')));
+
   return m(
       '.record-menu',
       {onclick: () => globals.rafScheduler.scheduleFullRedraw()},
@@ -826,7 +855,7 @@ function recordMenu(routePage: string) {
             m('.title', 'Instructions'),
             m('.sub', 'Generate config and instructions')))),
       m('header', 'Probes'),
-      m('ul',
+      m('ul', isChromeTarget(targetOS) ? [chromeProbe] : [
         m('a[href="#!/record?p=cpu"]',
           m(`li${routePage === 'cpu' ? '.active' : ''}`,
             m('i.material-icons', 'subtitles'),
@@ -852,16 +881,13 @@ function recordMenu(routePage: string) {
             m('i.material-icons', 'android'),
             m('.title', 'Android apps & svcs'),
             m('.sub', 'atrace and logcat'))),
-        m('a[href="#!/record?p=chrome"]',
-          m(`li${routePage === 'chrome' ? '.active' : ''}`,
-            m('i.material-icons', 'laptop_chromebook'),
-            m('.title', 'Chrome'),
-            m('.sub', 'Chrome traces'))),
+        chromeProbe,
         m('a[href="#!/record?p=advanced"]',
           m(`li${routePage === 'advanced' ? '.active' : ''}`,
             m('i.material-icons', 'settings'),
             m('.title', 'Advanced settings'),
-            m('.sub', 'Complicated stuff for wizards')))));
+            m('.sub', 'Complicated stuff for wizards')))
+      ]));
 }
 
 
