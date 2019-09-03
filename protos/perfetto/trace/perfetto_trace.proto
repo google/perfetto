@@ -40,7 +40,7 @@ enum AndroidLogPriority {
 
 // Begin of protos/perfetto/common/data_source_descriptor.proto
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
+// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos
 // to reflect changes in the corresponding C++ headers.
 
 // This message is sent from Producer(s) to the tracing Service when registering
@@ -66,6 +66,8 @@ message DataSourceDescriptor {
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
+
+  optional TrackEventDescriptor track_event_descriptor = 6 [lazy = true];
 }
 
 // End of protos/perfetto/common/data_source_descriptor.proto
@@ -472,6 +474,14 @@ message TracingServiceState {
 }
 
 // End of protos/perfetto/common/tracing_service_state.proto
+
+// Begin of protos/perfetto/common/track_event_descriptor.proto
+
+message TrackEventDescriptor {
+  repeated string available_categories = 1;
+}
+
+// End of protos/perfetto/common/track_event_descriptor.proto
 
 // Begin of protos/perfetto/trace/android/android_log.proto
 
