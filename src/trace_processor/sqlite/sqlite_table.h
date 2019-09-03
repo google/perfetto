@@ -40,9 +40,9 @@ class TraceStorage;
 // implement a friendlier API than that required by SQLite.
 class SqliteTable : public sqlite3_vtab {
  public:
+  template <typename Context>
   using Factory =
-      std::function<std::unique_ptr<SqliteTable>(sqlite3*,
-                                                 const TraceStorage*)>;
+      std::function<std::unique_ptr<SqliteTable>(sqlite3*, Context)>;
 
   // Describes a column of this table.
   class Column {
@@ -141,9 +141,10 @@ class SqliteTable : public sqlite3_vtab {
     std::vector<bool> omit;
   };
 
+  template <typename Context>
   struct TableDescriptor {
-    SqliteTable::Factory factory;
-    const TraceStorage* storage = nullptr;
+    SqliteTable::Factory<Context> factory;
+    Context context;
     std::string name;
     sqlite3_module module = {};
   };
@@ -156,17 +157,18 @@ class SqliteTable : public sqlite3_vtab {
   // be instantiated.
   // Note: this function is inlined here because we use the TTable template to
   // devirtualise the function calls.
-  template <typename TTable>
+  template <typename TTable, typename Context = const TraceStorage*>
   static void Register(sqlite3* db,
-                       const TraceStorage* storage,
+                       Context ctx,
                        const std::string& table_name,
                        bool read_write = false,
                        bool requires_args = false) {
     using TCursor = typename TTable::Cursor;
 
-    std::unique_ptr<TableDescriptor> desc(new TableDescriptor());
-    desc->storage = storage;
-    desc->factory = GetFactory<TTable>();
+    std::unique_ptr<TableDescriptor<Context>> desc(
+        new TableDescriptor<Context>());
+    desc->context = std::move(ctx);
+    desc->factory = GetFactory<TTable, Context>();
     desc->name = table_name;
     sqlite3_module* module = &desc->module;
     memset(module, 0, sizeof(*module));
@@ -174,8 +176,8 @@ class SqliteTable : public sqlite3_vtab {
     auto create_fn = [](sqlite3* xdb, void* arg, int argc,
                         const char* const* argv, sqlite3_vtab** tab,
                         char** pzErr) {
-      const TableDescriptor* xdesc = static_cast<const TableDescriptor*>(arg);
-      auto table = xdesc->factory(xdb, xdesc->storage);
+      const auto* xdesc = static_cast<const TableDescriptor<Context>*>(arg);
+      auto table = xdesc->factory(xdb, std::move(xdesc->context));
       table->name_ = xdesc->name;
 
       Schema schema;
@@ -250,7 +252,7 @@ class SqliteTable : public sqlite3_vtab {
 
     int res = sqlite3_create_module_v2(
         db, table_name.c_str(), module, desc.release(),
-        [](void* arg) { delete static_cast<TableDescriptor*>(arg); });
+        [](void* arg) { delete static_cast<TableDescriptor<Context>*>(arg); });
     PERFETTO_CHECK(res == SQLITE_OK);
 
     // Register virtual tables into an internal 'perfetto_tables' table. This is
@@ -291,19 +293,12 @@ class SqliteTable : public sqlite3_vtab {
   const std::string& name() const { return name_; }
 
  private:
-  template <typename TableType>
-  static Factory GetFactory() {
-    return [](sqlite3* db, const TraceStorage* storage) {
-      return std::unique_ptr<SqliteTable>(new TableType(db, storage));
+  template <typename TableType, typename Context>
+  static Factory<Context> GetFactory() {
+    return [](sqlite3* db, Context ctx) {
+      return std::unique_ptr<SqliteTable>(new TableType(db, std::move(ctx)));
     };
   }
-
-  static void RegisterInternal(sqlite3* db,
-                               const TraceStorage*,
-                               const std::string& name,
-                               bool read_write,
-                               bool requires_args,
-                               Factory);
 
   const QueryConstraints& ParseConstraints(int idxNum,
                                            const char* idxStr,
