@@ -27,6 +27,7 @@ COMMON_PROTOS = (
   'protos/perfetto/common/sys_stats_counters.proto',
   'protos/perfetto/common/trace_stats.proto',
   'protos/perfetto/common/tracing_service_state.proto',
+  'protos/perfetto/common/track_event_descriptor.proto',
 )
 
 CONFIG_PROTOS = (
