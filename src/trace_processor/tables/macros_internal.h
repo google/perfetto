@@ -67,6 +67,18 @@ class MacroTable : public Table {
   Table* parent_ = nullptr;
 };
 
+// Helper structs to allow choosing between codepaths in MacroTable depending on
+// the type of the data being stored.
+template <typename T>
+struct MacroTableHelper {
+  using Type = T;
+};
+
+template <typename T>
+struct MacroTableHelper<base::Optional<T>> {
+  using Type = T;
+};
+
 }  // namespace macros_internal
 
 // Basic helper macros.
@@ -112,7 +124,8 @@ class MacroTable : public Table {
 #define PERFETTO_TP_TYPE_NAME_COMMA(type, name) type name,
 
 // Defines the member variable in the Table.
-#define PERFETTO_TP_TABLE_MEMBER(type, name) SparseVector<type> name##_;
+#define PERFETTO_TP_TABLE_MEMBER(type, name) \
+  SparseVector<macros_internal::MacroTableHelper<type>::Type> name##_;
 
 // Constructs the column in the Table constructor.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name)        \
@@ -120,7 +133,7 @@ class MacroTable : public Table {
                         row_maps_.size() - 1);
 
 // Inserts the a value into the corresponding column
-#define PERFETTO_TP_COLUMN_APPEND(type, name) name##_.Append(name);
+#define PERFETTO_TP_COLUMN_APPEND(type, name) name##_.Append(std::move(name));
 
 // Defines the accessor for a column.
 #define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name)             \
@@ -144,7 +157,8 @@ class MacroTable : public Table {
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
                                                                               \
-    /* Expands to Insert(col_type1 col1, col_type2 col2, ...) */              \
+    /* Expands to Insert(col_type1 col1, base::Optional<col_type2> col2, ...) \
+     */                                                                       \
     uint32_t Insert(PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TYPE_NAME_COMMA) \
                         std::nullptr_t = nullptr) {                           \
       uint32_t id;                                                            \
