@@ -31,6 +31,7 @@ class Sqlite3StrSplitTest : public ::testing::Test {
  public:
   Sqlite3StrSplitTest() {
     sqlite3* db = nullptr;
+    PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
     sqlite3_str_split_init(db_.get());

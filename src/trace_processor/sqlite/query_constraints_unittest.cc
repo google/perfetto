@@ -29,7 +29,12 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(QueryConstraintsTest, ConvertToAndFromSqlString) {
+class QueryConstraintsTest : public ::testing::Test {
+ public:
+  QueryConstraintsTest() { PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK); }
+};
+
+TEST_F(QueryConstraintsTest, ConvertToAndFromSqlString) {
   QueryConstraints qc;
   qc.AddConstraint(12, 0);
 
@@ -50,7 +55,7 @@ TEST(QueryConstraintsTest, ConvertToAndFromSqlString) {
   ASSERT_EQ(qc, qc_result);
 }
 
-TEST(QueryConstraintsTest, CheckEmptyConstraints) {
+TEST_F(QueryConstraintsTest, CheckEmptyConstraints) {
   QueryConstraints qc;
 
   QueryConstraints::SqliteString string_result = qc.ToNewSqlite3String();
@@ -62,7 +67,7 @@ TEST(QueryConstraintsTest, CheckEmptyConstraints) {
   ASSERT_EQ(qc_result.order_by().size(), 0u);
 }
 
-TEST(QueryConstraintsTest, OnlyOrderBy) {
+TEST_F(QueryConstraintsTest, OnlyOrderBy) {
   QueryConstraints qc;
   qc.AddOrderBy(3, true);
 
