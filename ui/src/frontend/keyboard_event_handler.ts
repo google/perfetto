@@ -15,7 +15,7 @@
 import {Actions} from '../common/actions';
 
 import {globals} from './globals';
-import {showHelp} from './help_modal';
+import {toggleHelp} from './help_modal';
 
 // Handles all key events than are not handled by the
 // pan and zoom handler.
@@ -38,7 +38,7 @@ export function handleKey(key: string, down: boolean) {
     }
   }
   if (down && '?' === key) {
-    showHelp();
+    toggleHelp();
   }
 }
 
