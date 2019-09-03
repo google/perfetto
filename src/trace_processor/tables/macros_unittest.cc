@@ -32,7 +32,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 #define PERFETTO_TP_TEST_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestSliceTable)                                    \
   PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)             \
-  C(int64_t, dur)                                         \
+  C(base::Optional<int64_t>, dur)                         \
   C(int64_t, depth)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
 
@@ -56,12 +56,23 @@ TEST(TableMacrosUnittest, InsertParent) {
 
   id = slice.Insert(200, 123, 10, 0);
   ASSERT_EQ(id, 1u);
+
   ASSERT_EQ(event.ts().Get(1), SqlValue::Long(200));
   ASSERT_EQ(event.arg_set_id().Get(1), SqlValue::Long(123));
   ASSERT_EQ(slice.ts().Get(0), SqlValue::Long(200));
   ASSERT_EQ(slice.arg_set_id().Get(0), SqlValue::Long(123));
   ASSERT_EQ(slice.dur().Get(0), SqlValue::Long(10));
   ASSERT_EQ(slice.depth().Get(0), SqlValue::Long(0));
+
+  id = slice.Insert(210, 456, base::nullopt, 0);
+  ASSERT_EQ(id, 2u);
+
+  ASSERT_EQ(event.ts().Get(2), SqlValue::Long(210));
+  ASSERT_EQ(event.arg_set_id().Get(2), SqlValue::Long(456));
+  ASSERT_EQ(slice.ts().Get(1), SqlValue::Long(210));
+  ASSERT_EQ(slice.arg_set_id().Get(1), SqlValue::Long(456));
+  ASSERT_EQ(slice.dur().Get(1), SqlValue());
+  ASSERT_EQ(slice.depth().Get(1), SqlValue::Long(0));
 }
 
 TEST(TableMacrosUnittest, InsertChild) {
