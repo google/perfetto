@@ -82,6 +82,12 @@ export class SearchController extends Controller<'main'> {
         tsEnds: new Float64Array(0),
         count: new Uint8Array(0),
       });
+      this.app.publish('SearchResult', {
+        sliceIds: new Float64Array(0),
+        tsStarts: new Float64Array(0),
+        utids: new Float64Array(0),
+        totalResults: 0,
+      });
       return;
     }
 
