@@ -87,10 +87,11 @@ test('enableTracing', async () => {
 
 test('generateStartTracing', () => {
   adbController.traceDestFile = 'DEST';
-  const generatedCmd = adbController.generateStartTracingCommand('TEST\nTEST');
+  const testArray = new Uint8Array(1);
+  testArray[0] = 65;
+  const generatedCmd = adbController.generateStartTracingCommand(testArray);
   expect(generatedCmd)
-      .toBe(`echo '${
-          btoa('TEST\nTEST')}' | base64 -d | perfetto -c - --txt -o DEST`);
+      .toBe(`echo '${btoa('A')}' | base64 -d | perfetto -c - -o DEST`);
 });
 
 test('tracingEndedSuccessfully', () => {
