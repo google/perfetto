@@ -32,6 +32,7 @@ import {Panel} from './panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {SliceDetailsPanel} from './slice_panel';
 import {ThreadStatePanel} from './thread_state_panel';
+import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {computeZoom} from './time_scale';
 import {TimeSelectionPanel} from './time_selection_panel';
@@ -348,6 +349,7 @@ class TraceViewer implements m.ClassComponent {
                   m(TimeAxisPanel, {key: 'timeaxis'}),
                   m(TimeSelectionPanel, {key: 'timeselection'}),
                   m(NotesPanel, {key: 'notes'}),
+                  m(TickmarkPanel, {key: 'searchTickmarks'}),
                   ...globals.state.pinnedTracks.map(
                       id => m(TrackPanel, {key: id, id})),
                 ],

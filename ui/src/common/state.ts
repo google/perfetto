@@ -172,6 +172,7 @@ export interface State {
   videoNoteIds: string[];
   scrubbingEnabled: boolean;
   flagPauseEnabled: boolean;
+
   /**
    * Trace recording
    */
