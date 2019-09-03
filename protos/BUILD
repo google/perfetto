@@ -37,6 +37,7 @@ proto_library(
         "perfetto/common/sys_stats_counters.proto",
         "perfetto/common/trace_stats.proto",
         "perfetto/common/tracing_service_state.proto",
+        "perfetto/common/track_event_descriptor.proto",
     ],
     has_services = 1,
     cc_api_version = 2,
@@ -81,6 +82,7 @@ proto_library(
         "perfetto/common/sys_stats_counters.proto",
         "perfetto/common/trace_stats.proto",
         "perfetto/common/tracing_service_state.proto",
+        "perfetto/common/track_event_descriptor.proto",
     ],
 )
 
