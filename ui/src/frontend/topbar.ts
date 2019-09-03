@@ -14,9 +14,11 @@
 
 import * as m from 'mithril';
 
+import {searchSegment} from '../base/binary_search';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineConfig} from '../common/state';
+import {toNs} from '../common/time';
 
 import {globals} from './globals';
 
@@ -34,6 +36,8 @@ const PLACEHOLDER = {
 let selResult = 0;
 let numResults = 0;
 let mode: Mode = SEARCH;
+let displayStepThrough = false;
+let prevOmniBox: string|undefined = undefined;
 
 function clearOmniboxResults(e: Event) {
   globals.queryResults.delete(QUERY_ID);
@@ -73,7 +77,9 @@ function onKeyDown(e: Event) {
 
 function onKeyUp(e: Event) {
   e.stopPropagation();
-  const key = (e as KeyboardEvent).key;
+  const event = (e as KeyboardEvent);
+  const state = globals.frontendLocalState;
+  const key = event.key;
   const txt = e.target as HTMLInputElement;
   if (key === 'ArrowUp' || key === 'ArrowDown') {
     selResult += (key === 'ArrowUp') ? -1 : 1;
@@ -97,7 +103,66 @@ function onKeyUp(e: Event) {
     globals.dispatch(Actions.executeQuery(
         {engineId: '0', queryId: 'command', query: txt.value}));
   }
+  if (mode === SEARCH && !event.shiftKey && key === 'Enter') {
+    globals.frontendLocalState.setSearchIndex(Math.min(
+        state.searchIndex + 1,
+        globals.currentSearchResults.sliceIds.length - 1));
+    // Jump to the first result in the visible window.
+    const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
+    const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
+    const currentTs = globals.currentSearchResults.tsStarts[state.searchIndex];
+    if (currentTs < startNs || currentTs > endNs) {
+      const [, larger] =
+          searchSegment(globals.currentSearchResults.tsStarts, startNs);
+      globals.frontendLocalState.setSearchIndex(larger);
+    }
+    // TODO: If currentSearchIndex == -1 then there is no result in the
+    // window. Show an arrow pointing toward the direction of the results.
+    displaySearchResults();
+  }
+  if (mode === SEARCH && event.shiftKey && key === 'Enter') {
+    globals.frontendLocalState.setSearchIndex(
+        Math.max(state.searchIndex - 1, 0));
+    // Jump to the last result in the visible window.
+    const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
+    const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
+    const currentTs = globals.currentSearchResults.tsStarts[state.searchIndex];
+    if (currentTs < startNs || currentTs > endNs) {
+      const [smaller,] =
+        searchSegment(globals.currentSearchResults.tsStarts, endNs);
+      globals.frontendLocalState.setSearchIndex(smaller);
+    }
+    // TODO: If currentSearchIndex == -1 then there is no result in the
+    // window. Show an arrow pointing toward the direction of the results.
+    displaySearchResults();
+  }
 }
+
+function displaySearchResults() {
+  const state = globals.frontendLocalState;
+  const current = globals.currentSearchResults;
+  if (current === undefined) return;
+  if (globals.frontendLocalState.omnibox !== prevOmniBox) {
+    globals.frontendLocalState.setSearchIndex(-1);
+  }
+  if (globals.frontendLocalState.omnibox === '') {
+    displayStepThrough = false;
+    return;
+  }
+  displayStepThrough = true;
+
+  const currentId = globals.currentSearchResults.sliceIds[state.searchIndex];
+  if (currentId !== undefined) {
+    globals.dispatch(Actions.selectSlice({
+      utid: globals.currentSearchResults.utids[state.searchIndex],
+      id: currentId
+    }));
+  }
+  // TODO(taylori): Here we should zoom to an appropriate level.
+  globals.rafScheduler.scheduleFullRedraw();
+  prevOmniBox = globals.frontendLocalState.omnibox;
+}
+
 
 class Omnibox implements m.ClassComponent {
   oncreate(vnode: m.VnodeDOM) {
@@ -108,6 +173,7 @@ class Omnibox implements m.ClassComponent {
   }
 
   view() {
+    displaySearchResults();
     const msgTTL = globals.state.status.timestamp + 1 - Date.now() / 1e3;
     let enginesAreBusy = false;
     for (const engine of Object.values(globals.state.engines)) {
@@ -135,14 +201,54 @@ class Omnibox implements m.ClassComponent {
       }
     }
     const commandMode = mode === COMMAND;
+    const state = globals.frontendLocalState;
     return m(
         `.omnibox${commandMode ? '.command-mode' : ''}`,
         m('input', {
           placeholder: PLACEHOLDER[mode],
-          oninput:
-              m.withAttr('value', v => globals.frontendLocalState.omnibox = v),
+          oninput: m.withAttr(
+              'value',
+              v => {
+                globals.frontendLocalState.omnibox = v;
+                if (v === '') {
+                  displayStepThrough = false;
+                  globals.rafScheduler.scheduleFullRedraw();
+                }
+              }),
           value: globals.frontendLocalState.omnibox,
         }),
+        displayStepThrough ?
+            m(
+                '.stepthrough',
+                m('.current',
+                  `${
+                      globals.currentSearchResults.totalResults === 0 ?
+                          '0 / 0' :
+                          `${state.searchIndex + 1} / ${
+                              globals.currentSearchResults.totalResults}`}`),
+                m('button',
+                  {
+                    disabled: state.searchIndex <= 0,
+                    onclick: () => {
+                      globals.frontendLocalState.setSearchIndex(
+                          state.searchIndex - 1);
+                      displaySearchResults();
+                    }
+                  },
+                  m('i.material-icons.left', 'keyboard_arrow_left')),
+                m('button',
+                  {
+                    disabled: state.searchIndex ===
+                        globals.currentSearchResults.totalResults - 1,
+                    onclick: () => {
+                      globals.frontendLocalState.setSearchIndex(
+                          state.searchIndex + 1);
+                      displaySearchResults();
+                    }
+                  },
+                  m('i.material-icons.right', 'keyboard_arrow_right')),
+                ) :
+            '',
         m('.omnibox-results', results));
   }
 }

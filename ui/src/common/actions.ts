@@ -425,7 +425,6 @@ export const StateActions = {
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {
     state.chromeCategories = args.categories;
   },
-
 };
 
 // When we are on the frontend side, we don't really want to execute the

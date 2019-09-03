@@ -79,6 +79,7 @@ export class FrontendLocalState {
   sidebarVisible = true;
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
+  searchIndex = -1;
 
   private _omniboxState: OmniboxState = {
     lastUpdate: 0,
@@ -132,6 +133,10 @@ export class FrontendLocalState {
 
   addVisibleTrack(trackId: string) {
     this.visibleTracks.add(trackId);
+  }
+
+  setSearchIndex(index: number) {
+    this.searchIndex = index;
   }
 
   toggleSidebar() {
