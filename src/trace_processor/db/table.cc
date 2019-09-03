@@ -55,6 +55,9 @@ Table Table::Filter(const std::vector<Constraint>& cs) const {
   // TODO(lalitm): we can add optimizations here depending on whether this is
   // an lvalue or rvalue.
 
+  if (cs.empty())
+    return *this;
+
   // Create a RowMap indexing all rows and filter this down to the rows which
   // meet all the constraints.
   RowMap rm(BitVector(size_, true));
@@ -75,6 +78,9 @@ Table Table::Filter(const std::vector<Constraint>& cs) const {
 Table Table::Sort(const std::vector<Order>& od) const {
   // TODO(lalitm): we can add optimizations here depending on whether this is
   // an lvalue or rvalue.
+
+  if (od.empty())
+    return *this;
 
   // Build an index vector with all the indices for the first |size_| rows.
   std::vector<uint32_t> idx(size_);
