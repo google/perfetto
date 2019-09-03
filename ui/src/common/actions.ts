@@ -410,7 +410,7 @@ export const StateActions = {
     state.bufferUsage = args.percentage;
   },
 
-  setAndroidDevice(state: StateDraft, args: {serial: string}): void {
+  setAndroidDevice(state: StateDraft, args: {serial: string|undefined}): void {
     state.serialAndroidDeviceConnected = args.serial;
   },
 
