@@ -589,13 +589,13 @@ bool RunQueryAndPrintResult(const std::vector<std::string> queries,
       continue;
     }
 
-    // if (has_output) {
-    //  PERFETTO_ELOG(
-    //      "More than one query generated result rows. This is "
-    //      "unsupported.");
-    //  is_query_error = true;
-    //  break;
-    //}
+    if (has_output) {
+      PERFETTO_ELOG(
+          "More than one query generated result rows. This is "
+          "unsupported.");
+      is_query_error = true;
+      break;
+    }
     status = PrintQueryResultAsCsv(&it, output);
     has_output = true;
 
