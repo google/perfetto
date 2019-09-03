@@ -309,7 +309,8 @@ class TraceViewer implements m.ClassComponent {
             ts: curSelection.ts,
             dur: curSelection.dur,
             utid: curSelection.utid,
-            state: curSelection.state
+            state: curSelection.state,
+            cpu: curSelection.cpu
           }));
           break;
         default:

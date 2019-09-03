@@ -118,6 +118,7 @@ export interface ThreadStateSelection {
   ts: number;
   dur: number;
   state: string;
+  cpu: number;
 }
 
 type Selection = NoteSelection|SliceSelection|ChromeSliceSelection|

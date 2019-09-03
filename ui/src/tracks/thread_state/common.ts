@@ -21,6 +21,7 @@ export interface Data extends TrackData {
   starts: Float64Array;
   ends: Float64Array;
   state: Uint16Array;  // Index into |strings|.
+  cpu: Uint8Array;
 }
 
 export interface Config { utid: number; }

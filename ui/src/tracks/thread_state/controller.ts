@@ -95,7 +95,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       // table to avoid the first visible slice always having a null prev
       // end state.
       await this.query(`create view ${this.tableName('span_view')} as
-        select ts, dur, utid,
+        select ts, dur, utid, cpu,
         case
         when end_state is not null
         then 'Running'
@@ -148,13 +148,12 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     await this.query(`create view ${this.tableName('fill_gaps')} as select
      (select min(ts) from ${this.tableName('span_view')}) as ts,
      (select end_ts from trace_bounds) - (select min(ts) from ${
-                                                                this.tableName(
-                                                                    'span_view')
-                                                              }) as dur,
-     ${this.config.utid} as utid`);
+        this.tableName('span_view')}) as dur,
+     ${this.config.utid} as utid, -1 as cpu`);
 
     const query = `select ts, cast(dur as double), utid,
-    case when state is not null then state else 'Busy' end as state
+    case when state is not null then state else 'Busy' end as state,
+    cast(cpu as double)
     from ${this.tableName('current')} limit ${LIMIT}`;
 
     const result = await this.query(query);
@@ -169,7 +168,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       strings: [],
-      state: new Uint16Array(numRows)
+      state: new Uint16Array(numRows),
+      cpu: new Uint8Array(numRows)
     };
 
     const stringIndexes = new Map<string, number>();
@@ -188,6 +188,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       summary.starts[row] = start;
       summary.ends[row] = start + fromNs(+cols[1].doubleValues![row]);
       summary.state[row] = internString(cols[3].stringValues![row]);
+      summary.cpu[row] = +cols[4].doubleValues![row];
     }
 
     return summary;
