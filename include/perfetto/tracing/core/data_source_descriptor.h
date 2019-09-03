@@ -88,12 +88,20 @@ class PERFETTO_EXPORT DataSourceDescriptor {
     gpu_counter_descriptor_ = raw;
   }
 
+  const std::string& track_event_descriptor_raw() const {
+    return track_event_descriptor_;
+  }
+  void set_track_event_descriptor_raw(const std::string& raw) {
+    track_event_descriptor_ = raw;
+  }
+
  private:
   std::string name_{};
   bool will_notify_on_stop_{};
   bool will_notify_on_start_{};
   bool handles_incremental_state_clear_{};
   std::string gpu_counter_descriptor_;  // [lazy=true]
+  std::string track_event_descriptor_;  // [lazy=true]
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.
