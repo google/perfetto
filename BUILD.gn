@@ -159,12 +159,15 @@ if (enable_perfetto_ui) {
 # Android tree.
 if (enable_perfetto_platform_services) {
   if (monolithic_binaries) {
-    libperfetto_target_type = "source_set"
+    libperfetto_target_type = "static_library"
   } else {
     libperfetto_target_type = "shared_library"
   }
 
   target(libperfetto_target_type, "libperfetto") {
+    if (libperfetto_target_type == "static_library") {
+      complete_static_lib = true
+    }
     deps = [
       "gn:default_deps",
       "src/traced/probes",

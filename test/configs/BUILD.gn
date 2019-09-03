@@ -14,12 +14,16 @@
 
 import("../../gn/perfetto.gni")
 
+protoc_target = "../../gn:protoc($host_toolchain)"
+
 action_foreach("configs") {
   testonly = true
-  script = "$root_out_dir/protoc_helper"
+  script = "../../tools/protoc_helper.py"
 
   deps = [
-    "../../tools:protoc_helper",
+    "../../protos/perfetto/config:merged_config",
+    "../../protos/perfetto/trace:merged_trace",
+    protoc_target,
   ]
 
   sources = [
@@ -42,9 +46,15 @@ action_foreach("configs") {
     "$root_out_dir/{{source_file_part}}.protobuf",
   ]
 
+  # Retrieves the path where protoc is built relative to the dir where commands
+  # are ran (root_build_dir == out/xxx). protoc_rel_dir ends up being "." for
+  # pure host build and "gcc_like_host" for android builds
+  protoc_out_dir = get_label_info(protoc_target, "root_out_dir")
+  protoc_rel_dir = rebase_path(protoc_out_dir, root_build_dir)
+
   args = [
     "encode",
-    "--root=" + rebase_path(perfetto_root_path, ""),
+    "--protoc=$protoc_rel_dir/protoc",
     "--input={{source}}",
     "--output={{source_file_part}}.protobuf",
   ]
