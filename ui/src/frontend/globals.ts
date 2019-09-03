@@ -14,6 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
+import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {createEmptyState, State} from '../common/state';
 
 import {FrontendLocalState} from './frontend_local_state';
@@ -69,6 +70,17 @@ class Globals {
   private _isLoading = false;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
+  private _currentSearchResults: CurrentSearchResults = {
+    sliceIds: new Float64Array(0),
+    tsStarts: new Float64Array(0),
+    utids: new Float64Array(0),
+    totalResults: 0,
+  };
+  searchSummary: SearchSummary = {
+    tsStarts: new Float64Array(0),
+    tsEnds: new Float64Array(0),
+    count: new Uint8Array(0),
+  };
 
   initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
@@ -146,6 +158,14 @@ class Globals {
     return this._recordingLog;
   }
 
+  get currentSearchResults() {
+    return this._currentSearchResults;
+  }
+
+  set currentSearchResults(results: CurrentSearchResults) {
+    this._currentSearchResults = results;
+  }
+
   setBufferUsage(bufferUsage: number) {
     this._bufferUsage = bufferUsage;
   }
@@ -178,6 +198,12 @@ class Globals {
     this._threadMap = undefined;
     this._sliceDetails = undefined;
     this._isLoading = false;
+    this._currentSearchResults = {
+      sliceIds: new Float64Array(0),
+      tsStarts: new Float64Array(0),
+      utids: new Float64Array(0),
+      totalResults: 0,
+    };
   }
 
   // Used when switching to the legacy TraceViewer UI.

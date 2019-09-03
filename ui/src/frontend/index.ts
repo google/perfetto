@@ -27,6 +27,7 @@ import {
   LogExists,
   LogExistsKey
 } from '../common/logs';
+import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 
 import {globals, QuantizedLoad, SliceDetails, ThreadDesc} from './globals';
 import {HomePage} from './home_page';
@@ -126,8 +127,14 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishSearch(args: {}) {
-    console.log('publish search results', args);
+  publishSearch(args: SearchSummary) {
+    globals.searchSummary = args;
+    this.redraw();
+  }
+
+  publishSearchResult(args: CurrentSearchResults) {
+    globals.currentSearchResults = args;
+    this.redraw();
   }
 
   publishRecordingLog(args: {logs: string}) {
@@ -237,6 +244,7 @@ function main() {
   // Put these variables in the global scope for better debugging.
   (window as {} as {m: {}}).m = m;
   (window as {} as {globals: {}}).globals = globals;
+  (window as {} as {Actions: {}}).Actions = Actions;
 
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
