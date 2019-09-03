@@ -68,13 +68,13 @@ export class AdbOverWebUsb implements Adb {
     return navigator.usb.requestDevice({filters: [this.filter]});
   }
 
-  // TODO(nicomazz): Handle the case in which the interface is busy (e.g. the
-  // real adb is using it). It is possible to resetting the usb device and
-  // claiming it before adb server does.
   async connect(device: USBDevice): Promise<void> {
     this.dev = device;
-    await this.dev.open();
     this.key = await AdbOverWebUsb.initKey();
+
+    await this.dev.open();
+    await this.dev.reset();  // The reset is done so that we can claim the
+                             // device before adb server can.
 
     const {configValue, usbInterfaceNumber, endpoints} =
         this.findInterfaceAndEndpoint();
