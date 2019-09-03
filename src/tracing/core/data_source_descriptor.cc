@@ -50,7 +50,8 @@ bool DataSourceDescriptor::operator==(const DataSourceDescriptor& other) const {
          (will_notify_on_start_ == other.will_notify_on_start_) &&
          (handles_incremental_state_clear_ ==
           other.handles_incremental_state_clear_) &&
-         (gpu_counter_descriptor_ == other.gpu_counter_descriptor_);
+         (gpu_counter_descriptor_ == other.gpu_counter_descriptor_) &&
+         (track_event_descriptor_ == other.track_event_descriptor_);
 }
 #pragma GCC diagnostic pop
 
@@ -85,6 +86,8 @@ void DataSourceDescriptor::FromProto(
           proto.handles_incremental_state_clear());
 
   gpu_counter_descriptor_ = proto.gpu_counter_descriptor().SerializeAsString();
+
+  track_event_descriptor_ = proto.track_event_descriptor().SerializeAsString();
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -118,6 +121,9 @@ void DataSourceDescriptor::ToProto(
 
   proto->mutable_gpu_counter_descriptor()->ParseFromString(
       gpu_counter_descriptor_);
+
+  proto->mutable_track_event_descriptor()->ParseFromString(
+      track_event_descriptor_);
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
