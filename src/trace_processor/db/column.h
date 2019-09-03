@@ -173,6 +173,17 @@ class Column {
   const RowMap& row_map() const;
   const char* name() const { return name_; }
 
+  SqlValue::Type type() const {
+    switch (type_) {
+      case ColumnType::kInt64:
+      case ColumnType::kId:
+        return SqlValue::Type::kLong;
+      case ColumnType::kString:
+        return SqlValue::Type::kString;
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
  private:
   friend class Table;
 
