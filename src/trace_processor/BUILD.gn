@@ -305,10 +305,14 @@ perfetto_unittest_source_set("unittests") {
   ]
   if (enable_perfetto_trace_processor_json) {
     sources += [
-      "export_json_unittest.cc",
       "json_trace_tokenizer_unittest.cc",
       "json_trace_utils_unittest.cc",
     ]
+    if (!is_win) {
+      # export_json_unittest.cc uses base::TempFile, which is not supported on
+      # windows.
+      sources += [ "export_json_unittest.cc" ]
+    }
     deps += [ "../../gn:jsoncpp" ]
   }
 }
