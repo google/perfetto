@@ -18,7 +18,7 @@ import {searchSegment} from '../base/binary_search';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineConfig} from '../common/state';
-import {toNs} from '../common/time';
+import {fromNs, TimeSpan, toNs} from '../common/time';
 
 import {globals} from './globals';
 
@@ -103,38 +103,50 @@ function onKeyUp(e: Event) {
     globals.dispatch(Actions.executeQuery(
         {engineId: '0', queryId: 'command', query: txt.value}));
   }
-  if (mode === SEARCH && !event.shiftKey && key === 'Enter') {
-    globals.frontendLocalState.setSearchIndex(Math.min(
-        state.searchIndex + 1,
-        globals.currentSearchResults.sliceIds.length - 1));
-    // Jump to the first result in the visible window.
+  if (mode === SEARCH && key === 'Enter') {
+    const index = state.searchIndex;
     const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
     const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
-    const currentTs = globals.currentSearchResults.tsStarts[state.searchIndex];
-    if (currentTs < startNs || currentTs > endNs) {
-      const [, larger] =
-          searchSegment(globals.currentSearchResults.tsStarts, startNs);
-      globals.frontendLocalState.setSearchIndex(larger);
+    const currentTs = globals.currentSearchResults.tsStarts[index];
+    // If this is a new search or the currentTs is not in the viewport,
+    // select the first/last item in the viewport.
+    if (index === -1 || currentTs < startNs || currentTs > endNs) {
+      if (event.shiftKey) {
+        const [smaller,] =
+        searchSegment(globals.currentSearchResults.tsStarts, endNs);
+        globals.frontendLocalState.setSearchIndex(smaller);
+      } else {
+        const [, larger] =
+            searchSegment(globals.currentSearchResults.tsStarts, startNs);
+        globals.frontendLocalState.setSearchIndex(larger);
+      }
+    } else {
+      // If the currentTs is in the viewport, increment the index and move the
+      // viewport if necessary.
+      if (event.shiftKey) {
+        globals.frontendLocalState.setSearchIndex(Math.max(index - 1, 0));
+      } else {
+        globals.frontendLocalState.setSearchIndex(Math.min(
+            index + 1, globals.currentSearchResults.sliceIds.length - 1));
+      }
+      moveViewportToCurrent();
     }
-    // TODO: If currentSearchIndex == -1 then there is no result in the
-    // window. Show an arrow pointing toward the direction of the results.
     displaySearchResults();
   }
-  if (mode === SEARCH && event.shiftKey && key === 'Enter') {
-    globals.frontendLocalState.setSearchIndex(
-        Math.max(state.searchIndex - 1, 0));
-    // Jump to the last result in the visible window.
-    const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
-    const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
-    const currentTs = globals.currentSearchResults.tsStarts[state.searchIndex];
-    if (currentTs < startNs || currentTs > endNs) {
-      const [smaller,] =
-        searchSegment(globals.currentSearchResults.tsStarts, endNs);
-      globals.frontendLocalState.setSearchIndex(smaller);
-    }
-    // TODO: If currentSearchIndex == -1 then there is no result in the
-    // window. Show an arrow pointing toward the direction of the results.
-    displaySearchResults();
+}
+
+function moveViewportToCurrent() {
+  // Move viewport if our selection moves outside.
+  const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
+  const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
+  const currentTs = globals.currentSearchResults
+                        .tsStarts[globals.frontendLocalState.searchIndex];
+  const currentViewNs = endNs - startNs;
+  if (currentTs < startNs || currentTs > endNs) {
+    // TODO(taylori): This is an ugly jump, we should do a smooth pan instead.
+    globals.frontendLocalState.updateVisibleTime(new TimeSpan(
+        fromNs(currentTs - currentViewNs / 2),
+        fromNs(currentTs + currentViewNs / 2)));
   }
 }
 
@@ -145,7 +157,8 @@ function displaySearchResults() {
   if (globals.frontendLocalState.omnibox !== prevOmniBox) {
     globals.frontendLocalState.setSearchIndex(-1);
   }
-  if (globals.frontendLocalState.omnibox === '') {
+  if (globals.frontendLocalState.omnibox === '' ||
+      globals.frontendLocalState.omnibox.length < 4) {
     displayStepThrough = false;
     return;
   }
@@ -232,6 +245,7 @@ class Omnibox implements m.ClassComponent {
                     onclick: () => {
                       globals.frontendLocalState.setSearchIndex(
                           state.searchIndex - 1);
+                      moveViewportToCurrent();
                       displaySearchResults();
                     }
                   },
@@ -243,6 +257,7 @@ class Omnibox implements m.ClassComponent {
                     onclick: () => {
                       globals.frontendLocalState.setSearchIndex(
                           state.searchIndex + 1);
+                      moveViewportToCurrent();
                       displaySearchResults();
                     }
                   },
