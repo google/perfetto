@@ -373,15 +373,18 @@ export const StateActions = {
 
   selectThreadState(
       state: StateDraft,
-      args: {utid: number, ts: number, dur: number, state: string}): void {
-    state.currentSelection = {
-      kind: 'THREAD_STATE',
-      utid: args.utid,
-      ts: args.ts,
-      dur: args.dur,
-      state: args.state
-    };
-  },
+      args:
+          {utid: number, ts: number, dur: number, state: string, cpu: number}):
+      void {
+        state.currentSelection = {
+          kind: 'THREAD_STATE',
+          utid: args.utid,
+          ts: args.ts,
+          dur: args.dur,
+          state: args.state,
+          cpu: args.cpu
+        };
+      },
 
   deselect(state: StateDraft, _: {}): void {
     state.currentSelection = null;

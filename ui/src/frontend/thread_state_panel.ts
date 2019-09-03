@@ -25,6 +25,7 @@ interface ThreadStateDetailsAttr {
   ts: number;
   dur: number;
   state: string;
+  cpu: number;
 }
 
 export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
@@ -50,7 +51,11 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
                     '(b/140256335)'))),
               m('tr',
                 m('th', `State`),
-                m('td', `${translateState(attrs.state)}`)),
+                m('td',
+                  `${translateState(attrs.state)}` +
+                      `${
+                          attrs.state === 'Running' ? ` on CPU ${attrs.cpu}` :
+                                                      ''}`)),
               m('tr',
                 m('th', `Process`),
                 m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),

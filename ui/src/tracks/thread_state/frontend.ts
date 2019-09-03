@@ -115,10 +115,11 @@ class ThreadStateTrack extends Track<Config, Data> {
     const ts = index === -1 ? undefined : data.starts[index];
     const tsEnd = index === -1 ? undefined : data.ends[index];
     const state = index === -1 ? undefined : data.strings[data.state[index]];
+    const cpu = index === -1 ? undefined : data.cpu[index];
     const utid = this.config.utid;
-    if (ts && state && tsEnd) {
+    if (ts && state && tsEnd && cpu !== undefined) {
       globals.dispatch(
-          Actions.selectThreadState({utid, ts, dur: tsEnd - ts, state}));
+          Actions.selectThreadState({utid, ts, dur: tsEnd - ts, state, cpu}));
       return true;
     }
     return false;
