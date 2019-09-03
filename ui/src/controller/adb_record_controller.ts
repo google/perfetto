@@ -16,7 +16,7 @@ import {Adb, AdbStream} from './adb_interfaces';
 
 import {ConsumerPortResponse, ReadBuffersResponse} from './consumer_port_types';
 import {globals} from './globals';
-import {toPbtxt} from './record_controller';
+import {uint8ArrayToBase64} from './record_controller';
 
 enum AdbState {
   READY,
@@ -92,10 +92,7 @@ export class AdbRecordController {
 
   async startRecording(configProto: Uint8Array) {
     this.state = AdbState.RECORDING;
-    // TODO(nicomazz): Send in the command directly the config proto instead of
-    // the string, removing the option "--txt".
-    const recordCommand =
-        this.generateStartTracingCommand(toPbtxt(configProto));
+    const recordCommand = this.generateStartTracingCommand(configProto);
     const recordShell: AdbStream = await this.adb.shell(recordCommand);
     let response = '';
     recordShell.onData = (str, _) => response += str;
@@ -157,9 +154,9 @@ export class AdbRecordController {
     return `cat ${this.traceDestFile} | gzip | base64`;
   }
 
-  generateStartTracingCommand(tracingConfigTxt: string) {
-    const perfettoCmd = `perfetto -c - --txt -o ${this.traceDestFile}`;
-    const base64Config = btoa(tracingConfigTxt);
-    return `echo '${base64Config}' | base64 -d | ${perfettoCmd}`;
+  generateStartTracingCommand(tracingConfig: Uint8Array) {
+    const configBase64 = uint8ArrayToBase64(tracingConfig);
+    const perfettoCmd = `perfetto -c - -o ${this.traceDestFile}`;
+    return `echo '${configBase64}' | base64 -d | ${perfettoCmd}`;
   }
 }
