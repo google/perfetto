@@ -29,6 +29,12 @@ The script will automatically serialize the trace config defined in the
 `CONFIG` variable (e.g., [this](https://android.googlesource.com/platform/external/perfetto/+/master/test/configs/ftrace.cfg)) into a protobuf and setup the right paths.
 Furthermore it will automatically rebuild if necessary.
 
+When doing a Linux cross-build it is possible to specify a target to run the
+daemons on via SSH:
+```bash
+CONFIG=ftrace.cfg OUT=out/default TARGET=user@my-device-host ./tools/tmux
+```
+
 Running from an Android P+ in-tree build
 ----------------------------------------
 Make sure that Perfetto daemons (`traced` / `traced_probes`) are running.
