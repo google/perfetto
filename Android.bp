@@ -4827,6 +4827,7 @@ cc_binary {
     "libprotobuf-cpp-full",
     "libz",
   ],
+  host_supported: true,
   generated_headers: [
     "gen_merged_sql_metrics",
     "perfetto_protos_perfetto_common_zero_gen_headers",
