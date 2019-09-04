@@ -120,6 +120,12 @@ function onKeyUp(e: Event) {
             searchSegment(globals.currentSearchResults.tsStarts, startNs);
         globals.frontendLocalState.setSearchIndex(larger);
       }
+      // If there is no result in the current viewport, move it.
+      const currentTs =
+          globals.currentSearchResults.tsStarts[state.searchIndex];
+      if (currentTs < startNs || currentTs > endNs) {
+        moveViewportToCurrent();
+      }
     } else {
       // If the currentTs is in the viewport, increment the index and move the
       // viewport if necessary.
