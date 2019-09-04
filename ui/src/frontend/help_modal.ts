@@ -15,17 +15,42 @@
 
 import * as m from 'mithril';
 
-import {showModal} from './modal';
+import {hideModel, showModal} from './modal';
 
-export function showHelp() {
+let helpModelOpen = false;
+
+export function toggleHelp() {
+  if (helpModelOpen) {
+    hideHelp();
+  } else {
+    showHelp();
+  }
+}
+
+function keycap(key: string) {
+  return m('.keycap', key);
+}
+
+function showHelp() {
+  helpModelOpen = true;
   showModal({
     title: 'Perfetto Help',
     content:
         m('.help',
           m('h2', 'Navigation'),
-          m('table',
-            m('tr', m('td', 'W/S'), m('td', 'Zoom in/out')),
-            m('tr', m('td', 'A/D'), m('td', 'Pan left/right'))),
+          m(
+              'table',
+              m(
+                  'tr',
+                  m('td', keycap('w'), '/', keycap('s')),
+                  m('td', 'Zoom in/out'),
+                  ),
+              m(
+                  'tr',
+                  m('td', keycap('a'), '/', keycap('d')),
+                  m('td', 'Pan left/right'),
+                  ),
+              ),
           m('h2', 'Mouse Controls'),
           m('table',
             m('tr', m('td', 'Click'), m('td', 'Select event')),
@@ -38,11 +63,18 @@ export function showHelp() {
           m(
               'table',
               m('tr',
-                m('td', 'm (with event selected)'),
+                m('td', keycap('m'), ' (with event selected)'),
                 m('td', 'Select time span of event')),
-              m('tr', m('td', '?'), m('td', 'Show help')),
+              m('tr', m('td', keycap('?')), m('td', 'Show help')),
               )),
     buttons: [],
+  }).finally(() => {
+    helpModelOpen = false;
   });
-  return;
+}
+
+function hideHelp() {
+  if (helpModelOpen) {
+    hideModel();
+  }
 }

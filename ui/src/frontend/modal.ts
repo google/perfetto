@@ -47,8 +47,12 @@ export async function showModal(attrs: ModalDefinition): Promise<void> {
           m('footer.modal-footer', ...makeButtons(attrs.buttons)))));
   return new Promise(resolve => {
     MicroModal.show(
-        'main-modal', {onClose: () => resolve, awaitCloseAnimation: true});
+        'main-modal', {onClose: () => resolve(), awaitCloseAnimation: true});
   });
+}
+
+export function hideModel() {
+  MicroModal.close();
 }
 
 function makeButtons(buttonDefinition: Button[]): Array<m.Vnode<Button>> {

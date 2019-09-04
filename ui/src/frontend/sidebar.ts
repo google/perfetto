@@ -18,7 +18,7 @@ import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 
 import {globals} from './globals';
-import {showHelp} from './help_modal';
+import {toggleHelp} from './help_modal';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
@@ -185,7 +185,7 @@ const SECTIONS = [
     items: [
       {
         t: 'Controls',
-        a: showHelp,
+        a: toggleHelp,
         i: 'help',
       },
       {
