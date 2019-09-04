@@ -59,6 +59,17 @@ class Table;
 // Represents a named, strongly typed list of data.
 class Column {
  public:
+  // Create a nullable uint32 Column.
+  // Note: |name| must be a long lived string.
+  Column(const char* name,
+         const SparseVector<uint32_t>* storage,
+         Table* table,
+         uint32_t col_idx,
+         uint32_t row_map_idx)
+      : Column(name, ColumnType::kUint32, table, col_idx, row_map_idx) {
+    data_.uint32_sv = storage;
+  }
+
   // Create a nullable int64 Column.
   // Note: |name| must be a long lived string.
   Column(const char* name,
@@ -105,6 +116,10 @@ class Column {
   SqlValue Get(uint32_t row) const {
     auto idx = row_map().Get(row);
     switch (type_) {
+      case ColumnType::kUint32: {
+        auto opt_value = data_.uint32_sv->Get(idx);
+        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
       case ColumnType::kInt64: {
         auto opt_value = data_.int64_sv->Get(idx);
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
@@ -132,6 +147,7 @@ class Column {
       // TODO(lalitm): investigate whether we could make this more efficient
       // by first checking the type of the column and comparing explicitly
       // based on that type.
+      case ColumnType::kUint32:
       case ColumnType::kInt64:
       case ColumnType::kString: {
         for (uint32_t i = 0; i < row_map().size(); i++) {
@@ -176,6 +192,7 @@ class Column {
 
   SqlValue::Type type() const {
     switch (type_) {
+      case ColumnType::kUint32:
       case ColumnType::kInt64:
       case ColumnType::kId:
         return SqlValue::Type::kLong;
@@ -190,6 +207,7 @@ class Column {
 
   enum ColumnType {
     // Standard primitive types.
+    kUint32,
     kInt64,
     kString,
 
@@ -214,6 +232,9 @@ class Column {
 
   ColumnType type_ = ColumnType::kInt64;
   union {
+    // Valid when |type_| == ColumnType::kUint32.
+    const SparseVector<uint32_t>* uint32_sv;
+
     // Valid when |type_| == ColumnType::kInt64.
     const SparseVector<int64_t>* int64_sv = nullptr;
 

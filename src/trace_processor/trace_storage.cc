@@ -69,10 +69,6 @@ TraceStorage::TraceStorage() {
 
 TraceStorage::~TraceStorage() {}
 
-void TraceStorage::ResetStorage() {
-  *this = TraceStorage();
-}
-
 uint32_t TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
                                                   int64_t time_queued,
                                                   int64_t time_started) {
