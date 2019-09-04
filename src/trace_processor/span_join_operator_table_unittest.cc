@@ -58,8 +58,6 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
     }
   }
 
-  ~SpanJoinOperatorTableTest() override { context_.storage->ResetStorage(); }
-
  protected:
   TraceProcessorContext context_;
   ScopedDb db_;

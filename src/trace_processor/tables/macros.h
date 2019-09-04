@@ -41,14 +41,14 @@ namespace trace_processor {
 // Then we would invoke the macro as follows:
 // #define PERFETTO_TP_EVENT_TABLE_DEF(NAME, PARENT, C)
 //   NAME(EventTable)
-//   PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)
+//   PERFETTO_TP_ROOT_TABLE(PARENT, C)
 //   C(int64_t, ts)
 //   C(uint32_t, arg_set_id)
 // PERFETTO_TP_TABLE(PERFETTO_TP_EVENT_TABLE_DEF);
 //
-// Note that PERFETTO_TP_ROOT_TABLE_PARENT_DEF is passed as the parent
-// definition; this is a builtin macro (defined below) that acts as a parent
-// for all root tables.
+// Note the call to PERFETTO_TP_ROOT_TABLE; this macro (defined below) should
+// be called by root tables passing the PARENT and C and allows for correct type
+// checking of root tables.
 //
 // Derived tables
 // Suppose we want to derive a table called SliceTable which inherits all
@@ -65,12 +65,12 @@ namespace trace_processor {
 
 // Macro definition using when defining a new root table.
 //
-// This macro can be passed to PARENT as the parent definition for root tables.
-// This allows for correct type-checking of root tables.
+// This macro should be called by passing PARENT and C in root tables; this
+// allows for correct type-checking of columns.
 //
 // See the top of the file for how this should be used.
-#define PERFETTO_TP_ROOT_TABLE_PARENT_DEF(NAME, PARENT, C) \
-  NAME(macros_internal::RootParentTable)
+#define PERFETTO_TP_ROOT_TABLE(PARENT, C) \
+  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)
 
 // The macro used to define storage backed tables.
 // See the top of the file for how this should be used.
@@ -80,9 +80,10 @@ namespace trace_processor {
 // 1. NAME, a function macro taking one argument: the name of the new class
 //    being defined.
 // 2. PARENT, a function macro taking two arguments: a) the definition of
-//    the parent table (or PERFETTO_TP_ROOT_TABLE_PARENT_DEF) if this table
+//    the parent table if this table
 //    is a root table b) C, the third parameter of the macro definition (see
-//    below).
+//    below). For root tables, PARENT and C are passsed to
+//    PERFETTO_TP_ROOT_TABLE instead of PARENT called directly.
 // 3. C, a function macro taking two parameters: a) the type of a column
 //    b) the name of a column. This macro should be invoked as many times as
 //    there are columns in the table with the information about them.

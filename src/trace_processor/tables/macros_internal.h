@@ -141,6 +141,10 @@ struct MacroTableHelper<base::Optional<T>> {
     return columns_[static_cast<uint32_t>(ColumnIndex::name)]; \
   }
 
+// Definition used as the parent of root tables.
+#define PERFETTO_TP_ROOT_TABLE_PARENT_DEF(NAME, PARENT, C) \
+  NAME(macros_internal::RootParentTable)
+
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
 #define PERFETTO_TP_TABLE_INTERNAL(class_name, parent_class_name, DEF)        \
   class class_name : public macros_internal::MacroTable {                     \
