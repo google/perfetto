@@ -2571,6 +2571,18 @@ void ProtoTraceParser::ParseGpuRenderStageEvent(int64_t ts, ConstBytes blob) {
     }
   }
 
+  auto args_callback = [this, &event](
+                           ArgsTracker* args_tracker, RowId row_id) {
+    for (auto it = event.extra_data(); it; ++it) {
+      protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder
+          datum(it->data(), it->size());
+      StringId name_id = context_->storage->InternString(datum.name());
+      StringId value = context_->storage->InternString(
+          datum.has_value() ? datum.value() : base::StringView());
+      args_tracker->AddArg(row_id, name_id, name_id, Variadic::String(value));
+    }
+  };
+
   if (event.has_event_id()) {
     size_t stage_id = static_cast<size_t>(event.stage_id());
     StringId stage_name;
@@ -2583,7 +2595,7 @@ void ProtoTraceParser::ParseGpuRenderStageEvent(int64_t ts, ConstBytes blob) {
     }
     context_->slice_tracker->Scoped(
         ts, event.hw_queue_id(), RefType::kRefGpuId, 0, /* cat */
-        stage_name, static_cast<int64_t>(event.duration()));
+        stage_name, static_cast<int64_t>(event.duration()), args_callback);
   }
 }
 
