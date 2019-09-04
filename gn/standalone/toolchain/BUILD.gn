@@ -20,6 +20,30 @@ import("llvm.gni")
 
 declare_args() {
   if (is_clang) {
+    gcc_prefix = ""
+  } else if (current_cpu == host_cpu && current_os == host_os) {
+    gcc_prefix = ""
+  } else if (current_os == "linux" && current_cpu == "arm64") {
+    gcc_prefix = "aarch64-linux-gnu-"
+  } else if (current_os == "linux" && current_cpu == "x64") {
+    gcc_prefix = "x86_64-linux-gnu-"
+  } else if (current_os == "linux" && current_cpu == "x86") {
+    gcc_prefix = "x86-linux-gnu-"
+  } else if (current_os == "android" && current_cpu == "arm64") {
+    gcc_prefix = "aarch64-linux-android-"
+  } else if (current_os == "android" && current_cpu == "arm") {
+    gcc_prefix = "arm-linux-androideabi-"
+  } else if (current_os == "android" && current_cpu == "x86") {
+    gcc_prefix = "i686-linux-android-"
+  } else if (current_os == "android" && current_cpu == "x86_64") {
+    gcc_prefix = "x86_64-linux-android-"
+  } else {
+    assert(0, "Unsupported cross-compilation for ${current_os}-${current_cpu}")
+  }
+}
+
+declare_args() {
+  if (is_clang) {
     if (is_system_compiler) {
       cc = "\$CC "
       cxx = "\$CXX "
@@ -31,8 +55,8 @@ declare_args() {
       cxx = "clang++"
     }
   } else {
-    cc = "gcc"
-    cxx = "g++"
+    cc = "${gcc_prefix}gcc"
+    cxx = "${gcc_prefix}g++"
   }
 }
 
