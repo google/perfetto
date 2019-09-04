@@ -126,12 +126,8 @@ void GraphicsFrameEventParser::ParseEvent(int64_t timestamp, ConstBytes blob) {
        graphics_event_scope_id_},
       track_name_id);
 
-  // TODO(lalitm): These need to be swapped out for base::nullopt when supported.
-  constexpr uint64_t null_u64 = std::numeric_limits<uint64_t>::max();
-  constexpr uint32_t null_u32 = std::numeric_limits<uint32_t>::max();
-
-  context_->storage->mutable_gpu_tracks()->AddGpuTrack(
-      track_id, graphics_event_scope_id_, null_u64 /* context */);
+  context_->storage->mutable_gpu_track_table()->Insert(
+      track_id, graphics_event_scope_id_, base::nullopt /* context */);
 
   const auto slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, RefType::kRefTrack, 0 /* cat */, event_name_id,
@@ -141,10 +137,10 @@ void GraphicsFrameEventParser::ParseEvent(int64_t timestamp, ConstBytes blob) {
       });
 
   if (slice_id) {
-    context_->storage->mutable_gpu_track_slices()->AddGpuSlice(
-        slice_id.value(), null_u64 /* context_id */,
-        null_u64 /* render_target */, frame_number, null_u32 /* job_id */,
-        null_u32 /* hw_queue_id */);
+    context_->storage->mutable_gpu_slice_table()->Insert(
+        slice_id.value(), base::nullopt /* context_id */,
+        base::nullopt /* render_target */, frame_number,
+        base::nullopt /* job_id */, base::nullopt /* hw_queue_id */);
   }
 }
 
