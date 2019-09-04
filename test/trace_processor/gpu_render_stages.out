@@ -1,10 +1,19 @@
-"ts","dur","ref","ref_type","name","depth","arg_set_id"
-10,5,1,"gpu","stage 1",0,0
-20,5,0,"gpu","stage 2",0,0
-30,5,1,"gpu","stage 0",0,0
-40,5,0,"gpu","stage 1",0,0
-50,5,1,"gpu","stage 2",0,0
-60,5,0,"gpu","stage 0",0,0
-70,5,1,"gpu","stage 1",0,0
-80,5,0,"gpu","stage 2",0,0
-90,5,1,"gpu","stage 0",0,0
+"ts","dur","ref","ref_type","name","depth","arg_set_id","flat_key","string_value"
+10,5,1,"gpu","stage 1",0,1,"keyOnlyTest","[NULL]"
+10,5,1,"gpu","stage 1",0,1,"stencilBPP","1"
+10,5,1,"gpu","stage 1",0,1,"height","1.000000"
+20,5,0,"gpu","stage 2",0,2,"keyOnlyTest","[NULL]"
+20,5,0,"gpu","stage 2",0,2,"height","4.000000"
+30,5,1,"gpu","stage 0",0,3,"keyOnlyTest","[NULL]"
+30,5,1,"gpu","stage 0",0,3,"stencilBPP","1"
+30,5,1,"gpu","stage 0",0,3,"height","9.000000"
+40,5,0,"gpu","stage 1",0,0,"[NULL]","[NULL]"
+50,5,1,"gpu","stage 2",0,4,"keyOnlyTest","[NULL]"
+50,5,1,"gpu","stage 2",0,4,"stencilBPP","1"
+50,5,1,"gpu","stage 2",0,4,"height","25.000000"
+60,5,0,"gpu","stage 0",0,5,"keyOnlyTest","[NULL]"
+60,5,0,"gpu","stage 0",0,5,"height","36.000000"
+70,5,1,"gpu","stage 1",0,6,"keyOnlyTest","[NULL]"
+70,5,1,"gpu","stage 1",0,6,"stencilBPP","1"
+70,5,1,"gpu","stage 1",0,6,"height","49.000000"
+80,5,0,"gpu","stage 2",0,0,"[NULL]","[NULL]"
