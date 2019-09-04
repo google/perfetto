@@ -75,6 +75,7 @@ target_initrc = {
 
 target_host_supported = [
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/trace_processor:trace_processor_shell',
 ]
 
 target_host_only = [
