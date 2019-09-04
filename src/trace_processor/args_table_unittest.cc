@@ -55,8 +55,6 @@ class ArgsTableUnittest : public ::testing::Test {
                           base::Optional<const char*> string_value,
                           base::Optional<double> real_value);
 
-  ~ArgsTableUnittest() override { context_.storage->ResetStorage(); }
-
  protected:
   TraceProcessorContext context_;
   ScopedDb db_;
