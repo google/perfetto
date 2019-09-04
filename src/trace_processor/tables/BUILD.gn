@@ -16,8 +16,11 @@ source_set("tables") {
   sources = [
     "macros.h",
     "macros_internal.h",
+    "slice_tables.h",
+    "track_tables.h",
   ]
   deps = [
+    "..:common",
     "../../../gn:default_deps",
     "../db:lib",
   ]
