@@ -80,7 +80,6 @@ class ChromeSliceTrack extends Track<Config, Data> {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const depth = data.depths[i];
-      const cat = data.strings[data.categories[i]];
       const titleId = data.titles[i];
       const sliceId = data.slice_ids[i];
       const title = data.strings[titleId];
@@ -93,8 +92,9 @@ class ChromeSliceTrack extends Track<Config, Data> {
       const rectYStart = TRACK_PADDING + depth * SLICE_HEIGHT;
 
       const hovered = titleId === this.hoveredTitleId;
-      const hue = hash(cat);
-      const saturation = Math.min(20 + depth * 10, 70);
+      const name = title.replace(/( )?\d+/g, '');
+      const hue = title === 'Busy' ? 88 : hash(name);
+      const saturation = 50;
       ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
       ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
 
