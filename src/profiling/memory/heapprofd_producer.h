@@ -199,6 +199,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::vector<std::string> normalized_cmdlines;
     DumpState::InternState intern_state;
     bool shutting_down = false;
+    bool started = false;
     uint32_t stop_timeout_ms;
   };
 
