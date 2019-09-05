@@ -45,6 +45,7 @@ import "protos/perfetto/trace/system_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
+import "protos/perfetto/trace/track_event/track_descriptor.proto";
 import "protos/perfetto/trace/track_event/track_event.proto";
 import "protos/perfetto/trace/trigger.proto";
 import "protos/perfetto/trace/test_event.proto";
@@ -55,7 +56,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 60.
+// Next id: 61.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -108,7 +109,12 @@ message TracePacket {
     ProfiledFrameSymbols profiled_frame_symbols = 55;
 
     // Only used by TrackEvent.
+    TrackDescriptor track_descriptor = 60;
+
+    // Deprecated, use TrackDescriptor instead.
     ProcessDescriptor process_descriptor = 43;
+
+    // Deprecated, use TrackDescriptor instead.
     ThreadDescriptor thread_descriptor = 44;
 
     // This field is emitted at periodic intervals (~10s) and
