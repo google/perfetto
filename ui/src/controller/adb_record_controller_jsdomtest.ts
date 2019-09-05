@@ -73,9 +73,12 @@ test('enableTracing', async () => {
 
   await adbController.enableTracing(mockIntArray);
   expect(adbShell).toBeCalledWith('CMD');
-  expect(sendMessage).toHaveBeenCalledTimes(0);
   expect(findDevice).toHaveBeenCalledTimes(1);
   expect(connectToDevice).toHaveBeenCalledTimes(1);
+  // Two messages: RecordControllerStatus asking for allow the debug, and
+  // another status to clear that message.
+  expect(sendMessage).toHaveBeenCalledTimes(2);
+
 
   stream.onData('starting tracing Wrote 123 bytes', mockIntArray);
   stream.onClose();
