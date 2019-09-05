@@ -164,6 +164,78 @@ class GeneratorJob {
     return true;
   }
 
+  // Note: intentionally avoiding depending on protozero sources, as well as
+  // protobuf-internal WireFormat/WireFormatLite classes.
+  const char* FieldTypeToProtozeroWireType(FieldDescriptor::Type proto_type) {
+    switch (proto_type) {
+      case FieldDescriptor::TYPE_INT64:
+      case FieldDescriptor::TYPE_UINT64:
+      case FieldDescriptor::TYPE_INT32:
+      case FieldDescriptor::TYPE_BOOL:
+      case FieldDescriptor::TYPE_UINT32:
+      case FieldDescriptor::TYPE_ENUM:
+      case FieldDescriptor::TYPE_SINT32:
+      case FieldDescriptor::TYPE_SINT64:
+        return "::protozero::proto_utils::ProtoWireType::kVarInt";
+
+      case FieldDescriptor::TYPE_FIXED32:
+      case FieldDescriptor::TYPE_SFIXED32:
+      case FieldDescriptor::TYPE_FLOAT:
+        return "::protozero::proto_utils::ProtoWireType::kFixed32";
+
+      case FieldDescriptor::TYPE_FIXED64:
+      case FieldDescriptor::TYPE_SFIXED64:
+      case FieldDescriptor::TYPE_DOUBLE:
+        return "::protozero::proto_utils::ProtoWireType::kFixed64";
+
+      case FieldDescriptor::TYPE_STRING:
+      case FieldDescriptor::TYPE_MESSAGE:
+      case FieldDescriptor::TYPE_BYTES:
+        return "::protozero::proto_utils::ProtoWireType::kLengthDelimited";
+
+      case FieldDescriptor::TYPE_GROUP:
+        Abort("Groups not supported.");
+    }
+    Abort("Unrecognized FieldDescriptor::Type.");
+    return "";
+  }
+
+  const char* FieldTypeToPackedBufferType(FieldDescriptor::Type proto_type) {
+    switch (proto_type) {
+      case FieldDescriptor::TYPE_INT64:
+      case FieldDescriptor::TYPE_UINT64:
+      case FieldDescriptor::TYPE_INT32:
+      case FieldDescriptor::TYPE_BOOL:
+      case FieldDescriptor::TYPE_UINT32:
+      case FieldDescriptor::TYPE_ENUM:
+      case FieldDescriptor::TYPE_SINT32:
+      case FieldDescriptor::TYPE_SINT64:
+        return "::protozero::PackedVarIntBuffer";
+
+      case FieldDescriptor::TYPE_FIXED32:
+        return "::protozero::PackedFixedSizeBuffer<uint32_t>";
+      case FieldDescriptor::TYPE_SFIXED32:
+        return "::protozero::PackedFixedSizeBuffer<int32_t>";
+      case FieldDescriptor::TYPE_FLOAT:
+        return "::protozero::PackedFixedSizeBuffer<float>";
+
+      case FieldDescriptor::TYPE_FIXED64:
+        return "::protozero::PackedFixedSizeBuffer<uint64_t>";
+      case FieldDescriptor::TYPE_SFIXED64:
+        return "::protozero::PackedFixedSizeBuffer<int64_t>";
+      case FieldDescriptor::TYPE_DOUBLE:
+        return "::protozero::PackedFixedSizeBuffer<double>";
+
+      case FieldDescriptor::TYPE_STRING:
+      case FieldDescriptor::TYPE_MESSAGE:
+      case FieldDescriptor::TYPE_BYTES:
+      case FieldDescriptor::TYPE_GROUP:
+        Abort("Unexpected FieldDescritor::Type.");
+    }
+    Abort("Unrecognized FieldDescriptor::Type.");
+    return "";
+  }
+
   void CollectDescriptors() {
     // Collect message descriptors in DFS order.
     std::vector<const Descriptor*> stack;
@@ -276,8 +348,10 @@ class GeneratorJob {
         "#define $guard$\n\n"
         "#include <stddef.h>\n"
         "#include <stdint.h>\n\n"
+        "#include \"perfetto/protozero/message.h\"\n"
+        "#include \"perfetto/protozero/packed_repeated_fields.h\"\n"
         "#include \"perfetto/protozero/proto_decoder.h\"\n"
-        "#include \"perfetto/protozero/message.h\"\n",
+        "#include \"perfetto/protozero/proto_utils.h\"\n",
         "greeting", greeting, "guard", guard);
 
     // Print includes for public imports.
@@ -346,6 +420,21 @@ class GeneratorJob {
     stub_h_->Print("const $class$ $class$_MAX = $max$;\n", "class",
                    GetCppClassName(enumeration), "max", max_name);
     stub_h_->Print("\n");
+  }
+
+  // Packed repeated fields are encoded as a length-delimited field on the wire,
+  // where the payload is the concatenation of invidually encoded elements.
+  void GeneratePackedRepeatedFieldDescriptor(const FieldDescriptor* field) {
+    std::map<std::string, std::string> setter;
+    setter["id"] = std::to_string(field->number());
+    setter["name"] = field->name();
+    setter["action"] = "set";
+    setter["buffer_type"] = FieldTypeToPackedBufferType(field->type());
+    stub_h_->Print(
+        setter,
+        "void $action$_$name$(const $buffer_type$& packed_buffer) {\n"
+        "  AppendBytes($id$, packed_buffer.data(), packed_buffer.size());\n"
+        "}\n");
   }
 
   void GenerateSimpleFieldDescriptor(const FieldDescriptor* field) {
@@ -478,23 +567,23 @@ class GeneratorJob {
 
   void GenerateDecoder(const Descriptor* message) {
     int max_field_id = 0;
-    bool has_repeated_fields = false;
+    bool has_nonpacked_repeated_fields = false;
     for (int i = 0; i < message->field_count(); ++i) {
       const FieldDescriptor* field = message->field(i);
       if (field->number() > kMaxDecoderFieldId)
         continue;
       max_field_id = std::max(max_field_id, field->number());
-      if (field->is_repeated())
-        has_repeated_fields = true;
+      if (field->is_repeated() && !field->is_packed())
+        has_nonpacked_repeated_fields = true;
     }
 
     std::string class_name = GetCppClassName(message) + "_Decoder";
     stub_h_->Print(
         "class $name$ : public "
         "::protozero::TypedProtoDecoder</*MAX_FIELD_ID=*/$max$, "
-        "/*HAS_REPEATED_FIELDS=*/$rep$> {\n",
+        "/*HAS_NONPACKED_REPEATED_FIELDS=*/$rep$> {\n",
         "name", class_name, "max", std::to_string(max_field_id), "rep",
-        has_repeated_fields ? "true" : "false");
+        has_nonpacked_repeated_fields ? "true" : "false");
     stub_h_->Print(" public:\n");
     stub_h_->Indent();
     stub_h_->Print(
@@ -513,11 +602,6 @@ class GeneratorJob {
 
     for (int i = 0; i < message->field_count(); ++i) {
       const FieldDescriptor* field = message->field(i);
-      if (field->is_packed()) {
-        Abort("Packed repeated fields are not supported.");
-        return;
-      }
-
       if (field->number() > max_field_id) {
         stub_h_->Print("// field $name$ omitted because its id is too high\n",
                        "name", field->name());
@@ -581,7 +665,17 @@ class GeneratorJob {
                      "name", field->name(), "id",
                      std::to_string(field->number()));
 
-      if (field->is_repeated()) {
+      if (field->is_packed()) {
+        const char* protozero_wire_type =
+            FieldTypeToProtozeroWireType(field->type());
+        stub_h_->Print(
+            "::protozero::PackedRepeatedFieldIterator<$wire_type$, $cpp_type$> "
+            "$name$(bool* parse_error_ptr) const { return "
+            "GetPackedRepeated<$wire_type$, $cpp_type$>($id$, "
+            "parse_error_ptr); }\n",
+            "wire_type", protozero_wire_type, "cpp_type", cpp_type, "name",
+            field->name(), "id", std::to_string(field->number()));
+      } else if (field->is_repeated()) {
         stub_h_->Print(
             "::protozero::RepeatedFieldIterator $name$() const { return "
             "GetRepeated($id$); }\n",
@@ -663,10 +757,8 @@ class GeneratorJob {
     for (int i = 0; i < message->field_count(); ++i) {
       const FieldDescriptor* field = message->field(i);
       if (field->is_packed()) {
-        Abort("Packed repeated fields are not supported.");
-        return;
-      }
-      if (field->type() != FieldDescriptor::TYPE_MESSAGE) {
+        GeneratePackedRepeatedFieldDescriptor(field);
+      } else if (field->type() != FieldDescriptor::TYPE_MESSAGE) {
         GenerateSimpleFieldDescriptor(field);
       } else {
         GenerateNestedMessageFieldDescriptor(field);

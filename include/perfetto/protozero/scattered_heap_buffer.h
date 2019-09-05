@@ -105,7 +105,10 @@ class PERFETTO_EXPORT ScatteredHeapBuffer
 template <typename T = ::protozero::Message>
 class HeapBuffered {
  public:
-  HeapBuffered() : shb_(4096, 4096), writer_(&shb_) {
+  HeapBuffered() : HeapBuffered(4096, 4096) {}
+  HeapBuffered(size_t initial_slice_size_bytes, size_t maximum_slice_size_bytes)
+      : shb_(initial_slice_size_bytes, maximum_slice_size_bytes),
+        writer_(&shb_) {
     shb_.set_writer(&writer_);
     msg_.Reset(&writer_);
   }
