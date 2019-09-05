@@ -90,6 +90,16 @@ void SystraceParser::ParseSystracePoint(
       break;
     }
 
+    case 'S': {
+      // Currently unsupported.
+      break;
+    }
+
+    case 'F': {
+      // Currently unsupported.
+      break;
+    }
+
     case 'C': {
       // LMK events from userspace are hacked as counter events with the "value"
       // of the counter representing the pid of the killed process which is
