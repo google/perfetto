@@ -430,6 +430,11 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   }
 
   DataSource& data_source = it->second;
+  if (data_source.started) {
+    PERFETTO_DFATAL_OR_ELOG(
+        "Trying to start already started data-source: %" PRIu64, id);
+    return;
+  }
   const HeapprofdConfig& heapprofd_config = data_source.config;
 
   // Central daemon - set system properties for any targets that start later,
@@ -453,6 +458,7 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
         },
         continuous_dump_config.dump_phase_ms());
   }
+  data_source.started = true;
   PERFETTO_DLOG("Started DataSource");
 }
 
