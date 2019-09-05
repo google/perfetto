@@ -32,5 +32,5 @@ message TracePacketDefaults {
   optional uint32 timestamp_clock_id = 58;
 
   // Default values for TrackEvents (e.g. default track).
-  optional TrackEventDefaults track_event = 11;
+  optional TrackEventDefaults track_event_defaults = 11;
 }
