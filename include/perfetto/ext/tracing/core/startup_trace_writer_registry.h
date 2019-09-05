@@ -70,12 +70,16 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
   StartupTraceWriterRegistry();
   ~StartupTraceWriterRegistry();
 
+  // Buffer size defaults to 1 mB per writer.
+  static constexpr size_t kDefaultMaxBufferSizeBytes = 1024 * 1024;
+
   // Returns a new unbound StartupTraceWriter. Should only be called while
   // unbound. Usually called on a writer thread. The writer should never be
   // destroyed by the caller directly, but instead returned to the registry by
   // calling StartupTraceWriter::ReturnToRegistry.
   std::unique_ptr<StartupTraceWriter> CreateUnboundTraceWriter(
-      BufferExhaustedPolicy = BufferExhaustedPolicy::kDefault);
+      BufferExhaustedPolicy = BufferExhaustedPolicy::kDefault,
+      size_t max_buffer_size_bytes = kDefaultMaxBufferSizeBytes);
 
   // Binds all StartupTraceWriters created by this registry to the given arbiter
   // and target buffer. Should only be called once and on the passed
