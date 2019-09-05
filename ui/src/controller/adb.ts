@@ -52,7 +52,7 @@ export class AdbOverWebUsb implements Adb {
 
   // Devices after Dec 2017 don't use checksum. This will be auto-detected
   // during the connection.
-  useChecksum = false;
+  useChecksum = true;
 
   private lastStreamId = 0;
   private dev: USBDevice|undefined;
@@ -68,8 +68,13 @@ export class AdbOverWebUsb implements Adb {
     return navigator.usb.requestDevice({filters: [this.filter]});
   }
 
+  async getPairedDevices() {
+    return navigator.usb.getDevices();
+  }
+
   async connect(device: USBDevice): Promise<void> {
     this.dev = device;
+    this.useChecksum = true;
     this.key = await AdbOverWebUsb.initKey();
 
     await this.dev.open();
@@ -443,7 +448,7 @@ export class AdbMsgImpl implements AdbMsg {
   }
 
 
-  static create({cmd, arg0, arg1, data, useChecksum = false}: {
+  static create({cmd, arg0, arg1, data, useChecksum = true}: {
     cmd: CmdType; arg0: number; arg1: number;
     data?: Uint8Array | string;
     useChecksum?: boolean;

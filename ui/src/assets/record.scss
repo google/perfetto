@@ -91,13 +91,44 @@
       flex-direction: column;
       justify-content: space-evenly;
 
-      label , select {
+      .target {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+      }
+
+      label, select, button {
         font-weight: 100;
         margin: 3px;
         color: #333;
         font-size: 17px;
         font-family: 'Roboto', sans-serif;
         align-items: center;
+
+        &.error-label {
+          max-width: 500px;
+          color: rgb(255, 0, 0);
+          font-size: 15px;
+        }
+      }
+      .chip {
+        @include transition();
+        display: flex;
+        align-items: center;
+        border: 1px solid #eee;
+        outline: none;
+        margin: 4px;
+        border-radius: 10px;
+        padding: 4px;
+        height: 30px;
+        &:hover, &:active {
+          box-shadow: 0 0 4px 0px #999;
+          background-color: hsl(88, 50%, 84%);
+        }
+        i {
+          margin: 3px;
+          align-items: center;
+        }
       }
     }
   }
