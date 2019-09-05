@@ -57,7 +57,7 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
     return res;
 
   uint64_t preamble = 0;
-  if (PERFETTO_LIKELY(*pos < 0x80)) {  // Fastpath for fields with ID < 32.
+  if (PERFETTO_LIKELY(*pos < 0x80)) {  // Fastpath for fields with ID < 16.
     preamble = *(pos++);
   } else {
     pos = ParseVarInt(pos, end, &preamble);
