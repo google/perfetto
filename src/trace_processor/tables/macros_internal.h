@@ -20,6 +20,7 @@
 #include <type_traits>
 
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/db/typed_column.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -65,18 +66,6 @@ class MacroTable : public Table {
 
  private:
   Table* parent_ = nullptr;
-};
-
-// Helper structs to allow choosing between codepaths in MacroTable depending on
-// the type of the data being stored.
-template <typename T>
-struct MacroTableHelper {
-  using Type = T;
-};
-
-template <typename T>
-struct MacroTableHelper<base::Optional<T>> {
-  using Type = T;
 };
 
 }  // namespace macros_internal
@@ -125,7 +114,7 @@ struct MacroTableHelper<base::Optional<T>> {
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name) \
-  SparseVector<macros_internal::MacroTableHelper<type>::Type> name##_;
+  SparseVector<TypedColumn<type>::StoredType> name##_;
 
 // Constructs the column in the Table constructor.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name)        \
@@ -136,9 +125,10 @@ struct MacroTableHelper<base::Optional<T>> {
 #define PERFETTO_TP_COLUMN_APPEND(type, name) name##_.Append(std::move(name));
 
 // Defines the accessor for a column.
-#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name)             \
-  const Column& name() const {                                 \
-    return columns_[static_cast<uint32_t>(ColumnIndex::name)]; \
+#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name)           \
+  const TypedColumn<type>& name() const {                    \
+    return static_cast<const TypedColumn<type>&>(            \
+        columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
   }
 
 // Definition used as the parent of root tables.
