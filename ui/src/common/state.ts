@@ -129,6 +129,12 @@ export interface LogsPagination {
   count: number;
 }
 
+export interface AdbRecordingTarget {
+  serial: string;
+  name: string;
+  os: string;
+}
+
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
@@ -179,7 +185,11 @@ export interface State {
    */
   recordingInProgress: boolean;
   extensionInstalled: boolean;
-  serialAndroidDeviceConnected: string|undefined;
+  androidDeviceConnected?: AdbRecordingTarget;
+  availableDevices: AdbRecordingTarget[];
+  lastRecordingError?: string;
+  recordingStatus?: string;
+
   chromeCategories: string[]|undefined;
 }
 
@@ -362,7 +372,9 @@ export function createEmptyState(): State {
     flagPauseEnabled: false,
     recordingInProgress: false,
     extensionInstalled: false,
-    serialAndroidDeviceConnected: undefined,
+    androidDeviceConnected: undefined,
+    availableDevices: [],
+
     chromeCategories: undefined,
   };
 }
