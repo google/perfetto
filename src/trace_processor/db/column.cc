@@ -26,12 +26,12 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx,
                uint32_t row_map_idx)
-    : name_(name),
+    : string_pool_(table->string_pool_),
+      type_(type),
+      name_(name),
       table_(table),
-      string_pool_(table->string_pool_),
       col_idx_(col_idx),
-      row_map_idx_(row_map_idx),
-      type_(type) {}
+      row_map_idx_(row_map_idx) {}
 
 void Column::FilterInto(FilterOp op, SqlValue value, RowMap* iv) const {
   // Assume op == kEq.
