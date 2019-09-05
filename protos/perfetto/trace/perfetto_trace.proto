@@ -3394,7 +3394,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 60.
+// Next id: 61.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3447,7 +3447,12 @@ message TracePacket {
     ProfiledFrameSymbols profiled_frame_symbols = 55;
 
     // Only used by TrackEvent.
+    TrackDescriptor track_descriptor = 60;
+
+    // Deprecated, use TrackDescriptor instead.
     ProcessDescriptor process_descriptor = 43;
+
+    // Deprecated, use TrackDescriptor instead.
     ThreadDescriptor thread_descriptor = 44;
 
     // This field is emitted at periodic intervals (~10s) and
@@ -3556,13 +3561,12 @@ message TracePacket {
 // with matching IDs. When provided, these fields define the default values
 // that should be applied, at import time, to all TracePacket(s) with the same
 // |trusted_packet_sequence_id|, unless otherwise specified in each packet.
+//
+// Should be reemitted whenever incremental state is cleared on the sequence.
 message TracePacketDefaults {
   optional uint32 timestamp_clock_id = 58;
 
-  // TODO(eseckler): Add default values for TrackEvents (e.g. default track).
-  message TrackEventDefaults {
-    // optional int32 tid = ...;
-  }
+  // Default values for TrackEvents (e.g. default track).
   optional TrackEventDefaults track_event = 11;
 }
 // End of protos/perfetto/trace/trace_packet_defaults.proto
@@ -3753,11 +3757,44 @@ message ThreadDescriptor {
 
 // End of protos/perfetto/trace/track_event/thread_descriptor.proto
 
+// Begin of protos/perfetto/trace/track_event/track_descriptor.proto
+
+// Defines a track for TrackEvents. Slices and instant events on the same track
+// will be nested based on their timestamps, see TrackEvent::Type.
+//
+// A packet sequence needs to emit a TrackDescriptor for every track on which
+// it emits TrackEvents. TrackDescriptors should be reemitted whenever
+// incremental state is cleared.
+//
+// Next id: 1.
+message TrackDescriptor {
+  // Unique ID that identifies this track. This ID is global to the whole trace.
+  // Producers should ensure that it is unlikely to clash with IDs emitted by
+  // other producers.
+  //
+  // For example, legacy TRACE_EVENT macros may use a hash involving the async
+  // event id + id_scope, pid, and/or tid to compute this ID.
+  optional uint64 uuid = 1;
+
+  // TODO(eseckler): Support track hierarchies.
+  // uint64 parent_uuid = X;
+
+  // Name of the track.
+  optional string name = 2;
+
+  // Optional arguments for specific types of tracks.
+  optional ProcessDescriptor process = 3;
+  optional ThreadDescriptor thread = 4;
+}
+
+// End of protos/perfetto/trace/track_event/track_descriptor.proto
+
 // Begin of protos/perfetto/trace/track_event/track_event.proto
 
 // Trace events emitted by client instrumentation library (TRACE_EVENT macros),
-// which describe activity on a track, such as a thread, task sequence, or
-// asynchronous track.
+// which describe activity on a track, such as a thread or asynchronous event
+// track. The track is specified using separate TrackDescriptor messages and
+// referred to via the track's UUID.
 //
 // This message is optimized for writing and makes heavy use of data interning
 // and delta encoding (e.g. of timestamps) to reduce data repetition and encoded
@@ -3767,12 +3804,11 @@ message ThreadDescriptor {
 // emitted by the same producer + writer) and refers to data in preceding
 // TracePackets emitted on the same sequence, both directly and indirectly. For
 // example, interned data entries are emitted as part of a TracePacket and
-// directly referred to from TrackEvents by their interning IDs. Attributes
-// shared by all events on the same sequence (e.g. their thread and process
-// association) are emitted as part of ProcessDescriptor and ThreadDescriptor
-// messages in separate TracePackets instead.
+// directly referred to from TrackEvents by their interning IDs. Default values
+// for attributes of events on the same sequence (e.g. their default track
+// association) can be emitted as part of a TrackEventDefaults message.
 //
-// Next reserved id: 11 (up to 15).
+// Next reserved id: 12 (up to 15).
 // Next id: 24.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
@@ -3864,6 +3900,13 @@ message TrackEvent {
   }
   optional Type type = 9;
 
+  // Identifies the track of the event. The default value may be overridden
+  // using TrackEventDefaults, e.g., to specify the track of the TraceWriter's
+  // sequence (in most cases sequence = one thread). If no value is specified
+  // here or in TrackEventDefaults, the TrackEvent will be associated with an
+  // implicit trace-global track. See TrackDescriptor::uuid.
+  optional uint64 track_uuid = 11;
+
   // Unstable key/value annotations shown in the trace viewer but not intended
   // for metrics use.
   repeated DebugAnnotation debug_annotations = 4;
@@ -3936,6 +3979,16 @@ message TrackEvent {
   }
 
   optional LegacyEvent legacy_event = 6;
+}
+
+// Default values for fields of all TrackEvents on the same packet sequence.
+// Should be emitted as part of TracePacketDefaults whenever incremental state
+// is cleared. It's defined here because field IDs should match those of the
+// corresponding fields in TrackEvent.
+message TrackEventDefaults {
+  optional uint64 track_uuid = 10;
+
+  // TODO(eseckler): Support default values for more TrackEvent fields.
 }
 
 // --------------------
