@@ -98,3 +98,9 @@ message CamelCaseFields {
   optional bool U2 = 8;
   optional bool bangBig__ = 9;
 }
+
+message PackedRepeatedFields {
+  repeated int32 field_int32 = 1 [packed = true];
+  repeated fixed32 field_fixed32 = 2 [packed = true];
+  repeated sfixed64 field_sfixed64 = 3 [packed = true];
+}
