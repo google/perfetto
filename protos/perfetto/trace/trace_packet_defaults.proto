@@ -17,6 +17,8 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
+import "protos/perfetto/trace/track_event/track_event.proto";
+
 package perfetto.protos;
 
 // Default values for TracePacket fields that hold for a particular TraceWriter
@@ -24,12 +26,11 @@ package perfetto.protos;
 // with matching IDs. When provided, these fields define the default values
 // that should be applied, at import time, to all TracePacket(s) with the same
 // |trusted_packet_sequence_id|, unless otherwise specified in each packet.
+//
+// Should be reemitted whenever incremental state is cleared on the sequence.
 message TracePacketDefaults {
   optional uint32 timestamp_clock_id = 58;
 
-  // TODO(eseckler): Add default values for TrackEvents (e.g. default track).
-  message TrackEventDefaults {
-    // optional int32 tid = ...;
-  }
+  // Default values for TrackEvents (e.g. default track).
   optional TrackEventDefaults track_event = 11;
 }

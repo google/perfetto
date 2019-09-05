@@ -24,8 +24,9 @@ import "protos/perfetto/trace/track_event/task_execution.proto";
 package perfetto.protos;
 
 // Trace events emitted by client instrumentation library (TRACE_EVENT macros),
-// which describe activity on a track, such as a thread, task sequence, or
-// asynchronous track.
+// which describe activity on a track, such as a thread or asynchronous event
+// track. The track is specified using separate TrackDescriptor messages and
+// referred to via the track's UUID.
 //
 // This message is optimized for writing and makes heavy use of data interning
 // and delta encoding (e.g. of timestamps) to reduce data repetition and encoded
@@ -35,12 +36,11 @@ package perfetto.protos;
 // emitted by the same producer + writer) and refers to data in preceding
 // TracePackets emitted on the same sequence, both directly and indirectly. For
 // example, interned data entries are emitted as part of a TracePacket and
-// directly referred to from TrackEvents by their interning IDs. Attributes
-// shared by all events on the same sequence (e.g. their thread and process
-// association) are emitted as part of ProcessDescriptor and ThreadDescriptor
-// messages in separate TracePackets instead.
+// directly referred to from TrackEvents by their interning IDs. Default values
+// for attributes of events on the same sequence (e.g. their default track
+// association) can be emitted as part of a TrackEventDefaults message.
 //
-// Next reserved id: 11 (up to 15).
+// Next reserved id: 12 (up to 15).
 // Next id: 24.
 message TrackEvent {
   // Timestamp in microseconds (usually CLOCK_MONOTONIC).
@@ -132,6 +132,13 @@ message TrackEvent {
   }
   optional Type type = 9;
 
+  // Identifies the track of the event. The default value may be overridden
+  // using TrackEventDefaults, e.g., to specify the track of the TraceWriter's
+  // sequence (in most cases sequence = one thread). If no value is specified
+  // here or in TrackEventDefaults, the TrackEvent will be associated with an
+  // implicit trace-global track. See TrackDescriptor::uuid.
+  optional uint64 track_uuid = 11;
+
   // Unstable key/value annotations shown in the trace viewer but not intended
   // for metrics use.
   repeated DebugAnnotation debug_annotations = 4;
@@ -204,6 +211,16 @@ message TrackEvent {
   }
 
   optional LegacyEvent legacy_event = 6;
+}
+
+// Default values for fields of all TrackEvents on the same packet sequence.
+// Should be emitted as part of TracePacketDefaults whenever incremental state
+// is cleared. It's defined here because field IDs should match those of the
+// corresponding fields in TrackEvent.
+message TrackEventDefaults {
+  optional uint64 track_uuid = 10;
+
+  // TODO(eseckler): Support default values for more TrackEvent fields.
 }
 
 // --------------------
