@@ -25,15 +25,20 @@ package perfetto.protos;
 // Defines a track for TrackEvents. Slices and instant events on the same track
 // will be nested based on their timestamps, see TrackEvent::Type.
 //
-// A packet sequence needs to emit a TrackDescriptor for every track on which
-// it emits TrackEvents. TrackDescriptors should be reemitted whenever
-// incremental state is cleared.
+// A packet sequence needs to emit a TrackDescriptor for every track on which it
+// emits TrackEvents. TrackDescriptors should be reemitted whenever incremental
+// state is cleared.
+//
+// As a fallback, TrackEvents emitted without an explicit track association will
+// be associated with an implicit trace-global track (uuid = 0), see also
+// |TrackEvent::track_uuid|. It is possible but not necessary to emit a
+// TrackDescriptor for this implicit track.
 //
 // Next id: 1.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
-  // other producers.
+  // other producers. A value of 0 denotes the implicit trace-global track.
   //
   // For example, legacy TRACE_EVENT macros may use a hash involving the async
   // event id + id_scope, pid, and/or tid to compute this ID.
