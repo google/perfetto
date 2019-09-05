@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+import {fromNs} from '../common/time';
 
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
-
 import {Panel, PanelSize} from './panel';
 import {TRACK_SHELL_WIDTH} from './track_constants';
 
@@ -46,12 +46,24 @@ export class TickmarkPanel extends Panel {
       const rectStart =
           Math.max(timeScale.timeToPx(tStart), 0) + TRACK_SHELL_WIDTH;
       const rectEnd = timeScale.timeToPx(tEnd) + TRACK_SHELL_WIDTH;
-      ctx.fillStyle = '#6478f3';
+      ctx.fillStyle = '#ffe263';
       ctx.fillRect(
           Math.floor(rectStart),
           0,
           Math.ceil(rectEnd - rectStart),
           size.height);
     }
+    const index = globals.frontendLocalState.searchIndex;
+    const startSec = fromNs(globals.currentSearchResults.tsStarts[index]);
+    const triangleStart =
+        Math.max(timeScale.timeToPx(startSec), 0) + TRACK_SHELL_WIDTH;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.moveTo(triangleStart, size.height);
+    ctx.lineTo(triangleStart - 3, 0);
+    ctx.lineTo(triangleStart + 3, 0);
+    ctx.lineTo(triangleStart, size.height);
+    ctx.fill();
+    ctx.closePath();
   }
 }
