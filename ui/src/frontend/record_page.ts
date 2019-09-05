@@ -19,6 +19,7 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
+  AdbRecordingTarget,
   isAndroidTarget,
   isChromeTarget,
   isLinuxTarget,
@@ -582,34 +583,57 @@ function RecordHeader() {
       m('.top-part',
         m('.target-and-status',
           RecordingPlatformSelection(),
-          ConnectedDeviceLabel()),
+          RecordingStatusLabel(),
+          ErrorLabel()),
         recordingButtons()),
       RecordingNotes());
 }
 
 function RecordingPlatformSelection() {
-  if (globals.state.serialAndroidDeviceConnected ||
-      globals.state.recordingInProgress) {
-    return [];
-  }
+  if (globals.state.recordingInProgress) return [];
 
-  const onOsChange = (os: TargetOs) => {
-    const traceCfg = produce(globals.state.recordConfig, draft => {
-      draft.targetOS = os;
-    });
-    globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
-  };
+  const baseTargets = [
+    m('option', {value: 'Q'}, 'Android Q+'),
+    m('option', {value: 'P'}, 'Android P'),
+    m('option', {value: 'O'}, 'Android O-'),
+    m('option', {value: 'C'}, 'Chrome'),
+    m('option', {value: 'L'}, 'Linux desktop')
+  ];
+  const availableAndroidDevices = globals.state.availableDevices;
+  const selected = globals.state.androidDeviceConnected;
+  const choices: m.Children[] =
+      availableAndroidDevices.map(d => m('option', {value: d.serial}, d.name));
+
+  const selectedIndex = selected ? baseTargets.length +
+          availableAndroidDevices.findIndex(d => d.serial === selected.serial) :
+                                   undefined;
 
   return m(
-      'label',
-      'Target platform:',
-      m('select',
-        {onchange: m.withAttr('value', onOsChange)},
-        m('option', {value: 'Q'}, 'Android Q+'),
-        m('option', {value: 'P'}, 'Android P'),
-        m('option', {value: 'O'}, 'Android O-'),
-        m('option', {value: 'C'}, 'Chrome'),
-        m('option', {value: 'L'}, 'Linux desktop')));
+      '.target',
+      m(
+          'label',
+          'Target platform:',
+          m('select',
+            {onchange: m.withAttr('value', onTargetChange), selectedIndex},
+            ...baseTargets,
+            ...choices),
+          ),
+      m('.chip',
+        {onclick: addAndroidDevice},
+        m('button', 'Add Device'),
+        m('i.material-icons', 'add')));
+}
+
+// Target can be the targetOS or the android serial
+function onTargetChange(target: string) {
+  const adbDevice =
+      globals.state.availableDevices.find(d => d.serial === target);
+  globals.dispatch(Actions.setAndroidDevice({target: adbDevice}));
+
+  const traceCfg = produce(globals.state.recordConfig, draft => {
+    draft.targetOS = adbDevice ? adbDevice.os as TargetOs : target as TargetOs;
+  });
+  globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
 }
 
 function Instructions(cssClass: string) {
@@ -626,7 +650,7 @@ function BufferUsageProgressBar() {
 
   const bufferUsage = globals.bufferUsage ? globals.bufferUsage : 0.0;
   // Buffer usage is not available yet on Android.
-  if (bufferUsage === 0) return m('label', 'Recording in progress...');
+  if (bufferUsage === 0) return [];
 
   return m(
       'label',
@@ -741,16 +765,11 @@ function getRecordCommand(targetOs: TargetOs) {
 
 function recordingButtons() {
   const state = globals.state;
-  const deviceConnected = state.serialAndroidDeviceConnected !== undefined;
+  const realDeviceTarget = state.androidDeviceConnected !== undefined;
+  const recInProgress = state.recordingInProgress;
 
-  const connectAndroidButton =
-      m(`button${deviceConnected ? '.selected' : ''}`,
-        {onclick: connectAndroidDevice},
-        'Connect Device');
-  const disconnectAndroidButton =
-      m(`button`, {onclick: disconnectAndroidDevice}, 'Disconnect Device');
   const startButton =
-      m(`button${state.recordingInProgress ? '.selected' : ''}`,
+      m(`button${recInProgress ? '.selected' : ''}`,
         {onclick: onStartRecordingPressed},
         'Start Recording');
   const showCmdButton =
@@ -763,22 +782,17 @@ function recordingButtons() {
         },
         'Show Command');
   const stopButton =
-      m(`button${state.recordingInProgress ? '' : '.disabled'}`,
+      m(`button${recInProgress ? '' : '.disabled'}`,
         {onclick: () => globals.dispatch(Actions.stopRecording({}))},
         'Stop Recording');
 
-  const recInProgress = state.recordingInProgress;
   const buttons: m.Children = [];
 
   const targetOs = state.recordConfig.targetOS;
   if (isAndroidTarget(targetOs)) {
     buttons.push(showCmdButton);
-    if (deviceConnected) {
-      if (!recInProgress) buttons.push(disconnectAndroidButton);
-      buttons.push(startButton);
-    } else {
-      buttons.push(connectAndroidButton);
-    }
+    if (realDeviceTarget) buttons.push(startButton);
+    // TODO(nicomazz): Support stop recording on Android devices.
   } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
     buttons.push(startButton);
     if (recInProgress) buttons.push(stopButton);
@@ -799,12 +813,16 @@ function onStartRecordingPressed() {
   }
 }
 
-function ConnectedDeviceLabel() {
-  // TODO(nicomazz): Instead of the serial, show the name of the device. When a
-  // device is connected, the "select box" should disappear, until the
-  // disconnect button is pressed again.
-  const deviceInfo = globals.state.serialAndroidDeviceConnected;
-  return deviceInfo ? m('label', `Device connected:  ${deviceInfo}`) : [];
+function RecordingStatusLabel() {
+  const recordingStatus = globals.state.recordingStatus;
+  if (!recordingStatus) return [];
+  return m('label', recordingStatus);
+}
+
+function ErrorLabel() {
+  const lastRecordingError = globals.state.lastRecordingError;
+  if (!lastRecordingError) return [];
+  return m('label.error-label', `⚠️ Error:  ${lastRecordingError}`);
 }
 
 function recordingLog() {
@@ -816,18 +834,37 @@ function recordingLog() {
 // The connection must be done in the frontend. After it, the serial ID will
 // be inserted in the state, and the worker will be able to connect to the
 // correct device.
-async function connectAndroidDevice() {
+async function addAndroidDevice() {
   const device = await new AdbOverWebUsb().findDevice();
 
   if (!device.serialNumber) {
     console.error('serial number undefined');
     return;
   }
-  globals.dispatch(Actions.setAndroidDevice({serial: device.serialNumber}));
+  // After the user has selected a device with the chrome UI, it will be
+  // available when listing all the available device from WebUSB. Therefore,
+  // we update the list of available devices.
+  await updateAvailableAdbDevices();
+  onTargetChange(device.serialNumber);
 }
 
-async function disconnectAndroidDevice() {
-  globals.dispatch(Actions.setAndroidDevice({serial: undefined}));
+export async function updateAvailableAdbDevices() {
+  const devices = await new AdbOverWebUsb().getPairedDevices();
+
+  const availableAdbDevices: AdbRecordingTarget[] = [];
+  devices.forEach(d => {
+    if (d.productName && d.serialNumber) {
+      // TODO(nicomazz): At this stage, we can't know the OS version, so we
+      // assume it is 'Q'. This can create problems with devices with an old
+      // version of perfetto. The os detection should be done after the adb
+      // connection, from adb_record_controller
+      availableAdbDevices.push(
+          {name: d.productName, serial: d.serialNumber, os: 'Q'});
+    }
+  });
+
+  globals.dispatch(Actions.setAvailableDevices({devices: availableAdbDevices}));
+  return availableAdbDevices;
 }
 
 function recordMenu(routePage: string) {
