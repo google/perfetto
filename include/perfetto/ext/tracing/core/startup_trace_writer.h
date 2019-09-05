@@ -126,7 +126,8 @@ class PERFETTO_EXPORT StartupTraceWriter
   // to by the handle. The writer can later be bound by calling
   // BindToTraceWriter(). The registry handle may be nullptr in tests.
   StartupTraceWriter(std::shared_ptr<StartupTraceWriterRegistryHandle>,
-                     BufferExhaustedPolicy);
+                     BufferExhaustedPolicy,
+                     size_t max_buffer_size_bytes);
 
   StartupTraceWriter(const StartupTraceWriter&) = delete;
   StartupTraceWriter& operator=(const StartupTraceWriter&) = delete;
@@ -172,6 +173,10 @@ class PERFETTO_EXPORT StartupTraceWriter
 
   const BufferExhaustedPolicy buffer_exhausted_policy_ =
       BufferExhaustedPolicy::kDefault;
+  const size_t max_buffer_size_bytes_ = 0;
+
+  // Only accessed on the writer thread.
+  std::unique_ptr<TraceWriter> null_trace_writer_ = nullptr;
 
   // All variables below this point are protected by |lock_|.
   std::mutex lock_;

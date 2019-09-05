@@ -52,13 +52,17 @@ StartupTraceWriterRegistry::~StartupTraceWriterRegistry() {
   handle_->OnRegistryDestroyed();
 }
 
+// static
+constexpr size_t StartupTraceWriterRegistry::kDefaultMaxBufferSizeBytes;
+
 std::unique_ptr<StartupTraceWriter>
 StartupTraceWriterRegistry::CreateUnboundTraceWriter(
-    BufferExhaustedPolicy buffer_exhausted_policy) {
+    BufferExhaustedPolicy buffer_exhausted_policy,
+    size_t max_buffer_size_bytes) {
   std::lock_guard<std::mutex> lock(lock_);
   PERFETTO_DCHECK(!arbiter_);  // Should only be called while unbound.
-  std::unique_ptr<StartupTraceWriter> writer(
-      new StartupTraceWriter(handle_, buffer_exhausted_policy));
+  std::unique_ptr<StartupTraceWriter> writer(new StartupTraceWriter(
+      handle_, buffer_exhausted_policy, max_buffer_size_bytes));
   unbound_writers_.push_back(writer.get());
   return writer;
 }
