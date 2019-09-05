@@ -120,12 +120,21 @@ message ProfilePacket {
     //               to have a type enum that we can reuse here.
     optional uint64 timestamp = 9;
 
+    // Metadata about heapprofd.
     optional ProcessStats stats = 5;
 
     repeated HeapSample samples = 2;
   }
 
+  // If this is true, the next ProfilePacket in this package_sequence_id is a
+  // continuation of this one.
+  // To get all samples for a process, accummulate its
+  // ProcessHeapSamples.samples until you see continued=false.
   optional bool continued = 6;
+
+  // Index of this ProfilePacket on its package_sequence_id. Can be used
+  // to detect dropped data.
+  // Verify these are consecutive.
   optional uint64 index = 7;
 }
 
