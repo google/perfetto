@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_SYSTRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_SYSTRACE_PARSER_H_
 
+#include <ostream>
+
 #include "src/trace_processor/trace_processor_context.h"
 
 #include "perfetto/ext/base/string_view.h"
@@ -34,10 +36,36 @@ enum class SystraceParseResult { kFailure = 0, kUnsupported, kSuccess };
 struct SystraceTracePoint {
   SystraceTracePoint() {}
 
+  static SystraceTracePoint B(uint32_t tgid, base::StringView name) {
+    return SystraceTracePoint('B', tgid, std::move(name), 0);
+  }
+
+  static SystraceTracePoint E(uint32_t tgid) {
+    return SystraceTracePoint('E', tgid, {}, 0);
+  }
+
+  static SystraceTracePoint C(uint32_t tgid,
+                              base::StringView name,
+                              double value) {
+    return SystraceTracePoint('C', tgid, std::move(name), value);
+  }
+
+  static SystraceTracePoint S(uint32_t tgid,
+                              base::StringView name,
+                              double value) {
+    return SystraceTracePoint('S', tgid, std::move(name), value);
+  }
+
+  static SystraceTracePoint F(uint32_t tgid,
+                              base::StringView name,
+                              double value) {
+    return SystraceTracePoint('F', tgid, std::move(name), value);
+  }
+
   SystraceTracePoint(char p, uint32_t tg, base::StringView n, double v)
       : phase(p), tgid(tg), name(std::move(n)), value(v) {}
 
-  // Phase can be one of B, E or C.
+  // Phase can be one of B, E, C, S, F.
   char phase = '\0';
 
   uint32_t tgid = 0;
@@ -47,6 +75,14 @@ struct SystraceTracePoint {
 
   // For phase = 'C' only.
   double value = 0;
+
+  // Visible for unittesting.
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const SystraceTracePoint& point) {
+    return os << "SystraceTracePoint{'" << point.phase << "', " << point.tgid
+              << ", \"" << point.name.ToStdString() << "\", " << point.value
+              << "}";
+  }
 };
 
 // We have to handle trace_marker events of a few different types:
@@ -54,32 +90,35 @@ struct SystraceTracePoint {
 // 2. B|1636|pokeUserActivity
 // 3. E|1636
 // 4. C|1636|wq:monitor|0
+// 5. S|1636|frame_capture|123
+// 6. F|1636|frame_capture|456
 // Visible for unittesting.
 inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
                                                    SystraceTracePoint* out) {
   const char* s = str.data();
   size_t len = str.size();
+  *out = {};
 
   if (len < 2)
     return SystraceParseResult::kFailure;
 
-  // If str matches '[BEC]\|[0-9]+[\|\n]' set tgid_length to the length of
+  // If str matches '[BEC]\|[0-9]+[\|\n]?' set tgid_length to the length of
   // the number. Otherwise return kFailure.
   if (s[1] != '|' && s[1] != '\n')
     return SystraceParseResult::kFailure;
-  if (s[0] != 'B' && s[0] != 'E' && s[0] != 'C') {
-    // TODO: support android async slices
-    return s[0] == 'S' || s[0] == 'F' ? SystraceParseResult::kUnsupported
-                                      : SystraceParseResult::kFailure;
-  }
+
+  char ph = s[0];
+  if (ph != 'B' && ph != 'E' && ph != 'C' && ph != 'S' && ph != 'F')
+    return SystraceParseResult::kFailure;
+
   size_t tgid_length = 0;
   for (size_t i = 2; i < len; i++) {
     if (s[i] == '|' || s[i] == '\n') {
-      tgid_length = i - 2;
       break;
     }
     if (s[i] < '0' || s[i] > '9')
       return SystraceParseResult::kFailure;
+    tgid_length++;
   }
 
   if (tgid_length == 0) {
@@ -89,17 +128,21 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
     out->tgid = static_cast<uint32_t>(std::stoi(tgid_str.c_str()));
   }
 
-  out->phase = s[0];
-  switch (s[0]) {
+  out->phase = ph;
+  switch (ph) {
     case 'B': {
       size_t name_index = 2 + tgid_length + 1;
       out->name = base::StringView(
           s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
+      if (out->name.size() == 0)
+        return SystraceParseResult::kFailure;
       return SystraceParseResult::kSuccess;
     }
     case 'E': {
       return SystraceParseResult::kSuccess;
     }
+    case 'S':
+    case 'F':
     case 'C': {
       size_t name_index = 2 + tgid_length + 1;
       base::Optional<size_t> name_length;
