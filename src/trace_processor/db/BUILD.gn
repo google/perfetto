@@ -25,6 +25,7 @@ source_set("lib") {
     "sparse_vector.h",
     "table.cc",
     "table.h",
+    "typed_column.h",
   ]
   deps = [
     "../:common",
