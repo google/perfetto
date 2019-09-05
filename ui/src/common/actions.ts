@@ -18,6 +18,7 @@ import {assertExists} from '../base/logging';
 import {ConvertTrace} from '../controller/trace_converter';
 
 import {
+  AdbRecordingTarget,
   createEmptyState,
   LogsPagination,
   OmniboxState,
@@ -396,6 +397,7 @@ export const StateActions = {
 
   startRecording(state: StateDraft): void {
     state.recordingInProgress = true;
+    state.lastRecordingError = undefined;
   },
 
   stopRecording(state: StateDraft): void {
@@ -410,9 +412,15 @@ export const StateActions = {
     state.bufferUsage = args.percentage;
   },
 
-  setAndroidDevice(state: StateDraft, args: {serial: string|undefined}): void {
-    state.serialAndroidDeviceConnected = args.serial;
-  },
+  setAndroidDevice(state: StateDraft, args: {target?: AdbRecordingTarget}):
+      void {
+        state.androidDeviceConnected = args.target;
+      },
+
+  setAvailableDevices(state: StateDraft, args: {devices: AdbRecordingTarget[]}):
+      void {
+        state.availableDevices = args.devices;
+      },
 
   setOmnibox(state: StateDraft, args: OmniboxState): void {
     state.frontendLocalState.omniboxState = args;
@@ -424,6 +432,16 @@ export const StateActions = {
 
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {
     state.chromeCategories = args.categories;
+  },
+
+  setLastRecordingError(state: StateDraft, args: {error?: string}): void {
+    state.lastRecordingError = args.error;
+    state.recordingStatus = undefined;
+  },
+
+  setRecordingStatus(state: StateDraft, args: {status?: string}): void {
+    state.recordingStatus = args.status;
+    state.lastRecordingError = undefined;
   },
 };
 
