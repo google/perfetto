@@ -21,67 +21,110 @@ if [ "$TMPDIR" == "" ]; then
   TMPDIR=/tmp
 fi
 
-function is_monolithic {
+function get_gn_value() {
   local out=$1
-  gn args $out --list --short | grep 'monolithic_binaries = true' 2>&1 >/dev/null
-  return $?
+  local key=$2
+  gn args "$out" --list --short | sed -n -e "s/$key = \"\(.*\)\"/\1/p"
 }
 
-function is_android {
+function is_monolithic() {
   local out=$1
-  gn args $out --list --short | grep 'target_os = "android"' 2>&1 >/dev/null
-  return $?
+  value=$(get_gn_value "$out" "monolithic_binaries")
+  test "$value" == "true"
 }
 
-function is_mac {
+function is_android() {
+  local out=$1
+  value=$(get_gn_value "$out" "target_os")
+  test "$value" == "android"
+}
+
+function is_gn_target_and_host_value_equal() {
+  local out=$1
+  local key=$2
+  local host
+  local target
+  host=$(get_gn_value "$out" "host_$key")
+  target=$(get_gn_value "$out" "target_$key")
+  [ -z "$target" ] && target="$host"
+  test "$target" == "$host"
+}
+
+function is_cross_compilation() {
+  local out=$1
+  if is_gn_target_and_host_value_equal "$out" cpu &&
+    is_gn_target_and_host_value_equal "$out" os; then
+    false
+  else
+    true
+  fi
+}
+
+function is_mac() {
   ! test -d /proc
   return $?
 }
 
-function tmux_ensure_bash {
+function tmux_ensure_bash() {
   if [[ $SHELL == *"fish" ]]; then
     tmux send-keys "bash" Enter
   fi
 }
 
-function reset_tracing {
-  if is_android $OUT; then
+function reset_tracing() {
+  if is_android "$OUT"; then
     adb shell 'echo 0 > /d/tracing/tracing_on'
   elif ! is_mac; then
+    # shellcheck disable=SC2016
+    local script='
     if [ ! -w /sys/kernel/debug ]; then
       echo "debugfs not accessible, try sudo chown -R $USER /sys/kernel/debug"
-      sudo chown -R $USER /sys/kernel/debug
+      sudo chown -R "$USER" /sys/kernel/debug
     fi
 
     echo 0 > /sys/kernel/debug/tracing/tracing_on
+    '
+
+    if is_cross_compilation "$OUT"; then
+      # shellcheck disable=SC2029
+      ssh "$TARGET" "sh -c '$script'"
+    else
+      sh -c "$script"
+    fi
   fi
 }
 
-function adb_supports_push_sync {
-  adb --help 2>&1 | grep 'push.*\[--sync\]' 2>&1 >/dev/null
+function adb_supports_push_sync() {
+  adb --help 2>&1 | grep 'push.*\[--sync\]' >/dev/null 2>&1
 }
 
-function push {
-  if is_android $OUT; then
+function push() {
+  if is_android "$OUT"; then
     local maybe_sync=''
     if adb_supports_push_sync; then
-      maybe_sync='--sync '
+      maybe_sync='--sync'
     fi
-    echo adb push $maybe_sync $1 $DIR
-    adb push $maybe_sync $1 $DIR
+    echo adb push $maybe_sync "$1" "$DIR"
+    adb push $maybe_sync "$1" "$DIR"
+  elif is_cross_compilation "$OUT"; then
+    echo scp "$1" "$TARGET:$DIR"
+    scp "$1" "$TARGET:$DIR"
   else
-    echo cp $1 $DIR
-    cp $1 $DIR
+    echo cp "$1" "$DIR"
+    cp "$1" "$DIR"
   fi
 }
 
-function pull {
-  if is_android $OUT; then
-    echo adb pull $DIR/$1 $2
-    adb pull $DIR/$1 $2
+function pull() {
+  if is_android "$OUT"; then
+    echo adb pull "$DIR/$1" "$2"
+    adb pull "$DIR/$1" "$2"
+  elif is_cross_compilation "$OUT"; then
+    echo scp "$TARGET:$DIR/$1" "$2"
+    scp "$TARGET:$DIR/$1" "$2"
   else
-    echo mv $DIR/$1 $2
-    mv $DIR/$1 $2
+    echo mv "$DIR/$1" "$2"
+    mv "$DIR/$1" "$2"
   fi
 }
 
@@ -89,19 +132,57 @@ BACKGROUND=0
 SKIP_CONVERTERS=0
 TMUX_LAYOUT="even-vertical"
 
-while getopts "bl:n" o; do
+while getopts "bl:nt:c:C:" o; do
   case "$o" in
-    b) BACKGROUND=1;;
-    l) TMUX_LAYOUT=${OPTARG};;
-    n) SKIP_CONVERTERS=1;;
-    *) echo "Invalid option $o"; exit;;
+    b) BACKGROUND=1 ;;
+    l) TMUX_LAYOUT=${OPTARG} ;;
+    n) SKIP_CONVERTERS=1 ;;
+    t) TARGET=${OPTARG} ;;
+    c) CONFIG=${OPTARG} ;;
+    C) OUT=${OPTARG} ;;
+    *)
+      echo "Invalid option $o"
+      exit
+      ;;
   esac
 done
 
-# If not set guess the OUT dir using the latest directory.
+# Allow out to be passed as argument
+shift $((OPTIND - 1))
+OUT="${OUT:-$1}"
+
+# Warn about invalid output directories
+if [ -z "$OUT" ]; then
+  echo "Usage: $0 [OPTION]... [OUTPUT]"
+  echo ""
+  echo "Options:"
+  echo "  -b          run in the background"
+  echo "  -l          tmux pane layout"
+  echo "  -n          skip post-trace convertors"
+  echo "  -t TARGET   SSH device target"
+  echo "  -c CONFIG   trace configuration file"
+  echo "  -C OUTPUT   output directory"
+  echo ""
+  echo "Environment variables:"
+  echo "  TARGET      SSH device target"
+  echo "  CONFIG      trace configuration file"
+  echo "  OUTPUT      output directory"
+  exit 1
+fi
+
+# Warn about invalid output directories
 if [ ! -f "$OUT/args.gn" ]; then
   echo "OUT=$OUT doesn't look like an output directory."
-  echo "Please specify a directory by doing: export OUT=out/xxx"
+  echo "Please specify a directory by doing:"
+  echo "  export OUT=out/xxx $0"
+  exit 1
+fi
+
+# If we are cross-compiling we need to know the SSH target
+if is_cross_compilation "$OUT" && ! ssh -q "$TARGET" exit; then
+  echo "TARGET=$TARGET doesn't look like a valid SSH target."
+  echo "Please specify a SSH cross-compilation target by doing:"
+  echo "  export TARGET=<user>@<host> $0"
   exit 1
 fi
 
@@ -109,55 +190,57 @@ fi
 # CONFIG=ftrace.cfg or to :test. Defaults to :test.
 CONFIG="${CONFIG:-:test}"
 
-if is_android $OUT ; then
+if is_android "$OUT"; then
   DIR=/data/local/tmp
+elif is_cross_compilation "$OUT"; then
+  DIR=$(ssh "$TARGET" mktemp -d $TMPDIR/perfetto.XXXXXX)
 elif is_mac; then
   DIR=$(mktemp -d $TMPDIR/perfetto.XXXXXX)
 else
   DIR=$(mktemp -p $TMPDIR -d perfetto.XXXXXX)
 fi
 
-tools/ninja -C $OUT traced traced_probes perfetto trace_to_text test/configs
+tools/ninja -C "$OUT" traced traced_probes perfetto trace_to_text test/configs
 
-push $OUT/traced
-push $OUT/traced_probes
-push $OUT/perfetto
+push "$OUT/traced"
+push "$OUT/traced_probes"
+push "$OUT/perfetto"
 reset_tracing
 
-if is_android $OUT; then
+if is_android "$OUT"; then
   PREFIX="PERFETTO_CONSUMER_SOCK_NAME=@perfetto_test_consumer PERFETTO_PRODUCER_SOCK_NAME=@perfetto_test_producer"
 else
   PREFIX=""
 fi
 
-if ! is_monolithic $OUT; then
+if ! is_monolithic "$OUT"; then
   PREFIX="$PREFIX LD_LIBRARY_PATH=$DIR"
-  push $OUT/libperfetto.so
+  push "$OUT/libperfetto.so"
 fi
 
 CONFIG_DEVICE_PATH="$CONFIG"
 CMD_OPTS=""
 if [[ "$CONFIG" == *.protobuf ]]; then
   CONFIG_DEVICE_PATH="$CONFIG"
-  CONFIG_PATH=$OUT/$CONFIG;
+  CONFIG_PATH=$OUT/$CONFIG
   if [[ ! -f $CONFIG_PATH ]]; then
-    echo 'Config "'$CONFIG_PATH'" not known.'
+    echo "Config \"$CONFIG_PATH\" not known."
     exit 1
   fi
-  push $CONFIG_PATH
+  push "$CONFIG_PATH"
 elif [[ "$CONFIG" != ":test" ]]; then
-  CONFIG_DEVICE_PATH="$(basename $CONFIG)"
+  CONFIG_DEVICE_PATH="$(basename "$CONFIG")"
   CONFIG_PATH=test/configs/$CONFIG
   # Check if this is a valid absolute path
   if [[ ! -f $CONFIG_PATH ]]; then
     CONFIG_PATH=$CONFIG
     if [[ ! -f $CONFIG_PATH ]]; then
-      echo 'Config "'$CONFIG'" not known.'
+      echo "Config \"$CONFIG\" not known."
       exit 1
     fi
   fi
   CMD_OPTS="--txt $CMD_OPTS"
-  push $CONFIG_PATH
+  push "$CONFIG_PATH"
 fi
 
 POSTFIX=""
@@ -184,41 +267,50 @@ fi
 tmux split-window -v
 tmux split-window -v
 
-tmux select-layout ${TMUX_LAYOUT}
+tmux select-layout "${TMUX_LAYOUT}"
 
 tmux select-pane -t 0
 tmux send-keys "clear" C-m
-if is_android $OUT; then
+if is_android "$OUT"; then
   tmux send-keys "adb shell" C-m
 fi
 
 tmux select-pane -t 1
 tmux send-keys "clear" C-m
-if is_android $OUT; then
+if is_android "$OUT"; then
   tmux send-keys "adb shell" C-m
 fi
 
 tmux select-pane -t 2
 tmux send-keys "clear" C-m
-if is_android $OUT; then
+if is_android "$OUT"; then
   tmux send-keys "adb shell" C-m
 fi
 
 sleep 2
 
 tmux select-pane -t 1
+if is_cross_compilation "$OUT"; then
+  tmux send-keys "ssh $TARGET" Enter
+fi
 tmux_ensure_bash
 tmux send-keys "PS1='[traced]$ '" Enter
 tmux send-keys "cd $DIR" Enter
 tmux send-keys "$PREFIX ./traced 2>&1 | tee traced.log $POSTFIX" Enter
 
 tmux select-pane -t 0
+if is_cross_compilation "$OUT"; then
+  tmux send-keys "ssh $TARGET" Enter
+fi
 tmux_ensure_bash
 tmux send-keys "PS1='[traced_probes]$ '" Enter
 tmux send-keys "cd $DIR" Enter
 tmux send-keys "$PREFIX ./traced_probes 2>&1 | tee traced_probes.log $POSTFIX" Enter
 
 tmux select-pane -t 2
+if is_cross_compilation "$OUT"; then
+  tmux send-keys "ssh $TARGET" Enter
+fi
 tmux_ensure_bash
 tmux send-keys "PS1='[consumer]$ '" Enter
 tmux send-keys "cd $DIR" Enter
@@ -229,18 +321,19 @@ tmux select-pane -t 2
 
 tmux -2 attach-session -t demo
 if [[ BACKGROUND -eq 1 ]]; then
-  exit 0;
+  exit 0
 fi
 
 reset_tracing
 
 TRACE=$HOME/Downloads/trace
-pull trace /tmp/trace.protobuf
+echo -e "\n\x1b[32mPulling trace into $TRACE.protobuf\x1b[0m"
+pull trace "$TRACE.protobuf"
 
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
   echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-  $OUT/trace_to_text text < /tmp/trace.protobuf > $TRACE.pbtext
+  "$OUT/trace_to_text" text <"$TRACE.protobuf" >"$TRACE.pbtext"
   echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
-  $OUT/trace_to_text systrace < /tmp/trace.protobuf > $TRACE.json
+  "$OUT/trace_to_text" systrace <"$TRACE.protobuf" >"$TRACE.json"
   # Keep this last so it can fail.
 fi
