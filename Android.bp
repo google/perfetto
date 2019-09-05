@@ -3445,6 +3445,7 @@ genrule {
     "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
+    "protos/perfetto/trace/track_event/track_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
   ],
   tools: [
@@ -3458,6 +3459,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/track_event/source_location.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pb.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/track_descriptor.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pb.cc",
   ],
 }
@@ -3472,6 +3474,7 @@ genrule {
     "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
+    "protos/perfetto/trace/track_event/track_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
   ],
   tools: [
@@ -3485,6 +3488,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/track_event/source_location.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pb.h",
+    "external/perfetto/protos/perfetto/trace/track_event/track_descriptor.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pb.h",
   ],
   export_include_dirs: [
@@ -3503,6 +3507,7 @@ genrule {
     "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
+    "protos/perfetto/trace/track_event/track_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
   ],
   tools: [
@@ -3517,6 +3522,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/track_descriptor.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pbzero.cc",
   ],
 }
@@ -3531,6 +3537,7 @@ genrule {
     "protos/perfetto/trace/track_event/source_location.proto",
     "protos/perfetto/trace/track_event/task_execution.proto",
     "protos/perfetto/trace/track_event/thread_descriptor.proto",
+    "protos/perfetto/trace/track_event/track_descriptor.proto",
     "protos/perfetto/trace/track_event/track_event.proto",
   ],
   tools: [
@@ -3545,6 +3552,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/track_event/source_location.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/task_execution.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/thread_descriptor.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/track_event/track_descriptor.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/track_event.pbzero.h",
   ],
   export_include_dirs: [

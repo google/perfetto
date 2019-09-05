@@ -1,0 +1,51 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+import "protos/perfetto/trace/track_event/process_descriptor.proto";
+import "protos/perfetto/trace/track_event/thread_descriptor.proto";
+
+package perfetto.protos;
+
+// Defines a track for TrackEvents. Slices and instant events on the same track
+// will be nested based on their timestamps, see TrackEvent::Type.
+//
+// A packet sequence needs to emit a TrackDescriptor for every track on which
+// it emits TrackEvents. TrackDescriptors should be reemitted whenever
+// incremental state is cleared.
+//
+// Next id: 1.
+message TrackDescriptor {
+  // Unique ID that identifies this track. This ID is global to the whole trace.
+  // Producers should ensure that it is unlikely to clash with IDs emitted by
+  // other producers.
+  //
+  // For example, legacy TRACE_EVENT macros may use a hash involving the async
+  // event id + id_scope, pid, and/or tid to compute this ID.
+  optional uint64 uuid = 1;
+
+  // TODO(eseckler): Support track hierarchies.
+  // uint64 parent_uuid = X;
+
+  // Name of the track.
+  optional string name = 2;
+
+  // Optional arguments for specific types of tracks.
+  optional ProcessDescriptor process = 3;
+  optional ThreadDescriptor thread = 4;
+}
