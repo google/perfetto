@@ -112,34 +112,9 @@ class Column {
     return Column("id", ColumnType::kId, table, col_idx, row_map_idx);
   }
 
-  // Gets the value of the Column at the given |row|
-  SqlValue Get(uint32_t row) const {
-    auto idx = row_map().Get(row);
-    switch (type_) {
-      case ColumnType::kUint32: {
-        auto opt_value = data_.uint32_sv->Get(idx);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kInt64: {
-        auto opt_value = data_.int64_sv->Get(idx);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kString: {
-        auto opt_id = data_.string_sv->Get(idx);
-        // We DCHECK here because although we are using SparseVector, the null
-        // info is handled by the StringPool rather than by the SparseVector.
-        // The value returned by the SparseVector should always be non-null.
-        // TODO(lalitm): investigate removing this check if/when we support
-        // std::deque<StringId>.
-        PERFETTO_DCHECK(opt_id.has_value());
-        auto str = string_pool_->Get(*opt_id).c_str();
-        return str == nullptr ? SqlValue() : SqlValue::String(str);
-      }
-      case ColumnType::kId:
-        return SqlValue::Long(idx);
-    }
-    PERFETTO_FATAL("For GCC");
-  }
+  // Gets the value of the Column at the given |row|.
+  // See the bottom of this header for the definition of this function.
+  SqlValue Get(uint32_t row) const;
 
   // Returns the row containing the given value in the Column.
   base::Optional<uint32_t> IndexOf(SqlValue value) const {
@@ -202,9 +177,7 @@ class Column {
     PERFETTO_FATAL("For GCC");
   }
 
- private:
-  friend class Table;
-
+ protected:
   enum ColumnType {
     // Standard primitive types.
     kUint32,
@@ -215,20 +188,13 @@ class Column {
     kId,
   };
 
-  Column(const char* name,
-         ColumnType type,
-         Table* table,
-         uint32_t col_idx,
-         uint32_t row_map_idx);
+  // See the bottom of this header file for the explicit instantiations of these
+  // function.
+  template <typename T>
+  base::Optional<T> GetTyped(uint32_t row) const;
+  NullTermStringView GetString(uint32_t row) const;
 
-  Column(const Column&) = delete;
-  Column& operator=(const Column&) = delete;
-
-  const char* name_ = nullptr;
-  const Table* table_ = nullptr;
   const StringPool* string_pool_ = nullptr;
-  uint32_t col_idx_ = 0;
-  uint32_t row_map_idx_ = 0;
 
   ColumnType type_ = ColumnType::kInt64;
   union {
@@ -241,7 +207,81 @@ class Column {
     // Valid when |type_| == ColumnType::kString.
     const SparseVector<StringPool::Id>* string_sv;
   } data_;
+
+ private:
+  friend class Table;
+
+  Column(const char* name,
+         ColumnType type,
+         Table* table,
+         uint32_t col_idx,
+         uint32_t row_map_idx);
+
+  Column(const Column&) = delete;
+  Column& operator=(const Column&) = delete;
+
+  const char* name_ = nullptr;
+  const Table* table_ = nullptr;
+  uint32_t col_idx_ = 0;
+  uint32_t row_map_idx_ = 0;
 };
+
+// The below Get* functions need to be defined out of line as GCC does not
+// allow explicit specialisation inside a class scope.
+template <>
+inline base::Optional<uint32_t> Column::GetTyped<uint32_t>(uint32_t row) const {
+  PERFETTO_DCHECK(type_ == ColumnType::kUint32);
+  auto idx = row_map().Get(row);
+  return data_.uint32_sv->Get(idx);
+}
+
+template <>
+inline base::Optional<int64_t> Column::GetTyped<int64_t>(uint32_t row) const {
+  PERFETTO_DCHECK(type_ == ColumnType::kInt64);
+  auto idx = row_map().Get(row);
+  return data_.int64_sv->Get(idx);
+}
+
+template <>
+inline base::Optional<StringPool::Id> Column::GetTyped<StringPool::Id>(
+    uint32_t row) const {
+  PERFETTO_DCHECK(type_ == ColumnType::kString);
+  auto idx = row_map().Get(row);
+  return data_.string_sv->Get(idx);
+}
+
+inline NullTermStringView Column::GetString(uint32_t row) const {
+  auto opt_id = GetTyped<StringPool::Id>(row);
+  // We DCHECK here because although we are using SparseVector, the null
+  // info is handled by the StringPool rather than by the SparseVector.
+  // The value returned by the SparseVector should always be non-null.
+  // TODO(lalitm): investigate removing this check if/when we support
+  // std::deque<StringId>.
+  PERFETTO_DCHECK(opt_id.has_value());
+  return string_pool_->Get(*opt_id);
+}
+
+// This function needs to be defined out of line as it relies on the explicit
+// specialisations defined above (which are themselves out of line).
+inline SqlValue Column::Get(uint32_t row) const {
+  switch (type_) {
+    case ColumnType::kUint32: {
+      auto opt_value = GetTyped<uint32_t>(row);
+      return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+    }
+    case ColumnType::kInt64: {
+      auto opt_value = GetTyped<int64_t>(row);
+      return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+    }
+    case ColumnType::kString: {
+      auto str = GetString(row).c_str();
+      return str == nullptr ? SqlValue() : SqlValue::String(str);
+    }
+    case ColumnType::kId:
+      return SqlValue::Long(row_map().Get(row));
+  }
+  PERFETTO_FATAL("For GCC");
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto
