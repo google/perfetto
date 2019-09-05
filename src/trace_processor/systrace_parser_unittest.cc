@@ -20,37 +20,58 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace systrace_utils {
+namespace {
+
+using Result = SystraceParseResult;
 
 TEST(SystraceParserTest, SystraceEvent) {
-  systrace_utils::SystraceTracePoint result{};
+  SystraceTracePoint result{};
+  ASSERT_EQ(ParseSystraceTracePoint("", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("abcdef", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("  ", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("|", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("||", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("|||", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("\n", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("|\n", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("||\n", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("||\n", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("E", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("B", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("C", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("S", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("F", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("B|42|\n", &result), Result::kFailure);
 
-  ASSERT_EQ(ParseSystraceTracePoint(base::StringView(""), &result),
-            systrace_utils::SystraceParseResult::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("B|1|foo", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::B(1, "foo"));
 
-  ASSERT_EQ(ParseSystraceTracePoint(base::StringView("B|1|foo"), &result),
-            systrace_utils::SystraceParseResult::kSuccess);
-  EXPECT_EQ(result, (systrace_utils::SystraceTracePoint(
-                        'B', 1, base::StringView("foo"), 0)));
+  ASSERT_EQ(ParseSystraceTracePoint("B|42|Bar\n", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::B(42, "Bar"));
 
-  ASSERT_EQ(systrace_utils::ParseSystraceTracePoint(
-                base::StringView("B|42|Bar"), &result),
-            systrace_utils::SystraceParseResult::kSuccess);
-  EXPECT_EQ(result, (systrace_utils::SystraceTracePoint(
-                        'B', 42, base::StringView("Bar"), 0)));
+  ASSERT_EQ(ParseSystraceTracePoint("E|42\n", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::E(42));
 
-  ASSERT_EQ(systrace_utils::ParseSystraceTracePoint(
-                base::StringView("C|543|foo|"), &result),
-            systrace_utils::SystraceParseResult::kFailure);
-  ASSERT_EQ(systrace_utils::ParseSystraceTracePoint(
-                base::StringView("C|543|foo|8"), &result),
-            systrace_utils::SystraceParseResult::kSuccess);
-  EXPECT_EQ(result, (systrace_utils::SystraceTracePoint(
-                        'C', 543, base::StringView("foo"), 8)));
+  ASSERT_EQ(ParseSystraceTracePoint("E|42", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::E(42));
 
-  ASSERT_EQ(
-      systrace_utils::ParseSystraceTracePoint(base::StringView("S|"), &result),
-      systrace_utils::SystraceParseResult::kUnsupported);
+  ASSERT_EQ(ParseSystraceTracePoint("C|543|foo|", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("C|543|foo|8", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::C(543, "foo", 8));
+
+  ASSERT_EQ(ParseSystraceTracePoint("S|", &result), Result::kFailure);
+
+  ASSERT_EQ(ParseSystraceTracePoint("S|123|foo|456", &result),
+            Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::S(123, "foo", 456));
+
+  ASSERT_EQ(ParseSystraceTracePoint("F|123|foo|456", &result),
+            Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::F(123, "foo", 456));
 }
 
+}  // namespace
+}  // namespace systrace_utils
 }  // namespace trace_processor
 }  // namespace perfetto
