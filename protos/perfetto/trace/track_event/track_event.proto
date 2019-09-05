@@ -136,7 +136,7 @@ message TrackEvent {
   // using TrackEventDefaults, e.g., to specify the track of the TraceWriter's
   // sequence (in most cases sequence = one thread). If no value is specified
   // here or in TrackEventDefaults, the TrackEvent will be associated with an
-  // implicit trace-global track. See TrackDescriptor::uuid.
+  // implicit trace-global track (uuid 0). See TrackDescriptor::uuid.
   optional uint64 track_uuid = 11;
 
   // Unstable key/value annotations shown in the trace viewer but not intended

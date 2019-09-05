@@ -3567,7 +3567,7 @@ message TracePacketDefaults {
   optional uint32 timestamp_clock_id = 58;
 
   // Default values for TrackEvents (e.g. default track).
-  optional TrackEventDefaults track_event = 11;
+  optional TrackEventDefaults track_event_defaults = 11;
 }
 // End of protos/perfetto/trace/trace_packet_defaults.proto
 
@@ -3762,15 +3762,20 @@ message ThreadDescriptor {
 // Defines a track for TrackEvents. Slices and instant events on the same track
 // will be nested based on their timestamps, see TrackEvent::Type.
 //
-// A packet sequence needs to emit a TrackDescriptor for every track on which
-// it emits TrackEvents. TrackDescriptors should be reemitted whenever
-// incremental state is cleared.
+// A packet sequence needs to emit a TrackDescriptor for every track on which it
+// emits TrackEvents. TrackDescriptors should be reemitted whenever incremental
+// state is cleared.
+//
+// As a fallback, TrackEvents emitted without an explicit track association will
+// be associated with an implicit trace-global track (uuid = 0), see also
+// |TrackEvent::track_uuid|. It is possible but not necessary to emit a
+// TrackDescriptor for this implicit track.
 //
 // Next id: 1.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
-  // other producers.
+  // other producers. A value of 0 denotes the implicit trace-global track.
   //
   // For example, legacy TRACE_EVENT macros may use a hash involving the async
   // event id + id_scope, pid, and/or tid to compute this ID.
@@ -3904,7 +3909,7 @@ message TrackEvent {
   // using TrackEventDefaults, e.g., to specify the track of the TraceWriter's
   // sequence (in most cases sequence = one thread). If no value is specified
   // here or in TrackEventDefaults, the TrackEvent will be associated with an
-  // implicit trace-global track. See TrackDescriptor::uuid.
+  // implicit trace-global track (uuid 0). See TrackDescriptor::uuid.
   optional uint64 track_uuid = 11;
 
   // Unstable key/value annotations shown in the trace viewer but not intended
