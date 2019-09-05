@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import {Adb, AdbStream} from './adb_interfaces';
-
 import {ConsumerPortResponse, ReadBuffersResponse} from './consumer_port_types';
 import {globals} from './globals';
-import {uint8ArrayToBase64} from './record_controller';
+import {RecordControllerMessage, uint8ArrayToBase64} from './record_controller';
 
 enum AdbState {
   READY,
@@ -31,7 +30,8 @@ export class AdbRecordController {
   private state = AdbState.READY;
   private adb: Adb;
   private device: USBDevice|undefined = undefined;
-  private mainControllerCallback: (_: {data: ConsumerPortResponse}) => void;
+  private mainControllerCallback:
+      (_: {data: ConsumerPortResponse|RecordControllerMessage}) => void;
 
   constructor(adb: Adb, mainControllerCallback: (_: {
                           data: ConsumerPortResponse
@@ -40,12 +40,17 @@ export class AdbRecordController {
     this.adb = adb;
   }
 
-  sendMessage(message: ConsumerPortResponse) {
+  sendMessage(message: ConsumerPortResponse|RecordControllerMessage) {
     this.mainControllerCallback({data: message});
   }
 
-  sendErrorMessage(msg: string) {
-    console.error('Error in adb record controller: ', msg);
+  sendErrorMessage(message: string) {
+    console.error('Error in adb record controller: ', message);
+    this.sendMessage({type: 'RecordControllerError', message});
+  }
+
+  sendStatus(status: string) {
+    this.sendMessage({type: 'RecordControllerStatus', status});
   }
 
   handleCommand(method: string, params: Uint8Array) {
@@ -81,12 +86,14 @@ export class AdbRecordController {
         this.sendErrorMessage('No device found');
         return;
       }
-
+      this.sendStatus(
+          'Check the screen of your device and allow USB debugging.');
       await this.adb.connect(this.device);
       await this.startRecording(configProto);
+      this.sendStatus('Recording in progress...');
 
     } catch (e) {
-      this.sendErrorMessage(`Error in enableTracing: ${e.name} ${e.message}`);
+      this.sendErrorMessage(e.message);
     }
   }
 
@@ -98,7 +105,7 @@ export class AdbRecordController {
     recordShell.onData = (str, _) => response += str;
     recordShell.onClose = () => {
       if (!this.tracingEndedSuccessfully(response)) {
-        this.sendErrorMessage(`Error in enableTracing, output: ${response}`);
+        this.sendErrorMessage(response);
         this.state = AdbState.READY;
         return;
       }
@@ -107,14 +114,14 @@ export class AdbRecordController {
   }
 
   tracingEndedSuccessfully(response: string): boolean {
-    return response.includes('starting tracing') &&
-        !response.includes(' 0 ms') && response.includes('Wrote ');
+    return !response.includes(' 0 ms') && response.includes('Wrote ');
   }
 
   async findDevice() {
-    const targetSerial = globals.state.serialAndroidDeviceConnected;
+    const deviceConnected = globals.state.androidDeviceConnected;
+    if (!deviceConnected) return undefined;
     const devices = await navigator.usb.getDevices();
-    return devices.find(d => d.serialNumber === targetSerial);
+    return devices.find(d => d.serialNumber === deviceConnected.serial);
   }
 
   async readBuffers() {

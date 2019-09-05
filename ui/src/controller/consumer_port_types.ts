@@ -14,7 +14,7 @@
 
 import {perfetto} from '../gen/protos';
 
-interface Typed {
+export interface Typed {
   type: string;
 }
 

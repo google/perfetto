@@ -45,11 +45,31 @@ import {
   isEnableTracingResponse,
   isGetTraceStatsResponse,
   isReadBuffersResponse,
+  Typed,
 } from './consumer_port_types';
 import {Controller} from './controller';
 import {App, globals} from './globals';
 
 type RPCImplMethod = (Method|rpc.ServiceMethod<Message<{}>, Message<{}>>);
+
+export interface RecordControllerError extends Typed {
+  message: string;
+}
+
+export interface RecordControllerStatus extends Typed {
+  status: string;
+}
+
+export type RecordControllerMessage =
+    RecordControllerError|RecordControllerStatus;
+
+function isError(obj: Typed): obj is RecordControllerError {
+  return obj.type === 'RecordControllerError';
+}
+
+function isStatus(obj: Typed): obj is RecordControllerStatus {
+  return obj.type === 'RecordControllerStatus';
+}
 
 export function uint8ArrayToBase64(buffer: Uint8Array): string {
   return btoa(String.fromCharCode.apply(null, Array.from(buffer)));
@@ -490,10 +510,11 @@ export class RecordController extends Controller<'main'> {
     this.consumerPort.readBuffers({});
   }
 
-  onConsumerPortMessage({data}: {data: ConsumerPortResponse}) {
+  onConsumerPortMessage({data}: {
+    data: ConsumerPortResponse|RecordControllerMessage
+  }) {
     if (data === undefined) return;
 
-    // TODO(nicomazz): Add error handling.
     if (isReadBuffersResponse(data)) {
       if (!data.slices) return;
       this.traceBuffer += data.slices[0].data;
@@ -506,11 +527,16 @@ export class RecordController extends Controller<'main'> {
       if (percentage) {
         globals.publish('BufferUsage', {percentage});
       }
+    } else if (isError(data)) {
+      this.handleError(data.message);
+    } else if (isStatus(data)) {
+      this.handleStatus(data.status);
     }
   }
 
   openTraceInUI() {
     this.consumerPort.freeBuffers({});
+    globals.dispatch(Actions.setRecordingStatus({status: undefined}));
     const trace = ungzip(this.stringToArrayBuffer(this.traceBuffer));
     globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
     this.traceBuffer = '';
@@ -535,6 +561,16 @@ export class RecordController extends Controller<'main'> {
     }
     if (total === 0.0) return 0;
     return used / total;
+  }
+
+  handleError(message: string) {
+    globals.dispatch(
+        Actions.setLastRecordingError({error: message.substr(0, 150)}));
+    globals.dispatch(Actions.stopRecording({}));
+  }
+
+  handleStatus(message: string) {
+    globals.dispatch(Actions.setRecordingStatus({status: message}));
   }
 
   // Depending on the recording target, different implementation of the
