@@ -1802,6 +1802,7 @@ proto_library(
         "perfetto/trace/track_event/source_location.proto",
         "perfetto/trace/track_event/task_execution.proto",
         "perfetto/trace/track_event/thread_descriptor.proto",
+        "perfetto/trace/track_event/track_descriptor.proto",
         "perfetto/trace/track_event/track_event.proto",
     ],
     has_services = 1,
@@ -1844,6 +1845,7 @@ proto_library(
         "perfetto/trace/track_event/source_location.proto",
         "perfetto/trace/track_event/task_execution.proto",
         "perfetto/trace/track_event/thread_descriptor.proto",
+        "perfetto/trace/track_event/track_descriptor.proto",
         "perfetto/trace/track_event/track_event.proto",
     ],
 )
