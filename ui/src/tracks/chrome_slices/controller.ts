@@ -46,7 +46,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
           `order by ts;`);
 
       await this.query(`create virtual table ${this.tableName('span')} using
-      span_join(${this.tableName('small')},
+      span_join(${this.tableName('small')} PARTITIONED depth,
       ${this.tableName('window')});`);
 
       this.setup = true;
@@ -81,15 +81,18 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         `and dur >= ${minNs} ` +
         `order by ts `);
 
+    // So that busy slices never overlap, we use the start of the bucket
+    // as the ts, even though min(ts) would technically be more accurate.
     await this.query(`create view ${this.tableName('summary')} as select
-      min(ts) as ts,
+      (quantum_ts * ${minNs} + ${startNs}) as ts,
       ${minNs} as dur,
       depth,
       cat,
       'Busy' as name,
       -1 as slice_id
       from ${this.tableName('span')}
-      group by cat, depth, quantum_ts;`);
+      group by cat, depth, quantum_ts
+      order by ts;`);
 
     const query = `select * from ${this.tableName('summary')} UNION ` +
         `select * from ${this.tableName('big')} order by ts limit ${LIMIT}`;
