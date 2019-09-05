@@ -185,6 +185,12 @@ class Globals {
     return Math.pow(2, Math.floor(Math.log2(resolution)));
   }
 
+  makeSelection(action: DeferredAction<{}>) {
+    // A new selection should cancel the current search selection.
+    globals.frontendLocalState.searchIndex = -1;
+    globals.dispatch(action);
+  }
+
   resetForTesting() {
     this._dispatch = undefined;
     this._state = undefined;

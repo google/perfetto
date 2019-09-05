@@ -60,6 +60,6 @@ function selectSliceSpan() {
   }
 
   if (startTs !== -1 && endTs !== -1) {
-    globals.dispatch(Actions.selectTimeSpan({startTs, endTs}));
+    globals.makeSelection(Actions.selectTimeSpan({startTs, endTs}));
   }
 }
