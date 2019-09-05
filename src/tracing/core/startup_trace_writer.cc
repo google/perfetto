@@ -24,6 +24,7 @@
 #include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
@@ -352,9 +353,11 @@ class LocalBufferCommitter {
 
 StartupTraceWriter::StartupTraceWriter(
     std::shared_ptr<StartupTraceWriterRegistryHandle> registry_handle,
-    BufferExhaustedPolicy buffer_exhausted_policy)
+    BufferExhaustedPolicy buffer_exhausted_policy,
+    size_t max_buffer_size_bytes)
     : registry_handle_(std::move(registry_handle)),
       buffer_exhausted_policy_(buffer_exhausted_policy),
+      max_buffer_size_bytes_(max_buffer_size_bytes),
       memory_buffer_(new protozero::ScatteredHeapBuffer()),
       memory_stream_writer_(
           new protozero::ScatteredStreamWriter(memory_buffer_.get())),
@@ -472,6 +475,28 @@ TraceWriter::TracePacketHandle StartupTraceWriter::NewTracePacket() {
       lock.unlock();
       return trace_writer_->NewTracePacket();
     }
+
+    // Check if we already exceeded the maximum size of the local buffer, and if
+    // so, write into nowhere.
+    if (null_trace_writer_ ||
+        memory_buffer_->GetTotalSize() >= max_buffer_size_bytes_) {
+      if (!null_trace_writer_) {
+        null_trace_writer_.reset(new NullTraceWriter());
+
+        // Write a packet that marks data loss.
+        std::unique_ptr<protos::pbzero::TracePacket> packet(
+            new protos::pbzero::TracePacket());
+        packet->Reset(memory_stream_writer_.get());
+        {
+          TraceWriter::TracePacketHandle handle(packet.get());
+          handle->set_previous_packet_dropped(true);
+        }
+        uint32_t packet_size = packet->Finalize();
+        packet_sizes_->push_back(packet_size);
+      }
+      return null_trace_writer_->NewTracePacket();
+    }
+
     // Not bound. Make sure it stays this way until the TracePacketHandle goes
     // out of scope by setting |write_in_progress_|.
     PERFETTO_DCHECK(!write_in_progress_);
@@ -486,6 +511,7 @@ TraceWriter::TracePacketHandle StartupTraceWriter::NewTracePacket() {
   } else {
     cur_packet_.reset(new protos::pbzero::TracePacket());
   }
+
   cur_packet_->Reset(memory_stream_writer_.get());
   TraceWriter::TracePacketHandle handle(cur_packet_.get());
   // |this| outlives the packet handle.
