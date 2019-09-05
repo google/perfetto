@@ -40,12 +40,12 @@ class MacroTable : public Table {
  public:
   MacroTable(const StringPool* pool, Table* parent)
       : Table(pool, parent), parent_(parent) {
+    row_maps_.emplace_back(BitVector());
     if (!parent) {
       columns_.emplace_back(
           Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
                            static_cast<uint32_t>(row_maps_.size()) - 1));
     }
-    row_maps_.emplace_back(BitVector());
   }
 
  protected:
