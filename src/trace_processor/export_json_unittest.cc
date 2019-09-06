@@ -967,6 +967,67 @@ TEST(ExportJsonTest, LegacyRawEvents) {
   EXPECT_EQ(result["systemTraceEvents"].asString(), kLegacyFtraceData);
 }
 
+TEST(ExportJsonTest, CpuProfileEvent) {
+  const int64_t kProcessID = 100;
+  const int64_t kThreadID = 200;
+  const int64_t kTimestamp = 10000000;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  TraceStorage* storage = context.storage.get();
+
+  UniquePid upid = storage->AddEmptyProcess(kProcessID);
+  UniqueTid utid = storage->AddEmptyThread(kThreadID);
+  storage->GetMutableThread(utid)->upid = upid;
+
+  RowId module_row_id_1 = storage->mutable_stack_profile_mappings()->Insert(
+      {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
+       storage->InternString("foo_module_name")});
+
+  RowId module_row_id_2 = storage->mutable_stack_profile_mappings()->Insert(
+      {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
+       storage->InternString("bar_module_name")});
+
+  RowId frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
+      {storage->InternString("foo_func"), module_row_id_1, 0x42});
+
+  RowId frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
+      {storage->InternString("bar_func"), module_row_id_2, 0x4242});
+
+  RowId frame_callsite_id_1 =
+      storage->mutable_stack_profile_callsites()->Insert(
+          {0, -1, frame_row_id_1});
+
+  RowId frame_callsite_id_2 =
+      storage->mutable_stack_profile_callsites()->Insert(
+          {1, frame_callsite_id_1, frame_row_id_2});
+
+  storage->mutable_cpu_profile_stack_samples()->Insert(
+      {kTimestamp, frame_callsite_id_2, utid});
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), "I");
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["cat"].asString(), "disabled_by_default-cpu_profiler");
+  EXPECT_EQ(event["name"].asString(), "StackCpuSampling");
+  EXPECT_EQ(event["scope"].asString(), "t");
+  EXPECT_EQ(event["args"]["frames"].asString(),
+            "foo_func - foo_module_name [foo_module_id]\nbar_func - "
+            "bar_module_name [bar_module_id]\n");
+}
+
 }  // namespace
 }  // namespace json
 }  // namespace trace_processor
