@@ -305,10 +305,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   TrackTable::RegisterTable(*db_, context_.storage.get());
 
   // New style db-backed tables.
-  DbSqliteTable::RegisterTable(*db_, &context_.storage->gpu_slice_table(),
-                               "gpu_slice");
-  DbSqliteTable::RegisterTable(*db_, &context_.storage->gpu_track_table(),
-                               "gpu_track");
+  const TraceStorage* storage = context_.storage.get();
+  DbSqliteTable::RegisterTable(*db_, &storage->gpu_slice_table(),
+                               storage->gpu_slice_table().name());
+  DbSqliteTable::RegisterTable(*db_, &storage->gpu_track_table(),
+                               storage->gpu_track_table().name());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {
