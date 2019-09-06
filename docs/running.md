@@ -3,17 +3,17 @@
 In order to run Perfetto and get a meaningful trace you need to build
 (see [build instructions](build-instructions.md)) and run the following:
 
-`traced`:  
+`traced`:
 The unprivileged trace daemon that owns the log buffers and maintains
 a registry of Producers and Consumers connected.
 
-`traced_probes`:  
+`traced_probes`:
 The privileged daemon that has access to the Kernel tracefs
 (typically mounted under `/sys/kernel/debug/tracing`). It drives
 [Ftrace](https://source.android.com/devices/tech/debug/ftrace) and writes its
 protobuf-translated contents into `traced`.
 
-`perfetto`:  
+`perfetto`:
 A command line utility client that drive the trace and save back
 the results (either to a file or to [Android's Dropbox][dropbox])
 
@@ -29,10 +29,10 @@ The script will automatically serialize the trace config defined in the
 `CONFIG` variable (e.g., [this](https://android.googlesource.com/platform/external/perfetto/+/master/test/configs/ftrace.cfg)) into a protobuf and setup the right paths.
 Furthermore it will automatically rebuild if necessary.
 
-When doing a Linux cross-build it is possible to specify a target to run the
-daemons on via SSH:
+It is possible to push binaries to, and run on, a remote target over ssh (even
+when cross-compiling):
 ```bash
-CONFIG=ftrace.cfg OUT=out/default TARGET=user@my-device-host ./tools/tmux
+CONFIG=ftrace.cfg OUT=out/default SSH_TARGET=user@my-device-host ./tools/tmux
 ```
 
 Running from an Android P+ in-tree build
