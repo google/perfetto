@@ -39,8 +39,8 @@ class RootParentTable : public Table {
 // code size.
 class MacroTable : public Table {
  public:
-  MacroTable(const StringPool* pool, Table* parent)
-      : Table(pool, parent), parent_(parent) {
+  MacroTable(const char* name, const StringPool* pool, Table* parent)
+      : Table(pool, parent), name_(name), parent_(parent) {
     row_maps_.emplace_back(BitVector());
     if (!parent) {
       columns_.emplace_back(
@@ -48,6 +48,8 @@ class MacroTable : public Table {
                            static_cast<uint32_t>(row_maps_.size()) - 1));
     }
   }
+
+  const char* name() const { return name_; }
 
  protected:
   void UpdateRowMapsAfterParentInsert() {
@@ -65,6 +67,7 @@ class MacroTable : public Table {
   }
 
  private:
+  const char* name_ = nullptr;
   Table* parent_ = nullptr;
 };
 
@@ -74,9 +77,14 @@ class MacroTable : public Table {
 #define PERFETTO_TP_NOOP(...)
 
 // Gets the class name from a table definition.
-#define PERFETTO_TP_EXTRACT_TABLE_CLASS(class_name) class_name
+#define PERFETTO_TP_EXTRACT_TABLE_CLASS(class_name, ...) class_name
 #define PERFETTO_TP_TABLE_CLASS(DEF) \
   DEF(PERFETTO_TP_EXTRACT_TABLE_CLASS, PERFETTO_TP_NOOP, PERFETTO_TP_NOOP)
+
+// Gets the table name from the table definition.
+#define PERFETTO_TP_EXTRACT_TABLE_NAME(_, table_name) table_name
+#define PERFETTO_TP_TABLE_NAME(DEF) \
+  DEF(PERFETTO_TP_EXTRACT_TABLE_NAME, PERFETTO_TP_NOOP, PERFETTO_TP_NOOP)
 
 // Gets the parent definition from a table definition.
 #define PERFETTO_TP_EXTRACT_PARENT_DEF(PARENT_DEF, _) PARENT_DEF
@@ -133,14 +141,16 @@ class MacroTable : public Table {
 
 // Definition used as the parent of root tables.
 #define PERFETTO_TP_ROOT_TABLE_PARENT_DEF(NAME, PARENT, C) \
-  NAME(macros_internal::RootParentTable)
+  NAME(macros_internal::RootParentTable, "root")
 
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
-#define PERFETTO_TP_TABLE_INTERNAL(class_name, parent_class_name, DEF)        \
+#define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
+                                   DEF)                                       \
   class class_name : public macros_internal::MacroTable {                     \
    public:                                                                    \
     class_name(const StringPool* pool, parent_class_name* parent)             \
-        : macros_internal::MacroTable(pool, parent), parent_(parent) {        \
+        : macros_internal::MacroTable(table_name, pool, parent),              \
+          parent_(parent) {                                                   \
       /* Expands to                                                           \
        * columns_.emplace_back("col1", col1_, this, columns_.size(),          \
        *                       row_maps_.size() - 1);                         \
