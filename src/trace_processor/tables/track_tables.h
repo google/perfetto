@@ -25,7 +25,7 @@ namespace trace_processor {
 namespace tables {
 
 #define PERFETTO_TP_GPU_TRACKS_DEF(NAME, PARENT, C) \
-  NAME(GpuTrackTable)                               \
+  NAME(GpuTrackTable, "gpu_track")                  \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                 \
   C(uint32_t, track_id)                             \
   C(StringPool::Id, scope)                          \
