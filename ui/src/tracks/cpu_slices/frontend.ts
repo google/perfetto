@@ -307,9 +307,8 @@ class CpuSliceTrack extends Track<Config, Data> {
     const index = search(data.starts, time);
     const id = index === -1 ? undefined : data.ids[index];
     if (id && this.utidHoveredInThisTrack !== -1) {
-      globals.frontendLocalState.searchIndex = -1;
-      globals.dispatch(Actions.selectSlice(
-        {utid: this.utidHoveredInThisTrack, id}));
+      globals.makeSelection(
+          Actions.selectSlice({utid: this.utidHoveredInThisTrack, id}));
       return true;
     }
     return false;
