@@ -24,7 +24,7 @@ namespace trace_processor {
 namespace tables {
 
 #define PERFETTO_TP_GPU_SLICES_DEF(NAME, PARENT, C) \
-  NAME(GpuSliceTable)                               \
+  NAME(GpuSliceTable, "gpu_slice")                  \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                 \
   C(uint32_t, slice_id)                             \
   C(base::Optional<int64_t>, context_id)            \
