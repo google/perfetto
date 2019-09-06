@@ -39,25 +39,8 @@ function is_android() {
   test "$value" == "android"
 }
 
-function is_gn_target_and_host_value_equal() {
-  local out=$1
-  local key=$2
-  local host
-  local target
-  host=$(get_gn_value "$out" "host_$key")
-  target=$(get_gn_value "$out" "target_$key")
-  [ -z "$target" ] && target="$host"
-  test "$target" == "$host"
-}
-
-function is_cross_compilation() {
-  local out=$1
-  if is_gn_target_and_host_value_equal "$out" cpu &&
-    is_gn_target_and_host_value_equal "$out" os; then
-    false
-  else
-    true
-  fi
+function is_ssh_target() {
+  [[ -n "$SSH_TARGET" ]];
 }
 
 function is_mac() {
@@ -85,9 +68,9 @@ function reset_tracing() {
     echo 0 > /sys/kernel/debug/tracing/tracing_on
     '
 
-    if is_cross_compilation "$OUT"; then
+    if is_ssh_target; then
       # shellcheck disable=SC2029
-      ssh "$TARGET" "sh -c '$script'"
+      ssh "$SSH_TARGET" "sh -c '$script'"
     else
       sh -c "$script"
     fi
@@ -106,9 +89,9 @@ function push() {
     fi
     echo adb push $maybe_sync "$1" "$DIR"
     adb push $maybe_sync "$1" "$DIR"
-  elif is_cross_compilation "$OUT"; then
-    echo scp "$1" "$TARGET:$DIR"
-    scp "$1" "$TARGET:$DIR"
+  elif is_ssh_target; then
+    echo scp "$1" "$SSH_TARGET:$DIR"
+    scp "$1" "$SSH_TARGET:$DIR"
   else
     echo cp "$1" "$DIR"
     cp "$1" "$DIR"
@@ -119,9 +102,9 @@ function pull() {
   if is_android "$OUT"; then
     echo adb pull "$DIR/$1" "$2"
     adb pull "$DIR/$1" "$2"
-  elif is_cross_compilation "$OUT"; then
-    echo scp "$TARGET:$DIR/$1" "$2"
-    scp "$TARGET:$DIR/$1" "$2"
+  elif is_ssh_target; then
+    echo scp "$SSH_TARGET:$DIR/$1" "$2"
+    scp "$SSH_TARGET:$DIR/$1" "$2"
   else
     echo mv "$DIR/$1" "$2"
     mv "$DIR/$1" "$2"
@@ -131,15 +114,17 @@ function pull() {
 BACKGROUND=0
 SKIP_CONVERTERS=0
 TMUX_LAYOUT="even-vertical"
+CPU_MASK=""
 
-while getopts "bl:nt:c:C:" o; do
+while getopts "bl:nt:c:C:z:" o; do
   case "$o" in
     b) BACKGROUND=1 ;;
     l) TMUX_LAYOUT=${OPTARG} ;;
     n) SKIP_CONVERTERS=1 ;;
-    t) TARGET=${OPTARG} ;;
+    t) SSH_TARGET=${OPTARG} ;;
     c) CONFIG=${OPTARG} ;;
     C) OUT=${OPTARG} ;;
+    z) CPU_MASK=${OPTARG} ;;
     *)
       echo "Invalid option $o"
       exit
@@ -157,16 +142,17 @@ if [ -z "$OUT" ]; then
   echo ""
   echo "Options:"
   echo "  -b          run in the background"
-  echo "  -l          tmux pane layout"
+  echo "  -l LAYOUT   tmux pane layout"
   echo "  -n          skip post-trace convertors"
   echo "  -t TARGET   SSH device target"
   echo "  -c CONFIG   trace configuration file"
   echo "  -C OUTPUT   output directory"
+  echo "  -z MASK     constrain binaries to given cpu mask (taskset syntax)"
   echo ""
   echo "Environment variables:"
-  echo "  TARGET      SSH device target"
+  echo "  SSH_TARGET  SSH device target"
   echo "  CONFIG      trace configuration file"
-  echo "  OUTPUT      output directory"
+  echo "  OUT         output directory"
   exit 1
 fi
 
@@ -179,10 +165,10 @@ if [ ! -f "$OUT/args.gn" ]; then
 fi
 
 # If we are cross-compiling we need to know the SSH target
-if is_cross_compilation "$OUT" && ! ssh -q "$TARGET" exit; then
-  echo "TARGET=$TARGET doesn't look like a valid SSH target."
+if is_ssh_target && ! ssh -q "$SSH_TARGET" exit; then
+  echo "SSH_TARGET=$SSH_TARGET doesn't look like a valid SSH target."
   echo "Please specify a SSH cross-compilation target by doing:"
-  echo "  export TARGET=<user>@<host> $0"
+  echo "  export SSH_TARGET=<user>@<host> $0"
   exit 1
 fi
 
@@ -192,8 +178,8 @@ CONFIG="${CONFIG:-:test}"
 
 if is_android "$OUT"; then
   DIR=/data/local/tmp
-elif is_cross_compilation "$OUT"; then
-  DIR=$(ssh "$TARGET" mktemp -d $TMPDIR/perfetto.XXXXXX)
+elif is_ssh_target; then
+  DIR=$(ssh "$SSH_TARGET" mktemp -d $TMPDIR/perfetto.XXXXXX)
 elif is_mac; then
   DIR=$(mktemp -d $TMPDIR/perfetto.XXXXXX)
 else
@@ -245,6 +231,10 @@ fi
 
 POSTFIX=""
 
+if [[ -n "$CPU_MASK" ]]; then
+  PREFIX="$PREFIX taskset $CPU_MASK"
+fi
+
 if [[ BACKGROUND -eq 1 ]]; then
   PREFIX="$PREFIX nohup"
   POSTFIX=" &> /dev/null &"
@@ -290,31 +280,31 @@ fi
 sleep 2
 
 tmux select-pane -t 1
-if is_cross_compilation "$OUT"; then
-  tmux send-keys "ssh $TARGET" Enter
+if is_ssh_target; then
+  tmux send-keys "ssh $SSH_TARGET" Enter
 fi
 tmux_ensure_bash
 tmux send-keys "PS1='[traced]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX ./traced 2>&1 | tee traced.log $POSTFIX" Enter
+tmux send-keys "$PREFIX ./traced $POSTFIX" Enter
 
 tmux select-pane -t 0
-if is_cross_compilation "$OUT"; then
-  tmux send-keys "ssh $TARGET" Enter
+if is_ssh_target; then
+  tmux send-keys "ssh $SSH_TARGET" Enter
 fi
 tmux_ensure_bash
 tmux send-keys "PS1='[traced_probes]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX ./traced_probes 2>&1 | tee traced_probes.log $POSTFIX" Enter
+tmux send-keys "$PREFIX ./traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
-if is_cross_compilation "$OUT"; then
-  tmux send-keys "ssh $TARGET" Enter
+if is_ssh_target; then
+  tmux send-keys "ssh $SSH_TARGET" Enter
 fi
 tmux_ensure_bash
 tmux send-keys "PS1='[consumer]$ '" Enter
 tmux send-keys "cd $DIR" Enter
-tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace 2>&1 | tee perfetto.log $POSTFIX"
+tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace $POSTFIX"
 
 # Select consumer pane.
 tmux select-pane -t 2
