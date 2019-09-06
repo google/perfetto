@@ -20,6 +20,7 @@
 #include <json/writer.h>
 #include <stdio.h>
 #include <cstring>
+#include <vector>
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "src/trace_processor/export_json.h"
@@ -599,6 +600,76 @@ ResultCode ExportRawEvents(const TraceStorage* storage,
   return kResultOk;
 }
 
+ResultCode ExportCpuProfileSamples(const TraceStorage* storage,
+                                   TraceFormatWriter* writer) {
+  const TraceStorage::CpuProfileStackSamples& samples =
+      storage->cpu_profile_stack_samples();
+  for (uint32_t i = 0; i < samples.size(); ++i) {
+    Json::Value event;
+    event["ts"] = Json::Int64(samples.timestamps()[i] / 1000);
+
+    UniqueTid utid = static_cast<UniqueTid>(samples.utids()[i]);
+    auto thread = storage->GetThread(utid);
+    event["tid"] = thread.tid;
+    if (thread.upid)
+      event["pid"] = storage->GetProcess(*thread.upid).pid;
+
+    event["ph"] = "I";
+    event["cat"] = "disabled_by_default-cpu_profiler";
+    event["name"] = "StackCpuSampling";
+    event["scope"] = "t";
+
+    std::vector<std::string> callstack;
+    const TraceStorage::StackProfileCallsites& callsites =
+        storage->stack_profile_callsites();
+    int64_t maybe_callsite_id = samples.callsite_ids()[i];
+    PERFETTO_DCHECK(maybe_callsite_id >= 0 &&
+                    maybe_callsite_id < callsites.size());
+    while (maybe_callsite_id >= 0) {
+      size_t callsite_id = static_cast<size_t>(maybe_callsite_id);
+
+      const TraceStorage::StackProfileFrames& frames =
+          storage->stack_profile_frames();
+      PERFETTO_DCHECK(callsites.frame_ids()[callsite_id] >= 0 &&
+                      callsites.frame_ids()[callsite_id] < frames.size());
+      size_t frame_id = static_cast<size_t>(callsites.frame_ids()[callsite_id]);
+
+      const TraceStorage::StackProfileMappings& mappings =
+          storage->stack_profile_mappings();
+      PERFETTO_DCHECK(frames.mappings()[frame_id] >= 0 &&
+                      frames.mappings()[frame_id] < mappings.size());
+      size_t mapping_id = static_cast<size_t>(frames.mappings()[frame_id]);
+
+      NullTermStringView symbol_name =
+          storage->GetString(frames.names()[frame_id]);
+
+      char frame_entry[1024];
+      snprintf(
+          frame_entry, sizeof(frame_entry), "%s - %s [%s]\n",
+          (symbol_name.empty()
+               ? PrintUint64(static_cast<uint64_t>(frames.rel_pcs()[frame_id]))
+                     .c_str()
+               : symbol_name.c_str()),
+          storage->GetString(mappings.names()[mapping_id]).c_str(),
+          storage->GetString(mappings.build_ids()[mapping_id]).c_str());
+
+      callstack.emplace_back(frame_entry);
+
+      maybe_callsite_id = callsites.parent_callsite_ids()[callsite_id];
+    }
+
+    std::string merged_callstack;
+    for (auto entry = callstack.rbegin(); entry != callstack.rend(); ++entry) {
+      merged_callstack += *entry;
+    }
+
+    event["args"]["frames"] = merged_callstack;
+    writer->WriteCommonEvent(event);
+  }
+
+  return kResultOk;
+}
+
 ResultCode ExportMetadata(const TraceStorage* storage,
                           TraceFormatWriter* writer) {
   const auto& trace_metadata = storage->metadata();
@@ -755,6 +826,10 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
     return code;
 
   code = ExportRawEvents(storage, args_builder, &writer);
+  if (code != kResultOk)
+    return code;
+
+  code = ExportCpuProfileSamples(storage, &writer);
   if (code != kResultOk)
     return code;
 
