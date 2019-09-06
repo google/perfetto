@@ -8,7 +8,7 @@ cc_test {
   static_libs: [
     "libgmock",
     "libprotobuf-cpp-lite",
-    "perfetto_src_tracing_ipc",
+    "libperfetto_client_experimental",
     "perfetto_trace_protos",
   ],
   shared_libs: [

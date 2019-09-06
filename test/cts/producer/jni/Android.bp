@@ -7,7 +7,7 @@ cc_library_shared {
     "libgtest",
     "libprotobuf-cpp-lite",
     "perfetto_cts_jni_deps",
-    "perfetto_src_tracing_ipc",
+    "libperfetto_client_experimental",
   ],
   shared_libs: [
     "libandroid",
