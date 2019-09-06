@@ -306,8 +306,8 @@ class HeapTracker {
 
   struct Allocation {
     Allocation(uint64_t size, uint64_t seq, CallstackAllocations* csa)
-        : total_size(size), sequence_number(seq), callstack_allocations(csa) {
-      callstack_allocations->allocs++;
+        : total_size(size), sequence_number(seq) {
+      SetCallstackAllocations(csa);
     }
 
     Allocation() = default;
@@ -315,28 +315,39 @@ class HeapTracker {
     Allocation(Allocation&& other) noexcept {
       total_size = other.total_size;
       sequence_number = other.sequence_number;
-      callstack_allocations = other.callstack_allocations;
-      other.callstack_allocations = nullptr;
+      callstack_allocations_ = other.callstack_allocations_;
+      other.callstack_allocations_ = nullptr;
     }
 
     void AddToCallstackAllocations() {
-      callstack_allocations->allocation_count++;
-      callstack_allocations->allocated += total_size;
+      callstack_allocations_->allocation_count++;
+      callstack_allocations_->allocated += total_size;
     }
 
     void SubtractFromCallstackAllocations() {
-      callstack_allocations->free_count++;
-      callstack_allocations->freed += total_size;
+      callstack_allocations_->free_count++;
+      callstack_allocations_->freed += total_size;
     }
 
-    ~Allocation() {
-      if (callstack_allocations)
-        callstack_allocations->allocs--;
+    ~Allocation() { SetCallstackAllocations(nullptr); }
+
+    void SetCallstackAllocations(CallstackAllocations* callstack_allocations) {
+      if (callstack_allocations_)
+        callstack_allocations_->allocs--;
+      callstack_allocations_ = callstack_allocations;
+      if (callstack_allocations_)
+        callstack_allocations_->allocs++;
+    }
+
+    CallstackAllocations* callstack_allocations() const {
+      return callstack_allocations_;
     }
 
     uint64_t total_size;
     uint64_t sequence_number;
-    CallstackAllocations* callstack_allocations;
+
+   private:
+    CallstackAllocations* callstack_allocations_ = nullptr;
   };
 
   struct PendingOperation {
