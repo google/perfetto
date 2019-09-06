@@ -173,7 +173,7 @@ export class NotesPanel extends Panel {
         if (note.isMovie) {
           globals.frontendLocalState.setVidTimestamp(note.timestamp);
         }
-        globals.dispatch(Actions.selectNote({id: note.id}));
+        globals.makeSelection(Actions.selectNote({id: note.id}));
         return;
       }
     }
