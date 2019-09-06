@@ -160,8 +160,11 @@ TEST(BookkeepingTest, ArbitraryOrder) {
   std::vector<FrameData> s = stack();
   std::vector<FrameData> s2 = stack2();
 
+  enum OperationType { kAlloc, kFree, kDump };
+
   struct Operation {
     uint64_t sequence_number;
+    OperationType type;
     uint64_t address;
     uint64_t bytes;                       // 0 for free
     const std::vector<FrameData>* stack;  // nullptr for free
@@ -171,13 +174,14 @@ TEST(BookkeepingTest, ArbitraryOrder) {
       return sequence_number < other.sequence_number;
     }
   } operations[] = {
-      {1, 1, 5, &s},       //
-      {2, 1, 10, &s2},     //
-      {3, 1, 0, nullptr},  //
-      {4, 2, 0, nullptr},  //
-      {5, 3, 0, nullptr},  //
-      {6, 3, 2, &s},       //
-      {7, 4, 3, &s2},      //
+      {1, kAlloc, 1, 5, &s},      //
+      {2, kAlloc, 1, 10, &s2},    //
+      {3, kFree, 1, 0, nullptr},  //
+      {4, kFree, 2, 0, nullptr},  //
+      {5, kFree, 3, 0, nullptr},  //
+      {6, kAlloc, 3, 2, &s},      //
+      {7, kAlloc, 4, 3, &s2},     //
+      {0, kDump, 0, 0, nullptr},  //
   };
 
   uint64_t s_size = 2;
@@ -190,13 +194,16 @@ TEST(BookkeepingTest, ArbitraryOrder) {
     for (auto it = std::begin(operations); it != std::end(operations); ++it) {
       const Operation& operation = *it;
 
-      if (operation.bytes == 0) {
+      if (operation.type == OperationType::kFree) {
         hd.RecordFree(operation.address, operation.sequence_number,
                       100 * operation.sequence_number);
-      } else {
+      } else if (operation.type == OperationType::kAlloc) {
         hd.RecordMalloc(*operation.stack, operation.address, operation.bytes,
                         operation.bytes, operation.sequence_number,
                         100 * operation.sequence_number);
+      } else {
+        hd.GetCallstackAllocations(
+            [](const HeapTracker::CallstackAllocations&) {});
       }
     }
     ASSERT_EQ(hd.GetSizeForTesting(s), s_size);
