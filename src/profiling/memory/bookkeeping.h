@@ -290,7 +290,7 @@ class HeapTracker {
     for (const auto& addr_and_allocation : allocations_) {
       const Allocation& alloc = addr_and_allocation.second;
       fn(addr_and_allocation.first, alloc.sample_size, alloc.alloc_size,
-         alloc.callstack_allocations->node->id());
+         alloc.callstack_allocations()->node->id());
     }
   }
 
@@ -313,11 +313,8 @@ class HeapTracker {
                uint64_t asize,
                uint64_t seq,
                CallstackAllocations* csa)
-        : sample_size(size),
-          alloc_size(asize),
-          sequence_number(seq),
-          callstack_allocations(csa) {
-      callstack_allocations->allocs++;
+        : sample_size(size), alloc_size(asize), sequence_number(seq) {
+      SetCallstackAllocations(csa);
     }
 
     Allocation() = default;
@@ -326,19 +323,30 @@ class HeapTracker {
       sample_size = other.sample_size;
       alloc_size = other.alloc_size;
       sequence_number = other.sequence_number;
-      callstack_allocations = other.callstack_allocations;
-      other.callstack_allocations = nullptr;
+      callstack_allocations_ = other.callstack_allocations_;
+      other.callstack_allocations_ = nullptr;
     }
 
-    ~Allocation() {
-      if (callstack_allocations)
-        callstack_allocations->allocs--;
+    ~Allocation() { SetCallstackAllocations(nullptr); }
+
+    void SetCallstackAllocations(CallstackAllocations* callstack_allocations) {
+      if (callstack_allocations_)
+        callstack_allocations_->allocs--;
+      callstack_allocations_ = callstack_allocations;
+      if (callstack_allocations_)
+        callstack_allocations_->allocs++;
+    }
+
+    CallstackAllocations* callstack_allocations() const {
+      return callstack_allocations_;
     }
 
     uint64_t sample_size;
     uint64_t alloc_size;
     uint64_t sequence_number;
-    CallstackAllocations* callstack_allocations;
+
+   private:
+    CallstackAllocations* callstack_allocations_ = nullptr;
   };
 
   struct PendingOperation {
@@ -374,19 +382,19 @@ class HeapTracker {
                        const PendingOperation& operation);
 
   void AddToCallstackAllocations(uint64_t ts, const Allocation& alloc) {
-    alloc.callstack_allocations->allocation_count++;
+    alloc.callstack_allocations()->allocation_count++;
     if (dump_at_max_mode_) {
       current_unfreed_ += alloc.sample_size;
-      alloc.callstack_allocations->value.retain_max.cur += alloc.sample_size;
+      alloc.callstack_allocations()->value.retain_max.cur += alloc.sample_size;
 
       if (current_unfreed_ <= max_unfreed_)
         return;
 
       if (max_sequence_number_ == alloc.sequence_number - 1) {
-        alloc.callstack_allocations->value.retain_max.max =
+        alloc.callstack_allocations()->value.retain_max.max =
             // We know the only CallstackAllocation that has max != cur is the
             // one we just updated.
-            alloc.callstack_allocations->value.retain_max.cur;
+            alloc.callstack_allocations()->value.retain_max.cur;
       } else {
         for (auto& p : callstack_allocations_) {
           // We need to reset max = cur for every CallstackAllocation, as we
@@ -400,17 +408,18 @@ class HeapTracker {
       max_unfreed_ = current_unfreed_;
       max_timestamp_ = ts;
     } else {
-      alloc.callstack_allocations->value.totals.allocated += alloc.sample_size;
+      alloc.callstack_allocations()->value.totals.allocated +=
+          alloc.sample_size;
     }
   }
 
   void SubtractFromCallstackAllocations(const Allocation& alloc) {
-    alloc.callstack_allocations->free_count++;
+    alloc.callstack_allocations()->free_count++;
     if (dump_at_max_mode_) {
       current_unfreed_ -= alloc.sample_size;
-      alloc.callstack_allocations->value.retain_max.cur -= alloc.sample_size;
+      alloc.callstack_allocations()->value.retain_max.cur -= alloc.sample_size;
     } else {
-      alloc.callstack_allocations->value.totals.freed += alloc.sample_size;
+      alloc.callstack_allocations()->value.totals.freed += alloc.sample_size;
     }
   }
 

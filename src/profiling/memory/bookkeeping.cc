@@ -58,7 +58,7 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
       alloc.sample_size = sample_size;
       alloc.alloc_size = alloc_size;
       alloc.sequence_number = sequence_number;
-      alloc.callstack_allocations = MaybeCreateCallstackAllocations(node);
+      alloc.SetCallstackAllocations(MaybeCreateCallstackAllocations(node));
     }
   } else {
     GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
