@@ -23,26 +23,37 @@ namespace trace_processor {
 namespace {
 
 #define PERFETTO_TP_TEST_EVENT_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestEventTable)                                    \
+  NAME(TestEventTable, "event")                           \
   PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
   C(int64_t, ts)                                          \
   C(int64_t, arg_set_id)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 
 #define PERFETTO_TP_TEST_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestSliceTable)                                    \
+  NAME(TestSliceTable, "slice")                           \
   PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)             \
   C(base::Optional<int64_t>, dur)                         \
   C(int64_t, depth)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
 
 #define PERFETTO_TP_TEST_CPU_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestCpuSliceTable)                                     \
+  NAME(TestCpuSliceTable, "cpu_slice")                        \
   PARENT(PERFETTO_TP_TEST_SLICE_TABLE_DEF, C)                 \
   C(int64_t, cpu)                                             \
   C(int64_t, priority)                                        \
   C(StringPool::Id, end_state)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_CPU_SLICE_TABLE_DEF);
+
+TEST(TableMacrosUnittest, Name) {
+  StringPool pool;
+  TestEventTable event(&pool, nullptr);
+  TestSliceTable slice(&pool, &event);
+  TestCpuSliceTable cpu_slice(&pool, &slice);
+
+  ASSERT_EQ(event.name(), "event");
+  ASSERT_EQ(slice.name(), "slice");
+  ASSERT_EQ(cpu_slice.name(), "cpu_slice");
+}
 
 TEST(TableMacrosUnittest, InsertParent) {
   StringPool pool;
