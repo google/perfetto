@@ -52,24 +52,35 @@ std::vector<FrameData> stack2() {
   return res;
 }
 
+TEST(BookkeepingTest, EmptyStack) {
+  uint64_t sequence_number = 1;
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c, false);
+
+  hd.RecordMalloc({}, 0x1, 5, 5, sequence_number, 100 * sequence_number);
+  sequence_number++;
+  hd.RecordFree(0x1, sequence_number, 100 * sequence_number);
+  hd.GetCallstackAllocations([](const HeapTracker::CallstackAllocations&) {});
+}
+
 TEST(BookkeepingTest, Basic) {
   uint64_t sequence_number = 1;
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 2, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), 0x2, 2, 2, sequence_number, 100 * sequence_number);
   sequence_number++;
   ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
   ASSERT_EQ(hd.GetSizeForTesting(stack2()), 2u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
-  hd.RecordFree(2, sequence_number, 100 * sequence_number);
+  hd.RecordFree(0x2, sequence_number, 100 * sequence_number);
   sequence_number++;
   ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
   ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
-  hd.RecordFree(1, sequence_number, 100 * sequence_number);
+  hd.RecordFree(0x1, sequence_number, 100 * sequence_number);
   sequence_number++;
   ASSERT_EQ(hd.GetSizeForTesting(stack()), 0u);
   ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0u);
@@ -81,13 +92,13 @@ TEST(BookkeepingTest, Max) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, true);
 
-  hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 2, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), 0x2, 2, 2, sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordFree(2, sequence_number, 100 * sequence_number);
+  hd.RecordFree(0x2, sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordFree(1, sequence_number, 100 * sequence_number);
+  hd.RecordFree(0x1, sequence_number, 100 * sequence_number);
   sequence_number++;
   ASSERT_EQ(hd.max_timestamp(), 200u);
   ASSERT_EQ(hd.GetMaxForTesting(stack()), 5u);
@@ -101,8 +112,9 @@ TEST(BookkeepingTest, TwoHeapTrackers) {
   {
     HeapTracker hd2(&c, false);
 
-    hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
-    hd2.RecordMalloc(stack(), 2, 2, 2, sequence_number, 100 * sequence_number);
+    hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
+    hd2.RecordMalloc(stack(), 0x2, 2, 2, sequence_number,
+                     100 * sequence_number);
     sequence_number++;
     ASSERT_EQ(hd2.GetSizeForTesting(stack()), 2u);
     ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
@@ -116,9 +128,9 @@ TEST(BookkeepingTest, ReplaceAlloc) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 1, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), 0x1, 2, 2, sequence_number, 100 * sequence_number);
   sequence_number++;
   EXPECT_EQ(hd.GetSizeForTesting(stack()), 0u);
   EXPECT_EQ(hd.GetSizeForTesting(stack2()), 2u);
@@ -129,8 +141,8 @@ TEST(BookkeepingTest, OutOfOrder) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 1, 5, 5, 2, 2);
-  hd.RecordMalloc(stack2(), 1, 2, 2, 1, 1);
+  hd.RecordMalloc(stack(), 0x1, 5, 5, 2, 2);
+  hd.RecordMalloc(stack2(), 0x1, 2, 2, 1, 1);
   EXPECT_EQ(hd.GetSizeForTesting(stack()), 5u);
   EXPECT_EQ(hd.GetSizeForTesting(stack2()), 0u);
 }
@@ -174,14 +186,14 @@ TEST(BookkeepingTest, ArbitraryOrder) {
       return sequence_number < other.sequence_number;
     }
   } operations[] = {
-      {1, kAlloc, 1, 5, &s},      //
-      {2, kAlloc, 1, 10, &s2},    //
-      {3, kFree, 1, 0, nullptr},  //
-      {4, kFree, 2, 0, nullptr},  //
-      {5, kFree, 3, 0, nullptr},  //
-      {6, kAlloc, 3, 2, &s},      //
-      {7, kAlloc, 4, 3, &s2},     //
-      {0, kDump, 0, 0, nullptr},  //
+      {1, kAlloc, 0x1, 5, &s},       //
+      {2, kAlloc, 0x1, 10, &s2},     //
+      {3, kFree, 0x01, 0, nullptr},  //
+      {4, kFree, 0x02, 0, nullptr},  //
+      {5, kFree, 0x03, 0, nullptr},  //
+      {6, kAlloc, 0x3, 2, &s},       //
+      {7, kAlloc, 0x4, 3, &s2},      //
+      {0, kDump, 0x00, 0, nullptr},  //
   };
 
   uint64_t s_size = 2;
