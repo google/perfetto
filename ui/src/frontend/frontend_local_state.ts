@@ -163,8 +163,10 @@ export class FrontendLocalState {
   mergeState(state: FrontendState): void {
     this._omniboxState = chooseLastest(this._omniboxState, state.omniboxState);
     this._visibleState = chooseLastest(this._visibleState, state.visibleState);
-    this.updateLocalTime(
-        new TimeSpan(this._visibleState.startSec, this._visibleState.endSec));
+    if (this._visibleState === state.visibleState) {
+      this.updateLocalTime(
+          new TimeSpan(this._visibleState.startSec, this._visibleState.endSec));
+    }
   }
 
   private debouncedSetOmnibox = debounce(() => {
