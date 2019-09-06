@@ -255,7 +255,7 @@ class TraceViewer implements m.ClassComponent {
                                scale.pxToTime(startPx - TRACK_SHELL_WIDTH));
         const endTs = Math.min(traceTime.endSec,
                                scale.pxToTime(endPx - TRACK_SHELL_WIDTH));
-        globals.dispatch(Actions.selectTimeSpan({startTs, endTs}));
+        globals.makeSelection(Actions.selectTimeSpan({startTs, endTs}));
         globals.rafScheduler.scheduleRedraw();
       }
     });
