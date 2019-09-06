@@ -189,6 +189,10 @@ class GlobalCallstackTrie {
   GlobalCallstackTrie(const GlobalCallstackTrie&) = delete;
   GlobalCallstackTrie& operator=(const GlobalCallstackTrie&) = delete;
 
+  // Moving this would invalidate the back pointers to the root_ node.
+  GlobalCallstackTrie(GlobalCallstackTrie&&) = delete;
+  GlobalCallstackTrie& operator=(GlobalCallstackTrie&&) = delete;
+
   Node* CreateCallsite(const std::vector<FrameData>& locs);
   static void DecrementNode(Node* node);
   static void IncrementNode(Node* node);
