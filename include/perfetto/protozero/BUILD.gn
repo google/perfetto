@@ -21,6 +21,7 @@ source_set("protozero") {
     "field.h",
     "message.h",
     "message_handle.h",
+    "packed_repeated_fields.h",
     "proto_decoder.h",
     "proto_utils.h",
     "scattered_heap_buffer.h",
