@@ -63,6 +63,20 @@ TEST(BookkeepingTest, EmptyStack) {
   hd.GetCallstackAllocations([](const HeapTracker::CallstackAllocations&) {});
 }
 
+TEST(BookkeepingTest, Replace) {
+  uint64_t sequence_number = 1;
+  GlobalCallstackTrie c;
+  HeapTracker hd(&c, false);
+
+  hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
+  sequence_number++;
+  hd.RecordMalloc(stack2(), 1, 2, 2, sequence_number, 100 * sequence_number);
+
+  // Call GetCallstackAllocations twice to force GC of old CallstackAllocations.
+  hd.GetCallstackAllocations([](const HeapTracker::CallstackAllocations&) {});
+  hd.GetCallstackAllocations([](const HeapTracker::CallstackAllocations&) {});
+}
+
 TEST(BookkeepingTest, Basic) {
   uint64_t sequence_number = 1;
   GlobalCallstackTrie c;
