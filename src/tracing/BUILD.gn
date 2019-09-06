@@ -179,7 +179,7 @@ if (perfetto_build_standalone || perfetto_build_with_android) {
 if (enable_perfetto_ipc) {
   # Posix specialization of the tracing library for Linux / Android / Mac.
   # Provides an IPC transport over a UNIX domain socket.
-  static_library("ipc") {
+  source_set("ipc") {
     public_deps = [
       "../../include/perfetto/ext/tracing/core",
       "../../include/perfetto/ext/tracing/ipc",
@@ -259,7 +259,7 @@ source_set("client_api") {
   ]
 
   if (enable_perfetto_ipc) {
-    deps += [ "../tracing:ipc" ]
+    deps += [ ":ipc" ]
     sources += [
       "internal/system_tracing_backend.cc",
       "internal/system_tracing_backend.h",
