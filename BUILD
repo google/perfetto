@@ -562,6 +562,7 @@ cc_binary(
     name = "trace_processor_shell",
     srcs = [
         "include/perfetto/base/build_config.h",
+        "include/perfetto/base/build_configs/bazel/perfetto_build_flags.h",
         "include/perfetto/base/compiler.h",
         "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
@@ -844,6 +845,7 @@ cc_binary(
     name = "trace_to_text",
     srcs = [
         "include/perfetto/base/build_config.h",
+        "include/perfetto/base/build_configs/bazel/perfetto_build_flags.h",
         "include/perfetto/base/compiler.h",
         "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
