@@ -26,13 +26,14 @@ message GpuCounterDescriptor {
     optional uint32 counter_id = 1;
     optional string name = 2;
     optional string description = 3;
-    reserved 4;
+    reserved 4;  // MeasureUnit unit (deprecated)
     oneof peak_value {
       int64 int_peak_value = 5;
       double double_peak_value = 6;
     };
     repeated MeasureUnit numerator_units = 7;
     repeated MeasureUnit denominator_units = 8;
+    optional bool select_by_default = 9;
   }
   repeated GpuCounterSpec specs = 1;
 
@@ -51,6 +52,15 @@ message GpuCounterDescriptor {
     repeated uint32 counter_ids = 5;
   }
   repeated GpuCounterBlock blocks = 2;
+
+  // optional.  Minimum sampling period supported by the producer in nanoseconds.
+  optional uint64 min_sampling_period_ns = 3;
+
+  // optional.  Maximum sampling period supported by the producer in nanoseconds.
+  optional uint64 max_sampling_period_ns = 4;
+
+  // optional.  The producer supports counter sampling by instrumenting the command buffer.
+  optional bool supports_instrumented_sampling = 5;
 
   enum MeasureUnit {
     NONE = 0;

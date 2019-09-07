@@ -29,4 +29,10 @@ message GpuCounterConfig {
   // List of counters to be sampled. Counter IDs correspond to the ones
   // described in GpuCounterSpec in the data source descriptor.
   repeated uint32 counter_ids = 2;
+
+  // Sample counters by instrumenting command buffers.
+  optional bool instrumented_sampling = 3;
+
+  // Fix gpu clock rate during trace session.
+  optional bool fix_gpu_clock = 4;
 }
