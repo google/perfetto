@@ -90,7 +90,7 @@ class DeferredBase {
   std::function<void(AsyncResult<ProtoMessage>)> callback_;
 };
 
-template <typename T = ProtoMessage>
+template <typename T>  // T : ProtoMessage subclass
 class Deferred : public DeferredBase {
  public:
   explicit Deferred(std::function<void(AsyncResult<T>)> callback = nullptr) {
