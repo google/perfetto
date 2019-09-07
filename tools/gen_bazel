@@ -385,10 +385,14 @@ class BuildGenerator(object):
       else:
         target.srcs.add(label)
 
-    if target.type == 'cc_library' and ('//include/perfetto/base/build_config.h'
-        in module_desc.get('sources', [])):
-      target.hdrs.add(Label(os.path.join(buildflags_dir,
-          'perfetto_build_flags.h')))
+    if '//include/perfetto/base/build_config.h' in module_desc.get(
+        'sources', []):
+      label = Label(os.path.join(buildflags_dir, 'perfetto_build_flags.h'))
+      if target.type == 'cc_library':
+          target.hdrs.add(label)
+      elif target.type == 'cc_binary':
+        target.srcs.add(label)
+
 
   def apply_module_dependency(self, target, dep_name):
     """
