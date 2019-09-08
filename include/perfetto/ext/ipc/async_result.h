@@ -28,8 +28,8 @@ namespace ipc {
 
 // Wraps the result of an asynchronous invocation. This is the equivalent of a
 // std::pair<unique_ptr<T>, bool> with syntactic sugar. It is used as callback
-// argument by Deferred<T>.
-template <typename T = ProtoMessage>
+// argument by Deferred<T>. T is a ProtoMessage subclass (i.e. generated .pb.h).
+template <typename T>
 class AsyncResult {
  public:
   static AsyncResult Create() {
