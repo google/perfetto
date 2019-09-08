@@ -16,8 +16,6 @@
 
 #include "perfetto/ext/ipc/deferred.h"
 
-#include <google/protobuf/message_lite.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 

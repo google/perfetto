@@ -21,8 +21,6 @@
 
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -41,8 +39,6 @@ using protos::EnumDescriptorProto;
 using protos::EnumValueDescriptorProto;
 using protos::FieldDescriptorProto;
 using protos::FileDescriptorSet;
-using ::google::protobuf::io::ZeroCopyInputStream;
-using ::google::protobuf::io::ArrayInputStream;
 
 namespace {
 

@@ -21,11 +21,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-namespace google {
-namespace protobuf {
-class MessageLite;
-}  // namespace protobuf
-}  // namespace google
+#include <google/protobuf/message_lite.h>
 
 namespace perfetto {
 namespace ipc {
