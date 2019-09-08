@@ -20,7 +20,7 @@ This doc should:
   - [service.h](/include/perfetto/tracing/core/tracing_service.h)
 - Explain the ABI surface:
   - [shared_memory_abi.h](/include/perfetto/tracing/core/shared_memory_abi.h)
-  - IPC's [wire protocol](/src/ipc/wire_protocol.proto) (if used)
+  - IPC's [wire protocol](/protos/perfetto/ipc/wire_protocol.proto) (if used)
   - The input [config protos](/protos/perfetto/config)
   - The output [trace protos](/protos/perfetto/trace)
 
