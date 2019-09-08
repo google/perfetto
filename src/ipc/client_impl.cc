@@ -43,7 +43,6 @@ std::unique_ptr<Client> Client::CreateInstance(const char* socket_name,
 
 ClientImpl::ClientImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
   sock_ = base::UnixSocket::Connect(socket_name, this, task_runner);
 }
 

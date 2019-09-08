@@ -19,6 +19,12 @@
 #ifndef INCLUDE_PERFETTO_EXT_IPC_CODEGEN_HELPERS_H_
 #define INCLUDE_PERFETTO_EXT_IPC_CODEGEN_HELPERS_H_
 
+#include <memory>
+
+#include "perfetto/ext/ipc/basic_types.h"
+#include "perfetto/ext/ipc/deferred.h"
+#include "perfetto/ext/ipc/service.h"
+
 // A templated protobuf message decoder. Returns nullptr in case of failure.
 template <typename T>
 ::std::unique_ptr<::perfetto::ipc::ProtoMessage> _IPC_Decoder(
