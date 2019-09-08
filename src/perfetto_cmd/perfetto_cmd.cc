@@ -30,8 +30,6 @@
 #include <iterator>
 #include <sstream>
 
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
