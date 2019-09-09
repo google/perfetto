@@ -19,7 +19,8 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "src/ipc/buffered_frame_deserializer.h"
-#include "src/ipc/wire_protocol.pb.h"
+
+#include "protos/perfetto/ipc/wire_protocol.pb.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 

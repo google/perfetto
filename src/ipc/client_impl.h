@@ -23,7 +23,7 @@
 #include "perfetto/ext/ipc/client.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 
-#include "src/ipc/wire_protocol.pb.h"
+#include "protos/perfetto/ipc/wire_protocol.pb.h"
 
 #include <list>
 #include <map>
