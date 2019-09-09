@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/sliced_protobuf_input_stream.h"
+#include "perfetto/ext/tracing/core/sliced_protobuf_input_stream.h"
 
 #include <algorithm>
 

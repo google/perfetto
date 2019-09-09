@@ -109,7 +109,7 @@ std::vector<protos::TracePacket> MockConsumer::ReadBuffers() {
             for (TracePacket& packet : *packets) {
               decoded_packets.emplace_back();
               protos::TracePacket* decoded_packet = &decoded_packets.back();
-              packet.Decode(decoded_packet);
+              decoded_packet->ParseFromString(packet.GetRawBytesForTesting());
             }
             if (!has_more)
               on_read_buffers();
