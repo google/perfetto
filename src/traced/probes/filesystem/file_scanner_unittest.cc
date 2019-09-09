@@ -21,6 +21,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/gtest_and_gmock.h"
 
@@ -33,28 +34,25 @@ using ::testing::UnorderedElementsAre;
 
 class TestDelegate : public FileScanner::Delegate {
  public:
-  TestDelegate(
-      std::function<bool(BlockDeviceID,
-                         Inode,
-                         const std::string&,
-                         protos::pbzero::InodeFileMap_Entry_Type)> callback,
-      std::function<void()> done_callback)
+  TestDelegate(std::function<bool(BlockDeviceID,
+                                  Inode,
+                                  const std::string&,
+                                  InodeFileMap_Entry_Type)> callback,
+               std::function<void()> done_callback)
       : callback_(std::move(callback)),
         done_callback_(std::move(done_callback)) {}
   bool OnInodeFound(BlockDeviceID block_device_id,
                     Inode inode,
                     const std::string& path,
-                    protos::pbzero::InodeFileMap_Entry_Type type) override {
+                    InodeFileMap_Entry_Type type) override {
     return callback_(block_device_id, inode, path, type);
   }
 
   void OnInodeScanDone() { return done_callback_(); }
 
  private:
-  std::function<bool(BlockDeviceID,
-                     Inode,
-                     const std::string&,
-                     protos::pbzero::InodeFileMap_Entry_Type)>
+  std::function<
+      bool(BlockDeviceID, Inode, const std::string&, InodeFileMap_Entry_Type)>
       callback_;
   std::function<void()> done_callback_;
 };
@@ -63,7 +61,7 @@ struct FileEntry {
   FileEntry(BlockDeviceID block_device_id,
             Inode inode,
             std::string path,
-            protos::pbzero::InodeFileMap_Entry_Type type)
+            InodeFileMap_Entry_Type type)
       : block_device_id_(block_device_id),
         inode_(inode),
         path_(std::move(path)),
@@ -78,7 +76,7 @@ struct FileEntry {
   BlockDeviceID block_device_id_;
   Inode inode_;
   std::string path_;
-  protos::pbzero::InodeFileMap_Entry_Type type_;
+  InodeFileMap_Entry_Type type_;
 };
 
 struct stat CheckStat(const std::string& path) {
@@ -87,8 +85,7 @@ struct stat CheckStat(const std::string& path) {
   return buf;
 }
 
-FileEntry StatFileEntry(const std::string& path,
-                        protos::pbzero::InodeFileMap_Entry_Type type) {
+FileEntry StatFileEntry(const std::string& path, InodeFileMap_Entry_Type type) {
   struct stat buf = CheckStat(path);
   return FileEntry(buf.st_dev, buf.st_ino, path, type);
 }
@@ -98,7 +95,7 @@ TEST(FileScannerTest, TestSynchronousStop) {
   bool done = false;
   TestDelegate delegate(
       [&seen](BlockDeviceID, Inode, const std::string&,
-              protos::pbzero::InodeFileMap_Entry_Type) {
+              InodeFileMap_Entry_Type) {
         ++seen;
         return false;
       },
@@ -116,7 +113,7 @@ TEST(FileScannerTest, TestAsynchronousStop) {
   base::TestTaskRunner task_runner;
   TestDelegate delegate(
       [&seen](BlockDeviceID, Inode, const std::string&,
-              protos::pbzero::InodeFileMap_Entry_Type) {
+              InodeFileMap_Entry_Type) {
         ++seen;
         return false;
       },
@@ -134,8 +131,7 @@ TEST(FileScannerTest, TestSynchronousFindFiles) {
   std::vector<FileEntry> file_entries;
   TestDelegate delegate(
       [&file_entries](BlockDeviceID block_device_id, Inode inode,
-                      const std::string& path,
-                      protos::pbzero::InodeFileMap_Entry_Type type) {
+                      const std::string& path, InodeFileMap_Entry_Type type) {
         file_entries.emplace_back(block_device_id, inode, path, type);
         return true;
       },
@@ -161,8 +157,7 @@ TEST(FileScannerTest, TestAsynchronousFindFiles) {
   std::vector<FileEntry> file_entries;
   TestDelegate delegate(
       [&file_entries](BlockDeviceID block_device_id, Inode inode,
-                      const std::string& path,
-                      protos::pbzero::InodeFileMap_Entry_Type type) {
+                      const std::string& path, InodeFileMap_Entry_Type type) {
         file_entries.emplace_back(block_device_id, inode, path, type);
         return true;
       },

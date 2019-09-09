@@ -99,7 +99,7 @@ class InodeFileDataSource : public ProbesDataSource,
   bool OnInodeFound(BlockDeviceID block_device_id,
                     Inode inode_number,
                     const std::string& path,
-                    protos::pbzero::InodeFileMap_Entry_Type type) override;
+                    InodeFileMap_Entry_Type type) override;
   void OnInodeScanDone() override;
 
   void AddRootsForBlockDevice(BlockDeviceID block_device_id,
