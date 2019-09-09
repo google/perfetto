@@ -127,7 +127,7 @@ void GraphicsFrameEventParser::ParseEvent(int64_t timestamp, ConstBytes blob) {
       track_name_id);
 
   context_->storage->mutable_gpu_track_table()->Insert(
-      track_id, graphics_event_scope_id_, base::nullopt /* context */);
+      tables::GpuTrackTable::Row(track_id, graphics_event_scope_id_));
 
   const auto slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, RefType::kRefTrack, 0 /* cat */, event_name_id,
@@ -137,10 +137,10 @@ void GraphicsFrameEventParser::ParseEvent(int64_t timestamp, ConstBytes blob) {
       });
 
   if (slice_id) {
-    context_->storage->mutable_gpu_slice_table()->Insert(
-        slice_id.value(), base::nullopt /* context_id */,
-        base::nullopt /* render_target */, frame_number,
-        base::nullopt /* job_id */, base::nullopt /* hw_queue_id */);
+    tables::GpuSliceTable::Row row;
+    row.slice_id = slice_id.value();
+    row.frame_id = frame_number;
+    context_->storage->mutable_gpu_slice_table()->Insert(row);
   }
 }
 
