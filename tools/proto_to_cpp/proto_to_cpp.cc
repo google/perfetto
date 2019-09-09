@@ -18,7 +18,6 @@
 #include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/printer.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
-#include <google/protobuf/stubs/strutil.h>
 #include <google/protobuf/util/field_comparator.h>
 #include <google/protobuf/util/message_differencer.h>
 
@@ -28,10 +27,16 @@
 #include <iostream>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 
 using namespace google::protobuf;
 using namespace google::protobuf::compiler;
 using namespace google::protobuf::io;
+using perfetto::base::SplitString;
+using perfetto::base::StripChars;
+using perfetto::base::StripSuffix;
+using perfetto::base::ToUpper;
+
 static constexpr auto TYPE_MESSAGE = FieldDescriptor::TYPE_MESSAGE;
 
 namespace {
@@ -81,7 +86,7 @@ class ErrorPrinter : public MultiFileErrorCollector {
 };
 
 std::string GetProtoHeader(const FileDescriptor* proto_file) {
-  return StringReplace(proto_file->name(), ".proto", ".pb.h", false);
+  return StripSuffix(proto_file->name(), ".proto") + ".pb.h";
 }
 
 std::string GetFwdDeclType(const Descriptor* msg, bool with_namespace = false) {
@@ -92,7 +97,8 @@ std::string GetFwdDeclType(const Descriptor* msg, bool with_namespace = false) {
     full_type.insert(0, par->name() + "_");
   }
   if (with_namespace) {
-    std::vector<std::string> namespaces = Split(msg->file()->package(), ".");
+    std::vector<std::string> namespaces =
+        SplitString(msg->file()->package(), ".");
     for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++) {
       full_type.insert(0, *it + "::");
     }
@@ -153,18 +159,18 @@ ProtoToCpp::ProtoToCpp(const std::string& header_dir,
 }
 
 std::string ProtoToCpp::GetHeaderPath(const FileDescriptor* proto_file) {
-  std::string basename = Split(proto_file->name(), "/").back();
-  return header_dir_ + "/" + StringReplace(basename, ".proto", ".h", false);
+  std::string basename = SplitString(proto_file->name(), "/").back();
+  return header_dir_ + "/" + StripSuffix(basename, ".proto") + ".h";
 }
 
 std::string ProtoToCpp::GetCppPath(const FileDescriptor* proto_file) {
-  std::string basename = Split(proto_file->name(), "/").back();
-  return cpp_dir_ + "/" + StringReplace(basename, ".proto", ".cc", false);
+  std::string basename = SplitString(proto_file->name(), "/").back();
+  return cpp_dir_ + "/" + StripSuffix(basename, ".proto") + ".cc";
 }
 
 std::string ProtoToCpp::GetIncludePath(const FileDescriptor* proto_file) {
-  std::string basename = Split(proto_file->name(), "/").back();
-  return include_path_ + "/" + StringReplace(basename, ".proto", ".h", false);
+  std::string basename = SplitString(proto_file->name(), "/").back();
+  return include_path_ + "/" + StripSuffix(basename, ".proto") + ".h";
 }
 
 std::string ProtoToCpp::GetCppType(const FieldDescriptor* field,
@@ -228,8 +234,8 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
   Printer cpp_printer(&cpp_proto_ostr, '$');
 
   std::string include_guard = dst_header + "_";
-  UpperString(&include_guard);
-  StripString(&include_guard, ".-/\\", '_');
+  include_guard = ToUpper(include_guard);
+  include_guard = StripChars(include_guard, ".-/\\", '_');
   header_printer.Print(kHeader, "f", __FILE__, "p", src_proto);
   header_printer.Print("#ifndef $g$\n#define $g$\n\n", "g", include_guard);
   header_printer.Print("#include <stdint.h>\n");
@@ -278,7 +284,7 @@ void ProtoToCpp::Convert(const std::string& src_proto) {
 
   // Generate forward declarations in the header for proto types.
   header_printer.Print("// Forward declarations for protobuf types.\n");
-  std::vector<std::string> namespaces = Split(proto_file->package(), ".");
+  std::vector<std::string> namespaces = SplitString(proto_file->package(), ".");
   for (size_t i = 0; i < namespaces.size(); i++)
     header_printer.Print("namespace $n$ {\n", "n", namespaces[i]);
   for (int i = 0; i < proto_file->message_type_count(); i++)
