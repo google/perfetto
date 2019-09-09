@@ -637,7 +637,8 @@ TEST(ExportJsonTest, AsyncEvent) {
   UniquePid upid = storage.AddEmptyProcess(kProcessID);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  TrackId track_id = storage.mutable_tracks()->AddTrack(name_id);
+  TrackId track_id =
+      storage.mutable_track_table()->Insert(tables::TrackTable::Row(name_id));
   storage.mutable_virtual_tracks()->AddVirtualTrack(
       track_id, VirtualTrackScope::kProcess, upid);
   storage.mutable_nestable_slices()->AddSlice(kTimestamp, kDuration, track_id,
@@ -698,7 +699,8 @@ TEST(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   UniquePid upid = storage.AddEmptyProcess(kProcessID);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  TrackId track_id = storage.mutable_tracks()->AddTrack(name_id);
+  TrackId track_id =
+      storage.mutable_track_table()->Insert(tables::TrackTable::Row(name_id));
   storage.mutable_virtual_tracks()->AddVirtualTrack(
       track_id, VirtualTrackScope::kProcess, upid);
   auto slice_id = storage.mutable_nestable_slices()->AddSlice(
@@ -753,7 +755,8 @@ TEST(ExportJsonTest, UnfinishedAsyncEvent) {
   UniquePid upid = storage.AddEmptyProcess(kProcessID);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  TrackId track_id = storage.mutable_tracks()->AddTrack(name_id);
+  TrackId track_id =
+      storage.mutable_track_table()->Insert(tables::TrackTable::Row(name_id));
   storage.mutable_virtual_tracks()->AddVirtualTrack(
       track_id, VirtualTrackScope::kProcess, upid);
   auto slice_id = storage.mutable_nestable_slices()->AddSlice(
@@ -796,7 +799,8 @@ TEST(ExportJsonTest, AsyncInstantEvent) {
   UniquePid upid = storage.AddEmptyProcess(kProcessID);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  TrackId track_id = storage.mutable_tracks()->AddTrack(name_id);
+  TrackId track_id =
+      storage.mutable_track_table()->Insert(tables::TrackTable::Row(name_id));
   storage.mutable_virtual_tracks()->AddVirtualTrack(
       track_id, VirtualTrackScope::kProcess, upid);
   storage.mutable_nestable_slices()->AddSlice(
