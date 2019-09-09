@@ -13,10 +13,14 @@
 // limitations under the License.
 
 import {uint8ArrayToBase64} from '../base/string_utils';
+
 import {Adb, AdbStream} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
 import {globals} from './globals';
-import {extractTraceConfig} from './record_controller';
+import {
+  extractDurationFromTraceConfig,
+  extractTraceConfig
+} from './record_controller';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 enum AdbState {
@@ -32,12 +36,12 @@ export class AdbConsumerPort extends RpcConsumerPort {
   private state = AdbState.READY;
   private adb: Adb;
   private device: USBDevice|undefined = undefined;
+  private recordShell?: AdbStream;
 
   constructor(adb: Adb, consumerPortListener: Consumer) {
     super(consumerPortListener);
     this.adb = adb;
   }
-
 
   handleCommand(method: string, params: Uint8Array) {
     switch (method) {
@@ -48,8 +52,7 @@ export class AdbConsumerPort extends RpcConsumerPort {
         this.readBuffers();
         break;
       case 'DisableTracing':
-        // TODO(nicomazz): Implement disable tracing. The adb shell stream
-        // should be stopped somehow.
+        this.disableTracing();
         break;
       case 'FreeBuffers':  // no-op
       case 'GetTraceStats':
@@ -80,8 +83,9 @@ export class AdbConsumerPort extends RpcConsumerPort {
       }
 
       await this.startRecording(traceConfigProto);
-      this.sendStatus('Recording in progress...');
-
+      const duration = extractDurationFromTraceConfig(traceConfigProto);
+      this.sendStatus(`Recording in progress${
+          duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
     } catch (e) {
       this.sendErrorMessage(e.message);
     }
@@ -90,10 +94,11 @@ export class AdbConsumerPort extends RpcConsumerPort {
   async startRecording(configProto: Uint8Array) {
     this.state = AdbState.RECORDING;
     const recordCommand = this.generateStartTracingCommand(configProto);
-    const recordShell: AdbStream = await this.adb.shell(recordCommand);
-    let response = '';
-    recordShell.onData = (str, _) => response += str;
-    recordShell.onClose = () => {
+    this.recordShell = await this.adb.shell(recordCommand);
+    const output: string[] = [];
+    this.recordShell.onData = (str, _) => output.push(str);
+    this.recordShell.onClose = () => {
+      const response = output.join();
       if (!this.tracingEndedSuccessfully(response)) {
         this.sendErrorMessage(response);
         this.state = AdbState.READY;
@@ -139,8 +144,32 @@ export class AdbConsumerPort extends RpcConsumerPort {
 
       this.sendMessage(
           this.generateChunkReadResponse(decoded, /* last */ true));
+      this.adb.disconnect();
       this.state = AdbState.READY;
     };
+  }
+
+  // TODO(nicomazz): Implement cancel/reset recording.
+  async disableTracing() {
+    console.assert(this.recordShell !== undefined);
+    if (!this.recordShell) return;
+
+    // We are not using 'pidof perfetto' so that we can use more filters. 'ps -u
+    // shell' is meant to catch processes started from shell, so if there are
+    // other ongoing tracing sessions started by others, we are not killing
+    // them.
+    const pid = await this.adb.shellOutputAsString(
+        `ps -u shell | grep perfetto | awk '{print $2}'`);
+    if (pid.length === 0 || isNaN(Number(pid))) {
+      this.sendErrorMessage(
+          'Unexpected error, impossible to stop the recording');
+      console.error('Perfetto pid not found. Command output: ', pid);
+      return;
+    }
+    // Perfetto stops and finalizes the tracing session on SIGINT.
+    const killOutput =
+        await this.adb.shellOutputAsString(`kill -SIGINT ${pid}`);
+    console.assert(killOutput.length === 0);
   }
 
   generateChunkReadResponse(data: string, last = false): ReadBuffersResponse {
