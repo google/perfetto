@@ -61,7 +61,7 @@ class MacroTable : public Table {
     }
   }
 
-  const char* name() const { return name_; }
+  const char* table_name() const { return name_; }
 
  protected:
   void UpdateRowMapsAfterParentInsert() {
