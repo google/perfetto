@@ -31,7 +31,8 @@ TrackId VirtualTrackTracker::GetOrCreateTrack(SourceIdTuple id_tuple,
   if (it != tracks_.end())
     return it->second;
 
-  TrackId track_id = context_->storage->mutable_tracks()->AddTrack(track_name);
+  TrackId track_id = context_->storage->mutable_track_table()->Insert(
+      tables::TrackTable::Row(track_name));
   context_->storage->mutable_virtual_tracks()->AddVirtualTrack(
       track_id, id_tuple.scope, id_tuple.upid);
   tracks_[id_tuple] = track_id;
