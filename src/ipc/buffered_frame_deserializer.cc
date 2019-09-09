@@ -26,7 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 
-#include "src/ipc/wire_protocol.pb.h"
+#include "protos/perfetto/ipc/wire_protocol.pb.h"
 
 namespace perfetto {
 namespace ipc {

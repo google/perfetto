@@ -26,7 +26,7 @@
 #include "perfetto/ext/ipc/service.h"
 #include "perfetto/ext/ipc/service_descriptor.h"
 
-#include "src/ipc/wire_protocol.pb.h"
+#include "protos/perfetto/ipc/wire_protocol.pb.h"
 
 // TODO(primiano): put limits on #connections/uid and req. queue (b/69093705).
 
