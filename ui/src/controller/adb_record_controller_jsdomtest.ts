@@ -14,13 +14,28 @@
 
 import {dingus} from 'dingusjs';
 
+import {perfetto} from '../gen/protos';
 import {AdbStream, MockAdb, MockAdbStream} from './adb_interfaces';
-import {AdbRecordController} from './adb_record_controller';
+import {AdbConsumerPort} from './adb_record_controller';
+import {Consumer} from './record_controller_interfaces';
 
-const mainCallback = jest.fn();
+function generateMockConsumer(): Consumer {
+  return {
+    onConsumerPortResponse: jest.fn(),
+    onError: jest.fn(),
+    onStatus: jest.fn()
+  };
+}
+const mainCallback = generateMockConsumer();
 const adbMock = new MockAdb();
-const adbController = new AdbRecordController(adbMock, mainCallback);
+const adbController = new AdbConsumerPort(adbMock, mainCallback);
 const mockIntArray = new Uint8Array();
+
+const enableTracingRequest = new perfetto.protos.EnableTracingRequest();
+enableTracingRequest.traceConfig = new perfetto.protos.TraceConfig();
+const enableTracingRequestProto =
+    perfetto.protos.EnableTracingRequest.encode(enableTracingRequest).finish();
+
 
 test('handleCommand', () => {
   adbController.findDevice = () => {
@@ -44,9 +59,9 @@ test('handleCommand', () => {
 });
 
 test('enableTracing', async () => {
-  const mainCallback = jest.fn();
+  const mainCallback = generateMockConsumer();
   const adbMock = new MockAdb();
-  const adbController = new AdbRecordController(adbMock, mainCallback);
+  const adbController = new AdbConsumerPort(adbMock, mainCallback);
 
   adbController.sendErrorMessage =
       jest.fn().mockImplementation(s => console.error(s));
@@ -71,13 +86,11 @@ test('enableTracing', async () => {
 
   adbController.generateStartTracingCommand = (_) => 'CMD';
 
-  await adbController.enableTracing(mockIntArray);
+  await adbController.enableTracing(enableTracingRequestProto);
   expect(adbShell).toBeCalledWith('CMD');
   expect(findDevice).toHaveBeenCalledTimes(1);
   expect(connectToDevice).toHaveBeenCalledTimes(1);
-  // Two messages: RecordControllerStatus asking for allow the debug, and
-  // another status to clear that message.
-  expect(sendMessage).toHaveBeenCalledTimes(2);
+  expect(sendMessage).toHaveBeenCalledTimes(0);
 
 
   stream.onData('starting tracing Wrote 123 bytes', mockIntArray);
