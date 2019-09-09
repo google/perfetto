@@ -24,6 +24,13 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+#define PERFETTO_TP_TRACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(TrackTable, "track")                          \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
+  C(StringPool::Id, name)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_TRACK_TABLE_DEF);
+
 #define PERFETTO_TP_GPU_TRACKS_DEF(NAME, PARENT, C) \
   NAME(GpuTrackTable, "gpu_track")                  \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                 \

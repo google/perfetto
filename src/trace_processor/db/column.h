@@ -93,7 +93,7 @@ class Column {
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
       }
       case ColumnType::kString: {
-        auto str = GetString(row).c_str();
+        auto str = GetStringPoolString(row).c_str();
         return str == nullptr ? SqlValue() : SqlValue::String(str);
       }
       case ColumnType::kId:
@@ -180,7 +180,7 @@ class Column {
     return static_cast<const SparseVector<T>*>(sparse_vector_)->Get(idx);
   }
 
-  NullTermStringView GetString(uint32_t row) const {
+  NullTermStringView GetStringPoolString(uint32_t row) const {
     return string_pool_->Get(*GetTyped<StringPool::Id>(row));
   }
 

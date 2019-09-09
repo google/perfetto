@@ -46,7 +46,12 @@ template <>
 struct TypedColumn<StringPool::Id> : public Column {
   using StoredType = StringPool::Id;
 
-  NullTermStringView operator[](uint32_t row) const { return GetString(row); }
+  StringPool::Id operator[](uint32_t row) const {
+    return *GetTyped<StringPool::Id>(row);
+  }
+  NullTermStringView GetString(uint32_t row) const {
+    return GetStringPoolString(row);
+  }
 };
 
 }  // namespace trace_processor
