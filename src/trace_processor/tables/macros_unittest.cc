@@ -60,26 +60,31 @@ TEST(TableMacrosUnittest, InsertParent) {
   TestEventTable event(&pool, nullptr);
   TestSliceTable slice(&pool, &event);
 
-  uint32_t id = event.Insert(100, 0);
+  uint32_t id = event.Insert(TestEventTable::Row(100, 0));
   ASSERT_EQ(id, 0u);
+  ASSERT_EQ(event.type()[0], "event");
   ASSERT_EQ(event.ts()[0], 100);
   ASSERT_EQ(event.arg_set_id()[0], 0);
 
-  id = slice.Insert(200, 123, 10, 0);
+  id = slice.Insert(TestSliceTable::Row(200, 123, 10, 0));
   ASSERT_EQ(id, 1u);
 
+  ASSERT_EQ(event.type()[1], "slice");
   ASSERT_EQ(event.ts()[1], 200);
   ASSERT_EQ(event.arg_set_id()[1], 123);
+  ASSERT_EQ(slice.type()[0], "slice");
   ASSERT_EQ(slice.ts()[0], 200);
   ASSERT_EQ(slice.arg_set_id()[0], 123);
   ASSERT_EQ(slice.dur()[0], 10);
   ASSERT_EQ(slice.depth()[0], 0);
 
-  id = slice.Insert(210, 456, base::nullopt, 0);
+  id = slice.Insert(TestSliceTable::Row(210, 456, base::nullopt, 0));
   ASSERT_EQ(id, 2u);
 
+  ASSERT_EQ(event.type()[2], "slice");
   ASSERT_EQ(event.ts()[2], 210);
   ASSERT_EQ(event.arg_set_id()[2], 456);
+  ASSERT_EQ(slice.type()[1], "slice");
   ASSERT_EQ(slice.ts()[1], 210);
   ASSERT_EQ(slice.arg_set_id()[1], 456);
   ASSERT_EQ(slice.dur()[1], base::nullopt);
@@ -92,20 +97,24 @@ TEST(TableMacrosUnittest, InsertChild) {
   TestSliceTable slice(&pool, &event);
   TestCpuSliceTable cpu_slice(&pool, &slice);
 
-  event.Insert(100, 0);
-  slice.Insert(200, 123, 10, 0);
+  event.Insert(TestEventTable::Row(100, 0));
+  slice.Insert(TestSliceTable::Row(200, 123, 10, 0));
 
   auto reason = pool.InternString("R");
-  uint32_t id = cpu_slice.Insert(205, 456, 5, 1, 4, 1024, reason);
+  uint32_t id =
+      cpu_slice.Insert(TestCpuSliceTable::Row(205, 456, 5, 1, 4, 1024, reason));
   ASSERT_EQ(id, 2u);
+  ASSERT_EQ(event.type()[2], "cpu_slice");
   ASSERT_EQ(event.ts()[2], 205);
   ASSERT_EQ(event.arg_set_id()[2], 456);
 
+  ASSERT_EQ(slice.type()[1], "cpu_slice");
   ASSERT_EQ(slice.ts()[1], 205);
   ASSERT_EQ(slice.arg_set_id()[1], 456);
   ASSERT_EQ(slice.dur()[1], 5);
   ASSERT_EQ(slice.depth()[1], 1);
 
+  ASSERT_EQ(cpu_slice.type()[0], "cpu_slice");
   ASSERT_EQ(cpu_slice.ts()[0], 205);
   ASSERT_EQ(cpu_slice.arg_set_id()[0], 456);
   ASSERT_EQ(cpu_slice.dur()[0], 5);

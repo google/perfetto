@@ -31,7 +31,16 @@ namespace macros_internal {
 // pointer to this class will always be null.
 class RootParentTable : public Table {
  public:
-  uint32_t Insert(std::nullptr_t) { PERFETTO_FATAL("Should not be called"); }
+  struct Row {
+   public:
+    Row(std::nullptr_t) {}
+
+    const char* type() const { return type_; }
+
+   protected:
+    const char* type_ = nullptr;
+  };
+  uint32_t Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
 };
 
 // The parent class for all macro generated tables.
@@ -39,13 +48,16 @@ class RootParentTable : public Table {
 // code size.
 class MacroTable : public Table {
  public:
-  MacroTable(const char* name, const StringPool* pool, Table* parent)
+  MacroTable(const char* name, StringPool* pool, Table* parent)
       : Table(pool, parent), name_(name), parent_(parent) {
     row_maps_.emplace_back(BitVector());
     if (!parent) {
       columns_.emplace_back(
           Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
                            static_cast<uint32_t>(row_maps_.size()) - 1));
+      columns_.emplace_back(
+          Column("type", &type_, this, static_cast<uint32_t>(columns_.size()),
+                 static_cast<uint32_t>(row_maps_.size()) - 1));
     }
   }
 
@@ -65,6 +77,18 @@ class MacroTable : public Table {
     // the size.
     row_maps_.back().Add(size_++);
   }
+
+  // Stores the most specific "derived" type of this row in the table.
+  //
+  // For example, suppose a row is inserted into the gpu_slice table. This will
+  // also cause a row to be inserted into the slice table. For users querying
+  // the slice table, they will want to know the "real" type of this slice (i.e.
+  // they will want to see that the type is gpu_slice). This sparse vector
+  // stores precisely the real type.
+  //
+  // Only relevant for parentless tables. Will be empty and unreferenced by
+  // tables with parents.
+  SparseVector<StringPool::Id> type_;
 
  private:
   const char* name_ = nullptr;
@@ -116,9 +140,25 @@ class MacroTable : public Table {
   PERFETTO_TP_ALL_COLUMNS(PERFETTO_TP_PARENT_DEF(DEF), FN)
 
 // Basic macros for extracting column info from a schema.
-#define PERFETTO_TP_TYPE_COMMA(type, name) type,
 #define PERFETTO_TP_NAME_COMMA(type, name) name,
 #define PERFETTO_TP_TYPE_NAME_COMMA(type, name) type name,
+
+// Constructor parameters of Table::Row.
+// We name this name_c to avoid a clash with the field names of
+// Table::Row.
+#define PERFETTO_TP_ROW_CONSTRUCTOR(type, name) type name##_c = {},
+
+// Constructor parameters for parent of Row.
+#define PERFETTO_TP_PARENT_ROW_CONSTRUCTOR(type, name) name##_c,
+
+// Initializes the members of Table::Row.
+#define PERFETTO_TP_ROW_INITIALIZER(type, name) name = name##_c;
+
+// Defines the variable in Table::Row.
+#define PERFETTO_TP_ROW_DEFINITION(type, name) type name = {};
+
+// Defines the parent row field in Insert.
+#define PERFETTO_TP_PARENT_ROW_INSERT(type, name) row.name,
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name) \
@@ -129,8 +169,9 @@ class MacroTable : public Table {
   columns_.emplace_back(#name, &name##_, this, columns_.size(), \
                         row_maps_.size() - 1);
 
-// Inserts the a value into the corresponding column
-#define PERFETTO_TP_COLUMN_APPEND(type, name) name##_.Append(std::move(name));
+// Inserts the value into the corresponding column
+#define PERFETTO_TP_COLUMN_APPEND(type, name) \
+  name##_.Append(std::move(row.name));
 
 // Defines the accessor for a column.
 #define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name)           \
@@ -148,7 +189,35 @@ class MacroTable : public Table {
                                    DEF)                                       \
   class class_name : public macros_internal::MacroTable {                     \
    public:                                                                    \
-    class_name(const StringPool* pool, parent_class_name* parent)             \
+    struct Row : parent_class_name::Row {                                     \
+      /*                                                                      \
+       * Expands to Row(col_type1 col1_c, base::Optional<col_type2> col2_c,   \
+       * ...)                                                                 \
+       */                                                                     \
+      Row(PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_ROW_CONSTRUCTOR)           \
+              std::nullptr_t = nullptr)                                       \
+          : parent_class_name::Row(PERFETTO_TP_PARENT_COLUMNS(                \
+                DEF,                                                          \
+                PERFETTO_TP_PARENT_ROW_CONSTRUCTOR) nullptr) {                \
+        type_ = table_name;                                                   \
+                                                                              \
+        /* Expands to                                                         \
+         * col1 = col1_c;                                                     \
+         * col2 = col2_c;                                                     \
+         * ...                                                                \
+         */                                                                   \
+        PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_INITIALIZER)           \
+      }                                                                       \
+                                                                              \
+      /* Expands to                                                           \
+       * col_type1 col1 = {};                                                 \
+       * base::Optional<col_type2> col2 = {};                                 \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_DEFINITION)              \
+    };                                                                        \
+                                                                              \
+    class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
       /* Expands to                                                           \
@@ -161,27 +230,28 @@ class MacroTable : public Table {
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
                                                                               \
-    /* Expands to Insert(col_type1 col1, base::Optional<col_type2> col2, ...) \
-     */                                                                       \
-    uint32_t Insert(PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TYPE_NAME_COMMA) \
-                        std::nullptr_t = nullptr) {                           \
+    uint32_t Insert(const Row& row) {                                         \
       uint32_t id;                                                            \
       if (parent_ == nullptr) {                                               \
         id = size();                                                          \
+        type_.Append(string_pool_->InternString(row.type()));                 \
       } else {                                                                \
-        /* Expands to parent_->Insert(parent_col_1, parent_col_2, ...) */     \
-        id = parent_->Insert(                                                 \
-            PERFETTO_TP_PARENT_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) nullptr); \
+        id = parent_->Insert(row);                                            \
       }                                                                       \
       UpdateRowMapsAfterParentInsert();                                       \
                                                                               \
       /* Expands to                                                           \
-       * col1_.Append(col1);                                                  \
-       * col2_.Append(col2);                                                  \
+       * col1_.Append(row.col1);                                              \
+       * col2_.Append(row.col2);                                              \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_APPEND);              \
       return id;                                                              \
+    }                                                                         \
+                                                                              \
+    const TypedColumn<StringPool::Id>& type() {                               \
+      return static_cast<const TypedColumn<StringPool::Id>&>(                 \
+          columns_[static_cast<uint32_t>(ColumnIndex::type)]);                \
     }                                                                         \
                                                                               \
     /* Expands to                                                             \
@@ -193,11 +263,13 @@ class MacroTable : public Table {
                                                                               \
    private:                                                                   \
     enum class ColumnIndex : uint32_t {                                       \
-      id, /* Expands to col1, col2, ... */                                    \
+      id,                                                                     \
+      type, /* Expands to col1, col2, ... */                                  \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
     };                                                                        \
                                                                               \
     parent_class_name* parent_;                                               \
+                                                                              \
     /* Expands to                                                             \
      * SparseVector<col1_type> col1_;                                         \
      * SparseVector<col2_type> col2_;                                         \
