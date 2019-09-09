@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {uint8ArrayToBase64} from '../base/string_utils';
 import {Adb, AdbStream} from './adb_interfaces';
-import {ConsumerPortResponse, ReadBuffersResponse} from './consumer_port_types';
+import {ReadBuffersResponse} from './consumer_port_types';
 import {globals} from './globals';
-import {RecordControllerMessage, uint8ArrayToBase64} from './record_controller';
+import {extractTraceConfig} from './record_controller';
+import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 enum AdbState {
   READY,
@@ -24,39 +26,20 @@ enum AdbState {
 }
 const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace';
 
-export class AdbRecordController {
+export class AdbConsumerPort extends RpcConsumerPort {
   // public for testing
   traceDestFile = DEFAULT_DESTINATION_FILE;
   private state = AdbState.READY;
   private adb: Adb;
   private device: USBDevice|undefined = undefined;
-  private mainControllerCallback:
-      (_: {data: ConsumerPortResponse|RecordControllerMessage}) => void;
 
-  constructor(adb: Adb, mainControllerCallback: (_: {
-                          data: ConsumerPortResponse
-                        }) => void) {
-    this.mainControllerCallback = mainControllerCallback;
+  constructor(adb: Adb, consumerPortListener: Consumer) {
+    super(consumerPortListener);
     this.adb = adb;
   }
 
-  sendMessage(message: ConsumerPortResponse|RecordControllerMessage) {
-    this.mainControllerCallback({data: message});
-  }
-
-  sendErrorMessage(message: string) {
-    console.error('Error in adb record controller: ', message);
-    this.sendMessage({type: 'RecordControllerError', message});
-  }
-
-  sendStatus(status: string) {
-    this.sendMessage({type: 'RecordControllerStatus', status});
-  }
 
   handleCommand(method: string, params: Uint8Array) {
-    // TODO(nicomazz): after having implemented the connection to the consumer
-    // port socket through adb (on a real device), this class will be a simple
-    // proxy.
     switch (method) {
       case 'EnableTracing':
         this.enableTracing(params);
@@ -64,9 +47,12 @@ export class AdbRecordController {
       case 'ReadBuffers':
         this.readBuffers();
         break;
+      case 'DisableTracing':
+        // TODO(nicomazz): Implement disable tracing. The adb shell stream
+        // should be stopped somehow.
+        break;
       case 'FreeBuffers':  // no-op
       case 'GetTraceStats':
-      case 'DisableTracing':
         break;
       default:
         this.sendErrorMessage(`Method not recognized: ${method}`);
@@ -74,12 +60,9 @@ export class AdbRecordController {
     }
   }
 
-  async enableTracing(configProto: Uint8Array) {
+  async enableTracing(enableTracingProto: Uint8Array) {
     try {
-      if (this.state !== AdbState.READY) {
-        console.error('Current state of AdbRecordController is not READY');
-        return;
-      }
+      console.assert(this.state === AdbState.READY);
       this.device = await this.findDevice();
 
       if (this.device === undefined) {
@@ -89,7 +72,14 @@ export class AdbRecordController {
       this.sendStatus(
           'Check the screen of your device and allow USB debugging.');
       await this.adb.connect(this.device);
-      await this.startRecording(configProto);
+      const traceConfigProto = extractTraceConfig(enableTracingProto);
+
+      if (!traceConfigProto) {
+        this.sendErrorMessage('Invalid config.');
+        return;
+      }
+
+      await this.startRecording(traceConfigProto);
       this.sendStatus('Recording in progress...');
 
     } catch (e) {
@@ -109,6 +99,7 @@ export class AdbRecordController {
         this.state = AdbState.READY;
         return;
       }
+      this.sendStatus('Recording ended successfully. Fetching the trace..');
       this.sendMessage({type: 'EnableTracingResponse'});
     };
   }
@@ -138,6 +129,9 @@ export class AdbRecordController {
       // things are not working, the chunks should be sent as they are received,
       // like in the following line.
       // this.sendMessage(this.generateChunkReadResponse(str));
+      // EDIT: we should send back a response as if it was a real
+      // ReadBufferResponse, with trace packets. Here we are only sending the
+      // trace split in several pieces.
       trace += str;
     };
     readTraceShell.onClose = () => {
