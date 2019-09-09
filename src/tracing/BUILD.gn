@@ -287,3 +287,20 @@ if (enable_perfetto_integration_tests) {
     ]
   }
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":tracing",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../protos/perfetto/trace:zero",
+      "../../protos/perfetto/trace/ftrace:zero",
+      "../protozero",
+    ]
+    sources = [
+      "core/packet_stream_validator_benchmark.cc",
+    ]
+  }
+}
