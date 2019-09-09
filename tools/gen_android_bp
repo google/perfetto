@@ -136,22 +136,11 @@ additional_args = {
 def enable_gmock(module):
     module.static_libs.append('libgmock')
 
-
-def enable_gtest_prod(module):
-    module.static_libs.append('libgtest_prod')
-
-
-def enable_gtest(module):
-    assert module.type == 'cc_test'
-
-
 def enable_protobuf_full(module):
     module.shared_libs.append('libprotobuf-cpp-full')
 
-
 def enable_protobuf_lite(module):
     module.shared_libs.append('libprotobuf-cpp-lite')
-
 
 def enable_protoc_lib(module):
     module.shared_libs.append('libprotoc')
@@ -182,16 +171,14 @@ def enable_zlib(module):
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
-    '//buildtools:gmock': enable_gmock,
-    '//buildtools:gtest': enable_gtest,
-    '//buildtools:gtest_main': enable_gtest,
-    '//buildtools:libunwind': enable_libunwind,
-    '//buildtools:protobuf_full': enable_protobuf_full,
-    '//buildtools:protobuf_lite': enable_protobuf_lite,
-    '//buildtools:protoc_lib': enable_protoc_lib,
-    '//buildtools:libunwindstack': enable_libunwindstack,
-    '//buildtools:sqlite': enable_sqlite,
-    '//buildtools:zlib': enable_zlib,
+    '//gn:gtest_and_gmock': enable_gmock,
+    '//gn:libunwind': enable_libunwind,
+    '//gn:protobuf_full': enable_protobuf_full,
+    '//gn:protobuf_lite': enable_protobuf_lite,
+    '//gn:protoc_lib': enable_protoc_lib,
+    '//gn:libunwindstack': enable_libunwindstack,
+    '//gn:sqlite': enable_sqlite,
+    '//gn:zlib': enable_zlib,
 }
 
 # ----------------------------------------------------------------------------
@@ -414,7 +401,10 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
         dep_name: GN target of the dependency.
     """
     # If the dependency refers to a library which we can replace with an Android
-    # equivalent, stop recursing and patch the dependency in.
+    # equivalent, stop recursing and patch the dependency in. Don't recurse into
+    # //buildtools, builtin_deps are intercepted at the //gn:xxx level.
+    if dep_name.startswith('//buildtools'):
+        return
     if gn_utils.label_without_toolchain(dep_name) in builtin_deps:
         builtin_deps[gn_utils.label_without_toolchain(dep_name)](module)
         return
