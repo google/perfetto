@@ -164,23 +164,34 @@ group("gtest_main") {
   }
 }
 
-# protoc compiler library, for building protoc plugins on the host.
-if (current_toolchain == host_toolchain) {
-  group("protoc_lib") {
-    public_deps = [
-      "${perfetto_protobuf_target_prefix}:protoc_lib",
-    ]
-  }
+# Full protobuf is just for host tools .No binary shipped on device should
+# depend on this.
+whitelisted_protobuf_full_deps = [
+  "../tools/*",
+  "../src/ipc/protoc_plugin:*",
+  "../src/protozero/protoc_plugin:*",
+  "../src/trace_processor:trace_processor_shell",
+]
 
+if (current_toolchain == host_toolchain) {
   group("protoc") {
     public_deps = [
       "${perfetto_protobuf_target_prefix}:protoc",
     ]
   }
+}  # current_toolchain == host_toolchain
+
+# protoc compiler library, it's used for building protoc plugins and by
+# trace_processor_shell to dynamically load .proto files for metrics.
+group("protoc_lib") {
+  visibility = whitelisted_protobuf_full_deps
+  public_deps = [
+    "${perfetto_protobuf_target_prefix}:protoc_lib",
+  ]
 }
 
 group("protobuf_full") {
-  testonly = true
+  visibility = whitelisted_protobuf_full_deps
   public_deps = [
     "${perfetto_protobuf_target_prefix}:protobuf_full",
   ]
