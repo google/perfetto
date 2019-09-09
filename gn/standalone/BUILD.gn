@@ -76,8 +76,11 @@ config("default") {
     "-fPIC",
     "-g",
     "-Wformat",
-    "-Werror",
   ]
+
+  if (!is_fuzzer) {
+    cflags += [ "-Werror" ]
+  }
 
   if (is_clang) {
     cflags += [
