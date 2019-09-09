@@ -4537,7 +4537,7 @@ cc_test {
 }
 
 // GN target: //src/trace_processor:trace_processor_shell
-cc_binary {
+cc_binary_host {
   name: "trace_processor_shell",
   srcs: [
     ":perfetto_protos_perfetto_common_zero_gen",
@@ -4660,10 +4660,12 @@ cc_binary {
   ],
   shared_libs: [
     "liblog",
-    "libprotobuf-cpp-full",
+    "libprotoc",
     "libz",
   ],
-  host_supported: true,
+  static_libs: [
+    "libsqlite",
+  ],
   generated_headers: [
     "gen_merged_sql_metrics",
     "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -4702,21 +4704,6 @@ cc_binary {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
-  target: {
-    android: {
-      shared_libs: [
-        "libandroidicu",
-        "liblog",
-        "libsqlite",
-        "libutils",
-      ],
-    },
-    host: {
-      static_libs: [
-        "libsqlite",
-      ],
-    },
-  },
 }
 
 // GN target: //tools/trace_to_text:trace_to_text

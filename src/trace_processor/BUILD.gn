@@ -14,6 +14,7 @@
 
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_host_executable.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
@@ -230,12 +231,11 @@ source_set("common") {
   ]
 }
 
-executable("trace_processor_shell") {
-  testonly = true  # We need this for proto full.
+perfetto_host_executable("trace_processor_shell") {
   deps = [
     ":lib",
     "../../gn:default_deps",
-    "../../gn:protobuf_full",
+    "../../gn:protoc_lib",
     "../base",
     "metrics:lib",
   ]
