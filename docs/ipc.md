@@ -18,7 +18,7 @@ Key features:
 - Allows to send file descriptors over the wire: for setting up shared memory
   and passing the FD for the output trace from a consumer to the service.
 - Service definition uses same protobuf rpc syntax of [gRPC](https://grpc.io)
-- Extremely simple [wire protocol](/src/ipc/wire_protocol.proto).
+- Extremely simple [wire protocol](/protos/perfetto/ipc/wire_protocol.proto).
 - C++11 friendly, allows to bind `std::function` to each request.
 - Leak (un)friendly: tries hard to guarantee that callbacks are left unresolved,
   using C++11 move semantics.
@@ -31,7 +31,7 @@ Key features:
 - Debugging friendly: single-thread only, based on non-blocking socket I/O.
 - Binary size friendly: generates one protobuf per message, doesn't have any
   external dependency.
-- Hopefully safe:
+- Safe:
   - The rx buffer has guard regions around.
   - The wire protocol is based on protobuf.
   - [Fuzzed](/src/ipc/buffered_frame_deserializer_fuzzer.cc)
