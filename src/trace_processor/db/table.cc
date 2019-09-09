@@ -19,7 +19,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-Table::Table(const StringPool* pool, const Table* parent) : string_pool_(pool) {
+Table::Table(StringPool* pool, const Table* parent) : string_pool_(pool) {
   if (!parent)
     return;
 
@@ -32,19 +32,23 @@ Table::Table(const StringPool* pool, const Table* parent) : string_pool_(pool) {
 }
 
 Table& Table::operator=(const Table& other) {
+  size_ = other.size_;
+  string_pool_ = other.string_pool_;
+
   for (const RowMap& rm : other.row_maps_) {
     row_maps_.emplace_back(rm.Copy());
   }
-  size_ = other.size_;
   for (const Column& col : other.columns_)
     columns_.emplace_back(col, this, columns_.size(), col.row_map_idx_);
   return *this;
 }
 
 Table& Table::operator=(Table&& other) noexcept {
+  size_ = other.size_;
+  string_pool_ = other.string_pool_;
+
   row_maps_ = std::move(other.row_maps_);
   columns_ = std::move(other.columns_);
-  size_ = other.size_;
   for (Column& col : columns_) {
     col.table_ = this;
   }

@@ -104,11 +104,13 @@ class Table {
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
 
  protected:
-  Table(const StringPool* pool, const Table* parent);
+  Table(StringPool* pool, const Table* parent);
 
   std::vector<RowMap> row_maps_;
   std::vector<Column> columns_;
   uint32_t size_ = 0;
+
+  StringPool* string_pool_ = nullptr;
 
  private:
   friend class Column;
@@ -117,8 +119,6 @@ class Table {
   // the Table pointer in each column to the Table being copied into.
   Table(const Table& other) { *this = other; }
   Table& operator=(const Table& other);
-
-  const StringPool* string_pool_ = nullptr;
 };
 
 }  // namespace trace_processor
