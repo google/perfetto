@@ -61,11 +61,6 @@ default_targets = [
     '//tools/trace_to_text:trace_to_text',
 ]
 
-# Targets which are testonly but should still be a cc_binary.
-non_test_binaries = [
-    '//src/trace_processor:trace_processor_shell',
-]
-
 # Defines a custom init_rc argument to be applied to the corresponding output
 # blueprint target.
 target_initrc = {
@@ -75,11 +70,11 @@ target_initrc = {
 
 target_host_supported = [
     '//protos/perfetto/trace:perfetto_trace_protos',
-    '//src/trace_processor:trace_processor_shell',
 ]
 
 target_host_only = [
     '//tools/trace_to_text:trace_to_text',
+    '//src/trace_processor:trace_processor_shell',
 ]
 
 # All module names are prefixed with this string to avoid collisions.
@@ -645,7 +640,7 @@ def create_modules_from_target(blueprint, desc, target_name):
     if target['type'] == 'executable':
         if 'host' in target['toolchain'] or target_name in target_host_only:
             module_type = 'cc_binary_host'
-        elif target.get('testonly') and target_name not in non_test_binaries:
+        elif target.get('testonly'):
             module_type = 'cc_test'
         else:
             module_type = 'cc_binary'
