@@ -21,17 +21,34 @@
 namespace perfetto {
 namespace trace_processor {
 
+Column::Column(const Column& column,
+               Table* table,
+               uint32_t col_idx,
+               uint32_t row_map_idx)
+    : Column(column.name_,
+             column.type_,
+             table,
+             col_idx,
+             row_map_idx,
+             column.sparse_vector_) {}
+
 Column::Column(const char* name,
                ColumnType type,
                Table* table,
                uint32_t col_idx,
-               uint32_t row_map_idx)
-    : string_pool_(table->string_pool_),
-      type_(type),
+               uint32_t row_map_idx,
+               const void* sparse_vector)
+    : type_(type),
+      sparse_vector_(sparse_vector),
       name_(name),
       table_(table),
       col_idx_(col_idx),
-      row_map_idx_(row_map_idx) {}
+      row_map_idx_(row_map_idx),
+      string_pool_(table->string_pool_) {}
+
+Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
+  return Column("id", ColumnType::kId, table, col_idx, row_map_idx, nullptr);
+}
 
 void Column::FilterInto(FilterOp op, SqlValue value, RowMap* iv) const {
   // Assume op == kEq.
