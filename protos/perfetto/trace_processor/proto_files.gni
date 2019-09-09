@@ -15,7 +15,6 @@
 # This variable is used both by ./BUILD.gn (for the C++ proto codegen) and by
 # //ui/BUIlD.gn (for the TypeScript/JS proto codegen).
 trace_processor_protos = [
-  "sched",
   "raw_query",
   "trace_processor",
 ]

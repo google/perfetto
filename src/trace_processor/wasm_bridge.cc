@@ -22,7 +22,6 @@
 #include "perfetto/trace_processor/trace_processor.h"
 
 #include "protos/perfetto/trace_processor/raw_query.pb.h"
-#include "protos/perfetto/trace_processor/sched.pb.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -35,8 +34,7 @@ using RequestID = uint32_t;
 // The function is generic and thankfully we need just one for all methods
 // because the output is always a protobuf buffer.
 // Args:
-//  RequestID: the ID passed by the embedder when invoking the RPC method (e.g.,
-//             the first argument passed to sched_getSchedEvents()).
+//  RequestID: the ID passed by the embedder when invoking the RPC method.
 using ReplyFunction = void (*)(RequestID,
                                bool success,
                                const char* /*proto_reply_data*/,
