@@ -32,19 +32,24 @@ export class TimeAxisPanel extends Panel {
     ctx.fillStyle = '#999';
 
     // Write trace offset time + line.
-    ctx.textAlign = 'right';
     ctx.font = '12px Google Sans';
+
+    ctx.textAlign = 'right';
     const offsetTime =
         timeToString(range.start - globals.state.traceTime.startSec);
     ctx.fillText(offsetTime, TRACK_SHELL_WIDTH - 6, 11);
-    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
+
+    ctx.textAlign = 'left';
+    const startTime = timeToString(globals.state.traceTime.startSec);
+    ctx.fillText(startTime + ' +', 6, 11);
 
     // Draw time axis.
     ctx.font = '10px Google Sans';
-    ctx.textAlign = 'left';
     for (const [x, time] of gridlines(size.width, range, timeScale)) {
       ctx.fillRect(x, 0, 1, size.height);
       ctx.fillText('+' + timeToString(time - range.start), x + 5, 10);
     }
+
+    ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
   }
 }
