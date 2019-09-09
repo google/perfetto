@@ -1172,8 +1172,8 @@ class TraceStorage {
     return std::make_pair(table_id, row);
   }
 
-  const Tracks& tracks() const { return tracks_; }
-  Tracks* mutable_tracks() { return &tracks_; }
+  const tables::TrackTable& track_table() const { return track_table_; }
+  tables::TrackTable* mutable_track_table() { return &track_table_; }
 
   const VirtualTracks& virtual_tracks() const { return virtual_tracks_; }
   VirtualTracks* mutable_virtual_tracks() { return &virtual_tracks_; }
@@ -1308,7 +1308,7 @@ class TraceStorage {
   Metadata metadata_{};
 
   // Metadata for tracks.
-  Tracks tracks_;
+  tables::TrackTable track_table_{&string_pool_, nullptr};
 
   // Metadata for virtual slice tracks.
   VirtualTracks virtual_tracks_;
