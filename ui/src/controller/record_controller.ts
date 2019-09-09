@@ -431,6 +431,13 @@ export function extractTraceConfig(enableTracingRequest: Uint8Array):
   }
 }
 
+export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
+  try {
+    return perfetto.protos.TraceConfig.decode(traceConfigProto).durationMs;
+  } catch (e) {  // This catch is for possible proto encoding/decoding issues.
+    return undefined;
+  }
+}
 export class RecordController extends Controller<'main'> implements Consumer {
   private app: App;
   private config: RecordConfig|null = null;

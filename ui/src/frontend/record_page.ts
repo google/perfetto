@@ -768,11 +768,11 @@ function recordingButtons() {
   const realDeviceTarget = state.androidDeviceConnected !== undefined;
   const recInProgress = state.recordingInProgress;
 
-  const startButton =
+  const start =
       m(`button${recInProgress ? '.selected' : ''}`,
         {onclick: onStartRecordingPressed},
         'Start Recording');
-  const showCmdButton =
+  const showCmd =
       m(`button`,
         {
           onclick: () => {
@@ -781,7 +781,7 @@ function recordingButtons() {
           }
         },
         'Show Command');
-  const stopButton =
+  const stop =
       m(`button${recInProgress ? '' : '.disabled'}`,
         {onclick: () => globals.dispatch(Actions.stopRecording({}))},
         'Stop Recording');
@@ -790,14 +790,13 @@ function recordingButtons() {
 
   const targetOs = state.recordConfig.targetOS;
   if (isAndroidTarget(targetOs)) {
-    buttons.push(showCmdButton);
-    if (realDeviceTarget) buttons.push(startButton);
-    // TODO(nicomazz): Support stop recording on Android devices.
+    buttons.push(showCmd);
+    if (realDeviceTarget) buttons.push(recInProgress ? stop : start);
   } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
-    buttons.push(startButton);
-    if (recInProgress) buttons.push(stopButton);
+    buttons.push(start);
+    if (recInProgress) buttons.push(stop);
   } else if (isLinuxTarget(targetOs)) {
-    buttons.push(showCmdButton);
+    buttons.push(showCmd);
   }
 
   return m('.button', buttons);
