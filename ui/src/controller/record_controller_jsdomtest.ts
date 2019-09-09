@@ -19,18 +19,7 @@ import {TraceConfig} from '../common/protos';
 import {createEmptyRecordConfig, RecordConfig} from '../common/state';
 
 import {App} from './globals';
-import {
-  genConfigProto,
-  RecordController,
-  toPbtxt,
-  uint8ArrayToBase64
-} from './record_controller';
-
-test('uint8ArrayToBase64', () => {
-  const bytes = [...'Hello, world'].map(c => c.charCodeAt(0));
-  const buffer = new Uint8Array(bytes);
-  expect(uint8ArrayToBase64(buffer)).toEqual('SGVsbG8sIHdvcmxk');
-});
+import {genConfigProto, RecordController, toPbtxt} from './record_controller';
 
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
