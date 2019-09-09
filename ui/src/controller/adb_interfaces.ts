@@ -15,12 +15,16 @@
 
 export interface Adb {
   connect(device: USBDevice): Promise<void>;
+  disconnect(): Promise<void>;
   shell(cmd: string): Promise<AdbStream>;
+  shellOutputAsString(cmd: string): Promise<string>;
 }
 
 export interface AdbStream {
   onMessage(message: AdbMsg): void;
   onData: (str: string, raw: Uint8Array) => void;
+  close(): void;
+
   onConnect: VoidCallback;
   onClose: VoidCallback;
 }
@@ -29,8 +33,17 @@ export class MockAdb implements Adb {
   connect(_: USBDevice): Promise<void> {
     return Promise.resolve();
   }
+
+  disconnect(): Promise<void> {
+    return Promise.resolve();
+  }
+
   shell(_: string): Promise<AdbStream> {
     return Promise.resolve(new MockAdbStream());
+  }
+
+  shellOutputAsString(_: string): Promise<string> {
+    return Promise.resolve('');
   }
 }
 
@@ -39,6 +52,7 @@ export class MockAdbStream implements AdbStream {
   onConnect = () => {};
   onClose = () => {};
   onMessage = (_: AdbMsg) => {};
+  close() {}
 }
 
 export declare type CmdType =
