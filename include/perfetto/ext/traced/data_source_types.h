@@ -23,8 +23,6 @@
 #include <set>
 #include <string>
 
-#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
-
 namespace perfetto {
 
 // On ARM, st_ino is not ino_t but unsigned long long.
@@ -33,19 +31,19 @@ using Inode = decltype(stat::st_ino);
 // On ARM, st_dev is not dev_t but unsigned long long.
 using BlockDeviceID = decltype(stat::st_dev);
 
+// From inode_file_map.pbzero.h
+using InodeFileMap_Entry_Type = int32_t;
+
 class InodeMapValue {
  public:
-  InodeMapValue(protos::pbzero::InodeFileMap_Entry_Type entry_type,
-                std::set<std::string> paths)
+  InodeMapValue(InodeFileMap_Entry_Type entry_type, std::set<std::string> paths)
       : entry_type_(entry_type), paths_(std::move(paths)) {}
 
   InodeMapValue() {}
 
-  protos::pbzero::InodeFileMap_Entry_Type type() const { return entry_type_; }
+  InodeFileMap_Entry_Type type() const { return entry_type_; }
   const std::set<std::string>& paths() const { return paths_; }
-  void SetType(protos::pbzero::InodeFileMap_Entry_Type entry_type) {
-    entry_type_ = entry_type;
-  }
+  void SetType(InodeFileMap_Entry_Type entry_type) { entry_type_ = entry_type; }
   void SetPaths(std::set<std::string> paths) { paths_ = std::move(paths); }
   void AddPath(std::string path) { paths_.emplace(std::move(path)); }
 
@@ -54,7 +52,7 @@ class InodeMapValue {
   }
 
  private:
-  protos::pbzero::InodeFileMap_Entry_Type entry_type_;
+  InodeFileMap_Entry_Type entry_type_;
   std::set<std::string> paths_;
 };
 

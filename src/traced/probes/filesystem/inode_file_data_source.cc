@@ -29,6 +29,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 
 #include "protos/perfetto/config/inode_file/inode_file_config.pbzero.h"
+#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/traced/probes/filesystem/file_scanner.h"
 
@@ -65,7 +66,7 @@ class StaticMapDelegate : public FileScanner::Delegate {
   bool OnInodeFound(BlockDeviceID block_device_id,
                     Inode inode_number,
                     const std::string& path,
-                    protos::pbzero::InodeFileMap_Entry_Type type) {
+                    InodeFileMap_Entry_Type type) {
     std::unordered_map<Inode, InodeMapValue>& inode_map =
         (*map_)[block_device_id];
     inode_map[inode_number].SetType(type);
@@ -95,7 +96,8 @@ void InodeFileDataSource::FillInodeEntry(InodeFileMap* destination,
                                          const InodeMapValue& inode_map_value) {
   auto* entry = destination->add_entries();
   entry->set_inode_number(inode_number);
-  entry->set_type(inode_map_value.type());
+  entry->set_type(static_cast<protos::pbzero::InodeFileMap_Entry_Type>(
+      inode_map_value.type()));
   for (const auto& path : inode_map_value.paths())
     entry->add_paths(path.c_str());
 }
@@ -293,11 +295,10 @@ void InodeFileDataSource::RemoveFromNextMissingInodes(
   it->second.erase(inode_number);
 }
 
-bool InodeFileDataSource::OnInodeFound(
-    BlockDeviceID block_device_id,
-    Inode inode_number,
-    const std::string& path,
-    protos::pbzero::InodeFileMap_Entry_Type type) {
+bool InodeFileDataSource::OnInodeFound(BlockDeviceID block_device_id,
+                                       Inode inode_number,
+                                       const std::string& path,
+                                       InodeFileMap_Entry_Type type) {
   auto it = missing_inodes_.find(block_device_id);
   if (it == missing_inodes_.end())
     return true;
