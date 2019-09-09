@@ -29,8 +29,8 @@ source_set("ipc") {
     "../base:unix_socket",
   ]
   deps = [
-    ":wire_protocol",
     "../../gn:default_deps",
+    "../../protos/perfetto/ipc:wire_protocol",
     "../base",
   ]
   sources = [
@@ -52,8 +52,8 @@ perfetto_fuzzer_test("buffered_frame_deserializer_fuzzer") {
   ]
   deps = [
     ":ipc",
-    ":wire_protocol",
     "../../gn:default_deps",
+    "../../protos/perfetto/ipc:wire_protocol",
   ]
 }
 
@@ -62,9 +62,9 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":ipc",
     ":test_messages",
-    ":wire_protocol",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../protos/perfetto/ipc:wire_protocol",
     "../base",
     "../base:test_support",
   ]
@@ -75,14 +75,6 @@ perfetto_unittest_source_set("unittests") {
     "host_impl_unittest.cc",
     "test/ipc_integrationtest.cc",
   ]
-}
-
-perfetto_proto_library("wire_protocol") {
-  proto_generators = [ "lite" ]
-  sources = [
-    "wire_protocol.proto",
-  ]
-  proto_path = perfetto_root_path
 }
 
 ipc_library("test_messages") {
