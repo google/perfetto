@@ -55,13 +55,36 @@ TEST(StringUtilsTest, CaseInsensitiveEqual) {
 }
 
 TEST(StringUtilsTest, SplitString) {
-  EXPECT_THAT(SplitString("", ":"), ElementsAre(""));
+  EXPECT_THAT(SplitString("", ":"), ElementsAre());
   EXPECT_THAT(SplitString("a:b:c", ":"), ElementsAre("a", "b", "c"));
   EXPECT_THAT(SplitString("a::b::c", "::"), ElementsAre("a", "b", "c"));
+  EXPECT_THAT(SplitString("::::a::b::::c::", "::"), ElementsAre("a", "b", "c"));
   EXPECT_THAT(SplitString("abc", ":"), ElementsAre("abc"));
   EXPECT_THAT(SplitString("abc", "::"), ElementsAre("abc"));
   EXPECT_THAT(SplitString("abc", ":"), ElementsAre("abc"));
   EXPECT_THAT(SplitString("abc", "::"), ElementsAre("abc"));
+}
+
+TEST(StringUtilsTest, Strip) {
+  EXPECT_EQ(StripPrefix("abc", ""), "abc");
+  EXPECT_EQ(StripPrefix("abc", "a"), "bc");
+  EXPECT_EQ(StripPrefix("abc", "ab"), "c");
+  EXPECT_EQ(StripPrefix("abc", "abc"), "");
+  EXPECT_EQ(StripPrefix("abc", "abcd"), "abc");
+
+  EXPECT_EQ(StripSuffix("abc", ""), "abc");
+  EXPECT_EQ(StripSuffix("abc", "c"), "ab");
+  EXPECT_EQ(StripSuffix("abc", "bc"), "a");
+  EXPECT_EQ(StripSuffix("abc", "abc"), "");
+  EXPECT_EQ(StripSuffix("abc", "ebcd"), "abc");
+
+  EXPECT_EQ(StripChars("foobar", "", '_'), "foobar");
+  EXPECT_EQ(StripChars("foobar", "x", '_'), "foobar");
+  EXPECT_EQ(StripChars("foobar", "f", '_'), "_oobar");
+  EXPECT_EQ(StripChars("foobar", "o", '_'), "f__bar");
+  EXPECT_EQ(StripChars("foobar", "oa", '_'), "f__b_r");
+  EXPECT_EQ(StripChars("foobar", "fbr", '_'), "_oo_a_");
+  EXPECT_EQ(StripChars("foobar", "froab", '_'), "______");
 }
 
 }  // namespace

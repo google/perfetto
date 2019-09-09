@@ -21,5 +21,6 @@ perfetto_host_executable("ipc_plugin") {
   deps = [
     "../../../gn:default_deps",
     "../../../gn:protoc_lib",
+    "../../../src/base",
   ]
 }

@@ -16,6 +16,8 @@
 
 #include "perfetto/ext/base/string_utils.h"
 
+#include <string.h>
+
 #include <algorithm>
 
 #include "perfetto/base/logging.h"
@@ -64,12 +66,42 @@ std::vector<std::string> SplitString(const std::string& text,
   size_t next;
   for (;;) {
     next = std::min(text.find(delimiter, start), text.size());
-    output.emplace_back(&text[start], next - start);
+    if (next > start)
+      output.emplace_back(&text[start], next - start);
     start = next + delimiter.size();
     if (start >= text.size())
       break;
   }
   return output;
+}
+
+std::string StripPrefix(const std::string& str, const std::string& prefix) {
+  return StartsWith(str, prefix) ? str.substr(prefix.size()) : str;
+}
+
+std::string StripSuffix(const std::string& str, const std::string& suffix) {
+  return EndsWith(str, suffix) ? str.substr(0, str.size() - suffix.size())
+                               : str;
+}
+
+std::string ToUpper(const std::string& str) {
+  // Don't use toupper(), it depends on the locale.
+  std::string res(str);
+  auto end = res.end();
+  for (auto c = res.begin(); c != end; ++c)
+    *c = ('a' <= *c && *c <= 'z') ? (*c += 'A' - 'a') : *c;
+  return res;
+}
+
+std::string StripChars(const std::string& str,
+                       const std::string& chars,
+                       char replacement) {
+  std::string res(str);
+  const char* start = res.c_str();
+  const char* remove = chars.c_str();
+  for (const char* c = strpbrk(start, remove); c; c = strpbrk(c + 1, remove))
+    res[static_cast<uintptr_t>(c - start)] = replacement;
+  return res;
 }
 
 }  // namespace base
