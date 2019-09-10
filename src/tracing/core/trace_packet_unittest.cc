@@ -63,7 +63,7 @@ TEST(TracePacketTest, Simple) {
   ASSERT_EQ(tp.slices().end(), ++slice);
 
   protos::TracePacket decoded_packet;
-  ASSERT_TRUE(tp.Decode(&decoded_packet));
+  ASSERT_TRUE(decoded_packet.ParseFromString(tp.GetRawBytesForTesting()));
   ASSERT_EQ(proto.for_testing().str(), decoded_packet.for_testing().str());
 }
 
@@ -94,7 +94,7 @@ TEST(TracePacketTest, Sliced) {
   ASSERT_EQ(tp.slices().end(), ++slice);
 
   protos::TracePacket decoded_packet;
-  ASSERT_TRUE(tp.Decode(&decoded_packet));
+  ASSERT_TRUE(decoded_packet.ParseFromString(tp.GetRawBytesForTesting()));
   ASSERT_EQ(proto.for_testing().str(), decoded_packet.for_testing().str());
 }
 
@@ -105,7 +105,7 @@ TEST(TracePacketTest, Corrupted) {
   TracePacket tp;
   tp.AddSlice({ser_buf.data(), ser_buf.size() - 2});  // corrupted.
   protos::TracePacket decoded_packet;
-  ASSERT_FALSE(tp.Decode(&decoded_packet));
+  ASSERT_FALSE(decoded_packet.ParseFromString(tp.GetRawBytesForTesting()));
 }
 
 // Tests that the GetProtoPreamble() logic returns a valid preamble that allows

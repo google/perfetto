@@ -55,7 +55,6 @@ source_set("tracing") {
     "core/shared_memory_arbiter_impl.cc",
     "core/shared_memory_arbiter_impl.h",
     "core/sliced_protobuf_input_stream.cc",
-    "core/sliced_protobuf_input_stream.h",
     "core/startup_trace_writer.cc",
     "core/startup_trace_writer_registry.cc",
     "core/test_config.cc",
