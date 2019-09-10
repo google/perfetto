@@ -17,7 +17,7 @@
 #ifndef SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
 #define SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
 
-#include "src/tracing/core/sliced_protobuf_input_stream.h"
+#include "perfetto/ext/tracing/core/sliced_protobuf_input_stream.h"
 
 namespace perfetto {
 

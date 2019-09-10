@@ -23,7 +23,6 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
-#include "src/tracing/core/sliced_protobuf_input_stream.h"
 #include "src/tracing/core/trace_buffer.h"
 #include "src/tracing/test/aligned_buffer_test.h"
 #include "src/tracing/test/fake_producer_endpoint.h"
@@ -147,15 +146,10 @@ class StartupTraceWriterTest : public AlignedBufferTest {
       EXPECT_EQ(static_cast<uid_t>(1),
                 sequence_properties.producer_uid_trusted);
 
-      SlicedProtobufInputStream stream(&packet.slices());
-      size_t size = 0;
-      for (const Slice& slice : packet.slices())
-        size += slice.size;
       protos::TracePacket parsed_packet;
-      bool success = parsed_packet.ParseFromBoundedZeroCopyStream(
-          &stream, static_cast<int>(size));
-      EXPECT_TRUE(success);
-      if (!success)
+      bool res = parsed_packet.ParseFromString(packet.GetRawBytesForTesting());
+      EXPECT_TRUE(res);
+      if (!res)
         break;
 
       // If the buffer size was exceeded, the data loss packet should be the
