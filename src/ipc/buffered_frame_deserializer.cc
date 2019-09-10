@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -167,9 +166,7 @@ void BufferedFrameDeserializer::DecodeFrame(const char* data, size_t size) {
   if (size == 0)
     return;
   std::unique_ptr<Frame> frame(new Frame);
-  const int sz = static_cast<int>(size);
-  ::google::protobuf::io::ArrayInputStream stream(data, sz);
-  if (frame->ParseFromBoundedZeroCopyStream(&stream, sz))
+  if (frame->ParseFromArray(data, static_cast<int>(size)))
     decoded_frames_.push_back(std::move(frame));
 }
 
