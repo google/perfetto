@@ -122,16 +122,14 @@ class FilteredRowIndex {
 
   template <typename Predicate>
   void FilterRowVector(Predicate fn) {
-    size_t rows_size = rows_.size();
-    for (size_t i = 0; i < rows_size;) {
-      if (fn(rows_[i])) {
-        i++;
-      } else {
-        std::swap(rows_[i], rows_[rows_size - 1]);
-        rows_size--;
+    size_t write_idx = 0;
+    for (size_t read_idx = 0; read_idx < rows_.size(); ++read_idx) {
+      uint32_t row = rows_[read_idx];
+      if (fn(row)) {
+        rows_[write_idx++] = row;
       }
     }
-    rows_.resize(rows_size);
+    rows_.resize(write_idx);
   }
 
   void ConvertBitVectorToRowVector();
