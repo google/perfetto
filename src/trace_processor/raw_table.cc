@@ -227,7 +227,11 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
           writer->AppendUnsignedInt(value.uint_value & ((1 << 20) - 1));
         });
     writer->AppendString(" ino ");
-    write_value_at_index(MFA::kIInoFieldNumber - 1, write_value);
+    write_value_at_index(MFA::kIInoFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
     writer->AppendString(" page=0000000000000000");
     writer->AppendString(" pfn=");
     write_value_at_index(MFA::kPfnFieldNumber - 1, write_value);
