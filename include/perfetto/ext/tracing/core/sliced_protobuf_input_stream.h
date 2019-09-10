@@ -24,13 +24,15 @@
 
 #include <google/protobuf/io/zero_copy_stream.h>
 
+#include "perfetto/base/export.h"
+
 namespace perfetto {
 
 using ZeroCopyInputStream = google::protobuf::io::ZeroCopyInputStream;
 
 // Wraps a sequence of Slice(s) in a protobuf ZeroCopyInputStream that can be
 // passed to protobuf::Message::ParseFromZeroCopyStream().
-class SlicedProtobufInputStream : public ZeroCopyInputStream {
+class PERFETTO_EXPORT SlicedProtobufInputStream : public ZeroCopyInputStream {
  public:
   // This indirection deals with the fact that the public protobuf library and
   // the internal one diverged on this type. The internal doesn's use a custom
