@@ -17,7 +17,6 @@
 #ifndef SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
 #define SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
 
-#include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/sliced_protobuf_input_stream.h"
 
 namespace perfetto {
@@ -31,7 +30,7 @@ namespace perfetto {
 //
 // Note that we only validate top-level fields in the trace proto; sub-messages
 // are simply skipped.
-class PERFETTO_EXPORT PacketStreamValidator {
+class PacketStreamValidator {
  public:
   PacketStreamValidator() = delete;
 
