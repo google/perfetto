@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
-#define SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
+#ifndef INCLUDE_PERFETTO_EXT_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
+#define INCLUDE_PERFETTO_EXT_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
 
 #include "perfetto/ext/tracing/core/slice.h"
 
@@ -60,4 +60,4 @@ class SlicedProtobufInputStream : public ZeroCopyInputStream {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
+#endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_SLICED_PROTOBUF_INPUT_STREAM_H_
