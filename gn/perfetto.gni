@@ -154,9 +154,10 @@ declare_args() {
       is_perfetto_build_generator
 
   # Enables base::Watchdog. Is supported only on Linux-based platforms.
+  # gn/BUILD.gn further restricts this to OS_LINUX || OS_ANDROID when generating
+  # the perfetto_build_flags.h header.
   enable_perfetto_watchdog =
-      perfetto_build_with_android ||
-      (perfetto_build_standalone && (is_linux || is_android) && !is_wasm)
+      perfetto_build_with_android || perfetto_build_standalone
 
   # Misc host executable under tools/.
   enable_perfetto_tools =
