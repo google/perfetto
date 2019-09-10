@@ -52,7 +52,20 @@ std::vector<std::string> GetLines(FILE* f) {
     n = 0;
   } while (rd > 1);
   return lines;
-};
+}
+
+std::string ToHex(const char* build_id, size_t size) {
+  std::string hex_build_id(2 * size + 1, 'x');
+  for (size_t i = 0; i < size; ++i) {
+    // snprintf prints 3 characters, the two hex digits and a null byte. As we
+    // write left to write, we keep overwriting the nullbytes, except for the
+    // last call to snprintf.
+    snprintf(&(hex_build_id[2 * i]), 3, "%02hhx", build_id[i]);
+  }
+  // Remove the trailing nullbyte produced by the last snprintf.
+  hex_build_id.resize(2 * size);
+  return hex_build_id;
+}
 
 struct Elf32 {
   using Ehdr = Elf32_Ehdr;
@@ -165,6 +178,16 @@ bool ParseLine(std::string line, std::string* file_name, uint32_t* line_no) {
   return *endptr == '\0' && parsed_line_no >= 0;
 }
 
+std::string SplitBuildID(const std::string& hex_build_id) {
+  if (hex_build_id.size() < 3) {
+    PERFETTO_DFATAL_OR_ELOG("Invalid build-id (< 3 char) %s",
+                            hex_build_id.c_str());
+    return {};
+  }
+
+  return hex_build_id.substr(0, 2) + "/" + hex_build_id.substr(2);
+}
+
 }  // namespace
 
 base::Optional<std::string> LocalBinaryFinder::FindBinary(
@@ -232,7 +255,9 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
   std::string dirname;
 
   for (base::StringSplitter sp(abspath, '/'); sp.Next();) {
-    dirname += "/" + filename;
+    if (!dirname.empty())
+      dirname += "/";
+    dirname += filename;
     filename = sp.cur_token();
   }
 
@@ -243,12 +268,18 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
   // * only filename of library file relative to root.
   // * only filename of library file relative to root, but with base.apk!
   //   removed from filename.
+  // * in the subdirectory .build-id: the first two hex digits of the build-id
+  //   as subdirectory, then the rest of the hex digits, with ".debug"appended.
+  //   See
+  //   https://fedoraproject.org/wiki/RolandMcGrath/BuildID#Find_files_by_build_ID
   //
-  // For example, "/system/lib/base.apk!foo.so" is looked for at
+  // For example, "/system/lib/base.apk!foo.so" with build id abcd1234,
+  // is looked for at
   // * $ROOT/system/lib/base.apk!foo.so
   // * $ROOT/system/lib/foo.so
   // * $ROOT/base.apk!foo.so
   // * $ROOT/foo.so
+  // * $ROOT/.build-id/ab/cd1234.debug
 
   std::string symbol_file = root_str + "/" + dirname + "/" + filename;
   if (access(symbol_file.c_str(), F_OK) == 0 &&
@@ -270,6 +301,16 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
 
   if (filename.find(kApkPrefix) == 0) {
     symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix));
+    if (access(symbol_file.c_str(), F_OK) == 0 &&
+        IsCorrectFile(symbol_file, build_id))
+      return {symbol_file};
+  }
+
+  std::string hex_build_id = ToHex(build_id.c_str(), build_id.size());
+  std::string split_hex_build_id = SplitBuildID(hex_build_id);
+  if (!split_hex_build_id.empty()) {
+    symbol_file =
+        root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
     if (access(symbol_file.c_str(), F_OK) == 0 &&
         IsCorrectFile(symbol_file, build_id))
       return {symbol_file};
