@@ -23,7 +23,7 @@ def CheckChange(input, output):
       x, white_list=".*",
       black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
                   'test/trace_processor/index$', 'BUILD$', 'protos/BUILD$',
-                  '.*/Makefile$'])
+                  '.*/Makefile$', '/perfetto_build_flags.h$'])
   results = []
   results += input.canned_checks.CheckDoNotSubmit(input, output)
   results += input.canned_checks.CheckChangeHasNoTabs(input, output)

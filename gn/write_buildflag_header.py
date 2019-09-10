@@ -54,9 +54,11 @@ def main():
   lines.append('#ifndef %s' % guard)
   lines.append('#define %s' % guard)
   lines.append('')
+  lines.append('// clang-format off')
   for kv in flags:
     lines.append('#define PERFETTO_BUILDFLAG_DEFINE_%s() (%s)' % kv)
   lines.append('')
+  lines.append('// clang-format on')
   lines.append('#endif  // %s' % guard)
   lines.append('')
 
