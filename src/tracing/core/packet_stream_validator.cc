@@ -20,50 +20,171 @@
 #include <stddef.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "protos/perfetto/trace/trusted_packet.pb.h"
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
+namespace {
+
+using protozero::proto_utils::ProtoWireType;
+
+const uint32_t kReservedFieldIds[] = {
+    protos::pbzero::TracePacket::kTrustedUidFieldNumber,
+    protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
+    protos::pbzero::TracePacket::kTraceConfigFieldNumber,
+    protos::pbzero::TracePacket::kTraceStatsFieldNumber,
+    protos::pbzero::TracePacket::kCompressedPacketsFieldNumber,
+    protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
+};
+
+// This translation unit is quite subtle and perf-sensitive. Remember to check
+// BM_PacketStreamValidator in perfetto_benchmarks when making changes.
+
+// Checks that a packet, spread over several slices, is well-formed and doesn't
+// contain reserved top-level fields.
+// The checking logic is based on a state-machine that skips the fields' payload
+// and operates as follows:
+//              +-------------------------------+ <-------------------------+
+// +----------> | Read field preamble (varint)  | <----------------------+  |
+// |            +-------------------------------+                        |  |
+// |              |              |            |                          |  |
+// |       <Varint>        <Fixed 32/64>     <Length-delimited field>    |  |
+// |          V                  |                      V                |  |
+// |  +------------------+       |               +--------------+        |  |
+// |  | Read field value |       |               | Read length  |        |  |
+// |  | (another varint) |       |               |   (varint)   |        |  |
+// |  +------------------+       |               +--------------+        |  |
+// |           |                 V                      V                |  |
+// +-----------+        +----------------+     +-----------------+       |  |
+//                      | Skip 4/8 Bytes |     | Skip $len Bytes |-------+  |
+//                      +----------------+     +-----------------+          |
+//                               |                                          |
+//                               +------------------------------------------+
+class ProtoFieldParserFSM {
+ public:
+  // This method effectively continuously parses varints (either for the field
+  // preamble or the payload or the submessage length) and tells the caller
+  // (the Validate() method) how many bytes to skip until the next field.
+  size_t Push(uint8_t octet) {
+    varint_ |= static_cast<uint64_t>(octet & 0x7F) << varint_shift_;
+    if (octet & 0x80) {
+      varint_shift_ += 7;
+      if (varint_shift_ >= 64)
+        state_ = kInvalidVarInt;
+      return 0;
+    }
+    uint64_t varint = varint_;
+    varint_ = 0;
+    varint_shift_ = 0;
+
+    switch (state_) {
+      case kFieldPreamble: {
+        uint64_t field_type = varint & 7;  // 7 = 0..0111
+        auto field_id = static_cast<uint32_t>(varint >> 3);
+        // Check if the field id is reserved, go into an error state if it is.
+        for (size_t i = 0; i < base::ArraySize(kReservedFieldIds); ++i) {
+          if (field_id == kReservedFieldIds[i]) {
+            state_ = kWroteReservedField;
+            return 0;
+          }
+        }
+        // The field type is legit, now check it's well formed and within
+        // boundaries.
+        if (field_type == static_cast<uint64_t>(ProtoWireType::kVarInt)) {
+          state_ = kVarIntValue;
+        } else if (field_type ==
+                   static_cast<uint64_t>(ProtoWireType::kFixed32)) {
+          return 4;
+        } else if (field_type ==
+                   static_cast<uint64_t>(ProtoWireType::kFixed64)) {
+          return 8;
+        } else if (field_type ==
+                   static_cast<uint64_t>(ProtoWireType::kLengthDelimited)) {
+          state_ = kLenDelimitedLen;
+        } else {
+          state_ = kUnknownFieldType;
+        }
+        return 0;
+      }
+
+      case kVarIntValue: {
+        // Consume the int field payload and go back to the next field.
+        state_ = kFieldPreamble;
+        return 0;
+      }
+
+      case kLenDelimitedLen: {
+        if (varint > protozero::proto_utils::kMaxMessageLength) {
+          state_ = kMessageTooBig;
+          return 0;
+        }
+        state_ = kFieldPreamble;
+        return static_cast<size_t>(varint);
+      }
+
+      case kWroteReservedField:
+      case kUnknownFieldType:
+      case kMessageTooBig:
+      case kInvalidVarInt:
+        // Persistent error states.
+        return 0;
+
+    }          // switch(state_)
+    return 0;  // To keep GCC happy.
+  }
+
+  // Queried at the end of the all payload. A message is well-formed only
+  // if the FSM is back to the state where it should parse the next field and
+  // hasn't started parsing any preamble.
+  bool valid() const { return state_ == kFieldPreamble && varint_shift_ == 0; }
+  int state() const { return static_cast<int>(state_); }
+
+ private:
+  enum State {
+    kFieldPreamble = 0,  // Parsing the varint for the field preamble.
+    kVarIntValue,        // Parsing the varint value for the field payload.
+    kLenDelimitedLen,    // Parsing the length of the length-delimited field.
+
+    // Error states:
+    kWroteReservedField,  // Tried to set a reserved field id.
+    kUnknownFieldType,    // Encountered an invalid field type.
+    kMessageTooBig,       // Size of the length delimited message was too big.
+    kInvalidVarInt,       // VarInt larger than 64 bits.
+  };
+
+  State state_ = kFieldPreamble;
+  uint64_t varint_ = 0;
+  uint32_t varint_shift_ = 0;
+};
+
+}  // namespace
+
 // static
 bool PacketStreamValidator::Validate(const Slices& slices) {
-  SlicedProtobufInputStream stream(&slices);
-  size_t size = 0;
-  for (const Slice& slice : slices)
-    size += slice.size;
-
-  protos::TrustedPacket packet;
-  if (!packet.ParseFromBoundedZeroCopyStream(&stream, static_cast<int>(size)))
-    return false;
-
-  // Only the service is allowed to fill in these fields:
-
-  if (packet.optional_trusted_uid_case() !=
-      protos::TrustedPacket::OPTIONAL_TRUSTED_UID_NOT_SET) {
-    return false;
+  ProtoFieldParserFSM parser;
+  size_t skip_bytes = 0;
+  for (const Slice& slice : slices) {
+    for (size_t i = 0; i < slice.size;) {
+      const size_t skip_bytes_cur_slice = std::min(skip_bytes, slice.size - i);
+      if (skip_bytes_cur_slice > 0) {
+        i += skip_bytes_cur_slice;
+        skip_bytes -= skip_bytes_cur_slice;
+      } else {
+        uint8_t octet = *(reinterpret_cast<const uint8_t*>(slice.start) + i);
+        skip_bytes = parser.Push(octet);
+        i++;
+      }
+    }
   }
+  if (skip_bytes == 0 && parser.valid())
+    return true;
 
-  if (packet.optional_trusted_packet_sequence_id_case() !=
-      protos::TrustedPacket::OPTIONAL_TRUSTED_PACKET_SEQUENCE_ID_NOT_SET) {
-    return false;
-  }
-
-  if (packet.has_trace_config())
-    return false;
-
-  if (packet.has_trace_stats())
-    return false;
-
-  if (!packet.synchronization_marker().empty())
-    return false;
-
-  // We are deliberately not checking for clock_snapshot for the moment. It's
-  // unclear if we want to allow producers to snapshot their clocks. Ideally we
-  // want a security model where producers can only snapshot their own clocks
-  // and not system ones. However, right now, there isn't a compelling need to
-  // be so prescriptive.
-
-  return true;
+  PERFETTO_DLOG("Packet validation error (state %d, skip = %zu)",
+                parser.state(), skip_bytes);
+  return false;
 }
 
 }  // namespace perfetto
