@@ -308,7 +308,8 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
 
             for (auto& encoded_packet : *packets) {
               protos::TracePacket packet;
-              ASSERT_TRUE(encoded_packet.Decode(&packet));
+              ASSERT_TRUE(packet.ParseFromString(
+                  encoded_packet.GetRawBytesForTesting()));
               if (packet.has_for_testing()) {
                 char buf[8];
                 sprintf(buf, "evt_%zu", num_pack_rx++);
@@ -516,7 +517,8 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
                      std::vector<TracePacket>* packets, bool has_more) {
             for (auto& encoded_packet : *packets) {
               protos::TracePacket packet;
-              ASSERT_TRUE(encoded_packet.Decode(&packet));
+              ASSERT_TRUE(packet.ParseFromString(
+                  encoded_packet.GetRawBytesForTesting()));
               if (packet.has_for_testing()) {
                 num_test_pack_rx++;
               }

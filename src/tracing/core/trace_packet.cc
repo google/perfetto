@@ -18,7 +18,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/tracing/core/sliced_protobuf_input_stream.h"
 
 namespace perfetto {
 
@@ -63,10 +62,16 @@ std::tuple<char*, size_t> TracePacket::GetProtoPreamble() {
   return std::make_tuple(&preamble_[0], preamble_size);
 }
 
-std::unique_ptr<TracePacket::ZeroCopyInputStream>
-TracePacket::CreateSlicedInputStream() const {
-  return std::unique_ptr<ZeroCopyInputStream>(
-      new SlicedProtobufInputStream(&slices_));
+std::string TracePacket::GetRawBytesForTesting() {
+  std::string data;
+  data.resize(size());
+  size_t pos = 0;
+  for (const Slice& slice : slices()) {
+    PERFETTO_CHECK(pos + slice.size <= data.size());
+    memcpy(&data[pos], slice.start, slice.size);
+    pos += slice.size;
+  }
+  return data;
 }
 
 }  // namespace perfetto
