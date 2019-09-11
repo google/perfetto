@@ -61,7 +61,7 @@ class Column {
  public:
   template <typename T>
   Column(const char* name,
-         const SparseVector<T>* storage,
+         SparseVector<T>* storage,
          Table* table,
          uint32_t col_idx,
          uint32_t row_map_idx)
@@ -180,13 +180,20 @@ class Column {
     return static_cast<const SparseVector<T>*>(sparse_vector_)->Get(idx);
   }
 
+  template <typename T>
+  void SetTyped(uint32_t row, T value) {
+    PERFETTO_DCHECK(ToColumnType<T>() == type_);
+    auto idx = row_map().Get(row);
+    return static_cast<SparseVector<T>*>(sparse_vector_)->Set(idx, value);
+  }
+
   NullTermStringView GetStringPoolString(uint32_t row) const {
     return string_pool_->Get(*GetTyped<StringPool::Id>(row));
   }
 
   // type_ is used to cast sparse_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;
-  const void* sparse_vector_ = nullptr;
+  void* sparse_vector_ = nullptr;
 
  private:
   friend class Table;
@@ -196,7 +203,7 @@ class Column {
          Table* table,
          uint32_t col_idx,
          uint32_t row_map_idx,
-         const void* sparse_vector);
+         void* sparse_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
