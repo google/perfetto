@@ -68,6 +68,7 @@
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/vulkan_memory_tracker.h"
 #include "src/trace_processor/window_operator_table.h"
 
 #include "protos/perfetto/metrics/android/mem_metric.pbzero.h"
@@ -276,6 +277,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
+  context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   CreateJsonExportFunction(this->context_.storage.get(), db);
@@ -320,6 +322,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
                                storage->symbol_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->heap_graph_object_table(),
                                storage->heap_graph_object_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->vulkan_memory_allocations_table(),
+      storage->vulkan_memory_allocations_table().table_name());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {

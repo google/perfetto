@@ -28,6 +28,7 @@
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/vulkan_memory_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
@@ -213,6 +214,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.parser.reset(new ProtoTraceParser(&context_));
     context_.systrace_parser.reset(new SystraceParser(&context_));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
+    context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
   }
 
   void ResetTraceBuffers() {

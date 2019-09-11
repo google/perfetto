@@ -470,6 +470,11 @@ void ProtoTraceTokenizer::ParseInternedData(
     InternMessage<protos::pbzero::InternedString, FunctionNamesFieldName>(
         context_, state, interned_data.slice(offset, it->size()));
   }
+  for (auto it = interned_data_decoder.vulkan_memory_keys(); it; ++it) {
+    size_t offset = interned_data.offset_of(it->data());
+    InternMessage<protos::pbzero::InternedString, VulkanAnnotationsFieldName>(
+        context_, state, interned_data.slice(offset, it->size()));
+  }
 
   for (auto it = interned_data_decoder.mappings(); it; ++it) {
     size_t offset = interned_data.offset_of(it->data());

@@ -95,6 +95,8 @@ source_set("lib") {
     "heap_profile_tracker.h",
     "instants_table.cc",
     "instants_table.h",
+    "vulkan_memory_tracker.cc",
+    "vulkan_memory_tracker.h",
     "metadata.h",
     "metadata_table.cc",
     "metadata_table.h",

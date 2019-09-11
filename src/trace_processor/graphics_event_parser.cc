@@ -19,14 +19,17 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/vulkan_memory_tracker.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
+#include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -43,17 +46,41 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
       no_layer_name_name_id_(context->storage->InternString("no_layer_name")),
       layer_name_key_id_(context->storage->InternString("layer_name")),
       event_type_name_ids_{
-          {context->storage->InternString("unspecified_event") /* UNSPECIFIED */,
+          {context->storage->InternString(
+               "unspecified_event") /* UNSPECIFIED */,
            context->storage->InternString("Dequeue") /* DEQUEUE */,
            context->storage->InternString("Queue") /* QUEUE */,
            context->storage->InternString("Post") /* POST */,
-           context->storage->InternString("AcquireFenceSignaled") /* ACQUIRE_FENCE */,
+           context->storage->InternString(
+               "AcquireFenceSignaled") /* ACQUIRE_FENCE */,
            context->storage->InternString("Latch") /* LATCH */,
-           context->storage->InternString("HWCCompositionQueued") /* HWC_COMPOSITION_QUEUED */,
-           context->storage->InternString("FallbackComposition") /* FALLBACK_COMPOSITION */,
-           context->storage->InternString("PresentFenceSignaled") /* PRESENT_FENCE */,
-           context->storage->InternString("ReleaseFenceSignaled") /* RELEASE_FENCE */,
-           context->storage->InternString("Modify") /* MODIFY */}} {}
+           context->storage->InternString(
+               "HWCCompositionQueued") /* HWC_COMPOSITION_QUEUED */,
+           context->storage->InternString(
+               "FallbackComposition") /* FALLBACK_COMPOSITION */,
+           context->storage->InternString(
+               "PresentFenceSignaled") /* PRESENT_FENCE */,
+           context->storage->InternString(
+               "ReleaseFenceSignaled") /* RELEASE_FENCE */,
+           context->storage->InternString("Modify") /* MODIFY */}},
+      vulkan_allocated_host_memory_id_(
+          context->storage->InternString("vulkan.host.memory")),
+      vulkan_allocated_gpu_memory_id_(
+          context->storage->InternString("vulkan.gpu.memory")),
+      vulkan_live_image_objects_id_(
+          context->storage->InternString("vulkan.gpu.images")),
+      vulkan_live_buffer_objects_id_(
+          context->storage->InternString("vulkan.gpu.buffers")),
+      vulkan_bound_image_objects_id_(
+          context->storage->InternString("vulkan.gpu.bound_images")),
+      vulkan_bound_buffer_objects_id_(
+          context->storage->InternString("vulkan.gpu.bound_buffers")),
+      vulkan_allocated_host_memory_(0),
+      vulkan_allocated_gpu_memory_(0),
+      vulkan_live_image_objects_(0),
+      vulkan_live_buffer_objects_(0),
+      vulkan_bound_image_objects_(0),
+      vulkan_bound_buffer_objects_(0) {}
 
 void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
@@ -283,6 +310,161 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
     row.slice_id = slice_id.value();
     row.frame_id = frame_number;
     context_->storage->mutable_gpu_slice_table()->Insert(row);
+  }
+}
+
+void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
+    const tables::VulkanMemoryAllocationsTable::Row* row) {
+  auto ts = row->timestamp;
+
+  if (row->source_iid == protos::pbzero::VulkanMemoryEvent_Source_HOST) {
+    if (row->type_iid == protos::pbzero::VulkanMemoryEvent_Type_CREATE) {
+      vulkan_allocated_host_memory_ += row->memory_size.value();
+    } else if (row->type_iid ==
+               protos::pbzero::VulkanMemoryEvent_Type_DESTROY) {
+      vulkan_allocated_host_memory_ -= row->memory_size.value();
+    }
+    context_->event_tracker->PushCounter(ts, vulkan_allocated_host_memory_,
+                                         vulkan_allocated_host_memory_id_, 0,
+                                         RefType::kRefNoRef);
+  } else if (row->source_iid ==
+             protos::pbzero::VulkanMemoryEvent_Source_GPU_DEVICE_MEMORY) {
+    if (row->type_iid == protos::pbzero::VulkanMemoryEvent_Type_CREATE) {
+      vulkan_allocated_gpu_memory_ += row->memory_size.value();
+    } else if (row->type_iid ==
+               protos::pbzero::VulkanMemoryEvent_Type_DESTROY) {
+      vulkan_allocated_gpu_memory_ -= row->memory_size.value();
+    }
+    context_->event_tracker->PushCounter(ts, vulkan_allocated_gpu_memory_,
+                                         vulkan_allocated_gpu_memory_id_, 0,
+                                         RefType::kRefNoRef);
+  } else if (row->source_iid ==
+             protos::pbzero::VulkanMemoryEvent_Source_GPU_BUFFER) {
+    if (row->type_iid == protos::pbzero::VulkanMemoryEvent_Type_CREATE) {
+      vulkan_live_buffer_objects_ += 1;
+      context_->event_tracker->PushCounter(ts, vulkan_live_buffer_objects_,
+                                           vulkan_live_buffer_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    } else if (row->type_iid ==
+               protos::pbzero::VulkanMemoryEvent_Type_DESTROY) {
+      vulkan_live_buffer_objects_ -= 1;
+      context_->event_tracker->PushCounter(ts, vulkan_live_buffer_objects_,
+                                           vulkan_live_buffer_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    } else if (row->type_iid == protos::pbzero::VulkanMemoryEvent_Type_BIND) {
+      vulkan_bound_buffer_objects_ += 1;
+      context_->event_tracker->PushCounter(ts, vulkan_bound_buffer_objects_,
+                                           vulkan_bound_buffer_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    } else if (row->type_iid ==
+               protos::pbzero::VulkanMemoryEvent_Type_DESTROY_BOUND) {
+      vulkan_bound_buffer_objects_ -= 1;
+      context_->event_tracker->PushCounter(ts, vulkan_bound_buffer_objects_,
+                                           vulkan_bound_buffer_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    }
+  } else if (row->source_iid ==
+             protos::pbzero::VulkanMemoryEvent_Source_GPU_IMAGE) {
+    if (row->type_iid == protos::pbzero::VulkanMemoryEvent_Type_CREATE) {
+      vulkan_live_image_objects_ += 1;
+      context_->event_tracker->PushCounter(ts, vulkan_live_image_objects_,
+                                           vulkan_live_image_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    } else if (row->type_iid ==
+               protos::pbzero::VulkanMemoryEvent_Type_DESTROY) {
+      vulkan_live_image_objects_ -= 1;
+      context_->event_tracker->PushCounter(ts, vulkan_live_image_objects_,
+                                           vulkan_live_image_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    } else if (row->type_iid == protos::pbzero::VulkanMemoryEvent_Type_BIND) {
+      vulkan_bound_image_objects_ += 1;
+      context_->event_tracker->PushCounter(ts, vulkan_bound_image_objects_,
+                                           vulkan_bound_image_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    } else if (row->type_iid ==
+               protos::pbzero::VulkanMemoryEvent_Type_DESTROY_BOUND) {
+      vulkan_bound_image_objects_ -= 1;
+      context_->event_tracker->PushCounter(ts, vulkan_bound_image_objects_,
+                                           vulkan_bound_image_objects_id_, 0,
+                                           RefType::kRefNoRef);
+    }
+  }
+}
+
+void GraphicsEventParser::ParseVulkanMemoryEvent(ConstBytes blob) {
+  protos::pbzero::VulkanMemoryEvent::Decoder vulkan_memory_event(blob.data,
+                                                                 blob.size);
+
+  tables::VulkanMemoryAllocationsTable::Row vulkan_memory_event_row;
+  if (vulkan_memory_event.has_source()) {
+    vulkan_memory_event_row.source_iid =
+        *(context_->vulkan_memory_tracker->FindSourceString(
+            static_cast<uint64_t>(vulkan_memory_event.source())));
+  }
+  if (vulkan_memory_event.has_type()) {
+    vulkan_memory_event_row.type_iid =
+        *(context_->vulkan_memory_tracker->FindTypeString(
+            static_cast<uint64_t>(vulkan_memory_event.type())));
+  }
+  if (vulkan_memory_event.has_timestamp())
+    vulkan_memory_event_row.timestamp = vulkan_memory_event.timestamp();
+  if (vulkan_memory_event.has_pid()) {
+    vulkan_memory_event_row.upid =
+        context_->process_tracker->GetOrCreateProcess(
+            vulkan_memory_event.pid());
+  }
+  if (vulkan_memory_event.has_device())
+    vulkan_memory_event_row.device =
+        static_cast<int64_t>(vulkan_memory_event.device());
+  if (vulkan_memory_event.has_device_memory())
+    vulkan_memory_event_row.device_memory =
+        static_cast<int64_t>(vulkan_memory_event.device_memory());
+  if (vulkan_memory_event.has_heap())
+    vulkan_memory_event_row.heap = vulkan_memory_event.heap();
+  if (vulkan_memory_event.has_caller_iid()) {
+    vulkan_memory_event_row.caller_iid =
+        *(context_->vulkan_memory_tracker->FindString(
+            static_cast<uint64_t>(vulkan_memory_event.caller_iid())));
+  }
+  if (vulkan_memory_event.has_object_handle())
+    vulkan_memory_event_row.object_handle =
+        static_cast<int64_t>(vulkan_memory_event.object_handle());
+  if (vulkan_memory_event.has_memory_address())
+    vulkan_memory_event_row.memory_address =
+        static_cast<int64_t>(vulkan_memory_event.memory_address());
+  if (vulkan_memory_event.has_memory_size())
+    vulkan_memory_event_row.memory_size =
+        static_cast<int64_t>(vulkan_memory_event.memory_size());
+
+  UpdateVulkanMemoryAllocationCounters(&vulkan_memory_event_row);
+
+  auto row_id =
+      context_->storage->mutable_vulkan_memory_allocations_table()->Insert(
+          vulkan_memory_event_row);
+
+  if (vulkan_memory_event.has_annotations()) {
+    for (auto itt = vulkan_memory_event.annotations(); itt; ++itt) {
+      protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(
+          itt->data(), itt->size());
+      auto annotation_id =
+          *(context_->vulkan_memory_tracker->FindString(annotation.key_iid()));
+      if (annotation.has_int_value()) {
+        context_->args_tracker->AddArg(
+            row_id, annotation_id, annotation_id,
+            Variadic::Integer(annotation.int_value()));
+
+      } else if (annotation.has_double_value()) {
+        context_->args_tracker->AddArg(
+            row_id, annotation_id, annotation_id,
+            Variadic::Real(annotation.double_value()));
+
+      } else if (annotation.has_string_iid()) {
+        context_->args_tracker->AddArg(
+            row_id, annotation_id, annotation_id,
+            Variadic::String(*(context_->vulkan_memory_tracker->FindString(
+                annotation.string_iid()))));
+      }
+    }
   }
 }
 
