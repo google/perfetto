@@ -359,6 +359,17 @@ export const StateActions = {
     };
   },
 
+  selectCounter(
+      state: StateDraft, args: {leftTs: number, rightTs: number, id: number}):
+      void {
+        state.currentSelection = {
+          kind: 'COUNTER',
+          leftTs: args.leftTs,
+          rightTs: args.rightTs,
+          id: args.id
+        };
+      },
+
   selectChromeSlice(state: StateDraft, args: {slice_id: number}): void {
     state.currentSelection = {kind: 'CHROME_SLICE', id: args.slice_id};
   },
