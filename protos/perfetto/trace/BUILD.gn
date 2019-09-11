@@ -70,6 +70,7 @@ perfetto_proto_library("non_minimal_@TYPE@") {
     ":minimal_@TYPE@",
     "../config:@TYPE@",
     "android:@TYPE@",
+    "appended_data:@TYPE@",
     "chrome:@TYPE@",
     "filesystem:@TYPE@",
     "ftrace:@TYPE@",

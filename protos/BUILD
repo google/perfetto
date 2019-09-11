@@ -881,6 +881,65 @@ pbzero_cc_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/appended_data:lite_gen
+proto_library(
+    name = "trace_appended_data",
+    srcs = [
+        "perfetto/trace/appended_data/appended_data.proto",
+    ],
+    has_services = 1,
+    cc_api_version = 2,
+    cc_generic_services = 1,
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_profiling",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/appended_data:lite_gen
+cc_proto_library(
+    name = "trace_appended_data_cc_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_appended_data",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/appended_data:lite_gen
+java_proto_library(
+    name = "trace_appended_data_java_proto",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_appended_data",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/appended_data:zero_gen
+proto_library(
+    name = "trace_appended_data_zero",
+    srcs = [
+        "perfetto/trace/appended_data/appended_data.proto",
+    ],
+    deps = [
+        "//third_party/perfetto/protos:trace_profiling_zero",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/appended_data:zero_gen
+pbzero_cc_proto_library(
+    name = "trace_appended_data_zero_cc_proto",
+    src_proto_library = "//third_party/perfetto/protos:trace_appended_data_zero",
+    deps = [
+        "//third_party/perfetto:libprotozero",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/chrome:lite_gen
 proto_library(
     name = "trace_chrome",
@@ -1376,6 +1435,7 @@ proto_library(
         "//third_party/perfetto/protos:config_profiling",
         "//third_party/perfetto/protos:config_sys_stats",
         "//third_party/perfetto/protos:trace_android",
+        "//third_party/perfetto/protos:trace_appended_data",
         "//third_party/perfetto/protos:trace_chrome",
         "//third_party/perfetto/protos:trace_filesystem",
         "//third_party/perfetto/protos:trace_ftrace",
@@ -1434,6 +1494,7 @@ proto_library(
         "//third_party/perfetto/protos:config_sys_stats_zero",
         "//third_party/perfetto/protos:config_zero",
         "//third_party/perfetto/protos:trace_android_zero",
+        "//third_party/perfetto/protos:trace_appended_data_zero",
         "//third_party/perfetto/protos:trace_chrome_zero",
         "//third_party/perfetto/protos:trace_filesystem_zero",
         "//third_party/perfetto/protos:trace_ftrace_zero",
