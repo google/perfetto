@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
-import {fromNs} from '../common/time';
-import {SliceDetails} from '../frontend/globals';
+import {fromNs, toNs} from '../common/time';
+import {CounterDetails, SliceDetails} from '../frontend/globals';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -26,7 +26,7 @@ export interface SelectionControllerArgs {
 // This class queries the TP for the details on a specific slice that has
 // been clicked.
 export class SelectionController extends Controller<'main'> {
-  private lastSelectedSlice?: number;
+  private lastSelectedId?: number;
   private lastSelectedKind?: string;
   constructor(private args: SelectionControllerArgs) {
     super('main');
@@ -35,27 +35,39 @@ export class SelectionController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (selection === null ||
-        (selection.kind !== 'SLICE' && selection.kind !== 'CHROME_SLICE') ||
-        (selection.id === this.lastSelectedSlice &&
-         selection.kind === this.lastSelectedKind)) {
+        (selection.kind !== 'SLICE' && selection.kind !== 'CHROME_SLICE' &&
+         selection.kind !== 'COUNTER') ||
+        (selection.id === this.lastSelectedId &&
+         selection.kind === this.lastSelectedKind &&
+         selection.kind !== 'COUNTER')) {
       return;
     }
-    const selectedSlice = selection.id;
-    const selectedSliceKind = selection.kind;
-    this.lastSelectedSlice = selectedSlice;
-    this.lastSelectedKind = selectedSliceKind;
+    const selectedId = selection.id;
+    const selectedKind = selection.kind;
+    this.lastSelectedId = selectedId;
+    this.lastSelectedKind = selectedKind;
 
-    if (selectedSlice === undefined) return;
+    if (selectedId === undefined) return;
 
-    if (selectedSliceKind === 'SLICE') {
+    if (selection.kind === 'COUNTER') {
+      const selected: CounterDetails = {};
+      this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
+          .then(results => {
+            if (results !== undefined && selection &&
+                selection.kind === selectedKind &&
+                selection.id === selectedId) {
+              Object.assign(selected, results);
+              globals.publish('CounterDetails', selected);
+            }
+          });
+    } else if (selectedKind === 'SLICE') {
       const sqlQuery = `SELECT ts, dur, priority, end_state, utid FROM sched
-                        WHERE row_id = ${selectedSlice}`;
+                        WHERE row_id = ${selectedId}`;
       this.args.engine.query(sqlQuery).then(result => {
         // Check selection is still the same on completion of query.
         const selection = globals.state.currentSelection;
         if (result.numRecords === 1 && selection &&
-            selection.kind === selectedSliceKind &&
-            selection.id === selectedSlice) {
+            selection.kind === selectedKind && selection.id === selectedId) {
           const ts = result.columns[0].longValues![0] as number;
           const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
           const dur = fromNs(result.columns[1].longValues![0] as number);
@@ -70,19 +82,18 @@ export class SelectionController extends Controller<'main'> {
           });
         }
       });
-    } else if (selectedSliceKind === 'CHROME_SLICE') {
-      if (selectedSlice === -1) {
+    } else if (selectedKind === 'CHROME_SLICE') {
+      if (selectedId === -1) {
         globals.publish('SliceDetails', {ts: 0, name: 'Summarized slice'});
         return;
       }
       const sqlQuery = `SELECT ts, dur, name, cat FROM slices
-      WHERE slice_id = ${selectedSlice}`;
+      WHERE slice_id = ${selectedId}`;
       this.args.engine.query(sqlQuery).then(result => {
         // Check selection is still the same on completion of query.
         const selection = globals.state.currentSelection;
         if (result.numRecords === 1 && selection &&
-            selection.kind === selectedSliceKind &&
-            selection.id === selectedSlice) {
+            selection.kind === selectedKind && selection.id === selectedId) {
           const ts = result.columns[0].longValues![0] as number;
           const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
           const name = result.columns[2].stringValues![0];
@@ -95,6 +106,25 @@ export class SelectionController extends Controller<'main'> {
         }
       });
     }
+  }
+
+  async counterDetails(ts: number, rightTs: number, id: number) {
+    const counter = await this.args.engine.query(
+        `SELECT value FROM counter_values WHERE ts = ${ts} AND counter_id = ${
+            id}`);
+    const value = counter.columns[0].doubleValues![0];
+    // Finding previous value. If there isn't previous one, it will return 0 for
+    // ts and value.
+    const previous = await this.args.engine.query(
+        `SELECT MAX(ts), value FROM counter_values WHERE ts < ${
+            ts} and counter_id = ${id}`);
+    const previousValue = previous.columns[1].doubleValues![0];
+    const endTs =
+        rightTs !== -1 ? rightTs : toNs(globals.state.traceTime.endSec);
+    const delta = value - previousValue;
+    const duration = endTs - ts;
+    const startTime = fromNs(ts) - globals.state.traceTime.startSec;
+    return {startTime, value, delta, duration};
   }
 
   async schedulingDetails(ts: number, utid: number|Long) {
