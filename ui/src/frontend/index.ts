@@ -29,7 +29,13 @@ import {
 } from '../common/logs';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 
-import {globals, QuantizedLoad, SliceDetails, ThreadDesc} from './globals';
+import {
+  CounterDetails,
+  globals,
+  QuantizedLoad,
+  SliceDetails,
+  ThreadDesc
+} from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 import {postMessageHandler} from './post_message_handler';
@@ -108,6 +114,11 @@ class FrontendApi {
 
   publishSliceDetails(click: SliceDetails) {
     globals.sliceDetails = click;
+    this.redraw();
+  }
+
+  publishCounterDetails(click: CounterDetails) {
+    globals.counterDetails = click;
     this.redraw();
   }
 

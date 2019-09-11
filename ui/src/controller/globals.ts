@@ -28,8 +28,8 @@ import {
 import {ControllerAny} from './controller';
 
 type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
-    'LegacyTrace'|'SliceDetails'|'Loading'|'Search'|'BufferUsage'|
-    'RecordingLog'|'SearchResult';
+    'LegacyTrace'|'SliceDetails'|'CounterDetails'|'Loading'|'Search'|
+    'BufferUsage'|'RecordingLog'|'SearchResult';
 
 export interface App {
   state: State;

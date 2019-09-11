@@ -14,7 +14,9 @@
 
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
+import {toNs} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
@@ -195,6 +197,25 @@ class CounterTrack extends Track<Config, Data> {
   onMouseOut() {
     this.hoveredValue = undefined;
     this.hoveredTs = undefined;
+  }
+
+  onMouseClick({x}: {x: number}) {
+    const data = this.data();
+    if (data === undefined) return false;
+    const {timeScale} = globals.frontendLocalState;
+    const time = timeScale.pxToTime(x);
+    const [left, right] = searchSegment(data.timestamps, time);
+    if (left === -1) {
+      return false;
+    } else {
+      const counterId = data.ids[left];
+      globals.makeSelection(Actions.selectCounter({
+        leftTs: toNs(data.timestamps[left]),
+        rightTs: right !== -1 ? toNs(data.timestamps[right]) : -1,
+        id: counterId
+      }));
+      return true;
+    }
   }
 }
 
