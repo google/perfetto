@@ -1,0 +1,36 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+import "protos/perfetto/trace/profiling/profile_common.proto";
+
+package perfetto.protos;
+
+// Contains data appended to the trace after the fact. Elements referring to
+// past interned data must have a matching trusted_packet_sequence_id.
+//
+// The writer will usually parse the trace, resolve and concatenate
+// AppendedData (and corresponding InternedData) to the end of the trace.
+// Any InternedData must precede or be on the same packet as the AppendedData
+// that uses them.
+//
+// Next id: 2.
+message AppendedData {
+  // Maps between interned frames and their resolved symbols.
+  repeated ProfiledFrameSymbols profiled_frame_symbols = 1;
+}
