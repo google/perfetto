@@ -94,15 +94,15 @@ class CounterTrackController extends TrackController<Config, Data> {
       // Union that with the query that finds all the counters within
       // the current query range.
       query = `
-      select * from (select ts, value from counters
+      select * from (select ts, value, counter_id from counters
       where name = '${this.config.name}' and ref = ${this.config.ref} and
       ts <= ${startNs} order by ts desc limit 1)
       UNION
-      select * from (select ts, value
+      select * from (select ts, value, counter_id
         from (select
           ts,
           lead(ts, 1, ts) over (partition by ref_type order by ts) as ts_end,
-          value
+          value, counter_id
           from counters
           where name = '${this.config.name}' and ref = ${this.config.ref})
       where ts <= ${endNs} and ${startNs} <= ts_end limit ${LIMIT});`;
@@ -122,14 +122,17 @@ class CounterTrackController extends TrackController<Config, Data> {
       resolution,
       timestamps: new Float64Array(numRows),
       values: new Float64Array(numRows),
+      ids: new Float64Array(numRows),
     };
 
     const cols = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
       const startSec = fromNs(+cols[0].longValues![row]);
       const value = +cols[1].doubleValues![row];
+      const id = +cols[2].longValues![row];
       data.timestamps[row] = startSec;
       data.values[row] = value;
+      data.ids[row] = id;
     }
 
     return data;

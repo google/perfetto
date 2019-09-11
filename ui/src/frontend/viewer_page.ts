@@ -21,6 +21,7 @@ import {TimeSpan} from '../common/time';
 
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {copyToClipboard} from './clipboard';
+import {CounterDetailsPanel} from './counter_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
@@ -299,6 +300,11 @@ class TraceViewer implements m.ClassComponent {
           detailsPanels.push(m(SliceDetailsPanel, {
             key: 'slice',
             utid: curSelection.utid,
+          }));
+          break;
+        case 'COUNTER':
+          detailsPanels.push(m(CounterDetailsPanel, {
+            key: 'counter',
           }));
           break;
         case 'CHROME_SLICE':
