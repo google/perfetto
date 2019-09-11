@@ -52,6 +52,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/android/android_log.proto',
   'protos/perfetto/trace/android/graphics_frame_event.proto',
   'protos/perfetto/trace/android/packages_list.proto',
+  'protos/perfetto/trace/appended_data/appended_data.proto',
   'protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto',
   "protos/perfetto/trace/chrome/chrome_metadata.proto",
   'protos/perfetto/trace/clock_snapshot.proto',
