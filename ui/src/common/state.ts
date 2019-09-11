@@ -101,6 +101,13 @@ export interface SliceSelection {
   id: number;
 }
 
+export interface CounterSelection {
+  kind: 'COUNTER';
+  leftTs: number;
+  rightTs: number;
+  id: number;
+}
+
 export interface ChromeSliceSelection {
   kind: 'CHROME_SLICE';
   id: number;
@@ -121,8 +128,8 @@ export interface ThreadStateSelection {
   cpu: number;
 }
 
-type Selection = NoteSelection|SliceSelection|ChromeSliceSelection|
-    TimeSpanSelection|ThreadStateSelection;
+type Selection = NoteSelection|SliceSelection|CounterSelection|
+    ChromeSliceSelection|TimeSpanSelection|ThreadStateSelection;
 
 export interface LogsPagination {
   offset: number;

@@ -35,6 +35,13 @@ export interface SliceDetails {
   name?: string;
 }
 
+export interface CounterDetails {
+  startTime?: number;
+  value?: number;
+  delta?: number;
+  duration?: number;
+}
+
 export interface QuantizedLoad {
   startSec: number;
   endSec: number;
@@ -67,6 +74,7 @@ class Globals {
   private _overviewStore?: OverviewStore = undefined;
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
+  private _counterDetails?: CounterDetails = undefined;
   private _isLoading = false;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
@@ -95,6 +103,7 @@ class Globals {
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
+    this._counterDetails = {};
   }
 
   get state(): State {
@@ -140,6 +149,14 @@ class Globals {
 
   set sliceDetails(click: SliceDetails) {
     this._sliceDetails = assertExists(click);
+  }
+
+  get counterDetails() {
+    return assertExists(this._counterDetails);
+  }
+
+  set counterDetails(click: CounterDetails) {
+    this._counterDetails = assertExists(click);
   }
 
   set loading(isLoading: boolean) {
