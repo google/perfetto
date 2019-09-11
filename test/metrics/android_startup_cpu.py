@@ -22,13 +22,13 @@ trace = synth_common.create_trace()
 trace.add_ftrace_packet(cpu=0)
 
 # CPU counters for CPU 0.
-trace.add_cpufreq(ts=9, freq=5, cpu=0)
-trace.add_cpufreq(ts=15, freq=14, cpu=0)
-trace.add_cpufreq(ts=17, freq=25, cpu=0)
+trace.add_cpufreq(ts=9, freq=500000, cpu=0)
+trace.add_cpufreq(ts=15, freq=1400000, cpu=0)
+trace.add_cpufreq(ts=17, freq=2500000, cpu=0)
 
 # CPU counters for CPU 1.
-trace.add_cpufreq(ts=11, freq=20, cpu=1)
-trace.add_cpufreq(ts=15, freq=80, cpu=1)
+trace.add_cpufreq(ts=11, freq=2000000, cpu=1)
+trace.add_cpufreq(ts=15, freq=8000000, cpu=1)
 
 # Add 3 processes. This also adds one main thread per process.
 trace.add_process_tree_packet()

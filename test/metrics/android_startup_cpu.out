@@ -5,22 +5,25 @@ android_cpu {
           name : "Process1"
           cpu {
             id: 0
-            max_freq_khz: 5
-            min_freq_khz: 5
-            avg_freq_khz: 5
+            max_freq_khz: 500000
+            min_freq_khz: 500000
+            avg_freq_khz: 500000
             duration_ns: 2
           }
+          normalized_cpu_cycles: 1
         }
         threads {
           name: "p1-t2"
           cpu {
             id: 0
-            max_freq_khz: 14
-            min_freq_khz: 14
-            avg_freq_khz: 14
+            max_freq_khz: 1400000
+            min_freq_khz: 1400000
+            avg_freq_khz: 1400000
             duration_ns: 1
           }
+          normalized_cpu_cycles: 1
         }
+        normalized_cpu_cycles: 2
       }
       process_info {
         name: "Process2"
@@ -28,32 +31,36 @@ android_cpu {
           name: "p2-t2"
           cpu {
             id: 1
-            max_freq_khz: 20
-            min_freq_khz: 20
-            avg_freq_khz: 20
+            max_freq_khz: 2000000
+            min_freq_khz: 2000000
+            avg_freq_khz: 2000000
             duration_ns: 2
           }
+          normalized_cpu_cycles: 4
         }
         threads {
           name: "p2-t3"
           cpu {
             id: 1
-            max_freq_khz: 80
-            min_freq_khz: 20
-            avg_freq_khz: 40
+            max_freq_khz: 8000000
+            min_freq_khz: 2000000
+            avg_freq_khz: 4000000
             duration_ns: 3
           }
+          normalized_cpu_cycles: 12
         }
         threads {
           name: "Process2"
           cpu {
             id: 0
-            max_freq_khz: 25
-            min_freq_khz: 25
-            avg_freq_khz: 25
+            max_freq_khz: 2500000
+            min_freq_khz: 2500000
+            avg_freq_khz: 2500000
             duration_ns: 2
           }
+          normalized_cpu_cycles: 5
         }
+        normalized_cpu_cycles: 21
       }
       process_info {
         name: "Process3"
@@ -61,18 +68,20 @@ android_cpu {
           name: "Process3"
           cpu {
             id: 0
-            max_freq_khz: 14
-            min_freq_khz: 5
-            avg_freq_khz: 7
+            max_freq_khz: 1400000
+            min_freq_khz: 500000
+            avg_freq_khz: 725000
             duration_ns: 4
           }
           cpu {
             id: 1
-            max_freq_khz: 80
-            min_freq_khz: 80
-            avg_freq_khz: 80
+            max_freq_khz: 8000000
+            min_freq_khz: 8000000
+            avg_freq_khz: 8000000
             duration_ns: 2
           }
+          normalized_cpu_cycles: 18
         }
+        normalized_cpu_cycles: 18
       }
 }
