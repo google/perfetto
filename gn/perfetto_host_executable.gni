@@ -35,22 +35,32 @@ template("perfetto_host_executable") {
       }
     } else {
       not_needed(invoker, "*", [ "testonly" ])
-      copy(target_name) {
-        if (defined(invoker.testonly)) {
-          testonly = invoker.testonly
+      _host_target = ":$target_name($host_toolchain)"
+      _testonly = defined(invoker.testonly) && invoker.testonly
+      if (perfetto_build_with_embedder) {
+        # Don't copy anythin in Chromium, just add a dependency to the host
+        # target. V8 and other GN embedder builds. This causes problems on
+        # some bot (see crbug.com/1002599).
+        group(target_name) {
+          testonly = _testonly
+          deps = [
+            _host_target,
+          ]
         }
-        host_target = ":$target_name($host_toolchain)"
-        deps = [
-          host_target,
-        ]
-
-        host_out_dir = get_label_info(host_target, "root_out_dir")
-        sources = [
-          "$host_out_dir/$target_name",
-        ]
-        outputs = [
-          "$root_out_dir/$target_name",
-        ]
+      } else {
+        copy(target_name) {
+          testonly = _testonly
+          deps = [
+            _host_target,
+          ]
+          _host_out_dir = get_label_info(_host_target, "root_out_dir")
+          sources = [
+            "$_host_out_dir/$target_name",
+          ]
+          outputs = [
+            "$root_out_dir/$target_name",
+          ]
+        }
       }
     }
   }  # if (is_perfetto_build_generator)
