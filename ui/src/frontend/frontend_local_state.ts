@@ -61,6 +61,20 @@ function debounce(f: Function, ms: number): Function {
   };
 }
 
+// Calculate the space a scrollbar takes up so that we can subtract it from
+// the canvas width.
+function calculateScrollbarWidth() {
+  const outer = document.createElement('div');
+  outer.style.overflowY = 'scroll';
+  const inner = document.createElement('div');
+  outer.appendChild(inner);
+  document.body.appendChild(outer);
+  const width =
+      outer.getBoundingClientRect().width - inner.getBoundingClientRect().width;
+  document.body.removeChild(outer);
+  return width;
+}
+
 /**
  * State that is shared between several frontend components, but not the
  * controller. This state is updated at 60fps.
@@ -80,6 +94,7 @@ export class FrontendLocalState {
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
+  private scrollBarWidth: undefined|number = undefined;
 
   private _omniboxState: OmniboxState = {
     lastUpdate: 0,
@@ -96,6 +111,13 @@ export class FrontendLocalState {
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
   // place only.
+
+  getScrollbarWidth() {
+    if (this.scrollBarWidth === undefined) {
+      this.scrollBarWidth = calculateScrollbarWidth();
+    }
+    return this.scrollBarWidth;
+  }
 
   togglePerfDebug() {
     this.perfDebug = !this.perfDebug;
