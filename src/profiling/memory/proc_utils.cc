@@ -21,27 +21,11 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "src/profiling/memory/ext.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-
-const char* FindChar(const char* s, char c, size_t n) {
-  std::string str(s, n);
-  auto idx = str.rfind(c);
-  if (idx == std::string::npos)
-    return nullptr;
-  return s + n;
-}
-
-void* memrchr(const void* s, int c, size_t n) {
-  return static_cast<void*>(const_cast<char*>(
-      FindChar(static_cast<const char*>(s), static_cast<char>(c), n)));
-}
-
-#endif
 
 bool GetProcFile(pid_t pid, const char* file, char* filename_buf, size_t size) {
   ssize_t written = snprintf(filename_buf, size, "/proc/%d/%s", pid, file);
@@ -57,38 +41,6 @@ bool GetProcFile(pid_t pid, const char* file, char* filename_buf, size_t size) {
 
 }  // namespace
 
-bool NormalizeCmdLine(char* cmdline, size_t size, std::string* name) {
-  char* first_arg = static_cast<char*>(memchr(cmdline, '\0', size));
-  if (first_arg == nullptr) {
-    PERFETTO_DLOG("Overflow reading cmdline");
-    errno = EOVERFLOW;
-    return false;
-  }
-  // For consistency with what we do with Java app cmdlines, trim everything
-  // after the @ sign of the first arg.
-  char* first_at = static_cast<char*>(memchr(cmdline, '@', size));
-  if (first_at != nullptr && first_at < first_arg) {
-    *first_at = '\0';
-    first_arg = first_at;
-  }
-  char* start = static_cast<char*>(
-      memrchr(cmdline, '/', static_cast<size_t>(first_arg - cmdline)));
-  if (start == first_arg) {
-    // The first argument ended in a slash.
-    PERFETTO_DLOG("cmdline ends in /");
-    errno = EINVAL;
-    return false;
-  } else if (start == nullptr) {
-    start = cmdline;
-  } else {
-    // Skip the /.
-    start++;
-  }
-  size_t name_size = static_cast<size_t>(first_arg - start);
-  name->assign(start, name_size);
-  return true;
-}
-
 std::vector<std::string> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines) {
   std::vector<std::string> normalized_cmdlines;
@@ -96,12 +48,15 @@ std::vector<std::string> NormalizeCmdlines(
     // Add nullbyte to make sure it's a C string.
     cmdline.resize(cmdline.size() + 1, '\0');
     std::string normalized;
-    if (!NormalizeCmdLine(&(cmdline[0]), cmdline.size(), &normalized)) {
-      PERFETTO_ELOG("Failed to normalize cmdline %s. Skipping.",
+    char* cmdline_cstr = &(cmdline[0]);
+    ssize_t size = NormalizeCmdLine(&cmdline_cstr, cmdline.size());
+    if (size == -1) {
+      PERFETTO_PLOG("Failed to normalize cmdline %s. Skipping.",
                     cmdline.c_str());
       continue;
     }
-    normalized_cmdlines.emplace_back(std::move(normalized));
+    normalized_cmdlines.emplace_back(
+        std::string(cmdline_cstr, static_cast<size_t>(size)));
   }
   return normalized_cmdlines;
 }
@@ -138,7 +93,12 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
   }
 
   cmdline[rd] = '\0';
-  return NormalizeCmdLine(cmdline, static_cast<size_t>(rd), name);
+  char* cmdline_start = cmdline;
+  ssize_t size = NormalizeCmdLine(&cmdline_start, static_cast<size_t>(rd));
+  if (size == -1)
+    return false;
+  name->assign(cmdline_start, static_cast<size_t>(size));
+  return true;
 }
 
 void FindAllProfilablePids(std::set<pid_t>* pids) {

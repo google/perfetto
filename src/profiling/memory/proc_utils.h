@@ -43,7 +43,6 @@ void ForEachPid(Fn callback) {
   }
 }
 
-bool NormalizeCmdLine(char* cmdline, size_t size, std::string* name);
 std::vector<std::string> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines);
 
