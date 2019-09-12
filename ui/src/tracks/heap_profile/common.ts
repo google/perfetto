@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,17 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+import {TrackData} from '../../common/track_data';
 
-// Import all currently implemented tracks. After implemeting a new track, an
-// import statement for it needs to be added here.
-import './android_log/frontend';
-import './chrome_slices/frontend';
-import './counter/frontend';
-import './heap_profile/frontend';
-import './cpu_freq/frontend';
-import './gpu_freq/frontend';
-import './cpu_slices/frontend';
-import './process_scheduling/frontend';
-import './process_summary/frontend';
-import './thread_state/frontend';
-import './vsync/frontend';
+export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
+
+export interface Data extends TrackData {
+  tsStarts: Float64Array;
+}
+
+export interface Config {}
