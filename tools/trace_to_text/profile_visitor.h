@@ -31,10 +31,14 @@
 namespace perfetto {
 namespace trace_to_text {
 
+struct SequencedBundle {
+  std::vector<protos::InternedData> interned_data;
+  std::vector<protos::ProfiledFrameSymbols> symbols;
+};
+
 class ProfileVisitor {
  public:
-  bool Visit(const std::vector<protos::ProfilePacket>&,
-             const std::vector<protos::InternedData>&);
+  bool Visit(const std::vector<protos::ProfilePacket>&, const SequencedBundle&);
   virtual bool AddInternedString(
       const protos::InternedString& interned_string) = 0;
   virtual bool AddCallstack(const protos::Callstack& callstack) = 0;
@@ -45,54 +49,11 @@ class ProfileVisitor {
   virtual ~ProfileVisitor();
 };
 
-template <typename F>
-bool VisitCompletePacket(std::istream* input, F fn) {
-  std::map<uint32_t, std::vector<protos::ProfilePacket>>
-      rolling_profile_packets_by_seq;
-  std::map<uint32_t, std::vector<protos::InternedData>>
-      rolling_interned_data_by_seq;
-  bool success = true;
-  ForEachPacketInTrace(input, [&rolling_profile_packets_by_seq,
-                               &rolling_interned_data_by_seq, &success,
-                               &fn](const protos::TracePacket& packet) {
-    uint32_t seq_id = packet.trusted_packet_sequence_id();
-    if (packet.has_interned_data())
-      rolling_interned_data_by_seq[seq_id].emplace_back(packet.interned_data());
-
-    if (!packet.has_profile_packet())
-      return;
-
-    rolling_profile_packets_by_seq[seq_id].emplace_back(
-        packet.profile_packet());
-
-    const std::vector<protos::InternedData>& rolling_interned_data =
-        rolling_interned_data_by_seq[seq_id];
-    const std::vector<protos::ProfilePacket>& rolling_profile_packets =
-        rolling_profile_packets_by_seq[seq_id];
-
-    if (!packet.profile_packet().continued()) {
-      for (size_t i = 1; i < rolling_profile_packets.size(); ++i) {
-        // Ensure we are not missing a chunk.
-        if (rolling_profile_packets[i - 1].index() + 1 !=
-            rolling_profile_packets[i].index()) {
-          success = false;
-          return;
-        }
-      }
-      if (!fn(seq_id, rolling_profile_packets, rolling_interned_data))
-        success = false;
-
-      // We do not clear rolling_interned_data, as it is globally scoped.
-      rolling_profile_packets_by_seq.erase(seq_id);
-    }
-  });
-
-  if (!rolling_profile_packets_by_seq.empty()) {
-    PERFETTO_ELOG("WARNING: Truncated heap dump.");
-    return false;
-  }
-  return success;
-}
+bool VisitCompletePacket(
+    std::istream* input,
+    const std::function<bool(uint32_t,
+                             const std::vector<protos::ProfilePacket>&,
+                             const SequencedBundle&)>& fn);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
