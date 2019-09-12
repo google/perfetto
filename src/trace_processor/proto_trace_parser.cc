@@ -597,6 +597,11 @@ void ProtoTraceParser::ParseProcessTree(ConstBytes blob) {
     auto tid = static_cast<uint32_t>(thd.tid());
     auto tgid = static_cast<uint32_t>(thd.tgid());
     context_->process_tracker->UpdateThread(tid, tgid);
+
+    if (thd.has_name()) {
+      StringId threadNameId = context_->storage->InternString(thd.name());
+      context_->process_tracker->UpdateThreadName(tid, threadNameId);
+    }
   }
 }
 
