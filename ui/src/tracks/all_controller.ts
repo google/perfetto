@@ -17,6 +17,7 @@
 import './android_log/controller';
 import './chrome_slices/controller';
 import './counter/controller';
+import './heap_profile/controller';
 import './cpu_freq/controller';
 import './gpu_freq/controller';
 import './cpu_slices/controller';
