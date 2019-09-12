@@ -186,7 +186,11 @@ else
   DIR=$(mktemp -p $TMPDIR -d perfetto.XXXXXX)
 fi
 
-tools/ninja -C "$OUT" traced traced_probes perfetto trace_to_text test/configs
+if is_android "$OUT"; then
+  tools/ninja -C "$OUT" traced traced_probes perfetto test/configs
+else
+  tools/ninja -C "$OUT" traced traced_probes perfetto test/configs trace_to_text
+fi
 
 push "$OUT/traced"
 push "$OUT/traced_probes"
