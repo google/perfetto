@@ -16,7 +16,7 @@
 
 #include <inttypes.h>
 #include <malloc.h>
-#include <private/bionic_malloc.h>
+#include <bionic/malloc.h>
 #include <private/bionic_malloc_dispatch.h>
 #include <stddef.h>
 #include <stdio.h>

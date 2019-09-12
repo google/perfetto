@@ -276,6 +276,9 @@ cc_library_shared {
   include_dirs: [
     "bionic/libc",
   ],
+  header_libs: [
+    "bionic_libc_platform_headers",
+  ],
 }
 
 // GN target: //:libperfetto
