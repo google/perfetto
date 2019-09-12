@@ -15,6 +15,7 @@
  */
 
 #include "src/profiling/memory/proc_utils.h"
+#include "src/profiling/memory/ext.h"
 
 #include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -26,25 +27,77 @@ namespace {
 using ::testing::Contains;
 using ::testing::Not;
 
+std::string NormalizeToString(char* cmdline, size_t size) {
+  ssize_t new_size = NormalizeCmdLine(&cmdline, size);
+  if (new_size == -1)
+    return "";
+  return std::string(cmdline, static_cast<size_t>(new_size));
+}
+
 TEST(ProcUtilsTest, NormalizeNoop) {
-  char kCmdline[] = "surfaceflinger\0";
-  std::string name;
-  ASSERT_TRUE(NormalizeCmdLine(kCmdline, sizeof(kCmdline), &name));
-  EXPECT_EQ(name, "surfaceflinger");
+  char kCmdline[] = "surfaceflinger";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "surfaceflinger");
+}
+
+TEST(ProcUtilsTest, NormalizeTwoArgs) {
+  char kCmdline[] = "surfaceflinger\0--foo";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "surfaceflinger");
 }
 
 TEST(ProcUtilsTest, NormalizePath) {
-  char kCmdline[] = "/system/bin/surfaceflinger\0";
-  std::string name;
-  ASSERT_TRUE(NormalizeCmdLine(kCmdline, sizeof(kCmdline), &name));
-  EXPECT_EQ(name, "surfaceflinger");
+  char kCmdline[] = "/system/bin/surfaceflinger";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "surfaceflinger");
 }
 
 TEST(ProcUtilsTest, NormalizeAt) {
-  char kCmdline[] = "some.app@2.0\0";
-  std::string name;
-  ASSERT_TRUE(NormalizeCmdLine(kCmdline, sizeof(kCmdline), &name));
-  EXPECT_EQ(name, "some.app");
+  char kCmdline[] = "some.app@2.0";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "some.app");
+}
+
+TEST(ProcUtilsTest, NormalizeEmpty) {
+  char kCmdline[] = "";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "");
+}
+
+TEST(ProcUtilsTest, NormalizeTrailingAt) {
+  char kCmdline[] = "foo@";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "foo");
+}
+
+TEST(ProcUtilsTest, NormalizeOnlyTrailingAt) {
+  char kCmdline[] = "@";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "");
+}
+
+TEST(ProcUtilsTest, NormalizeTrailingSlash) {
+  char kCmdline[] = "foo/";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "");
+}
+
+TEST(ProcUtilsTest, NormalizeOnlySlash) {
+  char kCmdline[] = "/";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "");
+}
+
+TEST(ProcUtilsTest, NormalizeTwoArgsSlash) {
+  char kCmdline[] = "surfaceflinger/\0--foo";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "");
+}
+
+TEST(ProcUtilsTest, NormalizeEmptyFirstArg) {
+  char kCmdline[] = "\0--foo";
+  EXPECT_EQ(NormalizeToString(kCmdline, sizeof(kCmdline)), "");
+}
+
+TEST(ProcUtilsTest, NormalizeNoNullTerminated) {
+  char kCmdline[] = {'f'};
+  char* cmdline = kCmdline;
+  EXPECT_EQ(NormalizeCmdLine(&cmdline, sizeof(kCmdline)), -1);
+}
+
+TEST(ProcUtilsTest, NormalizeZeroLength) {
+  char* cmdline = nullptr;
+  EXPECT_EQ(NormalizeCmdLine(&cmdline, 0), -1);
 }
 
 TEST(ProcUtilsTest, FindProfilablePids) {
