@@ -161,8 +161,7 @@ declare_args() {
 
   # Misc host executable under tools/.
   enable_perfetto_tools =
-      (perfetto_build_standalone && current_toolchain == host_toolchain) ||
-      perfetto_build_with_android
+      perfetto_build_with_android || perfetto_build_standalone
 
   # Allows to build the UI (TypeScript/ HTML / WASM)
   enable_perfetto_ui = perfetto_build_standalone
