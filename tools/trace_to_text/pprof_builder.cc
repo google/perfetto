@@ -303,17 +303,17 @@ class GProfileWriter : public ProfileVisitor {
 };
 
 bool DumpProfilePacket(const std::vector<ProfilePacket>& packet_fragments,
-                       const std::vector<InternedData>& interned_data,
+                       const SequencedBundle& bundle,
                        std::vector<SerializedProfile>* output,
                        Symbolizer* symbolizer) {
   TraceSymbolTable symbol_table(symbolizer);
-  if (!symbol_table.Visit(packet_fragments, interned_data))
+  if (!symbol_table.Visit(packet_fragments, bundle))
     return false;
   if (!symbol_table.Finalize())
     return false;
 
   GProfileWriter writer(&symbol_table);
-  if (!writer.Visit(packet_fragments, interned_data))
+  if (!writer.Visit(packet_fragments, bundle))
     return false;
 
   if (!writer.Finalize())
@@ -344,9 +344,8 @@ bool TraceToPprof(std::istream* input,
   return VisitCompletePacket(
       input, [output, symbolizer](
                  uint32_t, const std::vector<ProfilePacket>& packet_fragments,
-                 const std::vector<InternedData>& interned_data) {
-        return DumpProfilePacket(packet_fragments, interned_data, output,
-                                 symbolizer);
+                 const SequencedBundle& bundle) {
+        return DumpProfilePacket(packet_fragments, bundle, output, symbolizer);
       });
 }
 

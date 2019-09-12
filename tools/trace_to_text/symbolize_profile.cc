@@ -54,9 +54,9 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
       input, [&output, &symbolizer](
                  uint32_t seq_id,
                  const std::vector<protos::ProfilePacket>& packet_fragments,
-                 const std::vector<protos::InternedData>& interned_data) {
+                 const SequencedBundle& bundle) {
         TraceSymbolTable symbol_table(symbolizer.get());
-        if (!symbol_table.Visit(packet_fragments, interned_data))
+        if (!symbol_table.Visit(packet_fragments, bundle))
           return false;
         symbol_table.Finalize();
         symbol_table.WriteResult(output, seq_id);
