@@ -78,6 +78,10 @@ size_t GetRegsSize(unwindstack::Regs* regs) {
   return sizeof(uint64_t) * regs->total_regs();
 }
 
+void ReadFromRawData(unwindstack::Regs* regs, void* raw_data) {
+  memcpy(regs->RawData(), raw_data, GetRegsSize(regs));
+}
+
 }  // namespace
 
 std::unique_ptr<unwindstack::Regs> CreateRegsFromRawData(
@@ -107,7 +111,7 @@ std::unique_ptr<unwindstack::Regs> CreateRegsFromRawData(
       break;
   }
   if (ret)
-    memcpy(ret->RawData(), raw_data, GetRegsSize(ret.get()));
+    ReadFromRawData(ret.get(), raw_data);
   return ret;
 }
 
@@ -202,6 +206,9 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     if (attempt > 0) {
       PERFETTO_DLOG("Reparsing maps");
       metadata->ReparseMaps();
+      // Regs got invalidated by libuwindstack's speculative jump.
+      // Reset.
+      ReadFromRawData(regs.get(), alloc_metadata->register_data);
       out->reparsed_map = true;
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       unwinder.SetJitDebug(metadata->jit_debug.get(), regs->Arch());
