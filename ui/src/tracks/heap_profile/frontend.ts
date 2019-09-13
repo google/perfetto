@@ -15,7 +15,6 @@
 import {TrackState} from '../../common/state';
 import {fromNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
-import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 import {Config, Data, HEAP_PROFILE_TRACK_KIND} from './common';

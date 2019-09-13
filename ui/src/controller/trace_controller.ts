@@ -163,11 +163,11 @@ export class TraceController extends Controller<States> {
       }
     } else if (engineCfg.source instanceof ArrayBuffer) {
       this.updateStatus(`${statusHeader} 0 %`);
-      const buffer = engineCfg.source;
+      const buffer = new Uint8Array(engineCfg.source);
       const SLICE_SIZE = 1024 * 1024;
       for (let off = 0; off < buffer.byteLength; off += SLICE_SIZE) {
-        const slice = buffer.slice(off, off + SLICE_SIZE);
-        await this.engine.parse(new Uint8Array(slice));
+        const slice = buffer.subarray(off, off + SLICE_SIZE);
+        await this.engine.parse(slice);
         const progress =
             Math.round((off + slice.byteLength) / buffer.byteLength * 100);
         this.updateStatus(`${statusHeader} ${progress} %`);
