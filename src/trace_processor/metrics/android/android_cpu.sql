@@ -20,6 +20,7 @@ SELECT RUN_METRIC('android/android_cpu_agg.sql');
 CREATE VIEW cpu_breakdown_per_utid AS
 SELECT
   utid,
+  CAST(SUM(dur * freq / 1000000) AS INT) AS normalized_cpu_cycles,
   AndroidCpuMetric_CpuFrequencyData(
     'id', cpu,
     'avg_freq_khz', CAST((SUM(dur * freq) / SUM(dur)) AS INT),
@@ -38,6 +39,7 @@ SELECT
   upid,
   thread.name AS thread_name,
   process.name AS process_name,
+  CAST(SUM(normalized_cpu_cycles) AS INT) AS normalized_cpu_cycles,
   RepeatedField(cpu_freq_proto) AS thread_proto_cpu
 FROM thread
 JOIN process USING (upid)
@@ -50,10 +52,12 @@ CREATE TABLE agg_by_process AS
 SELECT
   upid,
   process_name,
+  CAST(SUM(normalized_cpu_cycles) AS INT) AS normalized_cpu_cycles,
   RepeatedField(
     AndroidCpuMetric_Thread(
       'name', CAST(thread_name as TEXT),
-      'cpu', thread_proto_cpu
+      'cpu', thread_proto_cpu,
+      'normalized_cpu_cycles', CAST(normalized_cpu_cycles as INT)
     )
   ) AS thread_proto
 FROM agg_by_thread
@@ -64,7 +68,8 @@ CREATE VIEW thread_cpu_view AS
 SELECT
   AndroidCpuMetric_Process(
     'name', process_name,
-    'threads', thread_proto
+    'threads', thread_proto,
+    'normalized_cpu_cycles', CAST(normalized_cpu_cycles AS INT)
   ) AS cpu_info_process
 FROM agg_by_process
 GROUP BY upid;
