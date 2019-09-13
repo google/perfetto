@@ -33,6 +33,7 @@ struct TypedColumn : public Column {
   using StoredType = T;
 
   T operator[](uint32_t row) const { return *GetTyped<T>(row); }
+  void Set(uint32_t row, T value) { SetTyped(row, value); }
 };
 
 template <typename T>
@@ -40,6 +41,7 @@ struct TypedColumn<base::Optional<T>> : public Column {
   using StoredType = T;
 
   base::Optional<T> operator[](uint32_t row) const { return GetTyped<T>(row); }
+  void Set(uint32_t row, T value) { SetTyped(row, value); }
 };
 
 template <>
@@ -52,6 +54,7 @@ struct TypedColumn<StringPool::Id> : public Column {
   NullTermStringView GetString(uint32_t row) const {
     return GetStringPoolString(row);
   }
+  void Set(uint32_t row, StringPool::Id value) { SetTyped(row, value); }
 };
 
 }  // namespace trace_processor
