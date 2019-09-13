@@ -36,12 +36,15 @@ message AndroidCpuMetric {
   message Thread {
     optional string name = 1;
     repeated CpuFrequencyData cpu = 2;
+    // CPU cycles normalized at 1Ghz frequency.
+    optional int64 normalized_cpu_cycles = 3;
   }
 
   // Threads (name and CPU frequency) per process.
   message Process {
     optional string name = 1;
     repeated Thread threads = 2;
+    optional int64 normalized_cpu_cycles = 3;
   }
 
   // Process name and CPU frequency data aggregated by thread and cpu.
