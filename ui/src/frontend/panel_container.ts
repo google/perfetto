@@ -171,7 +171,12 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const canvas = assertExists(ctx.canvas);
     canvas.style.height = `${this.canvasHeight}px`;
     const dpr = window.devicePixelRatio;
-    ctx.canvas.width = this.parentWidth * dpr;
+    // On non-MacOS if there is a solid scroll bar it can cover important
+    // pixels, reduce the size of the canvas so it doesn't overlap with
+    // the scroll bar.
+    ctx.canvas.width =
+        (this.parentWidth - globals.frontendLocalState.getScrollbarWidth()) *
+        dpr;
     ctx.canvas.height = this.canvasHeight * dpr;
     ctx.scale(dpr, dpr);
   }
