@@ -37,6 +37,10 @@
 namespace perfetto {
 namespace profiling {
 
+std::unique_ptr<unwindstack::Regs> CreateRegsFromRawData(
+    unwindstack::ArchEnum arch,
+    void* raw_data);
+
 // Read /proc/[pid]/maps from an open file descriptor.
 // TODO(fmayer): Figure out deduplication to other maps.
 class FileDescriptorMaps : public unwindstack::Maps {
@@ -106,7 +110,8 @@ struct UnwindingMetadata {
             new unwindstack::DexFiles(fd_mem)))
 #endif
   {
-    PERFETTO_DCHECK(maps.Parse());
+    bool parsed = maps.Parse();
+    PERFETTO_DCHECK(parsed);
   }
   void ReparseMaps() {
     reparses++;
