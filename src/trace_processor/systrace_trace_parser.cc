@@ -98,26 +98,34 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     const std::string& buffer) {
   // An example line from buffer looks something like the following:
   // <idle>-0     (-----) [000] d..1 16500.715638: cpu_idle: state=0 cpu_id=0
+  //
+  // However, sometimes the tgid can be missing and buffer looks like this:
+  // <idle>-0     [000] ...2     0.002188: task_newtask: pid=1 ...
 
   auto task_idx = 16u;
   std::string task = SubstrTrim(buffer, 0, task_idx);
 
+  // Try and figure out whether tgid is present by searching for '(' but only
+  // if it occurs before the start of cpu (indiciated by '[') - this is because
+  // '(' can also occur in the args of an event.
   auto tgid_idx = buffer.find('(', task_idx + 1);
-  std::string pid_str = SubstrTrim(buffer, task_idx + 1, tgid_idx);
+  auto cpu_idx = buffer.find('[', task_idx + 1);
+  bool has_tgid = tgid_idx != std::string::npos && tgid_idx < cpu_idx;
+
+  auto pid_end = has_tgid ? cpu_idx : tgid_idx;
+  std::string pid_str = SubstrTrim(buffer, task_idx + 1, pid_end);
   auto pid = static_cast<uint32_t>(std::stoi(pid_str));
   context_->process_tracker->GetOrCreateThread(pid);
 
-  auto tgid_end = buffer.find(')', tgid_idx + 1);
-  std::string tgid_str = SubstrTrim(buffer, tgid_idx + 1, tgid_end);
-  auto tgid = tgid_str == "-----"
-                  ? base::nullopt
-                  : base::Optional<uint32_t>(
-                        static_cast<uint32_t>(std::stoi(tgid_str)));
-  if (tgid.has_value()) {
-    context_->process_tracker->UpdateThread(pid, tgid.value());
+  if (has_tgid) {
+    auto tgid_end = buffer.find(')', tgid_idx + 1);
+    std::string tgid_str = SubstrTrim(buffer, tgid_idx + 1, tgid_end);
+    if (tgid_str != "-----") {
+      context_->process_tracker->UpdateThread(
+          pid, static_cast<uint32_t>(std::stoi(tgid_str)));
+    }
   }
 
-  auto cpu_idx = buffer.find('[', tgid_end + 1);
   auto cpu_end = buffer.find(']', cpu_idx + 1);
   std::string cpu_str = SubstrTrim(buffer, cpu_idx + 1, cpu_end);
   auto cpu = static_cast<uint32_t>(std::stoi(cpu_str));
