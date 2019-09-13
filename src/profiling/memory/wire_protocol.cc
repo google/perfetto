@@ -87,7 +87,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
       errno = EAGAIN;
       return false;
     }
-    buf = shmem->BeginWrite(lock, total_size);
+    buf = shmem->BeginWrite(lock, static_cast<size_t>(total_size));
   }
   if (!buf) {
     PERFETTO_DLOG("Buffer overflow.");
