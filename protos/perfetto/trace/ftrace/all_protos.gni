@@ -30,7 +30,6 @@ ftrace_proto_names = [
   "fence.proto",
   "filemap.proto",
   "ftrace.proto",
-  "gpu.proto",
   "i2c.proto",
   "ipi.proto",
   "irq.proto",
