@@ -254,6 +254,10 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     protoCfg.dataSources.push(ds);
   }
 
+  if (uiCfg.chromeLogs) {
+    chromeCategories.add('log');
+  }
+
   if (uiCfg.taskScheduling) {
     chromeCategories.add('toplevel');
     chromeCategories.add('sequence_manager');
