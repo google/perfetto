@@ -56,7 +56,7 @@ int SliceTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // Only the string columns are handled by SQLite
   info->order_by_consumed = true;
   size_t name_index = schema().ColumnIndexFromName("name");
-  size_t cat_index = schema().ColumnIndexFromName("cat");
+  size_t cat_index = schema().ColumnIndexFromName("category");
   size_t ref_type_index = schema().ColumnIndexFromName("ref_type");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     auto col = static_cast<size_t>(qc.constraints()[i].iColumn);
