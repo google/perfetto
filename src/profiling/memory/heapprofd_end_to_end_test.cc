@@ -961,10 +961,8 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 
 // This test only works when run on Android using an Android Q version of
 // Bionic.
-// TODO(b/118428762): look into unwinding issues on x86.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||                        \
-    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS) || defined(__i386__) || \
-    defined(__x86_64__)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 INSTANTIATE_TEST_CASE_P(DISABLED_Run, HeapprofdEndToEnd, Bool(), TestSuffix);
 #else
 INSTANTIATE_TEST_CASE_P(Run, HeapprofdEndToEnd, Bool(), TestSuffix);
