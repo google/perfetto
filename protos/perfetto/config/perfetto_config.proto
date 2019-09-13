@@ -584,6 +584,7 @@ message DataSourceConfig {
   optional ProcessStatsConfig process_stats_config = 103 [lazy = true];
   optional SysStatsConfig sys_stats_config = 104 [lazy = true];
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
+  optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
@@ -1212,6 +1213,36 @@ message HeapprofdConfig {
 }
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
+
+// Begin of protos/perfetto/config/profiling/java_hprof_config.proto
+
+// Configuration for go/heapprofd.
+message JavaHprofConfig {
+  // If dump_interval_ms != 0, the following configuration is used.
+  message ContinuousDumpConfig {
+    // ms to wait before first continuous dump.
+    // A dump is always created at the beginning of the trace.
+    optional uint32 dump_phase_ms = 1;
+    // ms to wait between following dumps.
+    optional uint32 dump_interval_ms = 2;
+  };
+
+  // This input is normalized in the following way: if it contains slashes,
+  // everything up to the last slash is discarded. If it contains "@",
+  // everything after the first @ is discared.
+  // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
+  // This transformation is also applied to the processes' command lines when
+  // matching.
+  repeated string process_cmdline = 1;
+
+  // For watermark based triggering or local debugging.
+  repeated uint64 pid = 2;
+
+  // Dump at a predefined interval.
+  optional ContinuousDumpConfig continuous_dump_config = 3;
+}
+
+// End of protos/perfetto/config/profiling/java_hprof_config.proto
 
 // Begin of protos/perfetto/config/gpu/gpu_counter_config.proto
 

@@ -43,6 +43,8 @@ PROTOS = (
   # Generate profiling cpp/h files into the src/profiling/memory/ directory.
   ('protos/perfetto/config/profiling/heapprofd_config.proto',
       'src/profiling/memory', 'src/profiling/memory'),
+  ('protos/perfetto/config/profiling/java_hprof_config.proto',
+      'src/profiling/memory', 'src/profiling/memory'),
 )
 
 

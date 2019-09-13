@@ -28,6 +28,7 @@ import "protos/perfetto/config/inode_file/inode_file_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
+import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 
@@ -82,6 +83,7 @@ message DataSourceConfig {
   optional ProcessStatsConfig process_stats_config = 103 [lazy = true];
   optional SysStatsConfig sys_stats_config = 104 [lazy = true];
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
+  optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];

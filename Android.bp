@@ -118,6 +118,8 @@ cc_binary {
     "src/profiling/memory/bookkeeping_dump.cc",
     "src/profiling/memory/heapprofd_config.cc",
     "src/profiling/memory/heapprofd_producer.cc",
+    "src/profiling/memory/java_hprof_config.cc",
+    "src/profiling/memory/java_hprof_producer.cc",
     "src/profiling/memory/main.cc",
     "src/profiling/memory/page_idle_checker.cc",
     "src/profiling/memory/proc_utils.cc",
@@ -992,6 +994,8 @@ cc_test {
     "src/profiling/memory/heapprofd_config.cc",
     "src/profiling/memory/heapprofd_end_to_end_test.cc",
     "src/profiling/memory/heapprofd_producer.cc",
+    "src/profiling/memory/java_hprof_config.cc",
+    "src/profiling/memory/java_hprof_producer.cc",
     "src/profiling/memory/page_idle_checker.cc",
     "src/profiling/memory/proc_utils.cc",
     "src/profiling/memory/scoped_spinlock.cc",
@@ -1774,6 +1778,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_profiling_lite_gen",
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
+    "protos/perfetto/config/profiling/java_hprof_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1781,6 +1786,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.cc",
+    "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.cc",
   ],
 }
 
@@ -1789,6 +1795,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_profiling_lite_gen_headers",
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
+    "protos/perfetto/config/profiling/java_hprof_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1796,6 +1803,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.h",
+    "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.h",
   ],
   export_include_dirs: [
     ".",
@@ -1808,6 +1816,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_profiling_zero_gen",
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
+    "protos/perfetto/config/profiling/java_hprof_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1816,6 +1825,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protozero_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.cc",
   ],
 }
 
@@ -1824,6 +1834,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_profiling_zero_gen_headers",
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
+    "protos/perfetto/config/profiling/java_hprof_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1832,6 +1843,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_protozero_plugin___gn_standalone_toolchain_gcc_like_host_) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.h",
   ],
   export_include_dirs: [
     ".",
@@ -4383,6 +4395,8 @@ cc_test {
     "src/profiling/memory/heapprofd_producer.cc",
     "src/profiling/memory/heapprofd_producer_unittest.cc",
     "src/profiling/memory/interner_unittest.cc",
+    "src/profiling/memory/java_hprof_config.cc",
+    "src/profiling/memory/java_hprof_producer.cc",
     "src/profiling/memory/page_idle_checker.cc",
     "src/profiling/memory/page_idle_checker_unittest.cc",
     "src/profiling/memory/proc_utils.cc",

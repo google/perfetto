@@ -117,6 +117,13 @@ class PERFETTO_EXPORT DataSourceConfig {
     heapprofd_config_ = raw;
   }
 
+  const std::string& java_hprof_config_raw() const {
+    return java_hprof_config_;
+  }
+  void set_java_hprof_config_raw(const std::string& raw) {
+    java_hprof_config_ = raw;
+  }
+
   const std::string& android_power_config_raw() const {
     return android_power_config_;
   }
@@ -166,6 +173,7 @@ class PERFETTO_EXPORT DataSourceConfig {
   std::string process_stats_config_;  // [lazy=true]
   std::string sys_stats_config_;      // [lazy=true]
   std::string heapprofd_config_;      // [lazy=true]
+  std::string java_hprof_config_;     // [lazy=true]
   std::string android_power_config_;  // [lazy=true]
   std::string android_log_config_;    // [lazy=true]
   std::string gpu_counter_config_;    // [lazy=true]

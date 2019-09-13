@@ -39,6 +39,7 @@ namespace perfetto {
 namespace {
 
 constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
+constexpr char kJavaHprofDataSourceName[] = "android.java_hprof";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 
 }  // namespace
@@ -68,11 +69,16 @@ void BuiltinProducer::OnConnect() {
   DataSourceDescriptor lazy_heapprofd_dsd;
   lazy_heapprofd_dsd.set_name(kHeapprofdDataSourceName);
   endpoint_->RegisterDataSource(lazy_heapprofd_dsd);
+
+  DataSourceDescriptor lazy_java_hprof_dsd;
+  lazy_heapprofd_dsd.set_name(kJavaHprofDataSourceName);
+  endpoint_->RegisterDataSource(lazy_java_hprof_dsd);
 }
 
 void BuiltinProducer::SetupDataSource(DataSourceInstanceID ds_id,
                                       const DataSourceConfig& ds_config) {
-  if (ds_config.name() == kHeapprofdDataSourceName) {
+  if (ds_config.name() == kHeapprofdDataSourceName ||
+      ds_config.name() == kJavaHprofDataSourceName) {
     SetAndroidProperty(kLazyHeapprofdPropertyName, "1");
     lazy_heapprofd_.generation++;
     lazy_heapprofd_.instance_ids.emplace(ds_id);

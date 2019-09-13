@@ -17,5 +17,6 @@ import("../../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   sources = [
     "heapprofd_config.proto",
+    "java_hprof_config.proto",
   ]
 }
