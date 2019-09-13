@@ -642,6 +642,7 @@ function Instructions(cssClass: string) {
       m('header', 'Instructions'),
       RecordingSnippet(),
       BufferUsageProgressBar(),
+      m('.buttons', StopCancelButtons()),
       recordingLog());
 }
 
@@ -769,8 +770,11 @@ function recordingButtons() {
   const recInProgress = state.recordingInProgress;
 
   const start =
-      m(`button${recInProgress ? '.selected' : ''}`,
-        {onclick: onStartRecordingPressed},
+      m(`button`,
+        {
+          class: recInProgress ? '' : 'selected',
+          onclick: onStartRecordingPressed
+        },
         'Start Recording');
   const showCmd =
       m(`button`,
@@ -781,25 +785,36 @@ function recordingButtons() {
           }
         },
         'Show Command');
-  const stop =
-      m(`button${recInProgress ? '' : '.disabled'}`,
-        {onclick: () => globals.dispatch(Actions.stopRecording({}))},
-        'Stop Recording');
 
   const buttons: m.Children = [];
 
   const targetOs = state.recordConfig.targetOS;
   if (isAndroidTarget(targetOs)) {
     buttons.push(showCmd);
-    if (realDeviceTarget) buttons.push(recInProgress ? stop : start);
+    if (realDeviceTarget) buttons.push(start);
   } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
     buttons.push(start);
-    if (recInProgress) buttons.push(stop);
   } else if (isLinuxTarget(targetOs)) {
     buttons.push(showCmd);
   }
 
   return m('.button', buttons);
+}
+
+function StopCancelButtons() {
+  if (!globals.state.recordingInProgress) return [];
+
+  const stop =
+      m(`button.selected`,
+        {onclick: () => globals.dispatch(Actions.stopRecording({}))},
+        'Stop');
+
+  const cancel =
+      m(`button`,
+        {onclick: () => globals.dispatch(Actions.cancelRecording({}))},
+        'Cancel');
+
+  return [stop, cancel];
 }
 
 function onStartRecordingPressed() {
@@ -821,7 +836,7 @@ function RecordingStatusLabel() {
 function ErrorLabel() {
   const lastRecordingError = globals.state.lastRecordingError;
   if (!lastRecordingError) return [];
-  return m('label.error-label', `⚠️ Error:  ${lastRecordingError}`);
+  return m('label.error-label', `Error:  ${lastRecordingError}`);
 }
 
 function recordingLog() {

@@ -184,6 +184,7 @@ export interface State {
    * Trace recording
    */
   recordingInProgress: boolean;
+  recordingCancelled: boolean;
   extensionInstalled: boolean;
   androidDeviceConnected?: AdbRecordingTarget;
   availableDevices: AdbRecordingTarget[];
@@ -371,6 +372,7 @@ export function createEmptyState(): State {
     scrubbingEnabled: false,
     flagPauseEnabled: false,
     recordingInProgress: false,
+    recordingCancelled: false,
     extensionInstalled: false,
     androidDeviceConnected: undefined,
     availableDevices: [],
