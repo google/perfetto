@@ -481,6 +481,13 @@ function ChromeSettings(cssClass: string) {
         setEnabled: (cfg, val) => cfg.navigationAndLoading = val,
         isEnabled: (cfg) => cfg.navigationAndLoading
       } as ProbeAttrs),
+      m(Probe, {
+        title: 'Chrome Logs',
+        img: null,
+        descr: `Records Chrome log messages`,
+        setEnabled: (cfg, val) => cfg.chromeLogs = val,
+        isEnabled: (cfg) => cfg.chromeLogs
+      } as ProbeAttrs),
       ChromeCategoriesSelection());
 }
 
