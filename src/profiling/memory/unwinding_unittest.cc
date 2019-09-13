@@ -155,6 +155,29 @@ TEST(UnwindingTest, DoUnwind) {
                "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
 }
 
+TEST(UnwindingTest, DoUnwindReparse) {
+  base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
+  base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
+  GlobalCallstackTrie callsites;
+  UnwindingMetadata metadata(getpid(), std::move(proc_maps),
+                             std::move(proc_mem));
+  // Force reparse in DoUnwind.
+  metadata.maps.Reset();
+  WireMessage msg;
+  auto record = GetRecord(&msg);
+  AllocRecord out;
+  ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
+  ASSERT_GT(out.frames.size(), 0u);
+  int st;
+  std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
+      out.frames[0].frame.function_name.c_str(), nullptr, nullptr, &st));
+  ASSERT_EQ(st, 0) << "mangled: " << demangled.get()
+                   << ", frames: " << out.frames.size();
+  ASSERT_STREQ(demangled.get(),
+               "perfetto::profiling::(anonymous "
+               "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
