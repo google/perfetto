@@ -409,10 +409,16 @@ export const StateActions = {
   startRecording(state: StateDraft): void {
     state.recordingInProgress = true;
     state.lastRecordingError = undefined;
+    state.recordingCancelled = false;
   },
 
   stopRecording(state: StateDraft): void {
     state.recordingInProgress = false;
+  },
+
+  cancelRecording(state: StateDraft): void {
+    state.recordingInProgress = false;
+    state.recordingCancelled = true;
   },
 
   setExtensionAvailable(state: StateDraft, args: {available: boolean}): void {
