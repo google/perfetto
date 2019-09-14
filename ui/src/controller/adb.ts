@@ -286,14 +286,10 @@ export class AdbOverWebUsb implements Adb {
     console.assert(res.status === 'ok');
     const msg = AdbMsgImpl.decodeHeader(res.data!);
 
-    let bytesLeft = msg.dataLen;
-    let bytesReceived = 0;
-    while (bytesLeft > 0) {
-      const resp = await this.recvRaw(bytesLeft);
-      for (let i = 0; i < resp.data!.byteLength; i++) {
-        msg.data[bytesReceived++] = resp.data!.getUint8(i);
-      }
-      bytesLeft -= resp.data!.byteLength;
+    if (msg.dataLen > 0) {
+      const resp = await this.recvRaw(msg.dataLen);
+      msg.data = new Uint8Array(
+          resp.data!.buffer, resp.data!.byteOffset, resp.data!.byteLength);
     }
     if (this.useChecksum) {
       console.assert(AdbOverWebUsb.checksum(msg.data) === msg.dataChecksum);

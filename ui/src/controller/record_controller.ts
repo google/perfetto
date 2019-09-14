@@ -523,7 +523,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
       // TODO(nicomazz): handle this as intended by consumer_port.proto.
       this.traceBuffer += data.slices[0].data;
       // TODO(nicomazz): Stream the chunks directly in the trace processor.
-      if (data.slices[0].lastSliceForPacket) this.openTraceInUI();
+      if (data.slices[0].lastSliceForPacket) this.onTraceComplete();
     } else if (isEnableTracingResponse(data)) {
       this.readBuffers();
     } else if (isGetTraceStatsResponse(data)) {
@@ -536,9 +536,14 @@ export class RecordController extends Controller<'main'> implements Consumer {
     }
   }
 
-  openTraceInUI() {
+  onTraceComplete() {
     this.consumerPort.freeBuffers({});
     globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+    if (globals.state.recordingCancelled) {
+      globals.dispatch(
+          Actions.setLastRecordingError({error: 'Recording cancelled.'}));
+      return;
+    }
     const trace = ungzip(stringToUint8Array(this.traceBuffer));
     globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
     this.traceBuffer = '';
