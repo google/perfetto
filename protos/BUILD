@@ -1632,7 +1632,6 @@ proto_library(
     name = "trace_processor",
     srcs = [
         "perfetto/trace_processor/raw_query.proto",
-        "perfetto/trace_processor/sched.proto",
         "perfetto/trace_processor/trace_processor.proto",
     ],
     has_services = 1,
