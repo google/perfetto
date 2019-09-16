@@ -169,7 +169,7 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
   MakeProfilePacket();
 }
 
-void DumpState::AddIdleBytes(uintptr_t callstack_id, uint64_t bytes) {
+void DumpState::AddIdleBytes(uint64_t callstack_id, uint64_t bytes) {
   current_process_idle_allocs_[callstack_id] += bytes;
 }
 

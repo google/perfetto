@@ -115,7 +115,7 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
     PERFETTO_FATAL("Stacktop >= stackbase.");
     return {nullptr, nullptr};
   }
-  uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
+  size_t stack_size = static_cast<size_t>(stackbase - stacktop);
 
   metadata->alloc_size = 10;
   metadata->alloc_address = 0x10;
