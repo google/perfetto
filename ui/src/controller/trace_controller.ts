@@ -218,8 +218,9 @@ export class TraceController extends Controller<States> {
 
     // We don't know the resolution at this point. However this will be
     // replaced in 50ms so a guess is fine.
+    const resolution = (traceTime.end - traceTime.start) / 1000;
     actions.push(Actions.setVisibleTraceTime(
-        {...traceTimeState, lastUpdate: Date.now() / 1000, resolution: 0.008}));
+        {...traceTimeState, lastUpdate: Date.now() / 1000, resolution}));
 
     globals.dispatchMultiple(actions);
 
