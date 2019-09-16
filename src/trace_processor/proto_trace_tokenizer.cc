@@ -628,6 +628,8 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
     return;
   }
 
+  latest_timestamp_ = std::max(timestamp, latest_timestamp_);
+
   if (auto tt_delta_field =
           event_decoder.FindField(kThreadTimeDeltaUsFieldNumber)) {
     thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
