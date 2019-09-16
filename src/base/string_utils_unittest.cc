@@ -23,6 +23,22 @@ namespace {
 
 using testing::ElementsAre;
 
+TEST(StringUtilsTest, Lowercase) {
+  EXPECT_EQ(Lowercase('A'), 'a');
+  EXPECT_EQ(Lowercase('a'), 'a');
+  EXPECT_EQ(Lowercase('Z'), 'z');
+  EXPECT_EQ(Lowercase('z'), 'z');
+  EXPECT_EQ(Lowercase('!'), '!');
+}
+
+TEST(StringUtilsTest, Uppercase) {
+  EXPECT_EQ(Uppercase('A'), 'A');
+  EXPECT_EQ(Uppercase('a'), 'A');
+  EXPECT_EQ(Uppercase('Z'), 'Z');
+  EXPECT_EQ(Uppercase('z'), 'Z');
+  EXPECT_EQ(Uppercase('!'), '!');
+}
+
 TEST(StringUtilsTest, StartsWith) {
   EXPECT_TRUE(StartsWith("", ""));
   EXPECT_TRUE(StartsWith("abc", ""));
