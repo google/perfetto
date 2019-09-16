@@ -346,7 +346,7 @@ class TraceViewer implements m.ClassComponent {
                   this.keepCurrentSelection = false;
                   return;
                 }
-                globals.dispatch(Actions.deselect({}));
+                globals.makeSelection(Actions.deselect({}));
               }
             },
             m('.pinned-panel-container', m(PanelContainer, {

@@ -65,7 +65,8 @@ export class SearchController extends Controller<'main'> {
 
     const visibleState = this.app.state.frontendLocalState.visibleState;
     const omniboxState = this.app.state.frontendLocalState.omniboxState;
-    if (visibleState === undefined || omniboxState === undefined) {
+    if (visibleState === undefined || omniboxState === undefined ||
+        omniboxState.mode === 'COMMAND') {
       return;
     }
     const newSpan = new TimeSpan(visibleState.startSec, visibleState.endSec);
