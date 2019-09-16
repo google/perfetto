@@ -91,9 +91,10 @@ std::string RunClangFmt(const std::string& input) {
 
 }  // namespace
 
+using base::Contains;
 using base::EndsWith;
 using base::StartsWith;
-using base::Contains;
+using base::Uppercase;
 
 VerifyStream::VerifyStream(std::string filename)
     : filename_(std::move(filename)) {
@@ -146,7 +147,7 @@ std::string ToCamelCase(const std::string& s) {
     }
     if (upperCaseNextChar) {
       upperCaseNextChar = false;
-      c = static_cast<char>(toupper(c));
+      c = Uppercase(c);
     }
     result.push_back(c);
   }
