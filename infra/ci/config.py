@@ -79,6 +79,11 @@ JOB_CONFIGS = {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
     },
+    'linux-clang-x86-asan_lsan': {
+        'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true '
+                                 'target_cpu="x86"',
+        'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
+    },
     'linux-gcc7-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_clang=false ' +
                                  'use_custom_libcxx=false ' +
