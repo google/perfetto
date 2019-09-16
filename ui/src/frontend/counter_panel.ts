@@ -24,27 +24,34 @@ interface CounterDetailsPanelAttrs {}
 export class CounterDetailsPanel extends Panel<CounterDetailsPanelAttrs> {
   view() {
     const counterInfo = globals.counterDetails;
-    return m(
-        '.details-panel',
-        m('.details-panel-heading', `Counter Details:`),
-        m(
-            '.details-table',
-            [m('table',
-               [
-                 m('tr',
-                   m('th', `Start time`),
-                   m('td', `${timeToCode(counterInfo.startTime!)}`)),
-                 m('tr',
-                   m('th', `Value`),
-                   m('td', `${counterInfo.value!.toLocaleString()}`)),
-                 m('tr',
-                   m('th', `Delta`),
-                   m('td', `${counterInfo.delta!.toLocaleString()}`)),
-                 m('tr',
-                   m('th', `Duration`),
-                   m('td', `${timeToCode(fromNs(counterInfo.duration!))}`)),
-               ])],
-            ));
+    if (counterInfo && counterInfo.startTime &&
+        counterInfo.value !== undefined && counterInfo.delta !== undefined &&
+        counterInfo.duration !== undefined) {
+      return m(
+          '.details-panel',
+          m('.details-panel-heading', `Counter Details:`),
+          m(
+              '.details-table',
+              [m('table',
+                 [
+                   m('tr',
+                     m('th', `Start time`),
+                     m('td', `${timeToCode(counterInfo.startTime)}`)),
+                   m('tr',
+                     m('th', `Value`),
+                     m('td', `${counterInfo.value.toLocaleString()}`)),
+                   m('tr',
+                     m('th', `Delta`),
+                     m('td', `${counterInfo.delta.toLocaleString()}`)),
+                   m('tr',
+                     m('th', `Duration`),
+                     m('td', `${timeToCode(fromNs(counterInfo.duration))}`)),
+                 ])],
+              ));
+    } else {
+      return m(
+          '.details-panel', m('.details-panel-heading', `Counter Details:`));
+    }
   }
 
   renderCanvas() {}
