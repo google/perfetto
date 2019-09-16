@@ -34,7 +34,7 @@ int64_t PageIdleChecker::OnIdlePage(uint64_t addr, size_t size) {
   if ((addr + size) % base::kPageSize != 0)
     end_page_nr++;
 
-  size_t pages = end_page_nr - page_nr;
+  size_t pages = static_cast<size_t>(end_page_nr - page_nr);
 
   int64_t idle_mem = 0;
   for (size_t i = 0; i < pages; ++i) {

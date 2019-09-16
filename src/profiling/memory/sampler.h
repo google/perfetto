@@ -54,7 +54,7 @@ class Sampler {
   size_t SampleSize(size_t alloc_sz) {
     if (PERFETTO_UNLIKELY(alloc_sz >= sampling_interval_))
       return alloc_sz;
-    return sampling_interval_ * NumberOfSamples(alloc_sz);
+    return static_cast<size_t>(sampling_interval_ * NumberOfSamples(alloc_sz));
   }
 
  private:

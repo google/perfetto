@@ -108,7 +108,10 @@ config("default") {
       "-msse2",
       "-mfpmath=sse",
     ]
-    ldflags += [ "-m32" ]
+    ldflags += [
+      "-m32",
+      "-lgcc",
+    ]
   } else if (current_cpu == "arm64") {
     cflags += [ "-fno-omit-frame-pointer" ]
   }
