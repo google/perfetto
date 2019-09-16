@@ -356,7 +356,7 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     uint64_t address) {
   std::vector<SymbolizedFrame> result;
 
-  if (PERFETTO_EINTR(dprintf(subprocess_.write_fd(), "%s 0x%lx\n",
+  if (PERFETTO_EINTR(dprintf(subprocess_.write_fd(), "%s 0x%" PRIx64 "\n",
                              binary.c_str(), address)) < 0) {
     PERFETTO_ELOG("Failed to write to llvm-symbolizer.");
     return result;

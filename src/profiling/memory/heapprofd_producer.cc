@@ -577,18 +577,19 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
 
   if (process_state->page_idle_checker) {
     PageIdleChecker& page_idle_checker = *process_state->page_idle_checker;
-    heap_tracker.GetAllocations(
-        [&dump_state, &page_idle_checker](uint64_t addr, uint64_t,
-                                          uint64_t alloc_size,
-                                          uintptr_t callstack_id) {
-          int64_t idle = page_idle_checker.OnIdlePage(addr, alloc_size);
-          if (idle < 0) {
-            PERFETTO_PLOG("OnIdlePage.");
-            return;
-          }
-          if (idle > 0)
-            dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
-        });
+    heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
+                                    uint64_t addr, uint64_t,
+                                    uint64_t alloc_size,
+                                    uint64_t callstack_id) {
+      int64_t idle =
+          page_idle_checker.OnIdlePage(addr, static_cast<size_t>(alloc_size));
+      if (idle < 0) {
+        PERFETTO_PLOG("OnIdlePage.");
+        return;
+      }
+      if (idle > 0)
+        dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
+    });
   }
 
   heap_tracker.GetCallstackAllocations(
@@ -810,7 +811,7 @@ void HeapprofdProducer::HandleClientConnection(
   if (shmem_size > kMaxShmemSize)
     shmem_size = kMaxShmemSize;
 
-  auto shmem = SharedRingBuffer::Create(shmem_size);
+  auto shmem = SharedRingBuffer::Create(static_cast<size_t>(shmem_size));
   if (!shmem || !shmem->is_valid()) {
     PERFETTO_LOG("Failed to create shared memory.");
     return;

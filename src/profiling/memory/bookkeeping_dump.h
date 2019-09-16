@@ -69,7 +69,7 @@ class DumpState {
   DumpState(DumpState&&) = delete;
   DumpState& operator=(DumpState&&) = delete;
 
-  void AddIdleBytes(uintptr_t callstack_id, uint64_t bytes);
+  void AddIdleBytes(uint64_t callstack_id, uint64_t bytes);
 
   void WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
                        bool dump_at_max_mode);
@@ -122,7 +122,7 @@ class DumpState {
       current_process_heap_samples_ = nullptr;
   std::function<void(protos::pbzero::ProfilePacket::ProcessHeapSamples*)>
       current_process_fill_header_;
-  std::map<uintptr_t /* callstack_id */, uint64_t> current_process_idle_allocs_;
+  std::map<uint64_t /* callstack_id */, uint64_t> current_process_idle_allocs_;
 
   uint64_t last_written_ = 0;
 };
