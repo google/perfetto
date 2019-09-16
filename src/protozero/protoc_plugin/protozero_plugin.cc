@@ -44,6 +44,7 @@ using perfetto::base::StripChars;
 using perfetto::base::StripPrefix;
 using perfetto::base::StripSuffix;
 using perfetto::base::ToUpper;
+using perfetto::base::Uppercase;
 
 // Keep this value in sync with ProtoDecoder::kMaxDecoderFieldId. If they go out
 // of sync pbzero.h files will stop compiling, hitting the at() static_assert.
@@ -142,7 +143,7 @@ class GeneratorJob {
   inline std::string GetFieldNumberConstant(const FieldDescriptor* field) {
     std::string name = field->camelcase_name();
     if (!name.empty()) {
-      name.at(0) = static_cast<char>(toupper(name.at(0)));
+      name.at(0) = Uppercase(name.at(0));
       name = "k" + name + "FieldNumber";
     } else {
       // Protoc allows fields like 'bool _ = 1'.
