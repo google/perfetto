@@ -23,7 +23,8 @@ export type Timestamped<T> = {
   [P in keyof T]: T[P];
 }&{lastUpdate: number};
 
-export type OmniboxState = Timestamped<{omnibox: string;}>;
+export type OmniboxState =
+    Timestamped<{omnibox: string; mode: 'SEARCH' | 'COMMAND'}>;
 
 export type VisibleState =
     Timestamped<{startSec: number; endSec: number; resolution: number;}>;
@@ -354,6 +355,7 @@ export function createEmptyState(): State {
       omniboxState: {
         lastUpdate: 0,
         omnibox: '',
+        mode: 'SEARCH',
       },
 
       visibleState: {
