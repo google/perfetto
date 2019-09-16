@@ -230,6 +230,7 @@ sure no [DEDUPED frames](#deduped-frames) are involved.
 
 ## Known Issues
 
+### Android 10
 * Does not work on x86 platforms (including the Android cuttlefish emulator).
 * If heapprofd is run standalone (by running `heapprofd` in a root shell, rather
   than through init), `/dev/socket/heapprofd` get assigned an incorrect SELinux

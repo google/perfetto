@@ -1,4 +1,4 @@
-# Changes from Android Q
+# Changes from Android 10
 
 ## New features
 * Allow to specify whether profiling should only be done for existing processes
@@ -9,3 +9,4 @@
 * Allow to dump the maximum, rather than at the time of the dump.
 
 ## Bugfixes
+* Fixed heapprofd on x86.
