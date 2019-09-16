@@ -23,6 +23,14 @@
 namespace perfetto {
 namespace base {
 
+inline char Lowercase(char c) {
+  return ('A' <= c && c <= 'Z') ? (c -= 'A' - 'a') : c;
+}
+
+inline char Uppercase(char c) {
+  return ('a' <= c && c <= 'z') ? (c += 'A' - 'a') : c;
+}
+
 bool StartsWith(const std::string& str, const std::string& prefix);
 bool EndsWith(const std::string& str, const std::string& suffix);
 bool Contains(const std::string& haystack, const std::string& needle);
