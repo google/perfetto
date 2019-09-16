@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
+
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
@@ -20,6 +22,7 @@ import {toNs} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
+import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {
@@ -47,6 +50,27 @@ class CounterTrack extends Track<Config, Data> {
     super(trackState);
   }
 
+  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+    const buttons: Array<m.Vnode<TrackButtonAttrs>> = [];
+    buttons.push(m(TrackButton, {
+      action: () => {
+        if (this.config.scale === 'RELATIVE') {
+          this.config.scale = 'DEFAULT';
+        } else {
+          this.config.scale = 'RELATIVE';
+        }
+        Actions.updateTrackConfig(
+            {id: this.trackState.id, config: this.config});
+        globals.rafScheduler.scheduleFullRedraw();
+      },
+      i: 'show_chart',
+      tooltip: (this.config.scale === 'RELATIVE') ? 'Use zero-based scale' :
+                                                    'Use relative scale',
+      selected: this.config.scale === 'RELATIVE',
+    }));
+    return buttons;
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
@@ -56,11 +80,10 @@ class CounterTrack extends Track<Config, Data> {
 
     assertTrue(data.timestamps.length === data.values.length);
 
-    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
     const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
     const zeroY = MARGIN_TOP + RECT_HEIGHT / (data.minimumValue < 0 ? 2 : 1);
 
-    let lastX = startPx;
+    let lastX = Math.floor(timeScale.timeToPx(data.timestamps[0]));
     let lastY = zeroY;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -71,9 +94,20 @@ class CounterTrack extends Track<Config, Data> {
     const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
     const pow10 = Math.pow(10, exp);
     yMax = Math.ceil(yMax / (pow10 / 4)) * (pow10 / 4);
-    const yRange = data.minimumValue < 0 ? yMax * 2 : yMax;
+    let yRange = 0;
     const unitGroup = Math.floor(exp / 3);
-    const yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
+    let yMin = 0;
+    let yLabel = '';
+    if (this.config.scale === 'RELATIVE') {
+      yRange = data.maximumValue - data.minimumValue;
+      yMin = data.minimumValue;
+      yLabel = 'min - max';
+    } else {
+      yRange = data.minimumValue < 0 ? yMax * 2 : yMax;
+      yMin = data.minimumValue < 0 ? -yMax : 0;
+      yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
+    }
+
     // There are 360deg of hue. We want a scale that starts at green with
     // exp <= 3 (<= 1KB), goes orange around exp = 6 (~1MB) and red/violet
     // around exp >= 9 (1GB).
@@ -92,7 +126,7 @@ class CounterTrack extends Track<Config, Data> {
     for (let i = 0; i < data.values.length; i++) {
       const value = data.values[i];
       const startTime = data.timestamps[i];
-      const nextY = zeroY - Math.round((value / yRange) * RECT_HEIGHT);
+      const nextY = zeroY - Math.round(((value - yMin) / yRange) * RECT_HEIGHT);
       if (nextY === lastY) continue;
 
       lastX = Math.floor(timeScale.timeToPx(startTime));
@@ -107,7 +141,7 @@ class CounterTrack extends Track<Config, Data> {
     ctx.stroke();
 
     // Draw the Y=0 dashed line.
-    ctx.strokeStyle = `hsl(${hue}, 10%, 15%)`;
+    ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
     ctx.beginPath();
     ctx.setLineDash([2, 4]);
     ctx.moveTo(0, zeroY);
@@ -131,7 +165,8 @@ class CounterTrack extends Track<Config, Data> {
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
           Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
-      const y = zeroY - Math.round((this.hoveredValue / yRange) * RECT_HEIGHT);
+      const y = zeroY -
+          Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
 
       // Highlight line.
       ctx.beginPath();
@@ -186,12 +221,6 @@ class CounterTrack extends Track<Config, Data> {
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
     this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
     this.hoveredValue = left === -1 ? undefined : data.values[left];
-
-    // for (let i = 0; i < data.values.length; i++) {
-    //  if (data.timestamps[i] > time) break;
-    //  this.hoveredTs = data.timestamps[i];
-    //  this.hoveredValue = data.values[i];
-    //}
   }
 
   onMouseOut() {

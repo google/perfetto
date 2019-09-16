@@ -153,6 +153,11 @@ export const StateActions = {
     state.visibleTracks = args.tracks;
   },
 
+  updateTrackConfig(state: StateDraft, args: {id: string, config: {}}) {
+    if (state.tracks[args.id] === undefined) return;
+    state.tracks[args.id].config = args.config;
+  },
+
   executeQuery(
       state: StateDraft,
       args: {queryId: string; engineId: string; query: string}): void {
