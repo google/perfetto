@@ -93,6 +93,19 @@ std::string ToUpper(const std::string& str) {
   return res;
 }
 
+std::string ToHex(const char* data, size_t size) {
+  std::string hex(2 * size + 1, 'x');
+  for (size_t i = 0; i < size; ++i) {
+    // snprintf prints 3 characters, the two hex digits and a null byte. As we
+    // write left to write, we keep overwriting the nullbytes, except for the
+    // last call to snprintf.
+    snprintf(&(hex[2 * i]), 3, "%02hhx", data[i]);
+  }
+  // Remove the trailing nullbyte produced by the last snprintf.
+  hex.resize(2 * size);
+  return hex;
+}
+
 std::string StripChars(const std::string& str,
                        const std::string& chars,
                        char replacement) {

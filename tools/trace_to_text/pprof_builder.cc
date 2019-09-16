@@ -31,6 +31,7 @@
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pb.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pb.h"
@@ -66,15 +67,6 @@ using GProfile = ::perfetto::third_party::perftools::profiles::Profile;
 using GValueType = ::perfetto::third_party::perftools::profiles::ValueType;
 using GFunction = ::perfetto::third_party::perftools::profiles::Function;
 using GSample = ::perfetto::third_party::perftools::profiles::Sample;
-
-std::string ToHex(const std::string& build_id) {
-  std::string hex_build_id(2 * build_id.size() + 1, ' ');
-  for (size_t i = 0; i < build_id.size(); ++i)
-    snprintf(&(hex_build_id[2 * i]), 3, "%02hhx", build_id[i]);
-  // Remove the trailing nullbyte.
-  hex_build_id.resize(2 * build_id.size());
-  return hex_build_id;
-}
 
 enum Strings : int64_t {
   kEmpty = 0,
@@ -163,7 +155,7 @@ class GProfileWriter : public ProfileVisitor {
     auto str_it = string_lookup_.find(mapping.build_id());
     if (str_it != string_lookup_.end()) {
       const std::string& build_id = str_it->second;
-      gmapping->set_build_id(InternInGProfile(ToHex(build_id)));
+      gmapping->set_build_id(InternInGProfile(base::ToHex(build_id)));
     }
     return true;
   }

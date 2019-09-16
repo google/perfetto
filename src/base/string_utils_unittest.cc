@@ -45,6 +45,11 @@ TEST(StringUtilsTest, EndsWith) {
   EXPECT_FALSE(EndsWith("", "c"));
 }
 
+TEST(StringUtilsTest, ToHex) {
+  EXPECT_EQ(ToHex(""), "");
+  EXPECT_EQ(ToHex("abc123"), "616263313233");
+}
+
 TEST(StringUtilsTest, CaseInsensitiveEqual) {
   EXPECT_TRUE(CaseInsensitiveEqual("", ""));
   EXPECT_TRUE(CaseInsensitiveEqual("abc", "abc"));

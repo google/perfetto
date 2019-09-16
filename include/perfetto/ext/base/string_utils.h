@@ -37,6 +37,10 @@ std::string ToUpper(const std::string& str);
 std::string StripChars(const std::string& str,
                        const std::string& chars,
                        char replacement);
+std::string ToHex(const char* data, size_t size);
+inline std::string ToHex(const std::string& s) {
+  return ToHex(s.c_str(), s.size());
+}
 
 }  // namespace base
 }  // namespace perfetto

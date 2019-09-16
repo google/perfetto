@@ -18,6 +18,7 @@
 #include "tools/trace_to_text/local_symbolizer.h"
 
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
 #include <elf.h>
@@ -54,18 +55,6 @@ std::vector<std::string> GetLines(FILE* f) {
   return lines;
 }
 
-std::string ToHex(const char* build_id, size_t size) {
-  std::string hex_build_id(2 * size + 1, 'x');
-  for (size_t i = 0; i < size; ++i) {
-    // snprintf prints 3 characters, the two hex digits and a null byte. As we
-    // write left to write, we keep overwriting the nullbytes, except for the
-    // last call to snprintf.
-    snprintf(&(hex_build_id[2 * i]), 3, "%02hhx", build_id[i]);
-  }
-  // Remove the trailing nullbyte produced by the last snprintf.
-  hex_build_id.resize(2 * size);
-  return hex_build_id;
-}
 
 struct Elf32 {
   using Ehdr = Elf32_Ehdr;
@@ -306,7 +295,7 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
       return {symbol_file};
   }
 
-  std::string hex_build_id = ToHex(build_id.c_str(), build_id.size());
+  std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
   std::string split_hex_build_id = SplitBuildID(hex_build_id);
   if (!split_hex_build_id.empty()) {
     symbol_file =
