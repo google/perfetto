@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
 import {TrackState} from '../common/state';
 import {TrackData} from '../common/track_data';
 
 import {globals} from './globals';
+import {TrackButtonAttrs} from './track_panel';
 
 /**
  * This interface forces track implementations to have some static properties.
@@ -49,6 +51,10 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
 
   getHeight(): number {
     return 40;
+  }
+
+  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+    return [];
   }
 
   onMouseMove(_position: {x: number, y: number}) {}

@@ -326,6 +326,10 @@ button.close {
           opacity: 0;
         }
 
+        .track-button.show {
+          opacity: 1;
+        }
+
         &:hover .track-button{
           opacity: 1;
         }

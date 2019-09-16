@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {Actions, DeferredAction} from '../common/actions';
+import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
 
 import {globals} from './globals';
@@ -33,6 +33,7 @@ function isPinned(id: string) {
 }
 
 interface TrackShellAttrs {
+  track: Track;
   trackState: TrackState;
 }
 
@@ -64,9 +65,15 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             title: attrs.trackState.name,
           },
           attrs.trackState.name),
+        attrs.track.getTrackShellButtons(),
         m(TrackButton, {
-          action: Actions.toggleTrackPinned({trackId: attrs.trackState.id}),
+          action: () => {
+            globals.dispatch(
+                Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
+          },
           i: isPinned(attrs.trackState.id) ? 'star' : 'star_border',
+          tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
+          selected: isPinned(attrs.trackState.id),
         }));
   }
 
@@ -167,22 +174,26 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           }
         },
         [
-          m(TrackShell, {trackState: attrs.trackState}),
+          m(TrackShell, {track: attrs.track, trackState: attrs.trackState}),
           m(TrackContent, {track: attrs.track})
         ]);
   }
 }
 
-interface TrackButtonAttrs {
-  action: DeferredAction;
+export interface TrackButtonAttrs {
+  action: () => void;
   i: string;
+  tooltip: string;
+  selected: boolean;
 }
-class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
+export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
   view({attrs}: m.CVnode<TrackButtonAttrs>) {
     return m(
         'i.material-icons.track-button',
         {
-          onclick: () => globals.dispatch(attrs.action),
+          class: `${attrs.selected ? 'show' : ''}`,
+          onclick: attrs.action,
+          title: attrs.tooltip,
         },
         attrs.i);
   }

@@ -31,4 +31,5 @@ export interface Config {
   maximumValue?: number;
   minimumValue?: number;
   ref: number;
+  scale?: 'DEFAULT'|'RELATIVE';
 }

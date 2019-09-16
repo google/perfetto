@@ -139,11 +139,19 @@ class CounterTrackController extends TrackController<Config, Data> {
   }
 
   private maximumValue() {
-    return Math.max(this.config.maximumValue || 0, this.maximumValueSeen);
+    if (this.config.maximumValue === undefined) {
+      return this.maximumValueSeen;
+    } else {
+      return this.config.maximumValue;
+    }
   }
 
   private minimumValue() {
-    return Math.min(this.config.minimumValue || 0, this.minimumValueSeen);
+    if (this.config.minimumValue === undefined) {
+      return this.minimumValueSeen;
+    } else {
+      return this.config.minimumValue;
+    }
   }
 
 }
