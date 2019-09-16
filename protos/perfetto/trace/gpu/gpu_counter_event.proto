@@ -35,4 +35,7 @@ message GpuCounterEvent {
     }
   }
   repeated GpuCounter counters = 2;
+
+  // optional. Identifier for GPU in a multi-gpu device.
+  optional int32 gpu_id = 3;
 }
