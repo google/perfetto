@@ -494,14 +494,18 @@ function ChromeCategoriesSelection() {
   // Show "disabled-by-default" categories last.
   const categoriesMap = new Map<string, string>();
   const disabledByDefaultCategories: string[] = [];
+  const disabledPrefix = 'disabled-by-default-';
   categories.forEach(cat => {
-    if (cat.startsWith('disabled')) {
+    if (cat.startsWith(disabledPrefix)) {
       disabledByDefaultCategories.push(cat);
     } else {
       categoriesMap.set(cat, cat);
     }
   });
-  disabledByDefaultCategories.forEach(cat => categoriesMap.set(cat, cat));
+  disabledByDefaultCategories.forEach(cat => {
+    categoriesMap.set(
+        cat, `${cat.replace(disabledPrefix, '')} (high overhead)`);
+  });
   return m(Dropdown, {
     title: 'Additional Chrome categories',
     cssClass: '.multicolumn.two-columns.chrome-categories',
