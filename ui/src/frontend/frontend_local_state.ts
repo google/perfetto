@@ -99,6 +99,7 @@ export class FrontendLocalState {
   private _omniboxState: OmniboxState = {
     lastUpdate: 0,
     omnibox: '',
+    mode: 'SEARCH',
   };
 
   private _visibleState: VisibleState = {
@@ -195,8 +196,9 @@ export class FrontendLocalState {
     globals.dispatch(Actions.setOmnibox(this._omniboxState));
   }, 20);
 
-  set omnibox(value: string) {
+  setOmnibox(value: string, mode: 'SEARCH'|'COMMAND') {
     this._omniboxState.omnibox = value;
+    this._omniboxState.mode = mode;
     this._omniboxState.lastUpdate = Date.now() / 1000;
     this.debouncedSetOmnibox();
   }
