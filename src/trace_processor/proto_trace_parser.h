@@ -132,7 +132,7 @@ class ProtoTraceParser : public TraceParser {
       ArgsTracker* args_tracker,
       RowId row);
   void ParseChromeBenchmarkMetadata(ConstBytes);
-  void ParseChromeEvents(ConstBytes);
+  void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
