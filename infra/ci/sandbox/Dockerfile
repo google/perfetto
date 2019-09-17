@@ -24,7 +24,7 @@ RUN set -ex; \
              /etc/apt/sources.list.d/testing.list; \
     apt-get update; \
     apt-get -y install python git curl sudo lz4 tar ccache tini libpulse0 \
-                       libgl1 libxml2 libc6-dev-i386; \
+                       libgl1 libxml2 libc6-dev-i386 libtinfo5; \
     apt-get -y -t testing install gcc-7 g++-7 clang; \
     curl https://bootstrap.pypa.io/get-pip.py | python -; \
     pip install --quiet protobuf; \
