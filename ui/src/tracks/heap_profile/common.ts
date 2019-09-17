@@ -19,4 +19,6 @@ export interface Data extends TrackData {
   tsStarts: Float64Array;
 }
 
-export interface Config {}
+export interface Config {
+  upid: number;
+}
