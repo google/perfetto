@@ -14,7 +14,11 @@
 
 import {Engine} from '../common/engine';
 import {fromNs, toNs} from '../common/time';
-import {CounterDetails, SliceDetails} from '../frontend/globals';
+import {
+  CounterDetails,
+  HeapDumpDetails,
+  SliceDetails
+} from '../frontend/globals';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -36,7 +40,7 @@ export class SelectionController extends Controller<'main'> {
     const selection = globals.state.currentSelection;
     if (selection === null ||
         (selection.kind !== 'SLICE' && selection.kind !== 'CHROME_SLICE' &&
-         selection.kind !== 'COUNTER') ||
+         selection.kind !== 'COUNTER' && selection.kind !== 'HEAP_DUMP') ||
         (selection.id === this.lastSelectedId &&
          selection.kind === this.lastSelectedKind &&
          selection.kind !== 'COUNTER')) {
@@ -49,7 +53,18 @@ export class SelectionController extends Controller<'main'> {
 
     if (selectedId === undefined) return;
 
-    if (selection.kind === 'COUNTER') {
+    if (selection.kind === 'HEAP_DUMP') {
+      const selected: HeapDumpDetails = {};
+      const ts = selection.ts;
+      const upid = selection.upid;
+      this.heapDumpDetails(ts, upid).then(results => {
+        if (results !== undefined && selection &&
+            selection.kind === selectedKind && selection.id === selectedId) {
+          Object.assign(selected, results);
+          globals.publish('HeapDumpDetails', selected);
+        }
+      });
+    } else if (selection.kind === 'COUNTER') {
       const selected: CounterDetails = {};
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
           .then(results => {
@@ -106,6 +121,19 @@ export class SelectionController extends Controller<'main'> {
         }
       });
     }
+  }
+
+  async heapDumpDetails(ts: number, upid: number) {
+    const allocatedMemory = await this.args.engine.query(
+        `select sum(size) from heap_profile_allocation where ts <= ${
+            ts} and size > 0 and upid = ${upid}`);
+    const allocated = allocatedMemory.columns[0].longValues![0];
+    const allocatedNotFreedMemory = await this.args.engine.query(
+        `select sum(size) from heap_profile_allocation where ts <= ${
+            ts} and upid = ${upid}`);
+    const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
+    const startTime = fromNs(ts) - globals.state.traceTime.startSec;
+    return {ts: startTime, allocated, allocatedNotFreed};
   }
 
   async counterDetails(ts: number, rightTs: number, id: number) {

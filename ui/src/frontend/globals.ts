@@ -42,6 +42,12 @@ export interface CounterDetails {
   duration?: number;
 }
 
+export interface HeapDumpDetails {
+  ts?: number;
+  allocated?: number;
+  allocatedNotFreed?: number;
+}
+
 export interface QuantizedLoad {
   startSec: number;
   endSec: number;
@@ -75,6 +81,7 @@ class Globals {
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
   private _counterDetails?: CounterDetails = undefined;
+  private _heapDumpDetails?: HeapDumpDetails = undefined;
   private _isLoading = false;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
@@ -104,6 +111,7 @@ class Globals {
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
     this._counterDetails = {};
+    this._heapDumpDetails = {};
   }
 
   get state(): State {
@@ -157,6 +165,14 @@ class Globals {
 
   set counterDetails(click: CounterDetails) {
     this._counterDetails = assertExists(click);
+  }
+
+  get heapDumpDetails() {
+    return assertExists(this._heapDumpDetails);
+  }
+
+  set heapDumpDetails(click: HeapDumpDetails) {
+    this._heapDumpDetails = assertExists(click);
   }
 
   set loading(isLoading: boolean) {

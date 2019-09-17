@@ -27,8 +27,12 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = HEAP_PROFILE_TRACK_KIND;
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
+    if (this.config.upid === undefined) {
+      return {start, end, resolution, length: 0, tsStarts: new Float64Array()};
+    }
     const result = await this.query(`
-    SELECT distinct(ts) FROM heap_profile_allocation`);
+    select distinct(ts) from heap_profile_allocation where upid = ${
+        this.config.upid}`);
     const numRows = +result.numRecords;
     const data: Data = {
       start,
