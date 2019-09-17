@@ -58,6 +58,7 @@ bool DataSourceConfig::operator==(const DataSourceConfig& other) const {
          (process_stats_config_ == other.process_stats_config_) &&
          (sys_stats_config_ == other.sys_stats_config_) &&
          (heapprofd_config_ == other.heapprofd_config_) &&
+         (java_hprof_config_ == other.java_hprof_config_) &&
          (android_power_config_ == other.android_power_config_) &&
          (android_log_config_ == other.android_log_config_) &&
          (gpu_counter_config_ == other.gpu_counter_config_) &&
@@ -114,6 +115,8 @@ void DataSourceConfig::FromProto(
   sys_stats_config_ = proto.sys_stats_config().SerializeAsString();
 
   heapprofd_config_ = proto.heapprofd_config().SerializeAsString();
+
+  java_hprof_config_ = proto.java_hprof_config().SerializeAsString();
 
   android_power_config_ = proto.android_power_config().SerializeAsString();
 
@@ -178,6 +181,8 @@ void DataSourceConfig::ToProto(
   proto->mutable_sys_stats_config()->ParseFromString(sys_stats_config_);
 
   proto->mutable_heapprofd_config()->ParseFromString(heapprofd_config_);
+
+  proto->mutable_java_hprof_config()->ParseFromString(java_hprof_config_);
 
   proto->mutable_android_power_config()->ParseFromString(android_power_config_);
 
