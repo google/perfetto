@@ -375,6 +375,12 @@ export const StateActions = {
         };
       },
 
+  selectHeapDump(
+      state: StateDraft, args: {id: number, upid: number, ts: number}): void {
+    state.currentSelection =
+        {kind: 'HEAP_DUMP', id: args.id, upid: args.upid, ts: args.ts};
+  },
+
   selectChromeSlice(state: StateDraft, args: {slice_id: number}): void {
     state.currentSelection = {kind: 'CHROME_SLICE', id: args.slice_id};
   },

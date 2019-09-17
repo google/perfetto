@@ -24,6 +24,7 @@ import {copyToClipboard} from './clipboard';
 import {CounterDetailsPanel} from './counter_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
+import {HeapDumpDetailsPanel} from './heap_dump_panel';
 import {LogPanel} from './logs_panel';
 import {NotesEditorPanel, NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
@@ -305,6 +306,11 @@ class TraceViewer implements m.ClassComponent {
         case 'COUNTER':
           detailsPanels.push(m(CounterDetailsPanel, {
             key: 'counter',
+          }));
+          break;
+        case 'HEAP_DUMP':
+          detailsPanels.push(m(HeapDumpDetailsPanel, {
+            key: 'heap_dump',
           }));
           break;
         case 'CHROME_SLICE':
