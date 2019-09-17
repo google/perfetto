@@ -246,7 +246,6 @@ export interface RecordConfig {
   screenRecord: boolean;
 
   gpuFreq: boolean;
-  gpuSched: boolean;
 
   ftrace: boolean;
   atrace: boolean;
@@ -296,7 +295,6 @@ export function createEmptyRecordConfig(): RecordConfig {
     screenRecord: false,
 
     gpuFreq: false,
-    gpuSched: false,
 
     ftrace: false,
     atrace: false,
