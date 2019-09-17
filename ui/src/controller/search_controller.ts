@@ -87,6 +87,7 @@ export class SearchController extends Controller<'main'> {
         sliceIds: new Float64Array(0),
         tsStarts: new Float64Array(0),
         utids: new Float64Array(0),
+        trackIds: [],
         totalResults: 0,
       });
       return;
@@ -179,7 +180,7 @@ export class SearchController extends Controller<'main'> {
     where rowid = 0;`);
 
     const rawResult = await this.query(`
-    select row_id, ts, utid
+    select row_id, ts, utid, cpu
     from search_result_span
     where utid in (${utids.join(',')}) order by ts`);
 
@@ -189,6 +190,7 @@ export class SearchController extends Controller<'main'> {
       sliceIds: new Float64Array(numRows),
       tsStarts: new Float64Array(numRows),
       utids: new Float64Array(numRows),
+      trackIds: [],
       totalResults: +numRows,
     };
 
@@ -197,6 +199,9 @@ export class SearchController extends Controller<'main'> {
       searchResults.sliceIds[row] = +columns[0].longValues![row];
       searchResults.tsStarts[row] = +columns[1].longValues![row];
       searchResults.utids[row] = +columns[2].longValues![row];
+      // TODO(hjd): Look up  track ids.
+      const cpu = +columns[3].longValues![row];
+      searchResults.trackIds.push((cpu + 1).toString());
     }
     return searchResults;
   }
