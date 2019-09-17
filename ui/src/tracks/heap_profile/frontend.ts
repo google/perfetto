@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {searchSegment} from '../../base/binary_search';
+import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
-import {fromNs} from '../../common/time';
+import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
+
 import {Config, Data, HEAP_PROFILE_TRACK_KIND} from './common';
 
 // 0.5 Makes the horizontal lines sharp.
@@ -24,6 +27,9 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
 class HeapProfileTrack extends Track<Config, Data> {
+  private centerY = this.getHeight() / 2;
+  private width = (this.getHeight() - MARGIN_TOP) / 2;
+
   static readonly kind = HEAP_PROFILE_TRACK_KIND;
   static create(trackState: TrackState): HeapProfileTrack {
     return new HeapProfileTrack(trackState);
@@ -46,21 +52,58 @@ class HeapProfileTrack extends Track<Config, Data> {
     if (data === undefined) return;
 
     for (let i = 0; i < data.tsStarts.length; i++) {
-      const ts = data.tsStarts[i];
-      this.drawMarker(ctx, timeScale.timeToPx(fromNs(ts)), this.getHeight());
+      const centerX = data.tsStarts[i];
+      this.drawMarker(ctx, timeScale.timeToPx(fromNs(centerX)), this.centerY);
     }
   }
 
   drawMarker(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     ctx.fillStyle = '#d9b3ff';
     ctx.beginPath();
-    ctx.moveTo(x, MARGIN_TOP / 2);
-    ctx.lineTo(x - 15, y / 2);
-    ctx.lineTo(x, y - MARGIN_TOP / 2);
-    ctx.lineTo(x + 15, y / 2);
-    ctx.lineTo(x, MARGIN_TOP / 2);
+    ctx.moveTo(x, y - this.width);
+    ctx.lineTo(x - this.width, y);
+    ctx.lineTo(x, y + this.width);
+    ctx.lineTo(x + this.width, y);
+    ctx.lineTo(x, y - this.width);
     ctx.fill();
     ctx.closePath();
+  }
+
+  // TODO(tneda): Add a border to show the currently selected marker and
+  // a hover state.
+  onMouseClick({x, y}: {x: number, y: number}) {
+    const data = this.data();
+    if (data === undefined) return false;
+    const {timeScale} = globals.frontendLocalState;
+
+    const time = toNs(timeScale.pxToTime(x));
+    const [left, right] = searchSegment(data.tsStarts, time);
+
+    let index = -1;
+    if (left !== -1) {
+      const centerX = timeScale.timeToPx(fromNs(data.tsStarts[left]));
+      if (this.isInMarker(x, y, centerX)) {
+        index = left;
+      }
+    }
+    if (right !== -1) {
+      const centerX = timeScale.timeToPx(fromNs(data.tsStarts[right]));
+      if (this.isInMarker(x, y, centerX)) {
+        index = right;
+      }
+    }
+
+    // If the markers overlap the rightmost one will be selected.
+    if (index !== -1) {
+      globals.makeSelection(Actions.selectHeapDump(
+          {id: index, upid: this.config.upid, ts: data.tsStarts[index]}));
+      return true;
+    }
+    return false;
+  }
+
+  isInMarker(x: number, y: number, centerX: number) {
+    return Math.abs(x - centerX) + Math.abs(y - this.centerY) <= this.width;
   }
 }
 
