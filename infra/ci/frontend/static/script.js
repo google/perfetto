@@ -16,6 +16,7 @@
 
 'use strict';
 
+// If you add or remove job types, do not forget to fix the colspans below.
 const JOB_TYPES = [
   { id: 'linux-gcc7-x86_64-release', label: 'rel' },
   { id: 'linux-clang-x86_64-debug', label: 'dbg' },
@@ -195,15 +196,15 @@ var CLsPageRenderer = {
                 m('td[rowspan=4]', 'Status'),
                 m('td[rowspan=4]', 'Owner'),
                 m('td[rowspan=4]', 'Updated'),
-                m('td[colspan=10]', 'Bots'),
+                m('td[colspan=11]', 'Bots'),
               ),
               m('tr',
-                m('td[colspan=8]', 'linux'),
+                m('td[colspan=9]', 'linux'),
                 m('td[colspan=2]', 'android'),
               ),
               m('tr',
                 m('td', 'gcc7'),
-                m('td[colspan=5]', 'clang'),
+                m('td[colspan=6]', 'clang'),
                 m('td[colspan=2]', 'ui'),
                 m('td[colspan=2]', 'clang-arm'),
               ),
