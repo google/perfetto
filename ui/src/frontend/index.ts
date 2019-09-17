@@ -32,6 +32,7 @@ import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {
   CounterDetails,
   globals,
+  HeapDumpDetails,
   QuantizedLoad,
   SliceDetails,
   ThreadDesc
@@ -119,6 +120,11 @@ class FrontendApi {
 
   publishCounterDetails(click: CounterDetails) {
     globals.counterDetails = click;
+    this.redraw();
+  }
+
+  publishHeapDumpDetails(click: HeapDumpDetails) {
+    globals.heapDumpDetails = click;
     this.redraw();
   }
 
