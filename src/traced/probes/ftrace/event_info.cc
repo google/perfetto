@@ -2481,48 +2481,6 @@ std::vector<Event> GetStaticEventInfo() {
   {
     events.emplace_back(Event{});
     Event* event = &events.back();
-    event->name = "gpu_sched_enqueue";
-    event->group = "gpu";
-    event->proto_field_id = 333;
-    event->fields.push_back(MakeField("ctx_id", 1, ProtoSchemaType::kUint32));
-    event->fields.push_back(MakeField("job_id", 2, ProtoSchemaType::kUint32));
-    event->fields.push_back(MakeField("priority", 3, ProtoSchemaType::kUint32));
-    event->fields.push_back(
-        MakeField("submission_id", 4, ProtoSchemaType::kUint32));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "gpu_sched_submit";
-    event->group = "gpu";
-    event->proto_field_id = 334;
-    event->fields.push_back(MakeField("ctx_id", 1, ProtoSchemaType::kUint32));
-    event->fields.push_back(
-        MakeField("hwqueue_id", 2, ProtoSchemaType::kUint32));
-    event->fields.push_back(MakeField("job_id", 3, ProtoSchemaType::kUint32));
-    event->fields.push_back(MakeField("priority", 4, ProtoSchemaType::kUint32));
-    event->fields.push_back(
-        MakeField("submission_id", 5, ProtoSchemaType::kUint32));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
-    event->name = "gpu_sched_complete";
-    event->group = "gpu";
-    event->proto_field_id = 335;
-    event->fields.push_back(MakeField("ctx_id", 1, ProtoSchemaType::kUint32));
-    event->fields.push_back(MakeField("job_id", 2, ProtoSchemaType::kUint32));
-    event->fields.push_back(MakeField("msg", 3, ProtoSchemaType::kString));
-    event->fields.push_back(MakeField("priority", 4, ProtoSchemaType::kUint32));
-    event->fields.push_back(
-        MakeField("submission_id", 5, ProtoSchemaType::kUint32));
-  }
-
-  {
-    events.emplace_back(Event{});
-    Event* event = &events.back();
     event->name = "i2c_read";
     event->group = "i2c";
     event->proto_field_id = 27;
