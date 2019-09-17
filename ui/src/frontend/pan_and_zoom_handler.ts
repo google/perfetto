@@ -166,6 +166,9 @@ export class PanAndZoomHandler {
   private onKeyDown(e: KeyboardEvent) {
     this.updateShift(e.shiftKey);
     if (keyToPan(e) !== Pan.None) {
+      if (this.panning !== keyToPan(e)) {
+        this.panAnimation.stop();
+      }
       this.panning = keyToPan(e);
       const animationTime = e.repeat ?
           ANIMATION_AUTO_END_AFTER_KEYPRESS_MS :
@@ -175,6 +178,9 @@ export class PanAndZoomHandler {
     }
 
     if (keyToZoom(e) !== Zoom.None) {
+      if (this.zooming !== keyToZoom(e)) {
+        this.zoomAnimation.stop();
+      }
       this.zooming = keyToZoom(e);
       const animationTime = e.repeat ?
           ANIMATION_AUTO_END_AFTER_KEYPRESS_MS :
