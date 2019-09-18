@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -101,7 +102,9 @@ TEST(FileScannerTest, TestSynchronousStop) {
       },
       [&done] { done = true; });
 
-  FileScanner fs({"src/traced/probes/filesystem/testdata"}, &delegate);
+  FileScanner fs(
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata")},
+      &delegate);
   fs.Scan();
 
   EXPECT_EQ(seen, 1u);
@@ -119,7 +122,9 @@ TEST(FileScannerTest, TestAsynchronousStop) {
       },
       task_runner.CreateCheckpoint("done"));
 
-  FileScanner fs({"src/traced/probes/filesystem/testdata"}, &delegate, 1, 1);
+  FileScanner fs(
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata")},
+      &delegate, 1, 1);
   fs.Scan(&task_runner);
 
   task_runner.RunUntilCheckpoint("done");
@@ -137,18 +142,24 @@ TEST(FileScannerTest, TestSynchronousFindFiles) {
       },
       [] {});
 
-  FileScanner fs({"src/traced/probes/filesystem/testdata"}, &delegate);
+  FileScanner fs(
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata")},
+      &delegate);
   fs.Scan();
 
   EXPECT_THAT(
       file_entries,
       UnorderedElementsAre(
-          Eq(StatFileEntry("src/traced/probes/filesystem/testdata/dir1/file1",
-                           protos::pbzero::InodeFileMap_Entry_Type_FILE)),
-          Eq(StatFileEntry("src/traced/probes/filesystem/testdata/file2",
+          Eq(StatFileEntry(
+              base::GetTestDataPath(
+                  "src/traced/probes/filesystem/testdata/dir1/file1"),
+              protos::pbzero::InodeFileMap_Entry_Type_FILE)),
+          Eq(StatFileEntry(base::GetTestDataPath(
+                               "src/traced/probes/filesystem/testdata/file2"),
                            protos::pbzero::InodeFileMap_Entry_Type_FILE)),
           Eq(StatFileEntry(
-              "src/traced/probes/filesystem/testdata/dir1",
+              base::GetTestDataPath(
+                  "src/traced/probes/filesystem/testdata/dir1"),
               protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY))));
 }
 
@@ -163,7 +174,9 @@ TEST(FileScannerTest, TestAsynchronousFindFiles) {
       },
       task_runner.CreateCheckpoint("done"));
 
-  FileScanner fs({"src/traced/probes/filesystem/testdata"}, &delegate, 1, 1);
+  FileScanner fs(
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata")},
+      &delegate, 1, 1);
   fs.Scan(&task_runner);
 
   task_runner.RunUntilCheckpoint("done");
@@ -171,12 +184,16 @@ TEST(FileScannerTest, TestAsynchronousFindFiles) {
   EXPECT_THAT(
       file_entries,
       UnorderedElementsAre(
-          Eq(StatFileEntry("src/traced/probes/filesystem/testdata/dir1/file1",
-                           protos::pbzero::InodeFileMap_Entry_Type_FILE)),
-          Eq(StatFileEntry("src/traced/probes/filesystem/testdata/file2",
+          Eq(StatFileEntry(
+              base::GetTestDataPath(
+                  "src/traced/probes/filesystem/testdata/dir1/file1"),
+              protos::pbzero::InodeFileMap_Entry_Type_FILE)),
+          Eq(StatFileEntry(base::GetTestDataPath(
+                               "src/traced/probes/filesystem/testdata/file2"),
                            protos::pbzero::InodeFileMap_Entry_Type_FILE)),
           Eq(StatFileEntry(
-              "src/traced/probes/filesystem/testdata/dir1",
+              base::GetTestDataPath(
+                  "src/traced/probes/filesystem/testdata/dir1"),
               protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY))));
 }
 
