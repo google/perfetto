@@ -24,8 +24,8 @@ account which gives us permissions to access the perfetto consumer socket.
 
 The mock producer is an Android app with a thin Java wrapping around the C++
 library interfaced using JNI. The purpose of this target is to ensure that the
-TraceProto received from the consumer is valid and and then push some fake data.
-This ensures that any arbitary app can push data to the Perfetto socket which
+TraceProto received from the consumer is valid and then push some fake data.
+This ensures that any arbitrary app can push data to the Perfetto socket which
 can then be decoded by the GTest consumer.
 
 ## HeapprofdCtsTest
