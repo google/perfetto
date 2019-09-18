@@ -59,13 +59,39 @@ class Table;
 // Represents a named, strongly typed list of data.
 class Column {
  public:
+  // Flags which indicate properties of the data in the column. These features
+  // are used to speed up column methods like filtering/sorting.
+  enum Flag : uint32_t {
+    // Indicates that this column has no special properties.
+    kNoFlag = 0,
+
+    // Indiciates that the column is an "id" column. Specifically, this means
+    // the backing data for this column has the property that data[i] = i;
+    //
+    // Note: generally, this flag should not be passed by users of this class.
+    // Instead they should use the Column::IdColumn method to create an id
+    // column.
+    kId = 1 << 0,
+
+    // Indicates the data in the column is sorted. This can be used to speed
+    // up filtering and skip sorting.
+    kSorted = 1 << 1,
+  };
+
   template <typename T>
   Column(const char* name,
          SparseVector<T>* storage,
+         /* Flag */ uint32_t flags,
          Table* table,
          uint32_t col_idx,
          uint32_t row_map_idx)
-      : Column(name, ToColumnType<T>(), table, col_idx, row_map_idx, storage) {}
+      : Column(name,
+               ToColumnType<T>(),
+               flags,
+               table,
+               col_idx,
+               row_map_idx,
+               storage) {}
 
   // Create a Column has the same name and is backed by the same data as
   // |column| but is associated to a different table.
@@ -163,7 +189,7 @@ class Column {
   JoinKey join_key() const { return JoinKey{col_idx_}; }
 
  protected:
-  enum ColumnType {
+  enum class ColumnType {
     // Standard primitive types.
     kUint32,
     kInt64,
@@ -200,6 +226,7 @@ class Column {
 
   Column(const char* name,
          ColumnType type,
+         uint32_t flags,
          Table* table,
          uint32_t col_idx,
          uint32_t row_map_idx,
@@ -222,6 +249,7 @@ class Column {
   }
 
   const char* name_ = nullptr;
+  uint32_t flags_ = Flag::kNoFlag;
   const Table* table_ = nullptr;
   uint32_t col_idx_ = 0;
   uint32_t row_map_idx_ = 0;
