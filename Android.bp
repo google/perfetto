@@ -4651,6 +4651,10 @@ cc_test {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
+  data: [
+    "src/traced/probes/filesystem/testdata/**/*",
+    "src/traced/probes/ftrace/test/data/**/*",
+  ],
   target: {
     android: {
       shared_libs: [
