@@ -17,6 +17,7 @@ import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
+import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
@@ -27,13 +28,14 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
 class HeapProfileTrack extends Track<Config, Data> {
-  private centerY = this.getHeight() / 2;
-  private width = (this.getHeight() - MARGIN_TOP) / 2;
-
   static readonly kind = HEAP_PROFILE_TRACK_KIND;
   static create(trackState: TrackState): HeapProfileTrack {
     return new HeapProfileTrack(trackState);
   }
+
+  private centerY = this.getHeight() / 2;
+  private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
+  private hoveredTs: number|undefined = undefined;
 
   constructor(trackState: TrackState) {
     super(trackState);
@@ -53,24 +55,54 @@ class HeapProfileTrack extends Track<Config, Data> {
 
     for (let i = 0; i < data.tsStarts.length; i++) {
       const centerX = data.tsStarts[i];
-      this.drawMarker(ctx, timeScale.timeToPx(fromNs(centerX)), this.centerY);
+      const selection = globals.state.currentSelection;
+      const isHovered = this.hoveredTs === centerX;
+      const isSelected = selection !== null && selection.kind === 'HEAP_DUMP' &&
+          selection.ts === centerX;
+      const lightness = isHovered ? '65' : '85';
+      const strokeWidth = isSelected ? 3 : 0;
+      this.drawMarker(
+          ctx,
+          timeScale.timeToPx(fromNs(centerX)),
+          this.centerY,
+          lightness,
+          strokeWidth);
     }
   }
 
-  drawMarker(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-    ctx.fillStyle = '#d9b3ff';
+  drawMarker(
+      ctx: CanvasRenderingContext2D, x: number, y: number, lightness: string,
+      strokeWidth: number): void {
     ctx.beginPath();
-    ctx.moveTo(x, y - this.width);
-    ctx.lineTo(x - this.width, y);
-    ctx.lineTo(x, y + this.width);
-    ctx.lineTo(x + this.width, y);
-    ctx.lineTo(x, y - this.width);
-    ctx.fill();
+    ctx.moveTo(x, y - this.markerWidth);
+    ctx.lineTo(x - this.markerWidth, y);
+    ctx.lineTo(x, y + this.markerWidth);
+    ctx.lineTo(x + this.markerWidth, y);
+    ctx.lineTo(x, y - this.markerWidth);
     ctx.closePath();
+    ctx.fillStyle = `hsl(270, 100%, ${lightness}%)`;
+    ctx.fill();
+    if (strokeWidth > 0) {
+      ctx.strokeStyle = `hsl(270, 100%, 65%)`;
+      ctx.lineWidth = strokeWidth;
+      ctx.stroke();
+    }
   }
 
-  // TODO(tneda): Add a border to show the currently selected marker and
-  // a hover state.
+  onMouseMove({x, y}: {x: number, y: number}) {
+    const data = this.data();
+    if (data === undefined) return;
+    const {timeScale} = globals.frontendLocalState;
+    const time = toNs(timeScale.pxToTime(x));
+    const [left, right] = searchSegment(data.tsStarts, time);
+    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
+    this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
+  }
+
+  onMouseOut() {
+    this.hoveredTs = undefined;
+  }
+
   onMouseClick({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return false;
@@ -79,6 +111,21 @@ class HeapProfileTrack extends Track<Config, Data> {
     const time = toNs(timeScale.pxToTime(x));
     const [left, right] = searchSegment(data.tsStarts, time);
 
+    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
+
+    if (index !== -1) {
+      const ts = data.tsStarts[index];
+      globals.makeSelection(
+          Actions.selectHeapDump({id: index, upid: this.config.upid, ts}));
+      return true;
+    }
+    return false;
+  }
+
+  // If the markers overlap the rightmost one will be selected.
+  findTimestampIndex(
+      left: number, timeScale: TimeScale, data: Data, x: number, y: number,
+      right: number): number {
     let index = -1;
     if (left !== -1) {
       const centerX = timeScale.timeToPx(fromNs(data.tsStarts[left]));
@@ -92,18 +139,12 @@ class HeapProfileTrack extends Track<Config, Data> {
         index = right;
       }
     }
-
-    // If the markers overlap the rightmost one will be selected.
-    if (index !== -1) {
-      globals.makeSelection(Actions.selectHeapDump(
-          {id: index, upid: this.config.upid, ts: data.tsStarts[index]}));
-      return true;
-    }
-    return false;
+    return index;
   }
 
   isInMarker(x: number, y: number, centerX: number) {
-    return Math.abs(x - centerX) + Math.abs(y - this.centerY) <= this.width;
+    return Math.abs(x - centerX) + Math.abs(y - this.centerY) <=
+        this.markerWidth;
   }
 }
 
