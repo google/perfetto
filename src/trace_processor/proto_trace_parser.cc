@@ -2632,9 +2632,16 @@ void ProtoTraceParser::ParseGpuRenderStageEvent(int64_t ts, ConstBytes blob) {
       snprintf(buffer, 64, "render stage(%zu)", stage_id);
       stage_name = context_->storage->InternString(buffer);
     }
-    context_->slice_tracker->Scoped(
+    const auto slice_id = context_->slice_tracker->Scoped(
         ts, event.hw_queue_id(), RefType::kRefGpuId, 0, /* cat */
         stage_name, static_cast<int64_t>(event.duration()), args_callback);
+
+    context_->storage->mutable_gpu_slice_table()->Insert(
+        tables::GpuSliceTable::Row(
+            slice_id.value(), static_cast<int64_t>(event.context()),
+            static_cast<int64_t>(event.render_target_handle()),
+            base::nullopt /*frame_id*/, event.submission_id(),
+            static_cast<uint32_t>(event.hw_queue_id())));
   }
 }
 
