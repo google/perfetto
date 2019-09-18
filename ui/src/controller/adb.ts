@@ -75,6 +75,11 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async connect(device: USBDevice): Promise<void> {
+    if (this.state === AdbState.CONNECTED && this.dev === device) {
+      this.onConnected();
+      this.onConnected = () => {};
+      return;
+    }
     this.dev = device;
     this.useChecksum = true;
     this.key = await AdbOverWebUsb.initKey();
@@ -241,6 +246,10 @@ export class AdbOverWebUsb implements Adb {
 
   shell(cmd: string): Promise<AdbStream> {
     return this.openStream('shell:' + cmd);
+  }
+
+  socket(path: string): Promise<AdbStream> {
+    return this.openStream('localfilesystem:' + path);
   }
 
   openStream(svc: string): Promise<AdbStream> {
