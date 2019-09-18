@@ -18,7 +18,7 @@ let LOADING_TEXT_WIDTH = 0;
 /**
  * Checker board the range [leftPx, rightPx].
  */
-function checkerboard(
+export function checkerboard(
     ctx: CanvasRenderingContext2D,
     heightPx: number,
     leftPx: number,
