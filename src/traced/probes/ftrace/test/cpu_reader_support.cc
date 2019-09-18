@@ -17,6 +17,7 @@
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 
 #include "perfetto/ext/base/utils.h"
+#include "src/base/test/utils.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
 #include <string.h>
@@ -29,22 +30,6 @@ namespace {
 
 std::map<std::string, std::unique_ptr<ProtoTranslationTable>>* g_tables;
 
-std::string GetBinaryDirectory() {
-  std::string buf(512, '\0');
-  ssize_t rd = readlink("/proc/self/exe", &buf[0], buf.size());
-  if (rd < 0) {
-    PERFETTO_ELOG("Failed to readlink(\"/proc/self/exe\"");
-    return "";
-  }
-  buf.resize(static_cast<size_t>(rd));
-  size_t end = buf.rfind('/');
-  if (end == std::string::npos) {
-    PERFETTO_ELOG("Failed to find directory.");
-    return "";
-  }
-  return buf.substr(0, end + 1);
-}
-
 }  // namespace
 
 ProtoTranslationTable* GetTable(const std::string& name) {
@@ -56,7 +41,7 @@ ProtoTranslationTable* GetTable(const std::string& name) {
     struct stat st;
     if (lstat(path.c_str(), &st) == -1 && errno == ENOENT) {
       // For OSS fuzz, which does not run in the correct cwd.
-      path = GetBinaryDirectory() + path;
+      path = base::GetTestDataPath(path);
     }
     FtraceProcfs ftrace(path);
     auto table = ProtoTranslationTable::Create(&ftrace, GetStaticEventInfo(),

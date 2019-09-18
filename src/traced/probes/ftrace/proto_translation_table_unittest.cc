@@ -19,6 +19,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/base/test/gtest_test_suite.h"
+#include "src/base/test/utils.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
@@ -51,8 +52,8 @@ class MockFtraceProcfs : public FtraceProcfs {
 class AllTranslationTableTest : public TestWithParam<const char*> {
  public:
   void SetUp() override {
-    std::string path =
-        "src/traced/probes/ftrace/test/data/" + std::string(GetParam()) + "/";
+    std::string path = base::GetTestDataPath(
+        "src/traced/probes/ftrace/test/data/" + std::string(GetParam()) + "/");
     FtraceProcfs ftrace_procfs(path);
     table_ = ProtoTranslationTable::Create(&ftrace_procfs, GetStaticEventInfo(),
                                            GetStaticCommonFieldsInfo());
@@ -105,8 +106,8 @@ TEST_P(AllTranslationTableTest, Create) {
 INSTANTIATE_TEST_SUITE_P(ByDevice, AllTranslationTableTest, ValuesIn(kDevices));
 
 TEST(TranslationTableTest, Seed) {
-  std::string path =
-      "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/";
+  std::string path = base::GetTestDataPath(
+      "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/");
   FtraceProcfs ftrace_procfs(path);
   auto table = ProtoTranslationTable::Create(
       &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
