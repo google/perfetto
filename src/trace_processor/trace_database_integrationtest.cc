@@ -36,7 +36,8 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
 
  protected:
   util::Status LoadTrace(const char* name, int min_chunk_size = 512) {
-    base::ScopedFstream f(fopen(base::GetTestDataPath(name).c_str(), "rb"));
+    base::ScopedFstream f(fopen(
+        base::GetTestDataPath(std::string("test/data/") + name).c_str(), "rb"));
     std::minstd_rand0 rnd_engine(0);
     std::uniform_int_distribution<> dist(min_chunk_size, 1024);
     while (!feof(*f)) {
