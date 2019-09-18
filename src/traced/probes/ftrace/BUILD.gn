@@ -29,6 +29,7 @@ source_set("test_support") {
   deps = [
     ":ftrace",
     "../../../../gn:default_deps",
+    "../../../base:test_support",
     "../../../protozero",
   ]
   public_deps = [
