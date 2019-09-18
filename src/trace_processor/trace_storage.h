@@ -35,6 +35,7 @@
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/string_pool.h"
+#include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 #include "src/trace_processor/variadic.h"
@@ -870,22 +871,27 @@ class TraceStorage {
       names_.emplace_back(row.name_id);
       mappings_.emplace_back(row.mapping_row);
       rel_pcs_.emplace_back(row.rel_pc);
+      symbol_set_ids_.emplace_back(0);
       return static_cast<int64_t>(names_.size()) - 1;
     }
 
-    void SetFrameName(size_t row_idx, StringId name_id) {
-      PERFETTO_CHECK(row_idx < names_.size());
-      names_[row_idx] = name_id;
+    void SetSymbolSetId(size_t row_idx, uint32_t symbol_set_id) {
+      PERFETTO_CHECK(row_idx < symbol_set_ids_.size());
+      symbol_set_ids_[row_idx] = symbol_set_id;
     }
 
     const std::deque<StringId>& names() const { return names_; }
     const std::deque<int64_t>& mappings() const { return mappings_; }
     const std::deque<int64_t>& rel_pcs() const { return rel_pcs_; }
+    const std::deque<uint32_t>& symbol_set_ids() const {
+      return symbol_set_ids_;
+    }
 
    private:
     std::deque<StringId> names_;
     std::deque<int64_t> mappings_;
     std::deque<int64_t> rel_pcs_;
+    std::deque<uint32_t> symbol_set_ids_;
   };
 
   class StackProfileCallsites {
@@ -1263,6 +1269,10 @@ class TraceStorage {
     return &cpu_profile_stack_samples_;
   }
 
+  const tables::SymbolTable& symbol_table() const { return symbol_table_; }
+
+  tables::SymbolTable* mutable_symbol_table() { return &symbol_table_; }
+
   const tables::GpuTrackTable& gpu_track_table() const {
     return gpu_track_table_;
   }
@@ -1371,6 +1381,9 @@ class TraceStorage {
   StackProfileCallsites stack_profile_callsites_;
   HeapProfileAllocations heap_profile_allocations_;
   CpuProfileStackSamples cpu_profile_stack_samples_;
+
+  // Symbol tables (mappings from frames to symbol names)
+  tables::SymbolTable symbol_table_{&string_pool_, nullptr};
 };
 
 }  // namespace trace_processor

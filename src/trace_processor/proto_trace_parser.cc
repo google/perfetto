@@ -47,6 +47,7 @@
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/appended_data/appended_data.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -368,6 +369,10 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
            context->storage->InternString("mem.mm.kern_alloc.max_lat"),
            context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
 
+  // TODO(140860736): Once we support null values for
+  // stack_profile_frame.symbol_set_id remove this hack
+  context_->storage->mutable_symbol_table()->Insert({0, 0});
+
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -434,10 +439,6 @@ void ProtoTraceParser::ParseTracePacket(
                                 packet.streaming_profile_packet());
   }
 
-  if (packet.has_profiled_frame_symbols())
-    ParseProfiledFrameSymbols(ttp.packet_sequence_state,
-                              packet.profiled_frame_symbols());
-
   if (packet.has_system_info())
     ParseSystemInfo(packet.system_info());
 
@@ -472,6 +473,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_graphics_frame_event()) {
     graphics_frame_event_parser_->ParseEvent(ts, packet.graphics_frame_event());
+  }
+
+  if (packet.has_appended_data()) {
+    ParseAppendedData(ttp.packet_sequence_state, packet.appended_data());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
@@ -1555,17 +1560,46 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
   }
 }
 
-void ProtoTraceParser::ParseProfiledFrameSymbols(
+void ProtoTraceParser::ParseAppendedData(
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ConstBytes blob) {
-  protos::pbzero::ProfiledFrameSymbols::Decoder packet(blob.data, blob.size);
+  protos::pbzero::AppendedData::Decoder appended_data(blob.data, blob.size);
+  if (appended_data.has_profiled_frame_symbols()) {
+    ParseProfiledFrameSymbols(sequence_state, appended_data);
+  }
+}
+
+void ProtoTraceParser::ParseProfiledFrameSymbols(
+    ProtoIncrementalState::PacketSequenceState* sequence_state,
+    const protos::pbzero::AppendedData::Decoder& appended_data) {
   ProfilePacketInternLookup intern_lookup(sequence_state,
                                           context_->storage.get());
-  // We currently only keep the first function_name_id (given currently frames
-  // only map to a single name).
-  context_->stack_profile_tracker->SetFrameName(
-      packet.frame_iid(), packet.function_name_id()->as_uint64(),
-      &intern_lookup);
+
+  // Create symbol table entries
+  for (auto symbol_it = appended_data.profiled_frame_symbols(); symbol_it;
+       symbol_it++) {
+    const uint32_t symbol_set_id = context_->storage->symbol_table().size();
+    protos::pbzero::ProfiledFrameSymbols::Decoder symbol(symbol_it->data(),
+                                                         symbol_it->size());
+    for (auto name_id_it = symbol.function_name_id(); name_id_it;
+         name_id_it++) {
+      auto maybe_string_id = intern_lookup.GetString(name_id_it->as_uint64());
+      if (!maybe_string_id.has_value()) {
+        context_->storage->IncrementStats(
+            stats::stackprofile_invalid_string_id);
+        PERFETTO_DFATAL_OR_ELOG("Unknown frame symbol string iid %" PRIu64,
+                                name_id_it->as_uint64());
+        continue;
+      }
+      tables::SymbolTable::Row row;
+      row.symbol_set_id = symbol_set_id;
+      row.name = *maybe_string_id;
+      context_->storage->mutable_symbol_table()->Insert(row);
+    }
+    // Map frame to symbol table entries
+    context_->stack_profile_tracker->SetFrameSymbol(
+        symbol.frame_iid(), symbol_set_id, &intern_lookup);
+  }
 }
 
 void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
