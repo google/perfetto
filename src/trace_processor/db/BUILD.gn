@@ -49,3 +49,17 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":lib",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+    ]
+    sources = [
+      "bit_vector_benchmark.cc",
+    ]
+  }
+}
