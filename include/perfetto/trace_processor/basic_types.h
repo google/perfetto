@@ -66,8 +66,8 @@ struct PERFETTO_EXPORT SqlValue {
 
   int Compare(const SqlValue& value) const {
     // TODO(lalitm): this is almost the same as what SQLite does with the
-    // exception of comparisions between long and double - we choose (for
-    // performance reasons) to omit comparisions between them.
+    // exception of comparisons between long and double - we choose (for
+    // performance reasons) to omit comparisons between them.
     if (type != value.type)
       return type - value.type;
 

@@ -215,7 +215,7 @@ group("protobuf_lite") {
 }
 
 # The Google C++ Benchmark library.
-# Only avilable in standalone builds.
+# Only available in standalone builds.
 if (enable_perfetto_benchmarks) {
   group("benchmark") {
     testonly = true
@@ -271,7 +271,7 @@ if (enable_perfetto_trace_processor_json) {
 
 if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
-  # Only avilable in standalone builds.
+  # Only available in standalone builds.
   group("linenoise") {
     public_deps = [
       "//buildtools:linenoise",

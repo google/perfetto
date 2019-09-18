@@ -2149,7 +2149,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 }
 
 void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
-  // The sync markes is used to tokenize large traces efficiently.
+  // The sync marks are used to tokenize large traces efficiently.
   // See description in trace_packet.proto.
   if (sync_marker_packet_size_ == 0) {
     // Serialize the marker and the uid separately to guarantee that the marker
