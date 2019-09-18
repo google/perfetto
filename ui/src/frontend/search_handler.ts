@@ -69,6 +69,14 @@ function moveViewportToCurrentSearch() {
         fromNs(currentTs - currentViewNs / 2),
         fromNs(currentTs + currentViewNs / 2)));
   }
+
+  // Update vertical (up/down) scroll position
+  const trackId = globals.currentSearchResults
+                      .trackIds[globals.frontendLocalState.searchIndex];
+  const track = document.querySelector('#track_' + trackId) as HTMLElement;
+  // block: 'nearest' means that it will only scroll if the track is not
+  // currently in view.
+  track.scrollIntoView({behavior: 'smooth', block: 'nearest'});
 }
 
 function selectCurrentSearchResult() {

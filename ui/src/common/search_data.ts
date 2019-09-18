@@ -22,5 +22,6 @@ export interface CurrentSearchResults {
   sliceIds: Float64Array;
   tsStarts: Float64Array;
   utids: Float64Array;
+  trackIds: string[];
   totalResults: number;
 }

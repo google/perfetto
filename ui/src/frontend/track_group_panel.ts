@@ -64,6 +64,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     }
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
+        {id: 'track_' + this.trackGroupId},
         m('.shell',
           m('h1',
             {
