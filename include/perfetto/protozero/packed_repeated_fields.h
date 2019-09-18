@@ -59,6 +59,11 @@ class PackedVarIntBuffer {
     write_ptr_ = proto_utils::WriteVarInt(value, write_ptr_);
   }
 
+  void Reset() {
+    write_ptr_ = storage_begin_;
+    element_size_ = 0;
+  }
+
   const uint8_t* data() const { return storage_begin_; }
 
   size_t size() const {
@@ -93,6 +98,8 @@ class PackedFixedSizeBuffer {
     PERFETTO_CHECK(write_ptr_ < storage_end_);
     *(write_ptr_++) = value;
   }
+
+  void Reset() { write_ptr_ = storage_begin_; }
 
   const uint8_t* data() const {
     return reinterpret_cast<const uint8_t*>(storage_begin_);
