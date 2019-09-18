@@ -18,8 +18,10 @@
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/base/test/utils.h"
 #include "src/traced/probes/filesystem/lru_inode_cache.h"
 #include "src/tracing/core/null_trace_writer.h"
+
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/config/inode_file/inode_file_config.pbzero.h"
@@ -51,8 +53,13 @@ class TestInodeFileDataSource : public InodeFileDataSource {
                             cache,
                             std::move(writer)) {
     struct stat buf;
-    PERFETTO_CHECK(lstat("src/traced/probes/filesystem/testdata", &buf) != -1);
-    mount_points_.emplace(buf.st_dev, "src/traced/probes/filesystem/testdata");
+    PERFETTO_CHECK(
+        lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata")
+                  .c_str(),
+              &buf) != -1);
+    mount_points_.emplace(
+        buf.st_dev,
+        base::GetTestDataPath("src/traced/probes/filesystem/testdata"));
   }
 
   MOCK_METHOD3(FillInodeEntry,
@@ -87,12 +94,15 @@ TEST_F(InodeFileDataSourceTest, TestFileSystemScan) {
   auto data_source = GetInodeFileDataSource(ds_config);
 
   struct stat buf;
-  PERFETTO_CHECK(lstat("src/traced/probes/filesystem/testdata/file2", &buf) !=
-                 -1);
+  PERFETTO_CHECK(
+      lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")
+                .c_str(),
+            &buf) != -1);
 
   auto done = task_runner_.CreateCheckpoint("done");
-  InodeMapValue value(protos::pbzero::InodeFileMap_Entry_Type_FILE,
-                      {"src/traced/probes/filesystem/testdata/file2"});
+  InodeMapValue value(
+      protos::pbzero::InodeFileMap_Entry_Type_FILE,
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")});
   EXPECT_CALL(*data_source, FillInodeEntry(_, buf.st_ino, Eq(value)))
       .WillOnce(InvokeWithoutArgs(done));
 
@@ -107,15 +117,19 @@ TEST_F(InodeFileDataSourceTest, TestFileSystemScan) {
 TEST_F(InodeFileDataSourceTest, TestStaticMap) {
   DataSourceConfig config;
   auto data_source = GetInodeFileDataSource(config);
-  CreateStaticDeviceToInodeMap("src/traced/probes/filesystem/testdata",
-                               &static_file_map_);
+  CreateStaticDeviceToInodeMap(
+      base::GetTestDataPath("src/traced/probes/filesystem/testdata"),
+      &static_file_map_);
 
   struct stat buf;
-  PERFETTO_CHECK(lstat("src/traced/probes/filesystem/testdata/file2", &buf) !=
-                 -1);
+  PERFETTO_CHECK(
+      lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")
+                .c_str(),
+            &buf) != -1);
 
-  InodeMapValue value(protos::pbzero::InodeFileMap_Entry_Type_FILE,
-                      {"src/traced/probes/filesystem/testdata/file2"});
+  InodeMapValue value(
+      protos::pbzero::InodeFileMap_Entry_Type_FILE,
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")});
   EXPECT_CALL(*data_source, FillInodeEntry(_, buf.st_ino, Eq(value)));
 
   data_source->OnInodes({{buf.st_ino, buf.st_dev}});
@@ -126,15 +140,19 @@ TEST_F(InodeFileDataSourceTest, TestStaticMap) {
 TEST_F(InodeFileDataSourceTest, TestCache) {
   DataSourceConfig config;
   auto data_source = GetInodeFileDataSource(config);
-  CreateStaticDeviceToInodeMap("src/traced/probes/filesystem/testdata",
-                               &static_file_map_);
+  CreateStaticDeviceToInodeMap(
+      base::GetTestDataPath("src/traced/probes/filesystem/testdata"),
+      &static_file_map_);
 
   struct stat buf;
-  PERFETTO_CHECK(lstat("src/traced/probes/filesystem/testdata/file2", &buf) !=
-                 -1);
+  PERFETTO_CHECK(
+      lstat(base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")
+                .c_str(),
+            &buf) != -1);
 
-  InodeMapValue value(protos::pbzero::InodeFileMap_Entry_Type_FILE,
-                      {"src/traced/probes/filesystem/testdata/file2"});
+  InodeMapValue value(
+      protos::pbzero::InodeFileMap_Entry_Type_FILE,
+      {base::GetTestDataPath("src/traced/probes/filesystem/testdata/file2")});
   cache_.Insert(std::make_pair(buf.st_dev, buf.st_ino), value);
 
   EXPECT_CALL(*data_source, FillInodeEntry(_, buf.st_ino, Eq(value)));
