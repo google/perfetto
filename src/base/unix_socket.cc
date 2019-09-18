@@ -611,7 +611,7 @@ bool UnixSocket::Send(const void* msg,
     return true;
   }
 
-  // If sendmsg() succeds but the returned size is < |len| it means that the
+  // If sendmsg() succeeds but the returned size is < |len| it means that the
   // endpoint disconnected in the middle of the read, and we managed to send
   // only a portion of the buffer. In this case we should just give up.
 
