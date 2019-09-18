@@ -124,6 +124,7 @@ additional_args = {
     'heapprofd_client': [
         ('include_dirs', ['bionic/libc']),
         ('static_libs', ['libasync_safe']),
+        ('header_libs', ['bionic_libc_platform_headers']),
     ],
     'traced_probes': [
       ('required', ['libperfetto_android_internal', 'trigger_perfetto']),
@@ -267,6 +268,7 @@ class Module(object):
         self.cflags = set()
         self.local_include_dirs = []
         self.include_dirs = []
+        self.header_libs = []
         self.required = []
         self.user_debug_flag = False
         self.tool_files = None
@@ -294,6 +296,7 @@ class Module(object):
         self._output_field(output, 'cflags')
         self._output_field(output, 'local_include_dirs')
         self._output_field(output, 'include_dirs')
+        self._output_field(output, 'header_libs')
         self._output_field(output, 'required')
         self._output_field(output, 'tool_files')
 
@@ -673,7 +676,7 @@ def create_modules_from_target(blueprint, desc, target_name):
           if add_val and isinstance(add_val, list) and isinstance(curr, list):
             curr.extend(add_val)
           else:
-            raise Error('Unimplemented type of additional_args')
+            raise Error('Unimplemented type of additional_args: %r' % key)
 
         blueprint.add_module(module)
 
