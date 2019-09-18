@@ -41,6 +41,11 @@ declare type Frame = perfetto.ipc.Frame;
 declare type IMethodInfo = perfetto.ipc.Frame.BindServiceReply.IMethodInfo;
 declare type ISlice = perfetto.protos.ReadBuffersResponse.ISlice;
 
+interface Command {
+  method: string;
+  params: Uint8Array;
+}
+
 export class AdbSocketConsumerPort extends RpcConsumerPort {
   private state = State.DISCONNECTED;
   private adb: Adb;
@@ -68,12 +73,16 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
   // Accumulates trace packets into a proto trace file..
   private traceProtoWriter = protobuf.Writer.create();
 
+  private commandQueue: Command[] = [];
+
   constructor(adb: Adb, consumer: Consumer) {
     super(consumer);
     this.adb = adb;
   }
 
   async handleCommand(method: string, params: Uint8Array) {
+    this.commandQueue.push({method, params});
+
     if (this.state === State.BINDING_IN_PROGRESS) return;
     if (this.state === State.DISCONNECTED) {
       this.state = State.BINDING_IN_PROGRESS;
@@ -89,9 +98,10 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
       this.traceProtoWriter = protobuf.Writer.create();
       this.state = State.BOUND;
     }
-
     console.assert(this.state === State.BOUND);
-    this.invoke(method, params);
+
+    for (const cmd of this.commandQueue) this.invoke(cmd.method, cmd.params);
+    this.commandQueue = [];
   }
 
   invoke(method: string, argsProto: Uint8Array) {
@@ -128,7 +138,10 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
   async listenForMessages() {
     this.socket = await this.adb.socket('/dev/socket/traced_consumer');
     this.socket.onData = (_str, newData) => this.handleReceivedData(newData);
-    this.socket.onClose = () => this.state = State.DISCONNECTED;
+    this.socket.onClose = () => {
+      this.state = State.DISCONNECTED;
+      this.commandQueue = [];
+    };
   }
 
   private parseMessageSize(buffer: Uint8Array) {
