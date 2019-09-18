@@ -118,12 +118,11 @@ class StackProfileTracker {
                        const SourceCallstack&,
                        const InternLookup* intern_lookup = nullptr);
 
-  // Mutates the frame row in place and remaps it to a different string id.
-  // Used for symbolication.
+  // Used for symbolization.
   // Must be called after FinalizeProfile.
-  void SetFrameName(SourceFrameId source_frame_id,
-                    SourceStringId function_name_id,
-                    const InternLookup* intern_lookup);
+  void SetFrameSymbol(SourceFrameId source_frame_id,
+                      uint32_t symbol_set_id,
+                      const InternLookup* intern_lookup);
 
   int64_t GetDatabaseFrameIdForTesting(SourceFrameId);
 

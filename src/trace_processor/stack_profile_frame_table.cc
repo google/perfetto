@@ -36,6 +36,7 @@ StorageSchema StackProfileFrameTable::CreateStorageSchema() {
       .AddStringColumn("name", &frames.names(), &storage_->string_pool())
       .AddNumericColumn("mapping", &frames.mappings())
       .AddNumericColumn("rel_pc", &frames.rel_pcs())
+      .AddNumericColumn("symbol_set_id", &frames.symbol_set_ids())
       .Build({"id"});
 }
 

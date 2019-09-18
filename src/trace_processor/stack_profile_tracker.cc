@@ -265,25 +265,18 @@ void StackProfileTracker::ClearIndices() {
   // if we encounter any ProfiledFrameSymbols packets for symbolizing.
 }
 
-void StackProfileTracker::SetFrameName(SourceFrameId source_frame_id,
-                                       SourceStringId function_name_id,
-                                       const InternLookup* intern_lookup) {
+void StackProfileTracker::SetFrameSymbol(SourceFrameId source_frame_id,
+                                         uint32_t symbol_set_id,
+                                         const InternLookup* intern_lookup) {
   auto maybe_frame_row = FindFrame(source_frame_id, intern_lookup);
   if (!maybe_frame_row) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
     PERFETTO_DFATAL_OR_ELOG("Unknown frame iid %" PRIu64 " in symbols.",
                             source_frame_id);
   }
-  auto maybe_name_id = FindString(function_name_id, intern_lookup);
-  if (!maybe_name_id) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
-    PERFETTO_DFATAL_OR_ELOG("Invalid string iid %" PRIu64 " in symbols.",
-                            function_name_id);
-  }
-
   size_t frame_row = static_cast<size_t>(*maybe_frame_row);
-  context_->storage->mutable_stack_profile_frames()->SetFrameName(
-      frame_row, *maybe_name_id);
+  context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
+      frame_row, symbol_set_id);
 }
 
 }  // namespace trace_processor
