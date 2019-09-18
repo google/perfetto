@@ -32,6 +32,7 @@
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
+#include "protos/perfetto/trace/appended_data/appended_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
@@ -99,8 +100,6 @@ class ProtoTraceParser : public TraceParser {
                           ConstBytes);
   void ParseStreamingProfilePacket(ProtoIncrementalState::PacketSequenceState*,
                                    ConstBytes);
-  void ParseProfiledFrameSymbols(ProtoIncrementalState::PacketSequenceState*,
-                                 ConstBytes);
   void ParseSystemInfo(ConstBytes);
   void ParseTrackEvent(int64_t ts,
                        int64_t tts,
@@ -143,6 +142,10 @@ class ProtoTraceParser : public TraceParser {
                        uint32_t,
                        ArgsTracker*,
                        RowId);
+  void ParseAppendedData(ProtoIncrementalState::PacketSequenceState*,
+                         ConstBytes);
+  void ParseProfiledFrameSymbols(ProtoIncrementalState::PacketSequenceState*,
+                                 const protos::pbzero::AppendedData::Decoder&);
 
  private:
   TraceProcessorContext* context_;

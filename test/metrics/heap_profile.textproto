@@ -82,13 +82,12 @@ packet {
       str: "f3 file path"
     }
   }
-}
-packet {
-  trusted_packet_sequence_id: 999
-  profiled_frame_symbols {
-    frame_iid: 3
-    function_name_id: 1000
-    file_name_id: 1001
-    line_number: 333
+  appended_data {
+    profiled_frame_symbols {
+      frame_iid: 3
+      function_name_id: 1000
+      file_name_id: 1001
+      line_number: 333
+    }
   }
 }

@@ -45,17 +45,21 @@ SELECT
   callsite_id,
   position,
   HeapProfileCallsiteStats_Frame(
-    'name', stack_profile_frame.name,
+    'name', IFNULL(
+      (SELECT name FROM stack_profile_symbol symbol
+        WHERE symbol.symbol_set_id = spf.symbol_set_id
+        LIMIT 1),
+      spf.name),
     'mapping_name', stack_profile_mapping.name
   ) AS frame_proto
 FROM flattened_callsite
 CROSS JOIN stack_profile_callsite
-CROSS JOIN stack_profile_frame
+CROSS JOIN stack_profile_frame spf
 CROSS JOIN stack_profile_mapping
 WHERE
   flattened_callsite.current_id = stack_profile_callsite.id
-  AND stack_profile_callsite.frame_id = stack_profile_frame.id
-  AND stack_profile_frame.mapping = stack_profile_mapping.id
+  AND stack_profile_callsite.frame_id = spf.id
+  AND spf.mapping = stack_profile_mapping.id
 ORDER BY callsite_id, position;
 
 -- Map callsite ID to proto.
