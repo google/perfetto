@@ -164,12 +164,12 @@ Let's break this query down:
    is the `dur` - short for duration, this is the amount of time the slice
    lasted - and the `utid` which will be use to join with the thread table.
 2. The next table is the thread table. This gives us a lot of information which
-   are not particularily interested (including its thread name) but it does give
+   are not particularly interested (including its thread name) but it does give
    us the `upid`. Similar to `utid`, `upid` is the unique identifier for a
    process in a Perfetto trace. In this case, `upid` will refer to the process
    which hosts the thread given by `utid`.
 3. The final table is the process table. This gives the name of the
-   process associated with the orginal sched slice.
+   process associated with the original sched slice.
 4. With the process, thread and duration for each sched slice, all the slices
    for a single processes are collected and their durations summed to get the
    CPU time (dividing by 1e6 as sched's duration is in nanoseconds) and count
@@ -218,7 +218,7 @@ Let's break this down again:
    Therefore, the output of this whole SELECT statement is an array of
    5 ProcessInfo protos.
 2. Next is creation of the `TopProcesses` proto. By now, the syntax should
-   already feel somewhat familiar; the proto builder funciton is called
+   already feel somewhat familiar; the proto builder function is called
    to fill in the `process_info` field with the array of protos from the
    inner funciton.
 

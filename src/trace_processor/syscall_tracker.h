@@ -80,7 +80,7 @@ class SyscallTracker {
   }
 
   // This is table from platform specific syscall number directly to
-  // the relevent StringId (this avoids having to always do two conversions).
+  // the relevant StringId (this avoids having to always do two conversions).
   std::array<StringId, kMaxSyscalls> arch_syscall_to_string_id_{};
   StringId sys_write_string_id_ = std::numeric_limits<StringId>::max();
 };

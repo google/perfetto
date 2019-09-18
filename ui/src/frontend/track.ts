@@ -23,7 +23,7 @@ import {TrackButtonAttrs} from './track_panel';
 /**
  * This interface forces track implementations to have some static properties.
  * Typescript does not have abstract static members, which is why this needs to
- * be in a seperate interface.
+ * be in a separate interface.
  */
 export interface TrackCreator {
   // Store the kind explicitly as a string as opposed to using class.kind in

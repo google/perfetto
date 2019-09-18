@@ -416,7 +416,7 @@ def apply_module_dependency(blueprint, desc, module, dep_name):
     # equivalents.
     target = desc[dep_name]
     for lib in target.get('libs', []):
-        # Generally library names sould be mangled as 'libXXX', unless they are
+        # Generally library names should be mangled as 'libXXX', unless they are
         # HAL libraries (e.g., android.hardware.health@2.0).
         android_lib = lib if '@' in lib else 'lib' + lib
         if lib in library_whitelist and not android_lib in module.shared_libs:
