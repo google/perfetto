@@ -80,10 +80,11 @@ std::string Decompress(const std::string& data) {
 
 TEST(PacketWriter, FilePacketWriter) {
   base::TempFile tmp = base::TempFile::Create();
-  FILE* f = fdopen(tmp.fd(), "wb");
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
 
   {
-    std::unique_ptr<PacketWriter> writer = CreateFilePacketWriter(f);
+    std::unique_ptr<PacketWriter> writer = CreateFilePacketWriter(*f);
 
     std::vector<perfetto::TracePacket> packets;
 
@@ -95,9 +96,9 @@ TEST(PacketWriter, FilePacketWriter) {
     EXPECT_TRUE(writer->WritePackets(std::move(packets)));
   }
 
-  fseek(f, 0, SEEK_SET);
+  fseek(*f, 0, SEEK_SET);
   std::string s;
-  EXPECT_TRUE(base::ReadFileStream(f, &s));
+  EXPECT_TRUE(base::ReadFileStream(*f, &s));
   EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
@@ -107,11 +108,12 @@ TEST(PacketWriter, FilePacketWriter) {
 
 TEST(PacketWriter, ZipPacketWriter) {
   base::TempFile tmp = base::TempFile::Create();
-  FILE* f = fdopen(tmp.fd(), "wb");
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
 
   {
     std::unique_ptr<PacketWriter> writer =
-        CreateZipPacketWriter(CreateFilePacketWriter(f));
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
 
     std::vector<perfetto::TracePacket> packets;
 
@@ -124,8 +126,8 @@ TEST(PacketWriter, ZipPacketWriter) {
   }
 
   std::string s;
-  fseek(f, 0, SEEK_SET);
-  EXPECT_TRUE(base::ReadFileStream(f, &s));
+  fseek(*f, 0, SEEK_SET);
+  EXPECT_TRUE(base::ReadFileStream(*f, &s));
   EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
@@ -141,39 +143,42 @@ TEST(PacketWriter, ZipPacketWriter) {
 
 TEST(PacketWriter, ZipPacketWriter_Empty) {
   base::TempFile tmp = base::TempFile::Create();
-  FILE* f = fdopen(tmp.fd(), "wb");
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
 
   {
     std::unique_ptr<PacketWriter> writer =
-        CreateZipPacketWriter(CreateFilePacketWriter(f));
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
   }
 
-  EXPECT_EQ(fseek(f, 0, SEEK_END), 0);
+  EXPECT_EQ(fseek(*f, 0, SEEK_END), 0);
 }
 
 TEST(PacketWriter, ZipPacketWriter_EmptyWithEmptyWrite) {
   base::TempFile tmp = base::TempFile::Create();
-  FILE* f = fdopen(tmp.fd(), "wb");
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
 
   {
     std::unique_ptr<PacketWriter> writer =
-        CreateZipPacketWriter(CreateFilePacketWriter(f));
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
     writer->WritePackets(std::vector<TracePacket>());
     writer->WritePackets(std::vector<TracePacket>());
     writer->WritePackets(std::vector<TracePacket>());
   }
 
-  EXPECT_EQ(fseek(f, 0, SEEK_END), 0);
+  EXPECT_EQ(fseek(*f, 0, SEEK_END), 0);
 }
 
 TEST(PacketWriter, ZipPacketWriter_ShouldCompress) {
   base::TempFile tmp = base::TempFile::Create();
-  FILE* f = fdopen(tmp.fd(), "wb");
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
   size_t uncompressed_size = 0;
 
   {
     std::unique_ptr<PacketWriter> writer =
-        CreateZipPacketWriter(CreateFilePacketWriter(f));
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
 
     for (size_t i = 0; i < 200; i++) {
       std::vector<perfetto::TracePacket> packets;
@@ -196,9 +201,9 @@ TEST(PacketWriter, ZipPacketWriter_ShouldCompress) {
   }
 
   std::string s;
-  EXPECT_LT(fseek(f, 0, SEEK_END), static_cast<int>(uncompressed_size));
-  fseek(f, 0, SEEK_SET);
-  EXPECT_TRUE(base::ReadFileStream(f, &s));
+  EXPECT_LT(fseek(*f, 0, SEEK_END), static_cast<int>(uncompressed_size));
+  fseek(*f, 0, SEEK_SET);
+  EXPECT_TRUE(base::ReadFileStream(*f, &s));
   EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
@@ -222,7 +227,8 @@ TEST(PacketWriter, ZipPacketWriter_ShouldCompress) {
 
 TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
   base::TempFile tmp = base::TempFile::Create();
-  FILE* f = fdopen(tmp.fd(), "wb");
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
 
   std::minstd_rand0 rnd(0);
   std::uniform_int_distribution<> dist(0, 255);
@@ -236,7 +242,7 @@ TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
 
   {
     std::unique_ptr<PacketWriter> writer =
-        CreateZipPacketWriter(CreateFilePacketWriter(f));
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
 
     for (uint32_t i = 0; i < 1000; i++) {
       std::vector<perfetto::TracePacket> packets;
@@ -254,8 +260,8 @@ TEST(PacketWriter, ZipPacketWriter_ShouldSplitPackets) {
   }
 
   std::string s;
-  fseek(f, 0, SEEK_SET);
-  EXPECT_TRUE(base::ReadFileStream(f, &s));
+  fseek(*f, 0, SEEK_SET);
+  EXPECT_TRUE(base::ReadFileStream(*f, &s));
   EXPECT_GT(s.size(), 0u);
 
   protos::Trace trace;
