@@ -16,11 +16,16 @@
 export interface Adb {
   connect(device: USBDevice): Promise<void>;
   disconnect(): Promise<void>;
+  // Executes a shell command non-interactively.
   shell(cmd: string): Promise<AdbStream>;
+  // Waits until the shell get closed, and returns all the output.
   shellOutputAsString(cmd: string): Promise<string>;
+  // Opens a connection to a UNIX socket.
+  socket(path: string): Promise<AdbStream>;
 }
 
 export interface AdbStream {
+  write(msg: string|Uint8Array): Promise<void>;
   onMessage(message: AdbMsg): void;
   onData: (str: string, raw: Uint8Array) => void;
   close(): void;
@@ -45,6 +50,10 @@ export class MockAdb implements Adb {
   shellOutputAsString(_: string): Promise<string> {
     return Promise.resolve('');
   }
+
+  socket(_: string): Promise<AdbStream> {
+    return Promise.resolve(new MockAdbStream());
+  }
 }
 
 export class MockAdbStream implements AdbStream {
@@ -53,6 +62,9 @@ export class MockAdbStream implements AdbStream {
   onClose = () => {};
   onMessage = (_: AdbMsg) => {};
   close() {}
+  write(_: string|Uint8Array): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 export declare type CmdType =
