@@ -52,10 +52,11 @@ class Host {
 
   // Registers a new service and makes it available to remote IPC peers.
   // All the exposed Service instances will be destroyed when destroying the
-  // Host instance if ExposeService suceeds and returns true, or immediately
+  // Host instance if ExposeService succeeds and returns true, or immediately
   // after the call in case of failure.
-  // Returns true if the register has been succesfully registered, false in case
-  // of errors (e.g., another service with the same name is already registered).
+  // Returns true if the register has been successfully registered, false in
+  // case of errors (e.g., another service with the same name is already
+  // registered).
   virtual bool ExposeService(std::unique_ptr<Service>) = 0;
 };
 

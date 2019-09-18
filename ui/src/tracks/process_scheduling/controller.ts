@@ -89,7 +89,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
     const numBuckets = Math.ceil((endNs - startNs) / bucketSizeNs);
 
-    // cpu < maxCpu improves perfomance a lot since the window table can
+    // cpu < maxCpu improves performance a lot since the window table can
     // avoid generating many rows.
     const query = `select
         quantum_ts as bucket,
@@ -123,7 +123,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   private async computeSlices(start: number, end: number, resolution: number):
       Promise<SliceData> {
-    // cpu < maxCpu improves perfomance a lot since the window table can
+    // cpu < maxCpu improves performance a lot since the window table can
     // avoid generating many rows.
     const query = `select ts,dur,cpu,utid from ${this.tableName('span')}
         join

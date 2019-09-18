@@ -72,7 +72,7 @@ std::string RandomTraceFileName() {
 // This class is a reference to a child process that has in essence been execv
 // to the requested binary. The process will start and then wait for Run()
 // before proceeding. We use this to fork new processes before starting any
-// additional threads in the parent proces (otherwise you would risk
+// additional threads in the parent process (otherwise you would risk
 // deadlocks), but pause the forked processes until remaining setup (including
 // any necessary threads) in the parent process is complete.
 class Exec {
