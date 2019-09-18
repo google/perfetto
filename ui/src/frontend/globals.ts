@@ -89,6 +89,7 @@ class Globals {
     sliceIds: new Float64Array(0),
     tsStarts: new Float64Array(0),
     utids: new Float64Array(0),
+    trackIds: [],
     totalResults: 0,
   };
   searchSummary: SearchSummary = {
@@ -241,6 +242,7 @@ class Globals {
       sliceIds: new Float64Array(0),
       tsStarts: new Float64Array(0),
       utids: new Float64Array(0),
+      trackIds: [],
       totalResults: 0,
     };
   }
