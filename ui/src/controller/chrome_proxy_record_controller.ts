@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uint8ArrayToString} from '../base/string_utils';
+import {stringToUint8Array, uint8ArrayToString} from '../base/string_utils';
 
-import {ConsumerPortResponse, Typed} from './consumer_port_types';
+import {
+  ConsumerPortResponse,
+  isConsumerPortResponse,
+  isReadBuffersResponse,
+  Typed
+} from './consumer_port_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 export interface ChromeExtensionError extends Typed {
@@ -43,8 +48,8 @@ function isStatus(obj: Typed): obj is ChromeExtensionStatus {
 export class ChromeExtensionConsumerPort extends RpcConsumerPort {
   private extensionPort: MessagePort;
 
-  constructor(extensionPort: MessagePort, consumerPortListener: Consumer) {
-    super(consumerPortListener);
+  constructor(extensionPort: MessagePort, consumer: Consumer) {
+    super(consumer);
     this.extensionPort = extensionPort;
     this.extensionPort.onmessage = this.onExtensionMessage.bind(this);
   }
@@ -52,11 +57,23 @@ export class ChromeExtensionConsumerPort extends RpcConsumerPort {
   onExtensionMessage(message: {data: ChromeExtensionMessage}) {
     if (isError(message.data)) {
       this.sendErrorMessage(message.data.error);
-    } else if (isStatus(message.data)) {
-      this.sendStatus(message.data.status);
-    } else {
-      this.sendMessage(message.data);
+      return;
     }
+    if (isStatus(message.data)) {
+      this.sendStatus(message.data.status);
+      return;
+    }
+
+    console.assert(isConsumerPortResponse(message.data));
+    // In this else branch message.data will be a ConsumerPortResponse.
+    if (isReadBuffersResponse(message.data) && message.data.slices) {
+      // This is needed because we can't send an ArrayBuffer through a
+      // chrome.runtime.port. A string is sent instead, and here converted to
+      // an ArrayBuffer.
+      const slice = message.data.slices[0].data as unknown as string;
+      message.data.slices[0].data = stringToUint8Array(slice);
+    }
+    this.sendMessage(message.data);
   }
 
   handleCommand(method: string, requestData: Uint8Array): void {
