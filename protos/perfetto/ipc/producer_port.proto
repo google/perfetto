@@ -69,7 +69,7 @@ service ProducerPort {
       returns (NotifyDataSourceStartedResponse) {}
 
   // Sent by the client in response to a StopDataSource message, when a data
-  // source is succesfully stopped. This is expected only for data sources that
+  // source is successfully stopped. This is expected only for data sources that
   // set the DataSourceDescriptor.will_notify_on_stop flag when registering.
   rpc NotifyDataSourceStopped(NotifyDataSourceStoppedRequest)
       returns (NotifyDataSourceStoppedResponse) {}

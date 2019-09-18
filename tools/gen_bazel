@@ -152,7 +152,7 @@ def is_public_header(label):
 @functools.total_ordering
 class Label(object):
   """Represents a label in BUILD file terminology. This class wraps a string
-  label to allow for correct comparision of labels for sorting.
+  label to allow for correct comparison of labels for sorting.
 
   Args:
       label: The string rerepsentation of the label.

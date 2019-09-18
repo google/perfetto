@@ -158,7 +158,7 @@ struct BuildProtoContext {
   const ProtoDescriptor* desc;
 };
 
-// This funciton implements all the proto creation functions.
+// This function implements all the proto creation functions.
 void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
 // Context struct for the below function.
