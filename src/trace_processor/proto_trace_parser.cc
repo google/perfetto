@@ -43,7 +43,6 @@
 
 #include "perfetto/ext/base/string_writer.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
-#include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
@@ -65,8 +64,6 @@
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
-#include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
-#include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
@@ -214,7 +211,7 @@ constexpr int64_t kPendingThreadInstructionDelta = -1;
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
-      graphics_frame_event_parser_(new GraphicsFrameEventParser(context_)),
+      graphics_event_parser_(new GraphicsEventParser(context_)),
       utid_name_id_(context->storage->InternString("utid")),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
@@ -460,11 +457,13 @@ void ProtoTraceParser::ParseTracePacket(
   }
 
   if (packet.has_gpu_counter_event()) {
-    ParseGpuCounterEvent(ts, packet.gpu_counter_event());
+    graphics_event_parser_->ParseGpuCounterEvent(ts,
+                                                 packet.gpu_counter_event());
   }
 
   if (packet.has_gpu_render_stage_event()) {
-    ParseGpuRenderStageEvent(ts, packet.gpu_render_stage_event());
+    graphics_event_parser_->ParseGpuRenderStageEvent(
+        ts, packet.gpu_render_stage_event());
   }
 
   if (packet.has_packages_list()) {
@@ -472,7 +471,8 @@ void ProtoTraceParser::ParseTracePacket(
   }
 
   if (packet.has_graphics_frame_event()) {
-    graphics_frame_event_parser_->ParseEvent(ts, packet.graphics_frame_event());
+    graphics_event_parser_->ParseGraphicsFrameEvent(
+        ts, packet.graphics_frame_event());
   }
 
   if (packet.has_appended_data()) {
@@ -2491,158 +2491,6 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
   if (event.has_overruns())
     context_->storage->IncrementStats(stats::metatrace_overruns);
-}
-
-void ProtoTraceParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
-
-  protos::pbzero::GpuCounterDescriptor::Decoder descriptor(
-      event.counter_descriptor());
-  // Add counter spec to ID map.
-  for (auto it = descriptor.specs(); it; ++it) {
-    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(
-        it->data(), it->size());
-    if (!spec.has_counter_id()) {
-      PERFETTO_ELOG("Counter spec missing counter id");
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
-      continue;
-    }
-    if (!spec.has_name()) {
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
-      continue;
-    }
-
-    auto counter_id = spec.counter_id();
-    auto name = spec.name();
-    if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
-      auto desc = spec.description();
-
-      StringId unit_id = 0;
-      if (spec.has_numerator_units() || spec.has_denominator_units()) {
-        char buffer[1024];
-        base::StringWriter unit(buffer, sizeof(buffer));
-        for (auto numer = spec.numerator_units(); numer; ++numer) {
-          if (unit.pos()) {
-            unit.AppendChar(':');
-          }
-          unit.AppendInt(numer->as_int64());
-        }
-        char sep = '/';
-        for (auto denom = spec.denominator_units(); denom; ++denom) {
-          unit.AppendChar(sep);
-          unit.AppendInt(denom->as_int64());
-          sep = ':';
-        }
-        unit_id = context_->storage->InternString(unit.GetStringView());
-      }
-
-      auto name_id = context_->storage->InternString(name);
-      auto desc_id = context_->storage->InternString(desc);
-      auto* definitions = context_->storage->mutable_counter_definitions();
-      auto defn_id = definitions->AddCounterDefinition(name_id,
-                                                       0,
-                                                       RefType::kRefGpuId,
-                                                       desc_id,
-                                                       unit_id);
-      gpu_counter_ids_.emplace(counter_id, defn_id);
-    } else {
-      // Either counter spec was repeated or it came after counter data.
-      PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
-                    counter_id, name.ToStdString().c_str());
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
-    }
-  }
-
-  for (auto it = event.counters(); it; ++it) {
-    protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(it->data(),
-                                                                it->size());
-    if (counter.has_counter_id() &&
-        (counter.has_int_value() || counter.has_double_value())) {
-      auto counter_id = counter.counter_id();
-      // Check missing counter_id
-      if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
-        char buffer[64];
-        base::StringWriter writer(buffer, sizeof(buffer));
-        writer.AppendString("gpu_counter(");
-        writer.AppendUnsignedInt(counter_id);
-        writer.AppendString(")");
-        auto name_id = context_->storage->InternString(writer.GetStringView());
-        auto* definitions = context_->storage->mutable_counter_definitions();
-        auto defn_id = definitions->AddCounterDefinition(name_id,
-                                                         0,
-                                                         RefType::kRefGpuId);
-        gpu_counter_ids_.emplace(counter_id, defn_id);
-        context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
-      }
-      if (counter.has_int_value()) {
-        context_->event_tracker->PushCounter(ts, counter.int_value(),
-                                             gpu_counter_ids_[counter_id]);
-      } else {
-        context_->event_tracker->PushCounter(ts, counter.double_value(),
-                                             gpu_counter_ids_[counter_id]);
-      }
-    }
-  }
-}
-
-void ProtoTraceParser::ParseGpuRenderStageEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
-
-  if (event.has_specifications()) {
-    protos::pbzero::GpuRenderStageEvent_Specifications::Decoder spec(
-        event.specifications().data, event.specifications().size);
-    for (auto it = spec.hw_queue(); it; ++it) {
-      protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
-          hw_queue(it->data(), it->size());
-      if (hw_queue.has_name()) {
-        // TODO: create vtrack for each HW queue when it's ready.
-        gpu_hw_queue_ids_.emplace_back(
-            context_->storage->InternString(hw_queue.name()));
-      }
-    }
-    for (auto it = spec.stage(); it; ++it) {
-      protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
-          stage(it->data(), it->size());
-      if (stage.has_name()) {
-        gpu_render_stage_ids_.emplace_back(
-            context_->storage->InternString(stage.name()));
-      }
-    }
-  }
-
-  auto args_callback = [this, &event](
-                           ArgsTracker* args_tracker, RowId row_id) {
-    for (auto it = event.extra_data(); it; ++it) {
-      protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder
-          datum(it->data(), it->size());
-      StringId name_id = context_->storage->InternString(datum.name());
-      StringId value = context_->storage->InternString(
-          datum.has_value() ? datum.value() : base::StringView());
-      args_tracker->AddArg(row_id, name_id, name_id, Variadic::String(value));
-    }
-  };
-
-  if (event.has_event_id()) {
-    size_t stage_id = static_cast<size_t>(event.stage_id());
-    StringId stage_name;
-    if (stage_id < gpu_render_stage_ids_.size()) {
-      stage_name = gpu_render_stage_ids_[stage_id];
-    } else {
-      char buffer[64];
-      snprintf(buffer, 64, "render stage(%zu)", stage_id);
-      stage_name = context_->storage->InternString(buffer);
-    }
-    const auto slice_id = context_->slice_tracker->Scoped(
-        ts, event.hw_queue_id(), RefType::kRefGpuId, 0, /* cat */
-        stage_name, static_cast<int64_t>(event.duration()), args_callback);
-
-    context_->storage->mutable_gpu_slice_table()->Insert(
-        tables::GpuSliceTable::Row(
-            slice_id.value(), static_cast<int64_t>(event.context()),
-            static_cast<int64_t>(event.render_target_handle()),
-            base::nullopt /*frame_id*/, event.submission_id(),
-            static_cast<uint32_t>(event.hw_queue_id())));
-  }
 }
 
 void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
