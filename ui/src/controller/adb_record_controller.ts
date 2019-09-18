@@ -38,8 +38,8 @@ export class AdbConsumerPort extends RpcConsumerPort {
   private device: USBDevice|undefined = undefined;
   private recordShell?: AdbStream;
 
-  constructor(adb: Adb, consumerPortListener: Consumer) {
-    super(consumerPortListener);
+  constructor(adb: Adb, consumer: Consumer) {
+    super(consumer);
     this.adb = adb;
   }
 

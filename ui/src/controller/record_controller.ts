@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ungzip} from 'pako';
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 
-import {stringToUint8Array, uint8ArrayToBase64} from '../base/string_utils';
+import {
+  uint8ArrayToBase64,
+} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {
   AndroidLogConfig,
@@ -42,6 +43,7 @@ import {perfetto} from '../gen/protos';
 
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_record_controller';
+import {AdbSocketConsumerPort} from './adb_socket_controller';
 import {ChromeExtensionConsumerPort} from './chrome_proxy_record_controller';
 import {
   ConsumerPortResponse,
@@ -442,7 +444,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   private extensionPort: MessagePort;
   private recordingInProgress = false;
   private consumerPort: ConsumerPort;
-  private traceBuffer = '';
+  private traceBuffer: Uint8Array[] = [];
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
 
   // We have a different controller for each targetOS. The correct one will be
@@ -513,10 +515,10 @@ export class RecordController extends Controller<'main'> implements Consumer {
   onConsumerPortResponse(data: ConsumerPortResponse) {
     if (data === undefined) return;
     if (isReadBuffersResponse(data)) {
-      if (!data.slices) return;
+      if (!data.slices || data.slices.length === 0) return;
       // TODO(nicomazz): handle this as intended by consumer_port.proto.
-      this.traceBuffer += data.slices[0].data;
-      // TODO(nicomazz): Stream the chunks directly in the trace processor.
+      console.assert(data.slices.length === 1);
+      if (data.slices[0].data) this.traceBuffer.push(data.slices[0].data);
       if (data.slices[0].lastSliceForPacket) this.onTraceComplete();
     } else if (isEnableTracingResponse(data)) {
       this.readBuffers();
@@ -533,16 +535,24 @@ export class RecordController extends Controller<'main'> implements Consumer {
   onTraceComplete() {
     this.consumerPort.freeBuffers({});
     globals.dispatch(Actions.setRecordingStatus({status: undefined}));
-    if (globals.state.recordingCancelled) {
-      globals.dispatch(
-          Actions.setLastRecordingError({error: 'Recording cancelled.'}));
-      return;
-    }
-    const trace = ungzip(stringToUint8Array(this.traceBuffer));
+    const trace = this.generateTrace();
     globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
-    this.traceBuffer = '';
+    this.traceBuffer = [];
   }
 
+  // TODO(nicomazz): stream each chunk into the trace processor, instead of
+  // creating a big long trace.
+  generateTrace() {
+    let traceLen = 0;
+    for (const chunk of this.traceBuffer) traceLen += chunk.length;
+    const completeTrace = new Uint8Array(traceLen);
+    let written = 0;
+    for (const chunk of this.traceBuffer) {
+      completeTrace.set(chunk, written);
+      written += chunk.length;
+    }
+    return completeTrace;
+  }
 
   getBufferUsagePercentage(data: GetTraceStatsResponse): number {
     if (!data.traceStats || !data.traceStats.bufferStats) return 0.0;
@@ -574,7 +584,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   // - Android device target: WebUSB is used to communicate using the adb
   // protocol. Actually, there is no full consumer_port implementation, but
   // only the support to start tracing and fetch the file.
-  getTargetController(target: TargetOs): RpcConsumerPort {
+  async getTargetController(target: TargetOs): Promise<RpcConsumerPort> {
     let controller = this.controllers.get(target);
     if (controller) return controller;
 
@@ -582,8 +592,12 @@ export class RecordController extends Controller<'main'> implements Consumer {
       controller = new ChromeExtensionConsumerPort(this.extensionPort, this);
     } else if (isAndroidTarget(target)) {
       // TODO(nicomazz): create the correct controller also based on the
-      // selected android device.
-      controller = new AdbConsumerPort(new AdbOverWebUsb(), this);
+      // selected android device. TargetOS may be changed from a single char to
+      // something else.
+      const socketAccess = await this.hasSocketAccess();
+      controller = socketAccess ?
+          new AdbSocketConsumerPort(new AdbOverWebUsb(), this) :
+          new AdbConsumerPort(new AdbOverWebUsb(), this);
     }
 
     if (!controller) throw Error(`Unknown target: ${target}`);
@@ -592,11 +606,16 @@ export class RecordController extends Controller<'main'> implements Consumer {
     return controller;
   }
 
-  private rpcImpl(
+  private hasSocketAccess() {
+    // TODO(nicomazz): implement proper logic
+    return Promise.resolve(false);
+  }
+
+  private async rpcImpl(
       method: RPCImplMethod, requestData: Uint8Array,
       _callback: RPCImplCallback) {
     try {
-      this.getTargetController(this.app.state.recordConfig.targetOS)
+      (await this.getTargetController(this.app.state.recordConfig.targetOS))
           .handleCommand(method.name, requestData);
     } catch (e) {
       console.error(`error invoking ${method}: ${e.message}`);

@@ -16,6 +16,10 @@ export function uint8ArrayToBase64(buffer: Uint8Array): string {
   return btoa(uint8ArrayToString(buffer));
 }
 
+// This function will not handle correctly buffers with a large number of
+// elements due to a js limitation on the number of arguments of a function.
+// The apply will in fact do a call like
+// 'String.fromCharCode(buffer[0],buffer[1],...)'.
 export function uint8ArrayToString(buffer: Uint8Array): string {
   return String.fromCharCode.apply(null, Array.from(buffer));
 }

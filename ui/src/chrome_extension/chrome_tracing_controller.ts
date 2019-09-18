@@ -28,7 +28,9 @@ import {perfetto} from '../gen/protos';
 
 import {DevToolsSocket} from './devtools_socket';
 
-const CHUNK_SIZE: number = 1024 * 1024 * 64;
+// The chunk size should be large enough to support reasonable batching of data,
+// but small enough not to cause stack overflows in uint8ArrayToString().
+const CHUNK_SIZE: number = 1024 * 1024 * 16;  // 16Mb
 
 export class ChromeTracingController extends RpcConsumerPort {
   private streamHandle: string|undefined = undefined;
@@ -126,12 +128,12 @@ export class ChromeTracingController extends RpcConsumerPort {
     if (res === undefined) return;
 
     const chunk = res.base64Encoded ? atob(res.data) : res.data;
-    // TODO(nicomazz): remove the conversion to unknown when we stream each
-    // chunk to the trace processor.
+    // The 'as {} as UInt8Array' is done because we can't send ArrayBuffers
+    // trough a chrome.runtime.Port. The conversion from string to ArrayBuffer
+    // takes place on the other side of the port.
     const response: ReadBuffersResponse = {
       type: 'ReadBuffersResponse',
-      slices:
-          [{data: chunk as unknown as Uint8Array, lastSliceForPacket: res.eof}]
+      slices: [{data: chunk as {} as Uint8Array, lastSliceForPacket: res.eof}]
     };
     this.sendMessage(response);
     if (res.eof) return;
