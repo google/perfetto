@@ -1444,7 +1444,7 @@ void ProtoTraceParser::ParseFtraceStats(ConstBytes blob) {
 }
 
 void ProtoTraceParser::ParseProfilePacket(
-    int64_t ts,
+    int64_t,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ConstBytes blob) {
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
@@ -1499,7 +1499,7 @@ void ProtoTraceParser::ParseProfilePacket(
 
       HeapProfileTracker::SourceAllocation src_allocation;
       src_allocation.pid = entry.pid();
-      src_allocation.timestamp = ts;
+      src_allocation.timestamp = static_cast<int64_t>(entry.timestamp());
       src_allocation.callstack_id = sample.callstack_id();
       src_allocation.self_allocated = sample.self_allocated();
       src_allocation.self_freed = sample.self_freed();
