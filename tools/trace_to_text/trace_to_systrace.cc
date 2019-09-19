@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "tools/trace_to_text/utils.h"
 
 // When running in Web Assembly, fflush() is a no-op and the stdio buffering
 // sends progress updates to JS only when a write ends with \n.
@@ -180,42 +181,8 @@ int TraceToSystrace(std::istream* input,
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
-  constexpr size_t kChunkSize = 1024 * 1024;
-
-// Printing the status update on stderr can be a perf bottleneck. On WASM print
-// status updates more frequently because it can be slower to parse each chunk.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
-  constexpr int kStderrRate = 1;
-#else
-  constexpr int kStderrRate = 128;
-#endif
-  uint64_t file_size = 0;
-
-  for (int i = 0;; i++) {
-    if (i % kStderrRate == 0) {
-      fprintf(stderr, "Loading trace %.2f MB" PROGRESS_CHAR, file_size / 1.0e6);
-      fflush(stderr);
-    }
-
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
-    input->read(reinterpret_cast<char*>(buf.get()), kChunkSize);
-    if (input->bad()) {
-      PERFETTO_ELOG("Failed when reading trace");
-      return 1;
-    }
-
-    auto rsize = input->gcount();
-    if (rsize <= 0)
-      break;
-    file_size += static_cast<uint64_t>(rsize);
-    tp->Parse(std::move(buf), static_cast<size_t>(rsize));
-  }
-  tp->NotifyEndOfFile();
-
-  fprintf(stderr, "Loaded trace" PROGRESS_CHAR);
-  fflush(stderr);
-
+  if (!ReadTrace(tp.get(), input))
+    return 1;
   using Iterator = trace_processor::TraceProcessor::Iterator;
 
   QueryWriter q_writer(tp.get(), output);
