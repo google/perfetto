@@ -14,10 +14,10 @@
 
 import {Engine} from '../common/engine';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {TimeSpan, toNs} from '../common/time';
+import {TimeSpan} from '../common/time';
 
 import {Controller} from './controller';
-import {App, globals} from './globals';
+import {App} from './globals';
 
 export interface SearchControllerArgs {
   engine: Engine;
@@ -54,11 +54,6 @@ export class SearchController extends Controller<'main'> {
       using window;`);
     await this.query(`create virtual table search_summary_span
       using span_join(sched PARTITIONED cpu, search_summary_window);`);
-
-    await this.query(`create virtual table search_result_window
-      using window;`);
-    await this.query(`create virtual table search_result_span
-      using span_join(sched PARTITIONED cpu, search_result_window);`);
   }
 
   run() {
@@ -178,17 +173,9 @@ export class SearchController extends Controller<'main'> {
 
     const utids = [...rawUtidResult.columns[0].longValues!];
 
-    await this.query(`update search_result_window set
-    window_start=${toNs(globals.state.traceTime.startSec)},
-    window_dur=${
-        toNs(
-            globals.state.traceTime.endSec - globals.state.traceTime.startSec)},
-    quantum=0
-    where rowid = 0;`);
-
     const rawResult = await this.query(`
     select row_id, ts, utid, cpu
-    from search_result_span
+    from sched
     where utid in (${utids.join(',')}) order by ts`);
 
     const numRows = +rawResult.numRecords;
