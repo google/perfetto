@@ -27,6 +27,7 @@ import sys
 
 
 BUILDFLAGS_TARGET = '//gn:gen_buildflags'
+LINKER_UNIT_TYPES = ('executable', 'shared_library', 'static_library')
 
 
 def _check_command_output(cmd, cwd):
@@ -184,3 +185,181 @@ def check_or_commit_generated_files(tmp_files, check):
         else:
             os.rename(tmp_file, target_file)
     return res
+
+
+class GnParser(object):
+    """A parser with some cleverness for GN json desc files
+
+    The main goals of this parser are:
+    1) Deal with the fact that other build systems don't have an equivalent
+       notion to GN's source_set. Conversely to Bazel's and Soong's filegroups,
+       GN source_sets expect that dependencies, cflags and other source_set
+       properties propagate up to the linker unit (static_library, executable or
+       shared_library). This parser simulates the same behavior: when a
+       source_set is encountered, some of its variables (cflags and such) are
+       copied up to the dependent targets. This is to allow gen_xxx to create
+       one filegroup for each source_set and then squash all the other flags
+       onto the linker unit.
+    2) Detect and special-case protobuf targets, figuring out the protoc-plugin
+       being used.
+    """
+    class Target(object):
+        """Reperesents A GN target.
+
+        Maked properties are propagated up the dependency chain when a
+        source_set dependency is encountered.
+        """
+        def __init__(self, name, type):
+            self.name = name  # e.g. //src/ipc:ipc
+
+            VALID_TYPES = ('static_library', 'shared_library', 'executable',
+                           'group', 'action', 'source_set', 'proto_library')
+            assert(type in VALID_TYPES)
+            self.type = type
+
+            # Only set when type == proto_library.
+            # This is typically: 'proto', 'protozero', 'ipc'.
+            self.proto_plugin = None
+
+            self.sources = set()
+
+            # These are valid only for type == 'action'
+            self.inputs = set()
+            self.outputs = set()
+            self.script = None
+            self.args = []
+
+            # These variables are propagated up when encountering a dependency
+            # on a source_set target.
+            self.cflags = set()
+            self.defines = set()
+            self.deps = set()
+            self.include_dirs = set()
+            self.ldflags = set()
+            self.source_set_deps = set()  # Transitive set of source_set deps.
+            self.proto_deps = set()  # Transitive set of protobuf deps.
+
+            # Deps on //gn:xxx have this flag set to True. These dependencies
+            # are special because they pull third_party code from buildtools/.
+            # We don't want to keep recursing into //buildtools in generators,
+            # this flag is used to stop the recursion and create an empty
+            # placeholder target once we hit //gn:protoc or similar.
+            self.is_third_party_dep_ = False
+
+        def __repr__(self):
+            return json.dumps({k:(list(v) if isinstance(v, set) else v)
+                    for (k,v) in self.__dict__.iteritems()}, indent=4)
+
+        def update(self, other):
+            for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
+                        'source_set_deps', 'proto_deps'):
+                self.__dict__[key].update(other.__dict__.get(key, []))
+
+
+    def __init__(self, gn_desc):
+        self.gn_desc_ = gn_desc
+        self.all_targets = {}
+        self.linker_units = {}  # Executables, shared or static libraries.
+        self.source_sets = {}
+        self.actions = {}
+        self.proto_libs = {}
+
+
+    def get_target(self, gn_target_name):
+        """Returns a Target object from the fully qualified GN target name.
+
+        It bubbles up variables from source_set dependencies as described in the
+        class-level comments.
+        """
+        target = self.all_targets.get(gn_target_name)
+        if target is not None:
+            return target  # Taraget already processed.
+
+        desc = self.gn_desc_[gn_target_name]
+        target = GnParser.Target(gn_target_name, desc['type'])
+        self.all_targets[gn_target_name] = target
+
+        # We should never have GN targets directly depend on buidtools. They
+        # should hop via //gn:xxx, so we can give generators an opportunity to
+        # override them.
+        assert(not gn_target_name.startswith('//buildtools'))
+
+        # Don't descend further into third_party targets. Genrators are supposed
+        # to either ignore them or route to other externally-provided targets.
+        if gn_target_name.startswith('//gn'):
+            target.is_third_party_dep_ = True
+            return target
+
+        proto_target_type = self.get_proto_target_type_(target)
+        if proto_target_type is not None:
+            self.proto_libs[target.name] = target
+            target.type = 'proto_library'
+            target.proto_plugin = proto_target_type
+            proto_desc = self.gn_desc_[target.name + '_gen']
+            target.sources.update(proto_desc.get('sources', []))
+            assert(all(x.endswith('.proto') for x in target.sources))
+        elif target.type == 'source_set':
+            self.source_sets[gn_target_name] = target
+            target.sources.update(desc.get('sources', []))
+        elif target.type in LINKER_UNIT_TYPES:
+            self.linker_units[gn_target_name] = target
+            target.sources.update(desc.get('sources', []))
+        elif target.type == 'action':
+            self.actions[gn_target_name] = target
+            target.inputs.update(desc['inputs'])
+            outs = [re.sub('^//out/[^/]+/gen/', '', x) for x in desc['outputs']]
+            target.outputs.update(outs)
+            target.script = desc['script']
+            # Args are typically relative to the root build dir (../../xxx)
+            # because root build dir is typically out/xxx/).
+            target.args = [re.sub('^../../', '//', x) for x in desc['args']]
+
+        target.cflags.update(desc.get('cflags', []) + desc.get('cflags_cc', []))
+        target.ldflags.update(desc.get('ldflags', []))
+        target.defines.update(desc.get('defines', []))
+        target.include_dirs.update(desc.get('include_dirs', []))
+
+        # Recurse in dependencies.
+        for dep_name in desc.get('deps', []):
+            dep = self.get_target(dep_name)
+            if dep.is_third_party_dep_:
+                target.deps.add(dep_name)
+            elif dep.type == 'proto_library':
+                target.proto_deps.add(dep_name)
+                target.proto_deps.update(dep.proto_deps)  # Bubble up deps.
+            elif dep.type == 'source_set':
+                target.source_set_deps.add(dep_name)
+                target.update(dep)  # Bubble up source set's cflags/ldflags etc.
+            elif dep.type == 'group':
+                target.update(dep)  # Bubble up groups's cflags/ldflags etc.
+            elif dep.type == 'action':
+                target.deps.add(dep_name)
+            elif dep.type in LINKER_UNIT_TYPES:
+                target.deps.add(dep_name)
+
+        return target
+
+    def get_proto_target_type_(self, target):
+        """ Checks if the target is a proto library and return the plugin.
+
+        Returns:
+            None: if the target is not a proto library.
+            The plugin name (or 'proto' in the default case) for proto library
+            targets.
+        """
+        gen_desc = self.gn_desc_.get(target.name + '_gen')
+        if gen_desc is None or gen_desc['type'] != 'action':
+            return None
+        args = gen_desc.get('args', [])
+        if '/protoc' not in args[0]:
+            return None
+        for arg in args:
+            if arg.startswith('--plugin='):
+                # |arg| at this point looks like:
+                #  --plugin=protoc-gen-plugin=gcc_like_host/protozero_plugin
+                # or
+                #  --plugin=protoc-gen-plugin=protozero_plugin
+                return arg.split('=')[-1].split('/')[-1].replace('_plugin', '')
+        return 'proto'
+
+

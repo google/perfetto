@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -104,8 +104,7 @@ def main():
     for path in sql_outputs.keys():
       name = os.path.basename(path)
       variable = filename_to_variable(os.path.splitext(name)[0])
-      path_escaped = path.encode('string_escape')
-      output.write('\n  {{"{}", {}}},\n'.format(path_escaped, variable))
+      output.write('\n  {{"{}", {}}},\n'.format(path, variable))
     output.write("};\n")
 
     output.write(NAMESPACE_END)
