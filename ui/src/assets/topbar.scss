@@ -117,6 +117,9 @@
             grid-area: help;
             overflow: visible;
             padding-left: 5px;
+            &:hover {
+              cursor: pointer;
+            }
             .material-icons {
                 color: #bdbdbd;
                 font-size: 16px;
