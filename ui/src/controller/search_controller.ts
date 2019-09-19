@@ -14,20 +14,22 @@
 
 import {Engine} from '../common/engine';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {TimeSpan, toNs} from '../common/time';
+import {TimeSpan} from '../common/time';
 
 import {Controller} from './controller';
-import {App, globals} from './globals';
+import {App} from './globals';
 
 export interface SearchControllerArgs {
   engine: Engine;
   app: App;
 }
 
+
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
   private app: App;
   private previousSpan: TimeSpan;
+  private previousResolution: number;
   private previousSearch: string;
   private updateInProgress: boolean;
   private setupInProgress: boolean;
@@ -40,6 +42,7 @@ export class SearchController extends Controller<'main'> {
     this.previousSearch = '';
     this.updateInProgress = false;
     this.setupInProgress = true;
+    this.previousResolution = 1;
     this.setup().finally(() => {
       this.setupInProgress = false;
       this.run();
@@ -51,11 +54,6 @@ export class SearchController extends Controller<'main'> {
       using window;`);
     await this.query(`create virtual table search_summary_span
       using span_join(sched PARTITIONED cpu, search_summary_window);`);
-
-    await this.query(`create virtual table search_result_window
-      using window;`);
-    await this.query(`create virtual table search_result_span
-      using span_join(sched PARTITIONED cpu, search_result_window);`);
   }
 
   run() {
@@ -71,11 +69,16 @@ export class SearchController extends Controller<'main'> {
     }
     const newSpan = new TimeSpan(visibleState.startSec, visibleState.endSec);
     const newSearch = omniboxState.omnibox;
-    if (this.previousSpan.equals(newSpan) &&
+    const newResolution = visibleState.resolution;
+    if (this.previousSpan.contains(newSpan) &&
+        this.previousResolution === newResolution &&
         newSearch === this.previousSearch) {
       return;
     }
-    this.previousSpan = newSpan;
+    this.previousSpan = new TimeSpan(
+        Math.max(newSpan.start - newSpan.duration, 0),
+        newSpan.end + newSpan.duration);
+    this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
       this.app.publish('Search', {
@@ -95,10 +98,9 @@ export class SearchController extends Controller<'main'> {
 
     const startNs = Math.round(newSpan.start * 1e9);
     const endNs = Math.round(newSpan.end * 1e9);
-    const resolution = visibleState.resolution;
     this.updateInProgress = true;
     const computeSummary =
-        this.update(newSearch, startNs, endNs, resolution).then(summary => {
+        this.update(newSearch, startNs, endNs, newResolution).then(summary => {
           this.app.publish('Search', summary);
         });
 
@@ -171,17 +173,9 @@ export class SearchController extends Controller<'main'> {
 
     const utids = [...rawUtidResult.columns[0].longValues!];
 
-    await this.query(`update search_result_window set
-    window_start=${toNs(globals.state.traceTime.startSec)},
-    window_dur=${
-        toNs(
-            globals.state.traceTime.endSec - globals.state.traceTime.startSec)},
-    quantum=0
-    where rowid = 0;`);
-
     const rawResult = await this.query(`
     select row_id, ts, utid, cpu
-    from search_result_span
+    from sched
     where utid in (${utids.join(',')}) order by ts`);
 
     const numRows = +rawResult.numRecords;

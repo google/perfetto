@@ -107,4 +107,8 @@ export class TimeSpan {
   add(sec: number): TimeSpan {
     return new TimeSpan(this.start + sec, this.end + sec);
   }
+
+  contains(other: TimeSpan) {
+    return this.start <= other.start && other.end <= this.end;
+  }
 }
