@@ -12,29 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("tables") {
-  sources = [
-    "macros.h",
-    "macros_internal.h",
-    "profiler_tables.h",
-    "slice_tables.h",
-    "track_tables.h",
-  ]
-  deps = [
-    "..:common",
-    "../../../gn:default_deps",
-    "../db:lib",
-  ]
-}
+# This file is used only in standalone builds. This file is ignored both in
+# embedder builds (i.e. when other projects pull perfetto under /third_party/
+# or similar) and in google internal builds.
 
-source_set("unittests") {
-  testonly = true
-  sources = [
-    "macros_unittest.cc",
-  ]
-  deps = [
-    ":tables",
-    "../../../gn:default_deps",
-    "../../../gn:gtest_and_gmock",
-  ]
-}
+workspace(name = "perfetto")
+
+new_local_repository(
+    name = "perfetto_cfg",
+    path = "bazel/standalone",
+    build_file_content = ""
+)
+
+load("@perfetto//bazel:deps.bzl", "perfetto_deps")
+perfetto_deps()
+
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+protobuf_deps()

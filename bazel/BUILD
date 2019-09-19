@@ -12,29 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("tables") {
-  sources = [
-    "macros.h",
-    "macros_internal.h",
-    "profiler_tables.h",
-    "slice_tables.h",
-    "track_tables.h",
-  ]
-  deps = [
-    "..:common",
-    "../../../gn:default_deps",
-    "../db:lib",
-  ]
-}
-
-source_set("unittests") {
-  testonly = true
-  sources = [
-    "macros_unittest.cc",
-  ]
-  deps = [
-    ":tables",
-    "../../../gn:default_deps",
-    "../../../gn:gtest_and_gmock",
-  ]
-}
+config_setting(
+    name = "os_osx",
+    values = {"cpu": "darwin"},
+    visibility = ["//visibility:public"],
+)
