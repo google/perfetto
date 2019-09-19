@@ -25,7 +25,9 @@
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
+#include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
+#include "src/tracing/core/null_trace_writer.h"
 
 namespace perfetto {
 namespace {
@@ -38,11 +40,8 @@ using perfetto::protos::pbzero::FtraceEventBundle;
 
 void FuzzCpuReaderParsePage(const uint8_t* data, size_t size);
 
-void FuzzCpuReaderParsePage(const uint8_t* data, size_t size) {
-  protozero::ScatteredStreamWriterNullDelegate delegate(base::kPageSize);
-  protozero::ScatteredStreamWriter stream(&delegate);
-  FtraceEventBundle writer;
-
+// TODO(rsavitski): make the fuzzer generate multi-page payloads.
+void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   ProtoTranslationTable* table = GetTable("synthetic");
   if (!table) {
     PERFETTO_FATAL(
@@ -52,15 +51,18 @@ void FuzzCpuReaderParsePage(const uint8_t* data, size_t size) {
   memset(g_page, 0, base::kPageSize);
   memcpy(g_page, data, std::min(base::kPageSize, size));
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
-  filter.AddEnabledEvent(
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
-  writer.Reset(&stream);
-  FtraceMetadata metadata{};
-  CpuReader::ParsePage(g_page, &filter, &writer, table, &metadata);
+  NullTraceWriter null_writer;
+  CpuReader::ProcessPagesForDataSource(&null_writer, &metadata, /*cpu=*/0,
+                                       &ds_config, g_page, /*pages_read=*/1,
+                                       table);
 }
 
 }  // namespace perfetto
@@ -68,6 +70,6 @@ void FuzzCpuReaderParsePage(const uint8_t* data, size_t size) {
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  perfetto::FuzzCpuReaderParsePage(data, size);
+  perfetto::FuzzCpuReaderProcessPagesForDataSource(data, size);
   return 0;
 }

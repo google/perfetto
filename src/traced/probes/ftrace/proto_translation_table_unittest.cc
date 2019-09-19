@@ -20,6 +20,7 @@
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/utils.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
@@ -258,6 +259,53 @@ print fmt: "some format")"));
 
 INSTANTIATE_TEST_SUITE_P(BySize, TranslationTableCreationTest, Values(4, 8));
 
+TEST(TranslationTableTest, CompactSchedFormatParsingSeedData) {
+  std::string path =
+      "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/";
+  FtraceProcfs ftrace_procfs(path);
+  auto table = ProtoTranslationTable::Create(
+      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  PERFETTO_CHECK(table);
+  const CompactSchedEventFormat& format = table->compact_sched_format();
+
+  // Format matches compile-time assumptions.
+  ASSERT_TRUE(format.format_valid);
+
+  // Check exact format (note: 32 bit long prev_state).
+  EXPECT_EQ(68u, format.sched_switch.event_id);
+  EXPECT_EQ(60u, format.sched_switch.size);
+  EXPECT_EQ(52u, format.sched_switch.next_pid_offset);
+  EXPECT_EQ(FtraceFieldType::kFtracePid32, format.sched_switch.next_pid_type);
+  EXPECT_EQ(56u, format.sched_switch.next_prio_offset);
+  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_switch.next_prio_type);
+  EXPECT_EQ(32u, format.sched_switch.prev_state_offset);
+  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_switch.prev_state_type);
+  EXPECT_EQ(36u, format.sched_switch.next_comm_offset);
+}
+
+TEST(TranslationTableTest, CompactSchedFormatParsingSyntheticData) {
+  std::string path = "src/traced/probes/ftrace/test/data/synthetic/";
+  FtraceProcfs ftrace_procfs(path);
+  auto table = ProtoTranslationTable::Create(
+      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  PERFETTO_CHECK(table);
+  const CompactSchedEventFormat& format = table->compact_sched_format();
+
+  // Format matches compile-time assumptions.
+  ASSERT_TRUE(format.format_valid);
+
+  // Check exact format (note: 64 bit long prev_state).
+  EXPECT_EQ(47u, format.sched_switch.event_id);
+  EXPECT_EQ(64u, format.sched_switch.size);
+  EXPECT_EQ(56u, format.sched_switch.next_pid_offset);
+  EXPECT_EQ(FtraceFieldType::kFtracePid32, format.sched_switch.next_pid_type);
+  EXPECT_EQ(60u, format.sched_switch.next_prio_offset);
+  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_switch.next_prio_type);
+  EXPECT_EQ(32u, format.sched_switch.prev_state_offset);
+  EXPECT_EQ(FtraceFieldType::kFtraceInt64, format.sched_switch.prev_state_type);
+  EXPECT_EQ(40u, format.sched_switch.next_comm_offset);
+}
+
 TEST(TranslationTableTest, InferFtraceType) {
   FtraceFieldType type;
 
@@ -341,7 +389,9 @@ TEST(TranslationTableTest, Getters) {
 
   ProtoTranslationTable table(
       &ftrace, events, std::move(common_fields),
-      ProtoTranslationTable::DefaultPageHeaderSpecForTesting());
+      ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
+      InvalidCompactSchedEventFormatForTesting());
+
   EXPECT_EQ(table.largest_id(), 100ul);
   EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_one", "foo")), 1ul);
   EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_two", "baz")), 100ul);

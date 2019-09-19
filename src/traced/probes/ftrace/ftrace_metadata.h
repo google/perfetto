@@ -31,10 +31,11 @@ namespace perfetto {
 using BlockDeviceID = decltype(stat::st_dev);
 using Inode = decltype(stat::st_ino);
 
+// Container for tracking miscellaneous information while parsing ftrace events,
+// scoped to an individual data source.
 struct FtraceMetadata {
   FtraceMetadata();
 
-  bool lost_events = false;
   BlockDeviceID last_seen_device_id = 0;
 #if PERFETTO_DCHECK_IS_ON()
   bool seen_device_id = false;
