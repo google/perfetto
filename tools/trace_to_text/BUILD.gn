@@ -46,6 +46,7 @@ source_set("utils") {
     "../../protos/perfetto/trace/ftrace:lite",
     "../../protos/perfetto/trace/interned_data:lite",
     "../../protos/perfetto/trace/profiling:lite",
+    "../../src/trace_processor:lib",
   ]
   sources = [
     "profile_visitor.cc",
@@ -104,6 +105,7 @@ source_set("pprofbuilder") {
     "../../protos/perfetto/trace/profiling:lite",
     "../../protos/third_party/pprof:lite",
     "../../src/base",
+    "../../src/trace_processor:lib",
   ]
   sources = [
     "pprof_builder.cc",

@@ -2137,6 +2137,13 @@ perfetto_cc_library(
     name = "libpprofbuilder",
     srcs = [
         ":src_base_base",
+        ":src_protozero_protozero",
+        ":src_trace_processor_common",
+        ":src_trace_processor_db_lib",
+        ":src_trace_processor_lib",
+        ":src_trace_processor_metrics_lib",
+        ":src_trace_processor_sqlite_sqlite",
+        ":src_trace_processor_tables_tables",
         ":tools_trace_to_text_pprofbuilder",
         ":tools_trace_to_text_symbolizer",
         ":tools_trace_to_text_utils",
@@ -2146,6 +2153,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_trace_processor_trace_processor",
     ],
     visibility = [
         "//visibility:public",
@@ -2171,6 +2179,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_sys_stats_lite",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_zero",
+        ":protos_perfetto_metrics_android_zero",
+        ":protos_perfetto_metrics_zero",
         ":protos_perfetto_trace_android_lite",
         ":protos_perfetto_trace_android_zero",
         ":protos_perfetto_trace_appended_data_lite",
@@ -2193,6 +2203,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_perfetto_zero",
         ":protos_perfetto_trace_power_lite",
         ":protos_perfetto_trace_power_zero",
+        ":protos_perfetto_trace_processor_metrics_impl_zero",
         ":protos_perfetto_trace_profiling_lite",
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_lite",
@@ -2202,7 +2213,12 @@ perfetto_cc_library(
         ":protos_perfetto_trace_track_event_lite",
         ":protos_perfetto_trace_track_event_zero",
         ":protos_third_party_pprof_lite",
-    ],
+    ]
+    + PERFETTO_CONFIG.deps.jsoncpp
+    + PERFETTO_CONFIG.deps.zlib
+    + PERFETTO_CONFIG.deps.sqlite
+    + PERFETTO_CONFIG.deps.sqlite_ext_percentile
+    + [ ":cc_merged_sql_metrics" ],
 )
 
 # Content from BUILD.extras
