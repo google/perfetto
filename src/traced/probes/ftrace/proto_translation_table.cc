@@ -447,8 +447,13 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
                               }),
                events.end());
 
-  auto table = std::unique_ptr<ProtoTranslationTable>(new ProtoTranslationTable(
-      ftrace_procfs, events, std::move(common_fields), header_spec));
+  // Pre-parse certain scheduler events, and see if the compile-time assumptions
+  // about their format hold for this kernel.
+  CompactSchedEventFormat compact_sched = ValidateFormatForCompactSched(events);
+
+  auto table = std::unique_ptr<ProtoTranslationTable>(
+      new ProtoTranslationTable(ftrace_procfs, events, std::move(common_fields),
+                                header_spec, compact_sched));
   return table;
 }
 
@@ -456,12 +461,14 @@ ProtoTranslationTable::ProtoTranslationTable(
     const FtraceProcfs* ftrace_procfs,
     const std::vector<Event>& events,
     std::vector<Field> common_fields,
-    FtracePageHeaderSpec ftrace_page_header_spec)
+    FtracePageHeaderSpec ftrace_page_header_spec,
+    CompactSchedEventFormat compact_sched_format)
     : ftrace_procfs_(ftrace_procfs),
       events_(BuildEventsVector(events)),
       largest_id_(events_.size() - 1),
       common_fields_(std::move(common_fields)),
-      ftrace_page_header_spec_(ftrace_page_header_spec) {
+      ftrace_page_header_spec_(ftrace_page_header_spec),
+      compact_sched_format_(compact_sched_format) {
   for (const Event& event : events) {
     group_and_name_to_event_[GroupAndName(event.group, event.name)] =
         &events_.at(event.ftrace_event_id);

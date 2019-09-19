@@ -20,6 +20,7 @@
 #include <map>
 #include <set>
 
+#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -27,20 +28,33 @@
 
 namespace perfetto {
 
+// State held by the muxer per data source, used to parse ftrace according to
+// that data source's config.
+struct FtraceDataSourceConfig {
+  FtraceDataSourceConfig(EventFilter _event_filter,
+                         CompactSchedConfig _compact_sched)
+      : event_filter(std::move(_event_filter)), compact_sched(_compact_sched) {}
+
+  // The event filter allows to quickly check if a certain ftrace event with id
+  // x is enabled for this data source.
+  EventFilter event_filter;
+
+  // Configuration of the optional compact encoding of scheduling events.
+  const CompactSchedConfig compact_sched;
+};
+
 // Ftrace is a bunch of globally modifiable persistent state.
 // Given a number of FtraceConfig's we need to find the best union of all
 // the settings to make everyone happy while also watching out for anybody
 // messing with the ftrace settings at the same time as us.
-
+//
 // Specifically FtraceConfigMuxer takes in a *requested* FtraceConfig
 // (|SetupConfig|), makes a best effort attempt to modify the ftrace
 // debugfs files to honor those settings without interrupting other perfetto
 // traces already in progress or other users of ftrace, then returns an
 // FtraceConfigId representing that config or zero on failure.
-
-// To see which settings we actually managed to set you can call |GetConfig|
-// and when you are finished with a config you can signal that with
-// |RemoveConfig|.
+//
+// When you are finished with a config you can signal that with |RemoveConfig|.
 class FtraceConfigMuxer {
  public:
   // The FtraceConfigMuxer and ProtoTranslationTable
@@ -56,7 +70,6 @@ class FtraceConfigMuxer {
   // (if you enable an atrace category we try to give you the matching events).
   // If someone else is tracing we won't touch atrace (since it resets the
   // buffer).
-  // To see the config you ended up with use |GetConfig|.
   FtraceConfigId SetupConfig(const FtraceConfig& request);
 
   // Activate ftrace for the given config (if not already active).
@@ -66,7 +79,7 @@ class FtraceConfigMuxer {
   // or already removed.
   bool RemoveConfig(FtraceConfigId);
 
-  const EventFilter* GetEventFilter(FtraceConfigId id);
+  const FtraceDataSourceConfig* GetDataSourceConfig(FtraceConfigId id);
 
   // Returns the current per-cpu buffer size, as configured by this muxer
   // (without consulting debugfs). Constant for a given tracing session.
@@ -79,19 +92,19 @@ class FtraceConfigMuxer {
     SetupClock(request);
   }
 
-  const FtraceConfig* GetConfigForTesting(FtraceConfigId id);
-
   std::set<GroupAndName> GetFtraceEventsForTesting(
       const FtraceConfig& request,
       const ProtoTranslationTable* table) {
     return GetFtraceEvents(request, table);
   }
 
+  const EventFilter* GetCentralEventFilterForTesting() const {
+    return &current_state_.ftrace_events;
+  }
+
  private:
   struct FtraceState {
     EventFilter ftrace_events;
-    std::set<std::string> atrace_categories;
-    std::set<std::string> atrace_apps;
     bool tracing_on = false;
     bool atrace_on = false;
     size_t cpu_buffer_size_pages = 0;
@@ -120,16 +133,13 @@ class FtraceConfigMuxer {
 
   FtraceState current_state_;
 
-  // There is a filter per config. These filters allow a quick way
-  // to check if a certain ftrace event with id x is enabled.
-  std::map<FtraceConfigId, EventFilter> filters_;
+  // Set of all requested tracing configurations, with the associated derived
+  // data used during parsing. Note that not all of these configurations might
+  // be active. When a config is present but not active, we do setup buffer
+  // sizes and events, but don't enable ftrace (i.e. tracing_on).
+  std::map<FtraceConfigId, FtraceDataSourceConfig> ds_configs_;
 
-  // Set of all configurations. Note that not all of them might be active.
-  // When a config is present but not active, we do setup buffer sizes and
-  // events, but don't enable ftrace (i.e. tracing_on).
-  std::map<FtraceConfigId, FtraceConfig> configs_;
-
-  // Subset of |configs_| that are currently active. At any time ftrace is
+  // Subset of |ds_configs_| that are currently active. At any time ftrace is
   // enabled iff |active_configs_| is not empty.
   std::set<FtraceConfigId> active_configs_;
 };

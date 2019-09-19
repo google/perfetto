@@ -24,7 +24,9 @@
 #include <algorithm>
 
 #include "perfetto/ext/base/utils.h"
+#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
 
 namespace perfetto {
 namespace {
@@ -392,19 +394,15 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
 
 FtraceConfigMuxer::FtraceConfigMuxer(FtraceProcfs* ftrace,
                                      ProtoTranslationTable* table)
-    : ftrace_(ftrace),
-      table_(table),
-      current_state_(),
-      filters_(),
-      configs_() {}
+    : ftrace_(ftrace), table_(table), current_state_(), ds_configs_() {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
 FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
   EventFilter filter;
-  FtraceConfig actual;
   bool is_ftrace_enabled = ftrace_->IsTracingEnabled();
-  if (configs_.empty()) {
+  if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
+
     PERFETTO_DCHECK(!current_state_.tracing_on);
 
     // If someone outside of perfetto is using ftrace give up now.
@@ -433,29 +431,35 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
                     group_and_name.ToString().c_str());
       continue;
     }
+    // Note: ftrace events are always implicitly enabled (and don't have an
+    // "enable" file). So they aren't tracked by the central event filter (but
+    // still need to be added to the per data source event filter to retain the
+    // events during parsing).
     if (current_state_.ftrace_events.IsEventEnabled(event->ftrace_event_id) ||
         std::string("ftrace") == event->group) {
       filter.AddEnabledEvent(event->ftrace_event_id);
-      *actual.add_ftrace_events() = group_and_name.ToString();
       continue;
     }
     if (ftrace_->EnableEvent(event->group, event->name)) {
       current_state_.ftrace_events.AddEnabledEvent(event->ftrace_event_id);
       filter.AddEnabledEvent(event->ftrace_event_id);
-      *actual.add_ftrace_events() = group_and_name.ToString();
     } else {
       PERFETTO_DPLOG("Failed to enable %s.", group_and_name.ToString().c_str());
     }
   }
 
+  auto compact_sched =
+      CreateCompactSchedConfig(request, table_->compact_sched_format());
+
   FtraceConfigId id = ++last_id_;
-  configs_.emplace(id, std::move(actual));
-  filters_.emplace(id, std::move(filter));
+  ds_configs_.emplace(std::piecewise_construct, std::forward_as_tuple(id),
+                      std::forward_as_tuple(std::move(filter), compact_sched));
+
   return id;
 }
 
 bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
-  if (!id || configs_.count(id) == 0) {
+  if (!id || ds_configs_.count(id) == 0) {
     PERFETTO_DFATAL("Config not found");
     return false;
   }
@@ -478,11 +482,11 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
 }
 
 bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
-  if (!config_id || !filters_.erase(config_id) || !configs_.erase(config_id))
+  if (!config_id || !ds_configs_.erase(config_id))
     return false;
   EventFilter expected_ftrace_events;
-  for (const auto& id_filter : filters_) {
-    expected_ftrace_events.EnableEventsFrom(id_filter.second);
+  for (const auto& ds_config : ds_configs_) {
+    expected_ftrace_events.EnableEventsFrom(ds_config.second.event_filter);
   }
 
   // Disable any events that are currently enabled, but are not in any configs
@@ -513,7 +517,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   // Even if we don't have any other active configs, we might still have idle
   // configs around. Tear down the rest of the ftrace config only if all
   // configs are removed.
-  if (configs_.empty()) {
+  if (ds_configs_.empty()) {
     if (ftrace_->SetCpuBufferSizeInPages(1))
       current_state_.cpu_buffer_size_pages = 1;
     ftrace_->DisableAllEvents();
@@ -525,16 +529,11 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   return true;
 }
 
-const FtraceConfig* FtraceConfigMuxer::GetConfigForTesting(FtraceConfigId id) {
-  if (!configs_.count(id))
+const FtraceDataSourceConfig* FtraceConfigMuxer::GetDataSourceConfig(
+    FtraceConfigId id) {
+  if (!ds_configs_.count(id))
     return nullptr;
-  return &configs_.at(id);
-}
-
-const EventFilter* FtraceConfigMuxer::GetEventFilter(FtraceConfigId id) {
-  if (!filters_.count(id))
-    return nullptr;
-  return &filters_.at(id);
+  return &ds_configs_.at(id);
 }
 
 void FtraceConfigMuxer::SetupClock(const FtraceConfig&) {

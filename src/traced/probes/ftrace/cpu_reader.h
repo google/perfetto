@@ -32,8 +32,10 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/traced/data_source_types.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
@@ -41,6 +43,7 @@ namespace perfetto {
 
 class FtraceDataSource;
 class ProtoTranslationTable;
+struct FtraceDataSourceConfig;
 
 namespace protos {
 namespace pbzero {
@@ -60,8 +63,8 @@ class CpuReader {
     bool lost_events;
   };
 
-  CpuReader(const ProtoTranslationTable* table,
-            size_t cpu,
+  CpuReader(size_t cpu,
+            const ProtoTranslationTable* table,
             base::ScopedFile trace_fd);
   ~CpuReader();
 
@@ -154,17 +157,21 @@ class CpuReader {
       const uint8_t** ptr,
       uint16_t page_header_size_len);
 
-  // Parse a raw ftrace page beginning at ptr and write the events a protos
-  // into the provided bundle respecting the given event filter.
+  // Parse the payload of a raw ftrace page, and write the events as protos
+  // into the provided bundle (and/or compact buffer).
   // |table| contains the mix of compile time (e.g. proto field ids) and
   // run time (e.g. field offset and size) information necessary to do this.
   // The table is initialized once at start time by the ftrace controller
   // which passes it to the CpuReader which passes it here.
-  static size_t ParsePage(const uint8_t* ptr,
-                          const EventFilter*,
-                          protos::pbzero::FtraceEventBundle*,
-                          const ProtoTranslationTable* table,
-                          FtraceMetadata*);
+  // The caller is responsible for validating that the page_header->size stays
+  // within the current page.
+  static size_t ParsePagePayload(const uint8_t* start_of_payload,
+                                 const PageHeader* page_header,
+                                 const ProtoTranslationTable* table,
+                                 const FtraceDataSourceConfig* ds_config,
+                                 CompactSchedBundleState* compact_sched_buffer,
+                                 FtraceEventBundle* bundle,
+                                 FtraceMetadata* metadata);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|
   // and write it into the provided bundle as a proto.
@@ -186,6 +193,26 @@ class CpuReader {
                          protozero::Message* message,
                          FtraceMetadata* metadata);
 
+  // Parse a sched_switch event according to pre-validated format, and buffer
+  // the individual fields in the given compact encoding batch.
+  static void ParseSchedSwitchCompact(const uint8_t* start,
+                                      uint64_t timestamp,
+                                      const CompactSchedSwitchFormat* format,
+                                      CompactSchedBundleState* bundle_state,
+                                      FtraceMetadata* metadata);
+
+  // Parses & encodes the given range of contiguous tracing pages. Called by
+  // |ReadAndProcessBatch| for each active data source.
+  //
+  // public and static for testing
+  static bool ProcessPagesForDataSource(TraceWriter* trace_writer,
+                                        FtraceMetadata* metadata,
+                                        size_t cpu,
+                                        const FtraceDataSourceConfig* ds_config,
+                                        const uint8_t* parsing_buf,
+                                        const size_t pages_read,
+                                        const ProtoTranslationTable* table);
+
  private:
   CpuReader(const CpuReader&) = delete;
   CpuReader& operator=(const CpuReader&) = delete;
@@ -200,8 +227,8 @@ class CpuReader {
       bool first_batch_in_cycle,
       const std::set<FtraceDataSource*>& started_data_sources);
 
-  const ProtoTranslationTable* const table_;
   const size_t cpu_;
+  const ProtoTranslationTable* const table_;
   base::ScopedFile trace_fd_;
 };
 

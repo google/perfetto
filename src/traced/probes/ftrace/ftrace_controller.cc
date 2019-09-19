@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
@@ -51,18 +52,32 @@ constexpr int kDefaultDrainPeriodMs = 100;
 constexpr int kMinDrainPeriodMs = 1;
 constexpr int kMaxDrainPeriodMs = 1000 * 60;
 
-// When reading and parsing data for a particular cpu, we do it in batches of
-// this many pages. In other words, we'll read up to
-// |kParsingBufferSizePages| into memory, parse them, and then repeat if we
-// still haven't caught up to the writer. A working set of 32 pages is 128k of
-// data, which should fit in a typical L1D cache. Furthermore, the batching
-// limits the memory usage of traced_probes.
-constexpr size_t kParsingBufferSizePages = 32;
-
 // Read at most this many pages of data per cpu per read task. If we hit this
 // limit on at least one cpu, we stop and repost the read task, letting other
 // tasks get some cpu time before continuing reading.
 constexpr size_t kMaxPagesPerCpuPerReadTick = 256;  // 1 MB per cpu
+
+// When reading and parsing data for a particular cpu, we do it in batches of
+// this many pages. In other words, we'll read up to
+// |kParsingBufferSizePages| into memory, parse them, and then repeat if we
+// still haven't caught up to the writer. A working set of 32 pages is 128k of
+// data, which should fit in a typical L2D cache. Furthermore, the batching
+// limits the memory usage of traced_probes.
+//
+// Note that the compact scheduler event encoding buffers operate on the same
+// buffer size, and their maximum capacity is set at compile-time as it lives on
+// the stack. So the maximum possible number of events encoded in this many
+// tracing pages must not exceed compact_sched's capacity. See the static_assert
+// below.
+// TODO(rsavitski): consider making buffering & parsing page counts independent,
+// should be a single counter in the cpu_reader, similar to lost_events case.
+constexpr size_t kParsingBufferSizePages = 32;
+
+static_assert(kParsingBufferSizePages *
+                      (base::kPageSize /
+                       CompactSchedBundleState::kMinSupportedSchedSwitchSize) <=
+                  CompactSchedBundleState::kMaxElements,
+              "insufficient compact_sched buffer capacity");
 
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
   if (drain_period_ms == 0) {
@@ -181,7 +196,7 @@ void FtraceController::StartIfNeeded() {
   size_t period_page_quota = ftrace_config_muxer_->GetPerCpuBufferSizePages();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     auto reader = std::unique_ptr<CpuReader>(
-        new CpuReader(table_.get(), cpu, ftrace_procfs_->OpenPipeForCpu(cpu)));
+        new CpuReader(cpu, table_.get(), ftrace_procfs_->OpenPipeForCpu(cpu)));
     per_cpu_.emplace_back(std::move(reader), period_page_quota);
   }
 
@@ -346,10 +361,11 @@ bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
   if (!config_id)
     return false;
 
-  const EventFilter* filter = ftrace_config_muxer_->GetEventFilter(config_id);
+  const FtraceDataSourceConfig* ds_config =
+      ftrace_config_muxer_->GetDataSourceConfig(config_id);
   auto it_and_inserted = data_sources_.insert(data_source);
   PERFETTO_DCHECK(it_and_inserted.second);
-  data_source->Initialize(config_id, filter);
+  data_source->Initialize(config_id, ds_config);
   return true;
 }
 
