@@ -2312,12 +2312,38 @@ message FtraceEvent {
 
 // Begin of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
-// One parsed page from per-cpu ftrace buffer.
+// The result of tracing one or more ftrace data pages from a single per-cpu
+// kernel ring buffer. If collating multiple pages' worth of events, all of
+// them come from contiguous pages, with no kernel data loss in between.
 message FtraceEventBundle {
   optional uint32 cpu = 1;
   repeated FtraceEvent event = 2;
-  // True if this cpu's ftrace kernel buffer lost events since the last read.
+  // Set to true if there was data loss between the last time we've read from
+  // the corresponding per-cpu kernel buffer, and the earliest event recorded
+  // in this bundle.
   optional bool lost_events = 3;
+
+  // Optionally-enabled compact encoding of a batch of scheduling events. Only
+  // a subset of events & their fields is recorded.
+  // All fields (except comms) are stored in a structure-of-arrays form, one
+  // entry in each repeated field per event.
+  // TODO(rsavitski): unstable, do not use.
+  message CompactSched {
+    // Delta-encoded timestamps across all sched_switch events within this
+    // bundle. The first is absolute, each next one is relative to its
+    // predecessor.
+    repeated uint64 switch_timestamp = 1 [packed = true];
+    repeated int32 switch_prev_state = 2 [packed = true];
+    repeated int32 switch_next_pid = 3 [packed = true];
+    repeated int32 switch_next_prio = 4 [packed = true];
+
+    // Interned table of unique comm strings for this bundle.
+    repeated string switch_next_comm_table = 5;
+    // One per event, index into |switch_next_comm_table| corresponding to the
+    // next_comm field of the event.
+    repeated uint32 switch_next_comm_index = 6 [packed = true];
+  }
+  optional CompactSched compact_sched = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
@@ -4260,6 +4286,20 @@ message FtraceConfig {
   // *Per-CPU* buffer size.
   optional uint32 buffer_size_kb = 10;
   optional uint32 drain_period_ms = 11;
+
+  // Configuration for compact encoding of scheduler events. If enabled, this
+  // records a small subset of fields of selected scheduling events, and
+  // encodes them in a denser proto format than normal. This is useful due to
+  // scheduling events being abundant in a typical trace, and dominating its
+  // size via a combination of unnecessary data being retained, and proto
+  // format overheads.
+  // TODO(rsavitski): unstable, do not use.
+  message CompactSchedConfig {
+    // If true, and sched_switch ftrace event is enabled, record those events
+    // in the compact format.
+    optional bool enabled = 1;
+  }
+  optional CompactSchedConfig compact_sched = 12;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto

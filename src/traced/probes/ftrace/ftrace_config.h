@@ -40,7 +40,8 @@
 namespace perfetto {
 namespace protos {
 class FtraceConfig;
-}
+class FtraceConfig_CompactSchedConfig;
+}  // namespace protos
 }  // namespace perfetto
 
 namespace perfetto {
@@ -48,6 +49,36 @@ class FtraceConfig;
 
 class PERFETTO_EXPORT FtraceConfig {
  public:
+  class PERFETTO_EXPORT CompactSchedConfig {
+   public:
+    CompactSchedConfig();
+    ~CompactSchedConfig();
+    CompactSchedConfig(CompactSchedConfig&&) noexcept;
+    CompactSchedConfig& operator=(CompactSchedConfig&&);
+    CompactSchedConfig(const CompactSchedConfig&);
+    CompactSchedConfig& operator=(const CompactSchedConfig&);
+    bool operator==(const CompactSchedConfig&) const;
+    bool operator!=(const CompactSchedConfig& other) const {
+      return !(*this == other);
+    }
+
+    // Raw proto decoding.
+    void ParseRawProto(const std::string&);
+    // Conversion methods from/to the corresponding protobuf types.
+    void FromProto(const perfetto::protos::FtraceConfig_CompactSchedConfig&);
+    void ToProto(perfetto::protos::FtraceConfig_CompactSchedConfig*) const;
+
+    bool enabled() const { return enabled_; }
+    void set_enabled(bool value) { enabled_ = value; }
+
+   private:
+    bool enabled_{};
+
+    // Allows to preserve unknown protobuf fields for compatibility
+    // with future versions of .proto files.
+    std::string unknown_fields_;
+  };
+
   FtraceConfig();
   ~FtraceConfig();
   FtraceConfig(FtraceConfig&&) noexcept;
@@ -106,12 +137,16 @@ class PERFETTO_EXPORT FtraceConfig {
   uint32_t drain_period_ms() const { return drain_period_ms_; }
   void set_drain_period_ms(uint32_t value) { drain_period_ms_ = value; }
 
+  const CompactSchedConfig& compact_sched() const { return *compact_sched_; }
+  CompactSchedConfig* mutable_compact_sched() { return compact_sched_.get(); }
+
  private:
   std::vector<std::string> ftrace_events_;
   std::vector<std::string> atrace_categories_;
   std::vector<std::string> atrace_apps_;
   uint32_t buffer_size_kb_{};
   uint32_t drain_period_ms_{};
+  ::perfetto::base::CopyablePtr<CompactSchedConfig> compact_sched_;
 
   // Allows to preserve unknown protobuf fields for compatibility
   // with future versions of .proto files.

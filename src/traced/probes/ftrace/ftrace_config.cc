@@ -45,7 +45,8 @@ bool FtraceConfig::operator==(const FtraceConfig& other) const {
          (atrace_categories_ == other.atrace_categories_) &&
          (atrace_apps_ == other.atrace_apps_) &&
          (buffer_size_kb_ == other.buffer_size_kb_) &&
-         (drain_period_ms_ == other.drain_period_ms_);
+         (drain_period_ms_ == other.drain_period_ms_) &&
+         (compact_sched_ == other.compact_sched_);
 }
 #pragma GCC diagnostic pop
 
@@ -94,6 +95,8 @@ void FtraceConfig::FromProto(const perfetto::protos::FtraceConfig& proto) {
                 "size mismatch");
   drain_period_ms_ =
       static_cast<decltype(drain_period_ms_)>(proto.drain_period_ms());
+
+  compact_sched_->FromProto(proto.compact_sched());
   unknown_fields_ = proto.unknown_fields();
 }
 
@@ -128,6 +131,49 @@ void FtraceConfig::ToProto(perfetto::protos::FtraceConfig* proto) const {
                 "size mismatch");
   proto->set_drain_period_ms(
       static_cast<decltype(proto->drain_period_ms())>(drain_period_ms_));
+
+  compact_sched_->ToProto(proto->mutable_compact_sched());
+  *(proto->mutable_unknown_fields()) = unknown_fields_;
+}
+
+FtraceConfig::CompactSchedConfig::CompactSchedConfig() = default;
+FtraceConfig::CompactSchedConfig::~CompactSchedConfig() = default;
+FtraceConfig::CompactSchedConfig::CompactSchedConfig(
+    const FtraceConfig::CompactSchedConfig&) = default;
+FtraceConfig::CompactSchedConfig& FtraceConfig::CompactSchedConfig::operator=(
+    const FtraceConfig::CompactSchedConfig&) = default;
+FtraceConfig::CompactSchedConfig::CompactSchedConfig(
+    FtraceConfig::CompactSchedConfig&&) noexcept = default;
+FtraceConfig::CompactSchedConfig& FtraceConfig::CompactSchedConfig::operator=(
+    FtraceConfig::CompactSchedConfig&&) = default;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+bool FtraceConfig::CompactSchedConfig::operator==(
+    const FtraceConfig::CompactSchedConfig& other) const {
+  return (enabled_ == other.enabled_);
+}
+#pragma GCC diagnostic pop
+
+void FtraceConfig::CompactSchedConfig::ParseRawProto(const std::string& raw) {
+  perfetto::protos::FtraceConfig_CompactSchedConfig proto;
+  proto.ParseFromString(raw);
+  FromProto(proto);
+}
+
+void FtraceConfig::CompactSchedConfig::FromProto(
+    const perfetto::protos::FtraceConfig_CompactSchedConfig& proto) {
+  static_assert(sizeof(enabled_) == sizeof(proto.enabled()), "size mismatch");
+  enabled_ = static_cast<decltype(enabled_)>(proto.enabled());
+  unknown_fields_ = proto.unknown_fields();
+}
+
+void FtraceConfig::CompactSchedConfig::ToProto(
+    perfetto::protos::FtraceConfig_CompactSchedConfig* proto) const {
+  proto->Clear();
+
+  static_assert(sizeof(enabled_) == sizeof(proto->enabled()), "size mismatch");
+  proto->set_enabled(static_cast<decltype(proto->enabled())>(enabled_));
   *(proto->mutable_unknown_fields()) = unknown_fields_;
 }
 
