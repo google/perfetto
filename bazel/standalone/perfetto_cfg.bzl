@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Noop function used to override rules we don't want to support in standalone.
+def _noop_override(**kwargs):
+    pass
+
 PERFETTO_CONFIG = struct(
     # This is used to refer to deps within perfetto's BUILD files.
     # In standalone and bazel-based embedders use '//', because perfetto has its
@@ -39,14 +43,20 @@ PERFETTO_CONFIG = struct(
     # to rules like cc_binary. Prefixed rules (e.g. perfetto_cc_binary) will
     # look into this struct before falling back on native.cc_binary().
     # This field is completely optional, the embedder can omit the whole
-    # |rule_overrides| or invidivual keys. They are assigned to None here just
-    # for documentation purposes.
+    # |rule_overrides| or invidivual keys. They are assigned to None or noop
+    # actions here just for documentation purposes.
     rule_overrides = struct(
         cc_binary = None,
         cc_library = None,
         cc_proto_library = None,
-        java_proto_library = None,
+        # Supporting java rules pulls in the JDK and generally is not something
+        # we need for most embedders.
+        java_proto_library = _noop_override,
         proto_library = None,
         py_binary = None,
+
+        # We only need this for internal binaries. No other embeedder should
+        # care about this.
+        gensignature_internal_only = None,
     ),
 )
