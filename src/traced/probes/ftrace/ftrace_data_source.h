@@ -36,10 +36,10 @@
 
 namespace perfetto {
 
-class EventFilter;
 class FtraceController;
 class ProcessStatsDataSource;
 class InodeFileDataSource;
+struct FtraceDataSourceConfig;
 
 namespace protos {
 namespace pbzero {
@@ -63,7 +63,7 @@ class FtraceDataSource : public ProbesDataSource {
 
   // Called by FtraceController soon after ProbesProducer creates the data
   // source, to inject ftrace dependencies.
-  void Initialize(FtraceConfigId, const EventFilter* event_filter);
+  void Initialize(FtraceConfigId, const FtraceDataSourceConfig* parsing_config);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -75,7 +75,10 @@ class FtraceDataSource : public ProbesDataSource {
 
   FtraceConfigId config_id() const { return config_id_; }
   const FtraceConfig& config() const { return config_; }
-  const EventFilter* event_filter() { return event_filter_; }
+  const FtraceDataSourceConfig* parsing_config() const {
+    return parsing_config_;
+  }
+
   FtraceMetadata* mutable_metadata() { return &metadata_; }
   TraceWriter* trace_writer() { return writer_.get(); }
 
@@ -91,11 +94,14 @@ class FtraceDataSource : public ProbesDataSource {
   FtraceStats stats_before_ = {};
   std::map<FlushRequestID, std::function<void()>> pending_flushes_;
 
-  // Initialized by the Initialize() call.
+  // -- Fields initialized by the Initialize() call:
   FtraceConfigId config_id_ = 0;
   std::unique_ptr<TraceWriter> writer_;
   base::WeakPtr<FtraceController> controller_weak_;
-  const EventFilter* event_filter_;
+  // Muxer-held state for parsing ftrace according to this data source's
+  // configuration. Not the raw FtraceConfig proto (held by |config_|).
+  const FtraceDataSourceConfig* parsing_config_;
+  // -- End of fields set by Initialize().
 };
 
 }  // namespace perfetto

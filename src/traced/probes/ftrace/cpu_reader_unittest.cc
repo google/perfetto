@@ -16,6 +16,7 @@
 
 #include "src/traced/probes/ftrace/cpu_reader.h"
 
+#include <string.h>
 #include <sys/stat.h>
 
 #include "perfetto/base/build_config.h"
@@ -23,18 +24,19 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/proto_translation_table.h"
-#include "test/gtest_and_gmock.h"
-
 #include "protos/perfetto/trace/ftrace/ftrace_event.pb.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pb.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "src/traced/probes/ftrace/event_info.h"
+#include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 #include "src/traced/probes/ftrace/test/test_messages.pb.h"
 #include "src/traced/probes/ftrace/test/test_messages.pbzero.h"
+#include "src/tracing/core/trace_writer_for_testing.h"
+#include "test/gtest_and_gmock.h"
 
 using protozero::proto_utils::ProtoSchemaType;
 using testing::_;
@@ -116,8 +118,10 @@ class ProtoProvider {
   std::unique_ptr<ProtoT> ParseProto() {
     auto bundle = std::unique_ptr<ProtoT>(new ProtoT());
     std::vector<uint8_t> buffer = delegate_.StitchSlices();
-    if (!bundle->ParseFromArray(buffer.data(), static_cast<int>(buffer.size())))
+    if (!bundle->ParseFromArray(buffer.data(),
+                                static_cast<int>(buffer.size()))) {
       return nullptr;
+    }
     return bundle;
   }
 
@@ -371,18 +375,32 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  size_t bytes = CpuReader::ParsePage(
-      page.get(), &filter, bundle_provider.writer(), table, &metadata);
-  EXPECT_EQ(bytes, 60ul);
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_EQ(44ul, page_header->size);
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_EQ(evt_bytes, 44ul);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 1);
   const protos::FtraceEvent& event = bundle->event().Get(0);
   EXPECT_EQ(event.pid(), 28712ul);
@@ -486,13 +504,26 @@ TEST(CpuReaderTest, ReallyLongEvent) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CpuReader::ParsePage(page.get(), &filter, bundle_provider.writer(), table,
-                       &metadata);
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  CpuReader::ParsePagePayload(parse_pos, &page_header.value(), table,
+                              &ds_config, &compact_buffer,
+                              bundle_provider.writer(), &metadata);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
@@ -523,17 +554,31 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  ASSERT_FALSE(CpuReader::ParsePage(
-      page.get(), &filter, bundle_provider.writer(), table, &metadata));
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  ASSERT_EQ(0u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 1);
   // Although one field is malformed we still see data for the rest
   // since we write the fields as we parse them for speed.
@@ -550,15 +595,26 @@ TEST(CpuReaderTest, FilterByEvent) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
 
   FtraceMetadata metadata{};
-  ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &metadata));
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_LT(0u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 0);
 }
 
@@ -603,17 +659,31 @@ TEST(CpuReaderTest, ParseThreePrint) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &metadata));
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_LT(0u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 3);
 
   {
@@ -699,17 +769,31 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &metadata));
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_LT(0u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_FALSE(metadata.lost_events);
   ASSERT_EQ(bundle->event().size(), 6);
 
   {
@@ -723,6 +807,72 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
     EXPECT_EQ(event.sched_switch().next_pid(), 10);
     EXPECT_EQ(event.sched_switch().next_prio(), 120);
   }
+}
+
+TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
+  const ExamplePage* test_case = &g_six_sched_switch;
+
+  BundleProvider bundle_provider(base::kPageSize);
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EnabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+
+  FtraceMetadata metadata{};
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_LT(0u, evt_bytes);
+
+  // Nothing written into the proto yet:
+  auto bundle = bundle_provider.ParseProto();
+  ASSERT_TRUE(bundle);
+  EXPECT_EQ(0, bundle->event().size());
+  EXPECT_FALSE(bundle->has_compact_sched());
+
+  // Instead, sched switch fields were buffered:
+  EXPECT_LT(0u, compact_buffer.interned_switch_comms_size());
+
+  // Write the buffer out & check the serialized format:
+  compact_buffer.WriteAndReset(bundle_provider.writer());
+  bundle_provider.writer()->Finalize();
+  bundle = bundle_provider.ParseProto();
+  ASSERT_TRUE(bundle);
+
+  const auto& compact_sched = bundle->compact_sched();
+
+  EXPECT_EQ(6, compact_sched.switch_timestamp().size());
+  EXPECT_EQ(6, compact_sched.switch_prev_state().size());
+  EXPECT_EQ(6, compact_sched.switch_next_pid().size());
+  EXPECT_EQ(6, compact_sched.switch_next_prio().size());
+  // 4 unique interned next_comm strings:
+  EXPECT_EQ(4, compact_sched.switch_next_comm_table().size());
+  EXPECT_EQ(6, compact_sched.switch_next_comm_index().size());
+
+  // First event exactly as expected (absolute timestamp):
+  EXPECT_TRUE(
+      WithinOneMicrosecond(compact_sched.switch_timestamp(0), 1045157, 722134));
+  EXPECT_EQ(1, compact_sched.switch_prev_state(0));
+  EXPECT_EQ(3733, compact_sched.switch_next_pid(0));
+  EXPECT_EQ(120, compact_sched.switch_next_prio(0));
+  std::string next_comm = compact_sched.switch_next_comm_table(
+      static_cast<int>(compact_sched.switch_next_comm_index(0)));
+  EXPECT_EQ("sleep", next_comm);
 }
 
 TEST_F(CpuReaderTableTest, ParseAllFields) {
@@ -872,7 +1022,8 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
 
   ProtoTranslationTable table(
       &ftrace_, events, std::move(common_fields),
-      ProtoTranslationTable::DefaultPageHeaderSpecForTesting());
+      ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
+      InvalidCompactSchedEventFormatForTesting());
 
   FakeEventProvider provider(base::kPageSize);
 
@@ -962,6 +1113,73 @@ TEST(CpuReaderTest, TaskRenameEvent) {
                                     bundle_provider.writer(), &metadata));
   EXPECT_THAT(metadata.rename_pids, Contains(9999));
   EXPECT_THAT(metadata.pids, Contains(9999));
+}
+
+// Page with a single sched_switch, no data loss.
+static char g_switch_page[] =
+    R"(
+    00000000: 2b16 c3be 90b6 0300 4c00 0000 0000 0000  ................
+    00000010: 1e00 0000 0000 0000 1000 0000 2f00 0103  ................
+    00000020: 0300 0000 6b73 6f66 7469 7271 642f 3000  ................
+    00000030: 0000 0000 0300 0000 7800 0000 0100 0000  ................
+    00000040: 0000 0000 736c 6565 7000 722f 3000 0000  ................
+    00000050: 0000 0000 950e 0000 7800 0000 0000 0000  ................
+    )";
+
+// Page with a single sched_switch, header has data loss flag set.
+static char g_switch_page_lost_events[] =
+    R"(
+    00000000: 2b16 c3be 90b6 0300 4c00 0080 ffff ffff  ................
+    00000010: 1e00 0000 0000 0000 1000 0000 2f00 0103  ................
+    00000020: 0300 0000 6b73 6f66 7469 7271 642f 3000  ................
+    00000030: 0000 0000 0300 0000 7800 0000 0100 0000  ................
+    00000040: 0000 0000 736c 6565 7000 722f 3000 0000  ................
+    00000050: 0000 0000 950e 0000 7800 0000 0000 0000  ................
+    )";
+
+TEST(CpuReaderTest, NewPacketOnLostEvents) {
+  auto page_ok = PageFromXxd(g_switch_page);
+  auto page_loss = PageFromXxd(g_switch_page_lost_events);
+
+  std::vector<const void*> test_page_order = {
+      page_ok.get(),   page_ok.get(), page_ok.get(), page_loss.get(),
+      page_loss.get(), page_ok.get(), page_ok.get(), page_ok.get()};
+
+  // Prepare a buffer with 8 contiguous pages, with the above contents.
+  static constexpr size_t kTestPages = 8;
+  uint8_t buf[base::kPageSize * kTestPages] = {};
+  for (size_t i = 0; i < kTestPages; i++) {
+    void* dest = buf + (i * base::kPageSize);
+    memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
+  }
+
+  BundleProvider bundle_provider(base::kPageSize);
+  ProtoTranslationTable* table = GetTable("synthetic");
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+
+  TraceWriterForTesting trace_writer;
+  CpuReader::ProcessPagesForDataSource(&trace_writer, &metadata, /*cpu=*/1,
+                                       &ds_config, buf, kTestPages, table);
+
+  // Each packet should contain the parsed contents of a contiguous run of pages
+  // without data loss.
+  // So we should get three packets (each page has 1 event):
+  //   [3 events] [1 event] [4 events].
+  std::vector<protos::TracePacket> packets = trace_writer.GetAllTracePackets();
+
+  ASSERT_EQ(3u, packets.size());
+  EXPECT_FALSE(packets[0].ftrace_events().lost_events());
+  EXPECT_EQ(3, packets[0].ftrace_events().event().size());
+
+  EXPECT_TRUE(packets[1].ftrace_events().lost_events());
+  EXPECT_EQ(1, packets[1].ftrace_events().event().size());
+
+  EXPECT_TRUE(packets[2].ftrace_events().lost_events());
+  EXPECT_EQ(4, packets[2].ftrace_events().event().size());
 }
 
 TEST(CpuReaderTest, TranslateBlockDeviceIDToUserspace) {
@@ -1396,17 +1614,31 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &metadata));
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_LT(0u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_FALSE(metadata.lost_events);
   EXPECT_EQ(bundle->event().size(), 59);
 }
 
@@ -1827,17 +2059,31 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  ASSERT_TRUE(CpuReader::ParsePage(page.get(), &filter,
-                                   bundle_provider.writer(), table, &metadata));
+  CompactSchedBundleState compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_TRUE(page_header->lost_events);  // data loss
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+
+  EXPECT_LT(0u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
-  EXPECT_TRUE(metadata.lost_events);
 }
 
 }  // namespace perfetto
