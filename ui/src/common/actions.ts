@@ -26,6 +26,7 @@ import {
   SCROLLING_TRACK_GROUP,
   State,
   Status,
+  TargetOs,
   TraceTime,
   TrackState,
   VisibleState,
@@ -46,11 +47,19 @@ function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
   const route = state.route;
+  const androidDeviceConnected = state.androidDeviceConnected;
+  const extensionInstalled = state.extensionInstalled;
+  const availableDevices = state.availableDevices;
+  const chromeCategories = state.chromeCategories;
 
   Object.assign(state, createEmptyState());
   state.nextId = nextId;
   state.recordConfig = recordConfig;
   state.route = route;
+  state.androidDeviceConnected = androidDeviceConnected;
+  state.extensionInstalled = extensionInstalled;
+  state.availableDevices = availableDevices;
+  state.chromeCategories = chromeCategories;
 }
 
 export const StateActions = {
@@ -442,6 +451,8 @@ export const StateActions = {
 
   setAndroidDevice(state: StateDraft, args: {target?: AdbRecordingTarget}):
       void {
+        state.recordConfig.targetOS =
+            args.target ? args.target.os as TargetOs : 'Q';
         state.androidDeviceConnected = args.target;
       },
 
