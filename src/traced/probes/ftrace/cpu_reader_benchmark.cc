@@ -19,6 +19,7 @@
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
+#include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 
@@ -288,9 +289,12 @@ perfetto::ExamplePage g_full_page_sched_switch{
 
 }  // namespace
 
+using perfetto::CompactSchedBundleState;
 using perfetto::CpuReader;
+using perfetto::DisabledCompactSchedConfigForTesting;
 using perfetto::EventFilter;
 using perfetto::ExamplePage;
+using perfetto::FtraceDataSourceConfig;
 using perfetto::FtraceMetadata;
 using perfetto::GetTable;
 using perfetto::GroupAndName;
@@ -300,6 +304,7 @@ using perfetto::protos::pbzero::FtraceEventBundle;
 using protozero::ScatteredStreamWriter;
 using protozero::ScatteredStreamWriterNullDelegate;
 
+// Benchmark for the core logic of the ftrace binary format decoding.
 static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   const ExamplePage* test_case = &g_full_page_sched_switch;
 
@@ -310,14 +315,27 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  EventFilter filter;
-  filter.AddEnabledEvent(
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting()};
+  ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
   while (state.KeepRunning()) {
     writer.Reset(&stream);
-    CpuReader::ParsePage(page.get(), &filter, &writer, table, &metadata);
+
+    CompactSchedBundleState compact_buffer;
+    const uint8_t* parse_pos = page.get();
+    perfetto::base::Optional<CpuReader::PageHeader> page_header =
+        CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+    if (!page_header.has_value())
+      return;
+
+    CpuReader::ParsePagePayload(parse_pos, &page_header.value(), table,
+                                &ds_config, &compact_buffer, &writer,
+                                &metadata);
+
     metadata.Clear();
   }
 }

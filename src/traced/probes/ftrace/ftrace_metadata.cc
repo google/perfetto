@@ -81,7 +81,6 @@ void FtraceMetadata::Clear() {
   inode_and_device.clear();
   pids.clear();
   rename_pids.clear();
-  lost_events = false;
   FinishEvent();
 }
 
