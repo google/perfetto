@@ -797,8 +797,10 @@ function recordingButtons() {
 
   const targetOs = state.recordConfig.targetOS;
   if (isAndroidTarget(targetOs)) {
-    buttons.push(showCmd);
-    if (realDeviceTarget) buttons.push(start);
+    if (!recInProgress) {
+      buttons.push(showCmd);
+      if (realDeviceTarget) buttons.push(start);
+    }
   } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
     buttons.push(start);
   } else if (isLinuxTarget(targetOs)) {
@@ -896,10 +898,11 @@ function recordMenu(routePage: string) {
           m('i.material-icons', 'laptop_chromebook'),
           m('.title', 'Chrome'),
           m('.sub', 'Chrome traces')));
+  const recInProgress = globals.state.recordingInProgress;
 
   return m(
       '.record-menu',
-      {onclick: () => globals.rafScheduler.scheduleFullRedraw()},
+      {class: recInProgress ? 'disabled' : ''},
       m('header', 'Trace config'),
       m('ul',
         m('a[href="#!/record?p=buffers"]',
@@ -975,6 +978,7 @@ export const RecordPage = createPage({
 
     return m(
         '.record-page',
+        globals.state.recordingInProgress ? m('.hider') : [],
         m('.record-container', RecordHeader(), recordMenu(routePage), pages));
   }
 });
