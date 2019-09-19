@@ -21,3 +21,29 @@ perfetto_py_binary(
     main = "tools/gen_merged_sql_metrics.py",
     python_version = "PY2",
 )
+
+perfetto_java_proto_library(
+    name = "protos_perfetto_metrics_java",
+    deps = [
+        ":protos_perfetto_metrics_protos",
+    ],
+)
+
+perfetto_java_proto_library(
+    name = "protos_perfetto_metrics_android_java",
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+    ],
+)
+
+perfetto_gensignature_internal_only(
+    name = "trace_processor_sig",
+    srcs = [
+        ":trace_processor_shell",
+        ":trace_to_text",
+    ],
+    tags = [
+        "__TRACE_PROCESSOR_SIG_TAG1",
+        "__TRACE_PROCESSOR_SIG_TAG2",
+    ],
+)
