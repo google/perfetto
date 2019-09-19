@@ -248,6 +248,8 @@ function main() {
   }
 
   updateAvailableAdbDevices();
+  navigator.usb.addEventListener('connect', updateAvailableAdbDevices);
+  navigator.usb.addEventListener('disconnect', updateAvailableAdbDevices);
 
   // This forwards the messages from the controller to the extension
   extensionLocalChannel.port2.onmessage = ({data}) => {
