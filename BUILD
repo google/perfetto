@@ -754,6 +754,8 @@ filegroup(
         "src/traced/probes/ftrace/atrace_hal_wrapper.h",
         "src/traced/probes/ftrace/atrace_wrapper.cc",
         "src/traced/probes/ftrace/atrace_wrapper.h",
+        "src/traced/probes/ftrace/compact_sched.cc",
+        "src/traced/probes/ftrace/compact_sched.h",
         "src/traced/probes/ftrace/cpu_reader.cc",
         "src/traced/probes/ftrace/cpu_reader.h",
         "src/traced/probes/ftrace/cpu_stats_parser.cc",
