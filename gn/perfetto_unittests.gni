@@ -22,12 +22,14 @@ perfetto_unittests_targets = [
   "src/tracing:unittests",
 ]
 
-if (enable_perfetto_tools) {
-  perfetto_unittests_targets += [
-    "tools/ftrace_proto_gen:unittests",
-    "tools/sanitizers_unittests",
-  ]
+if (enable_perfetto_tools && current_toolchain == host_toolchain) {
+  perfetto_unittests_targets += [ "tools/ftrace_proto_gen:unittests" ]
 }
+
+# TODO(primiano): sanitizers_unittests shouldn't really be under tools. It's
+# not a tool and it's intended to run on both host and targets to check that
+# sanitizers are actually working.
+perfetto_unittests_targets += [ "tools/sanitizers_unittests" ]
 
 if (enable_perfetto_ipc) {
   perfetto_unittests_targets += [ "src/ipc:unittests" ]
