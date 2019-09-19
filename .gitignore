@@ -12,6 +12,7 @@
 *.iml
 *.pyc
 *.swp
+/bazel-*
 /out*
 TAGS
 /node_modules/
