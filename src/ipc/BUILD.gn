@@ -30,6 +30,7 @@ source_set("ipc") {
   ]
   deps = [
     "../../gn:default_deps",
+    "../../gn:protobuf_lite",
     "../../protos/perfetto/ipc:wire_protocol",
     "../base",
   ]
@@ -85,4 +86,13 @@ ipc_library("test_messages") {
   ]
   proto_in_dir = perfetto_root_path
   proto_out_dir = perfetto_root_path
+}
+
+# This is used by Bazel BUILD rules.
+static_library("perfetto_ipc") {
+  complete_static_lib = true
+  deps = [
+    ":ipc",
+    "../../gn:default_deps",
+  ]
 }
