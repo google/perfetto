@@ -390,8 +390,8 @@ export const StateActions = {
         {kind: 'HEAP_DUMP', id: args.id, upid: args.upid, ts: args.ts};
   },
 
-  selectChromeSlice(state: StateDraft, args: {slice_id: number}): void {
-    state.currentSelection = {kind: 'CHROME_SLICE', id: args.slice_id};
+  selectChromeSlice(state: StateDraft, args: {id: number}): void {
+    state.currentSelection = {kind: 'CHROME_SLICE', id: args.id};
   },
 
   selectTimeSpan(
