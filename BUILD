@@ -159,7 +159,6 @@ perfetto_cc_library(
         ":protos_perfetto_ipc_ipc",
         ":protos_perfetto_ipc_wire_protocol",
         ":protos_perfetto_trace_android_zero",
-        ":protos_perfetto_trace_appended_data_zero",
         ":protos_perfetto_trace_chrome_zero",
         ":protos_perfetto_trace_filesystem_zero",
         ":protos_perfetto_trace_ftrace_zero",
@@ -1239,14 +1238,6 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/appended_data:lite
-perfetto_cc_proto_library(
-    name = "protos_perfetto_trace_appended_data_lite",
-    deps = [
-        ":protos_perfetto_trace_appended_data_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/power:zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_power_zero",
@@ -1319,17 +1310,6 @@ perfetto_cc_proto_library(
     name = "protos_perfetto_config_process_stats_lite",
     deps = [
         ":protos_perfetto_config_process_stats_protos",
-    ],
-)
-
-# GN target: //protos/perfetto/trace/appended_data:zero
-perfetto_proto_library(
-    name = "protos_perfetto_trace_appended_data_protos",
-    srcs = [
-        "protos/perfetto/trace/appended_data/appended_data.proto",
-    ],
-    deps = [
-        ":protos_perfetto_trace_profiling_protos",
     ],
 )
 
@@ -1820,14 +1800,6 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/appended_data:zero
-perfetto_cc_protozero_library(
-    name = "protos_perfetto_trace_appended_data_zero",
-    deps = [
-        ":protos_perfetto_trace_appended_data_protos",
-    ],
-)
-
 # GN target: //protos/third_party/pprof:lite
 perfetto_cc_proto_library(
     name = "protos_third_party_pprof_lite",
@@ -1921,7 +1893,6 @@ perfetto_proto_library(
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_trace_android_protos",
-        ":protos_perfetto_trace_appended_data_protos",
         ":protos_perfetto_trace_chrome_protos",
         ":protos_perfetto_trace_filesystem_protos",
         ":protos_perfetto_trace_ftrace_protos",
@@ -1994,7 +1965,6 @@ perfetto_cc_binary(
                ":protos_perfetto_ipc_ipc",
                ":protos_perfetto_ipc_wire_protocol",
                ":protos_perfetto_trace_android_zero",
-               ":protos_perfetto_trace_appended_data_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
@@ -2052,7 +2022,6 @@ perfetto_cc_library(
                ":protos_perfetto_metrics_android_zero",
                ":protos_perfetto_metrics_zero",
                ":protos_perfetto_trace_android_zero",
-               ":protos_perfetto_trace_appended_data_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
@@ -2113,7 +2082,6 @@ perfetto_cc_binary(
                ":protos_perfetto_metrics_android_zero",
                ":protos_perfetto_metrics_zero",
                ":protos_perfetto_trace_android_zero",
-               ":protos_perfetto_trace_appended_data_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
@@ -2220,8 +2188,6 @@ perfetto_cc_library(
                ":protos_perfetto_metrics_zero",
                ":protos_perfetto_trace_android_lite",
                ":protos_perfetto_trace_android_zero",
-               ":protos_perfetto_trace_appended_data_lite",
-               ":protos_perfetto_trace_appended_data_zero",
                ":protos_perfetto_trace_chrome_lite",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_filesystem_lite",
@@ -2311,8 +2277,6 @@ perfetto_cc_binary(
                ":protos_perfetto_metrics_zero",
                ":protos_perfetto_trace_android_lite",
                ":protos_perfetto_trace_android_zero",
-               ":protos_perfetto_trace_appended_data_lite",
-               ":protos_perfetto_trace_appended_data_zero",
                ":protos_perfetto_trace_chrome_lite",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_filesystem_lite",
