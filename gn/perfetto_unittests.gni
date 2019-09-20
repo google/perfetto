@@ -29,7 +29,10 @@ if (enable_perfetto_tools && current_toolchain == host_toolchain) {
 # TODO(primiano): sanitizers_unittests shouldn't really be under tools. It's
 # not a tool and it's intended to run on both host and targets to check that
 # sanitizers are actually working.
-perfetto_unittests_targets += [ "tools/sanitizers_unittests" ]
+if (is_linux || is_android) {
+  # This test depends on pthread and can't run on non-Linux-based OS.
+  perfetto_unittests_targets += [ "tools/sanitizers_unittests" ]
+}
 
 if (enable_perfetto_ipc) {
   perfetto_unittests_targets += [ "src/ipc:unittests" ]
