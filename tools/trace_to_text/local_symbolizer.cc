@@ -193,7 +193,8 @@ base::Optional<std::string> LocalBinaryFinder::FindBinary(
     if (cache_entry)
       return cache_entry;
   }
-  PERFETTO_ELOG("Could not find %s.", abspath.c_str());
+  PERFETTO_ELOG("Could not find %s (Build ID: %s).", abspath.c_str(),
+                base::ToHex(build_id).c_str());
   return cache_entry;
 }
 
