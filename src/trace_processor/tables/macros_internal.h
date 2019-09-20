@@ -268,7 +268,11 @@ class MacroTable : public Table {
       return id;                                                              \
     }                                                                         \
                                                                               \
-    const TypedColumn<StringPool::Id>& type() {                               \
+    const Column& id() const {                                                \
+      return columns_[static_cast<uint32_t>(ColumnIndex::id)];                \
+    }                                                                         \
+                                                                              \
+    const TypedColumn<StringPool::Id>& type() const {                         \
       return static_cast<const TypedColumn<StringPool::Id>&>(                 \
           columns_[static_cast<uint32_t>(ColumnIndex::type)]);                \
     }                                                                         \

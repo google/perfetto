@@ -31,14 +31,34 @@ namespace tables {
 
 PERFETTO_TP_TABLE(PERFETTO_TP_TRACK_TABLE_DEF);
 
-#define PERFETTO_TP_GPU_TRACKS_DEF(NAME, PARENT, C) \
-  NAME(GpuTrackTable, "gpu_track")                  \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                 \
-  C(uint32_t, track_id)                             \
-  C(StringPool::Id, scope)                          \
+#define PERFETTO_TP_CHROME_SCOPED_TRACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ChromeScopedTrackTable, "chrome_scoped_track")              \
+  PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)                           \
+  C(base::Optional<uint32_t>, upid)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CHROME_SCOPED_TRACK_TABLE_DEF);
+
+#define PERFETTO_TP_CHROME_ASYNC_TRACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ChromeAsyncTrackTable, "chrome_async_track")               \
+  PARENT(PERFETTO_TP_CHROME_SCOPED_TRACK_TABLE_DEF, C)            \
+  C(int64_t, async_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CHROME_ASYNC_TRACK_TABLE_DEF);
+
+#define PERFETTO_TP_FUCHSIA_ASYNC_TRACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(FuchsiaAsyncTrackTable, "fuchsia_async_track")              \
+  PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)                           \
+  C(int64_t, correlation_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_FUCHSIA_ASYNC_TRACK_TABLE_DEF);
+
+#define PERFETTO_TP_GPU_TRACK_DEF(NAME, PARENT, C) \
+  NAME(GpuTrackTable, "gpu_track")                 \
+  PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)           \
+  C(StringPool::Id, scope)                         \
   C(base::Optional<int64_t>, context_id)
 
-PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACKS_DEF);
+PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACK_DEF);
 
 }  // namespace tables
 }  // namespace trace_processor

@@ -78,13 +78,6 @@ static const ArgSetId kInvalidArgSetId = 0;
 
 using TrackId = uint32_t;
 
-enum class VirtualTrackScope : uint8_t {
-  // VirtualTrack with global scope, will not have a |upid| set.
-  kGlobal = 0,
-  // VirtualTrack associated with a specific process via |upid|.
-  kProcess = 1
-};
-
 enum RefType {
   kRefNoRef = 0,
   kRefUtid = 1,
@@ -233,39 +226,6 @@ class TraceStorage {
 
    private:
     std::deque<StringId> names_;
-  };
-
-  class VirtualTracks {
-   public:
-    inline void AddVirtualTrack(TrackId track_id,
-                                VirtualTrackScope scope,
-                                UniquePid upid = 0u) {
-      track_ids_.emplace_back(track_id);
-      scopes_.emplace_back(scope);
-      upids_.emplace_back(upid);
-    }
-
-    uint32_t virtual_track_count() const {
-      return static_cast<uint32_t>(track_ids_.size());
-    }
-
-    base::Optional<uint32_t> FindRowForTrackId(uint32_t track_id) const {
-      auto it =
-          std::lower_bound(track_ids().begin(), track_ids().end(), track_id);
-      if (it != track_ids().end() && *it == track_id) {
-        return static_cast<uint32_t>(std::distance(track_ids().begin(), it));
-      }
-      return base::nullopt;
-    }
-
-    const std::deque<uint32_t>& track_ids() const { return track_ids_; }
-    const std::deque<VirtualTrackScope>& scopes() const { return scopes_; }
-    const std::deque<UniquePid>& upids() const { return upids_; }
-
-   private:
-    std::deque<uint32_t> track_ids_;
-    std::deque<VirtualTrackScope> scopes_;
-    std::deque<UniquePid> upids_;
   };
 
   class GpuContexts {
@@ -1181,8 +1141,19 @@ class TraceStorage {
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
 
-  const VirtualTracks& virtual_tracks() const { return virtual_tracks_; }
-  VirtualTracks* mutable_virtual_tracks() { return &virtual_tracks_; }
+  const tables::ChromeAsyncTrackTable& chrome_async_track_table() const {
+    return chrome_async_track_table_;
+  }
+  tables::ChromeAsyncTrackTable* mutable_chrome_async_track_table() {
+    return &chrome_async_track_table_;
+  }
+
+  const tables::FuchsiaAsyncTrackTable& fuchsia_async_track_table() const {
+    return fuchsia_async_track_table_;
+  }
+  tables::FuchsiaAsyncTrackTable* mutable_fuchsia_async_track_table() {
+    return &fuchsia_async_track_table_;
+  }
 
   const Slices& slices() const { return slices_; }
   Slices* mutable_slices() { return &slices_; }
@@ -1319,12 +1290,15 @@ class TraceStorage {
 
   // Metadata for tracks.
   tables::TrackTable track_table_{&string_pool_, nullptr};
-
-  // Metadata for virtual slice tracks.
-  VirtualTracks virtual_tracks_;
+  tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
+  tables::FuchsiaAsyncTrackTable fuchsia_async_track_table_{&string_pool_,
+                                                            &track_table_};
+  tables::ChromeScopedTrackTable chrome_scoped_track_table_{&string_pool_,
+                                                            &track_table_};
+  tables::ChromeAsyncTrackTable chrome_async_track_table_{
+      &string_pool_, &chrome_scoped_track_table_};
 
   // Metadata for gpu tracks.
-  tables::GpuTrackTable gpu_track_table_{&string_pool_, nullptr};
   GpuContexts gpu_contexts_;
 
   // One entry for each CPU in the trace.
