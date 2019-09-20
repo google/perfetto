@@ -25,7 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
-#include "src/trace_processor/graphics_frame_event_parser.h"
+#include "src/trace_processor/graphics_event_parser.h"
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
@@ -133,8 +133,6 @@ class ProtoTraceParser : public TraceParser {
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
-  void ParseGpuCounterEvent(int64_t ts, ConstBytes);
-  void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
   void ParseLogMessage(ConstBytes,
                        ProtoIncrementalState::PacketSequenceState*,
@@ -149,7 +147,7 @@ class ProtoTraceParser : public TraceParser {
 
  private:
   TraceProcessorContext* context_;
-  std::unique_ptr<GraphicsFrameEventParser> graphics_frame_event_parser_;
+  std::unique_ptr<GraphicsEventParser> graphics_event_parser_;
 
   const StringId utid_name_id_;
   const StringId sched_wakeup_name_id_;
@@ -212,9 +210,6 @@ class ProtoTraceParser : public TraceParser {
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> rss_members_;
   std::vector<StringId> power_rails_strs_id_;
-  std::unordered_map<uint32_t, const TraceStorage::CounterDefinitions::Id> gpu_counter_ids_;
-  std::vector<StringId> gpu_hw_queue_ids_;
-  std::vector<StringId> gpu_render_stage_ids_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).

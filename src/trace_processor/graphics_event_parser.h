@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_GRAPHICS_FRAME_EVENT_PARSER_H_
-#define SRC_TRACE_PROCESSOR_GRAPHICS_FRAME_EVENT_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_GRAPHICS_EVENT_PARSER_H_
+#define SRC_TRACE_PROCESSOR_GRAPHICS_EVENT_PARSER_H_
 
 #include <vector>
 
@@ -27,37 +27,34 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-// Class for parsing GraphicFrameEvents.
-class GraphicsFrameEventParser {
+// Class for parsing graphics related events.
+class GraphicsEventParser {
  public:
-  explicit GraphicsFrameEventParser(TraceProcessorContext*);
-  ~GraphicsFrameEventParser();
+  using ConstBytes = protozero::ConstBytes;
+  explicit GraphicsEventParser(TraceProcessorContext*);
+  ~GraphicsEventParser();
 
-  void ParseEvent(int64_t timestamp, protozero::ConstBytes);
+  void ParseGpuCounterEvent(int64_t ts, ConstBytes);
+  void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
+  void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
+  // For GpuCounterEvent
+  std::unordered_map<uint32_t, const TraceStorage::CounterDefinitions::Id>
+      gpu_counter_ids_;
+  // For GpuRenderStageEvent
+  std::vector<StringId> gpu_hw_queue_ids_;
+  std::vector<StringId> gpu_render_stage_ids_;
+  // For GraphicsFrameEvent
   const StringId graphics_event_scope_id_;
-  const StringId unspecified_event_name_id_;
-  const StringId dequeue_name_id_;
-  const StringId queue_name_id_;
-  const StringId post_name_id_;
-  const StringId acquire_name_id_;
-  const StringId latch_name_id_;
-  const StringId hwc_composition_queued_name_id_;
-  const StringId fallback_composition_name_id_;
-  const StringId present_name_id_;
-  const StringId release_name_id_;
-  const StringId modify_name_id_;
   const StringId unknown_event_name_id_;
   const StringId no_layer_name_name_id_;
   const StringId layer_name_key_id_;
-  const StringId frame_number_key_id_;
-
   std::array<StringId, 11> event_type_name_ids_;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_GRAPHICS_FRAME_EVENT_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_GRAPHICS_EVENT_PARSER_H_
