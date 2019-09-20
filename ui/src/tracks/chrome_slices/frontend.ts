@@ -81,7 +81,7 @@ class ChromeSliceTrack extends Track<Config, Data> {
       const tEnd = data.ends[i];
       const depth = data.depths[i];
       const titleId = data.titles[i];
-      const sliceId = data.slice_ids[i];
+      const sliceId = data.sliceIds[i];
       const title = data.strings[titleId];
       if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
         continue;
@@ -157,9 +157,9 @@ class ChromeSliceTrack extends Track<Config, Data> {
     if (sliceIndex === undefined) return false;
     const data = this.data();
     if (data === undefined) return false;
-    const sliceId = data.slice_ids[sliceIndex];
+    const sliceId = data.sliceIds[sliceIndex];
     if (sliceId) {
-      globals.makeSelection(Actions.selectChromeSlice({slice_id: sliceId}));
+      globals.makeSelection(Actions.selectChromeSlice({id: sliceId}));
       return true;
     }
     return false;
