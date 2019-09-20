@@ -269,7 +269,7 @@ export class AdbOverWebUsb implements Adb {
 
     return new Promise<string>((resolve, _) => {
       const output: string[] = [];
-      shell.onData = (str, _) => output.push(str);
+      shell.onData = raw => output.push(textDecoder.decode(raw));
       shell.onClose = () => resolve(output.join());
     });
   }
@@ -370,7 +370,7 @@ export class AdbStreamImpl implements AdbStream {
 
   private sendInProgress = false;
 
-  onData: AdbStreamReadCallback = (_, __) => {};
+  onData: AdbStreamReadCallback = (_) => {};
   onConnect = () => {};
   onClose = () => {};
 
@@ -422,7 +422,7 @@ export class AdbStreamImpl implements AdbStream {
 
     if (msg.cmd === 'WRTE') {
       this.adb.send('OKAY', this.localStreamId, this.remoteStreamId);
-      this.onData(msg.dataStr, msg.data);
+      this.onData(msg.data);
       return;
     }
 
@@ -444,7 +444,7 @@ export class AdbStreamImpl implements AdbStream {
 }
 
 interface AdbStreamReadCallback {
-  (str: string, raw: Uint8Array): void;
+  (raw: Uint8Array): void;
 }
 
 const ADB_MSG_SIZE = 6 * 4;  // 6 * int32.

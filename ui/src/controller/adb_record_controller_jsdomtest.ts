@@ -14,6 +14,7 @@
 
 import {dingus} from 'dingusjs';
 
+import {stringToUint8Array} from '../base/string_utils';
 import {perfetto} from '../gen/protos';
 import {AdbStream, MockAdb, MockAdbStream} from './adb_interfaces';
 import {AdbConsumerPort} from './adb_record_controller';
@@ -93,7 +94,7 @@ test('enableTracing', async () => {
   expect(sendMessage).toHaveBeenCalledTimes(0);
 
 
-  stream.onData('starting tracing Wrote 123 bytes', mockIntArray);
+  stream.onData(stringToUint8Array('starting tracing Wrote 123 bytes'));
   stream.onClose();
 
   expect(adbController.sendErrorMessage).toHaveBeenCalledTimes(0);
