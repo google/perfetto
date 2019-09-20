@@ -102,10 +102,9 @@ StackProfileTracker::SourceMapping MakeSourceMapping(
   src_mapping.start = entry.start();
   src_mapping.end = entry.end();
   src_mapping.load_bias = entry.load_bias();
-  src_mapping.name_id = 0;
   for (auto path_string_id_it = entry.path_string_ids(); path_string_id_it;
        ++path_string_id_it)
-    src_mapping.name_id = path_string_id_it->as_uint32();
+    src_mapping.name_ids.emplace_back(path_string_id_it->as_uint32());
   return src_mapping;
 }
 
@@ -129,25 +128,22 @@ StackProfileTracker::SourceCallstack MakeSourceCallstack(
 class ProfilePacketInternLookup : public StackProfileTracker::InternLookup {
  public:
   ProfilePacketInternLookup(
-      ProtoIncrementalState::PacketSequenceState* seq_state,
-      TraceStorage* storage)
-      : seq_state_(seq_state), storage_(storage) {}
+      ProtoIncrementalState::PacketSequenceState* seq_state)
+      : seq_state_(seq_state) {}
 
-  base::Optional<StringId> GetString(
+  base::Optional<base::StringView> GetString(
       StackProfileTracker::SourceStringId iid) const override {
-    base::Optional<StringId> res;
     auto* map =
         seq_state_->GetInternedDataMap<protos::pbzero::InternedString>();
     auto it = map->find(iid);
     if (it == map->end()) {
       PERFETTO_DLOG("Did not find string %" PRIu64 " in %zu elems", iid,
                     map->size());
-      return res;
+      return base::nullopt;
     }
     auto entry = it->second.CreateDecoder();
-    const char* str = reinterpret_cast<const char*>(entry.str().data);
-    res = storage_->InternString(base::StringView(str, entry.str().size));
-    return res;
+    return base::StringView(reinterpret_cast<const char*>(entry.str().data),
+                            entry.str().size);
   }
 
   base::Optional<StackProfileTracker::SourceMapping> GetMapping(
@@ -197,7 +193,6 @@ class ProfilePacketInternLookup : public StackProfileTracker::InternLookup {
 
  private:
   ProtoIncrementalState::PacketSequenceState* seq_state_;
-  TraceStorage* storage_;
 };
 
 namespace {
@@ -1453,9 +1448,8 @@ void ProtoTraceParser::ParseProfilePacket(
     protos::pbzero::InternedString::Decoder entry(it->data(), it->size());
 
     const char* str = reinterpret_cast<const char*>(entry.str().data);
-    auto str_id = context_->storage->InternString(
-        base::StringView(str, entry.str().size));
-    context_->stack_profile_tracker->AddString(entry.iid(), str_id);
+    auto str_view = base::StringView(str, entry.str().size);
+    context_->stack_profile_tracker->AddString(entry.iid(), str_view);
   }
 
   for (auto it = packet.mappings(); it; ++it) {
@@ -1511,8 +1505,7 @@ void ProtoTraceParser::ParseProfilePacket(
   }
   if (!packet.continued()) {
     PERFETTO_CHECK(sequence_state);
-    ProfilePacketInternLookup intern_lookup(sequence_state,
-                                            context_->storage.get());
+    ProfilePacketInternLookup intern_lookup(sequence_state);
     context_->heap_profile_tracker->FinalizeProfile(&intern_lookup);
   }
 }
@@ -1526,7 +1519,7 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
   TraceStorage* storage = context_->storage.get();
   StackProfileTracker* stack_profile_tracker =
       context_->stack_profile_tracker.get();
-  ProfilePacketInternLookup intern_lookup(sequence_state, storage);
+  ProfilePacketInternLookup intern_lookup(sequence_state);
 
   uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
   uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
@@ -1572,8 +1565,7 @@ void ProtoTraceParser::ParseAppendedData(
 void ProtoTraceParser::ParseProfiledFrameSymbols(
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     const protos::pbzero::AppendedData::Decoder& appended_data) {
-  ProfilePacketInternLookup intern_lookup(sequence_state,
-                                          context_->storage.get());
+  ProfilePacketInternLookup intern_lookup(sequence_state);
 
   // Create symbol table entries
   for (auto symbol_it = appended_data.profiled_frame_symbols(); symbol_it;
@@ -1593,7 +1585,7 @@ void ProtoTraceParser::ParseProfiledFrameSymbols(
       }
       tables::SymbolTable::Row row;
       row.symbol_set_id = symbol_set_id;
-      row.name = *maybe_string_id;
+      row.name = context_->storage->InternString(*maybe_string_id);
       context_->storage->mutable_symbol_table()->Insert(row);
     }
     // Map frame to symbol table entries
