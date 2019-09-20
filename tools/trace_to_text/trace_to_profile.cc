@@ -22,14 +22,14 @@
 #ifndef PERFETTO_NOLOCALSYMBOLIZE
 #include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
 #endif
-#include "tools/trace_to_text/pprof_builder.h"
-#include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/profiling/pprof_builder.h"
+#include "perfetto/profiling/symbolizer.h"
 
 namespace {
 

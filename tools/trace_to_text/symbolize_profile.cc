@@ -19,12 +19,12 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/profiling/symbolizer.h"
 
 #ifndef PERFETTO_NOLOCALSYMBOLIZE
 #include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
 #endif
 
-#include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/trace_symbol_table.h"
 #include "tools/trace_to_text/utils.h"
 

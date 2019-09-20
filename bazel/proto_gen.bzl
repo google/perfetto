@@ -35,7 +35,11 @@ def _proto_gen_impl(ctx):
         # This path is hit in Google internal builds, where root is typically
         # //third_party/perfetto.
         proto_path = "."
-        strip_base_path = ctx.attr.root[2:] + "/"  # -> third_party/perfetto/
+
+        # The below will likely be //third_party/perfetto/ but may also be any
+        # subdir under //third_party/perfetto.
+        last_slash_idx = ctx.build_file_path.rfind("/")
+        strip_base_path = ctx.build_file_path[:last_slash_idx + 1]
     elif ctx.label.workspace_root:
         # This path is hit when proto targets are built as @perfetto//:xxx
         # instead of //:xxx. This happens in embedder builds. In this case,
