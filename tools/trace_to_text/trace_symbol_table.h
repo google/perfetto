@@ -19,8 +19,8 @@
 
 #include <iostream>
 
+#include "perfetto/profiling/symbolizer.h"
 #include "tools/trace_to_text/profile_visitor.h"
-#include "tools/trace_to_text/symbolizer.h"
 
 namespace perfetto {
 namespace trace_to_text {
