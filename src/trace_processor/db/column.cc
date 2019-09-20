@@ -27,6 +27,7 @@ Column::Column(const Column& column,
                uint32_t row_map_idx)
     : Column(column.name_,
              column.type_,
+             column.flags_,
              table,
              col_idx,
              row_map_idx,
@@ -34,6 +35,7 @@ Column::Column(const Column& column,
 
 Column::Column(const char* name,
                ColumnType type,
+               uint32_t flags,
                Table* table,
                uint32_t col_idx,
                uint32_t row_map_idx,
@@ -41,17 +43,19 @@ Column::Column(const char* name,
     : type_(type),
       sparse_vector_(sparse_vector),
       name_(name),
+      flags_(flags),
       table_(table),
       col_idx_(col_idx),
       row_map_idx_(row_map_idx),
       string_pool_(table->string_pool_) {}
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
-  return Column("id", ColumnType::kId, table, col_idx, row_map_idx, nullptr);
+  return Column("id", ColumnType::kId, Flag::kId | Flag::kSorted, table,
+                col_idx, row_map_idx, nullptr);
 }
 
 void Column::FilterInto(FilterOp op, SqlValue value, RowMap* iv) const {
-  // Assume op == kEq.
+  // TODO(lalitm): add special logic here to deal with kId and kSorted flags.
   switch (op) {
     case FilterOp::kLt:
       iv->RemoveIf([this, value](uint32_t row) { return Get(row) >= value; });
