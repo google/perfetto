@@ -111,7 +111,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       strings: [],
-      slice_ids: new Float64Array(numRows),
+      sliceIds: new Float64Array(numRows),
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       depths: new Uint16Array(numRows),
@@ -137,7 +137,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.depths[row] = +cols[2].longValues![row];
       slices.categories[row] = internString(cols[3].stringValues![row]);
       slices.titles[row] = internString(cols[4].stringValues![row]);
-      slices.slice_ids[row] = +cols[5].longValues![row];
+      slices.sliceIds[row] = +cols[5].longValues![row];
     }
     return slices;
   }
