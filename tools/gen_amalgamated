@@ -56,7 +56,7 @@ gn_args = ' '.join([
 # inlcude each other but rely on forward declarations. The alternative would
 # be adding each proto sub-target individually (e.g. //proto/trace/gpu:zero),
 # but doing that is unmaintainable.
-recurse_in_header_deps = '^//protos/.*'
+recurse_in_header_deps = '^//protos/.*zero$'
 
 # Compiler flags which aren't filtered out.
 cflag_whitelist = r'^-(W.*|fno-exceptions|fPIC|std.*|fvisibility.*)$'
