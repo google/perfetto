@@ -98,6 +98,7 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
       this.traceProtoWriter = protobuf.Writer.create();
       this.state = State.BOUND;
     }
+
     console.assert(this.state === State.BOUND);
 
     for (const cmd of this.commandQueue) this.invoke(cmd.method, cmd.params);
@@ -137,7 +138,8 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
 
   async listenForMessages() {
     this.socket = await this.adb.socket('/dev/socket/traced_consumer');
-    this.socket.onData = (_str, newData) => this.handleReceivedData(newData);
+
+    this.socket.onData = newData => this.handleReceivedData(newData);
     this.socket.onClose = () => {
       this.state = State.DISCONNECTED;
       this.commandQueue = [];
