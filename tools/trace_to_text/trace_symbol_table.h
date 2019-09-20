@@ -36,7 +36,6 @@ class TraceSymbolTable : public ProfileVisitor {
       const protos::ProfiledFrameSymbols& symbol) override;
 
   const std::vector<SymbolizedFrame>* Get(uint64_t frame_iid) const;
-  void WriteResult(std::ostream* output, uint32_t seq_id) const;
   // Call Finalize before using Get or WriteResult.
   bool Finalize();
 
