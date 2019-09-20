@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/pprof_builder.h"
+#include "perfetto/profiling/pprof_builder.h"
 
 #include <cxxabi.h>
 #include <inttypes.h>
@@ -26,12 +26,12 @@
 #include <vector>
 
 #include "tools/trace_to_text/profile_visitor.h"
-#include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/trace_symbol_table.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/profiling/symbolizer.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pb.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pb.h"

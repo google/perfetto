@@ -81,6 +81,7 @@ source_set("symbolizer") {
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
+    "../../include/perfetto/profiling:symbolizer",
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
@@ -89,7 +90,6 @@ source_set("symbolizer") {
   ]
   sources = [
     "symbolizer.cc",
-    "symbolizer.h",
     "trace_symbol_table.cc",
     "trace_symbol_table.h",
   ]
@@ -101,6 +101,7 @@ source_set("pprofbuilder") {
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
+    "../../include/perfetto/profiling:symbolizer",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/profiling:lite",
     "../../protos/third_party/pprof:lite",
@@ -109,7 +110,6 @@ source_set("pprofbuilder") {
   ]
   sources = [
     "pprof_builder.cc",
-    "pprof_builder.h",
   ]
 }
 
