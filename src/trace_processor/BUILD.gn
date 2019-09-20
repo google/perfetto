@@ -159,10 +159,10 @@ source_set("lib") {
     "trace_sorter.h",
     "trace_storage.cc",
     "trace_storage.h",
+    "track_tracker.cc",
+    "track_tracker.h",
     "variadic.h",
     "virtual_destructors.cc",
-    "virtual_track_tracker.cc",
-    "virtual_track_tracker.h",
     "window_operator_table.cc",
     "window_operator_table.h",
   ]

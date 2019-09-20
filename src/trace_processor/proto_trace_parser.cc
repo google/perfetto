@@ -38,8 +38,8 @@
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/track_tracker.h"
 #include "src/trace_processor/variadic.h"
-#include "src/trace_processor/virtual_track_tracker.h"
 
 #include "perfetto/ext/base/string_writer.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
@@ -1716,17 +1716,14 @@ void ProtoTraceParser::ParseTrackEvent(
 
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
-  int64_t id = 0;
-  VirtualTrackScope vtrack_scope = VirtualTrackScope::kGlobal;
-  UniquePid vtrack_upid = 0;
+  tables::ChromeAsyncTrackTable::Row track(name_id);
   if (legacy_event.has_unscoped_id()) {
-    id = static_cast<int64_t>(legacy_event.unscoped_id());
+    track.async_id = static_cast<int64_t>(legacy_event.unscoped_id());
   } else if (legacy_event.has_global_id()) {
-    id = static_cast<int64_t>(legacy_event.global_id());
+    track.async_id = static_cast<int64_t>(legacy_event.global_id());
   } else if (legacy_event.has_local_id()) {
-    id = static_cast<int64_t>(legacy_event.local_id());
-    vtrack_scope = VirtualTrackScope::kProcess;
-    vtrack_upid = procs->GetOrCreateProcess(pid);
+    track.upid = procs->GetOrCreateProcess(pid);
+    track.async_id = static_cast<int64_t>(legacy_event.local_id());
   }
 
   StringId id_scope = 0;
@@ -1841,8 +1838,8 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
-      TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
-          {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
+      TrackId track_id =
+          context_->track_tracker->InternChromeAsyncTrack(track, id_scope);
       auto opt_slice_id =
           slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
                                name_id, args_callback);
@@ -1860,8 +1857,8 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
-      TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
-          {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
+      TrackId track_id =
+          context_->track_tracker->InternChromeAsyncTrack(track, id_scope);
       auto opt_slice_id =
           slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id,
                              name_id, args_callback);
@@ -1877,8 +1874,8 @@ void ProtoTraceParser::ParseTrackEvent(
       // nested underneath their parent slices.
       int64_t duration_ns = 0;
       int64_t tidelta = 0;
-      TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
-          {vtrack_scope, vtrack_upid, id, id_scope}, name_id);
+      TrackId track_id =
+          context_->track_tracker->InternChromeAsyncTrack(track, id_scope);
       auto opt_slice_id =
           slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
                                 name_id, duration_ns, args_callback);
