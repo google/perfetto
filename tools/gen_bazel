@@ -67,6 +67,7 @@ default_targets = [
 
 # Root proto targets (to force discovery of intermediate proto targets).
 proto_targets = [
+    '//protos/perfetto/trace:merged_trace',
     '//protos/perfetto/metrics:lite',
     '//protos/perfetto/trace:lite',
     '//protos/perfetto/config:lite',
