@@ -27,11 +27,11 @@ export interface Adb {
 export interface AdbStream {
   write(msg: string|Uint8Array): Promise<void>;
   onMessage(message: AdbMsg): void;
-  onData: (str: string, raw: Uint8Array) => void;
   close(): void;
 
   onConnect: VoidCallback;
   onClose: VoidCallback;
+  onData: (raw: Uint8Array) => void;
 }
 
 export class MockAdb implements Adb {
@@ -57,14 +57,15 @@ export class MockAdb implements Adb {
 }
 
 export class MockAdbStream implements AdbStream {
-  onData = (_: string, __: Uint8Array) => {};
-  onConnect = () => {};
-  onClose = () => {};
-  onMessage = (_: AdbMsg) => {};
-  close() {}
   write(_: string|Uint8Array): Promise<void> {
     return Promise.resolve();
   }
+  onMessage = (_: AdbMsg) => {};
+  close() {}
+
+  onConnect = () => {};
+  onClose = () => {};
+  onData = (_: Uint8Array) => {};
 }
 
 export declare type CmdType =

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {_TextDecoder} from 'custom_utils';
 import {uint8ArrayToBase64} from '../base/string_utils';
 
 import {Adb, AdbStream} from './adb_interfaces';
@@ -29,6 +30,7 @@ enum AdbState {
   FETCHING
 }
 const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace';
+const textDecoder = new _TextDecoder();
 
 export class AdbConsumerPort extends RpcConsumerPort {
   // public for testing
@@ -96,7 +98,7 @@ export class AdbConsumerPort extends RpcConsumerPort {
     const recordCommand = this.generateStartTracingCommand(configProto);
     this.recordShell = await this.adb.shell(recordCommand);
     const output: string[] = [];
-    this.recordShell.onData = (str, _) => output.push(str);
+    this.recordShell.onData = raw => output.push(textDecoder.decode(raw));
     this.recordShell.onClose = () => {
       const response = output.join();
       if (!this.tracingEndedSuccessfully(response)) {
@@ -126,24 +128,12 @@ export class AdbConsumerPort extends RpcConsumerPort {
 
     const readTraceShell =
         await this.adb.shell(this.generateReadTraceCommand());
-    let trace = '';
-    readTraceShell.onData = (str, _) => {
-      // TODO(nicomazz): Since we are using base64, we can't decode the chunks
-      // as they are received (without further base64 stream decoding
-      // implementations). After the investigation about why without base64
-      // things are not working, the chunks should be sent as they are received,
-      // like in the following line.
-      // this.sendMessage(this.generateChunkReadResponse(str));
-      // EDIT: we should send back a response as if it was a real
-      // ReadBufferResponse, with trace packets. Here we are only sending the
-      // trace split in several pieces.
-      trace += str;
-    };
-    readTraceShell.onClose = () => {
-      const decoded = atob(trace.replace(/\n/g, ''));
+    readTraceShell.onData = raw =>
+        this.sendMessage(this.generateChunkReadResponse(raw));
 
+    readTraceShell.onClose = () => {
       this.sendMessage(
-          this.generateChunkReadResponse(decoded, /* last */ true));
+          this.generateChunkReadResponse(new Uint8Array(), /* last */ true));
       this.adb.disconnect();
       this.state = AdbState.READY;
     };
@@ -172,16 +162,16 @@ export class AdbConsumerPort extends RpcConsumerPort {
     console.assert(killOutput.length === 0);
   }
 
-  generateChunkReadResponse(data: string, last = false): ReadBuffersResponse {
+  generateChunkReadResponse(data: Uint8Array, last = false):
+      ReadBuffersResponse {
     return {
       type: 'ReadBuffersResponse',
-      slices: [{data: data as unknown as Uint8Array, lastSliceForPacket: last}]
+      slices: [{data, lastSliceForPacket: last}]
     };
   }
 
   generateReadTraceCommand(): string {
-    // TODO(nicomazz): Investigate why without base64 things break.
-    return `cat ${this.traceDestFile} | gzip | base64`;
+    return `gzip -c ${this.traceDestFile}`;
   }
 
   generateStartTracingCommand(tracingConfig: Uint8Array) {
