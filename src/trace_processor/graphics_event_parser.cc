@@ -21,7 +21,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/virtual_track_tracker.h"
+#include "src/trace_processor/track_tracker.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
@@ -260,13 +260,9 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   const uint32_t frame_number =
       event.has_frame_number() ? event.frame_number() : 0;
 
-  const TrackId track_id = context_->virtual_track_tracker->GetOrCreateTrack(
-      {VirtualTrackScope::kGlobal, 0 /* upid */, track_name_id.id,
-       graphics_event_scope_id_},
-      track_name_id);
-
-  context_->storage->mutable_gpu_track_table()->Insert(
-      tables::GpuTrackTable::Row(track_id, graphics_event_scope_id_));
+  tables::GpuTrackTable::Row track(track_name_id.id);
+  track.scope = graphics_event_scope_id_;
+  TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
   const auto slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, RefType::kRefTrack, 0 /* cat */, event_name_id,

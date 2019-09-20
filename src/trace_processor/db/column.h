@@ -110,6 +110,10 @@ class Column {
   // Gets the value of the Column at the given |row|.
   SqlValue Get(uint32_t row) const {
     switch (type_) {
+      case ColumnType::kInt32: {
+        auto opt_value = GetTyped<int32_t>(row);
+        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
       case ColumnType::kUint32: {
         auto opt_value = GetTyped<uint32_t>(row);
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
@@ -134,6 +138,7 @@ class Column {
       // TODO(lalitm): investigate whether we could make this more efficient
       // by first checking the type of the column and comparing explicitly
       // based on that type.
+      case ColumnType::kInt32:
       case ColumnType::kUint32:
       case ColumnType::kInt64:
       case ColumnType::kString: {
@@ -160,6 +165,7 @@ class Column {
   const char* name() const { return name_; }
   SqlValue::Type type() const {
     switch (type_) {
+      case ColumnType::kInt32:
       case ColumnType::kUint32:
       case ColumnType::kInt64:
       case ColumnType::kId:
@@ -191,6 +197,7 @@ class Column {
  protected:
   enum class ColumnType {
     // Standard primitive types.
+    kInt32,
     kUint32,
     kInt64,
     kString,
@@ -241,6 +248,8 @@ class Column {
       return ColumnType::kUint32;
     } else if (std::is_same<T, int64_t>::value) {
       return ColumnType::kInt64;
+    } else if (std::is_same<T, int32_t>::value) {
+      return ColumnType::kInt32;
     } else if (std::is_same<T, StringPool::Id>::value) {
       return ColumnType::kString;
     } else {

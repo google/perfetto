@@ -37,7 +37,7 @@ class SystraceParser;
 class TraceParser;
 class TraceStorage;
 class TraceSorter;
-class VirtualTrackTracker;
+class TrackTracker;
 
 class TraceProcessorContext {
  public:
@@ -46,7 +46,7 @@ class TraceProcessorContext {
 
   Config config;
   std::unique_ptr<TraceStorage> storage;
-  std::unique_ptr<VirtualTrackTracker> virtual_track_tracker;
+  std::unique_ptr<TrackTracker> track_tracker;
   std::unique_ptr<ArgsTracker> args_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
