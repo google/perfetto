@@ -29,6 +29,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "perfetto/profiling/symbolizer.h"
 #include "perfetto/protozero/proto_utils.h"
 
 #include "perfetto/base/logging.h"
@@ -36,7 +37,6 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/utils.h"
 
-#include "tools/trace_to_text/symbolizer.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pb.h"

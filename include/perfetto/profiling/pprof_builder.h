@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_PPROF_BUILDER_H_
-#define TOOLS_TRACE_TO_TEXT_PPROF_BUILDER_H_
+#ifndef INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
+#define INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
 
 #include <iostream>
 #include <string>
 #include <vector>
 
+// TODO(135923303): do not depend on anything in this file as it will be
+// changed heavily as part of fixing b/135923303.
 namespace perfetto {
 namespace trace_to_text {
 
@@ -40,4 +42,4 @@ bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output);
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_PPROF_BUILDER_H_
+#endif  // INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
