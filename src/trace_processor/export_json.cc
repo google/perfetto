@@ -292,19 +292,16 @@ ResultCode ExportSlices(const TraceStorage* storage,
     }
 
     if (slices.types()[i] == RefType::kRefTrack) {  // Async event.
+      const auto& async_track = storage->chrome_async_track_table();
       TrackId track_id = static_cast<TrackId>(slices.refs()[i]);
-      base::Optional<uint32_t> opt_row =
-          storage->virtual_tracks().FindRowForTrackId(track_id);
-      PERFETTO_DCHECK(opt_row.has_value());
+      uint32_t async_row = *async_track.id().IndexOf(SqlValue::Long(track_id));
 
-      VirtualTrackScope scope = storage->virtual_tracks().scopes()[*opt_row];
-      UniquePid upid = storage->virtual_tracks().upids()[*opt_row];
-
-      if (scope == VirtualTrackScope::kGlobal) {
-        event["id2"]["global"] = PrintUint64(*opt_row);
+      auto opt_upid = storage->chrome_async_track_table().upid()[async_row];
+      if (opt_upid.has_value()) {
+        event["id2"]["local"] = PrintUint64(track_id);
+        event["pid"] = storage->GetProcess(*opt_upid).pid;
       } else {
-        event["id2"]["local"] = PrintUint64(*opt_row);
-        event["pid"] = storage->GetProcess(upid).pid;
+        event["id2"]["global"] = PrintUint64(track_id);
       }
 
       const auto& virtual_track_slices = storage->virtual_track_slices();
