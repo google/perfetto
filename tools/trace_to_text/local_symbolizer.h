@@ -23,8 +23,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
-
-#include "tools/trace_to_text/symbolizer.h"
+#include "perfetto/profiling/symbolizer.h"
 
 namespace perfetto {
 namespace trace_to_text {

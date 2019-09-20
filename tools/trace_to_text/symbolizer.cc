@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/symbolizer.h"
+#include "perfetto/profiling/symbolizer.h"
 
 namespace perfetto {
 namespace trace_to_text {
