@@ -42,7 +42,7 @@ namespace trace_processor {
 // #define PERFETTO_TP_EVENT_TABLE_DEF(NAME, PARENT, C)
 //   NAME(EventTable, "event")
 //   PERFETTO_TP_ROOT_TABLE(PARENT, C)
-//   C(int64_t, ts)
+//   C(int64_t, ts, Column::kSorted)
 //   C(uint32_t, arg_set_id)
 // PERFETTO_TP_TABLE(PERFETTO_TP_EVENT_TABLE_DEF);
 //
@@ -84,9 +84,13 @@ namespace trace_processor {
 //    is a root table b) C, the third parameter of the macro definition (see
 //    below). For root tables, PARENT and C are passsed to
 //    PERFETTO_TP_ROOT_TABLE instead of PARENT called directly.
-// 3. C, a function macro taking two parameters: a) the type of a column
-//    b) the name of a column. This macro should be invoked as many times as
-//    there are columns in the table with the information about them.
+// 3. C, a function macro taking two or three parameters:
+//      a) the type of a column
+//      b) the name of a column
+//      c) (optional) the flags of the column (see Column::Flag
+//         for details).
+//    This macro should be invoked as many times as there are columns in the
+//    table with the information about them.
 #define PERFETTO_TP_TABLE(DEF)                                   \
   PERFETTO_TP_TABLE_INTERNAL(                                    \
       PERFETTO_TP_TABLE_NAME(DEF), PERFETTO_TP_TABLE_CLASS(DEF), \
