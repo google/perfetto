@@ -33,6 +33,18 @@ import sys
 
 import gn_utils
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def EnumerateDataDeps():
+  with open(os.path.join(ROOT_DIR, 'tools', 'test_data.txt')) as f:
+    lines = f.readlines()
+  for line in (line.strip() for line in lines if not line.startswith('#')):
+    assert os.path.exists(line), line
+    if line.endswith('/'):
+        yield line + '**/*'
+    else:
+        yield line
+
 
 # Arguments for the GN output directory.
 gn_args = ' '.join([
@@ -125,6 +137,9 @@ additional_args = {
         ('include_dirs', ['bionic/libc']),
         ('static_libs', ['libasync_safe']),
         ('header_libs', ['bionic_libc_platform_headers']),
+    ],
+    'perfetto_unittests': [
+        ('data', list(EnumerateDataDeps())),
     ],
     'traced_probes': [
       ('required', ['libperfetto_android_internal', 'trigger_perfetto']),
@@ -275,6 +290,7 @@ class Module(object):
         self.android = Target('android')
         self.host = Target('host')
         self.lto = None
+        self.data = []
 
     def to_string(self, output):
         if self.comment:
@@ -299,6 +315,7 @@ class Module(object):
         self._output_field(output, 'header_libs')
         self._output_field(output, 'required')
         self._output_field(output, 'tool_files')
+        self._output_field(output, 'data')
 
         target_out = []
         self._output_field(target_out, 'android')
