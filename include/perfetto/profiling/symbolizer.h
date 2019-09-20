@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_SYMBOLIZER_H_
-#define TOOLS_TRACE_TO_TEXT_SYMBOLIZER_H_
+#ifndef INCLUDE_PERFETTO_PROFILING_SYMBOLIZER_H_
+#define INCLUDE_PERFETTO_PROFILING_SYMBOLIZER_H_
 
 #include <map>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
-#include "perfetto/ext/base/pipe.h"
-
+// TODO(135923303): do not depend on anything in this file as it will be
+// removed as part of fixing b/135923303.
 namespace perfetto {
 namespace trace_to_text {
 
@@ -50,4 +49,4 @@ class Symbolizer {
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_SYMBOLIZER_H_
+#endif  // INCLUDE_PERFETTO_PROFILING_SYMBOLIZER_H_

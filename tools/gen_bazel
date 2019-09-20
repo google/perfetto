@@ -164,7 +164,7 @@ class BazelLabel(object):
             if isinstance(edep, list):
               res += ' + [\n'
               for inner_dep in edep:
-                res += '%s    "%s"\n' % (indent, inner_dep)
+                res += '        "%s",\n' % inner_dep
               res += '    ]'
             else:
               res += ' +\n%s%s' % (indent, edep)
