@@ -139,11 +139,6 @@ bool VisitCompletePacket(
     if (packet.has_interned_data()) {
       bundle_by_seq[seq_id].interned_data.emplace_back(packet.interned_data());
     }
-    if (packet.has_appended_data()) {
-      std::copy(packet.appended_data().profiled_frame_symbols().cbegin(),
-                packet.appended_data().profiled_frame_symbols().cend(),
-                std::back_inserter(bundle_by_seq[seq_id].symbols));
-    }
 
     if (packet.has_profile_packet()) {
       std::vector<protos::ProfilePacket>& rolling_profile_packets =
