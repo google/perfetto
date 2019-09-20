@@ -22,6 +22,7 @@
 
 // The always-visible centered box that has menu and sections on the right.
 .record-container {
+  position: relative;
   max-width: 900px;
   min-height: 500px;
   margin: auto;
@@ -34,6 +35,19 @@
   grid-template-areas: "header header"
                        "sidebar section";
   overflow: hidden;
+  z-index: 6;
+}
+
+.hider {
+  @include transition(0.2s);
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: #000;
+  opacity: 0.2;
+  z-index: 5;
 }
 
 .record-header {
@@ -242,6 +256,11 @@
       }
     }
   }  // li
+
+  &.disabled {
+    opacity: 0.50;
+    pointer-events: none;
+  }
 }  // record-menu
 
 
