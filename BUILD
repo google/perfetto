@@ -1098,14 +1098,11 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics:lite
-perfetto_proto_library(
-    name = "protos_perfetto_metrics_protos",
-    srcs = [
-        "protos/perfetto/metrics/metrics.proto",
-    ],
+# GN target: //protos/perfetto/trace/filesystem:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_filesystem_zero",
     deps = [
-        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_trace_filesystem_protos",
     ],
 )
 
@@ -1704,11 +1701,11 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/filesystem:zero
-perfetto_cc_protozero_library(
-    name = "protos_perfetto_trace_filesystem_zero",
-    deps = [
-        ":protos_perfetto_trace_filesystem_protos",
+# GN target: //protos/perfetto/trace:merged_trace
+perfetto_proto_library(
+    name = "protos_perfetto_trace_merged_trace_protos",
+    srcs = [
+        "protos/perfetto/trace/perfetto_trace.proto",
     ],
 )
 
@@ -1868,11 +1865,30 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics:lite
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_protos",
+    srcs = [
+        "protos/perfetto/metrics/metrics.proto",
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/ps:lite
 perfetto_cc_proto_library(
     name = "protos_perfetto_trace_ps_lite",
     deps = [
         ":protos_perfetto_trace_ps_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/trace:merged_trace
+perfetto_cc_proto_library(
+    name = "protos_perfetto_trace_merged_trace",
+    deps = [
+        ":protos_perfetto_trace_merged_trace_protos",
     ],
 )
 
@@ -2387,6 +2403,13 @@ perfetto_java_proto_library(
     name = "protos_perfetto_metrics_android_java",
     deps = [
         ":protos_perfetto_metrics_android_protos",
+    ],
+)
+
+perfetto_java_proto_library(
+    name = "protos_perfetto_trace_merged_trace_java",
+    deps = [
+        ":protos_perfetto_trace_merged_trace_protos",
     ],
 )
 
