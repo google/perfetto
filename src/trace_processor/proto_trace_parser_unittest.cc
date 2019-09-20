@@ -27,7 +27,7 @@
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/virtual_track_tracker.h"
+#include "src/trace_processor/track_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
@@ -190,7 +190,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   ProtoTraceParserTest() {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
-    context_.virtual_track_tracker.reset(new VirtualTrackTracker(&context_));
+    context_.track_tracker.reset(new TrackTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
@@ -1124,17 +1124,11 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->track_table().size(), 2u);
-  EXPECT_EQ(storage_->track_table().name()[0], 2u);
-  EXPECT_EQ(storage_->track_table().name()[1], 4u);
-  EXPECT_EQ(storage_->virtual_tracks().virtual_track_count(), 2u);
-  EXPECT_EQ(storage_->virtual_tracks().track_ids()[0], 0u);
-  EXPECT_EQ(storage_->virtual_tracks().track_ids()[1], 1u);
-  EXPECT_EQ(storage_->virtual_tracks().scopes()[0], VirtualTrackScope::kGlobal);
-  EXPECT_EQ(storage_->virtual_tracks().scopes()[1],
-            VirtualTrackScope::kProcess);
-  EXPECT_EQ(storage_->virtual_tracks().upids()[0], 0u);
-  EXPECT_EQ(storage_->virtual_tracks().upids()[1], 1u);
+  EXPECT_EQ(storage_->chrome_async_track_table().size(), 2u);
+  EXPECT_EQ(storage_->chrome_async_track_table().name()[0], 2u);
+  EXPECT_EQ(storage_->chrome_async_track_table().name()[1], 4u);
+  EXPECT_EQ(storage_->chrome_async_track_table().upid()[0], base::nullopt);
+  EXPECT_EQ(storage_->chrome_async_track_table().upid()[1], 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);
