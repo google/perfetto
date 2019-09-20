@@ -56,7 +56,8 @@ class MacroTable : public Table {
           Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
                            static_cast<uint32_t>(row_maps_.size()) - 1));
       columns_.emplace_back(
-          Column("type", &type_, this, static_cast<uint32_t>(columns_.size()),
+          Column("type", &type_, Column::kNoFlag, this,
+                 static_cast<uint32_t>(columns_.size()),
                  static_cast<uint32_t>(row_maps_.size()) - 1));
     }
   }
@@ -140,41 +141,59 @@ class MacroTable : public Table {
   PERFETTO_TP_ALL_COLUMNS(PERFETTO_TP_PARENT_DEF(DEF), FN)
 
 // Basic macros for extracting column info from a schema.
-#define PERFETTO_TP_NAME_COMMA(type, name) name,
-#define PERFETTO_TP_TYPE_NAME_COMMA(type, name) type name,
+#define PERFETTO_TP_NAME_COMMA(type, name, ...) name,
+#define PERFETTO_TP_TYPE_NAME_COMMA(type, name, ...) type name,
 
 // Constructor parameters of Table::Row.
 // We name this name_c to avoid a clash with the field names of
 // Table::Row.
-#define PERFETTO_TP_ROW_CONSTRUCTOR(type, name) type name##_c = {},
+#define PERFETTO_TP_ROW_CONSTRUCTOR(type, name, ...) type name##_c = {},
 
 // Constructor parameters for parent of Row.
-#define PERFETTO_TP_PARENT_ROW_CONSTRUCTOR(type, name) name##_c,
+#define PERFETTO_TP_PARENT_ROW_CONSTRUCTOR(type, name, ...) name##_c,
 
 // Initializes the members of Table::Row.
-#define PERFETTO_TP_ROW_INITIALIZER(type, name) name = name##_c;
+#define PERFETTO_TP_ROW_INITIALIZER(type, name, ...) name = name##_c;
 
 // Defines the variable in Table::Row.
-#define PERFETTO_TP_ROW_DEFINITION(type, name) type name = {};
+#define PERFETTO_TP_ROW_DEFINITION(type, name, ...) type name = {};
 
 // Defines the parent row field in Insert.
-#define PERFETTO_TP_PARENT_ROW_INSERT(type, name) row.name,
+#define PERFETTO_TP_PARENT_ROW_INSERT(type, name, ...) row.name,
 
 // Defines the member variable in the Table.
-#define PERFETTO_TP_TABLE_MEMBER(type, name) \
+#define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
   SparseVector<TypedColumn<type>::StoredType> name##_;
 
-// Constructs the column in the Table constructor.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name)        \
-  columns_.emplace_back(#name, &name##_, this, columns_.size(), \
-                        row_maps_.size() - 1);
+// Constructs the column in the Table constructor when flags are specified.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS(type, name, flags)        \
+  columns_.emplace_back(#name, &name##_, static_cast<uint32_t>(flags), this, \
+                        columns_.size(), row_maps_.size() - 1);
+
+// Constructs the column in the Table constructor when no flags are specified.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_NO_FLAGS(type, name) \
+  columns_.emplace_back(#name, &name##_, Column::kNoFlag, this,   \
+                        columns_.size(), row_maps_.size() - 1);
+
+// Chooses between the flag and no-flag variant based on the whether there
+// are two or three arguments.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_CHOOSER(type, name, maybe_flags, \
+                                                     fn, ...)                 \
+  fn
+
+// Invokes the chosen column constructor by passing the given args.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(...)              \
+  PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_CHOOSER(                \
+      __VA_ARGS__, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS, \
+      PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_NO_FLAGS)           \
+  (__VA_ARGS__)
 
 // Inserts the value into the corresponding column
-#define PERFETTO_TP_COLUMN_APPEND(type, name) \
+#define PERFETTO_TP_COLUMN_APPEND(type, name, ...) \
   name##_.Append(std::move(row.name));
 
 // Defines the accessor for a column.
-#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name)           \
+#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)      \
   const TypedColumn<type>& name() const {                    \
     return static_cast<const TypedColumn<type>&>(            \
         columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
@@ -221,10 +240,10 @@ class MacroTable : public Table {
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
       /* Expands to                                                           \
-       * columns_.emplace_back("col1", col1_, this, columns_.size(),          \
-       *                       row_maps_.size() - 1);                         \
-       * columns_.emplace_back("col2", col2_, this, columns_.size(),          \
-       *                       row_maps_.size() - 1);                         \
+       * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
+       *                        columns_.size(), row_maps_.size() - 1);       \
+       * columns_.emplace_back("col2", col2_, Column::kNoFlag, this,          \
+       *                       columns_.size(), row_maps_.size() - 1);        \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
