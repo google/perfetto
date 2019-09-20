@@ -4,7 +4,9 @@ heap_profile_callsite_stats {
     callsite_stats {
       callsite {
         frame {
-          name: "symbolized f3"
+          # TODO(b/135923303): Change to "symbolized f3" once ingestion is
+          # done.
+          name: "f3"
           mapping_name: "/liblib.so"
         }
         frame {

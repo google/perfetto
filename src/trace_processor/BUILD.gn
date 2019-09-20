@@ -179,7 +179,6 @@ source_set("lib") {
     "../../protos/perfetto/metrics/android:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
-    "../../protos/perfetto/trace/appended_data:zero",
     "../../protos/perfetto/trace/chrome:zero",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/gpu:zero",
