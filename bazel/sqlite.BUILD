@@ -15,6 +15,8 @@
 # This build file is used for both @perfetto_dep_sqlite and
 # @perfetto_dep_sqlite_src.
 
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+
 # #############################
 # @perfetto_dep_sqlite section
 # #############################
@@ -71,6 +73,6 @@ cc_library(
         "ext/misc/percentile.c",
     ],
     copts = sqlite_copts,
-    includes = include_sqlite,
+    deps = PERFETTO_CONFIG.deps.sqlite,
     visibility = ["//visibility:public"],
 )
