@@ -17,12 +17,22 @@
 #ifndef TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
 #define TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
 
+#include "perfetto/profiling/symbolizer.h"
+#include "perfetto/trace_processor/trace_processor.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
+
+#include <functional>
 #include <iostream>
 
 namespace perfetto {
 namespace trace_to_text {
 
 int SymbolizeProfile(std::istream* input, std::ostream* output);
+
+void SymbolizeDatabase(
+    trace_processor::TraceProcessor* tp,
+    Symbolizer* symbolizer,
+    std::function<void(const perfetto::protos::TracePacket&)> callback);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
