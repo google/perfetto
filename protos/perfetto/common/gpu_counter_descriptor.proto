@@ -20,7 +20,8 @@ option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 // Description of GPU counters.
-// This message is sent by a GPU counter producer to specify the counters available in the hardware.
+// This message is sent by a GPU counter producer to specify the counters
+// available in the hardware.
 message GpuCounterDescriptor {
   message GpuCounterSpec {
     optional uint32 counter_id = 1;
@@ -37,8 +38,9 @@ message GpuCounterDescriptor {
   }
   repeated GpuCounterSpec specs = 1;
 
-  // Allow producer to group counters into block to represent counter islands.  A capacity may be
-  // specified to indicate the number of counters that can be enable simultaneously in that block.
+  // Allow producer to group counters into block to represent counter islands.
+  // A capacity may be specified to indicate the number of counters that can be
+  // enable simultaneously in that block.
   message GpuCounterBlock {
     // required. Unique ID for the counter group.
     optional uint32 block_id = 1;
@@ -53,13 +55,16 @@ message GpuCounterDescriptor {
   }
   repeated GpuCounterBlock blocks = 2;
 
-  // optional.  Minimum sampling period supported by the producer in nanoseconds.
+  // optional.  Minimum sampling period supported by the producer in
+  // nanoseconds.
   optional uint64 min_sampling_period_ns = 3;
 
-  // optional.  Maximum sampling period supported by the producer in nanoseconds.
+  // optional.  Maximum sampling period supported by the producer in
+  // nanoseconds.
   optional uint64 max_sampling_period_ns = 4;
 
-  // optional.  The producer supports counter sampling by instrumenting the command buffer.
+  // optional.  The producer supports counter sampling by instrumenting the
+  // command buffer.
   optional bool supports_instrumented_sampling = 5;
 
   enum MeasureUnit {
