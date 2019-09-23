@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("//build_overrides/build.gni")
+import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/test.gni")
 
@@ -302,4 +303,14 @@ if (enable_perfetto_benchmarks) {
       "core/packet_stream_validator_benchmark.cc",
     ]
   }
+}
+
+perfetto_fuzzer_test("packet_stream_validator_fuzzer") {
+  sources = [
+    "core/packet_stream_validator_fuzzer.cc",
+  ]
+  deps = [
+    ":tracing",
+    "../../../../gn:default_deps",
+  ]
 }
