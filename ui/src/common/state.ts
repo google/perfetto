@@ -395,3 +395,16 @@ export function createEmptyState(): State {
     chromeCategories: undefined,
   };
 }
+
+export function getContainingTrackId(state: State, trackId: string): null|
+    string {
+  const track = state.tracks[trackId];
+  if (!track) {
+    return null;
+  }
+  const parentId = track.trackGroup;
+  if (!parentId) {
+    return null;
+  }
+  return parentId;
+}
