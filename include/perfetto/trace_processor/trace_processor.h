@@ -48,7 +48,7 @@ class PERFETTO_EXPORT TraceProcessor {
 
     // Forwards the iterator to the next result row and returns a boolean of
     // whether there is a next row. If this method returns false,
-    // |GetLastError()| should be called to check if there was an error. If
+    // |Status()| should be called to check if there was an error. If
     // there was no error, this means the EOF was reached.
     bool Next();
 
