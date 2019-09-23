@@ -66,8 +66,10 @@ default_targets = [
 ] + public_targets
 
 # Root proto targets (to force discovery of intermediate proto targets).
+# These targets are marked public.
 proto_targets = [
     '//protos/perfetto/trace:merged_trace',
+    '//protos/perfetto/config:merged_config',
     '//protos/perfetto/metrics:lite',
     '//protos/perfetto/trace:lite',
     '//protos/perfetto/config:lite',
@@ -229,6 +231,9 @@ def gen_proto_labels(target):
   sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
   deps = [':' + get_sources_label(x) for x in target.proto_deps]
   sources_label.deps = sorted(deps)
+
+  if target.name in proto_targets:
+    sources_label.visibility = ['//visibility:public']
 
   return [plugin_label, sources_label]
 
