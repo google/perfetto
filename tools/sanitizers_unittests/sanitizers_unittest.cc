@@ -77,7 +77,8 @@ TEST(SanitizerTests, MSAN_UninitializedMemory) {
 }
 #endif
 
-#if defined(LEAK_SANITIZER)
+// b/141460117: Leak sanitizer tests don't work in debug builds.
+#if defined(LEAK_SANITIZER) && defined(NDEBUG)
 TEST(SanitizerTests, LSAN_LeakMalloc) {
   EXPECT_DEATH(
       {
@@ -103,7 +104,7 @@ TEST(SanitizerTests, LSAN_LeakCppNew) {
       },
       "LeakSanitizer:.*detected memory leaks");
 }
-#endif  // LEAK_SANITIZER
+#endif  // LEAK_SANITIZER && defined(NDEBUG)
 
 #if defined(UNDEFINED_SANITIZER)
 TEST(SanitizerTests, UBSAN_DivisionByZero) {
