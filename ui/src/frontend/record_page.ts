@@ -922,7 +922,10 @@ function recordMenu(routePage: string) {
 
   return m(
       '.record-menu',
-      {class: recInProgress ? 'disabled' : ''},
+      {
+        class: recInProgress ? 'disabled' : '',
+        onclick: () => globals.rafScheduler.scheduleFullRedraw()
+      },
       m('header', 'Trace config'),
       m('ul',
         m('a[href="#!/record?p=buffers"]',
