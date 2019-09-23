@@ -14,6 +14,7 @@
 
 import {searchSegment} from '../base/binary_search';
 import {Actions} from '../common/actions';
+import {getContainingTrackId} from '../common/state';
 import {fromNs, TimeSpan, toNs} from '../common/time';
 
 import {globals} from './globals';
@@ -73,7 +74,20 @@ function moveViewportToCurrentSearch() {
   // Update vertical (up/down) scroll position
   const trackId = globals.currentSearchResults
                       .trackIds[globals.frontendLocalState.searchIndex];
-  const track = document.querySelector('#track_' + trackId) as HTMLElement;
+  let track = document.querySelector('#track_' + trackId);
+
+  if (!track) {
+    const parentTrackId = getContainingTrackId(globals.state, trackId);
+    if (parentTrackId) {
+      track = document.querySelector('#track_' + parentTrackId);
+    }
+  }
+
+  if (!track) {
+    console.error(`Can't scroll search result track not found (${trackId})`);
+    return;
+  }
+
   // block: 'nearest' means that it will only scroll if the track is not
   // currently in view.
   track.scrollIntoView({behavior: 'smooth', block: 'nearest'});
@@ -81,11 +95,21 @@ function moveViewportToCurrentSearch() {
 
 function selectCurrentSearchResult() {
   const state = globals.frontendLocalState;
-  const currentId = globals.currentSearchResults.sliceIds[state.searchIndex];
-  if (currentId !== undefined) {
+  const index = state.searchIndex;
+  const refType = globals.currentSearchResults.refTypes[index];
+  const currentId = globals.currentSearchResults.sliceIds[index];
+
+  if (currentId === undefined) return;
+
+  if (refType === 'cpu') {
     globals.dispatch(Actions.selectSlice({
-      utid: globals.currentSearchResults.utids[state.searchIndex],
-      id: currentId
+      utid: globals.currentSearchResults.utids[index],
+      id: currentId,
+    }));
+  }
+  if (refType === 'utid') {
+    globals.dispatch(Actions.selectChromeSlice({
+      slice_id: currentId,
     }));
   }
 }
