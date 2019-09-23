@@ -12,9 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyState, State} from './state';
+import {createEmptyState, getContainingTrackId, State} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
   expect(state.nextId).toEqual(0);
+});
+
+test('getContainingTrackId', () => {
+  const state: State = createEmptyState();
+  state.tracks['a'] = {
+    id: 'a',
+    engineId: 'engine',
+    kind: 'Foo',
+    name: 'a track',
+    config: {},
+  };
+
+  state.tracks['b'] = {
+    id: 'b',
+    engineId: 'engine',
+    kind: 'Foo',
+    name: 'b track',
+    config: {},
+    trackGroup: 'containsB',
+  };
+
+  expect(getContainingTrackId(state, 'z')).toEqual(null);
+  expect(getContainingTrackId(state, 'a')).toEqual(null);
+  expect(getContainingTrackId(state, 'b')).toEqual('containsB');
 });
