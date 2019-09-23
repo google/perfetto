@@ -71,7 +71,11 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async getPairedDevices() {
-    return navigator.usb.getDevices();
+    try {
+      return navigator.usb.getDevices();
+    } catch (e) {  // WebUSB not available.
+      return Promise.resolve([]);
+    }
   }
 
   async connect(device: USBDevice): Promise<void> {
