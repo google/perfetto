@@ -35,6 +35,8 @@ GraphicsEventParser::~GraphicsEventParser() = default;
 
 GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
     : context_(context),
+      gpu_render_stage_scope_id_(
+          context->storage->InternString("gpu_render_stage")),
       graphics_event_scope_id_(
           context->storage->InternString("graphics_frame_event")),
       unknown_event_name_id_(context->storage->InternString("unknown_event")),
@@ -152,9 +154,11 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
           hw_queue(it->data(), it->size());
       if (hw_queue.has_name()) {
-        // TODO: create vtrack for each HW queue when it's ready.
+        StringId track_name = context_->storage->InternString(hw_queue.name());
+        tables::GpuTrackTable::Row track(track_name.id);
+        track.scope = gpu_render_stage_scope_id_;
         gpu_hw_queue_ids_.emplace_back(
-            context_->storage->InternString(hw_queue.name()));
+            context_->track_tracker->InternGpuTrack(track));
       }
     }
     for (auto it = spec.stage(); it; ++it) {
@@ -189,8 +193,9 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       stage_name = context_->storage->InternString(buffer);
     }
     const auto slice_id = context_->slice_tracker->Scoped(
-        ts, event.hw_queue_id(), RefType::kRefGpuId, 0, /* cat */
-        stage_name, static_cast<int64_t>(event.duration()), args_callback);
+        ts, gpu_hw_queue_ids_[static_cast<size_t>(event.hw_queue_id())],
+        RefType::kRefTrack, 0 /* cat */, stage_name,
+        static_cast<int64_t>(event.duration()), args_callback);
 
     context_->storage->mutable_gpu_slice_table()->Insert(
         tables::GpuSliceTable::Row(
