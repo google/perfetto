@@ -51,9 +51,11 @@ class TrackTracker {
   struct GpuTrackTuple {
     StringId track_name;
     StringId scope;
+    int64_t context_id;
 
     friend bool operator<(const GpuTrackTuple& l, const GpuTrackTuple& r) {
-      return std::tie(l.track_name, l.scope) < std::tie(r.track_name, r.scope);
+      return std::tie(l.track_name, l.scope, l.context_id)
+          < std::tie(r.track_name, r.scope, r.context_id);
     }
   };
   struct ChromeTrackTuple {

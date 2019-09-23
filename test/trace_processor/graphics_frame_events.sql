@@ -1,5 +1,7 @@
-select ts, dur, name, key, frame_id, string_value as layer_name
-from internal_slice
-inner join gpu_slice using(slice_id)
-left join args
-on internal_slice.arg_set_id=args.arg_set_id and args.key='layer_name'
+select scope, track.name as track_name, ts, dur, slice.name as slice_name,
+    frame_id, key, string_value as layer_name
+from gpu_track
+left join track using (id)
+left join slice on gpu_track.id=slice.ref
+left join gpu_slice using(slice_id)
+left join args on slice.arg_set_id=args.arg_set_id and args.key='layer_name'
