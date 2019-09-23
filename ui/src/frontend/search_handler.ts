@@ -109,7 +109,7 @@ function selectCurrentSearchResult() {
   }
   if (refType === 'utid') {
     globals.dispatch(Actions.selectChromeSlice({
-      slice_id: currentId,
+      id: currentId,
     }));
   }
 }
