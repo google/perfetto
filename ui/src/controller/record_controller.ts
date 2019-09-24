@@ -33,6 +33,7 @@ import {
 } from '../common/protos';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
+  AdbRecordingTarget,
   isAndroidTarget,
   isChromeTarget,
   MAX_TIME,
@@ -446,10 +447,14 @@ export class RecordController extends Controller<'main'> implements Consumer {
   private consumerPort: ConsumerPort;
   private traceBuffer: Uint8Array[] = [];
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
+  private adb = new AdbOverWebUsb();
 
   // We have a different controller for each targetOS. The correct one will be
-  // created when needed, and stored here.
-  private controllers = new Map<TargetOs, RpcConsumerPort>();
+  // created when needed, and stored here. When the key is a string, it is the
+  // serial of the target (used for android devices). When the key is a single
+  // char, it is the 'targetOS'
+  private controllerPromises = new Map<string, Promise<RpcConsumerPort>>();
+
   constructor(args: {app: App, extensionPort: MessagePort}) {
     super('main');
     this.app = args.app;
@@ -584,38 +589,59 @@ export class RecordController extends Controller<'main'> implements Consumer {
   // - Android device target: WebUSB is used to communicate using the adb
   // protocol. Actually, there is no full consumer_port implementation, but
   // only the support to start tracing and fetch the file.
-  async getTargetController(target: TargetOs): Promise<RpcConsumerPort> {
-    let controller = this.controllers.get(target);
-    if (controller) return controller;
+  async getTargetController(target: TargetOs, device?: AdbRecordingTarget):
+      Promise<RpcConsumerPort> {
+    const identifier = this.getTargetIdentifier(target, device);
 
-    if (isChromeTarget(target)) {
-      controller = new ChromeExtensionConsumerPort(this.extensionPort, this);
-    } else if (isAndroidTarget(target)) {
-      // TODO(nicomazz): create the correct controller also based on the
-      // selected android device. TargetOS may be changed from a single char to
-      // something else.
-      const socketAccess = await this.hasSocketAccess();
-      controller = socketAccess ?
-          new AdbSocketConsumerPort(new AdbOverWebUsb(), this) :
-          new AdbConsumerPort(new AdbOverWebUsb(), this);
-    }
+    // The reason why caching the target 'record controller' Promise is that
+    // multiple rcp calls can happen while we are trying to understand if an
+    // android device has a socket connection available or not.
+    const precedentPromise = this.controllerPromises.get(identifier);
+    if (precedentPromise) return precedentPromise;
 
-    if (!controller) throw Error(`Unknown target: ${target}`);
+    const controllerPromise =
+        new Promise<RpcConsumerPort>(async (resolve, _) => {
+          let controller: RpcConsumerPort|undefined = undefined;
+          if (isChromeTarget(target)) {
+            controller =
+                new ChromeExtensionConsumerPort(this.extensionPort, this);
+          } else if (isAndroidTarget(target)) {
+            if (!device) throw Error(`No android device connected`);
+            const socketAccess = await this.hasSocketAccess(device);
 
-    this.controllers.set(target, controller);
-    return controller;
+            controller = socketAccess ?
+                new AdbSocketConsumerPort(this.adb, this) :
+                new AdbConsumerPort(this.adb, this);
+          }
+
+          if (!controller) throw Error(`Unknown target: ${target}`);
+          resolve(controller);
+        });
+
+    this.controllerPromises.set(identifier, controllerPromise);
+    return controllerPromise;
   }
 
-  private hasSocketAccess() {
-    // TODO(nicomazz): implement proper logic
-    return Promise.resolve(false);
+  private getTargetIdentifier(target: TargetOs, device?: AdbRecordingTarget):
+      string {
+    return device ? device.serial : target;
+  }
+
+  private async hasSocketAccess(target: AdbRecordingTarget) {
+    const devices = await navigator.usb.getDevices();
+    const device = devices.find(d => d.serialNumber === target.serial);
+    console.assert(device);
+    if (!device) return Promise.resolve(false);
+    return AdbSocketConsumerPort.hasSocketAccess(device, this.adb);
   }
 
   private async rpcImpl(
       method: RPCImplMethod, requestData: Uint8Array,
       _callback: RPCImplCallback) {
     try {
-      (await this.getTargetController(this.app.state.recordConfig.targetOS))
+      const state = this.app.state;
+      (await this.getTargetController(
+           state.recordConfig.targetOS, state.androidDeviceConnected))
           .handleCommand(method.name, requestData);
     } catch (e) {
       console.error(`error invoking ${method}: ${e.message}`);
