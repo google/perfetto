@@ -146,11 +146,18 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         attrs.track.onMouseOut();
         globals.rafScheduler.scheduleRedraw();
       },
-      onclick: (e:MouseEvent) => {
+      onclick: (e: MouseEvent) => {
         // If we are selecting a timespan - do not pass the click to the track.
-        const selection = globals.state.currentSelection;
-        if (selection && selection.kind === 'TIMESPAN') return;
-        if (attrs.track.onMouseClick({x: e.layerX, y: e.layerY})) {
+        if (e.shiftKey) return;
+        // If the click is outside of the current timespan, clear it.
+        const clickTime =
+            globals.frontendLocalState.timeScale.pxToTime(e.layerX);
+        if (globals.state.timeSpan !== null &&
+            (clickTime < globals.state.timeSpan.startTs ||
+             clickTime > globals.state.timeSpan.endTs)) {
+          globals.dispatch(Actions.removeTimeSpan({}));
+          e.stopPropagation();
+        } else if (attrs.track.onMouseClick({x: e.layerX, y: e.layerY})) {
           e.stopPropagation();
         }
         globals.rafScheduler.scheduleRedraw();
@@ -249,7 +256,15 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                              size.height,
                              `rgb(52,69,150)`);
     }
-
+    if (globals.state.timeSpan !== null) {
+      drawVerticalSelection(
+          ctx,
+          localState.timeScale,
+          globals.state.timeSpan.startTs,
+          globals.state.timeSpan.endTs,
+          size.height,
+          `rgba(0,0,0,0.5)`);
+    }
     if (globals.state.currentSelection !== null) {
       if (globals.state.currentSelection.kind === 'NOTE') {
         const note = globals.state.notes[globals.state.currentSelection.id];
@@ -258,15 +273,6 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                                note.timestamp,
                                size.height,
                                note.color);
-      }
-      if (globals.state.currentSelection.kind === 'TIMESPAN') {
-        drawVerticalSelection(
-            ctx,
-            localState.timeScale,
-            globals.state.currentSelection.startTs,
-            globals.state.currentSelection.endTs,
-            size.height,
-            `rgba(0,0,0,0.5)`);
       }
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {

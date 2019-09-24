@@ -135,6 +135,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
                             size.height,
                             `rgb(52,69,150)`);
     }
+    if (globals.state.timeSpan !== null) {
+      drawVerticalSelection(
+          ctx,
+          localState.timeScale,
+          globals.state.timeSpan.startTs,
+          globals.state.timeSpan.endTs,
+          size.height,
+          `rgba(0,0,0,0.5)`);
+    }
     if (globals.state.currentSelection !== null) {
       if (globals.state.currentSelection.kind === 'NOTE') {
         const note = globals.state.notes[globals.state.currentSelection.id];
@@ -143,15 +152,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
                                note.timestamp,
                                size.height,
                                note.color);
-      }
-      if (globals.state.currentSelection.kind === 'TIMESPAN') {
-        drawVerticalSelection(
-            ctx,
-            localState.timeScale,
-            globals.state.currentSelection.startTs,
-            globals.state.currentSelection.endTs,
-            size.height,
-            `rgba(0,0,0,0.5)`);
       }
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
