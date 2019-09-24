@@ -28,6 +28,7 @@
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -58,7 +59,7 @@ namespace {
 constexpr uint8_t kTracePacketTag =
     MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
 
-template <typename MessageType>
+template <typename MessageType, typename FieldName = DefaultFieldName>
 void InternMessage(TraceProcessorContext* context,
                    ProtoIncrementalState::PacketSequenceState* state,
                    TraceBlobView message) {
@@ -77,7 +78,7 @@ void InternMessage(TraceProcessorContext* context,
   }
   iid = field.as_uint64();
 
-  auto res = state->GetInternedDataMap<MessageType>()->emplace(
+  auto res = state->GetInternedDataMap<MessageType, FieldName>()->emplace(
       iid,
       ProtoIncrementalState::InternedDataView<MessageType>(std::move(message)));
   // If a message with this ID is already interned, its data should not have
@@ -424,17 +425,17 @@ void ProtoTraceTokenizer::ParseInternedData(
 
   for (auto it = interned_data_decoder.build_ids(); it; ++it) {
     size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString>(
+    InternMessage<protos::pbzero::InternedString, BuildIdFieldName>(
         context_, state, interned_data.slice(offset, it->size()));
   }
   for (auto it = interned_data_decoder.mapping_paths(); it; ++it) {
     size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString>(
+    InternMessage<protos::pbzero::InternedString, MappingPathsFieldName>(
         context_, state, interned_data.slice(offset, it->size()));
   }
   for (auto it = interned_data_decoder.function_names(); it; ++it) {
     size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString>(
+    InternMessage<protos::pbzero::InternedString, FunctionNamesFieldName>(
         context_, state, interned_data.slice(offset, it->size()));
   }
 
