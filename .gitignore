@@ -1,4 +1,5 @@
 .android_config
+.ccls-cache
 .cproject
 .deps_sha1
 .DS_Store
