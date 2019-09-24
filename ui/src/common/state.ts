@@ -121,8 +121,7 @@ export interface ChromeSliceSelection {
   id: number;
 }
 
-export interface TimeSpanSelection {
-  kind: 'TIMESPAN';
+export interface TimeSpanRange {
   startTs: number;
   endTs: number;
 }
@@ -136,9 +135,8 @@ export interface ThreadStateSelection {
   cpu: number;
 }
 
-type Selection =
-    NoteSelection|SliceSelection|CounterSelection|HeapDumpSelection|
-    ChromeSliceSelection|TimeSpanSelection|ThreadStateSelection;
+type Selection = NoteSelection|SliceSelection|CounterSelection|
+    HeapDumpSelection|ChromeSliceSelection|ThreadStateSelection;
 
 export interface LogsPagination {
   offset: number;
@@ -177,6 +175,7 @@ export interface State {
   permalink: PermalinkConfig;
   notes: ObjectById<Note>;
   status: Status;
+  timeSpan: TimeSpanRange|null;
   currentSelection: Selection|null;
 
   logsPagination: LogsPagination;
@@ -379,6 +378,7 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
+    timeSpan: null,
 
     video: null,
     videoEnabled: false,
