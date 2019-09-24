@@ -47,6 +47,7 @@ gn_args = ' '.join([
 
 # These targets will be exported with public visibility in the generated BUILD.
 public_targets = [
+    '//:libperfetto_client_experimental',
     '//src/perfetto_cmd:perfetto',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
