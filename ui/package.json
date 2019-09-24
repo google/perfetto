@@ -22,6 +22,7 @@
     "devtools-protocol": "0.0.681549",
     "events": "^3.0.0",
     "immer": "^1.12.1",
+    "jsbn-rsa": "^1.0.3",
     "micromodal": "^0.4.0",
     "mithril": "^1.1.6",
     "noice-json-rpc": "^1.2.0",
