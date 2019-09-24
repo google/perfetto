@@ -119,12 +119,6 @@ class StackProfileTracker {
                        const SourceCallstack&,
                        const InternLookup* intern_lookup = nullptr);
 
-  // Used for symbolization.
-  // Must be called after FinalizeProfile.
-  void SetFrameSymbol(SourceFrameId source_frame_id,
-                      uint32_t symbol_set_id,
-                      const InternLookup* intern_lookup);
-
   int64_t GetDatabaseFrameIdForTesting(SourceFrameId);
 
   // Gets the row number of string / mapping / frame / callstack previously
