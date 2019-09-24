@@ -120,3 +120,11 @@ clock_sync.py clock_sync.sql clock_sync.out
 
 # Graphics frame event trace tests.
 graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
+
+# Scheduling slices from sched_switch events. There are two tests, one for the
+# typical encoding of sched_switch events, and one for the same trace
+# re-encoded in the compact format. The output should be identical apart from
+# the latter having one slice fewer for each cpu (the first compact
+# sched_switch event doesn't start a slice). Six slices in this case.
+../data/sched_switch_original.pb sched_slices.sql sched_slices_sched_switch_original.out
+../data/sched_switch_compact.pb sched_slices.sql sched_slices_sched_switch_compact.out

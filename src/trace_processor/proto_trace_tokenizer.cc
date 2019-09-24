@@ -673,11 +673,70 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
     return;
   }
 
+  if (decoder.has_compact_sched()) {
+    ParseFtraceCompactSched(cpu, decoder.compact_sched().data,
+                            decoder.compact_sched().size);
+  }
+
   for (auto it = decoder.event(); it; ++it) {
     size_t off = bundle.offset_of(it->data());
     ParseFtraceEvent(cpu, bundle.slice(off, it->size()));
   }
   context_->sorter->FinalizeFtraceEventBatch(cpu);
+}
+
+void ProtoTraceTokenizer::ParseFtraceCompactSched(uint32_t cpu,
+                                                  const uint8_t* data,
+                                                  size_t size) {
+  protos::pbzero::FtraceEventBundle_CompactSched::Decoder compact(data, size);
+
+  // Build the interning table for next_comm fields.
+  std::vector<StringId> string_table;
+  string_table.reserve(512);
+  for (auto it = compact.switch_next_comm_table(); it; it++) {
+    StringId value = context_->storage->InternString(it->as_string());
+    string_table.push_back(value);
+  }
+
+  // Accumulator for timestamp deltas.
+  int64_t timestamp_acc = 0;
+
+  // The events' fields are stored in a structure-of-arrays style, using packed
+  // repeated fields. Walk each repeated field in step to recover individual
+  // events.
+  bool parse_error = false;
+  auto timestamp_it = compact.switch_timestamp(&parse_error);
+  auto pstate_it = compact.switch_prev_state(&parse_error);
+  auto npid_it = compact.switch_next_pid(&parse_error);
+  auto nprio_it = compact.switch_next_prio(&parse_error);
+  auto comm_it = compact.switch_next_comm_index(&parse_error);
+  for (; timestamp_it && pstate_it && npid_it && nprio_it && comm_it;
+       ++timestamp_it, ++pstate_it, ++npid_it, ++nprio_it, ++comm_it) {
+    TraceSorter::InlineSchedSwitch event{};
+
+    // delta-encoded timestamp
+    timestamp_acc += static_cast<int64_t>(*timestamp_it);
+    int64_t event_timestamp = timestamp_acc;
+
+    // index into the interned string table
+    PERFETTO_DCHECK(*comm_it < string_table.size());
+    event.next_comm = string_table[*comm_it];
+
+    event.prev_state = *pstate_it;
+    event.next_pid = *npid_it;
+    event.next_prio = *nprio_it;
+
+    context_->sorter->PushInlineFtraceEvent(
+        cpu, event_timestamp, TraceSorter::InlineEvent::SchedSwitch(event));
+  }
+
+  // Check that all packed buffers were decoded correctly, and fully.
+  bool sizes_match =
+      !timestamp_it && !pstate_it && !npid_it && !nprio_it && !comm_it;
+  if (parse_error || !sizes_match)
+    context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
+
+  latest_timestamp_ = std::max(timestamp_acc, latest_timestamp_);
 }
 
 PERFETTO_ALWAYS_INLINE

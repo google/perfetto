@@ -657,6 +657,18 @@ void ProtoTraceParser::ParseFtracePacket(
     int64_t ts,
     TraceSorter::TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
+
+  // Handle the (optional) alternative encoding format for sched_switch.
+  if (ttp.inline_event.type == TraceSorter::InlineEvent::Type::kSchedSwitch) {
+    const auto& event = ttp.inline_event.sched_switch;
+    context_->event_tracker->PushSchedSwitchCompact(
+        cpu, ts, event.prev_state, static_cast<uint32_t>(event.next_pid),
+        event.next_prio, event.next_comm);
+
+    context_->args_tracker->Flush();
+    return;
+  }
+
   const TraceBlobView& ftrace = ttp.blob_view;
 
   ProtoDecoder decoder(ftrace.data(), ftrace.length());
