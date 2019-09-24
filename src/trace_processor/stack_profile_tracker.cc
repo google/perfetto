@@ -273,22 +273,7 @@ void StackProfileTracker::ClearIndices() {
   mappings_.clear();
   callstacks_from_frames_.clear();
   callstacks_.clear();
-  // We intentionally hold on to the frames_ mappings - we will use them
-  // if we encounter any ProfiledFrameSymbols packets for symbolizing.
-}
-
-void StackProfileTracker::SetFrameSymbol(SourceFrameId source_frame_id,
-                                         uint32_t symbol_set_id,
-                                         const InternLookup* intern_lookup) {
-  auto maybe_frame_row = FindFrame(source_frame_id, intern_lookup);
-  if (!maybe_frame_row) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
-    PERFETTO_DFATAL_OR_ELOG("Unknown frame iid %" PRIu64 " in symbols.",
-                            source_frame_id);
-  }
-  size_t frame_row = static_cast<size_t>(*maybe_frame_row);
-  context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
-      frame_row, symbol_set_id);
+  frames_.clear();
 }
 
 }  // namespace trace_processor

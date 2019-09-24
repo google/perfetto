@@ -27,7 +27,9 @@ namespace tables {
   NAME(SymbolTable, "stack_profile_symbol")     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)             \
   C(uint32_t, symbol_set_id)                    \
-  C(StringPool::Id, name)
+  C(StringPool::Id, name)                       \
+  C(StringPool::Id, source_file)                \
+  C(uint32_t, line_number)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
 
