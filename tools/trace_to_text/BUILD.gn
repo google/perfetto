@@ -37,6 +37,9 @@ perfetto_host_executable("trace_to_text_lite") {
 }
 
 source_set("utils") {
+  deps = [
+    ":symbolizer",
+  ]
   public_deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
@@ -49,8 +52,6 @@ source_set("utils") {
     "../../src/trace_processor:lib",
   ]
   sources = [
-    "profile_visitor.cc",
-    "profile_visitor.h",
     "utils.cc",
     "utils.h",
   ]
@@ -77,7 +78,6 @@ source_set("local_symbolizer") {
 
 source_set("symbolizer") {
   public_deps = [
-    ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
@@ -90,8 +90,6 @@ source_set("symbolizer") {
   ]
   sources = [
     "symbolizer.cc",
-    "trace_symbol_table.cc",
-    "trace_symbol_table.h",
   ]
 }
 
