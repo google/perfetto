@@ -30,6 +30,7 @@ import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/heap_profile_callsite_stats.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
+import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 
 // Trace processor metadata (taken from the stats table schema and contents).
 // TODO: perhaps add the other columns once we have enum support
@@ -46,7 +47,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 15
+// Next id: 16
 message TraceMetrics {
   reserved 4, 13;
 
@@ -88,6 +89,9 @@ message TraceMetrics {
 
   // Trace metadata (applicable to all traces).
   optional TraceMetadata trace_metadata = 3;
+
+  // Returns stack frames missing symbols.
+  optional UnsymbolizedFrames unsymbolized_frames = 15;
 
   // Demo extensions.
   extensions 450 to 499;
