@@ -69,6 +69,7 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
                              TraceBlobView packet);
   void ParseFtraceBundle(TraceBlobView);
   void ParseFtraceEvent(uint32_t cpu, TraceBlobView);
+  void ParseFtraceCompactSched(uint32_t cpu, const uint8_t* data, size_t size);
 
   ProtoIncrementalState::PacketSequenceState*
   GetIncrementalStateForPacketSequence(uint32_t sequence_id) {

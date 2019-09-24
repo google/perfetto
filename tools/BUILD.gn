@@ -23,6 +23,7 @@ group("tools") {
   deps = [
     ":copy_protoc",
     ":idle_alloc",
+    "compact_reencode",
     "ftrace_proto_gen",
     "proto_to_cpp",
     "protoprofile",
