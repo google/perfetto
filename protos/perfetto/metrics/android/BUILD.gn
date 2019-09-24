@@ -27,5 +27,6 @@ perfetto_proto_library("@TYPE@") {
     "powrails_metric.proto",
     "process_growth.proto",
     "startup_metric.proto",
+    "unsymbolized_frames.proto",
   ]
 }
