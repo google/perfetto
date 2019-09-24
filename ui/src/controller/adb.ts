@@ -259,8 +259,12 @@ export class AdbOverWebUsb implements Adb {
 
     //  The stream will resolve this promise once it receives the
     //  acknowledgement message from the device.
-    return new Promise<AdbStream>((resolve, _) => {
-      stream.onConnect = () => resolve(stream);
+    return new Promise<AdbStream>((resolve, reject) => {
+      stream.onConnect = () => {
+        stream.onClose = () => {};
+        resolve(stream);
+      };
+      stream.onClose = () => reject();
     });
   }
 
