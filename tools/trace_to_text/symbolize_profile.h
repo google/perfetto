@@ -29,11 +29,6 @@ namespace trace_to_text {
 
 int SymbolizeProfile(std::istream* input, std::ostream* output);
 
-void SymbolizeDatabase(
-    trace_processor::TraceProcessor* tp,
-    Symbolizer* symbolizer,
-    std::function<void(const perfetto::protos::TracePacket&)> callback);
-
 }  // namespace trace_to_text
 }  // namespace perfetto
 
