@@ -111,19 +111,28 @@ const SECTIONS = [
         i: 'filter_none'
       },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
+    ],
+  },
+  {
+    title: 'Current Trace',
+    summary: 'Actions on the current trace',
+    expanded: true,
+    hideIfNoTraceLoaded: true,
+    items: [
       {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
       {
-        t: 'Share current trace',
+        t: 'Share',
         a: dispatchCreatePermalink,
         i: 'share',
         disableInLocalOnlyMode: true,
       },
       {
-        t: 'Download current trace',
+        t: 'Download',
         a: downloadTrace,
         i: 'file_download',
         disableInLocalOnlyMode: true,
       },
+      {t: 'Legacy UI', a: openCurrentTraceWithOldUI, i: 'filter_none'},
     ],
   },
   {
@@ -230,6 +239,31 @@ function popupFileSelectionDialogOldUI(e: Event) {
   getFileElement().click();
 }
 
+function openCurrentTraceWithOldUI() {
+  console.assert(isTraceLoaded());
+  if (!isTraceLoaded) return;
+  const engine = Object.values(globals.state.engines)[0];
+  const src = engine.source;
+  if (src instanceof ArrayBuffer) {
+    openInOldUIWithSizeCheck(new Blob([src]));
+  } else if (src instanceof File) {
+    openInOldUIWithSizeCheck(src);
+  } else {
+    console.assert(typeof src === 'string');
+    console.error('Loading from an URL to catapult is not yet supported');
+    // TODO(nicomazz): Find how to get the data of the current trace if it is
+    // from an URL. It seems that the trace downloaded is given to the trace
+    // processor, but not kept somewhere accessible. Maybe the only way is to
+    // download the trace (again), and then open it. An alternative can be to
+    // save a copy.
+  }
+}
+
+function isTraceLoaded(): boolean {
+  const engine = Object.values(globals.state.engines)[0];
+  return engine !== undefined;
+}
+
 function popupVideoSelectionDialog(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['useCatapultLegacyUi'];
@@ -262,61 +296,7 @@ function onInputElementFileSelectionChanged(e: Event) {
       openFileWithLegacyTraceViewer(file);
       return;
     }
-
-    // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
-    if (file.size < 1024 * 1024 * 50) {
-      globals.dispatch(Actions.convertTraceToJson({file}));
-      return;
-    }
-
-    // Give the user the option to truncate larger perfetto traces.
-    const size = Math.round(file.size / (1024 * 1024));
-    showModal({
-      title: 'Legacy UI may fail to open this trace',
-      content:
-          m('div',
-            m('p',
-              `This trace is ${size}mb, opening it in the legacy UI ` +
-                  `may fail.`),
-            m('p',
-              'More options can be found at ',
-              m('a',
-                {
-                  href: 'https://goto.google.com/opening-large-traces',
-                  target: '_blank'
-                },
-                'go/opening-large-traces'),
-              '.')),
-      buttons: [
-        {
-          text: 'Open full trace (not recommended)',
-          primary: false,
-          id: 'open',
-          action: () => {
-            globals.dispatch(Actions.convertTraceToJson({file}));
-          }
-        },
-        {
-          text: 'Open beginning of trace',
-          primary: true,
-          id: 'truncate-start',
-          action: () => {
-            globals.dispatch(
-                Actions.convertTraceToJson({file, truncate: 'start'}));
-          }
-        },
-        {
-          text: 'Open end of trace',
-          primary: true,
-          id: 'truncate-end',
-          action: () => {
-            globals.dispatch(
-                Actions.convertTraceToJson({file, truncate: 'end'}));
-          }
-        }
-
-      ]
-    });
+    openInOldUIWithSizeCheck(file);
     return;
   }
 
@@ -346,6 +326,64 @@ function onInputElementFileSelectionChanged(e: Event) {
 
 }
 
+function openInOldUIWithSizeCheck(trace: Blob) {
+  // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
+  if (trace.size < 1024 * 1024 * 50) {
+    globals.dispatch(Actions.convertTraceToJson({file: trace}));
+    return;
+  }
+
+  // Give the user the option to truncate larger perfetto traces.
+  const size = Math.round(trace.size / (1024 * 1024));
+  showModal({
+    title: 'Legacy UI may fail to open this trace',
+    content:
+        m('div',
+          m('p',
+            `This trace is ${size}mb, opening it in the legacy UI ` +
+                `may fail.`),
+          m('p',
+            'More options can be found at ',
+            m('a',
+              {
+                href: 'https://goto.google.com/opening-large-traces',
+                target: '_blank'
+              },
+              'go/opening-large-traces'),
+            '.')),
+    buttons: [
+      {
+        text: 'Open full trace (not recommended)',
+        primary: false,
+        id: 'open',
+        action: () => {
+          globals.dispatch(Actions.convertTraceToJson({file: trace}));
+        }
+      },
+      {
+        text: 'Open beginning of trace',
+        primary: true,
+        id: 'truncate-start',
+        action: () => {
+          globals.dispatch(
+              Actions.convertTraceToJson({file: trace, truncate: 'start'}));
+        }
+      },
+      {
+        text: 'Open end of trace',
+        primary: true,
+        id: 'truncate-end',
+        action: () => {
+          globals.dispatch(
+              Actions.convertTraceToJson({file: trace, truncate: 'end'}));
+        }
+      }
+
+    ]
+  });
+  return;
+}
+
 function navigateRecord(e: Event) {
   e.preventDefault();
   globals.dispatch(Actions.navigate({route: '/record'}));
@@ -357,16 +395,12 @@ function navigateViewer(e: Event) {
 }
 
 function localOnlyMode(): boolean {
-  if (globals.frontendLocalState.localOnlyMode) return true;
-  const engine = Object.values(globals.state.engines)[0];
-  if (!engine) return true;
-  const src = engine.source;
-  return (src instanceof ArrayBuffer);
+  return globals.frontendLocalState.localOnlyMode;
 }
 
 function dispatchCreatePermalink(e: Event) {
   e.preventDefault();
-  if (localOnlyMode()) return;
+  if (localOnlyMode() || !isTraceLoaded()) return;
 
   const result = confirm(
       `Upload the trace and generate a permalink. ` +
@@ -376,26 +410,31 @@ function dispatchCreatePermalink(e: Event) {
 
 function downloadTrace(e: Event) {
   e.preventDefault();
-  if (localOnlyMode()) return;
+  if (!isTraceLoaded() || localOnlyMode()) return;
 
   const engine = Object.values(globals.state.engines)[0];
   if (!engine) return;
   const src = engine.source;
   if (typeof src === 'string') {
     window.open(src);
-  } else if (src instanceof ArrayBuffer) {
-    console.error('Can not download external trace.');
     return;
-  } else {
-    const url = URL.createObjectURL(src);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = src.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
+
+  let url = '';
+  if (src instanceof ArrayBuffer) {
+    const blob = new Blob([src], {type: 'application/octet-stream'});
+    url = URL.createObjectURL(blob);
+  } else {
+    console.assert(src instanceof File);
+    url = URL.createObjectURL(src);
+  }
+
+  const a = document.createElement('a');
+  a.href = url;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 
@@ -403,6 +442,7 @@ export class Sidebar implements m.ClassComponent {
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
+      if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
         let attrs = {
@@ -430,8 +470,8 @@ export class Sidebar implements m.ClassComponent {
                   globals.rafScheduler.scheduleFullRedraw();
                 }
               },
-              m('h1', section.title),
-              m('h2', section.summary), ),
+              m('h1', {title: section.summary}, section.title),
+              m('h2', section.summary)),
             m('.section-content', m('ul', vdomItems))));
     }
     if (globals.state.videoEnabled) {
