@@ -334,6 +334,7 @@ package(default_visibility = ["//visibility:private"])
 licenses(["notice"])  # Apache 2.0
 
 exports_files(["NOTICE"])
+
 '''.format(__file__).lstrip()
 
   # Public targets need to be computed at the beginning (to figure out the
