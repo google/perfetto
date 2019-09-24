@@ -51,7 +51,7 @@ void ArgsTracker::Flush() {
   auto comparator = [](const Arg& f, const Arg& s) {
     return f.row_id < s.row_id;
   };
-  std::sort(args_.begin(), args_.end(), comparator);
+  std::stable_sort(args_.begin(), args_.end(), comparator);
 
   auto* storage = context_->storage.get();
   for (uint32_t i = 0; i < args_.size();) {
