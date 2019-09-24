@@ -996,8 +996,6 @@ filegroup(
     name = "tools_trace_to_text_symbolizer",
     srcs = [
         "tools/trace_to_text/symbolizer.cc",
-        "tools/trace_to_text/trace_symbol_table.cc",
-        "tools/trace_to_text/trace_symbol_table.h",
     ],
 )
 
@@ -1005,8 +1003,6 @@ filegroup(
 filegroup(
     name = "tools_trace_to_text_utils",
     srcs = [
-        "tools/trace_to_text/profile_visitor.cc",
-        "tools/trace_to_text/profile_visitor.h",
         "tools/trace_to_text/utils.cc",
         "tools/trace_to_text/utils.h",
     ],

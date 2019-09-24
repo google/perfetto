@@ -183,6 +183,7 @@ int TraceToSystrace(std::istream* input,
 
   if (!ReadTrace(tp.get(), input))
     return 1;
+  tp->NotifyEndOfFile();
   using Iterator = trace_processor::TraceProcessor::Iterator;
 
   QueryWriter q_writer(tp.get(), output);
