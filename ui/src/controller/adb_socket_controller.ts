@@ -46,6 +46,8 @@ interface Command {
   params: Uint8Array;
 }
 
+const TRACED_SOCKET = '/dev/socket/traced_consumer';
+
 export class AdbSocketConsumerPort extends RpcConsumerPort {
   private state = State.DISCONNECTED;
   private adb: Adb;
@@ -86,7 +88,7 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     if (this.state === State.BINDING_IN_PROGRESS) return;
     if (this.state === State.DISCONNECTED) {
       this.state = State.BINDING_IN_PROGRESS;
-      this.device = await this.findDevice();
+      this.device = await AdbSocketConsumerPort.findDevice();
       if (!this.device) {
         this.sendErrorMessage(`Device with serial ${
             globals.state.serialAndroidDeviceConnected} not found.`);
@@ -109,7 +111,8 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     const requestId = this.requestId++;
     const methodId = this.findMethodId(method);
     if (methodId === undefined) {
-      this.sendErrorMessage('Calling unsupported method on target.');
+      // This can happen with 'GetTraceStats': it seems that not all the Andorid
+      // <= 9 devices support it.
       console.error(`Method ${method} not supported by the target`);
       return;
     }
@@ -122,9 +125,7 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     this.sendFrame(frame);
   }
 
-  async sendFrame(frame: Frame) {
-    console.assert(this.socket !== undefined);
-    if (!this.socket) return;
+  static generateFrameBufferToSend(frame: Frame): Uint8Array {
     const frameProto: Uint8Array = perfetto.ipc.Frame.encode(frame).finish();
     const frameLen = frameProto.length;
     const buf = new Uint8Array(WIRE_PROTOCOL_HEADER_SIZE + frameLen);
@@ -133,13 +134,19 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     for (let i = 0; i < frameLen; i++) {
       dv.setUint8(WIRE_PROTOCOL_HEADER_SIZE + i, frameProto[i]);
     }
+    return buf;
+  }
+
+  async sendFrame(frame: Frame) {
+    console.assert(this.socket !== undefined);
+    if (!this.socket) return;
+    const buf = AdbSocketConsumerPort.generateFrameBufferToSend(frame);
     await this.socket.write(buf);
   }
 
   async listenForMessages() {
-    this.socket = await this.adb.socket('/dev/socket/traced_consumer');
-
-    this.socket.onData = newData => this.handleReceivedData(newData);
+    this.socket = await this.adb.socket(TRACED_SOCKET);
+    this.socket.onData = (raw) => this.handleReceivedData(raw);
     this.socket.onClose = () => {
       this.state = State.DISCONNECTED;
       this.commandQueue = [];
@@ -304,11 +311,22 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     return undefined;
   }
 
-  async findDevice() {
+  static async findDevice() {
     if (!globals.state.androidDeviceConnected) return undefined;
     const targetSerial = globals.state.androidDeviceConnected.serial;
     const devices = await navigator.usb.getDevices();
     return devices.find(d => d.serialNumber === targetSerial);
+  }
+
+  static async hasSocketAccess(device: USBDevice, adb: Adb) {
+    await adb.connect(device);
+    try {
+      const socket = await adb.socket(TRACED_SOCKET);
+      socket.close();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   handleIncomingFrame(frame: perfetto.ipc.Frame) {
