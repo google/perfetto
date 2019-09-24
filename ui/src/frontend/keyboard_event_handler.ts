@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
+import {TimeSpan} from '../common/time';
 
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -64,6 +65,14 @@ function selectSliceSpan() {
   }
 
   if (startTs !== -1 && endTs !== -1) {
-    globals.makeSelection(Actions.selectTimeSpan({startTs, endTs}));
+    globals.dispatch(Actions.selectTimeSpan({startTs, endTs}));
+    // Zoom into the highlighted time region.
+    const visibleDur = globals.frontendLocalState.visibleWindowTime.end -
+        globals.frontendLocalState.visibleWindowTime.start;
+    const selectDur = endTs - startTs;
+    if (selectDur / visibleDur < 0.05) {
+      globals.frontendLocalState.updateVisibleTime(
+          new TimeSpan(startTs - (selectDur * 2), endTs + (selectDur * 2)));
+    }
   }
 }
