@@ -40,7 +40,7 @@ void TraceSorter::Queue::Sort() {
   // smaller than max_ts_.
   PERFETTO_DCHECK(sort_min_ts_ < max_ts_);
 
-  // We know that all events between [0, sort_start_idx_] are sorted. Witin
+  // We know that all events between [0, sort_start_idx_] are sorted. Within
   // this range, perform a bound search and find the iterator for the min
   // timestamp that broke the monotonicity. Re-sort from there to the end.
   auto sort_end = events_.begin() + static_cast<ssize_t>(sort_start_idx_);
