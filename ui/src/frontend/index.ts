@@ -248,9 +248,12 @@ function main() {
   }
 
   updateAvailableAdbDevices();
-  navigator.usb.addEventListener('connect', updateAvailableAdbDevices);
-  navigator.usb.addEventListener('disconnect', updateAvailableAdbDevices);
-
+  try {
+    navigator.usb.addEventListener('connect', updateAvailableAdbDevices);
+    navigator.usb.addEventListener('disconnect', updateAvailableAdbDevices);
+  } catch (e) {
+    console.error('WebUSB API not supported');
+  }
   // This forwards the messages from the controller to the extension
   extensionLocalChannel.port2.onmessage = ({data}) => {
     if (extensionPort) extensionPort.postMessage(data);
