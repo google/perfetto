@@ -832,7 +832,16 @@ class TraceStorage {
       mappings_.emplace_back(row.mapping_row);
       rel_pcs_.emplace_back(row.rel_pc);
       symbol_set_ids_.emplace_back(0);
-      return static_cast<int64_t>(names_.size()) - 1;
+      size_t row_number = names_.size() - 1;
+      index_.emplace(std::make_pair(row.mapping_row, row.rel_pc), row_number);
+      return static_cast<int64_t>(row_number);
+    }
+
+    ssize_t FindFrameRow(size_t mapping_row, uint64_t rel_pc) const {
+      auto it = index_.find(std::make_pair(mapping_row, rel_pc));
+      if (it == index_.end())
+        return -1;
+      return static_cast<ssize_t>(it->second);
     }
 
     void SetSymbolSetId(size_t row_idx, uint32_t symbol_set_id) {
@@ -852,6 +861,9 @@ class TraceStorage {
     std::deque<int64_t> mappings_;
     std::deque<int64_t> rel_pcs_;
     std::deque<uint32_t> symbol_set_ids_;
+
+    std::map<std::pair<size_t /* mapping row */, uint64_t /* rel_pc */>, size_t>
+        index_;
   };
 
   class StackProfileCallsites {
@@ -917,7 +929,17 @@ class TraceStorage {
       ends_.emplace_back(row.end);
       load_biases_.emplace_back(row.load_bias);
       names_.emplace_back(row.name_id);
-      return static_cast<int64_t>(build_ids_.size()) - 1;
+
+      size_t row_number = build_ids_.size() - 1;
+      index_.emplace(std::make_pair(row.name_id, row.build_id), row_number);
+      return static_cast<int64_t>(row_number);
+    }
+
+    ssize_t FindMappingRow(StringId name, StringId build_id) const {
+      auto it = index_.find(std::make_pair(name, build_id));
+      if (it == index_.end())
+        return -1;
+      return static_cast<ssize_t>(it->second);
     }
 
     const std::deque<StringId>& build_ids() const { return build_ids_; }
@@ -936,6 +958,9 @@ class TraceStorage {
     std::deque<int64_t> ends_;
     std::deque<int64_t> load_biases_;
     std::deque<StringId> names_;
+
+    std::map<std::pair<StringId /* name */, StringId /* build id */>, size_t>
+        index_;
   };
 
   class HeapProfileAllocations {

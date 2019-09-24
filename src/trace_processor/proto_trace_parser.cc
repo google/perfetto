@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
@@ -362,7 +363,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
 
   // TODO(140860736): Once we support null values for
   // stack_profile_frame.symbol_set_id remove this hack
-  context_->storage->mutable_symbol_table()->Insert({0, 0});
+  context_->storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
 
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
@@ -467,6 +468,10 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_graphics_frame_event()) {
     graphics_event_parser_->ParseGraphicsFrameEvent(
         ts, packet.graphics_frame_event());
+  }
+
+  if (packet.has_module_symbols()) {
+    ParseModuleSymbols(packet.module_symbols());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
@@ -2465,6 +2470,43 @@ void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
     add_arg("profileable_from_shell",
             Variadic::Boolean(pkg.profileable_from_shell()));
     add_arg("version_code", Variadic::Integer(pkg.version_code()));
+  }
+}
+
+void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
+  protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
+  std::string hex_build_id = base::ToHex(module_symbols.build_id().data,
+                                         module_symbols.build_id().size);
+  ssize_t mapping_row =
+      context_->storage->stack_profile_mappings().FindMappingRow(
+          context_->storage->InternString(module_symbols.path()),
+          context_->storage->InternString(base::StringView(hex_build_id)));
+  if (mapping_row == -1) {
+    PERFETTO_LOG("Could not find mapping %s (%s).",
+                 base::StringView(module_symbols.path()).ToStdString().c_str(),
+                 hex_build_id.c_str());
+    return;
+  }
+  for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
+    protos::pbzero::AddressSymbols::Decoder address_symbols(addr_it->data(),
+                                                            addr_it->size());
+
+    ssize_t frame_row = context_->storage->stack_profile_frames().FindFrameRow(
+        static_cast<size_t>(mapping_row), address_symbols.address());
+    if (frame_row == -1) {
+      PERFETTO_DFATAL_OR_ELOG("Could not find frame.");
+      return;
+    }
+    uint32_t symbol_set_id = context_->storage->symbol_table().size();
+    context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
+        static_cast<size_t>(frame_row), symbol_set_id);
+    for (auto line_it = address_symbols.lines(); line_it; ++line_it) {
+      protos::pbzero::Line::Decoder line(line_it->data(), line_it->size());
+      context_->storage->mutable_symbol_table()->Insert(
+          {symbol_set_id, context_->storage->InternString(line.function_name()),
+           context_->storage->InternString(line.source_file_name()),
+           line.line_number()});
+    }
   }
 }
 
