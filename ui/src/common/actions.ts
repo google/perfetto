@@ -96,7 +96,7 @@ export const StateActions = {
   },
 
   convertTraceToJson(
-      _: StateDraft, args: {file: File, truncate?: 'start'|'end'}): void {
+      _: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
     ConvertTrace(args.file, args.truncate);
   },
 
