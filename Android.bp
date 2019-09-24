@@ -900,7 +900,7 @@ cc_binary {
 cc_defaults {
   name: "perfetto_defaults",
   cflags: [
-    "-Oz",
+    "-O2",
     "-Wno-error=return-type",
     "-Wno-sign-compare",
     "-Wno-sign-promo",
