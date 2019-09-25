@@ -60,6 +60,12 @@ class StackProfileTracker {
  public:
   using SourceStringId = uint64_t;
 
+  enum class InternedStringType {
+    kMappingPath,
+    kBuildId,
+    kFunctionName,
+  };
+
   struct SourceMapping {
     SourceStringId build_id = 0;
     uint64_t exact_offset = 0;
@@ -98,7 +104,8 @@ class StackProfileTracker {
     virtual ~InternLookup();
 
     virtual base::Optional<base::StringView> GetString(
-        SourceStringId) const = 0;
+        SourceStringId,
+        InternedStringType) const = 0;
     virtual base::Optional<SourceMapping> GetMapping(SourceMappingId) const = 0;
     virtual base::Optional<SourceFrame> GetFrame(SourceFrameId) const = 0;
     virtual base::Optional<SourceCallstack> GetCallstack(
@@ -133,9 +140,11 @@ class StackProfileTracker {
   // InternedData (for versions newer than Q).
   base::Optional<StringId> FindAndInternString(
       SourceStringId,
-      const InternLookup* intern_lookup);
+      const InternLookup* intern_lookup,
+      InternedStringType type);
   base::Optional<std::string> FindString(SourceStringId,
-                                         const InternLookup* intern_lookup);
+                                         const InternLookup* intern_lookup,
+                                         InternedStringType type);
   base::Optional<int64_t> FindMapping(SourceMappingId,
                                       const InternLookup* intern_lookup);
   base::Optional<int64_t> FindFrame(SourceFrameId,
