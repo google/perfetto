@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+
 #include "src/trace_processor/json_trace_parser.h"
 
 #include <inttypes.h>
@@ -23,7 +26,6 @@
 #include <limits>
 #include <string>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -31,10 +33,6 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#error JSON parsing and exporting is not supported in this build configuration
-#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -124,3 +122,5 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
