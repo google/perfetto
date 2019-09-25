@@ -1269,11 +1269,30 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/config:merged_config
+perfetto_cc_proto_library(
+    name = "protos_perfetto_config_merged_config",
+    deps = [
+        ":protos_perfetto_config_merged_config_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/common:lite
 perfetto_cc_proto_library(
     name = "protos_perfetto_common_lite",
     deps = [
         ":protos_perfetto_common_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config:merged_config
+perfetto_proto_library(
+    name = "protos_perfetto_config_merged_config_protos",
+    srcs = [
+        "protos/perfetto/config/perfetto_config.proto",
+    ],
+    visibility = [
+        "//visibility:public",
     ],
 )
 
@@ -1686,6 +1705,9 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/perfetto_trace.proto",
     ],
+    visibility = [
+        "//visibility:public",
+    ],
 )
 
 # GN target: //protos/perfetto/config/profiling:zero
@@ -1841,6 +1863,9 @@ perfetto_proto_library(
     name = "protos_perfetto_metrics_protos",
     srcs = [
         "protos/perfetto/metrics/metrics.proto",
+    ],
+    visibility = [
+        "//visibility:public",
     ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
