@@ -115,10 +115,8 @@ class Table {
  private:
   friend class Column;
 
-  // We explicitly define the copy constructor here because we need to change
-  // the Table pointer in each column to the Table being copied into.
-  Table(const Table& other) { *this = other; }
-  Table& operator=(const Table& other);
+  Table Copy() const;
+  Table CopyExceptRowMaps() const;
 };
 
 }  // namespace trace_processor
