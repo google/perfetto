@@ -22,6 +22,7 @@ import argparse
 import atexit
 import hashlib
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -342,6 +343,7 @@ def main(argv):
   if os.path.lexists(symlink_path):
     os.unlink(symlink_path)
   os.symlink(profile_path, symlink_path)
+  shutil.copyfile('/tmp/profile', os.path.join(profile_path, 'raw-trace'))
 
   print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
   print("These can be viewed using pprof. Googlers: head to pprof/ and "
