@@ -82,6 +82,7 @@ target_initrc = {
 
 target_host_supported = [
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//:libperfetto',
 ]
 
 target_host_only = [
