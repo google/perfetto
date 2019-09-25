@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {Actions} from '../common/actions';
 import {timeToCode} from '../common/time';
 
 import {globals} from './globals';
@@ -22,13 +23,19 @@ import {Panel} from './panel';
 interface HeapDumpDetailsPanelAttrs {}
 
 export class HeapDumpDetailsPanel extends Panel<HeapDumpDetailsPanelAttrs> {
+  private ts = 0;
+  private pid = 0;
+
   view() {
     const heapDumpInfo = globals.heapDumpDetails;
     if (heapDumpInfo && heapDumpInfo.ts && heapDumpInfo.allocated &&
-        heapDumpInfo.allocatedNotFreed) {
+        heapDumpInfo.allocatedNotFreed && heapDumpInfo.tsNs &&
+        heapDumpInfo.pid) {
+      this.ts = heapDumpInfo.tsNs;
+      this.pid = heapDumpInfo.pid;
       return m(
           '.details-panel',
-          m('.details-panel-heading', `Heap Snapshot Details:`),
+          m('.details-panel-heading', `Heap Profile Details:`),
           m(
               '.details-table',
               [m('table',
@@ -47,12 +54,37 @@ export class HeapDumpDetailsPanel extends Panel<HeapDumpDetailsPanelAttrs> {
                            heapDumpInfo.allocatedNotFreed
                                .toLocaleString()} bytes`)),
                  ])],
-              ));
+              ),
+          m('.explanation',
+            'Heap profile support is in beta. To explore a heap profile,',
+            ' download and open it in ',
+            m(`a[href='https://pprof.corp.google.com']`, 'pprof'),
+            ' (Googlers only) or ',
+            m(`a[href='https://www.speedscope.app']`, 'Speedscope'),
+            '.'),
+          m('button',
+            {
+              onclick: () => {
+                this.downloadPprof();
+              }
+            },
+            m('i.material-icons', 'file_download'),
+            'Download profile'),
+      );
     } else {
       return m(
           '.details-panel',
           m('.details-panel-heading', `Heap Snapshot Details:`));
     }
+  }
+
+  downloadPprof() {
+    const engine = Object.values(globals.state.engines)[0];
+    if (!engine) return;
+    const src = engine.source;
+    // TODO(tneda): add second timestamp
+    globals.dispatch(
+        Actions.convertTraceToPprof({pid: this.pid, ts1: this.ts, src}));
   }
 
   renderCanvas() {}

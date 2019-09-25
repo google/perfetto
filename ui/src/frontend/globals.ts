@@ -44,8 +44,10 @@ export interface CounterDetails {
 
 export interface HeapDumpDetails {
   ts?: number;
+  tsNs?: number;
   allocated?: number;
   allocatedNotFreed?: number;
+  pid?: number;
 }
 
 export interface QuantizedLoad {

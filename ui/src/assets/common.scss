@@ -459,6 +459,28 @@ canvas.main-canvas {
     }
   }
 
+  button {
+    background-color: #262f3c;
+    color: #fff;
+    font-size: 0.875rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+    border-radius: .25rem;
+    margin-top: 12px;
+  }
+
+  .explanation {
+    font-size: 14px;
+    width: 35%;
+    margin-top: 10px;
+  }
+
+  .material-icons {
+    vertical-align: middle;
+    margin-right: 10px;
+  }
 }
 
 .tickbar {
