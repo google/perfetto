@@ -40,13 +40,15 @@ int64_t StackProfileTracker::AddMapping(SourceMappingId id,
                                         const InternLookup* intern_lookup) {
   std::string path;
   for (SourceStringId str_id : mapping.name_ids) {
-    auto opt_str = FindString(str_id, intern_lookup);
+    auto opt_str =
+        FindString(str_id, intern_lookup, InternedStringType::kMappingPath);
     if (!opt_str)
       break;
     path += "/" + *opt_str;
   }
 
-  auto opt_build_id = FindAndInternString(mapping.build_id, intern_lookup);
+  auto opt_build_id = FindAndInternString(mapping.build_id, intern_lookup,
+                                          InternedStringType::kBuildId);
   if (!opt_build_id) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
     PERFETTO_DFATAL("Invalid string.");
@@ -86,7 +88,8 @@ int64_t StackProfileTracker::AddMapping(SourceMappingId id,
 int64_t StackProfileTracker::AddFrame(SourceFrameId id,
                                       const SourceFrame& frame,
                                       const InternLookup* intern_lookup) {
-  auto opt_str_id = FindAndInternString(frame.name_id, intern_lookup);
+  auto opt_str_id = FindAndInternString(frame.name_id, intern_lookup,
+                                        InternedStringType::kFunctionName);
   if (!opt_str_id) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
     PERFETTO_DFATAL("Invalid string.");
@@ -170,11 +173,12 @@ int64_t StackProfileTracker::GetDatabaseFrameIdForTesting(
 
 base::Optional<StringId> StackProfileTracker::FindAndInternString(
     SourceStringId id,
-    const InternLookup* intern_lookup) {
+    const InternLookup* intern_lookup,
+    StackProfileTracker::InternedStringType type) {
   if (id == 0)
     return empty_;
 
-  auto opt_str = FindString(id, intern_lookup);
+  auto opt_str = FindString(id, intern_lookup, type);
   if (!opt_str)
     return empty_;
 
@@ -183,14 +187,15 @@ base::Optional<StringId> StackProfileTracker::FindAndInternString(
 
 base::Optional<std::string> StackProfileTracker::FindString(
     SourceStringId id,
-    const InternLookup* intern_lookup) {
+    const InternLookup* intern_lookup,
+    StackProfileTracker::InternedStringType type) {
   if (id == 0)
     return "";
 
   auto it = string_map_.find(id);
   if (it == string_map_.end()) {
     if (intern_lookup) {
-      auto str = intern_lookup->GetString(id);
+      auto str = intern_lookup->GetString(id, type);
       if (!str) {
         context_->storage->IncrementStats(
             stats::stackprofile_invalid_string_id);

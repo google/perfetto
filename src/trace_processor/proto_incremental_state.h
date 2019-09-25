@@ -82,6 +82,11 @@ struct StorageReferences<protos::pbzero::LogMessageBody> {
 
 }  // namespace proto_incremental_state_internal
 
+struct DefaultFieldName;
+struct BuildIdFieldName;
+struct MappingPathsFieldName;
+struct FunctionNamesFieldName;
+
 // Stores per-packet-sequence incremental state during trace parsing, such as
 // reference timestamps for delta timestamp calculation and interned messages.
 class ProtoIncrementalState {
@@ -161,7 +166,9 @@ class ProtoIncrementalState {
     int32_t pid() const { return pid_; }
     int32_t tid() const { return tid_; }
 
-    template <typename MessageType>
+    // Use DefaultFieldName only if there is a single field in InternedData of
+    // the MessageType.
+    template <typename MessageType, typename FieldName = DefaultFieldName>
     InternedDataMap<MessageType>* GetInternedDataMap();
 
    private:
@@ -191,7 +198,9 @@ class ProtoIncrementalState {
     InternedDataMap<protos::pbzero::DebugAnnotationName>
         debug_annotation_names_;
     InternedDataMap<protos::pbzero::SourceLocation> source_locations_;
-    InternedDataMap<protos::pbzero::InternedString> interned_strings_;
+    InternedDataMap<protos::pbzero::InternedString> build_ids_;
+    InternedDataMap<protos::pbzero::InternedString> mapping_paths_;
+    InternedDataMap<protos::pbzero::InternedString> function_names_;
     InternedDataMap<protos::pbzero::LogMessageBody> interned_log_messages_;
     InternedDataMap<protos::pbzero::Mapping> mappings_;
     InternedDataMap<protos::pbzero::Frame> frames_;
@@ -253,9 +262,25 @@ ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
 
 template <>
 inline ProtoIncrementalState::InternedDataMap<protos::pbzero::InternedString>*
+ProtoIncrementalState::PacketSequenceState::
+    GetInternedDataMap<protos::pbzero::InternedString, BuildIdFieldName>() {
+  return &build_ids_;
+}
+
+template <>
+inline ProtoIncrementalState::InternedDataMap<protos::pbzero::InternedString>*
 ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
-    protos::pbzero::InternedString>() {
-  return &interned_strings_;
+    protos::pbzero::InternedString,
+    MappingPathsFieldName>() {
+  return &mapping_paths_;
+}
+
+template <>
+inline ProtoIncrementalState::InternedDataMap<protos::pbzero::InternedString>*
+ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
+    protos::pbzero::InternedString,
+    FunctionNamesFieldName>() {
+  return &function_names_;
 }
 
 template <>
