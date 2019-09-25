@@ -29,28 +29,31 @@ RowMap RowMap::Copy() const {
   return compact_ ? RowMap(bit_vector_.Copy()) : RowMap(index_vector_);
 }
 
-void RowMap::SelectRows(const RowMap& picker) {
+RowMap RowMap::SelectRows(const RowMap& picker) const {
   if (compact_ && picker.compact_) {
-    bit_vector_.UpdateSetBits(picker.bit_vector_);
+    BitVector bv = bit_vector_.Copy();
+    bv.UpdateSetBits(picker.bit_vector_);
+    return RowMap(std::move(bv));
   } else if (compact_ && !picker.compact_) {
-    index_vector_.resize(picker.index_vector_.size());
+    std::vector<uint32_t> iv(picker.index_vector_.size());
     for (uint32_t i = 0; i < picker.index_vector_.size(); ++i) {
       // TODO(lalitm): this is pretty inefficient.
-      index_vector_[i] = bit_vector_.IndexOfNthSet(picker.index_vector_[i]);
+      iv[i] = bit_vector_.IndexOfNthSet(picker.index_vector_[i]);
     }
-    compact_ = false;
-    bit_vector_ = BitVector();
+    return RowMap(std::move(iv));
   } else if (!compact_ && picker.compact_) {
+    RowMap rm = Copy();
     uint32_t idx = 0;
-    RemoveIf(
+    rm.RemoveIf(
         [&idx, &picker](uint32_t) { return !picker.bit_vector_.IsSet(idx++); });
+    return rm;
   } else /* (!compact_ && !picker.compact_) */ {
-    std::vector<uint32_t> old_idx_vector = std::move(index_vector_);
-    index_vector_ = std::vector<uint32_t>(picker.index_vector_.size());
+    std::vector<uint32_t> iv(picker.index_vector_.size());
     for (uint32_t i = 0; i < picker.index_vector_.size(); ++i) {
-      PERFETTO_DCHECK(picker.index_vector_[i] < old_idx_vector.size());
-      index_vector_[i] = old_idx_vector[picker.index_vector_[i]];
+      PERFETTO_DCHECK(picker.index_vector_[i] < index_vector_.size());
+      iv[i] = index_vector_[picker.index_vector_[i]];
     }
+    return RowMap(std::move(iv));
   }
 }
 

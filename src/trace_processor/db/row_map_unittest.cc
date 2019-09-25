@@ -76,25 +76,25 @@ TEST_P(RowMapUnittest, SelectRowsBitVector) {
   picker_bv.Append(true);
   RowMap picker(std::move(picker_bv));
 
-  row_map.SelectRows(picker);
+  auto res = row_map.SelectRows(picker);
 
-  ASSERT_EQ(row_map.size(), 2u);
-  ASSERT_EQ(row_map.Get(0u), 0u);
-  ASSERT_EQ(row_map.Get(1u), 5u);
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0u), 0u);
+  ASSERT_EQ(res.Get(1u), 5u);
 }
 
 TEST_P(RowMapUnittest, SelectRowsRowVector) {
   RowMap row_map = GetParam()->Copy();
   RowMap picker(std::vector<uint32_t>{1u, 0u, 3u, 0u, 0u});
 
-  row_map.SelectRows(picker);
+  auto res = row_map.SelectRows(picker);
 
-  ASSERT_EQ(row_map.size(), 5u);
-  ASSERT_EQ(row_map.Get(0u), 2u);
-  ASSERT_EQ(row_map.Get(1u), 0u);
-  ASSERT_EQ(row_map.Get(2u), 5u);
-  ASSERT_EQ(row_map.Get(3u), 0u);
-  ASSERT_EQ(row_map.Get(4u), 0u);
+  ASSERT_EQ(res.size(), 5u);
+  ASSERT_EQ(res.Get(0u), 2u);
+  ASSERT_EQ(res.Get(1u), 0u);
+  ASSERT_EQ(res.Get(2u), 5u);
+  ASSERT_EQ(res.Get(3u), 0u);
+  ASSERT_EQ(res.Get(4u), 0u);
 }
 
 TEST_P(RowMapUnittest, RemoveIf) {
