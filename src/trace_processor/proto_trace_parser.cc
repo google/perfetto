@@ -36,6 +36,8 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/proto_incremental_state.h"
+#include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -132,9 +134,24 @@ class ProfilePacketInternLookup : public StackProfileTracker::InternLookup {
       : seq_state_(seq_state) {}
 
   base::Optional<base::StringView> GetString(
-      StackProfileTracker::SourceStringId iid) const override {
-    auto* map =
-        seq_state_->GetInternedDataMap<protos::pbzero::InternedString>();
+      StackProfileTracker::SourceStringId iid,
+      StackProfileTracker::InternedStringType type) const override {
+    ProtoIncrementalState::InternedDataMap<protos::pbzero::InternedString>*
+        map = nullptr;
+    switch (type) {
+      case StackProfileTracker::InternedStringType::kBuildId:
+        map = seq_state_->GetInternedDataMap<protos::pbzero::InternedString,
+                                             BuildIdFieldName>();
+        break;
+      case StackProfileTracker::InternedStringType::kFunctionName:
+        map = seq_state_->GetInternedDataMap<protos::pbzero::InternedString,
+                                             FunctionNamesFieldName>();
+        break;
+      case StackProfileTracker::InternedStringType::kMappingPath:
+        map = seq_state_->GetInternedDataMap<protos::pbzero::InternedString,
+                                             MappingPathsFieldName>();
+        break;
+    }
     auto it = map->find(iid);
     if (it == map->end()) {
       PERFETTO_DLOG("Did not find string %" PRIu64 " in %zu elems", iid,
