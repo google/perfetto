@@ -40,6 +40,9 @@ class TrackTracker {
                             int64_t source_id,
                             StringId source_scope);
 
+  // Interns a Android async track into the storage.
+  TrackId InternAndroidAsyncTrack(StringId name, uint32_t upid, int64_t cookie);
+
  private:
   struct FuchsiaAsyncTrackTuple {
     int64_t correlation_id;
@@ -70,10 +73,22 @@ class TrackTracker {
              std::tie(r.source_id, r.upid, r.source_scope);
     }
   };
+  struct AndroidAsyncTrackTuple {
+    UniquePid upid;
+    int64_t cookie;
+    StringId name;
+
+    friend bool operator<(const AndroidAsyncTrackTuple& l,
+                          const AndroidAsyncTrackTuple& r) {
+      return std::tie(l.upid, l.cookie, l.name) <
+             std::tie(r.upid, r.cookie, r.name);
+    }
+  };
 
   std::map<FuchsiaAsyncTrackTuple, TrackId> fuchsia_async_tracks_;
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
+  std::map<AndroidAsyncTrackTuple, TrackId> android_async_tracks_;
 
   StringId source_key_ = 0;
   StringId source_id_key_ = 0;
@@ -81,6 +96,7 @@ class TrackTracker {
 
   StringId fuchsia_source_ = 0;
   StringId chrome_source_ = 0;
+  StringId android_source_ = 0;
 
   TraceProcessorContext* const context_;
 };

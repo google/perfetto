@@ -20,6 +20,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -90,13 +91,21 @@ void SystraceParser::ParseSystracePoint(
       break;
     }
 
-    case 'S': {
-      // Currently unsupported.
-      break;
-    }
-
+    case 'S':
     case 'F': {
-      // Currently unsupported.
+      StringId name_id = context_->storage->InternString(point.name);
+      int64_t cookie = static_cast<int64_t>(point.value);
+      UniquePid upid =
+          context_->process_tracker->GetOrCreateProcess(point.tgid);
+
+      TrackId track_id = context_->track_tracker->InternAndroidAsyncTrack(
+          name_id, upid, cookie);
+      if (point.phase == 'S') {
+        context_->slice_tracker->Begin(ts, track_id, RefType::kRefTrack, 0,
+                                       name_id);
+      } else {
+        context_->slice_tracker->End(ts, track_id, RefType::kRefTrack);
+      }
       break;
     }
 
