@@ -28,16 +28,17 @@ class TrackTracker {
  public:
   explicit TrackTracker(TraceProcessorContext*);
 
-  // Interns a given Fuchsia async track into the storage.
-  TrackId InternFuchsiaAsyncTrack(
-      const tables::FuchsiaAsyncTrackTable::Row& row);
+  // Interns a Fuchsia async track into the storage.
+  TrackId InternFuchsiaAsyncTrack(StringId name, int64_t correlation_id);
 
   // Interns a given GPU track into the storage.
   TrackId InternGpuTrack(const tables::GpuTrackTable::Row& row);
 
-  // Interns a given Chrome async track into the storage.
-  TrackId InternChromeAsyncTrack(const tables::ChromeAsyncTrackTable::Row& row,
-                                 StringId source_scope);
+  // Interns a Chrome track into the storage.
+  TrackId InternChromeTrack(StringId name,
+                            base::Optional<uint32_t> upid,
+                            int64_t source_id,
+                            StringId source_scope);
 
  private:
   struct FuchsiaAsyncTrackTuple {
@@ -45,7 +46,7 @@ class TrackTracker {
 
     friend bool operator<(const FuchsiaAsyncTrackTuple& l,
                           const FuchsiaAsyncTrackTuple& r) {
-      return std::tie(l.correlation_id) < std::tie(r.correlation_id);
+      return l.correlation_id < r.correlation_id;
     }
   };
   struct GpuTrackTuple {
@@ -59,26 +60,28 @@ class TrackTracker {
     }
   };
   struct ChromeTrackTuple {
-    enum class Scope : uint32_t {
-      kGlobal = 0,
-      kProcess,
-    };
-
-    Scope scope;
     base::Optional<int64_t> upid;
     int64_t source_id = 0;
     StringId source_scope = 0;
 
     friend bool operator<(const ChromeTrackTuple& l,
                           const ChromeTrackTuple& r) {
-      return std::tie(l.source_id, l.scope, l.upid, l.source_scope) <
-             std::tie(r.source_id, r.scope, r.upid, r.source_scope);
+      return std::tie(l.source_id, l.upid, l.source_scope) <
+             std::tie(r.source_id, r.upid, r.source_scope);
     }
   };
 
   std::map<FuchsiaAsyncTrackTuple, TrackId> fuchsia_async_tracks_;
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
+
+  StringId source_key_ = 0;
+  StringId source_id_key_ = 0;
+  StringId source_scope_key_ = 0;
+
+  StringId fuchsia_source_ = 0;
+  StringId chrome_source_ = 0;
+
   TraceProcessorContext* const context_;
 };
 

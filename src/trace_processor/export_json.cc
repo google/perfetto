@@ -292,14 +292,18 @@ ResultCode ExportSlices(const TraceStorage* storage,
     }
 
     if (slices.types()[i] == RefType::kRefTrack) {  // Async event.
-      const auto& async_track = storage->chrome_async_track_table();
       TrackId track_id = static_cast<TrackId>(slices.refs()[i]);
-      uint32_t async_row = *async_track.id().IndexOf(SqlValue::Long(track_id));
 
-      auto opt_upid = storage->chrome_async_track_table().upid()[async_row];
-      if (opt_upid.has_value()) {
+      // TODO(lalitm): add a check here for looking up source_arg_set_id
+      // and checking that this track originated from Chrome.
+
+      const auto& process_track = storage->process_track_table();
+      auto opt_process_row =
+          process_track.id().IndexOf(SqlValue::Long(track_id));
+      if (opt_process_row.has_value()) {
+        uint32_t upid = process_track.upid()[*opt_process_row];
         event["id2"]["local"] = PrintUint64(track_id);
-        event["pid"] = storage->GetProcess(*opt_upid).pid;
+        event["pid"] = storage->GetProcess(upid).pid;
       } else {
         event["id2"]["global"] = PrintUint64(track_id);
       }

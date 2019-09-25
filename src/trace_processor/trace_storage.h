@@ -66,6 +66,7 @@ enum TableId : uint8_t {
   kSched = 4,
   kNestableSlices = 5,
   kMetadataTable = 6,
+  kTrack = 7,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
@@ -1166,18 +1167,11 @@ class TraceStorage {
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
 
-  const tables::ChromeAsyncTrackTable& chrome_async_track_table() const {
-    return chrome_async_track_table_;
+  const tables::ProcessTrackTable& process_track_table() const {
+    return process_track_table_;
   }
-  tables::ChromeAsyncTrackTable* mutable_chrome_async_track_table() {
-    return &chrome_async_track_table_;
-  }
-
-  const tables::FuchsiaAsyncTrackTable& fuchsia_async_track_table() const {
-    return fuchsia_async_track_table_;
-  }
-  tables::FuchsiaAsyncTrackTable* mutable_fuchsia_async_track_table() {
-    return &fuchsia_async_track_table_;
+  tables::ProcessTrackTable* mutable_process_track_table() {
+    return &process_track_table_;
   }
 
   const Slices& slices() const { return slices_; }
@@ -1316,12 +1310,7 @@ class TraceStorage {
   // Metadata for tracks.
   tables::TrackTable track_table_{&string_pool_, nullptr};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
-  tables::FuchsiaAsyncTrackTable fuchsia_async_track_table_{&string_pool_,
-                                                            &track_table_};
-  tables::ChromeScopedTrackTable chrome_scoped_track_table_{&string_pool_,
-                                                            &track_table_};
-  tables::ChromeAsyncTrackTable chrome_async_track_table_{
-      &string_pool_, &chrome_scoped_track_table_};
+  tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
 
   // Metadata for gpu tracks.
   GpuContexts gpu_contexts_;
