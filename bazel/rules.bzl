@@ -21,7 +21,7 @@ load("@perfetto//bazel:proto_gen.bzl", "proto_gen")
 
 def default_cc_args():
     return {
-        "deps": [PERFETTO_CONFIG.root + ":build_config_hdr"],
+        "deps": PERFETTO_CONFIG.deps.build_config,
         "copts": [],
         "includes": ["include"],
         "linkopts": select({
