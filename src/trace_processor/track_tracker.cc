@@ -27,6 +27,7 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       source_scope_key_(context->storage->InternString("source_scope")),
       fuchsia_source_(context->storage->InternString("fuchsia")),
       chrome_source_(context->storage->InternString("chrome")),
+      android_source_(context->storage->InternString("android")),
       context_(context) {}
 
 TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
@@ -92,6 +93,28 @@ TrackId TrackTracker::InternChromeTrack(StringId name,
                                  Variadic::Integer(source_id));
   context_->args_tracker->AddArg(row_id, source_scope_key_, source_scope_key_,
                                  Variadic::String(source_scope));
+  return id;
+}
+
+TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
+                                              UniquePid upid,
+                                              int64_t cookie) {
+  AndroidAsyncTrackTuple tuple{upid, cookie, name};
+
+  auto it = android_async_tracks_.find(tuple);
+  if (it != android_async_tracks_.end())
+    return it->second;
+
+  tables::ProcessTrackTable::Row row(name);
+  row.upid = upid;
+  auto id = context_->storage->mutable_process_track_table()->Insert(row);
+  android_async_tracks_[tuple] = id;
+
+  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
+  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
+                                 Variadic::String(android_source_));
+  context_->args_tracker->AddArg(row_id, source_id_key_, source_id_key_,
+                                 Variadic::Integer(cookie));
   return id;
 }
 
