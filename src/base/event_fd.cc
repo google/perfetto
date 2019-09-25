@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #include <stdint.h>
 #include <unistd.h>
 
@@ -74,3 +77,5 @@ void EventFd::Clear() {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
