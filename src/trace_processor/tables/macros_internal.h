@@ -192,11 +192,16 @@ class MacroTable : public Table {
 #define PERFETTO_TP_COLUMN_APPEND(type, name, ...) \
   name##_.Append(std::move(row.name));
 
-// Defines the accessor for a column.
-#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)      \
-  const TypedColumn<type>& name() const {                    \
-    return static_cast<const TypedColumn<type>&>(            \
-        columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
+// Defines the accessors for a column.
+#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)       \
+  const TypedColumn<type>& name() const {                     \
+    return static_cast<const TypedColumn<type>&>(             \
+        columns_[static_cast<uint32_t>(ColumnIndex::name)]);  \
+  }                                                           \
+                                                              \
+  TypedColumn<type>* mutable_##name() {                       \
+    return static_cast<TypedColumn<type>*>(                   \
+        &columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
   }
 
 // Definition used as the parent of root tables.
@@ -278,8 +283,10 @@ class MacroTable : public Table {
     }                                                                         \
                                                                               \
     /* Expands to                                                             \
-     * const SparseVector<col1_type>& col1() { return col1_; }                \
-     * const SparseVector<col2_type>& col2() { return col2_; }                \
+     * const TypedColumn<col1_type>& col1() { return col1_; }                 \
+     * TypedColumn<col1_type>* mutable_col1() { return &col1_; }              \
+     * const TypedColumn<col2_type>& col2() { return col2_; }                 \
+     * TypedColumn<col2_type>* mutable_col2() { return &col2_; }              \
      * ...                                                                    \
      */                                                                       \
     PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_COL_ACCESSOR)              \

@@ -289,11 +289,9 @@ void FuchsiaTraceParser::ParseTracePacket(
           break;
         }
         case kAsyncBegin: {
-          tables::FuchsiaAsyncTrackTable::Row track(name);
-          track.correlation_id = static_cast<int64_t>(*current++);
-
-          TrackId track_id =
-              context_->track_tracker->InternFuchsiaAsyncTrack(track);
+          int64_t correlation_id = static_cast<int64_t>(*current++);
+          TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
+              name, correlation_id);
           slices->Begin(ts, track_id, RefType::kRefTrack, cat, name);
           break;
         }
@@ -301,11 +299,9 @@ void FuchsiaTraceParser::ParseTracePacket(
           // TODO(eseckler): Consider storing these instants as 0-duration
           // slices instead, so that they get nested underneath begin/end
           // slices.
-          tables::FuchsiaAsyncTrackTable::Row track(name);
-          track.correlation_id = static_cast<int64_t>(*current++);
-
-          TrackId track_id =
-              context_->track_tracker->InternFuchsiaAsyncTrack(track);
+          int64_t correlation_id = static_cast<int64_t>(*current++);
+          TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
+              name, correlation_id);
           RowId row = context_->event_tracker->PushInstant(
               ts, name, 0, track_id, RefType::kRefTrack);
           for (const Arg& arg : args) {
@@ -317,11 +313,9 @@ void FuchsiaTraceParser::ParseTracePacket(
           break;
         }
         case kAsyncEnd: {
-          tables::FuchsiaAsyncTrackTable::Row track(name);
-          track.correlation_id = static_cast<int64_t>(*current++);
-
-          TrackId track_id =
-              context_->track_tracker->InternFuchsiaAsyncTrack(track);
+          int64_t correlation_id = static_cast<int64_t>(*current++);
+          TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
+              name, correlation_id);
           slices->End(ts, track_id, RefType::kRefTrack, cat, name);
           break;
         }

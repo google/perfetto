@@ -85,6 +85,10 @@ void ArgsTracker::Flush() {
         storage->mutable_metadata()->OverwriteMetadata(
             row, Variadic::Integer(set_id));
         break;
+      case TableId::kTrack:
+        storage->mutable_track_table()->mutable_source_arg_set_id()->Set(
+            row, set_id);
+        break;
       default:
         PERFETTO_FATAL("Unsupported table to insert args into");
     }
