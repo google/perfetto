@@ -60,6 +60,7 @@ if (enable_perfetto_benchmarks) {
     ]
     sources = [
       "bit_vector_benchmark.cc",
+      "row_map_benchmark.cc",
     ]
   }
 }
