@@ -14,16 +14,13 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+
 #include "src/trace_processor/json_trace_utils.h"
 
 #include <json/value.h>
 #include <limits>
-
-#include "perfetto/base/build_config.h"
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#error JSON parsing and exporting is not supported in this build configuration
-#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -83,3 +80,5 @@ base::Optional<uint32_t> CoerceToUint32(const Json::Value& value) {
 }  // namespace json_trace_utils
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
