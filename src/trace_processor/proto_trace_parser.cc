@@ -1733,14 +1733,15 @@ void ProtoTraceParser::ParseTrackEvent(
 
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
-  tables::ChromeAsyncTrackTable::Row track(name_id);
+  base::Optional<UniquePid> upid;
+  int64_t source_id = 0;
   if (legacy_event.has_unscoped_id()) {
-    track.async_id = static_cast<int64_t>(legacy_event.unscoped_id());
+    source_id = static_cast<int64_t>(legacy_event.unscoped_id());
   } else if (legacy_event.has_global_id()) {
-    track.async_id = static_cast<int64_t>(legacy_event.global_id());
+    source_id = static_cast<int64_t>(legacy_event.global_id());
   } else if (legacy_event.has_local_id()) {
-    track.upid = procs->GetOrCreateProcess(pid);
-    track.async_id = static_cast<int64_t>(legacy_event.local_id());
+    upid = procs->GetOrCreateProcess(pid);
+    source_id = static_cast<int64_t>(legacy_event.local_id());
   }
 
   StringId id_scope = 0;
@@ -1855,8 +1856,8 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
-      TrackId track_id =
-          context_->track_tracker->InternChromeAsyncTrack(track, id_scope);
+      TrackId track_id = context_->track_tracker->InternChromeTrack(
+          name_id, upid, source_id, id_scope);
       auto opt_slice_id =
           slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
                                name_id, args_callback);
@@ -1874,8 +1875,8 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
-      TrackId track_id =
-          context_->track_tracker->InternChromeAsyncTrack(track, id_scope);
+      TrackId track_id = context_->track_tracker->InternChromeTrack(
+          name_id, upid, source_id, id_scope);
       auto opt_slice_id =
           slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id,
                              name_id, args_callback);
@@ -1891,8 +1892,8 @@ void ProtoTraceParser::ParseTrackEvent(
       // nested underneath their parent slices.
       int64_t duration_ns = 0;
       int64_t tidelta = 0;
-      TrackId track_id =
-          context_->track_tracker->InternChromeAsyncTrack(track, id_scope);
+      TrackId track_id = context_->track_tracker->InternChromeTrack(
+          name_id, upid, source_id, id_scope);
       auto opt_slice_id =
           slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
                                 name_id, duration_ns, args_callback);

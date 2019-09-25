@@ -306,9 +306,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   const TraceStorage* storage = context_.storage.get();
   DbSqliteTable::RegisterTable(*db_, &storage->track_table(),
                                storage->track_table().table_name());
-  DbSqliteTable::RegisterTable(
-      *db_, &storage->chrome_async_track_table(),
-      storage->chrome_async_track_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->process_track_table(),
+                               storage->process_track_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->gpu_slice_table(),
                                storage->gpu_slice_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->gpu_track_table(),

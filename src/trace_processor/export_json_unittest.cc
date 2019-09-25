@@ -638,9 +638,9 @@ TEST(ExportJsonTest, AsyncEvent) {
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
 
-  tables::ChromeAsyncTrackTable::Row track(name_id);
+  tables::ProcessTrackTable::Row track(name_id);
   track.upid = upid;
-  TrackId track_id = storage.mutable_chrome_async_track_table()->Insert(track);
+  TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   storage.mutable_nestable_slices()->AddSlice(kTimestamp, kDuration, track_id,
                                               RefType::kRefTrack, cat_id,
@@ -701,9 +701,9 @@ TEST(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
 
-  tables::ChromeAsyncTrackTable::Row track(name_id);
+  tables::ProcessTrackTable::Row track(name_id);
   track.upid = upid;
-  TrackId track_id = storage.mutable_chrome_async_track_table()->Insert(track);
+  TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   auto slice_id = storage.mutable_nestable_slices()->AddSlice(
       kTimestamp, kDuration, track_id, RefType::kRefTrack, cat_id, name_id, 0,
@@ -758,9 +758,9 @@ TEST(ExportJsonTest, UnfinishedAsyncEvent) {
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
 
-  tables::ChromeAsyncTrackTable::Row track(name_id);
+  tables::ProcessTrackTable::Row track(name_id);
   track.upid = upid;
-  TrackId track_id = storage.mutable_chrome_async_track_table()->Insert(track);
+  TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   auto slice_id = storage.mutable_nestable_slices()->AddSlice(
       kTimestamp, kDuration, track_id, RefType::kRefTrack, cat_id, name_id, 0,
@@ -803,9 +803,9 @@ TEST(ExportJsonTest, AsyncInstantEvent) {
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
 
-  tables::ChromeAsyncTrackTable::Row track(name_id);
+  tables::ProcessTrackTable::Row track(name_id);
   track.upid = upid;
-  TrackId track_id = storage.mutable_chrome_async_track_table()->Insert(track);
+  TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   storage.mutable_nestable_slices()->AddSlice(
       kTimestamp, 0, track_id, RefType::kRefTrack, cat_id, name_id, 0, 0, 0);
