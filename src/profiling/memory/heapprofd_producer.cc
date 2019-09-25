@@ -308,8 +308,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
 
-  auto it = data_sources_.find(id);
-  if (it != data_sources_.end()) {
+  if (data_sources_.find(id) != data_sources_.end()) {
     PERFETTO_DFATAL_OR_ELOG(
         "Received duplicated data source instance id: %" PRIu64, id);
     return;
