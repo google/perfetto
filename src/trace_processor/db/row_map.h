@@ -98,9 +98,11 @@ class RowMap {
   // this  : [0, 10, 11, 11, 4]
   //
   // Conceptually, we are performing the following algorithm:
+  // RowMap rm = Copy()
   // for (idx : picker)
-  //   this[i++] = this[idx]
-  void SelectRows(const RowMap& picker);
+  //   rm[i++] = this[idx]
+  // return rm;
+  RowMap SelectRows(const RowMap& picker) const;
 
   // Removes any row where |p(row)| returns false from this RowMap.
   template <typename Predicate>
