@@ -24,6 +24,10 @@ import {globals} from './globals';
 
 export const BUCKET_NAME = 'perfetto-ui-data';
 
+function needsToBeUploaded(obj: {}): obj is ArrayBuffer|File {
+  return obj instanceof ArrayBuffer || obj instanceof File;
+}
+
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
   constructor() {
@@ -57,10 +61,12 @@ export class PermalinkController extends Controller<'main'> {
     const state = globals.state;
 
     // Upload each loaded trace.
-    const fileToUrl = new Map<File, string>();
+    const fileToUrl = new Map<File|ArrayBuffer, string>();
     for (const engine of Object.values<EngineConfig>(state.engines)) {
-      if (!(engine.source instanceof File)) continue;
-      PermalinkController.updateStatus(`Uploading ${engine.source.name}`);
+      if (!needsToBeUploaded(engine.source)) continue;
+      const name = engine.source instanceof File ? engine.source.name :
+                                                   `trace ${engine.id}`;
+      PermalinkController.updateStatus(`Uploading ${name}`);
       const url = await this.saveTrace(engine.source);
       fileToUrl.set(engine.source, url);
     }
@@ -69,8 +75,9 @@ export class PermalinkController extends Controller<'main'> {
     const uploadState = produce(state, draft => {
       for (const engine of Object.values<Draft<EngineConfig>>(
                draft.engines)) {
-        if (!(engine.source instanceof File)) continue;
-        engine.source = fileToUrl.get(engine.source)!;
+        if (!needsToBeUploaded(engine.source)) continue;
+        const newSource = fileToUrl.get(engine.source);
+        if (newSource) engine.source = newSource;
       }
       draft.permalink = {};
     });
@@ -100,7 +107,7 @@ export class PermalinkController extends Controller<'main'> {
     return hash;
   }
 
-  private static async saveTrace(trace: File): Promise<string> {
+  private static async saveTrace(trace: File|ArrayBuffer): Promise<string> {
     // TODO(hjd): This should probably also be a hash but that requires
     // trace processor support.
     const name = uuidv4();
