@@ -28,6 +28,13 @@ PERFETTO_CONFIG = struct(
     # to allow perfetto embedders (e.g. gapid) and google internal builds to
     # override paths and target names to their own third_party.
     deps = struct(
+        # Target exposing the build config header. It should be a valid
+        # cc_library dependency as it will become a dependency of every
+        # perfetto_cc_library target. It needs to expose a
+        # "perfetto_build_flags.h" file that can be included via:
+        # #include "perfetto_build_flags.h".
+        build_config = ["//:build_config_hdr"],
+
         zlib = ["@perfetto_dep_zlib//:zlib"],
         jsoncpp = ["@perfetto_dep_jsoncpp//:jsoncpp"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],

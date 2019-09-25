@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+
 #include <inttypes.h>
 #include <json/reader.h>
 #include <json/value.h>
@@ -848,3 +851,5 @@ ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
 }  // namespace json
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
