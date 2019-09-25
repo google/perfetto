@@ -1124,11 +1124,12 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->chrome_async_track_table().size(), 2u);
-  EXPECT_EQ(storage_->chrome_async_track_table().name()[0], 2u);
-  EXPECT_EQ(storage_->chrome_async_track_table().name()[1], 4u);
-  EXPECT_EQ(storage_->chrome_async_track_table().upid()[0], base::nullopt);
-  EXPECT_EQ(storage_->chrome_async_track_table().upid()[1], 1u);
+  EXPECT_EQ(storage_->track_table().size(), 2u);
+  EXPECT_EQ(storage_->track_table().name()[0], 2u);
+  EXPECT_EQ(storage_->track_table().name()[1], 4u);
+
+  EXPECT_EQ(storage_->process_track_table().size(), 1u);
+  EXPECT_EQ(storage_->process_track_table().upid()[0], 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);
