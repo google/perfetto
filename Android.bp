@@ -426,6 +426,7 @@ cc_library_shared {
     "liblog",
     "libprotobuf-cpp-lite",
   ],
+  host_supported: true,
   export_include_dirs: [
     "include",
     "include/perfetto/base/build_configs/android_tree",
