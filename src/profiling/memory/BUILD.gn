@@ -93,6 +93,7 @@ source_set("wire_protocol") {
 source_set("proc_utils") {
   deps = [
     "../../../gn:default_deps",
+    "../../../include/perfetto/profiling:normalize",
     "../../base",
   ]
   sources = [
@@ -212,6 +213,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:libunwindstack",
+    "../../../include/perfetto/profiling:normalize",
     "../../base",
     "../../base:test_support",
     "../../tracing",

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_MEMORY_EXT_H_
-#define SRC_PROFILING_MEMORY_EXT_H_
+#ifndef INCLUDE_PERFETTO_PROFILING_NORMALIZE_H_
+#define INCLUDE_PERFETTO_PROFILING_NORMALIZE_H_
 
 // Header only code that gets used in other projects.
 // This is currently used in
@@ -63,4 +63,4 @@ static ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_MEMORY_EXT_H_
+#endif  // INCLUDE_PERFETTO_PROFILING_NORMALIZE_H_

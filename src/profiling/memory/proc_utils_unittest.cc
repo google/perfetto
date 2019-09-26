@@ -15,7 +15,7 @@
  */
 
 #include "src/profiling/memory/proc_utils.h"
-#include "src/profiling/memory/ext.h"
+#include "perfetto/profiling/normalize.h"
 
 #include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
