@@ -424,18 +424,26 @@ bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
                   Symbolizer* symbolizer,
                   uint64_t pid,
-                  std::vector<uint64_t> timestamps) {
+                  const std::vector<uint64_t>& timestamps) {
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
   if (!ReadTrace(tp.get(), input))
-    return 1;
+    return false;
 
   tp->NotifyEndOfFile();
+  return TraceToPprof(tp.get(), output, symbolizer, pid, timestamps);
+}
+
+bool TraceToPprof(trace_processor::TraceProcessor* tp,
+                  std::vector<SerializedProfile>* output,
+                  Symbolizer* symbolizer,
+                  uint64_t pid,
+                  const std::vector<uint64_t>& timestamps) {
   if (symbolizer) {
     SymbolizeDatabase(
-        tp.get(), symbolizer, [&tp](perfetto::protos::TracePacket packet) {
+        tp, symbolizer, [&tp](perfetto::protos::TracePacket packet) {
           size_t size = static_cast<size_t>(packet.ByteSize());
           std::unique_ptr<uint8_t[]> buf(new uint8_t[size]);
           packet.SerializeToArray(buf.get(), packet.ByteSize());
@@ -470,8 +478,8 @@ bool TraceToPprof(std::istream* input,
   }
 
   int64_t max_symbol_id = max_symbol_id_it.Get(0).long_value;
-  auto callsite_to_frames = GetCallsiteToFrames(tp.get());
-  auto symbol_set_id_to_lines = GetSymbolSetIdToLines(tp.get());
+  auto callsite_to_frames = GetCallsiteToFrames(tp);
+  auto symbol_set_id_to_lines = GetSymbolSetIdToLines(tp);
 
   Iterator it = tp->ExecuteQuery(kQueryProfiles);
   while (it.Next()) {
@@ -491,7 +499,7 @@ bool TraceToPprof(std::istream* input,
     Iterator pid_it = tp->ExecuteQuery(pid_query);
     PERFETTO_CHECK(pid_it.Next());
 
-    GProfile profile = builder.GenerateGProfile(tp.get(), upid, ts);
+    GProfile profile = builder.GenerateGProfile(tp, upid, ts);
     output->emplace_back(
         SerializedProfile{static_cast<uint64_t>(pid_it.Get(0).long_value),
                           profile.SerializeAsString()});
@@ -507,7 +515,7 @@ bool TraceToPprof(std::istream* input,
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
                   uint64_t pid,
-                  std::vector<uint64_t> timestamps) {
+                  const std::vector<uint64_t>& timestamps) {
   return TraceToPprof(input, output, nullptr, pid, timestamps);
 }
 
