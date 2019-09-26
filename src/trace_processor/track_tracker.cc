@@ -131,5 +131,25 @@ TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
   return id;
 }
 
+TrackId TrackTracker::InternChromeProcessInstantTrack(UniquePid upid) {
+  auto it = chrome_process_instant_tracks_.find(upid);
+  if (it != chrome_process_instant_tracks_.end())
+    return it->second;
+
+  tables::ProcessTrackTable::Row row;
+  row.upid = upid;
+  auto id = context_->storage->mutable_process_track_table()->Insert(row);
+  chrome_process_instant_tracks_[upid] = id;
+  return id;
+}
+
+TrackId TrackTracker::GetOrCreateChromeGlobalInstantTrack() {
+  if (!chrome_global_instant_track_id_) {
+    chrome_global_instant_track_id_ =
+        context_->storage->mutable_track_table()->Insert({});
+  }
+  return *chrome_global_instant_track_id_;
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
