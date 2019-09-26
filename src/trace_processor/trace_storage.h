@@ -1174,6 +1174,13 @@ class TraceStorage {
     return &process_track_table_;
   }
 
+  const tables::ThreadTrackTable& thread_track_table() const {
+    return thread_track_table_;
+  }
+  tables::ThreadTrackTable* mutable_thread_track_table() {
+    return &thread_track_table_;
+  }
+
   const Slices& slices() const { return slices_; }
   Slices* mutable_slices() { return &slices_; }
 
@@ -1311,6 +1318,7 @@ class TraceStorage {
   tables::TrackTable track_table_{&string_pool_, nullptr};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
+  tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
 
   // Metadata for gpu tracks.
   GpuContexts gpu_contexts_;
