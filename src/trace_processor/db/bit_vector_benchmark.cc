@@ -18,8 +18,14 @@
 
 #include "src/trace_processor/db/bit_vector.h"
 
+namespace {
+
+using perfetto::trace_processor::BitVector;
+
+}
+
 static void BM_BitVectorAppendTrue(benchmark::State& state) {
-  perfetto::trace_processor::BitVector bv;
+  BitVector bv;
   for (auto _ : state) {
     bv.AppendTrue();
     benchmark::ClobberMemory();
@@ -28,7 +34,7 @@ static void BM_BitVectorAppendTrue(benchmark::State& state) {
 BENCHMARK(BM_BitVectorAppendTrue);
 
 static void BM_BitVectorAppendFalse(benchmark::State& state) {
-  perfetto::trace_processor::BitVector bv;
+  BitVector bv;
   for (auto _ : state) {
     bv.AppendFalse();
     benchmark::ClobberMemory();
@@ -37,26 +43,26 @@ static void BM_BitVectorAppendFalse(benchmark::State& state) {
 BENCHMARK(BM_BitVectorAppendFalse);
 
 static void BM_BitVectorSet(benchmark::State& state) {
-  static constexpr uint32_t kPoolSize = 1024 * 1024;
-  std::vector<bool> bit_pool(kPoolSize);
-  std::vector<uint32_t> row_pool(kPoolSize);
-
-  static constexpr uint32_t kSize = 123456;
-  perfetto::trace_processor::BitVector bv;
-
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  for (uint32_t i = 0; i < kPoolSize; ++i) {
-    bit_pool[i] = rnd_engine() % 2;
-    row_pool[i] = rnd_engine() % kSize;
-  }
 
-  for (uint32_t i = 0; i < kSize; ++i) {
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  BitVector bv;
+  for (uint32_t i = 0; i < size; ++i) {
     if (rnd_engine() % 2) {
       bv.AppendTrue();
     } else {
       bv.AppendFalse();
     }
+  }
+
+  static constexpr uint32_t kPoolSize = 1024 * 1024;
+  std::vector<bool> bit_pool(kPoolSize);
+  std::vector<uint32_t> row_pool(kPoolSize);
+  for (uint32_t i = 0; i < kPoolSize; ++i) {
+    bit_pool[i] = rnd_engine() % 2;
+    row_pool[i] = rnd_engine() % size;
   }
 
   uint32_t pool_idx = 0;
@@ -66,27 +72,32 @@ static void BM_BitVectorSet(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK(BM_BitVectorSet);
+BENCHMARK(BM_BitVectorSet)
+    ->Arg(64)
+    ->Arg(512)
+    ->Arg(8192)
+    ->Arg(123456)
+    ->Arg(1234567);
 
 static void BM_BitVectorClear(benchmark::State& state) {
-  static constexpr uint32_t kPoolSize = 1024 * 1024;
-  std::vector<uint32_t> row_pool(kPoolSize);
-
-  static constexpr uint32_t kSize = 123456;
-  perfetto::trace_processor::BitVector bv;
-
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  for (uint32_t i = 0; i < kPoolSize; ++i) {
-    row_pool[i] = rnd_engine() % kSize;
-  }
 
-  for (uint32_t i = 0; i < kSize; ++i) {
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  BitVector bv;
+  for (uint32_t i = 0; i < size; ++i) {
     if (rnd_engine() % 2) {
       bv.AppendTrue();
     } else {
       bv.AppendFalse();
     }
+  }
+
+  static constexpr uint32_t kPoolSize = 1024 * 1024;
+  std::vector<uint32_t> row_pool(kPoolSize);
+  for (uint32_t i = 0; i < kPoolSize; ++i) {
+    row_pool[i] = rnd_engine() % size;
   }
 
   uint32_t pool_idx = 0;
@@ -96,18 +107,21 @@ static void BM_BitVectorClear(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK(BM_BitVectorClear);
+BENCHMARK(BM_BitVectorClear)
+    ->Arg(64)
+    ->Arg(512)
+    ->Arg(8192)
+    ->Arg(123456)
+    ->Arg(1234567);
 
 static void BM_BitVectorIndexOfNthSet(benchmark::State& state) {
-  static constexpr uint32_t kPoolSize = 1024 * 1024;
-  std::vector<uint32_t> row_pool(kPoolSize);
-
-  static constexpr uint32_t kSize = 123456;
-  perfetto::trace_processor::BitVector bv;
-
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  for (uint32_t i = 0; i < kSize; ++i) {
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  BitVector bv;
+  for (uint32_t i = 0; i < size; ++i) {
     if (rnd_engine() % 2) {
       bv.AppendTrue();
     } else {
@@ -115,6 +129,8 @@ static void BM_BitVectorIndexOfNthSet(benchmark::State& state) {
     }
   }
 
+  static constexpr uint32_t kPoolSize = 1024 * 1024;
+  std::vector<uint32_t> row_pool(kPoolSize);
   uint32_t set_bit_count = bv.GetNumBitsSet();
   for (uint32_t i = 0; i < kPoolSize; ++i) {
     row_pool[i] = rnd_engine() % set_bit_count;
@@ -126,16 +142,22 @@ static void BM_BitVectorIndexOfNthSet(benchmark::State& state) {
     pool_idx = (pool_idx + 1) % kPoolSize;
   }
 }
-BENCHMARK(BM_BitVectorIndexOfNthSet);
+BENCHMARK(BM_BitVectorIndexOfNthSet)
+    ->Arg(64)
+    ->Arg(512)
+    ->Arg(8192)
+    ->Arg(123456)
+    ->Arg(1234567);
 
 static void BM_BitVectorGetNumBitsSet(benchmark::State& state) {
-  static constexpr uint32_t kSize = 123456;
-  perfetto::trace_processor::BitVector bv;
-  uint32_t count = 0;
-
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
-  for (uint32_t i = 0; i < kSize; ++i) {
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  uint32_t count = 0;
+  BitVector bv;
+  for (uint32_t i = 0; i < size; ++i) {
     bool value = rnd_engine() % 2;
     if (value) {
       bv.AppendTrue();
@@ -153,4 +175,9 @@ static void BM_BitVectorGetNumBitsSet(benchmark::State& state) {
   }
   PERFETTO_CHECK(res == count);
 }
-BENCHMARK(BM_BitVectorGetNumBitsSet);
+BENCHMARK(BM_BitVectorGetNumBitsSet)
+    ->Arg(64)
+    ->Arg(512)
+    ->Arg(8192)
+    ->Arg(123456)
+    ->Arg(1234567);
