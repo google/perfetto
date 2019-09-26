@@ -200,6 +200,7 @@ base::Optional<std::string> StackProfileTracker::FindString(
         context_->storage->IncrementStats(
             stats::stackprofile_invalid_string_id);
         PERFETTO_DFATAL("Invalid string.");
+        return base::nullopt;
       }
       return str->ToStdString();
     }
