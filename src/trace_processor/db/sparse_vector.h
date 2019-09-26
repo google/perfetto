@@ -51,11 +51,11 @@ class SparseVector {
   // Adds the given value to the SparseVector.
   void Append(T val) {
     data_.emplace_back(val);
-    valid_.Append(true);
+    valid_.AppendTrue();
   }
 
   // Adds a null value to the SparseVector.
-  void AppendNull() { valid_.Append(false); }
+  void AppendNull() { valid_.AppendFalse(); }
 
   // Adds the given optional value to the SparseVector.
   void Append(base::Optional<T> val) {
@@ -76,7 +76,7 @@ class SparseVector {
       data_[data_idx] = val;
     } else {
       data_.insert(data_.begin() + static_cast<ptrdiff_t>(data_idx), val);
-      valid_.Set(idx, true);
+      valid_.Set(idx);
     }
   }
 
