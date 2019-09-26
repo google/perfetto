@@ -34,7 +34,7 @@ namespace trace_processor {
 namespace {
 
 std::string SubstrTrim(const std::string& input, size_t start, size_t end) {
-  auto s = input.substr(start, end - start);
+  std::string s = input.substr(start, end - start);
   s.erase(s.begin(), std::find_if(s.begin(), s.end(),
                                   [](int ch) { return !std::isspace(ch); }));
   s.erase(std::find_if(s.rbegin(), s.rend(),
@@ -94,6 +94,8 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
   return util::OkStatus();
 }
 
+// TODO(hjd): This should be more robust to being passed random input.
+// This can happen if we mess up detecting a gzip trace for example.
 util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     const std::string& buffer) {
   // An example line from buffer looks something like the following:
@@ -111,6 +113,10 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   auto tgid_idx = buffer.find('(', task_idx + 1);
   auto cpu_idx = buffer.find('[', task_idx + 1);
   bool has_tgid = tgid_idx != std::string::npos && tgid_idx < cpu_idx;
+
+  if (cpu_idx == std::string::npos) {
+    return util::Status("Could not find [ in " + buffer);
+  }
 
   auto pid_end = has_tgid ? cpu_idx : tgid_idx;
   std::string pid_str = SubstrTrim(buffer, task_idx + 1, pid_end);
