@@ -34,7 +34,6 @@ PERFETTO_CONFIG = struct(
         # "perfetto_build_flags.h" file that can be included via:
         # #include "perfetto_build_flags.h".
         build_config = ["//:build_config_hdr"],
-
         zlib = ["@perfetto_dep_zlib//:zlib"],
         jsoncpp = ["@perfetto_dep_jsoncpp//:jsoncpp"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
