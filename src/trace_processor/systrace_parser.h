@@ -99,6 +99,11 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
   size_t len = str.size();
   *out = {};
 
+  constexpr const char* kClockSyncPrefix = "trace_event_clock_sync:";
+  if (len >= strlen(kClockSyncPrefix) &&
+      strncmp(kClockSyncPrefix, s, strlen(kClockSyncPrefix)) == 0)
+    return SystraceParseResult::kUnsupported;
+
   if (len < 2)
     return SystraceParseResult::kFailure;
 
