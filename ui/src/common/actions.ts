@@ -15,7 +15,7 @@
 import {Draft} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {ConvertTrace} from '../controller/trace_converter';
+import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 
 import {
   AdbRecordingTarget,
@@ -95,9 +95,19 @@ export const StateActions = {
     state.videoEnabled = true;
   },
 
+  // TODO(b/141359485): Actions should only modify state.
   convertTraceToJson(
       _: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
     ConvertTrace(args.file, args.truncate);
+  },
+
+  convertTraceToPprof(_: StateDraft, args: {
+    pid: number,
+    src: string|File|ArrayBuffer,
+    ts1: number,
+    ts2?: number
+  }): void {
+    ConvertTraceToPprof(args.pid, args.src, args.ts1, args.ts2);
   },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {

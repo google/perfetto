@@ -47,7 +47,10 @@ std::string GetTemp() {
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToProfile(std::istream* input, std::ostream* output) {
+int TraceToProfile(std::istream* input,
+                   std::ostream* output,
+                   uint64_t pid,
+                   std::vector<uint64_t> timestamps) {
   std::unique_ptr<Symbolizer> symbolizer;
   auto binary_path = GetPerfettoBinaryPath();
   if (!binary_path.empty()) {
@@ -61,7 +64,7 @@ int TraceToProfile(std::istream* input, std::ostream* output) {
   }
 
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(input, &profiles, symbolizer.get());
+  TraceToPprof(input, &profiles, symbolizer.get(), pid, timestamps);
   if (profiles.empty()) {
     return 0;
   }
