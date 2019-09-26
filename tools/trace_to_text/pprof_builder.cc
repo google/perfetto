@@ -92,23 +92,6 @@ struct Callsite {
   int64_t frame_id;
 };
 
-// Walk tree bottom up and assign the inverse of the frame_ids of the path
-// that was used to reach each node into result.
-void Walk(const std::vector<std::vector<Callsite>> children_map,
-          std::vector<std::vector<int64_t>>* result,
-          std::vector<int64_t> parents,
-          const Callsite& root) {
-  PERFETTO_DCHECK((*result)[static_cast<size_t>(root.id)].empty());
-  parents.push_back(root.frame_id);
-  // pprof stores the frames the other way round that we do, reverse here.
-  (*result)[static_cast<size_t>(root.id)].assign(parents.rbegin(),
-                                                 parents.rend());
-  const std::vector<Callsite>& children =
-      children_map[static_cast<size_t>(root.id)];
-  for (const Callsite& child : children)
-    Walk(children_map, result, parents, child);
-}
-
 // Return map from callsite_id to list of frame_ids that make up the callstack.
 std::vector<std::vector<int64_t>> GetCallsiteToFrames(
     trace_processor::TraceProcessor* tp) {
@@ -120,20 +103,22 @@ std::vector<std::vector<int64_t>> GetCallsiteToFrames(
     return {};
   }
   int64_t count = count_it.Get(0).long_value;
-  std::vector<std::vector<Callsite>> children(static_cast<size_t>(count));
 
   Iterator it = tp->ExecuteQuery(
-      "select id, parent_id, frame_id from stack_profile_callsite;");
-  std::vector<Callsite> roots;
+      "select id, parent_id, frame_id from stack_profile_callsite order by "
+      "depth;");
+  std::vector<std::vector<int64_t>> result(static_cast<size_t>(count));
   while (it.Next()) {
     int64_t id = it.Get(0).long_value;
     int64_t parent_id = it.Get(1).long_value;
     int64_t frame_id = it.Get(2).long_value;
-    Callsite callsite{id, frame_id};
-    if (parent_id == -1)
-      roots.emplace_back(callsite);
-    else
-      children[static_cast<size_t>(parent_id)].emplace_back(callsite);
+    std::vector<int64_t>& path = result[static_cast<size_t>(id)];
+    path.push_back(frame_id);
+    if (parent_id != -1) {
+      const std::vector<int64_t>& parent_path =
+          result[static_cast<size_t>(parent_id)];
+      path.insert(path.end(), parent_path.begin(), parent_path.end());
+    }
   }
 
   if (!it.Status().ok()) {
@@ -141,13 +126,6 @@ std::vector<std::vector<int64_t>> GetCallsiteToFrames(
                             it.Status().message().c_str());
     return {};
   }
-
-  std::vector<std::vector<int64_t>> result(static_cast<size_t>(count));
-  auto start = base::GetWallTimeMs();
-  for (const Callsite& root : roots)
-    Walk(children, &result, {}, root);
-  PERFETTO_DLOG("Walked %zu in %llu", children.size(),
-                (base::GetWallTimeMs() - start).count());
   return result;
 }
 
