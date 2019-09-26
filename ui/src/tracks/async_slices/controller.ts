@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import {
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
 
-class ChromeSliceTrackController extends TrackController<Config, Data> {
+class AsyncSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = SLICE_TRACK_KIND;
   private setup = false;
 
@@ -39,7 +39,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       await this.query(
           `create view ${this.tableName('small')} as ` +
           `select ts,dur,depth,name,slice_id from slice ` +
-          `where utid = ${this.config.utid} ` +
+          `where ref_type = 'track' ` +
+          `and ref = ${this.config.trackId} ` +
           `and dur < ${minNs} ` +
           `order by ts;`);
 
@@ -63,15 +64,17 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
 
     await this.query(
         `create view ${this.tableName('small')} as ` +
-        `select ts,dur,depth,name,slice_id from slice ` +
-        `where utid = ${this.config.utid} ` +
+        `select ts,dur,depth,name, slice_id from slice ` +
+        `where ref_type = 'track' ` +
+        `and ref = ${this.config.trackId} ` +
         `and dur < ${minNs} ` +
         `order by ts `);
 
     await this.query(
         `create view ${this.tableName('big')} as ` +
-        `select ts,dur,depth,name,slice_id from slice ` +
-        `where utid = ${this.config.utid} ` +
+        `select ts,dur,depth,name, slice_id from slice ` +
+        `where ref_type = 'track' ` +
+        `and ref = ${this.config.trackId} ` +
         `and ts >= ${startNs} - dur ` +
         `and ts <= ${endNs} ` +
         `and dur >= ${minNs} ` +
@@ -134,8 +137,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
     }
     return slices;
   }
-
 }
 
 
-trackControllerRegistry.register(ChromeSliceTrackController);
+trackControllerRegistry.register(AsyncSliceTrackController);
