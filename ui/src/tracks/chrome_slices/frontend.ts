@@ -34,9 +34,9 @@ function hash(s: string): number {
   return hash & 0xff;
 }
 
-class ChromeSliceTrack extends Track<Config, Data> {
-  static readonly kind = SLICE_TRACK_KIND;
-  static create(trackState: TrackState): ChromeSliceTrack {
+export class ChromeSliceTrack extends Track<Config, Data> {
+  static readonly kind: string = SLICE_TRACK_KIND;
+  static create(trackState: TrackState): Track {
     return new ChromeSliceTrack(trackState);
   }
 
