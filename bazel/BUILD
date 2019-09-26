@@ -17,3 +17,16 @@ config_setting(
     values = {"cpu": "darwin"},
     visibility = ["//visibility:public"],
 )
+
+config_setting(
+    name = "os_linux",
+    values = {"cpu": "k8"},
+    visibility = ["//visibility:public"],
+)
+
+# Note this config does not imply MSVC.
+config_setting(
+    name = "os_windows",
+    values = {"cpu": "x64_windows"},
+    visibility = ["//visibility:public"],
+)
