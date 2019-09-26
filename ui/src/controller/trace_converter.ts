@@ -53,6 +53,74 @@ export function ConvertTrace(trace: Blob, truncate?: 'start'|'end') {
   (self as {} as {mod: {}}).mod = mod;
 }
 
+export async function ConvertTraceToPprof(
+    pid: number, src: string|File|ArrayBuffer, ts1: number, ts2?: number) {
+  generateBlob(src).then(result => {
+    const mod = trace_to_text({
+      noInitialRun: true,
+      locateFile: (s: string) => s,
+      print: updateStatus,
+      printErr: updateStatus,
+      onRuntimeInitialized: () => {
+        updateStatus('Converting trace');
+        const timestamps = `${ts1}${ts2 === undefined ? '' : `,${ts2}`}`;
+        mod.callMain([
+          'profile',
+          `--pid`,
+          `${pid}`,
+          `--timestamps`,
+          timestamps,
+          '/fs/trace.proto'
+        ]);
+        updateStatus('Trace conversion completed');
+        const heapDirName =
+            Object.keys(mod.FS.lookupPath('/tmp/').node.contents)[0];
+        const heapDirContents =
+            mod.FS.lookupPath(`/tmp/${heapDirName}`).node.contents;
+        const heapDumpFiles = Object.keys(heapDirContents);
+        let fileNum = 0;
+        heapDumpFiles.forEach(heapDump => {
+          const fileContents =
+              mod.FS.lookupPath(`/tmp/${heapDirName}/${heapDump}`)
+                  .node.contents;
+          fileNum++;
+          const fileName = `/heap_dump.${fileNum}.${pid}.pb`;
+          downloadFile(new Blob([fileContents]), fileName);
+        });
+        updateStatus('Profile(s) downloaded');
+      },
+      onAbort: () => {
+        console.log('ABORT');
+      },
+    });
+    mod.FS.mkdir('/fs');
+    mod.FS.mount(
+        mod.FS.filesystems.WORKERFS,
+        {blobs: [{name: 'trace.proto', data: result}]},
+        '/fs');
+  });
+}
+
+async function generateBlob(src: string|ArrayBuffer|File) {
+  let blob: Blob = new Blob();
+  if (typeof src === 'string') {
+    const resp = await fetch(src);
+    if (resp.status !== 200) {
+      throw new Error(`fetch() failed with HTTP error ${resp.status}`);
+    }
+    blob = await resp.blob();
+  } else if (src instanceof ArrayBuffer) {
+    blob = new Blob([new Uint8Array(src, 0, src.byteLength)]);
+  } else {
+    blob = src;
+  }
+  return blob;
+}
+
+function downloadFile(file: Blob, name: string) {
+  globals.publish('FileDownload', {file, name});
+}
+
 function updateStatus(msg: {}) {
   console.log(msg);
   globals.dispatch(Actions.updateStatus({

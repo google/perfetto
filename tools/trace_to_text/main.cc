@@ -20,10 +20,11 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "tools/trace_to_text/symbolize_profile.h"
 #include "tools/trace_to_text/trace_to_profile.h"
 #include "tools/trace_to_text/trace_to_systrace.h"
 #include "tools/trace_to_text/trace_to_text.h"
-#include "tools/trace_to_text/symbolize_profile.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
 #include "perfetto_version.gen.h"
@@ -35,18 +36,29 @@ namespace {
 
 int Usage(const char* argv0) {
   printf(
-      "Usage: %s systrace|json|text|profile [--truncate start|end] [trace.pb] "
+      "Usage: %s systrace|json|text|profile [--pid PID] "
+      "[--timestamps TIMESTAMP1,TIMESTAMP2,...] "
+      "[--truncate start|end] [trace.pb] "
       "[trace.txt]\n",
       argv0);
   return 1;
 }
 
+uint64_t StringToUint64OrDie(const char* str) {
+  char* end;
+  uint64_t number = static_cast<uint64_t>(strtoll(str, &end, 10));
+  if (*end != '\0')
+    PERFETTO_FATAL("Invalid %s. Expected decimal integer.", str);
+  return number;
+}
 }  // namespace
 
 int main(int argc, char** argv) {
   std::vector<const char*> positional_args;
   perfetto::trace_to_text::Keep truncate_keep =
       perfetto::trace_to_text::Keep::kAll;
+  uint64_t pid = 0;
+  std::vector<uint64_t> timestamps;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", PERFETTO_GET_GIT_REVISION());
@@ -63,6 +75,16 @@ int main(int argc, char** argv) {
             "--truncate must specify whether to keep the end or the "
             "start of the trace.");
         return Usage(argv[0]);
+      }
+    } else if (i <= argc && strcmp(argv[i], "--pid") == 0) {
+      i++;
+      pid = StringToUint64OrDie(argv[i]);
+    } else if (i <= argc && strcmp(argv[i], "--timestamps") == 0) {
+      i++;
+      std::vector<std::string> ts_strings =
+          perfetto::base::SplitString(argv[i], ",");
+      for (const auto& ts : ts_strings) {
+        timestamps.emplace_back(StringToUint64OrDie(ts.c_str()));
       }
     } else {
       positional_args.push_back(argv[i]);
@@ -121,8 +143,10 @@ int main(int argc, char** argv) {
   if (format == "text")
     return perfetto::trace_to_text::TraceToText(input_stream, output_stream);
 
-  if (format == "profile")
-    return perfetto::trace_to_text::TraceToProfile(input_stream, output_stream);
+  if (format == "profile") {
+    return perfetto::trace_to_text::TraceToProfile(input_stream, output_stream,
+                                                   pid, timestamps);
+  }
 
   if (format == "symbolize")
     return perfetto::trace_to_text::SymbolizeProfile(input_stream,

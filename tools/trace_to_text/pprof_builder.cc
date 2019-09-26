@@ -85,7 +85,8 @@ const View kViews[] = {kAllocObjectsView, kObjectsView, kAllocSpaceView,
 using Iterator = trace_processor::TraceProcessor::Iterator;
 
 constexpr const char* kQueryProfiles =
-    "select distinct hpa.upid, hpa.ts from heap_profile_allocation hpa;";
+    "select distinct hpa.upid, hpa.ts, p.pid from heap_profile_allocation hpa, "
+    "process p where p.upid = hpa.upid;";
 
 struct Callsite {
   int64_t id;
@@ -443,7 +444,9 @@ class GProfileBuilder {
 
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
-                  Symbolizer* symbolizer) {
+                  Symbolizer* symbolizer,
+                  uint64_t pid,
+                  std::vector<uint64_t> timestamps) {
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
@@ -498,6 +501,13 @@ bool TraceToPprof(std::istream* input,
                             max_symbol_id);
     uint64_t upid = static_cast<uint64_t>(it.Get(0).long_value);
     uint64_t ts = static_cast<uint64_t>(it.Get(1).long_value);
+    uint64_t profile_pid = static_cast<uint64_t>(it.Get(2).long_value);
+    if ((pid > 0 && profile_pid != pid) ||
+        (!timestamps.empty() && std::find(timestamps.begin(), timestamps.end(),
+                                          ts) == timestamps.end())) {
+      continue;
+    }
+
     std::string pid_query = "select pid from process where upid = ";
     pid_query += std::to_string(upid) + ";";
     Iterator pid_it = tp->ExecuteQuery(pid_query);
@@ -516,8 +526,11 @@ bool TraceToPprof(std::istream* input,
   return true;
 }
 
-bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output) {
-  return TraceToPprof(input, output, nullptr);
+bool TraceToPprof(std::istream* input,
+                  std::vector<SerializedProfile>* output,
+                  uint64_t pid,
+                  std::vector<uint64_t> timestamps) {
+  return TraceToPprof(input, output, nullptr, pid, timestamps);
 }
 
 }  // namespace trace_to_text
