@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+
 cc_library(
     name = "jsoncpp",
     srcs = [
@@ -38,7 +40,7 @@ cc_library(
     ],
     copts = [
         "-Isrc/lib_json",
-    ],
+    ] + PERFETTO_CONFIG.deps_copts.jsoncpp,
     defines = [
         "JSON_USE_EXCEPTION=0",
     ],
