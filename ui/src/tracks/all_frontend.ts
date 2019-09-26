@@ -25,3 +25,4 @@ import './process_scheduling/frontend';
 import './process_summary/frontend';
 import './thread_state/frontend';
 import './vsync/frontend';
+import './async_slices/frontend';
