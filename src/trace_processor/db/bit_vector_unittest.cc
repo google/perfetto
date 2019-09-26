@@ -16,24 +16,96 @@
 
 #include "src/trace_processor/db/bit_vector.h"
 
+#include <random>
+
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(BitVectorUnittest, Set) {
-  BitVector bv(3, true);
-  bv.Clear(0);
-  bv.Set(1);
+TEST(BitVectorUnittest, CreateAllTrue) {
+  BitVector bv(2049, true);
 
-  ASSERT_EQ(bv.size(), 3u);
-  ASSERT_FALSE(bv.IsSet(0));
+  // Ensure that a selection of interesting bits are set.
+  ASSERT_TRUE(bv.IsSet(0));
   ASSERT_TRUE(bv.IsSet(1));
-  ASSERT_TRUE(bv.IsSet(2));
+  ASSERT_TRUE(bv.IsSet(511));
+  ASSERT_TRUE(bv.IsSet(512));
+  ASSERT_TRUE(bv.IsSet(2047));
+  ASSERT_TRUE(bv.IsSet(2048));
 }
 
-TEST(BitVectorUnittest, Append) {
+TEST(BitVectorUnittest, CreateAllFalse) {
+  BitVector bv(2049, false);
+
+  // Ensure that a selection of interesting bits are cleared.
+  ASSERT_FALSE(bv.IsSet(0));
+  ASSERT_FALSE(bv.IsSet(1));
+  ASSERT_FALSE(bv.IsSet(511));
+  ASSERT_FALSE(bv.IsSet(512));
+  ASSERT_FALSE(bv.IsSet(2047));
+  ASSERT_FALSE(bv.IsSet(2048));
+}
+
+TEST(BitVectorUnittest, Set) {
+  BitVector bv(2049, false);
+  bv.Set(0);
+  bv.Set(1);
+  bv.Set(511);
+  bv.Set(512);
+  bv.Set(2047);
+
+  // Ensure the bits we touched are set.
+  ASSERT_TRUE(bv.IsSet(0));
+  ASSERT_TRUE(bv.IsSet(1));
+  ASSERT_TRUE(bv.IsSet(511));
+  ASSERT_TRUE(bv.IsSet(512));
+  ASSERT_TRUE(bv.IsSet(2047));
+
+  // Ensure that a selection of other interestinng bits are
+  // still cleared.
+  ASSERT_FALSE(bv.IsSet(2));
+  ASSERT_FALSE(bv.IsSet(63));
+  ASSERT_FALSE(bv.IsSet(64));
+  ASSERT_FALSE(bv.IsSet(510));
+  ASSERT_FALSE(bv.IsSet(513));
+  ASSERT_FALSE(bv.IsSet(1023));
+  ASSERT_FALSE(bv.IsSet(1024));
+  ASSERT_FALSE(bv.IsSet(2046));
+  ASSERT_FALSE(bv.IsSet(2048));
+  ASSERT_FALSE(bv.IsSet(2048));
+}
+
+TEST(BitVectorUnittest, Clear) {
+  BitVector bv(2049, true);
+  bv.Clear(0);
+  bv.Clear(1);
+  bv.Clear(511);
+  bv.Clear(512);
+  bv.Clear(2047);
+
+  // Ensure the bits we touched are cleared.
+  ASSERT_FALSE(bv.IsSet(0));
+  ASSERT_FALSE(bv.IsSet(1));
+  ASSERT_FALSE(bv.IsSet(511));
+  ASSERT_FALSE(bv.IsSet(512));
+  ASSERT_FALSE(bv.IsSet(2047));
+
+  // Ensure that a selection of other interestinng bits are
+  // still set.
+  ASSERT_TRUE(bv.IsSet(2));
+  ASSERT_TRUE(bv.IsSet(63));
+  ASSERT_TRUE(bv.IsSet(64));
+  ASSERT_TRUE(bv.IsSet(510));
+  ASSERT_TRUE(bv.IsSet(513));
+  ASSERT_TRUE(bv.IsSet(1023));
+  ASSERT_TRUE(bv.IsSet(1024));
+  ASSERT_TRUE(bv.IsSet(2046));
+  ASSERT_TRUE(bv.IsSet(2048));
+}
+
+TEST(BitVectorUnittest, AppendToEmpty) {
   BitVector bv;
   bv.AppendTrue();
   bv.AppendFalse();
@@ -43,60 +115,101 @@ TEST(BitVectorUnittest, Append) {
   ASSERT_FALSE(bv.IsSet(1));
 }
 
-TEST(BitVectorUnittest, NextSet) {
-  BitVector bv(6, false);
-  bv.Set(1);
-  bv.Set(2);
-  bv.Set(4);
+TEST(BitVectorUnittest, AppendToExisting) {
+  BitVector bv(2046, false);
+  bv.AppendTrue();
+  bv.AppendFalse();
+  bv.AppendTrue();
+  bv.AppendTrue();
 
-  ASSERT_EQ(bv.NextSet(0), 1u);
-  ASSERT_EQ(bv.NextSet(1), 1u);
-  ASSERT_EQ(bv.NextSet(2), 2u);
-  ASSERT_EQ(bv.NextSet(3), 4u);
-  ASSERT_EQ(bv.NextSet(4), 4u);
-  ASSERT_EQ(bv.NextSet(5), 6u);
+  ASSERT_EQ(bv.size(), 2050u);
+  ASSERT_TRUE(bv.IsSet(2046));
+  ASSERT_FALSE(bv.IsSet(2047));
+  ASSERT_TRUE(bv.IsSet(2048));
+  ASSERT_TRUE(bv.IsSet(2049));
 }
 
 TEST(BitVectorUnittest, GetNumBitsSet) {
-  BitVector bv(6, false);
+  BitVector bv(2049, false);
+  bv.Set(0);
   bv.Set(1);
-  bv.Set(2);
-  bv.Set(4);
+  bv.Set(511);
+  bv.Set(512);
+  bv.Set(2047);
+  bv.Set(2048);
 
-  ASSERT_EQ(bv.GetNumBitsSet(), 3u);
+  ASSERT_EQ(bv.GetNumBitsSet(), 6u);
 
   ASSERT_EQ(bv.GetNumBitsSet(0), 0u);
-  ASSERT_EQ(bv.GetNumBitsSet(1), 0u);
-  ASSERT_EQ(bv.GetNumBitsSet(2), 1u);
+  ASSERT_EQ(bv.GetNumBitsSet(1), 1u);
+  ASSERT_EQ(bv.GetNumBitsSet(2), 2u);
   ASSERT_EQ(bv.GetNumBitsSet(3), 2u);
-  ASSERT_EQ(bv.GetNumBitsSet(4), 2u);
-  ASSERT_EQ(bv.GetNumBitsSet(5), 3u);
-  ASSERT_EQ(bv.GetNumBitsSet(6), 3u);
+  ASSERT_EQ(bv.GetNumBitsSet(511), 2u);
+  ASSERT_EQ(bv.GetNumBitsSet(512), 3u);
+  ASSERT_EQ(bv.GetNumBitsSet(1023), 4u);
+  ASSERT_EQ(bv.GetNumBitsSet(1024), 4u);
+  ASSERT_EQ(bv.GetNumBitsSet(2047), 4u);
+  ASSERT_EQ(bv.GetNumBitsSet(2048), 5u);
+  ASSERT_EQ(bv.GetNumBitsSet(2049), 6u);
 }
 
 TEST(BitVectorUnittest, IndexOfNthSet) {
-  BitVector bv(6, false);
+  BitVector bv(2050, false);
+  bv.Set(0);
   bv.Set(1);
-  bv.Set(2);
-  bv.Set(4);
+  bv.Set(511);
+  bv.Set(512);
+  bv.Set(2047);
+  bv.Set(2048);
 
-  ASSERT_EQ(bv.IndexOfNthSet(0), 1u);
-  ASSERT_EQ(bv.IndexOfNthSet(1), 2u);
-  ASSERT_EQ(bv.IndexOfNthSet(2), 4u);
+  ASSERT_EQ(bv.IndexOfNthSet(0), 0u);
+  ASSERT_EQ(bv.IndexOfNthSet(1), 1u);
+  ASSERT_EQ(bv.IndexOfNthSet(2), 511u);
+  ASSERT_EQ(bv.IndexOfNthSet(3), 512u);
+  ASSERT_EQ(bv.IndexOfNthSet(4), 2047u);
+  ASSERT_EQ(bv.IndexOfNthSet(5), 2048u);
 }
 
 TEST(BitVectorUnittest, Resize) {
   BitVector bv(1, false);
+
   bv.Resize(2, true);
-  bv.Resize(3, false);
-
-  ASSERT_EQ(bv.IsSet(1), true);
-  ASSERT_EQ(bv.IsSet(2), false);
-
-  bv.Resize(2, false);
-
   ASSERT_EQ(bv.size(), 2u);
   ASSERT_EQ(bv.IsSet(1), true);
+
+  bv.Resize(2049, false);
+  ASSERT_EQ(bv.size(), 2049u);
+  ASSERT_EQ(bv.IsSet(2), false);
+  ASSERT_EQ(bv.IsSet(2047), false);
+  ASSERT_EQ(bv.IsSet(2048), false);
+
+  // Set these two bits; the first should be preserved and the
+  // second should disappear.
+  bv.Set(512);
+  bv.Set(513);
+
+  bv.Resize(513, false);
+  ASSERT_EQ(bv.size(), 513u);
+  ASSERT_EQ(bv.IsSet(1), true);
+  ASSERT_EQ(bv.IsSet(512), true);
+  ASSERT_EQ(bv.GetNumBitsSet(), 2u);
+
+  // When we resize up, we need to be sure that the set bit from
+  // before we resized down is not still present as a garbage bit.
+  bv.Resize(514, false);
+  ASSERT_EQ(bv.size(), 514u);
+  ASSERT_EQ(bv.IsSet(513), false);
+  ASSERT_EQ(bv.GetNumBitsSet(), 2u);
+}
+
+TEST(BitVectorUnittest, AppendAfterResizeDown) {
+  BitVector bv(2049, false);
+  bv.Set(2048);
+
+  bv.Resize(2048);
+  bv.AppendFalse();
+  ASSERT_EQ(bv.IsSet(2048), false);
+  ASSERT_EQ(bv.GetNumBitsSet(), 0u);
 }
 
 TEST(BitVectorUnittest, UpdateSetBits) {
@@ -113,6 +226,37 @@ TEST(BitVectorUnittest, UpdateSetBits) {
   ASSERT_TRUE(bv.IsSet(1));
   ASSERT_FALSE(bv.IsSet(2));
   ASSERT_TRUE(bv.IsSet(4));
+}
+
+TEST(BitVectorUnittest, QueryStressTest) {
+  BitVector bv;
+  std::vector<bool> bool_vec;
+  std::vector<uint32_t> int_vec;
+
+  static constexpr uint32_t kCount = 4096;
+  std::minstd_rand0 rand;
+  for (uint32_t i = 0; i < kCount; ++i) {
+    bool res = rand() % 2u;
+    if (res) {
+      bv.AppendTrue();
+    } else {
+      bv.AppendFalse();
+    }
+    bool_vec.push_back(res);
+    if (res)
+      int_vec.emplace_back(i);
+  }
+
+  for (uint32_t i = 0; i < kCount; ++i) {
+    uint32_t count = static_cast<uint32_t>(std::count(
+        bool_vec.begin(), bool_vec.begin() + static_cast<int32_t>(i), true));
+    ASSERT_EQ(bv.IsSet(i), bool_vec[i]);
+    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+  }
+
+  for (uint32_t i = 0; i < int_vec.size(); ++i) {
+    ASSERT_EQ(bv.IndexOfNthSet(i), int_vec[i]);
+  }
 }
 
 }  // namespace
