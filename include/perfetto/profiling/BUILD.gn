@@ -21,3 +21,9 @@ source_set("symbolizer") {
     "symbolizer.h",
   ]
 }
+
+source_set("normalize") {
+  sources = [
+    "normalize.h",
+  ]
+}
