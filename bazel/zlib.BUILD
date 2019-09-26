@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+
 cc_library(
     name = "zlib",
     srcs = [
@@ -48,7 +50,7 @@ cc_library(
     copts = [
         "-DHAVE_HIDDEN",
         "-Isrc",
-    ],
+    ] + PERFETTO_CONFIG.deps_copts.zlib,
     includes = ["zlib"],
     visibility = ["//visibility:public"],
 )
