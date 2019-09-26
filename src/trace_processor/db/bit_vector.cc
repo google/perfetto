@@ -19,12 +19,19 @@
 namespace perfetto {
 namespace trace_processor {
 
-BitVector::BitVector(uint32_t count, bool value) : inner_(count, value) {}
+BitVector::BitVector() = default;
 
-BitVector::BitVector(std::vector<bool> inner) : inner_(std::move(inner)) {}
+BitVector::BitVector(uint32_t count, bool value) {
+  Resize(count, value);
+}
+
+BitVector::BitVector(std::vector<Block> blocks,
+                     std::vector<uint32_t> counts,
+                     uint32_t size)
+    : size_(size), counts_(std::move(counts)), blocks_(std::move(blocks)) {}
 
 BitVector BitVector::Copy() const {
-  return BitVector(inner_);
+  return BitVector(blocks_, counts_, size_);
 }
 
 }  // namespace trace_processor
