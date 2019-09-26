@@ -1788,6 +1788,9 @@ void ProtoTraceParser::ParseTrackEvent(
 
   switch (static_cast<char>(phase)) {
     case 'B': {  // TRACE_EVENT_PHASE_BEGIN.
+      // TODO(lalitm): make use of this track id.
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      perfetto::base::ignore_result(track_id);
       auto opt_slice_id = slice_tracker->Begin(
           ts, utid, RefType::kRefUtid, category_id, name_id, args_callback);
       if (opt_slice_id.has_value()) {
@@ -1802,6 +1805,9 @@ void ProtoTraceParser::ParseTrackEvent(
       break;
     }
     case 'E': {  // TRACE_EVENT_PHASE_END.
+      // TODO(lalitm): make use of this track id.
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      perfetto::base::ignore_result(track_id);
       auto opt_slice_id = slice_tracker->End(
           ts, utid, RefType::kRefUtid, category_id, name_id, args_callback);
       if (opt_slice_id.has_value()) {
@@ -1815,6 +1821,9 @@ void ProtoTraceParser::ParseTrackEvent(
       auto duration_ns = legacy_event.duration_us() * 1000;
       if (duration_ns < 0)
         return;
+      // TODO(lalitm): make use of this track id.
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      perfetto::base::ignore_result(track_id);
       auto opt_slice_id =
           slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id,
                                 name_id, duration_ns, args_callback);
@@ -1840,6 +1849,9 @@ void ProtoTraceParser::ParseTrackEvent(
       switch (legacy_event.instant_event_scope()) {
         case LegacyEvent::SCOPE_UNSPECIFIED:
         case LegacyEvent::SCOPE_THREAD: {
+          // TODO(lalitm): make use of this track id.
+          TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+          perfetto::base::ignore_result(track_id);
           auto opt_slice_id =
               slice_tracker->Scoped(ts, utid, RefType::kRefUtid, category_id,
                                     name_id, duration_ns, args_callback);
@@ -2453,6 +2465,9 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       sprintf(fallback, "Event %d", eid);
       name_id = context_->storage->InternString(fallback);
     }
+    // TODO(lalitm): make use of this track id.
+    TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+    perfetto::base::ignore_result(track_id);
     context_->slice_tracker->Scoped(ts, utid, RefType::kRefUtid, cat_id,
                                     name_id, event.event_duration_ns());
   } else if (event.has_counter_id()) {

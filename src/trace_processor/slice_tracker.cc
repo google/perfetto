@@ -23,6 +23,7 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -45,6 +46,9 @@ base::Optional<uint32_t> SliceTracker::BeginAndroid(int64_t timestamp,
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, atrace_tgid);
   ftrace_to_atrace_tgid_[ftrace_tid] = atrace_tgid;
+  // TODO(lalitm): make use of this track id.
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  perfetto::base::ignore_result(track_id);
   return Begin(timestamp, utid, RefType::kRefUtid, category, name);
 }
 
@@ -137,6 +141,9 @@ base::Optional<uint32_t> SliceTracker::EndAndroid(int64_t timestamp,
   }
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, actual_tgid);
+  // TODO(lalitm): make use of this track id.
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  perfetto::base::ignore_result(track_id);
   return End(timestamp, utid, RefType::kRefUtid);
 }
 
