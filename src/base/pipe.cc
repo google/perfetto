@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #include "perfetto/ext/base/pipe.h"
 
 #include <sys/types.h>
@@ -54,3 +57,5 @@ Pipe Pipe::Create(Flags flags) {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

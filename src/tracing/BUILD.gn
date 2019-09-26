@@ -252,6 +252,7 @@ source_set("client_api") {
     "internal/in_process_tracing_backend.cc",
     "internal/in_process_tracing_backend.h",
     "internal/tracing_muxer_impl.cc",
+    "internal/tracing_muxer_impl.h",
     "platform.cc",
     "tracing.cc",
     "track_event.cc",

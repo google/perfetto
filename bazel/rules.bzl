@@ -25,8 +25,10 @@ def default_cc_args():
         "copts": [],
         "includes": ["include"],
         "linkopts": select({
+            "@perfetto//bazel:os_linux": ["-ldl", "-lrt"],
             "@perfetto//bazel:os_osx": [],
-            "//conditions:default": ["-ldl", "-lrt"],
+            "@perfetto//bazel:os_windows": [],
+            "//conditions:default": ["-ldl"],
         }),
     }
 
