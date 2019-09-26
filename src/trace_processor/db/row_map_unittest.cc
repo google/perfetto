@@ -27,12 +27,12 @@ namespace {
 
 std::shared_ptr<RowMap> BitVectorRowMap() {
   BitVector bv;
-  bv.Append(true);
-  bv.Append(false);
-  bv.Append(true);
-  bv.Append(true);
-  bv.Append(false);
-  bv.Append(true);
+  bv.AppendTrue();
+  bv.AppendFalse();
+  bv.AppendTrue();
+  bv.AppendTrue();
+  bv.AppendFalse();
+  bv.AppendTrue();
   return std::shared_ptr<RowMap>(new RowMap(std::move(bv)));
 }
 
@@ -70,10 +70,10 @@ TEST_P(RowMapUnittest, SelectRowsBitVector) {
   RowMap row_map = GetParam()->Copy();
 
   BitVector picker_bv;
-  picker_bv.Append(true);
-  picker_bv.Append(false);
-  picker_bv.Append(false);
-  picker_bv.Append(true);
+  picker_bv.AppendTrue();
+  picker_bv.AppendFalse();
+  picker_bv.AppendFalse();
+  picker_bv.AppendTrue();
   RowMap picker(std::move(picker_bv));
 
   auto res = row_map.SelectRows(picker);
