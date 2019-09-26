@@ -81,6 +81,8 @@ inline std::string OpToString(int op) {
       return "<=";
     case SQLITE_INDEX_CONSTRAINT_LT:
       return "<";
+    case SQLITE_INDEX_CONSTRAINT_LIKE:
+      return "like";
     default:
       PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
   }

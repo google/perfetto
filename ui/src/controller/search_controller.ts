@@ -52,8 +52,10 @@ export class SearchController extends Controller<'main'> {
   private async setup() {
     await this.query(`create virtual table search_summary_window
       using window;`);
-    await this.query(`create virtual table search_summary_span
-      using span_join(sched PARTITIONED cpu, search_summary_window);`);
+    await this.query(`create virtual table search_summary_sched_span using
+      span_join(sched PARTITIONED cpu, search_summary_window);`);
+    await this.query(`create virtual table search_summary_slice_span using
+      span_join(slice PARTITIONED ref_type  ref, search_summary_window);`);
   }
 
   run() {
@@ -145,13 +147,22 @@ export class SearchController extends Controller<'main'> {
 
     const rawResult = await this.query(`
         select
-        (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
-        ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
-        min(count(*), 255) as count
-        from search_summary_span
-        where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
-        group by quantum_ts
-        order by quantum_ts;`);
+          (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
+          ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
+          min(count(*), 255) as count
+          from (
+              select
+              quantum_ts
+              from search_summary_sched_span
+              where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
+            union all
+              select
+              quantum_ts
+              from search_summary_slice_span
+              where name like '%${search}%'
+          )
+          group by quantum_ts
+          order by quantum_ts;`);
 
     const numRows = +rawResult.numRecords;
     const summary = {
