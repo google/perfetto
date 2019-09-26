@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/trace_processor/trace_processor.h"
+
 // TODO(135923303): do not depend on anything in this file as it will be
 // changed heavily as part of fixing b/135923303.
 namespace perfetto {
@@ -33,16 +35,22 @@ struct SerializedProfile {
   std::string serialized;
 };
 
+bool TraceToPprof(trace_processor::TraceProcessor*,
+                  std::vector<SerializedProfile>* output,
+                  Symbolizer* symbolizer,
+                  uint64_t pid = 0,
+                  const std::vector<uint64_t>& timestamps = {});
+
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
                   Symbolizer* symbolizer,
                   uint64_t pid = 0,
-                  std::vector<uint64_t> timestamps = {});
+                  const std::vector<uint64_t>& timestamps = {});
 
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
                   uint64_t pid = 0,
-                  std::vector<uint64_t> timestamps = {});
+                  const std::vector<uint64_t>& timestamps = {});
 
 }  // namespace trace_to_text
 }  // namespace perfetto
