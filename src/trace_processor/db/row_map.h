@@ -82,7 +82,7 @@ class RowMap {
     if (compact_) {
       if (row >= bit_vector_.size())
         bit_vector_.Resize(row + 1, false);
-      bit_vector_.Set(row, true);
+      bit_vector_.Set(row);
     } else {
       index_vector_.emplace_back(row);
     }
@@ -110,7 +110,11 @@ class RowMap {
     if (compact_) {
       const auto& bv = bit_vector_;
       for (uint32_t i = bv.NextSet(0); i < bv.size(); i = bv.NextSet(i + 1)) {
-        bit_vector_.Set(i, !p(i));
+        if (p(i)) {
+          bit_vector_.Clear(i);
+        } else {
+          bit_vector_.Set(i);
+        }
       }
     } else {
       auto it = std::remove_if(index_vector_.begin(), index_vector_.end(), p);

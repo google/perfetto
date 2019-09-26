@@ -86,14 +86,23 @@ class BitVector {
     PERFETTO_FATAL("Index out of bounds");
   }
 
-  // Sets the value at index |idx| to |value|.
-  void Set(uint32_t idx, bool value) {
+  // Sets the value at index |idx| to true.
+  void Set(uint32_t idx) {
     PERFETTO_DCHECK(idx < size());
-    inner_[idx] = value;
+    inner_[idx] = true;
   }
 
-  // Appends |value| to the bitvector.
-  void Append(bool value) { inner_.push_back(value); }
+  // Sets the value at index |idx| to false.
+  void Clear(uint32_t idx) {
+    PERFETTO_DCHECK(idx < size());
+    inner_[idx] = false;
+  }
+
+  // Appends true to the bitvector.
+  void AppendTrue() { inner_.push_back(true); }
+
+  // Appends false to the bitvector.
+  void AppendFalse() { inner_.push_back(false); }
 
   // Resizes the BitVector to the given |size|.
   // Truncates the BitVector if |size| < |size()| or fills the new space with
@@ -119,7 +128,7 @@ class BitVector {
     uint32_t offset = 0;
     for (uint32_t i = NextSet(0); i < size(); i = NextSet(i + 1), ++offset) {
       if (!other.IsSet(offset))
-        Set(i, false);
+        Clear(i);
     }
   }
 
