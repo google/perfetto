@@ -69,6 +69,13 @@ TEST(SystraceParserTest, SystraceEvent) {
   ASSERT_EQ(ParseSystraceTracePoint("F|123|foo|456", &result),
             Result::kSuccess);
   EXPECT_EQ(result, SystraceTracePoint::F(123, "foo", 456));
+
+  ASSERT_EQ(ParseSystraceTracePoint("trace_event_clock_sync: parent_ts=0.123\n",
+                                    &result),
+            Result::kUnsupported);
+  ASSERT_EQ(ParseSystraceTracePoint("trace_event_clock_sync: realtime_ts=123\n",
+                                    &result),
+            Result::kUnsupported);
 }
 
 }  // namespace
