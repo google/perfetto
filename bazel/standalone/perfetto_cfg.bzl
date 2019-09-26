@@ -45,6 +45,16 @@ PERFETTO_CONFIG = struct(
         protobuf_full = ["@com_google_protobuf//:protobuf"],
     ),
 
+    # This struct allows embedders to customize the cc_opts for Perfetto
+    # 3rd party dependencies. They only have an effect if the dependencies are
+    # initialized with the Perfetto build files (i.e. via perfetto_deps()).
+    deps_copts = struct(
+        zlib = [],
+        jsoncpp = [],
+        linenoise = [],
+        sqlite = [],
+    ),
+
     # This struct allows the embedder to customize copts and other args passed
     # to rules like cc_binary. Prefixed rules (e.g. perfetto_cc_binary) will
     # look into this struct before falling back on native.cc_binary().

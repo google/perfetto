@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #include "perfetto/ext/base/thread_task_runner.h"
 
 #include <condition_variable>
@@ -79,3 +82,5 @@ void ThreadTaskRunner::RunTaskThread(
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

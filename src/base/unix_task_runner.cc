@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/unix_task_runner.h"
-
 #include "perfetto/base/build_config.h"
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+#include "perfetto/ext/base/unix_task_runner.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -229,3 +230,5 @@ bool UnixTaskRunner::RunsTasksOnCurrentThread() const {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

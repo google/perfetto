@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #include "perfetto/ext/base/temp_file.h"
 
 #include <stdlib.h>
@@ -90,3 +93,6 @@ TempDir::~TempDir() {
 
 }  // namespace base
 }  // namespace perfetto
+
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

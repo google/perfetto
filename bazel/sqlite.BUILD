@@ -49,7 +49,7 @@ sqlite_copts = [
     "-DSQLITE_TEMP_STORE=3",
     "-DSQLITE_OMIT_LOAD_EXTENSION",
     "-DSQLITE_OMIT_RANDOMNESS",
-]
+] + PERFETTO_CONFIG.deps_copts.sqlite
 
 cc_library(
     name = "sqlite",
