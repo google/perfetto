@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "src/profiling/memory/ext.h"
+#include "perfetto/profiling/normalize.h"
 
 namespace perfetto {
 namespace profiling {
