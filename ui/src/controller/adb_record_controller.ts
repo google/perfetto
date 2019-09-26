@@ -29,11 +29,10 @@ enum AdbState {
   RECORDING,
   FETCHING
 }
-const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace';
+const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace-by-ui';
 const textDecoder = new _TextDecoder();
 
 export class AdbConsumerPort extends RpcConsumerPort {
-  // public for testing
   traceDestFile = DEFAULT_DESTINATION_FILE;
   private state = AdbState.READY;
   private adb: Adb;
@@ -171,7 +170,12 @@ export class AdbConsumerPort extends RpcConsumerPort {
   }
 
   generateReadTraceCommand(): string {
-    return `gzip -c ${this.traceDestFile}`;
+    // We attempt to delete the trace file after tracing. On a non-root shell,
+    // this will fail (due to selinux denial), but perfetto cmd will be able to
+    // override the file later. However, on a root shell, we need to clean up
+    // the file since perfetto cmd might otherwise fail to override it in a
+    // future session.
+    return `gzip -c ${this.traceDestFile} && rm -f ${this.traceDestFile}`;
   }
 
   generateStartTracingCommand(tracingConfig: Uint8Array) {
