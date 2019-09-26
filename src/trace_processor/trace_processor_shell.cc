@@ -771,31 +771,34 @@ Interactive trace processor shell.
 Usage: %s [OPTIONS] trace_file.pb
 
 Options:
- -h, --help                      Prints this guide.
- -v, --version                   Prints the version of trace processor.
- -d, --debug                     Enable virtual table debugging.
- -W, --wide                      Prints interactive output with double column
-                                 width.
- -p, --perf-file FILE            Writes the time taken to ingest the trace and
-                                 execute the queries to the given file. Only
-                                 valid with -q or --run-metrics and the file
-                                 will only be written if the execution
-                                 is successful.
- -q, --query-file FILE           Read and execute an SQL query from a file.
- -i, --interactive               Starts interactive mode even after a query file
-                                 is specified with -q or --run-metrics.
- -e, --export FILE               Export the trace into a SQLite database.
- --run-metrics x,y,z             Runs a comma separated list of metrics and
-                                 prints the result as a TraceMetrics proto to
-                                 stdout. The specified can either be in-built
-                                 metrics or SQL/proto files of extension
-                                 metrics.
- --metrics-output=[binary|text]  Allows the output of --run-metrics to be
-                                 specified in either proto binary or proto
-                                 text format (default: text).
- --extra-metrics PATH            Registers all SQL files at the given path to
-                                 the trace processor and extends the builtin
-                                 metrics proto with $PATH/metrics-ext.proto.)",
+ -h, --help                           Prints this guide.
+ -v, --version                        Prints the version of trace processor.
+ -d, --debug                          Enable virtual table debugging.
+ -W, --wide                           Prints interactive output with double
+                                      column width.
+ -p, --perf-file FILE                 Writes the time taken to ingest the trace
+                                      and execute the queries to the given file.
+                                      Only valid with -q or --run-metrics and
+                                      the file will only be written if the
+                                      execution is successful.
+ -q, --query-file FILE                Read and execute an SQL query from a file.
+ -i, --interactive                    Starts interactive mode even after a query
+                                      file is specified with -q or
+                                      --run-metrics.
+ -e, --export FILE                    Export the trace into a SQLite database.
+ --run-metrics x,y,z                  Runs a comma separated list of metrics and
+                                      prints the result as a TraceMetrics proto
+                                      to stdout. The specified can either be
+                                      in-built metrics or SQL/proto files of
+                                      extension metrics.
+ --metrics-output=[binary|text|json]  Allows the output of --run-metrics to be
+                                      specified in either proto binary, proto
+                                      text format or JSON format (default: proto
+                                      text).
+ --extra-metrics PATH                 Registers all SQL files at the given path
+                                      to the trace processor and extends the
+                                      builtin metrics proto with
+                                      $PATH/metrics-ext.proto.)",
                 argv[0]);
 }
 
