@@ -14,10 +14,10 @@
 
 import {searchSegment} from '../base/binary_search';
 import {Actions} from '../common/actions';
-import {getContainingTrackId} from '../common/state';
-import {fromNs, TimeSpan, toNs} from '../common/time';
+import {toNs} from '../common/time';
 
 import {globals} from './globals';
+import {scrollToTrackAndTs} from './scroll_helper';
 
 export function executeSearch(reverse = false) {
   const state = globals.frontendLocalState;
@@ -58,39 +58,11 @@ export function executeSearch(reverse = false) {
 }
 
 function moveViewportToCurrentSearch() {
-  // Move viewport if our selection moves outside.
-  const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
-  const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
   const currentTs = globals.currentSearchResults
                         .tsStarts[globals.frontendLocalState.searchIndex];
-  const currentViewNs = endNs - startNs;
-  if (currentTs < startNs || currentTs > endNs) {
-    // TODO(taylori): This is an ugly jump, we should do a smooth pan instead.
-    globals.frontendLocalState.updateVisibleTime(new TimeSpan(
-        fromNs(currentTs - currentViewNs / 2),
-        fromNs(currentTs + currentViewNs / 2)));
-  }
-
-  // Update vertical (up/down) scroll position
   const trackId = globals.currentSearchResults
                       .trackIds[globals.frontendLocalState.searchIndex];
-  let track = document.querySelector('#track_' + trackId);
-
-  if (!track) {
-    const parentTrackId = getContainingTrackId(globals.state, trackId);
-    if (parentTrackId) {
-      track = document.querySelector('#track_' + parentTrackId);
-    }
-  }
-
-  if (!track) {
-    console.error(`Can't scroll search result track not found (${trackId})`);
-    return;
-  }
-
-  // block: 'nearest' means that it will only scroll if the track is not
-  // currently in view.
-  track.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  scrollToTrackAndTs(trackId, currentTs);
 }
 
 function selectCurrentSearchResult() {
