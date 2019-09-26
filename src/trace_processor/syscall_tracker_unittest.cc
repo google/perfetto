@@ -52,6 +52,8 @@ class SyscallTrackerTest : public ::testing::Test {
  public:
   SyscallTrackerTest() {
     context.storage.reset(new TraceStorage());
+    track_tracker = new TrackTracker(&context);
+    context.track_tracker.reset(track_tracker);
     slice_tracker = new MockSliceTracker(&context);
     context.slice_tracker.reset(slice_tracker);
     context.syscall_tracker.reset(new SyscallTracker(&context));
@@ -60,6 +62,7 @@ class SyscallTrackerTest : public ::testing::Test {
  protected:
   TraceProcessorContext context;
   MockSliceTracker* slice_tracker;
+  TrackTracker* track_tracker;
 };
 
 TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
