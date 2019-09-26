@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackData} from '../../common/track_data';
+import {TrackState} from '../../common/state';
+import {Track} from '../../frontend/track';
+import {trackRegistry} from '../../frontend/track_registry';
+import {ChromeSliceTrack} from '../chrome_slices/frontend';
 
-export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
+import {SLICE_TRACK_KIND} from './common';
 
-export interface Config {
-  maxDepth: number;
-  upid: number;
-  utid: number;
+export class AsyncSliceTrack extends ChromeSliceTrack {
+  static readonly kind = SLICE_TRACK_KIND;
+  static create(trackState: TrackState): Track {
+    return new AsyncSliceTrack(trackState);
+  }
 }
 
-export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  strings: string[];
-  sliceIds: Float64Array;
-  starts: Float64Array;
-  ends: Float64Array;
-  depths: Uint16Array;
-  titles: Uint16Array;      // Index in |strings|.
-}
+trackRegistry.register(AsyncSliceTrack);

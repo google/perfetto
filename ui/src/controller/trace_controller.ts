@@ -307,6 +307,40 @@ export class TraceController extends Controller<States> {
       }
     }
 
+
+    const upidToProcessTracks = new Map();
+    const rawProcessTracks = await engine.query(`
+      select id, upid, name, maxDepth
+      from process_track
+      join (
+        select ref as id, max(depth) as maxDepth
+        from slice
+        where ref_type = 'track' group by ref
+      ) using(id)
+    `);
+    for (let i = 0; i < rawProcessTracks.numRecords; i++) {
+      const trackId = rawProcessTracks.columns[0].longValues![i];
+      const upid = rawProcessTracks.columns[1].longValues![i];
+      const name = rawProcessTracks.columns[2].stringValues![i];
+      const maxDepth = rawProcessTracks.columns[3].longValues![i];
+      const track = {
+        engineId: this.engineId,
+        kind: 'AsyncSliceTrack',
+        name,
+        config: {
+          trackId,
+          maxDepth,
+        },
+      };
+
+      const tracks = upidToProcessTracks.get(upid);
+      if (tracks) {
+        tracks.push(track);
+      } else {
+        upidToProcessTracks.set(upid, [track]);
+      }
+    }
+
     const heapProfiles = await engine.query(`
       select distinct(upid) from heap_profile_allocation`);
 
@@ -512,6 +546,12 @@ export class TraceController extends Controller<States> {
               trackGroup: pUuid,
               config: {upid}
             });
+          }
+
+          if (upidToProcessTracks.has(upid)) {
+            for (const track of upidToProcessTracks.get(upid)) {
+              tracksToAdd.push(Object.assign(track, {trackGroup: pUuid}));
+            }
           }
         }
       }
