@@ -35,9 +35,14 @@ struct SerializedProfile {
 
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
-                  Symbolizer* symbolizer);
+                  Symbolizer* symbolizer,
+                  uint64_t pid = 0,
+                  std::vector<uint64_t> timestamps = {});
 
-bool TraceToPprof(std::istream* input, std::vector<SerializedProfile>* output);
+bool TraceToPprof(std::istream* input,
+                  std::vector<SerializedProfile>* output,
+                  uint64_t pid = 0,
+                  std::vector<uint64_t> timestamps = {});
 
 }  // namespace trace_to_text
 }  // namespace perfetto

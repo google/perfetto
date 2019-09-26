@@ -128,6 +128,17 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishFileDownload(args: {file: File, name?: string}) {
+    const url = URL.createObjectURL(args.file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = args.name !== undefined ? args.name : args.file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   publishLoading(loading: boolean) {
     globals.loading = loading;
     globals.rafScheduler.scheduleRedraw();
