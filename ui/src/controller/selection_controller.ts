@@ -124,6 +124,9 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async heapDumpDetails(ts: number, upid: number) {
+    const pidValue = await this.args.engine.query(
+        `select pid from process where upid = ${upid}`);
+    const pid = pidValue.columns[0].longValues![0];
     const allocatedMemory = await this.args.engine.query(
         `select sum(size) from heap_profile_allocation where ts <= ${
             ts} and size > 0 and upid = ${upid}`);
@@ -133,7 +136,7 @@ export class SelectionController extends Controller<'main'> {
             ts} and upid = ${upid}`);
     const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;
-    return {ts: startTime, allocated, allocatedNotFreed};
+    return {ts: startTime, allocated, allocatedNotFreed, tsNs: ts, pid};
   }
 
   async counterDetails(ts: number, rightTs: number, id: number) {

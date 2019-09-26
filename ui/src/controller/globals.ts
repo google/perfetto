@@ -27,8 +27,9 @@ import {
 
 import {ControllerAny} from './controller';
 
-type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
-    'LegacyTrace'|'SliceDetails'|'CounterDetails'|'HeapDumpDetails'|'Loading'|
+type PublishKinds =
+    'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
+    'SliceDetails'|'CounterDetails'|'HeapDumpDetails'|'FileDownload'|'Loading'|
     'Search'|'BufferUsage'|'RecordingLog'|'SearchResult';
 
 export interface App {

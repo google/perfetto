@@ -309,9 +309,7 @@ class TraceViewer implements m.ClassComponent {
           }));
           break;
         case 'HEAP_DUMP':
-          detailsPanels.push(m(HeapDumpDetailsPanel, {
-            key: 'heap_dump',
-          }));
+          detailsPanels.push(m(HeapDumpDetailsPanel, {key: 'heap_dump'}));
           break;
         case 'CHROME_SLICE':
           detailsPanels.push(m(ChromeSliceDetailsPanel));
