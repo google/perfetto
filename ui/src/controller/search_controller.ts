@@ -174,6 +174,7 @@ export class SearchController extends Controller<'main'> {
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
     const utidToTrackId = new Map();
+    const engineTrackIdToTrackId = new Map();
     for (const track of Object.values(this.app.state.tracks)) {
       if (track.kind === 'ChromeSliceTrack') {
         utidToTrackId.set((track.config as {utid: number}).utid, track.id);
@@ -181,6 +182,11 @@ export class SearchController extends Controller<'main'> {
       }
       if (track.kind === 'CpuSliceTrack') {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
+        continue;
+      }
+      if (track.kind === 'AsyncSliceTrack') {
+        engineTrackIdToTrackId.set(
+            (track.config as {trackId: number}).trackId, track.id);
         continue;
       }
     }
@@ -204,8 +210,10 @@ export class SearchController extends Controller<'main'> {
       ts,
       ref_type,
       ref,
-      ref as utid
-      from internal_slice where ref_type = 'utid' and name like '%${search}%'
+      0 as utid
+      from internal_slice
+      where (ref_type = 'utid' or ref_type == 'track')
+      and name like '%${search}%'
     order by ts`);
 
     const numRows = +rawResult.numRecords;
@@ -228,6 +236,8 @@ export class SearchController extends Controller<'main'> {
         trackId = cpuToTrackId.get(ref);
       } else if (refType === 'utid') {
         trackId = utidToTrackId.get(ref);
+      } else if (refType === 'track') {
+        trackId = engineTrackIdToTrackId.get(ref);
       }
 
       if (trackId === undefined) {
