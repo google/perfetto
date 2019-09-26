@@ -24,6 +24,7 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -50,6 +51,9 @@ class SyscallTracker {
   void Enter(int64_t ts, UniqueTid utid, uint32_t syscall_num) {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (!name.is_null()) {
+      // TODO(lalitm): make use of this track id.
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      perfetto::base::ignore_result(track_id);
       context_->slice_tracker->Begin(ts, utid, RefType::kRefUtid, 0 /* cat */,
                                      name);
     }
@@ -58,6 +62,9 @@ class SyscallTracker {
   void Exit(int64_t ts, UniqueTid utid, uint32_t syscall_num) {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (!name.is_null()) {
+      // TODO(lalitm): make use of this track id.
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      perfetto::base::ignore_result(track_id);
       context_->slice_tracker->End(ts, utid, RefType::kRefUtid, 0 /* cat */,
                                    name);
     }

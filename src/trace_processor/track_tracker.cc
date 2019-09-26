@@ -30,6 +30,19 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       android_source_(context->storage->InternString("android")),
       context_(context) {}
 
+TrackId TrackTracker::InternThreadTrack(UniqueTid utid) {
+  ThreadTrackTuple tuple{utid};
+  auto it = thread_tracks_.find(tuple);
+  if (it != thread_tracks_.end())
+    return it->second;
+
+  tables::ThreadTrackTable::Row row;
+  row.utid = utid;
+  auto id = context_->storage->mutable_thread_track_table()->Insert(row);
+  thread_tracks_[tuple] = id;
+  return id;
+}
+
 TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
                                               int64_t correlation_id) {
   FuchsiaAsyncTrackTuple tuple{correlation_id};
