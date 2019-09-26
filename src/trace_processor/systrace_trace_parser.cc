@@ -44,6 +44,17 @@ std::string SubstrTrim(const std::string& input, size_t start, size_t end) {
   return s;
 }
 
+std::pair<size_t, size_t> FindTask(const std::string& line) {
+  size_t start;
+  for (start = 0; start < line.size() && isspace(line[start]); ++start)
+    ;
+  size_t length;
+  for (length = 0; start + length < line.size() && line[start + length] != '-';
+       ++length)
+    ;
+  return std::pair<size_t, size_t>(start, length);
+}
+
 }  // namespace
 
 SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
@@ -104,8 +115,12 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   // However, sometimes the tgid can be missing and buffer looks like this:
   // <idle>-0     [000] ...2     0.002188: task_newtask: pid=1 ...
 
-  auto task_idx = 16u;
-  std::string task = SubstrTrim(buffer, 0, task_idx);
+  size_t task_start;
+  size_t task_length;
+  std::tie<size_t, size_t>(task_start, task_length) = FindTask(buffer);
+
+  size_t task_idx = task_start + task_length;
+  std::string task = buffer.substr(task_start, task_length);
 
   // Try and figure out whether tgid is present by searching for '(' but only
   // if it occurs before the start of cpu (indiciated by '[') - this is because
