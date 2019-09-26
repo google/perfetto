@@ -37,6 +37,21 @@ WITH RECURSIVE callsite_parser(callsite_id, current_id, position) AS (
 SELECT *
 FROM callsite_parser;
 
+-- Join frames with symbols
+CREATE TABLE symbolized_frame AS
+SELECT
+  spf.id AS id,
+  spf.mapping AS mapping,
+  IFNULL(
+    (SELECT name FROM stack_profile_symbol symbol
+      WHERE symbol.symbol_set_id = spf.symbol_set_id
+      LIMIT 1),
+    spf.name
+  ) AS name
+FROM stack_profile_frame spf;
+
+CREATE UNIQUE INDEX symbolized_frame_idx ON symbolized_frame(id);
+
 -- Join with the frames table to get the symbol names.
 -- Output order for position matters (as will be the order in the subsequent aggregate operations).
 -- We use the cross join to force the join order between virtual and non-virtual tables.
@@ -45,16 +60,12 @@ SELECT
   callsite_id,
   position,
   HeapProfileCallsiteStats_Frame(
-    'name', IFNULL(
-      (SELECT name FROM stack_profile_symbol symbol
-        WHERE symbol.symbol_set_id = spf.symbol_set_id
-        LIMIT 1),
-      spf.name),
+    'name', spf.name,
     'mapping_name', stack_profile_mapping.name
   ) AS frame_proto
 FROM flattened_callsite
 CROSS JOIN stack_profile_callsite
-CROSS JOIN stack_profile_frame spf
+CROSS JOIN symbolized_frame spf
 CROSS JOIN stack_profile_mapping
 WHERE
   flattened_callsite.current_id = stack_profile_callsite.id
