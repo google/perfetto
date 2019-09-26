@@ -18,11 +18,15 @@
 #define TOOLS_TRACE_TO_TEXT_TRACE_TO_PROFILE_H_
 
 #include <iostream>
+#include <vector>
 
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToProfile(std::istream* input, std::ostream* output);
+int TraceToProfile(std::istream* input,
+                   std::ostream* output,
+                   uint64_t pid = 0,
+                   std::vector<uint64_t> timestamps = {});
 
 }  // namespace trace_to_text
 }  // namespace perfetto
