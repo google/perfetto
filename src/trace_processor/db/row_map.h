@@ -109,11 +109,12 @@ class RowMap {
   void RemoveIf(Predicate p) {
     if (compact_) {
       const auto& bv = bit_vector_;
-      for (uint32_t i = bv.NextSet(0); i < bv.size(); i = bv.NextSet(i + 1)) {
-        if (p(i)) {
-          bit_vector_.Clear(i);
-        } else {
-          bit_vector_.Set(i);
+      uint32_t removed = 0;
+      for (uint32_t i = 0, size = bv.GetNumBitsSet(); i < size; ++i) {
+        uint32_t idx = bv.IndexOfNthSet(i - removed);
+        if (p(idx)) {
+          removed++;
+          bit_vector_.Clear(idx);
         }
       }
     } else {
