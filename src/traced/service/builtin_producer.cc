@@ -66,13 +66,17 @@ void BuiltinProducer::OnConnect() {
   metatrace_dsd.set_will_notify_on_stop(true);
   endpoint_->RegisterDataSource(metatrace_dsd);
 
-  DataSourceDescriptor lazy_heapprofd_dsd;
-  lazy_heapprofd_dsd.set_name(kHeapprofdDataSourceName);
-  endpoint_->RegisterDataSource(lazy_heapprofd_dsd);
+  {
+    DataSourceDescriptor lazy_heapprofd_dsd;
+    lazy_heapprofd_dsd.set_name(kHeapprofdDataSourceName);
+    endpoint_->RegisterDataSource(lazy_heapprofd_dsd);
+  }
 
-  DataSourceDescriptor lazy_java_hprof_dsd;
-  lazy_heapprofd_dsd.set_name(kJavaHprofDataSourceName);
-  endpoint_->RegisterDataSource(lazy_java_hprof_dsd);
+  {
+    DataSourceDescriptor lazy_java_hprof_dsd;
+    lazy_java_hprof_dsd.set_name(kJavaHprofDataSourceName);
+    endpoint_->RegisterDataSource(lazy_java_hprof_dsd);
+  }
 }
 
 void BuiltinProducer::SetupDataSource(DataSourceInstanceID ds_id,
