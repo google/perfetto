@@ -24,8 +24,8 @@ namespace {
 
 TEST(BitVectorUnittest, Set) {
   BitVector bv(3, true);
-  bv.Set(0, false);
-  bv.Set(1, true);
+  bv.Clear(0);
+  bv.Set(1);
 
   ASSERT_EQ(bv.size(), 3u);
   ASSERT_FALSE(bv.IsSet(0));
@@ -35,8 +35,8 @@ TEST(BitVectorUnittest, Set) {
 
 TEST(BitVectorUnittest, Append) {
   BitVector bv;
-  bv.Append(true);
-  bv.Append(false);
+  bv.AppendTrue();
+  bv.AppendFalse();
 
   ASSERT_EQ(bv.size(), 2u);
   ASSERT_TRUE(bv.IsSet(0));
@@ -45,9 +45,9 @@ TEST(BitVectorUnittest, Append) {
 
 TEST(BitVectorUnittest, NextSet) {
   BitVector bv(6, false);
-  bv.Set(1, true);
-  bv.Set(2, true);
-  bv.Set(4, true);
+  bv.Set(1);
+  bv.Set(2);
+  bv.Set(4);
 
   ASSERT_EQ(bv.NextSet(0), 1u);
   ASSERT_EQ(bv.NextSet(1), 1u);
@@ -59,9 +59,9 @@ TEST(BitVectorUnittest, NextSet) {
 
 TEST(BitVectorUnittest, GetNumBitsSet) {
   BitVector bv(6, false);
-  bv.Set(1, true);
-  bv.Set(2, true);
-  bv.Set(4, true);
+  bv.Set(1);
+  bv.Set(2);
+  bv.Set(4);
 
   ASSERT_EQ(bv.GetNumBitsSet(), 3u);
 
@@ -76,9 +76,9 @@ TEST(BitVectorUnittest, GetNumBitsSet) {
 
 TEST(BitVectorUnittest, IndexOfNthSet) {
   BitVector bv(6, false);
-  bv.Set(1, true);
-  bv.Set(2, true);
-  bv.Set(4, true);
+  bv.Set(1);
+  bv.Set(2);
+  bv.Set(4);
 
   ASSERT_EQ(bv.IndexOfNthSet(0), 1u);
   ASSERT_EQ(bv.IndexOfNthSet(1), 2u);
@@ -101,12 +101,12 @@ TEST(BitVectorUnittest, Resize) {
 
 TEST(BitVectorUnittest, UpdateSetBits) {
   BitVector bv(6, false);
-  bv.Set(1, true);
-  bv.Set(2, true);
-  bv.Set(4, true);
+  bv.Set(1);
+  bv.Set(2);
+  bv.Set(4);
 
   BitVector picker(3u, true);
-  picker.Set(1, false);
+  picker.Clear(1);
 
   bv.UpdateSetBits(picker);
 
