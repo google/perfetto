@@ -41,7 +41,11 @@ BitVector CreateRandomBitVector(uint32_t size) {
   std::minstd_rand0 rnd_engine(kRandomSeed);
   BitVector bv;
   for (uint32_t i = 0; i < size; ++i) {
-    bv.Append(rnd_engine() % 2);
+    if (rnd_engine() % 2) {
+      bv.AppendTrue();
+    } else {
+      bv.AppendFalse();
+    }
   }
   return bv;
 }
@@ -144,7 +148,7 @@ static void BM_RowMapBvSelectSingleRow(benchmark::State& state) {
   static constexpr uint32_t kRandomSeed = 123;
   std::minstd_rand0 rnd_engine(kRandomSeed);
   BitVector bv(rm.size(), false);
-  bv.Set(rnd_engine() % bv.size(), true);
+  bv.Set(rnd_engine() % bv.size());
   RowMap selector(std::move(bv));
 
   for (auto _ : state) {
