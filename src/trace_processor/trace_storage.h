@@ -1147,7 +1147,8 @@ class TraceStorage {
     return unique_processes_[upid];
   }
 
-  const Thread& GetThread(UniqueTid utid) const {
+  // Virtual for testing.
+  virtual const Thread& GetThread(UniqueTid utid) const {
     // Allow utid == 0 for idle thread retrieval.
     PERFETTO_DCHECK(utid < unique_threads_.size());
     return unique_threads_[utid];

@@ -102,7 +102,7 @@ namespace stats {
   F(traced_tracing_sessions,                  kSingle,  kInfo,     kTrace),    \
   F(track_event_parser_errors,                kSingle,  kInfo,     kAnalysis), \
   F(track_event_tokenizer_errors,             kSingle,  kInfo,     kAnalysis), \
-  F(track_event_tokenizer_skipped_packets,    kSingle,  kInfo,     kAnalysis), \
+  F(tokenizer_skipped_packets,                kSingle,  kInfo,     kAnalysis), \
   F(vmstat_unknown_keys,                      kSingle,  kError,    kAnalysis), \
   F(clock_sync_failure,                       kSingle,  kError,    kAnalysis), \
   F(process_tracker_errors,                   kSingle,  kError,    kAnalysis), \

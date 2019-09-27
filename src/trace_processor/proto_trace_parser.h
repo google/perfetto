@@ -22,6 +22,7 @@
 #include <array>
 #include <memory>
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/ftrace_descriptors.h"
@@ -109,7 +110,7 @@ class ProtoTraceParser : public TraceParser {
       int64_t ts,
       int64_t tts,
       int64_t ticount,
-      UniqueTid utid,
+      base::Optional<UniqueTid> utid,
       StringId category_id,
       StringId name_id,
       const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
@@ -136,7 +137,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseLogMessage(ConstBytes,
                        ProtoIncrementalState::PacketSequenceState*,
                        int64_t,
-                       uint32_t,
+                       base::Optional<UniqueTid>,
                        ArgsTracker*,
                        RowId);
   void ParseModuleSymbols(ConstBytes);

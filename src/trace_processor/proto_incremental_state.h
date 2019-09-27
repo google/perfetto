@@ -120,26 +120,26 @@ class ProtoIncrementalState {
   class PacketSequenceState {
    public:
     int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
-      PERFETTO_DCHECK(IsTrackEventStateValid());
+      PERFETTO_DCHECK(track_event_timestamps_valid());
       track_event_timestamp_ns_ += delta_ns;
       return track_event_timestamp_ns_;
     }
 
     int64_t IncrementAndGetTrackEventThreadTimeNs(int64_t delta_ns) {
-      PERFETTO_DCHECK(IsTrackEventStateValid());
+      PERFETTO_DCHECK(track_event_timestamps_valid());
       track_event_thread_timestamp_ns_ += delta_ns;
       return track_event_thread_timestamp_ns_;
     }
 
     int64_t IncrementAndGetTrackEventThreadInstructionCount(int64_t delta) {
-      PERFETTO_DCHECK(IsTrackEventStateValid());
+      PERFETTO_DCHECK(track_event_timestamps_valid());
       track_event_thread_instruction_count_ += delta;
       return track_event_thread_instruction_count_;
     }
 
     void OnPacketLoss() {
       packet_loss_ = true;
-      thread_descriptor_seen_ = false;
+      track_event_timestamps_valid_ = false;
     }
 
     void OnIncrementalStateCleared() { packet_loss_ = false; }
@@ -149,7 +149,8 @@ class ProtoIncrementalState {
                              int64_t timestamp_ns,
                              int64_t thread_timestamp_ns,
                              int64_t thread_instruction_count) {
-      thread_descriptor_seen_ = true;
+      track_event_timestamps_valid_ = true;
+      pid_and_tid_valid_ = true;
       pid_ = pid;
       tid_ = tid;
       track_event_timestamp_ns_ = timestamp_ns;
@@ -159,9 +160,11 @@ class ProtoIncrementalState {
 
     bool IsIncrementalStateValid() const { return !packet_loss_; }
 
-    bool IsTrackEventStateValid() const {
-      return IsIncrementalStateValid() && thread_descriptor_seen_;
+    bool track_event_timestamps_valid() const {
+      return track_event_timestamps_valid_;
     }
+
+    bool pid_and_tid_valid() const { return pid_and_tid_valid_; }
 
     int32_t pid() const { return pid_; }
     int32_t tid() const { return tid_; }
@@ -179,11 +182,15 @@ class ProtoIncrementalState {
 
     // We can only consider TrackEvent delta timestamps to be correct after we
     // have observed a thread descriptor (since the last packet loss).
-    bool thread_descriptor_seen_ = false;
+    bool track_event_timestamps_valid_ = false;
 
-    // Process/thread ID of the packet sequence. Used as default values for
-    // TrackEvents that don't specify a pid/tid override. Only valid while
-    // |seen_thread_descriptor_| is true.
+    // |pid_| and |tid_| are only valid after we parsed at least one
+    // ThreadDescriptor packet on the sequence.
+    bool pid_and_tid_valid_ = false;
+
+    // Process/thread ID of the packet sequence set by a ThreadDescriptor
+    // packet. Used as default values for TrackEvents that don't specify a
+    // pid/tid override. Only valid after |pid_and_tid_valid_| is set to true.
     int32_t pid_ = 0;
     int32_t tid_ = 0;
 

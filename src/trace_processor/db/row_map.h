@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/db/bit_vector.h"
 
 namespace perfetto {
@@ -68,12 +69,17 @@ class RowMap {
   }
 
   // Returns the first index of the given |row| in the RowMap.
-  uint32_t IndexOf(uint32_t row) const {
+  base::Optional<uint32_t> IndexOf(uint32_t row) const {
     if (compact_) {
-      return bit_vector_.GetNumBitsSet(row);
+      return row < bit_vector_.size() && bit_vector_.IsSet(row)
+                 ? base::make_optional(bit_vector_.GetNumBitsSet(row))
+                 : base::nullopt;
     } else {
       auto it = std::find(index_vector_.begin(), index_vector_.end(), row);
-      return static_cast<uint32_t>(std::distance(index_vector_.begin(), it));
+      return it != index_vector_.end()
+                 ? base::make_optional(static_cast<uint32_t>(
+                       std::distance(index_vector_.begin(), it)))
+                 : base::nullopt;
     }
   }
 
