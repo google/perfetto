@@ -66,6 +66,9 @@ void Column::FilterInto(FilterOp op, SqlValue value, RowMap* iv) const {
     case FilterOp::kGt:
       iv->RemoveIf([this, value](uint32_t row) { return Get(row) <= value; });
       break;
+    case FilterOp::kNeq:
+      iv->RemoveIf([this, value](uint32_t row) { return Get(row) == value; });
+      break;
   }
 }
 
