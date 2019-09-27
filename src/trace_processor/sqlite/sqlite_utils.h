@@ -407,7 +407,10 @@ inline std::vector<SqliteTable::Column> GetColumnsForTable(
 
   sqlite3_stmt* raw_stmt = nullptr;
   int err = sqlite3_prepare_v2(db, sql, n, &raw_stmt, nullptr);
-
+  if (err != SQLITE_OK) {
+    PERFETTO_ELOG("Preparing database failed");
+    return {};
+  }
   ScopedStmt stmt(raw_stmt);
   PERFETTO_DCHECK(sqlite3_column_count(*stmt) == 2);
 
