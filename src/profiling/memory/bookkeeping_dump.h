@@ -37,13 +37,17 @@ namespace profiling {
 
 void WriteFixedInternings(TraceWriter* trace_writer);
 
+constexpr int kDumpedBuildID = 1 << 0;
+constexpr int kDumpedMappingPath = 1 << 1;
+constexpr int kDumpedFunctionName = 1 << 2;
+
 class DumpState {
  public:
   class InternState {
    private:
     friend class DumpState;
 
-    std::set<InternID> dumped_strings_;
+    std::map<InternID, int> dumped_strings_;
     std::set<InternID> dumped_frames_;
     std::set<InternID> dumped_mappings_;
     std::set<uint64_t> dumped_callstacks_;
