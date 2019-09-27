@@ -108,6 +108,38 @@ TEST(StringUtilsTest, Strip) {
   EXPECT_EQ(StripChars("foobar", "froab", '_'), "______");
 }
 
+TEST(StringUtilsTest, Contains) {
+  EXPECT_TRUE(Contains("", ""));
+  EXPECT_TRUE(Contains("abc", ""));
+  EXPECT_TRUE(Contains("abc", "a"));
+  EXPECT_TRUE(Contains("abc", "b"));
+  EXPECT_TRUE(Contains("abc", "c"));
+  EXPECT_TRUE(Contains("abc", "ab"));
+  EXPECT_TRUE(Contains("abc", "bc"));
+  EXPECT_TRUE(Contains("abc", "abc"));
+  EXPECT_FALSE(Contains("abc", "d"));
+  EXPECT_FALSE(Contains("abc", "ac"));
+  EXPECT_FALSE(Contains("abc", "abcd"));
+  EXPECT_FALSE(Contains("", "a"));
+  EXPECT_FALSE(Contains("", "abc"));
+}
+
+TEST(StringUtilsTest, Find) {
+  EXPECT_EQ(Find("", ""), 0u);
+  EXPECT_EQ(Find("", "abc"), 0u);
+  EXPECT_EQ(Find("a", "abc"), 0u);
+  EXPECT_EQ(Find("b", "abc"), 1u);
+  EXPECT_EQ(Find("c", "abc"), 2u);
+  EXPECT_EQ(Find("ab", "abc"), 0u);
+  EXPECT_EQ(Find("bc", "abc"), 1u);
+  EXPECT_EQ(Find("abc", "abc"), 0u);
+  EXPECT_EQ(Find("d", "abc"), std::string::npos);
+  EXPECT_EQ(Find("ac", "abc"), std::string::npos);
+  EXPECT_EQ(Find("abcd", "abc"), std::string::npos);
+  EXPECT_EQ(Find("a", ""), std::string::npos);
+  EXPECT_EQ(Find("abc", ""), std::string::npos);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

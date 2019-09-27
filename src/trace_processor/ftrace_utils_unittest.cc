@@ -53,6 +53,9 @@ TEST(TaskStateUnittest, MultipleState) {
   ASSERT_STREQ(TaskState(4096).ToString().data(), "R+");
   ASSERT_STREQ(TaskState(130).ToString().data(), "DK");
   ASSERT_STREQ(TaskState(258).ToString().data(), "DW");
+
+  ASSERT_EQ(TaskState("D|K").raw_state(), 130);
+  ASSERT_EQ(TaskState("D|W").raw_state(), 258);
 }
 
 }  // namespace

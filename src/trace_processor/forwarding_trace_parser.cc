@@ -143,13 +143,13 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
       base::StartsWith(start, "<html>"))
     return kSystraceTraceType;
 
+  // Ctrace is deflate'ed systrace.
+  if (start.find("TRACE:") != std::string::npos)
+    return kCtraceTraceType;
+
   // Systrace with no header or leading HTML.
   if (base::StartsWith(start, " "))
     return kSystraceTraceType;
-
-  // Ctrace is deflate'ed systrace.
-  if (base::StartsWith(start, "TRACE:"))
-    return kCtraceTraceType;
 
   // gzip'ed trace containing one of the other formats.
   if (base::StartsWith(start, "\x1f\x8b"))
