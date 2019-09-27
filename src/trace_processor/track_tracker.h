@@ -39,12 +39,20 @@ class TrackTracker {
 
   // Interns a Chrome track into the storage.
   TrackId InternChromeTrack(StringId name,
-                            base::Optional<uint32_t> upid,
+                            base::Optional<UniquePid> upid,
                             int64_t source_id,
                             StringId source_scope);
 
   // Interns a Android async track into the storage.
-  TrackId InternAndroidAsyncTrack(StringId name, uint32_t upid, int64_t cookie);
+  TrackId InternAndroidAsyncTrack(StringId name,
+                                  UniquePid upid,
+                                  int64_t cookie);
+
+  // Interns a Chrome process instant track into the storage.
+  TrackId InternChromeProcessInstantTrack(UniquePid upid);
+
+  // Lazily creates the track for Chrome global instant events.
+  TrackId GetOrCreateChromeGlobalInstantTrack();
 
  private:
   struct ThreadTrackTuple {
@@ -101,6 +109,8 @@ class TrackTracker {
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
   std::map<AndroidAsyncTrackTuple, TrackId> android_async_tracks_;
+  std::map<UniquePid, TrackId> chrome_process_instant_tracks_;
+  base::Optional<TrackId> chrome_global_instant_track_id_;
 
   StringId source_key_ = 0;
   StringId source_id_key_ = 0;

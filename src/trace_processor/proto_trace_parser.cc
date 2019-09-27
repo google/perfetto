@@ -1866,14 +1866,24 @@ void ProtoTraceParser::ParseTrackEvent(
           break;
         }
         case LegacyEvent::SCOPE_GLOBAL: {
+          // TODO(lalitm): make use of this track id.
+          TrackId track_id =
+              context_->track_tracker->GetOrCreateChromeGlobalInstantTrack();
+          perfetto::base::ignore_result(track_id);
           slice_tracker->Scoped(ts, /*ref=*/0, RefType::kRefNoRef, category_id,
                                 name_id, duration_ns, args_callback);
           break;
         }
         case LegacyEvent::SCOPE_PROCESS: {
-          slice_tracker->Scoped(ts, procs->GetOrCreateProcess(pid),
-                                RefType::kRefUpid, category_id, name_id,
-                                duration_ns, args_callback);
+          // TODO(lalitm): make use of this track id.
+          UniquePid instant_upid = procs->GetOrCreateProcess(pid);
+          TrackId track_id =
+              context_->track_tracker->InternChromeProcessInstantTrack(
+                  instant_upid);
+          perfetto::base::ignore_result(track_id);
+          slice_tracker->Scoped(ts, instant_upid, RefType::kRefUpid,
+                                category_id, name_id, duration_ns,
+                                args_callback);
           break;
         }
         default: {
