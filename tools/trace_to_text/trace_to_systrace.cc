@@ -25,6 +25,8 @@
 #include <memory>
 #include <utility>
 
+#include <zlib.h>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"
@@ -45,6 +47,8 @@ namespace perfetto {
 namespace trace_to_text {
 
 namespace {
+
+const size_t kCompressionBufferSize = 500 * 1024;
 
 // Having an empty traceEvents object is necessary for trace viewer to
 // load the json properly.
@@ -123,13 +127,79 @@ inline void FormatThread(uint32_t tid,
   }
 }
 
+class TraceWriter {
+ public:
+  TraceWriter(std::ostream* output) : output_(output) {}
+  virtual ~TraceWriter() = default;
+
+  void Write(std::string s) { Write(s.data(), s.size()); }
+
+  virtual void Write(const char* data, size_t sz) {
+    output_->write(data, static_cast<std::streamsize>(sz));
+  }
+
+ private:
+  std::ostream* output_;
+};
+
+class DeflateTraceWriter : public TraceWriter {
+ public:
+  DeflateTraceWriter(std::ostream* output)
+      : TraceWriter(output),
+        buf_(base::PagedMemory::Allocate(kCompressionBufferSize)),
+        start_(static_cast<uint8_t*>(buf_.Get())),
+        end_(start_ + buf_.size()) {
+    CheckEq(deflateInit(&stream_, 9), Z_OK);
+    stream_.next_out = start_;
+    stream_.avail_out = static_cast<unsigned int>(end_ - start_);
+  }
+
+  ~DeflateTraceWriter() override {
+    while (deflate(&stream_, Z_FINISH) != Z_STREAM_END) {
+      Flush();
+    }
+    CheckEq(deflateEnd(&stream_), Z_OK);
+  }
+
+  void Write(const char* data, size_t sz) override {
+    stream_.next_in = reinterpret_cast<uint8_t*>(const_cast<char*>(data));
+    stream_.avail_in = static_cast<unsigned int>(sz);
+    while (stream_.avail_in > 0) {
+      CheckEq(deflate(&stream_, Z_NO_FLUSH), Z_OK);
+      if (stream_.avail_out == 0) {
+        Flush();
+      }
+    }
+  }
+
+ private:
+  void Flush() {
+    TraceWriter::Write(reinterpret_cast<char*>(start_),
+                       static_cast<size_t>(stream_.next_out - start_));
+    stream_.next_out = start_;
+    stream_.avail_out = static_cast<unsigned int>(end_ - start_);
+  }
+
+  void CheckEq(int actual_code, int expected_code) {
+    if (actual_code == expected_code)
+      return;
+    PERFETTO_FATAL("Expected %d got %d: %s", actual_code, expected_code,
+                   stream_.msg);
+  }
+
+  z_stream stream_{};
+  base::PagedMemory buf_;
+  uint8_t* const start_;
+  uint8_t* const end_;
+};
+
 class QueryWriter {
  public:
-  QueryWriter(trace_processor::TraceProcessor* tp, std::ostream* output)
+  QueryWriter(trace_processor::TraceProcessor* tp, TraceWriter* trace_writer)
       : tp_(tp),
         buffer_(base::PagedMemory::Allocate(kBufferSize)),
         global_writer_(static_cast<char*>(buffer_.Get()), kBufferSize),
-        output_(output) {}
+        trace_writer_(trace_writer) {}
 
   template <typename Callback>
   bool RunQuery(const std::string& sql, Callback callback) {
@@ -142,7 +212,7 @@ class QueryWriter {
       if (global_writer_.pos() + line_writer.pos() >= global_writer_.size()) {
         fprintf(stderr, "Writing row %" PRIu32 PROGRESS_CHAR, rows);
         auto str = global_writer_.GetStringView();
-        output_->write(str.data(), static_cast<std::streamsize>(str.size()));
+        trace_writer_->Write(str.data(), str.size());
         global_writer_.reset();
       }
       global_writer_.AppendStringView(line_writer.GetStringView());
@@ -157,7 +227,7 @@ class QueryWriter {
 
     // Flush any dangling pieces in the global writer.
     auto str = global_writer_.GetStringView();
-    output_->write(str.data(), static_cast<std::streamsize>(str.size()));
+    trace_writer_->Write(str.data(), str.size());
     global_writer_.reset();
     return true;
   }
@@ -168,15 +238,21 @@ class QueryWriter {
   trace_processor::TraceProcessor* tp_ = nullptr;
   base::PagedMemory buffer_;
   base::StringWriter global_writer_;
-  std::ostream* output_ = nullptr;
+  TraceWriter* trace_writer_;
 };
 
 }  // namespace
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
-                    Keep truncate_keep,
-                    bool wrap_in_json) {
+                    SystraceKind kind,
+                    Keep truncate_keep) {
+  bool wrap_in_json = kind == kSystraceJson;
+  bool compress = kind == kSystraceCompressed;
+
+  std::unique_ptr<TraceWriter> trace_writer(
+      compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
+
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
@@ -186,7 +262,7 @@ int TraceToSystrace(std::istream* input,
   tp->NotifyEndOfFile();
   using Iterator = trace_processor::TraceProcessor::Iterator;
 
-  QueryWriter q_writer(tp.get(), output);
+  QueryWriter q_writer(tp.get(), trace_writer.get());
   if (wrap_in_json) {
     *output << kTraceHeader;
 
@@ -231,18 +307,18 @@ int TraceToSystrace(std::istream* input,
     *output << kFtraceJsonHeader;
   } else {
     *output << "TRACE:\n";
-    *output << kFtraceHeader;
+    trace_writer->Write(kFtraceHeader);
   }
 
   fprintf(stderr, "Converting trace events" PROGRESS_CHAR);
   fflush(stderr);
 
-  static const char kEstimatSql[] = "select count(1) from raw";
+  static const char kEstimateSql[] = "select count(1) from raw";
   uint32_t raw_events = 0;
   auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
     raw_events = static_cast<uint32_t>(it->Get(0).long_value);
   };
-  if (!q_writer.RunQuery(kEstimatSql, e_callback))
+  if (!q_writer.RunQuery(kEstimateSql, e_callback))
     return 1;
 
   auto raw_callback = [wrap_in_json](Iterator* it, base::StringWriter* writer) {
