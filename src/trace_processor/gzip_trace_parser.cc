@@ -16,9 +16,13 @@
 
 #include "src/trace_processor/gzip_trace_parser.h"
 
+#include <string>
+
 #include <zlib.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 
 namespace perfetto {
@@ -45,13 +49,15 @@ util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
   if (!inner_) {
     inner_.reset(new ForwardingTraceParser(context_));
 
-    // .ctrace files begin with "TRACE:" strip this if present.
-    static const char kSystraceFileHeader[] = "TRACE:\n";
-    if (size >= strlen(kSystraceFileHeader) &&
-        strncmp(reinterpret_cast<char*>(start), kSystraceFileHeader,
-                strlen(kSystraceFileHeader)) == 0) {
-      start += strlen(kSystraceFileHeader);
-      len -= strlen(kSystraceFileHeader);
+    // .ctrace files begin with: "TRACE:\n" or "done. TRACE:\n" strip this if
+    // present.
+    base::StringView beginning(reinterpret_cast<char*>(start), size);
+
+    static const char* kSystraceFileHeader = "TRACE:\n";
+    size_t offset = Find(kSystraceFileHeader, beginning);
+    if (offset != std::string::npos) {
+      start += strlen(kSystraceFileHeader) + offset;
+      len -= strlen(kSystraceFileHeader) + offset;
     }
   }
 

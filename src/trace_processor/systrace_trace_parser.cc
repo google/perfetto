@@ -34,7 +34,7 @@ namespace trace_processor {
 namespace {
 
 std::string SubstrTrim(const std::string& input, size_t start, size_t end) {
-  auto s = input.substr(start, end - start);
+  std::string s = input.substr(start, end - start);
   s.erase(s.begin(), std::find_if(s.begin(), s.end(),
                                   [](int ch) { return !std::isspace(ch); }));
   s.erase(std::find_if(s.rbegin(), s.rend(),
@@ -42,6 +42,17 @@ std::string SubstrTrim(const std::string& input, size_t start, size_t end) {
               .base(),
           s.end());
   return s;
+}
+
+std::pair<size_t, size_t> FindTask(const std::string& line) {
+  size_t start;
+  for (start = 0; start < line.size() && isspace(line[start]); ++start)
+    ;
+  size_t length;
+  for (length = 0; start + length < line.size() && line[start + length] != '-';
+       ++length)
+    ;
+  return std::pair<size_t, size_t>(start, length);
 }
 
 }  // namespace
@@ -94,6 +105,8 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
   return util::OkStatus();
 }
 
+// TODO(hjd): This should be more robust to being passed random input.
+// This can happen if we mess up detecting a gzip trace for example.
 util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     const std::string& buffer) {
   // An example line from buffer looks something like the following:
@@ -102,8 +115,12 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   // However, sometimes the tgid can be missing and buffer looks like this:
   // <idle>-0     [000] ...2     0.002188: task_newtask: pid=1 ...
 
-  auto task_idx = 16u;
-  std::string task = SubstrTrim(buffer, 0, task_idx);
+  size_t task_start;
+  size_t task_length;
+  std::tie<size_t, size_t>(task_start, task_length) = FindTask(buffer);
+
+  size_t task_idx = task_start + task_length;
+  std::string task = buffer.substr(task_start, task_length);
 
   // Try and figure out whether tgid is present by searching for '(' but only
   // if it occurs before the start of cpu (indiciated by '[') - this is because
@@ -111,6 +128,10 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   auto tgid_idx = buffer.find('(', task_idx + 1);
   auto cpu_idx = buffer.find('[', task_idx + 1);
   bool has_tgid = tgid_idx != std::string::npos && tgid_idx < cpu_idx;
+
+  if (cpu_idx == std::string::npos) {
+    return util::Status("Could not find [ in " + buffer);
+  }
 
   auto pid_end = has_tgid ? cpu_idx : tgid_idx;
   std::string pid_str = SubstrTrim(buffer, task_idx + 1, pid_end);
