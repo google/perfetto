@@ -37,40 +37,44 @@ class TrackTracker {
   // Interns a given GPU track into the storage.
   TrackId InternGpuTrack(const tables::GpuTrackTable::Row& row);
 
-  // Interns a Chrome track into the storage.
-  TrackId InternChromeTrack(StringId name,
-                            base::Optional<UniquePid> upid,
-                            int64_t source_id,
-                            StringId source_scope);
+  // Interns a legacy Chrome async event track into the storage.
+  TrackId InternLegacyChromeAsyncTrack(StringId name,
+                                       base::Optional<UniquePid> upid,
+                                       int64_t source_id,
+                                       StringId source_scope);
 
   // Interns a Android async track into the storage.
   TrackId InternAndroidAsyncTrack(StringId name,
                                   UniquePid upid,
                                   int64_t cookie);
 
-  // Interns a Chrome process instant track into the storage.
-  TrackId InternChromeProcessInstantTrack(UniquePid upid);
+  // Interns a track for legacy Chrome process-scoped instant events into the
+  // storage.
+  TrackId InternLegacyChromeProcessInstantTrack(UniquePid upid);
 
-  // Lazily creates the track for Chrome global instant events.
-  TrackId GetOrCreateChromeGlobalInstantTrack();
+  // Lazily creates the track for legacy Chrome global instant events.
+  TrackId GetOrCreateLegacyChromeGlobalInstantTrack();
+
+  // Create or update the track for the TrackDescriptor with the given |uuid|.
+  // Optionally, associate the track with a process or thread.
+  TrackId UpdateDescriptorTrack(uint64_t uuid,
+                                StringId name,
+                                base::Optional<UniquePid> upid = base::nullopt,
+                                base::Optional<UniqueTid> utid = base::nullopt);
+
+  // Returns the ID of the track for the TrackDescriptor with the given |uuid|.
+  // Returns nullopt if no TrackDescriptor with this |uuid| has been parsed yet.
+  base::Optional<TrackId> GetDescriptorTrack(uint64_t uuid) const;
+
+  // Returns the ID of the TrackDescriptor track associated with the given utid.
+  // If the trace contained multiple tracks associated with the utid, the first
+  // created track is returned. Creates a new track if no such track exists.
+  TrackId GetOrCreateDescriptorTrackForThread(UniqueTid utid);
+
+  // Returns the ID of the implicit trace-global default TrackDescriptor track.
+  TrackId GetOrCreateDefaultDescriptorTrack();
 
  private:
-  struct ThreadTrackTuple {
-    UniqueTid utid;
-
-    friend bool operator<(const ThreadTrackTuple& l,
-                          const ThreadTrackTuple& r) {
-      return l.utid < r.utid;
-    }
-  };
-  struct FuchsiaAsyncTrackTuple {
-    int64_t correlation_id;
-
-    friend bool operator<(const FuchsiaAsyncTrackTuple& l,
-                          const FuchsiaAsyncTrackTuple& r) {
-      return l.correlation_id < r.correlation_id;
-    }
-  };
   struct GpuTrackTuple {
     StringId track_name;
     StringId scope;
@@ -104,21 +108,28 @@ class TrackTracker {
     }
   };
 
-  std::map<ThreadTrackTuple, TrackId> thread_tracks_;
-  std::map<FuchsiaAsyncTrackTuple, TrackId> fuchsia_async_tracks_;
+  static constexpr TrackId kDefaultDescriptorTrackUuid = 0u;
+
+  std::map<UniqueTid /* utid */, TrackId> thread_tracks_;
+  std::map<int64_t /* correlation_id */, TrackId> fuchsia_async_tracks_;
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
   std::map<AndroidAsyncTrackTuple, TrackId> android_async_tracks_;
   std::map<UniquePid, TrackId> chrome_process_instant_tracks_;
   base::Optional<TrackId> chrome_global_instant_track_id_;
+  std::map<uint64_t /* uuid */, TrackId> descriptor_tracks_;
+  std::map<UniqueTid, TrackId> descriptor_tracks_by_utid_;
 
-  StringId source_key_ = 0;
-  StringId source_id_key_ = 0;
-  StringId source_scope_key_ = 0;
+  const StringId source_key_ = 0;
+  const StringId source_id_key_ = 0;
+  const StringId source_scope_key_ = 0;
 
-  StringId fuchsia_source_ = 0;
-  StringId chrome_source_ = 0;
-  StringId android_source_ = 0;
+  const StringId fuchsia_source_ = 0;
+  const StringId chrome_source_ = 0;
+  const StringId android_source_ = 0;
+  const StringId descriptor_source_ = 0;
+
+  const StringId default_descriptor_track_name_ = 0;
 
   TraceProcessorContext* const context_;
 };
