@@ -30,8 +30,9 @@ namespace perfetto {
 namespace trace_processor {
 
 // Represents the possible filter operations on a column.
-enum FilterOp {
+enum class FilterOp {
   kEq,
+  kNeq,
   kGt,
   kLt,
 };
@@ -185,6 +186,9 @@ class Column {
   }
   Constraint lt(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kLt, value};
+  }
+  Constraint neq(SqlValue value) const {
+    return Constraint{col_idx_, FilterOp::kNeq, value};
   }
 
   // Returns an Order for each Order type for this Column.
