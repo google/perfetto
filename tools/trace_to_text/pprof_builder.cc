@@ -318,7 +318,10 @@ class GProfileBuilder {
       GLocation* glocation = result_.add_location();
       glocation->set_id(ToPprofId(frame_id));
       glocation->set_mapping_id(ToPprofId(mapping_id));
-      glocation->set_address(ToPprofId(rel_pc));
+      // TODO(fmayer): Convert to abspc.
+      // relpc + (mapping.start - (mapping.exact_offset -
+      //                           mapping.start_offset)).
+      glocation->set_address(static_cast<uint64_t>(rel_pc));
       if (symbol_set_id) {
         for (const Line& line : LineForSymbolSetId(symbol_set_id)) {
           seen_symbol_ids->emplace(line.symbol_id);
