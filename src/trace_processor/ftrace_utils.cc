@@ -97,6 +97,8 @@ TaskState::TaskState(const char* state_str) {
       state_ |= Atom::kParked;
     else if (c == 'N')
       state_ |= Atom::kNoLoad;
+    else if (c == '|')
+      continue;
     else {
       invalid_char = true;
       break;
@@ -202,10 +204,13 @@ void FormatSystracePrefix(int64_t timestamp,
   }
 
   int64_t padding = 16 - static_cast<int64_t>(name.size());
-  if (PERFETTO_LIKELY(padding > 0)) {
+  if (padding > 0) {
     writer->AppendChar(' ', static_cast<size_t>(padding));
   }
-  writer->AppendString(name);
+  for (size_t i = 0; i < name.size(); ++i) {
+    char c = name.data()[i];
+    writer->AppendChar(c == '-' ? '_' : c);
+  }
   writer->AppendChar('-');
 
   size_t pre_pid_pos = writer->pos();
