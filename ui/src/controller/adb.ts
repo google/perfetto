@@ -1,4 +1,5 @@
 import {_TextDecoder, _TextEncoder} from 'custom_utils';
+
 import {Adb, AdbMsg, AdbStream, CmdType} from './adb_interfaces';
 
 const textEncoder = new _TextEncoder();
@@ -79,11 +80,18 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async connect(device: USBDevice): Promise<void> {
-    if (this.state === AdbState.CONNECTED && this.dev === device) {
-      this.onConnected();
-      this.onConnected = () => {};
-      return;
+    // If we are already connected, we are also already authenticated, so we can
+    // skip doing the authentication again.
+    if (this.state === AdbState.CONNECTED) {
+      if (this.dev === device && device.opened) {
+        this.onConnected();
+        this.onConnected = () => {};
+        return;
+      }
+      // Another device was connected.
+      await this.disconnect();
     }
+
     this.dev = device;
     this.useChecksum = true;
     this.key = await AdbOverWebUsb.initKey();
@@ -112,11 +120,12 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async disconnect(): Promise<void> {
-    if (!this.dev) {
-      console.error('adb disconnect() called with no device connected');
-      return;
-    }
-    this.dev.close();
+    this.state = AdbState.DISCONNECTED;
+
+    if (!this.dev) return;
+
+    new Map(this.streams).forEach((stream, _id) => stream.setClosed());
+    console.assert(this.streams.size == 0);
     this.dev = undefined;
   }
 
@@ -171,6 +180,7 @@ export class AdbOverWebUsb implements Adb {
           if (e.message !== DEVICE_NOT_SET_ERROR) {
             console.error(`Exception in recv: ${e.name}. error: ${e.message}`);
           }
+          this.disconnect();
         });
   }
 
@@ -411,7 +421,7 @@ export class AdbStreamImpl implements AdbStream {
     await this.adb.send('WRTE', this.localStreamId, this.remoteStreamId, raw);
   }
 
-  private doClose() {
+  setClosed() {
     this.state = AdbStreamState.CLOSED;
     this.adb.streams.delete(this.localStreamId);
     this.onClose();
@@ -443,7 +453,7 @@ export class AdbStreamImpl implements AdbStream {
     }
 
     if (msg.cmd === 'CLSE') {
-      this.doClose();
+      this.setClosed();
       return;
     }
     console.error(

@@ -13,16 +13,17 @@
 // limitations under the License.
 
 import * as protobuf from 'protobufjs/minimal';
+
 import {perfetto} from '../gen/protos';
+
+import {AdbAuthState, AdbBaseConsumerPort} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {
   isReadBuffersResponse,
-  ReadBuffersResponse
 } from './consumer_port_types';
-import {globals} from './globals';
-import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
+import {Consumer} from './record_controller_interfaces';
 
-enum State {
+enum SocketState {
   DISCONNECTED,
   BINDING_IN_PROGRESS,
   BOUND,
@@ -48,11 +49,10 @@ interface Command {
 
 const TRACED_SOCKET = '/dev/socket/traced_consumer';
 
-export class AdbSocketConsumerPort extends RpcConsumerPort {
-  private state = State.DISCONNECTED;
-  private adb: Adb;
+export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
+  private socketState = SocketState.DISCONNECTED;
+
   private socket?: AdbStream;
-  private device: USBDevice|undefined = undefined;
   // Wire protocol request ID. After each request it is increased. It is needed
   // to keep track of the type of request, and parse the response correctly.
   private requestId = 1;
@@ -75,43 +75,41 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
   // Accumulates trace packets into a proto trace file..
   private traceProtoWriter = protobuf.Writer.create();
 
-  private commandQueue: Command[] = [];
+  private socketCommandQueue: Command[] = [];
 
   constructor(adb: Adb, consumer: Consumer) {
-    super(consumer);
-    this.adb = adb;
+    super(adb, consumer);
   }
 
-  async handleCommand(method: string, params: Uint8Array) {
-    this.commandQueue.push({method, params});
+  async invoke(method: string, params: Uint8Array) {
+    // ADB connection & authentication is handled by the superclass.
+    console.assert(this.state === AdbAuthState.CONNECTED);
+    this.socketCommandQueue.push({method, params});
 
-    if (this.state === State.BINDING_IN_PROGRESS) return;
-    if (this.state === State.DISCONNECTED) {
-      this.state = State.BINDING_IN_PROGRESS;
-      this.device = await AdbSocketConsumerPort.findDevice();
-      if (!this.device) {
-        this.sendErrorMessage(`Device with serial ${
-            globals.state.serialAndroidDeviceConnected} not found.`);
-        return;
-      }
-      await this.adb.connect(this.device);
+    if (this.socketState === SocketState.BINDING_IN_PROGRESS) return;
+    if (this.socketState === SocketState.DISCONNECTED) {
+      this.socketState = SocketState.BINDING_IN_PROGRESS;
       await this.listenForMessages();
       await this.bind();
       this.traceProtoWriter = protobuf.Writer.create();
-      this.state = State.BOUND;
+      this.socketState = SocketState.BOUND;
     }
 
-    console.assert(this.state === State.BOUND);
+    console.assert(this.socketState === SocketState.BOUND);
 
-    for (const cmd of this.commandQueue) this.invoke(cmd.method, cmd.params);
-    this.commandQueue = [];
+    for (const cmd of this.socketCommandQueue) {
+      this.invokeInternal(cmd.method, cmd.params);
+    }
+    this.socketCommandQueue = [];
   }
 
-  invoke(method: string, argsProto: Uint8Array) {
+  private invokeInternal(method: string, argsProto: Uint8Array) {
+    // Socket is bound in invoke().
+    console.assert(this.socketState === SocketState.BOUND);
     const requestId = this.requestId++;
     const methodId = this.findMethodId(method);
     if (methodId === undefined) {
-      // This can happen with 'GetTraceStats': it seems that not all the Andorid
+      // This can happen with 'GetTraceStats': it seems that not all the Android
       // <= 9 devices support it.
       console.error(`Method ${method} not supported by the target`);
       return;
@@ -123,6 +121,8 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     });
     this.requestMethods.set(requestId, method);
     this.sendFrame(frame);
+
+    if (method === 'EnableTracing') this.setDurationStatus(argsProto);
   }
 
   static generateFrameBufferToSend(frame: Frame): Uint8Array {
@@ -148,8 +148,8 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     this.socket = await this.adb.socket(TRACED_SOCKET);
     this.socket.onData = (raw) => this.handleReceivedData(raw);
     this.socket.onClose = () => {
-      this.state = State.DISCONNECTED;
-      this.commandQueue = [];
+      this.socketState = SocketState.DISCONNECTED;
+      this.socketCommandQueue = [];
     };
   }
 
@@ -283,12 +283,8 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
   }
 
   sendReadBufferResponse() {
-    const readBufferResponse: ReadBuffersResponse = {
-      type: 'ReadBuffersResponse',
-      slices: [{data: this.traceProtoWriter.finish(), lastSliceForPacket: true}]
-    };
-
-    this.sendMessage(readBufferResponse);
+    this.sendMessage(this.generateChunkReadResponse(
+        this.traceProtoWriter.finish(), /* last */ true));
   }
 
   bind() {
@@ -311,14 +307,7 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
     return undefined;
   }
 
-  static async findDevice() {
-    if (!globals.state.androidDeviceConnected) return undefined;
-    const targetSerial = globals.state.androidDeviceConnected.serial;
-    const devices = await navigator.usb.getDevices();
-    return devices.find(d => d.serialNumber === targetSerial);
-  }
-
-  static async hasSocketAccess(device: USBDevice, adb: Adb) {
+  static async hasSocketAccess(device: USBDevice, adb: Adb): Promise<boolean> {
     await adb.connect(device);
     try {
       const socket = await adb.socket(TRACED_SOCKET);
@@ -347,7 +336,11 @@ export class AdbSocketConsumerPort extends RpcConsumerPort {
       case 'msgInvokeMethodReply': {
         const msgInvokeMethodReply = frame.msgInvokeMethodReply;
         if (msgInvokeMethodReply && msgInvokeMethodReply.replyProto) {
-          console.assert(msgInvokeMethodReply.success);
+          if (!msgInvokeMethodReply.success) {
+            console.error(
+                'Unsuccessful method invocation: ', msgInvokeMethodReply);
+            return;
+          }
           this.decodeResponse(
               requestId,
               msgInvokeMethodReply.replyProto,
