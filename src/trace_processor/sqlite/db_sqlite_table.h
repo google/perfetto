@@ -63,6 +63,8 @@ class DbSqliteTable : public SqliteTable {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
+  double EstimateCost(const QueryConstraints& qc);
+
   const Table* table_ = nullptr;
 };
 
