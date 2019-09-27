@@ -50,6 +50,7 @@
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/task_execution.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
@@ -142,10 +143,19 @@ class MockTraceStorage : public TraceStorage {
     ON_CALL(*this, GetString(_)).WillByDefault(Invoke([this](StringId id) {
       return TraceStorage::GetString(id);
     }));
+
+    ON_CALL(*this, GetThread(_))
+        .WillByDefault(Invoke(this, &MockTraceStorage::GetThreadImpl));
+  }
+
+  const Thread& GetThreadImpl(UniqueTid utid) {
+    return TraceStorage::GetThread(utid);
   }
 
   MOCK_METHOD1(InternString, StringId(base::StringView));
   MOCK_CONST_METHOD1(GetString, NullTermStringView(StringId));
+
+  MOCK_CONST_METHOD1(GetThread, const Thread&(UniqueTid));
 };
 
 class MockArgsTracker : public ArgsTracker {
@@ -712,6 +722,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
       .Times(3)
       .WillRepeatedly(Return(1));
 
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(3)
+      .WillRepeatedly(testing::ReturnRef(thread));
+
   MockArgsTracker args(&context_);
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -798,6 +814,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   EXPECT_CALL(*process_, UpdateThread(16, 15))
       .Times(3)
       .WillRepeatedly(Return(1));
+
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(3)
+      .WillRepeatedly(testing::ReturnRef(thread));
 
   MockArgsTracker args(&context_);
 
@@ -937,7 +959,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
       .Times(5)
       .WillRepeatedly(Return(1));
 
-  EXPECT_CALL(*process_, GetOrCreateProcess(15)).WillOnce(Return(2));
+  TraceStorage::Thread thread(16);
+  thread.upid = 2u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(5)
+      .WillRepeatedly(testing::ReturnRef(thread));
 
   MockArgsTracker args(&context_);
 
@@ -1094,7 +1120,12 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_CALL(*process_, UpdateThread(16, 15))
       .Times(4)
       .WillRepeatedly(Return(1));
-  EXPECT_CALL(*process_, GetOrCreateProcess(15)).WillOnce(Return(1));
+
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(4)
+      .WillRepeatedly(testing::ReturnRef(thread));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
@@ -1102,7 +1133,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, 0, RefType::kRefTrack, StringId(1),
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefTrack, StringId(1),
                              StringId(2), _))
       .WillOnce(Return(0u));
 
@@ -1110,23 +1141,24 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_, Scoped(1015000, 0, RefType::kRefTrack, StringId(3),
+  EXPECT_CALL(*slice_, Scoped(1015000, 1, RefType::kRefTrack, StringId(3),
                               StringId(4), 0, _));
 
   EXPECT_CALL(*slice_,
-              End(1020000, 0, RefType::kRefTrack, StringId(1), StringId(2), _))
+              End(1020000, 1, RefType::kRefTrack, StringId(1), StringId(2), _))
       .WillOnce(Return(0u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
       .WillOnce(Return(5));
-  EXPECT_CALL(*slice_, Scoped(1030000, 1, RefType::kRefTrack, StringId(3),
+  EXPECT_CALL(*slice_, Scoped(1030000, 2, RefType::kRefTrack, StringId(3),
                               StringId(4), 0, _));
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->track_table().size(), 2u);
-  EXPECT_EQ(storage_->track_table().name()[0], 2u);
-  EXPECT_EQ(storage_->track_table().name()[1], 4u);
+  // First track is for the thread; second and third are the async event tracks.
+  EXPECT_EQ(storage_->track_table().size(), 3u);
+  EXPECT_EQ(storage_->track_table().name()[1], 2u);
+  EXPECT_EQ(storage_->track_table().name()[2], 4u);
 
   EXPECT_EQ(storage_->process_track_table().size(), 1u);
   EXPECT_EQ(storage_->process_track_table().upid()[0], 1u);
@@ -1139,6 +1171,217 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
             3020);
   EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
             20);
+}
+
+// TODO(eseckler): Also test instant events on separate tracks.
+TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  // Sequence 1.
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(1234);
+    track_desc->set_name("Thread track 1");
+    auto* thread_desc = track_desc->set_thread();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(5678);
+    track_desc->set_name("Async track 1");
+  }
+  {
+    // Async event started on "Async track 1".
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1010000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(5678);
+    event->set_thread_time_absolute_us(2005);
+    event->set_thread_instruction_count_absolute(3020);
+    event->add_category_iids(1);
+    event->set_name_iid(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_use_async_tts(true);
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat1");
+    auto ev1 = interned_data->add_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev1");
+  }
+  {
+    // Instant event on "Thread track 1".
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1015000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(1234);
+    event->set_thread_time_absolute_us(2007);
+    event->add_category_iids(2);
+    event->set_name_iid(2);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(2);
+    cat1->set_name("cat2");
+    auto ev1 = interned_data->add_event_names();
+    ev1->set_iid(2);
+    ev1->set_name("ev2");
+  }
+
+  // Sequence 2.
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_incremental_state_cleared(true);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(4321);
+    track_desc->set_name("Thread track 2");
+    auto* thread_desc = track_desc->set_thread();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(17);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(5678);  // "Async track 1" defined on sequence 1.
+  }
+  {
+    // Async event completed on "Async track 1".
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_timestamp(1020000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(5678);
+    event->set_thread_time_absolute_us(2010);
+    event->set_thread_instruction_count_absolute(3040);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_END);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_use_async_tts(true);
+  }
+  {
+    // Instant event on "Thread track 2".
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_timestamp(1016000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(4321);
+    event->set_thread_time_absolute_us(2008);
+    event->add_category_iids(1);
+    event->set_name_iid(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+
+    auto* interned_data = packet->set_interned_data();
+    auto cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat3");
+    auto ev1 = interned_data->add_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev3");
+  }
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2));
+
+  TraceStorage::Thread thread1(16);
+  thread1.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .WillRepeatedly(testing::ReturnRef(thread1));
+  TraceStorage::Thread thread2(16);
+  thread2.upid = 2u;
+  EXPECT_CALL(*storage_, GetThread(2))
+      .WillRepeatedly(testing::ReturnRef(thread2));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("Thread track 1")))
+      .WillOnce(Return(10));
+  EXPECT_CALL(*storage_, InternString(base::StringView("Async track 1")))
+      .WillOnce(Return(11));
+  EXPECT_CALL(*storage_, InternString(base::StringView("Thread track 2")))
+      .WillOnce(Return(12));
+  EXPECT_CALL(*storage_, InternString(base::StringView("")))
+      .WillOnce(Return(0));
+
+  Tokenize();
+
+  // First track is "Thread track 1"; second is "Async track 1", third is
+  // "Thread track 2".
+  EXPECT_EQ(storage_->track_table().size(), 3u);
+  EXPECT_EQ(storage_->track_table().name()[0], 10u);  // "Thread track 1"
+  EXPECT_EQ(storage_->track_table().name()[1], 11u);  // "Async track 1"
+  EXPECT_EQ(storage_->track_table().name()[2], 12u);  // "Thread track 2"
+  EXPECT_EQ(storage_->thread_track_table().size(), 2u);
+  EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
+  EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefTrack, StringId(1),
+                             StringId(2), _))
+      .WillOnce(Return(0u));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat2")))
+      .WillOnce(Return(3));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
+      .WillOnce(Return(4));
+  EXPECT_CALL(*slice_, Scoped(1015000, 1, RefType::kRefUtid, StringId(3),
+                              StringId(4), 0, _))
+      .WillOnce(Return(1u));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("cat3")))
+      .WillOnce(Return(5));
+  EXPECT_CALL(*storage_, InternString(base::StringView("ev3")))
+      .WillOnce(Return(6));
+  EXPECT_CALL(*slice_, Scoped(1016000, 2, RefType::kRefUtid, StringId(5),
+                              StringId(6), 0, _))
+      .WillOnce(Return(2u));
+
+  EXPECT_CALL(*slice_,
+              End(1020000, 1, RefType::kRefTrack, StringId(0), StringId(0), _))
+      .WillOnce(Return(0u));
+
+  context_.sorter->ExtractEventsForced();
+
+  // Track tables shouldn't have changed.
+  EXPECT_EQ(storage_->track_table().size(), 3u);
+  EXPECT_EQ(storage_->thread_track_table().size(), 2u);
+
+  EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
+  EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_timestamp_ns()[0], 2005000);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_duration_ns()[0], 5000);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_counts()[0],
+            3020);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
+            20);
+
+  EXPECT_EQ(storage_->thread_slices().slice_count(), 2u);
+  EXPECT_EQ(storage_->thread_slices().slice_ids()[0], 1u);
+  EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[0], 2007000);
+  EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[0], 0);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_counts()[0], 0);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_deltas()[0], 0);
+  EXPECT_EQ(storage_->thread_slices().slice_ids()[1], 2u);
+  EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[1], 2008000);
+  EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[1], 0);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_counts()[1], 0);
+  EXPECT_EQ(storage_->thread_slices().thread_instruction_deltas()[1], 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
@@ -1287,6 +1530,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
       .Times(2)
       .WillRepeatedly(Return(1));
 
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(2)
+      .WillRepeatedly(testing::ReturnRef(thread));
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
   EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, kNullStringId,
                              kNullStringId, _));
@@ -1389,6 +1638,18 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   EXPECT_CALL(*process_, UpdateThread(17, 15))
       .Times(2)
       .WillRepeatedly(Return(2));
+
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(2)
+      .WillRepeatedly(testing::ReturnRef(thread));
+
+  TraceStorage::Thread thread2(17);
+  thread2.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(2))
+      .Times(2)
+      .WillRepeatedly(testing::ReturnRef(thread2));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
@@ -1539,6 +1800,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .Times(2)
       .WillRepeatedly(Return(1));
 
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1))
+      .Times(2)
+      .WillRepeatedly(testing::ReturnRef(thread));
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
@@ -1665,6 +1932,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
@@ -1739,6 +2010,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
@@ -1820,12 +2095,16 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
-      .Times(2)
+      .Times(1)
       .WillRepeatedly(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("?")))
       .WillOnce(Return(4));
@@ -1846,7 +2125,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_EQ(raw_events.utids()[0], 1u);
   EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
 
-  EXPECT_EQ(storage_->args().args_count(), 13u);
+  EXPECT_GE(storage_->args().args_count(), 13u);
 
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.category"),
                      Variadic::String(1u)));
