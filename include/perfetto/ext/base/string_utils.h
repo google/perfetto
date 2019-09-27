@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/string_view.h"
+
 namespace perfetto {
 namespace base {
 
@@ -34,6 +36,7 @@ inline char Uppercase(char c) {
 bool StartsWith(const std::string& str, const std::string& prefix);
 bool EndsWith(const std::string& str, const std::string& suffix);
 bool Contains(const std::string& haystack, const std::string& needle);
+size_t Find(const StringView& needle, const StringView& haystack);
 bool CaseInsensitiveEqual(const std::string& first, const std::string& second);
 std::string Join(const std::vector<std::string>& parts,
                  const std::string& delim);

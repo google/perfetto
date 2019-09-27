@@ -126,6 +126,7 @@ source_set("common") {
     ":pprofbuilder",
     ":symbolizer",
     ":utils",
+    "../../gn:zlib",
   ]
   public_deps = [
     "../../gn:default_deps",

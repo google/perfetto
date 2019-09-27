@@ -39,6 +39,18 @@ bool Contains(const std::string& haystack, const std::string& needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
+size_t Find(const StringView& needle, const StringView& haystack) {
+  if (needle.size() == 0)
+    return 0;
+  if (needle.size() > haystack.size())
+    return std::string::npos;
+  for (size_t i = 0; i < haystack.size() - (needle.size() - 1); ++i) {
+    if (strncmp(haystack.data() + i, needle.data(), needle.size()) == 0)
+      return i;
+  }
+  return std::string::npos;
+}
+
 bool CaseInsensitiveEqual(const std::string& first, const std::string& second) {
   return first.size() == second.size() &&
          std::equal(
