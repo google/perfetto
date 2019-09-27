@@ -571,6 +571,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   }
 
   onError(message: string) {
+    console.error('Error in record controller: ', message);
     globals.dispatch(
         Actions.setLastRecordingError({error: message.substr(0, 150)}));
     globals.dispatch(Actions.stopRecording({}));
