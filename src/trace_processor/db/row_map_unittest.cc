@@ -64,6 +64,7 @@ TEST_P(RowMapUnittest, Add) {
   ASSERT_EQ(row_map.IndexOf(3u), 2u);
   ASSERT_EQ(row_map.IndexOf(5u), 3u);
   ASSERT_EQ(row_map.IndexOf(10u), 4u);
+  ASSERT_FALSE(row_map.IndexOf(6u));
 }
 
 TEST_P(RowMapUnittest, SelectRowsBitVector) {
