@@ -162,6 +162,9 @@ class Column {
   // given filter constraint.
   void FilterInto(FilterOp, SqlValue value, RowMap*) const;
 
+  // Returns true if this column is considered an id column.
+  bool IsId() const { return (flags_ & Flag::kId) != 0; }
+
   const RowMap& row_map() const;
   const char* name() const { return name_; }
   SqlValue::Type type() const {
