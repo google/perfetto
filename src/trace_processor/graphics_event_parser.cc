@@ -192,9 +192,10 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       snprintf(buffer, 64, "render stage(%zu)", stage_id);
       stage_name = context_->storage->InternString(buffer);
     }
+    TrackId track_id =
+        gpu_hw_queue_ids_[static_cast<size_t>(event.hw_queue_id())];
     const auto slice_id = context_->slice_tracker->Scoped(
-        ts, gpu_hw_queue_ids_[static_cast<size_t>(event.hw_queue_id())],
-        RefType::kRefTrack, 0 /* cat */, stage_name,
+        ts, track_id, track_id, RefType::kRefTrack, 0 /* cat */, stage_name,
         static_cast<int64_t>(event.duration()), args_callback);
 
     context_->storage->mutable_gpu_slice_table()->Insert(
@@ -270,8 +271,9 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
   const auto slice_id = context_->slice_tracker->Scoped(
-      timestamp, track_id, RefType::kRefTrack, 0 /* cat */, event_name_id,
-      duration, [this, layer_name_id](ArgsTracker* args_tracker, RowId row_id) {
+      timestamp, track_id, track_id, RefType::kRefTrack, 0 /* cat */,
+      event_name_id, duration,
+      [this, layer_name_id](ArgsTracker* args_tracker, RowId row_id) {
         args_tracker->AddArg(row_id, layer_name_key_id_, layer_name_key_id_,
                              Variadic::String(layer_name_id));
       });

@@ -171,22 +171,23 @@ class MockSliceTracker : public SliceTracker {
  public:
   MockSliceTracker(TraceProcessorContext* context) : SliceTracker(context) {}
 
-  MOCK_METHOD6(Begin,
+  MOCK_METHOD7(Begin,
                base::Optional<uint32_t>(int64_t timestamp,
+                                        TrackId track_id,
                                         int64_t ref,
                                         RefType ref_type,
                                         StringId cat,
                                         StringId name,
                                         SetArgsCallback args_callback));
-  MOCK_METHOD6(End,
+  MOCK_METHOD5(End,
                base::Optional<uint32_t>(int64_t timestamp,
-                                        int64_t ref,
-                                        RefType ref_type,
+                                        TrackId track_id,
                                         StringId cat,
                                         StringId name,
                                         SetArgsCallback args_callback));
-  MOCK_METHOD7(Scoped,
+  MOCK_METHOD8(Scoped,
                base::Optional<uint32_t>(int64_t timestamp,
+                                        TrackId track_id,
                                         int64_t ref,
                                         RefType ref_type,
                                         StringId cat,
@@ -730,23 +731,23 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   MockArgsTracker args(&context_);
 
+  constexpr TrackId track = 0u;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Scoped(1005000, 1, RefType::kRefUtid, kNullStringId,
-                              kNullStringId, 23000, _))
+  EXPECT_CALL(*slice_, Scoped(1005000, track, 1, RefType::kRefUtid,
+                              kNullStringId, kNullStringId, 23000, _))
       .WillOnce(DoAll(
-          InvokeArgument<6>(
+          InvokeArgument<7>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
           Return(0u)));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, kNullStringId,
-                             kNullStringId, _))
+  EXPECT_CALL(*slice_, Begin(1010000, track, 1, RefType::kRefUtid,
+                             kNullStringId, kNullStringId, _))
       .WillOnce(DoAll(
-          InvokeArgument<5>(
+          InvokeArgument<6>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
           Return(1u)));
-  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, kNullStringId,
-                           kNullStringId, _))
+  EXPECT_CALL(*slice_, End(1020000, track, kNullStringId, kNullStringId, _))
       .WillOnce(DoAll(
-          InvokeArgument<5>(
+          InvokeArgument<4>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
           Return(1u)));
 
@@ -823,23 +824,23 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   MockArgsTracker args(&context_);
 
+  constexpr TrackId track = 0u;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, kNullStringId,
-                             kNullStringId, _))
-      .WillOnce(DoAll(
-          InvokeArgument<5>(
-              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
-          Return(0u)));
-  EXPECT_CALL(*slice_, Scoped(1015000, 1, RefType::kRefUtid, kNullStringId,
-                              kNullStringId, 0, _))
+  EXPECT_CALL(*slice_, Begin(1010000, track, 1, RefType::kRefUtid,
+                             kNullStringId, kNullStringId, _))
       .WillOnce(DoAll(
           InvokeArgument<6>(
+              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
+          Return(0u)));
+  EXPECT_CALL(*slice_, Scoped(1015000, track, 1, RefType::kRefUtid,
+                              kNullStringId, kNullStringId, 0, _))
+      .WillOnce(DoAll(
+          InvokeArgument<7>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
           Return(1u)));
-  EXPECT_CALL(*slice_, End(1020000, 1, RefType::kRefUtid, kNullStringId,
-                           kNullStringId, _))
+  EXPECT_CALL(*slice_, End(1020000, track, kNullStringId, kNullStringId, _))
       .WillOnce(DoAll(
-          InvokeArgument<5>(
+          InvokeArgument<4>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
           Return(0u)));
 
@@ -967,16 +968,19 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   MockArgsTracker args(&context_);
 
+  constexpr TrackId thread_1_track = 0u;
+  constexpr TrackId process_2_track = 1u;
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2,cat3")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Scoped(1005000, 1, RefType::kRefUtid, StringId(1),
-                              StringId(2), 23000, _))
+  EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, 1, RefType::kRefUtid,
+                              StringId(1), StringId(2), 23000, _))
       .WillOnce(DoAll(
-          InvokeArgument<6>(
+          InvokeArgument<7>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
           Return(0u)));
 
@@ -984,31 +988,31 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_,
-              Begin(1010000, 1, RefType::kRefUtid, StringId(3), StringId(4), _))
-      .WillOnce(DoAll(
-          InvokeArgument<5>(
-              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
-          Return(1u)));
-
-  EXPECT_CALL(*slice_,
-              End(1020000, 1, RefType::kRefUtid, StringId(3), StringId(4), _))
-      .WillOnce(DoAll(
-          InvokeArgument<5>(
-              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
-          Return(1u)));
-
-  EXPECT_CALL(*slice_, Scoped(1040000, 1, RefType::kRefUtid, StringId(3),
-                              StringId(4), 0, _))
+  EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, 1, RefType::kRefUtid,
+                             StringId(3), StringId(4), _))
       .WillOnce(DoAll(
           InvokeArgument<6>(
+              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
+          Return(1u)));
+
+  EXPECT_CALL(*slice_,
+              End(1020000, thread_1_track, StringId(3), StringId(4), _))
+      .WillOnce(DoAll(
+          InvokeArgument<4>(
+              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 1u)),
+          Return(1u)));
+
+  EXPECT_CALL(*slice_, Scoped(1040000, thread_1_track, 1, RefType::kRefUtid,
+                              StringId(3), StringId(4), 0, _))
+      .WillOnce(DoAll(
+          InvokeArgument<7>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 2u)),
           Return(2u)));
 
-  EXPECT_CALL(*slice_, Scoped(1050000, 2, RefType::kRefUpid, StringId(3),
-                              StringId(4), 0, _))
+  EXPECT_CALL(*slice_, Scoped(1050000, process_2_track, 2, RefType::kRefUpid,
+                              StringId(3), StringId(4), 0, _))
       .WillOnce(DoAll(
-          InvokeArgument<6>(
+          InvokeArgument<7>(
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 3u)),
           Return(3u)));
 
@@ -1133,7 +1137,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefTrack, StringId(1),
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 1, RefType::kRefTrack, StringId(1),
                              StringId(2), _))
       .WillOnce(Return(0u));
 
@@ -1141,16 +1145,15 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_, Scoped(1015000, 1, RefType::kRefTrack, StringId(3),
+  EXPECT_CALL(*slice_, Scoped(1015000, 1, 1, RefType::kRefTrack, StringId(3),
                               StringId(4), 0, _));
 
-  EXPECT_CALL(*slice_,
-              End(1020000, 1, RefType::kRefTrack, StringId(1), StringId(2), _))
+  EXPECT_CALL(*slice_, End(1020000, 1, StringId(1), StringId(2), _))
       .WillOnce(Return(0u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
       .WillOnce(Return(5));
-  EXPECT_CALL(*slice_, Scoped(1030000, 2, RefType::kRefTrack, StringId(3),
+  EXPECT_CALL(*slice_, Scoped(1030000, 2, 2, RefType::kRefTrack, StringId(3),
                               StringId(4), 0, _));
 
   context_.sorter->ExtractEventsForced();
@@ -1332,7 +1335,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefTrack, StringId(1),
+  EXPECT_CALL(*slice_, Begin(1010000, 1, 1, RefType::kRefTrack, StringId(1),
                              StringId(2), _))
       .WillOnce(Return(0u));
 
@@ -1340,7 +1343,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(4));
-  EXPECT_CALL(*slice_, Scoped(1015000, 1, RefType::kRefUtid, StringId(3),
+  EXPECT_CALL(*slice_, Scoped(1015000, 0, 1, RefType::kRefUtid, StringId(3),
                               StringId(4), 0, _))
       .WillOnce(Return(1u));
 
@@ -1348,12 +1351,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
       .WillOnce(Return(5));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev3")))
       .WillOnce(Return(6));
-  EXPECT_CALL(*slice_, Scoped(1016000, 2, RefType::kRefUtid, StringId(5),
+  EXPECT_CALL(*slice_, Scoped(1016000, 2, 2, RefType::kRefUtid, StringId(5),
                               StringId(6), 0, _))
       .WillOnce(Return(2u));
 
-  EXPECT_CALL(*slice_,
-              End(1020000, 1, RefType::kRefTrack, StringId(0), StringId(0), _))
+  EXPECT_CALL(*slice_, End(1020000, 1, StringId(0), StringId(0), _))
       .WillOnce(Return(0u));
 
   context_.sorter->ExtractEventsForced();
@@ -1412,7 +1414,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 
   Tokenize();
 
-  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _, _)).Times(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -1436,7 +1438,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 
   Tokenize();
 
-  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*slice_, Begin(_, _, _, _, _, _, _)).Times(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -1536,11 +1538,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
       .Times(2)
       .WillRepeatedly(testing::ReturnRef(thread));
 
+  constexpr TrackId track = 0u;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, kNullStringId,
-                             kNullStringId, _));
-  EXPECT_CALL(*slice_, End(2010000, 1, RefType::kRefUtid, kNullStringId,
-                           kNullStringId, _));
+  EXPECT_CALL(*slice_, Begin(1010000, track, 1, RefType::kRefUtid,
+                             kNullStringId, kNullStringId, _));
+  EXPECT_CALL(*slice_, End(2010000, track, kNullStringId, kNullStringId, _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1651,6 +1653,8 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
       .Times(2)
       .WillRepeatedly(testing::ReturnRef(thread2));
 
+  constexpr TrackId thread_2_track = 0u;
+  constexpr TrackId thread_1_track = 1u;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
@@ -1658,20 +1662,20 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
       .WillOnce(Return(2));
 
-  EXPECT_CALL(*slice_, Begin(1005000, 2, RefType::kRefUtid, StringId(1),
-                             StringId(2), _));
+  EXPECT_CALL(*slice_, Begin(1005000, thread_2_track, 2, RefType::kRefUtid,
+                             StringId(1), StringId(2), _));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(3));
 
-  EXPECT_CALL(*slice_, Begin(1010000, 1, RefType::kRefUtid, StringId(1),
-                             StringId(3), _));
+  EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, 1, RefType::kRefUtid,
+                             StringId(1), StringId(3), _));
   EXPECT_CALL(*slice_,
-              End(1015000, 2, RefType::kRefUtid, StringId(1), StringId(2), _));
+              End(1015000, thread_2_track, StringId(1), StringId(2), _));
   EXPECT_CALL(*slice_,
-              End(1020000, 1, RefType::kRefUtid, StringId(1), StringId(3), _));
+              End(1020000, thread_1_track, StringId(1), StringId(3), _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1806,15 +1810,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .Times(2)
       .WillRepeatedly(testing::ReturnRef(thread));
 
+  constexpr TrackId track = 0u;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_,
-              Begin(1010000, 1, RefType::kRefUtid, StringId(1), StringId(2), _))
-      .WillOnce(DoAll(InvokeArgument<5>(&args, 1u), Return(1u)));
+  EXPECT_CALL(*slice_, Begin(1010000, track, 1, RefType::kRefUtid, StringId(1),
+                             StringId(2), _))
+      .WillOnce(DoAll(InvokeArgument<6>(&args, 1u), Return(1u)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
       .WillOnce(Return(3));
   EXPECT_CALL(args, AddArg(1u, StringId(3), StringId(3),
@@ -1851,9 +1856,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   EXPECT_CALL(args,
               AddArg(1u, StringId(6), StringId(10), Variadic::Integer(23)));
 
-  EXPECT_CALL(*slice_,
-              End(1020000, 1, RefType::kRefUtid, StringId(1), StringId(2), _))
-      .WillOnce(DoAll(InvokeArgument<5>(&args, 1u), Return(1u)));
+  EXPECT_CALL(*slice_, End(1020000, track, StringId(1), StringId(2), _))
+      .WillOnce(DoAll(InvokeArgument<4>(&args, 1u), Return(1u)));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an3")))
       .WillOnce(Return(11));
@@ -1936,15 +1940,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   thread.upid = 1u;
   EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
 
+  constexpr TrackId track = 0u;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*slice_,
-              Begin(1010000, 1, RefType::kRefUtid, StringId(1), StringId(2), _))
-      .WillOnce(DoAll(InvokeArgument<5>(&args, 1u), Return(1u)));
+  EXPECT_CALL(*slice_, Begin(1010000, track, 1, RefType::kRefUtid, StringId(1),
+                             StringId(2), _))
+      .WillOnce(DoAll(InvokeArgument<6>(&args, 1u), Return(1u)));
   EXPECT_CALL(*storage_, InternString(base::StringView("file1")))
       .WillOnce(Return(3));
   EXPECT_CALL(*storage_, InternString(base::StringView("func1")))
@@ -2015,6 +2020,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   thread.upid = 1u;
   EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
 
+  constexpr TrackId track = 0;
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
@@ -2022,9 +2028,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
       .WillOnce(Return(2));
 
-  EXPECT_CALL(*slice_, Scoped(1010000, 1, RefType::kRefUtid, StringId(1),
+  EXPECT_CALL(*slice_, Scoped(1010000, track, 1, RefType::kRefUtid, StringId(1),
                               StringId(2), 0, _))
-      .WillOnce(DoAll(InvokeArgument<6>(&args, 1u), Return(1u)));
+      .WillOnce(DoAll(InvokeArgument<7>(&args, 1u), Return(1u)));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("body1")))
       .WillOnce(Return(3));

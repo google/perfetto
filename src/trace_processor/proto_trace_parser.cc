@@ -1893,9 +1893,9 @@ void ProtoTraceParser::ParseTrackEvent(
         return;
       }
 
-      // TODO(lalitm): Associate thread slices with track instead.
-      auto opt_slice_id = slice_tracker->Begin(
-          ts, *utid, RefType::kRefUtid, category_id, name_id, args_callback);
+      auto opt_slice_id =
+          slice_tracker->Begin(ts, track_id, *utid, RefType::kRefUtid,
+                               category_id, name_id, args_callback);
       if (opt_slice_id.has_value()) {
         auto* thread_slices = storage->mutable_thread_slices();
         PERFETTO_DCHECK(!thread_slices->slice_count() ||
@@ -1914,9 +1914,8 @@ void ProtoTraceParser::ParseTrackEvent(
         return;
       }
 
-      // TODO(lalitm): Associate thread slices with track instead.
-      auto opt_slice_id = slice_tracker->End(
-          ts, *utid, RefType::kRefUtid, category_id, name_id, args_callback);
+      auto opt_slice_id =
+          slice_tracker->End(ts, track_id, category_id, name_id, args_callback);
       if (opt_slice_id.has_value()) {
         auto* thread_slices = storage->mutable_thread_slices();
         thread_slices->UpdateThreadDeltasForSliceId(opt_slice_id.value(), tts,
@@ -1934,10 +1933,9 @@ void ProtoTraceParser::ParseTrackEvent(
       auto duration_ns = legacy_event.duration_us() * 1000;
       if (duration_ns < 0)
         return;
-      // TODO(lalitm): Associate thread slices with track instead.
-      auto opt_slice_id =
-          slice_tracker->Scoped(ts, *utid, RefType::kRefUtid, category_id,
-                                name_id, duration_ns, args_callback);
+      auto opt_slice_id = slice_tracker->Scoped(
+          ts, track_id, *utid, RefType::kRefUtid, category_id, name_id,
+          duration_ns, args_callback);
       if (opt_slice_id.has_value()) {
         auto* thread_slices = storage->mutable_thread_slices();
         PERFETTO_DCHECK(!thread_slices->slice_count() ||
@@ -1961,9 +1959,9 @@ void ProtoTraceParser::ParseTrackEvent(
         case LegacyEvent::SCOPE_UNSPECIFIED:
         case LegacyEvent::SCOPE_THREAD: {
           // TODO(lalitm): Associate thread slices with track instead.
-          auto opt_slice_id =
-              slice_tracker->Scoped(ts, *utid, RefType::kRefUtid, category_id,
-                                    name_id, duration_ns, args_callback);
+          auto opt_slice_id = slice_tracker->Scoped(
+              ts, track_id, *utid, RefType::kRefUtid, category_id, name_id,
+              duration_ns, args_callback);
           if (opt_slice_id.has_value()) {
             auto* thread_slices = storage->mutable_thread_slices();
             PERFETTO_DCHECK(!thread_slices->slice_count() ||
@@ -1975,15 +1973,15 @@ void ProtoTraceParser::ParseTrackEvent(
           break;
         }
         case LegacyEvent::SCOPE_GLOBAL: {
-          // TODO(lalitm): Associate global slices with track instead.
-          slice_tracker->Scoped(ts, /*ref=*/0, RefType::kRefNoRef, category_id,
-                                name_id, duration_ns, args_callback);
+          slice_tracker->Scoped(ts, track_id, /*ref=*/0, RefType::kRefNoRef,
+                                category_id, name_id, duration_ns,
+                                args_callback);
           break;
         }
         case LegacyEvent::SCOPE_PROCESS: {
-          // TODO(lalitm): Associate process slices with track instead.
-          slice_tracker->Scoped(ts, *upid, RefType::kRefUpid, category_id,
-                                name_id, duration_ns, args_callback);
+          slice_tracker->Scoped(ts, track_id, *upid, RefType::kRefUpid,
+                                category_id, name_id, duration_ns,
+                                args_callback);
           break;
         }
         default: {
@@ -1996,8 +1994,8 @@ void ProtoTraceParser::ParseTrackEvent(
     }
     case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
       auto opt_slice_id =
-          slice_tracker->Begin(ts, track_id, RefType::kRefTrack, category_id,
-                               name_id, args_callback);
+          slice_tracker->Begin(ts, track_id, track_id, RefType::kRefTrack,
+                               category_id, name_id, args_callback);
       // For the time beeing, we only create vtrack slice rows if we need to
       // store thread timestamps/counters.
       if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
@@ -2013,8 +2011,7 @@ void ProtoTraceParser::ParseTrackEvent(
     }
     case 'e': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_END
       auto opt_slice_id =
-          slice_tracker->End(ts, track_id, RefType::kRefTrack, category_id,
-                             name_id, args_callback);
+          slice_tracker->End(ts, track_id, category_id, name_id, args_callback);
       if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
         auto* vtrack_slices = storage->mutable_virtual_track_slices();
         vtrack_slices->UpdateThreadDeltasForSliceId(opt_slice_id.value(), tts,
@@ -2027,9 +2024,9 @@ void ProtoTraceParser::ParseTrackEvent(
       // nested underneath their parent slices.
       int64_t duration_ns = 0;
       int64_t tidelta = 0;
-      auto opt_slice_id =
-          slice_tracker->Scoped(ts, track_id, RefType::kRefTrack, category_id,
-                                name_id, duration_ns, args_callback);
+      auto opt_slice_id = slice_tracker->Scoped(
+          ts, track_id, track_id, RefType::kRefTrack, category_id, name_id,
+          duration_ns, args_callback);
       if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
         auto* vtrack_slices = storage->mutable_virtual_track_slices();
         PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
@@ -2596,11 +2593,9 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       sprintf(fallback, "Event %d", eid);
       name_id = context_->storage->InternString(fallback);
     }
-    // TODO(lalitm): make use of this track id.
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    perfetto::base::ignore_result(track_id);
-    context_->slice_tracker->Scoped(ts, utid, RefType::kRefUtid, cat_id,
-                                    name_id, event.event_duration_ns());
+    context_->slice_tracker->Scoped(ts, track_id, utid, RefType::kRefUtid,
+                                    cat_id, name_id, event.event_duration_ns());
   } else if (event.has_counter_id()) {
     auto cid = event.counter_id();
     if (cid < metatrace::COUNTERS_MAX) {
