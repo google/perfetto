@@ -79,7 +79,7 @@ static const ArgSetId kInvalidArgSetId = 0;
 
 using TrackId = uint32_t;
 
-enum RefType {
+enum class RefType {
   kRefNoRef = 0,
   kRefUtid = 1,
   kRefCpuId = 2,
@@ -320,6 +320,7 @@ class TraceStorage {
    public:
     inline uint32_t AddSlice(int64_t start_ns,
                              int64_t duration_ns,
+                             TrackId track_id,
                              int64_t ref,
                              RefType type,
                              StringId category,
@@ -329,6 +330,7 @@ class TraceStorage {
                              int64_t parent_stack_id) {
       start_ns_.emplace_back(start_ns);
       durations_.emplace_back(duration_ns);
+      track_id_.emplace_back(track_id);
       refs_.emplace_back(ref);
       types_.emplace_back(type);
       categories_.emplace_back(category);
@@ -358,6 +360,7 @@ class TraceStorage {
 
     const std::deque<int64_t>& start_ns() const { return start_ns_; }
     const std::deque<int64_t>& durations() const { return durations_; }
+    const std::deque<TrackId>& track_id() const { return track_id_; }
     const std::deque<int64_t>& refs() const { return refs_; }
     const std::deque<RefType>& types() const { return types_; }
     const std::deque<StringId>& categories() const { return categories_; }
@@ -372,6 +375,7 @@ class TraceStorage {
    private:
     std::deque<int64_t> start_ns_;
     std::deque<int64_t> durations_;
+    std::deque<TrackId> track_id_;
     std::deque<int64_t> refs_;
     std::deque<RefType> types_;
     std::deque<StringId> categories_;

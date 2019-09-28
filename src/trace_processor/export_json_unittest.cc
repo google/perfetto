@@ -67,13 +67,15 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
   const int64_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(kThreadID);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(
-      kTimestamp, kDuration, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(kTimestamp, kDuration, track,
+                                              utid, RefType::kRefUtid, cat_id,
+                                              name_id, 0, 0, 0);
   storage.mutable_thread_slices()->AddThreadSlice(
       0, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
       kThreadInstructionDelta);
@@ -112,13 +114,15 @@ TEST(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   const int64_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(kThreadID);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(
-      kTimestamp, kDuration, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(kTimestamp, kDuration, track,
+                                              utid, RefType::kRefUtid, cat_id,
+                                              name_id, 0, 0, 0);
   storage.mutable_thread_slices()->AddThreadSlice(
       0, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
       kThreadInstructionDelta);
@@ -176,11 +180,13 @@ TEST(ExportJsonTest, StorageWithThreadName) {
 }
 
 TEST(ExportJsonTest, WrongRefType) {
+  constexpr TrackId track = 22;
+
   TraceStorage storage;
   StringId cat_id = storage.InternString("cat");
   StringId name_id = storage.InternString("name");
-  storage.mutable_nestable_slices()->AddSlice(0, 0, 0, RefType::kRefCpuId,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, 0, RefType::kRefCpuId, cat_id, name_id, 0, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -339,13 +345,14 @@ TEST(ExportJsonTest, StorageWithArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
   const char* kSrc = "source_file.cc";
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(0);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
 
   StringId arg_key_id =
       storage.InternString(base::StringView("task.posted_from.file_name"));
@@ -378,13 +385,14 @@ TEST(ExportJsonTest, StorageWithListArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
   double kValues[] = {1.234, 2.345};
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(0);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
 
   StringId arg_flat_key_id =
       storage.InternString(base::StringView("debug.draw_duration_ms"));
@@ -427,13 +435,14 @@ TEST(ExportJsonTest, StorageWithMultiplePointerArgs) {
   const char* kName = "name";
   uint64_t kValue0 = 1;
   uint64_t kValue1 = std::numeric_limits<uint64_t>::max();
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(0);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
 
   StringId arg_key0_id = storage.InternString(base::StringView("arg0"));
   StringId arg_key1_id = storage.InternString(base::StringView("arg1"));
@@ -470,13 +479,14 @@ TEST(ExportJsonTest, StorageWithObjectListArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
   int kValues[] = {123, 234};
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(0);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
 
   StringId arg_flat_key_id = storage.InternString(base::StringView("a.b"));
   StringId arg_key0_id = storage.InternString(base::StringView("a[0].b"));
@@ -515,13 +525,14 @@ TEST(ExportJsonTest, StorageWithNestedListArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
   int kValues[] = {123, 234};
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(0);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
 
   StringId arg_flat_key_id = storage.InternString(base::StringView("a"));
   StringId arg_key0_id = storage.InternString(base::StringView("a[0][0]"));
@@ -560,13 +571,14 @@ TEST(ExportJsonTest, StorageWithNestedListArgs) {
 TEST(ExportJsonTest, StorageWithLegacyJsonArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   UniqueTid utid = storage.AddEmptyThread(0);
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
-  storage.mutable_nestable_slices()->AddSlice(0, 0, utid, RefType::kRefUtid,
-                                              cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(
+      0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0);
 
   StringId arg_key_id = storage.InternString(base::StringView("a"));
   StringId arg_value_id = storage.InternString(base::StringView("{\"b\":123}"));
@@ -598,12 +610,13 @@ TEST(ExportJsonTest, InstantEvent) {
   const int64_t kTimestamp = 10000000;
   const char* kCategory = "cat";
   const char* kName = "name";
+  constexpr TrackId track = 22;
 
   TraceStorage storage;
   StringId cat_id = storage.InternString(base::StringView(kCategory));
   StringId name_id = storage.InternString(base::StringView(kName));
   storage.mutable_nestable_slices()->AddSlice(
-      kTimestamp, 0, 0, RefType::kRefNoRef, cat_id, name_id, 0, 0, 0);
+      kTimestamp, 0, track, 0, RefType::kRefNoRef, cat_id, name_id, 0, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -643,8 +656,8 @@ TEST(ExportJsonTest, AsyncEvent) {
   TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   storage.mutable_nestable_slices()->AddSlice(kTimestamp, kDuration, track_id,
-                                              RefType::kRefTrack, cat_id,
-                                              name_id, 0, 0, 0);
+                                              track_id, RefType::kRefTrack,
+                                              cat_id, name_id, 0, 0, 0);
   StringId arg_key_id = storage.InternString(base::StringView(kArgName));
   TraceStorage::Args::Arg arg;
   arg.flat_key = arg_key_id;
@@ -706,8 +719,8 @@ TEST(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   auto slice_id = storage.mutable_nestable_slices()->AddSlice(
-      kTimestamp, kDuration, track_id, RefType::kRefTrack, cat_id, name_id, 0,
-      0, 0);
+      kTimestamp, kDuration, track_id, track_id, RefType::kRefTrack, cat_id,
+      name_id, 0, 0, 0);
   storage.mutable_virtual_track_slices()->AddVirtualTrackSlice(
       slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
 
@@ -763,8 +776,8 @@ TEST(ExportJsonTest, UnfinishedAsyncEvent) {
   TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
   auto slice_id = storage.mutable_nestable_slices()->AddSlice(
-      kTimestamp, kDuration, track_id, RefType::kRefTrack, cat_id, name_id, 0,
-      0, 0);
+      kTimestamp, kDuration, track_id, track_id, RefType::kRefTrack, cat_id,
+      name_id, 0, 0, 0);
   storage.mutable_virtual_track_slices()->AddVirtualTrackSlice(
       slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
 
@@ -807,8 +820,9 @@ TEST(ExportJsonTest, AsyncInstantEvent) {
   track.upid = upid;
   TrackId track_id = storage.mutable_process_track_table()->Insert(track);
 
-  storage.mutable_nestable_slices()->AddSlice(
-      kTimestamp, 0, track_id, RefType::kRefTrack, cat_id, name_id, 0, 0, 0);
+  storage.mutable_nestable_slices()->AddSlice(kTimestamp, 0, track_id, track_id,
+                                              RefType::kRefTrack, cat_id,
+                                              name_id, 0, 0, 0);
   StringId arg_key_id = storage.InternString(base::StringView("arg_name"));
   TraceStorage::Args::Arg arg;
   arg.flat_key = arg_key_id;
