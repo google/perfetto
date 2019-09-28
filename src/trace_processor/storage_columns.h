@@ -334,7 +334,7 @@ class StringVectorAccessor : public Accessor<NullTermStringView> {
   }
 
   NullTermStringView Get(uint32_t idx) const override {
-    const char* ptr = (*string_map_)[(*deque_)[idx]];
+    const char* ptr = (*string_map_)[static_cast<size_t>((*deque_)[idx])];
     return ptr ? NullTermStringView(ptr) : NullTermStringView();
   }
 
