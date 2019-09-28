@@ -101,10 +101,10 @@ void SystraceParser::ParseSystracePoint(
       TrackId track_id = context_->track_tracker->InternAndroidAsyncTrack(
           name_id, upid, cookie);
       if (point.phase == 'S') {
-        context_->slice_tracker->Begin(ts, track_id, RefType::kRefTrack, 0,
-                                       name_id);
+        context_->slice_tracker->Begin(ts, track_id, track_id,
+                                       RefType::kRefTrack, 0, name_id);
       } else {
-        context_->slice_tracker->End(ts, track_id, RefType::kRefTrack);
+        context_->slice_tracker->End(ts, track_id);
       }
       break;
     }

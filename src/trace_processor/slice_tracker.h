@@ -43,6 +43,7 @@ class SliceTracker {
   // virtual for testing
   virtual base::Optional<uint32_t> Begin(
       int64_t timestamp,
+      TrackId track_id,
       int64_t ref,
       RefType ref_type,
       StringId category,
@@ -52,6 +53,7 @@ class SliceTracker {
   // virtual for testing
   virtual base::Optional<uint32_t> Scoped(
       int64_t timestamp,
+      TrackId track_id,
       int64_t ref,
       RefType ref_type,
       StringId category,
@@ -66,8 +68,7 @@ class SliceTracker {
   // virtual for testing
   virtual base::Optional<uint32_t> End(
       int64_t timestamp,
-      int64_t ref,
-      RefType ref_type,
+      TrackId track_id,
       StringId opt_category = {},
       StringId opt_name = {},
       SetArgsCallback args_callback = SetArgsCallback());
@@ -76,35 +77,17 @@ class SliceTracker {
 
  private:
   using SlicesStack = std::vector<std::pair<uint32_t /* row */, ArgsTracker>>;
-
-  struct StackMapKey {
-    int64_t ref;
-    RefType type;
-
-    bool operator==(const StackMapKey& rhs) const {
-      return std::tie(ref, type) == std::tie(rhs.ref, rhs.type);
-    }
-  };
-
-  struct StackMapHash {
-    size_t operator()(const StackMapKey& p) const {
-      base::Hash hash;
-      hash.Update(p.ref);
-      hash.Update(p.type);
-      return static_cast<size_t>(hash.digest());
-    }
-  };
-
-  using StackMap = std::unordered_map<StackMapKey, SlicesStack, StackMapHash>;
+  using StackMap = std::unordered_map<TrackId, SlicesStack>;
 
   base::Optional<uint32_t> StartSlice(int64_t timestamp,
                                       int64_t duration,
+                                      TrackId track_id,
                                       int64_t ref,
                                       RefType ref_type,
                                       StringId category,
                                       StringId name,
                                       SetArgsCallback args_callback);
-  base::Optional<uint32_t> CompleteSlice(StackMapKey stack_key);
+  base::Optional<uint32_t> CompleteSlice(TrackId track_id);
 
   void MaybeCloseStack(int64_t end_ts, SlicesStack*);
   int64_t GetStackHash(const SlicesStack&);

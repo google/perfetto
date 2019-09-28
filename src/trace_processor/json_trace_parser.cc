@@ -87,17 +87,14 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
 
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
-      // TODO(lalitm): make use of this track id.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      perfetto::base::ignore_result(track_id);
-      slice_tracker->Begin(timestamp, utid, RefType::kRefUtid, cat_id, name_id);
+      slice_tracker->Begin(timestamp, track_id, utid, RefType::kRefUtid, cat_id,
+                           name_id);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
-      // TODO(lalitm): make use of this track id.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      perfetto::base::ignore_result(track_id);
-      slice_tracker->End(timestamp, utid, RefType::kRefUtid, cat_id, name_id);
+      slice_tracker->End(timestamp, track_id, cat_id, name_id);
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
@@ -105,11 +102,9 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
           json_trace_utils::CoerceToNs(value["dur"]);
       if (!opt_dur.has_value())
         return;
-      // TODO(lalitm): make use of this track id.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      perfetto::base::ignore_result(track_id);
-      slice_tracker->Scoped(timestamp, utid, RefType::kRefUtid, cat_id, name_id,
-                            opt_dur.value());
+      slice_tracker->Scoped(timestamp, track_id, utid, RefType::kRefUtid,
+                            cat_id, name_id, opt_dur.value());
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
