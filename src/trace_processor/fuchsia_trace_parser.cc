@@ -197,9 +197,6 @@ void FuchsiaTraceParser::ParseTracePacket(
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          // TODO(lalitm): make use of this track id.
-          TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          perfetto::base::ignore_result(track_id);
           RowId row = context_->event_tracker->PushInstant(ts, name, 0, utid,
                                                            RefType::kRefUtid);
           for (const Arg& arg : args) {
@@ -260,7 +257,7 @@ void FuchsiaTraceParser::ParseTracePacket(
                   ts, counter_value,
                   context_->storage->InternString(
                       base::StringView(counter_name_str)),
-                  utid, kRefUtid);
+                  utid, RefType::kRefUtid);
             }
           }
           break;
@@ -269,23 +266,19 @@ void FuchsiaTraceParser::ParseTracePacket(
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          // TODO(lalitm): make use of this track id.
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          perfetto::base::ignore_result(track_id);
-          slices->Begin(ts, utid, RefType::kRefUtid, cat, name);
+          slices->Begin(ts, track_id, utid, RefType::kRefUtid, cat, name);
           break;
         }
         case kDurationEnd: {
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          // TODO(lalitm): make use of this track id.
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          perfetto::base::ignore_result(track_id);
           // TODO(b/131181693): |cat| and |name| are not passed here so that
           // if two slices end at the same timestep, the slices get closed in
           // the correct order regardless of which end event is processed first.
-          slices->End(ts, utid, RefType::kRefUtid);
+          slices->End(ts, track_id);
           break;
         }
         case kDurationComplete: {
@@ -294,17 +287,16 @@ void FuchsiaTraceParser::ParseTracePacket(
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          // TODO(lalitm): make use of this track id.
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          perfetto::base::ignore_result(track_id);
-          slices->Scoped(ts, utid, RefType::kRefUtid, cat, name, end_ts - ts);
+          slices->Scoped(ts, track_id, utid, RefType::kRefUtid, cat, name,
+                         end_ts - ts);
           break;
         }
         case kAsyncBegin: {
           int64_t correlation_id = static_cast<int64_t>(*current++);
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
-          slices->Begin(ts, track_id, RefType::kRefTrack, cat, name);
+          slices->Begin(ts, track_id, track_id, RefType::kRefTrack, cat, name);
           break;
         }
         case kAsyncInstant: {
@@ -328,7 +320,7 @@ void FuchsiaTraceParser::ParseTracePacket(
           int64_t correlation_id = static_cast<int64_t>(*current++);
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
-          slices->End(ts, track_id, RefType::kRefTrack, cat, name);
+          slices->End(ts, track_id, cat, name);
           break;
         }
       }
