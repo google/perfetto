@@ -236,7 +236,7 @@ class GProfileBuilder {
   bool WriteMappings(trace_processor::TraceProcessor* tp,
                      const std::set<int64_t> seen_mappings) {
     Iterator mapping_it = tp->ExecuteQuery(
-        "SELECT id, build_id, exact_offset, start, end, name "
+        "SELECT id, exact_offset, start, end, name "
         "FROM stack_profile_mapping;");
     size_t mappings_no = 0;
     while (mapping_it.Next()) {
@@ -246,14 +246,15 @@ class GProfileBuilder {
       ++mappings_no;
       GMapping* gmapping = result_.add_mapping();
       gmapping->set_id(ToPprofId(id));
-      gmapping->set_build_id(Intern(mapping_it.Get(1).string_value));
+      // Do not set the build_id here to avoid downstream services
+      // trying to symbolize (e.g. b/141735056)
       gmapping->set_file_offset(
-          static_cast<uint64_t>(mapping_it.Get(2).long_value));
+          static_cast<uint64_t>(mapping_it.Get(1).long_value));
       gmapping->set_memory_start(
-          static_cast<uint64_t>(mapping_it.Get(3).long_value));
+          static_cast<uint64_t>(mapping_it.Get(2).long_value));
       gmapping->set_memory_limit(
-          static_cast<uint64_t>(mapping_it.Get(4).long_value));
-      gmapping->set_filename(Intern(mapping_it.Get(5).string_value));
+          static_cast<uint64_t>(mapping_it.Get(3).long_value));
+      gmapping->set_filename(Intern(mapping_it.Get(4).string_value));
     }
     if (!mapping_it.Status().ok()) {
       PERFETTO_DFATAL_OR_ELOG("Invalid mapping iterator: %s",
