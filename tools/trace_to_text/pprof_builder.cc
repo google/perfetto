@@ -277,9 +277,14 @@ class GProfileBuilder {
       if (seen_symbol_ids.find(id) == seen_symbol_ids.end())
         continue;
       ++symbols_no;
+      const std::string& name = symbol_it.Get(1).string_value;
+      std::string demangled_name = name;
+      MaybeDemangle(&demangled_name);
+
       GFunction* gfunction = result_.add_function();
       gfunction->set_id(ToPprofId(id));
-      gfunction->set_name(Intern(symbol_it.Get(1).string_value));
+      gfunction->set_name(Intern(demangled_name));
+      gfunction->set_system_name(Intern(name));
       gfunction->set_filename(Intern(symbol_it.Get(2).string_value));
     }
 
