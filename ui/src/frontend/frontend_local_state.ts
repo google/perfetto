@@ -160,6 +160,7 @@ export class FrontendLocalState {
 
   setSearchIndex(index: number) {
     this.searchIndex = index;
+    globals.rafScheduler.scheduleRedraw();
   }
 
   toggleSidebar() {
