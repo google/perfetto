@@ -13,18 +13,16 @@
 // limitations under the License.
 
 import {_TextDecoder} from 'custom_utils';
+
+import {extractTraceConfig} from '../base/extract_utils';
 import {uint8ArrayToBase64} from '../base/string_utils';
 
+import {AdbAuthState, AdbBaseConsumerPort} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
-import {globals} from './globals';
-import {
-  extractDurationFromTraceConfig,
-  extractTraceConfig
-} from './record_controller';
-import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
+import {Consumer} from './record_controller_interfaces';
 
-enum AdbState {
+enum AdbShellState {
   READY,
   RECORDING,
   FETCHING
@@ -32,19 +30,20 @@ enum AdbState {
 const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace-by-ui';
 const textDecoder = new _TextDecoder();
 
-export class AdbConsumerPort extends RpcConsumerPort {
+export class AdbConsumerPort extends AdbBaseConsumerPort {
   traceDestFile = DEFAULT_DESTINATION_FILE;
-  private state = AdbState.READY;
-  private adb: Adb;
-  private device: USBDevice|undefined = undefined;
+  shellState: AdbShellState = AdbShellState.READY;
   private recordShell?: AdbStream;
 
   constructor(adb: Adb, consumer: Consumer) {
-    super(consumer);
+    super(adb, consumer);
     this.adb = adb;
   }
 
-  handleCommand(method: string, params: Uint8Array) {
+  async invoke(method: string, params: Uint8Array) {
+    // ADB connection & authentication is handled by the superclass.
+    console.assert(this.state === AdbAuthState.CONNECTED);
+
     switch (method) {
       case 'EnableTracing':
         this.enableTracing(params);
@@ -55,7 +54,9 @@ export class AdbConsumerPort extends RpcConsumerPort {
       case 'DisableTracing':
         this.disableTracing();
         break;
-      case 'FreeBuffers':  // no-op
+      case 'FreeBuffers':
+        this.freeBuffers();
+        break;
       case 'GetTraceStats':
         break;
       default:
@@ -66,34 +67,21 @@ export class AdbConsumerPort extends RpcConsumerPort {
 
   async enableTracing(enableTracingProto: Uint8Array) {
     try {
-      console.assert(this.state === AdbState.READY);
-      this.device = await this.findDevice();
-
-      if (this.device === undefined) {
-        this.sendErrorMessage('No device found');
-        return;
-      }
-      this.sendStatus(
-          'Check the screen of your device and allow USB debugging.');
-      await this.adb.connect(this.device);
       const traceConfigProto = extractTraceConfig(enableTracingProto);
-
       if (!traceConfigProto) {
         this.sendErrorMessage('Invalid config.');
         return;
       }
 
       await this.startRecording(traceConfigProto);
-      const duration = extractDurationFromTraceConfig(traceConfigProto);
-      this.sendStatus(`Recording in progress${
-          duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
+      this.setDurationStatus(enableTracingProto);
     } catch (e) {
       this.sendErrorMessage(e.message);
     }
   }
 
   async startRecording(configProto: Uint8Array) {
-    this.state = AdbState.RECORDING;
+    this.shellState = AdbShellState.RECORDING;
     const recordCommand = this.generateStartTracingCommand(configProto);
     this.recordShell = await this.adb.shell(recordCommand);
     const output: string[] = [];
@@ -102,11 +90,12 @@ export class AdbConsumerPort extends RpcConsumerPort {
       const response = output.join();
       if (!this.tracingEndedSuccessfully(response)) {
         this.sendErrorMessage(response);
-        this.state = AdbState.READY;
+        this.shellState = AdbShellState.READY;
         return;
       }
       this.sendStatus('Recording ended successfully. Fetching the trace..');
       this.sendMessage({type: 'EnableTracingResponse'});
+      this.recordShell = undefined;
     };
   }
 
@@ -114,16 +103,9 @@ export class AdbConsumerPort extends RpcConsumerPort {
     return !response.includes(' 0 ms') && response.includes('Wrote ');
   }
 
-  async findDevice() {
-    const deviceConnected = globals.state.androidDeviceConnected;
-    if (!deviceConnected) return undefined;
-    const devices = await navigator.usb.getDevices();
-    return devices.find(d => d.serialNumber === deviceConnected.serial);
-  }
-
   async readBuffers() {
-    console.assert(this.state === AdbState.RECORDING);
-    this.state = AdbState.FETCHING;
+    console.assert(this.shellState === AdbShellState.RECORDING);
+    this.shellState = AdbShellState.FETCHING;
 
     const readTraceShell =
         await this.adb.shell(this.generateReadTraceCommand());
@@ -133,32 +115,41 @@ export class AdbConsumerPort extends RpcConsumerPort {
     readTraceShell.onClose = () => {
       this.sendMessage(
           this.generateChunkReadResponse(new Uint8Array(), /* last */ true));
-      this.adb.disconnect();
-      this.state = AdbState.READY;
     };
   }
 
-  // TODO(nicomazz): Implement cancel/reset recording.
   async disableTracing() {
-    console.assert(this.recordShell !== undefined);
     if (!this.recordShell) return;
+    try {
+      // We are not using 'pidof perfetto' so that we can use more filters. 'ps
+      // -u shell' is meant to catch processes started from shell, so if there
+      // are other ongoing tracing sessions started by others, we are not
+      // killing them.
+      const pid = await this.adb.shellOutputAsString(
+          `ps -u shell | grep perfetto | awk '{print $2}'`);
 
-    // We are not using 'pidof perfetto' so that we can use more filters. 'ps -u
-    // shell' is meant to catch processes started from shell, so if there are
-    // other ongoing tracing sessions started by others, we are not killing
-    // them.
-    const pid = await this.adb.shellOutputAsString(
-        `ps -u shell | grep perfetto | awk '{print $2}'`);
-    if (pid.length === 0 || isNaN(Number(pid))) {
-      this.sendErrorMessage(
-          'Unexpected error, impossible to stop the recording');
-      console.error('Perfetto pid not found. Command output: ', pid);
-      return;
+      if (pid.length === 0 || isNaN(Number(pid))) {
+        throw Error(`Perfetto pid not found. Impossible to stop/cancel the
+     recording. Command output: ${pid}`);
+      }
+      // Perfetto stops and finalizes the tracing session on SIGINT.
+      const killOutput =
+          await this.adb.shellOutputAsString(`kill -SIGINT ${pid}`);
+
+      if (killOutput.length !== 0) {
+        throw Error(`Unable to kill perfetto: ${killOutput}`);
+      }
+    } catch (e) {
+      this.sendErrorMessage(e.message);
     }
-    // Perfetto stops and finalizes the tracing session on SIGINT.
-    const killOutput =
-        await this.adb.shellOutputAsString(`kill -SIGINT ${pid}`);
-    console.assert(killOutput.length === 0);
+  }
+
+  freeBuffers() {
+    this.shellState = AdbShellState.READY;
+    if (this.recordShell) {
+      this.recordShell.close();
+      this.recordShell = undefined;
+    }
   }
 
   generateChunkReadResponse(data: Uint8Array, last = false):
