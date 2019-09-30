@@ -16,8 +16,9 @@ import {dingus} from 'dingusjs';
 
 import {stringToUint8Array} from '../base/string_utils';
 import {perfetto} from '../gen/protos';
+
 import {AdbStream, MockAdb, MockAdbStream} from './adb_interfaces';
-import {AdbConsumerPort} from './adb_record_controller';
+import {AdbConsumerPort} from './adb_shell_controller';
 import {Consumer} from './record_controller_interfaces';
 
 function generateMockConsumer(): Consumer {
@@ -38,24 +39,24 @@ const enableTracingRequestProto =
     perfetto.protos.EnableTracingRequest.encode(enableTracingRequest).finish();
 
 
-test('handleCommand', () => {
+test('handleCommand', async () => {
   adbController.findDevice = () => {
     return Promise.resolve(dingus<USBDevice>());
   };
 
   const enableTracing = jest.fn();
   adbController.enableTracing = enableTracing;
-  adbController.handleCommand('EnableTracing', mockIntArray);
+  await adbController.invoke('EnableTracing', mockIntArray);
   expect(enableTracing).toHaveBeenCalledTimes(1);
 
   const readBuffers = jest.fn();
   adbController.readBuffers = readBuffers;
-  adbController.handleCommand('ReadBuffers', mockIntArray);
+  adbController.invoke('ReadBuffers', mockIntArray);
   expect(readBuffers).toHaveBeenCalledTimes(1);
 
   const sendErrorMessage = jest.fn();
   adbController.sendErrorMessage = sendErrorMessage;
-  adbController.handleCommand('unknown', mockIntArray);
+  adbController.invoke('unknown', mockIntArray);
   expect(sendErrorMessage).toBeCalledWith('Method not recognized: unknown');
 });
 
@@ -89,8 +90,6 @@ test('enableTracing', async () => {
 
   await adbController.enableTracing(enableTracingRequestProto);
   expect(adbShell).toBeCalledWith('CMD');
-  expect(findDevice).toHaveBeenCalledTimes(1);
-  expect(connectToDevice).toHaveBeenCalledTimes(1);
   expect(sendMessage).toHaveBeenCalledTimes(0);
 
 

@@ -40,10 +40,9 @@ import {
   RecordConfig,
   TargetOs
 } from '../common/state';
-import {perfetto} from '../gen/protos';
 
 import {AdbOverWebUsb} from './adb';
-import {AdbConsumerPort} from './adb_record_controller';
+import {AdbConsumerPort} from './adb_shell_controller';
 import {AdbSocketConsumerPort} from './adb_socket_controller';
 import {ChromeExtensionConsumerPort} from './chrome_proxy_record_controller';
 import {
@@ -418,27 +417,6 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   return [...message(json, 0)].join('');
 }
 
-export function extractTraceConfig(enableTracingRequest: Uint8Array):
-    Uint8Array|undefined {
-  try {
-    const enableTracingObject =
-        perfetto.protos.EnableTracingRequest.decode(enableTracingRequest);
-    if (!enableTracingObject.traceConfig) return undefined;
-    return perfetto.protos.TraceConfig.encode(enableTracingObject.traceConfig)
-        .finish();
-  } catch (e) {  // This catch is for possible proto encoding/decoding issues.
-    console.error('Error extracting the config: ', e.message);
-    return undefined;
-  }
-}
-
-export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
-  try {
-    return perfetto.protos.TraceConfig.decode(traceConfigProto).durationMs;
-  } catch (e) {  // This catch is for possible proto encoding/decoding issues.
-    return undefined;
-  }
-}
 export class RecordController extends Controller<'main'> implements Consumer {
   private app: App;
   private config: RecordConfig|null = null;
@@ -498,6 +476,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
   startRecordTrace(traceConfig: TraceConfig) {
     this.scheduleBufferUpdateRequests();
+    this.traceBuffer = [];
     this.consumerPort.enableTracing({traceConfig});
   }
 
@@ -540,6 +519,12 @@ export class RecordController extends Controller<'main'> implements Consumer {
   onTraceComplete() {
     this.consumerPort.freeBuffers({});
     globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+    if (globals.state.recordingCancelled) {
+      globals.dispatch(
+          Actions.setLastRecordingError({error: 'Recording cancelled.'}));
+      this.traceBuffer = [];
+      return;
+    }
     const trace = this.generateTrace();
     globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
     this.traceBuffer = [];
@@ -608,6 +593,9 @@ export class RecordController extends Controller<'main'> implements Consumer {
                 new ChromeExtensionConsumerPort(this.extensionPort, this);
           } else if (isAndroidTarget(target)) {
             if (!device) throw Error(`No android device connected`);
+
+            this.onStatus(`Please allow USB debugging on device.
+                 If you press cancel, reload the page.`);
             const socketAccess = await this.hasSocketAccess(device);
 
             controller = socketAccess ?
