@@ -28,6 +28,7 @@ export interface AdbStream {
   write(msg: string|Uint8Array): Promise<void>;
   onMessage(message: AdbMsg): void;
   close(): void;
+  setClosed(): void;
 
   onConnect: VoidCallback;
   onClose: VoidCallback;
@@ -62,6 +63,7 @@ export class MockAdbStream implements AdbStream {
   }
   onMessage = (_: AdbMsg) => {};
   close() {}
+  setClosed() {}
 
   onConnect = () => {};
   onClose = () => {};
