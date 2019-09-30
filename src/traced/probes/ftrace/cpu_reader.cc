@@ -652,8 +652,10 @@ bool CpuReader::ParseField(const Field& field,
     case kDevId64ToUint64:
       ReadDevId<uint64_t>(field_start, field_id, message, metadata);
       return true;
+    case kInvalidTranslationStrategy:
+      break;
   }
-  PERFETTO_FATAL("Not reached");  // For gcc
+  PERFETTO_FATAL("Unexpected translation strategy");
 }
 
 // Parse a sched_switch event according to pre-validated format, and buffer the

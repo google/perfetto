@@ -28,7 +28,8 @@
 namespace perfetto {
 
 enum FtraceFieldType {
-  kFtraceUint8 = 1,
+  kInvalidFtraceFieldType = 0,
+  kFtraceUint8,
   kFtraceUint16,
   kFtraceUint32,
   kFtraceUint64,
@@ -53,7 +54,8 @@ enum FtraceFieldType {
 // where there exists a way to convert from the FtraceFieldType
 // into the ProtoFieldType.
 enum TranslationStrategy {
-  kUint8ToUint32 = 1,
+  kInvalidTranslationStrategy = 0,
+  kUint8ToUint32,
   kUint8ToUint64,
   kUint16ToUint32,
   kUint16ToUint64,
@@ -123,10 +125,10 @@ inline const char* ToString(FtraceFieldType v) {
       return "devid64";
     case kFtraceDataLoc:
       return "__data_loc";
+    case kInvalidFtraceFieldType:
+      break;
   }
-  // For gcc:
-  PERFETTO_FATAL("Not reached");
-  return "";
+  PERFETTO_FATAL("Unexpected ftrace field type.");
 }
 
 struct Field {
@@ -164,10 +166,6 @@ std::vector<Field> GetStaticCommonFieldsInfo();
 bool SetTranslationStrategy(FtraceFieldType ftrace,
                             protozero::proto_utils::ProtoSchemaType proto,
                             TranslationStrategy* out);
-
-Field MakeField(const char* name,
-                uint32_t id,
-                protozero::proto_utils::ProtoSchemaType type);
 
 }  // namespace perfetto
 
