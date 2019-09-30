@@ -52,8 +52,10 @@ export class SearchController extends Controller<'main'> {
   private async setup() {
     await this.query(`create virtual table search_summary_window
       using window;`);
-    await this.query(`create virtual table search_summary_span
-      using span_join(sched PARTITIONED cpu, search_summary_window);`);
+    await this.query(`create virtual table search_summary_sched_span using
+      span_join(sched PARTITIONED cpu, search_summary_window);`);
+    await this.query(`create virtual table search_summary_slice_span using
+      span_join(slice PARTITIONED ref_type  ref, search_summary_window);`);
   }
 
   run() {
@@ -145,13 +147,22 @@ export class SearchController extends Controller<'main'> {
 
     const rawResult = await this.query(`
         select
-        (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
-        ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
-        min(count(*), 255) as count
-        from search_summary_span
-        where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
-        group by quantum_ts
-        order by quantum_ts;`);
+          (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
+          ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
+          min(count(*), 255) as count
+          from (
+              select
+              quantum_ts
+              from search_summary_sched_span
+              where utid in (${utids.join(',')}) and cpu <= ${maxCpu}
+            union all
+              select
+              quantum_ts
+              from search_summary_slice_span
+              where name like '%${search}%'
+          )
+          group by quantum_ts
+          order by quantum_ts;`);
 
     const numRows = +rawResult.numRecords;
     const summary = {
@@ -174,6 +185,7 @@ export class SearchController extends Controller<'main'> {
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
     const utidToTrackId = new Map();
+    const engineTrackIdToTrackId = new Map();
     for (const track of Object.values(this.app.state.tracks)) {
       if (track.kind === 'ChromeSliceTrack') {
         utidToTrackId.set((track.config as {utid: number}).utid, track.id);
@@ -181,6 +193,11 @@ export class SearchController extends Controller<'main'> {
       }
       if (track.kind === 'CpuSliceTrack') {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
+        continue;
+      }
+      if (track.kind === 'AsyncSliceTrack') {
+        engineTrackIdToTrackId.set(
+            (track.config as {trackId: number}).trackId, track.id);
         continue;
       }
     }
@@ -204,8 +221,10 @@ export class SearchController extends Controller<'main'> {
       ts,
       ref_type,
       ref,
-      ref as utid
-      from internal_slice where ref_type = 'utid' and name like '%${search}%'
+      0 as utid
+      from internal_slice
+      where (ref_type = 'utid' or ref_type == 'track')
+      and name like '%${search}%'
     order by ts`);
 
     const numRows = +rawResult.numRecords;
@@ -228,6 +247,8 @@ export class SearchController extends Controller<'main'> {
         trackId = cpuToTrackId.get(ref);
       } else if (refType === 'utid') {
         trackId = utidToTrackId.get(ref);
+      } else if (refType === 'track') {
+        trackId = engineTrackIdToTrackId.get(ref);
       }
 
       if (trackId === undefined) {
