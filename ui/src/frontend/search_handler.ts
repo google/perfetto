@@ -78,8 +78,7 @@ function selectCurrentSearchResult() {
       utid: globals.currentSearchResults.utids[index],
       id: currentId,
     }));
-  }
-  if (refType === 'utid') {
+  } else {
     globals.dispatch(Actions.selectChromeSlice({
       id: currentId,
     }));
