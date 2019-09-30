@@ -20,6 +20,7 @@ export interface Config {
   maxDepth: number;
   upid: number;
   utid: number;
+  trackId: number;
 }
 
 export interface Data extends TrackData {

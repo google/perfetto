@@ -184,18 +184,14 @@ export class SearchController extends Controller<'main'> {
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
-    const utidToTrackId = new Map();
     const engineTrackIdToTrackId = new Map();
     for (const track of Object.values(this.app.state.tracks)) {
-      if (track.kind === 'ChromeSliceTrack') {
-        utidToTrackId.set((track.config as {utid: number}).utid, track.id);
-        continue;
-      }
       if (track.kind === 'CpuSliceTrack') {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
         continue;
       }
-      if (track.kind === 'AsyncSliceTrack') {
+      if (track.kind === 'ChromeSliceTrack' ||
+          track.kind === 'AsyncSliceTrack') {
         engineTrackIdToTrackId.set(
             (track.config as {trackId: number}).trackId, track.id);
         continue;
@@ -211,7 +207,7 @@ export class SearchController extends Controller<'main'> {
     select
       row_id as slice_id,
       ts,
-      'cpu' as ref_type,
+      'cpu' as source,
       cpu as ref,
       utid
     from sched where utid in (${utids.join(',')})
@@ -219,12 +215,12 @@ export class SearchController extends Controller<'main'> {
     select
       slice_id,
       ts,
-      ref_type,
-      ref,
+      'track' as source,
+      track_id as ref,
       0 as utid
-      from internal_slice
-      where (ref_type = 'utid' or ref_type == 'track')
-      and name like '%${search}%'
+      from slice
+      inner join track on slice.track_id = track.id
+      and slice.name like '%${search}%'
     order by ts`);
 
     const numRows = +rawResult.numRecords;
@@ -240,14 +236,12 @@ export class SearchController extends Controller<'main'> {
 
     const columns = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
-      const refType = columns[2].stringValues![row];
+      const source = columns[2].stringValues![row];
       const ref = +columns[3].longValues![row];
       let trackId = undefined;
-      if (refType === 'cpu') {
+      if (source === 'cpu') {
         trackId = cpuToTrackId.get(ref);
-      } else if (refType === 'utid') {
-        trackId = utidToTrackId.get(ref);
-      } else if (refType === 'track') {
+      } else if (source === 'track') {
         trackId = engineTrackIdToTrackId.get(ref);
       }
 
@@ -257,7 +251,7 @@ export class SearchController extends Controller<'main'> {
       }
 
       searchResults.trackIds.push(trackId);
-      searchResults.refTypes.push(refType);
+      searchResults.refTypes.push(source);
       searchResults.sliceIds[row] = +columns[0].longValues![row];
       searchResults.tsStarts[row] = +columns[1].longValues![row];
       searchResults.utids[row] = +columns[4].longValues![row];
