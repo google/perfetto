@@ -242,6 +242,8 @@ void SetProtoType(FtraceFieldType ftrace_type,
       *proto_type = ProtoSchemaType::kUint64;
       *proto_field_id = GenericFtraceEvent::Field::kUintValueFieldNumber;
       break;
+    case kInvalidFtraceFieldType:
+      PERFETTO_FATAL("Unexpected ftrace field type");
   }
 }
 

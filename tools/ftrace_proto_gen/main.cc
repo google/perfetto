@@ -42,6 +42,13 @@ inline std::unique_ptr<std::ostream> MakeVerifyStream(
     const std::string& filename) {
   return std::unique_ptr<std::ostream>(new perfetto::VerifyStream(filename));
 }
+
+void PrintUsage(const char* bin_name) {
+  fprintf(stderr,
+          "Usage: %s -w whitelist_dir -o output_dir -d proto_descriptor "
+          "[--check_only] input_dir...\n",
+          bin_name);
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -51,7 +58,7 @@ int main(int argc, char** argv) {
       {"proto_descriptor", required_argument, nullptr, 'd'},
       {"update_build_files", no_argument, nullptr, 'b'},
       {"check_only", no_argument, nullptr, 'c'},
-  };
+      {nullptr, 0, nullptr, 0}};
 
   int option_index;
   int c;
@@ -80,20 +87,22 @@ int main(int argc, char** argv) {
         break;
       case 'c':
         ostream_factory = &MakeVerifyStream;
+        break;
+      default: {
+        PrintUsage(argv[0]);
+        return 1;
+      }
     }
+  }
+
+  if (optind >= argc) {
+    PrintUsage(argv[0]);
+    return 1;
   }
 
   PERFETTO_CHECK(!whitelist_path.empty());
   PERFETTO_CHECK(!output_dir.empty());
   PERFETTO_CHECK(!proto_descriptor.empty());
-
-  if (optind >= argc) {
-    fprintf(stderr,
-            "Usage: ./%s -w whitelist_dir -o output_dir -d proto_descriptor "
-            "[--check_only] input_dir...\n",
-            argv[0]);
-    return 1;
-  }
 
   std::vector<perfetto::FtraceEventName> whitelist =
       perfetto::ReadWhitelist(whitelist_path);

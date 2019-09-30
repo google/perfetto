@@ -19,18 +19,22 @@
 namespace perfetto {
 using protozero::proto_utils::ProtoSchemaType;
 
-Field MakeField(const char* name, uint32_t id, ProtoSchemaType type) {
+namespace {
+Field StaticField(const char* ftrace_name,
+                  uint32_t proto_field_id,
+                  ProtoSchemaType proto_field_type) {
   Field field{};
-  field.ftrace_name = name;
-  field.proto_field_id = id;
-  field.proto_field_type = type;
+  field.ftrace_name = ftrace_name;
+  field.proto_field_id = proto_field_id;
+  field.proto_field_type = proto_field_type;
   return field;
 }
+}  // namespace
 
 std::vector<Field> GetStaticCommonFieldsInfo() {
   std::vector<Field> fields;
 
-  fields.push_back(MakeField("common_pid", 2, ProtoSchemaType::kInt32));
+  fields.push_back(StaticField("common_pid", 2, ProtoSchemaType::kInt32));
 
   return fields;
 }
