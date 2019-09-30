@@ -16,13 +16,13 @@ import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
 import * as rpc from 'noice-json-rpc';
 
+import {extractTraceConfig} from '../base/extract_utils';
 import {TraceConfig} from '../common/protos';
 import {
   ConsumerPortResponse,
   GetTraceStatsResponse,
   ReadBuffersResponse
 } from '../controller/consumer_port_types';
-import {extractTraceConfig} from '../controller/record_controller';
 import {RpcConsumerPort} from '../controller/record_controller_interfaces';
 import {perfetto} from '../gen/protos';
 
