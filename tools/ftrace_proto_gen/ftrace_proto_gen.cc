@@ -159,16 +159,29 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
 std::string SingleEventInfo(perfetto::Proto proto,
                             const std::string& group,
                             const uint32_t proto_field_id) {
-  std::string s = "";
-  s += "    event->name = \"" + proto.event_name + "\";\n";
-  s += "    event->group = \"" + group + "\";\n";
-  s += "    event->proto_field_id = " + std::to_string(proto_field_id) + ";\n";
+  std::string s = "{";
+  s += "\"" + proto.event_name + "\", ";
+  s += "\"" + group + "\", ";
 
+  // Vector of fields.
+  s += "{ ";
   for (const auto& field : proto.SortedFields()) {
-    s += "    event->fields.push_back(MakeField(\"" + field->name + "\", " +
-         std::to_string(field->number) + ", ProtoSchemaType::k" +
-         ToCamelCase(field->type.ToString()) + "));\n";
+    s += "{";
+    s += "kUnsetOffset, ";
+    s += "kUnsetSize, ";
+    s += "FtraceFieldType::kInvalidFtraceFieldType, ";
+    s += "\"" + field->name + "\", ";
+    s += std::to_string(field->number) + ", ";
+    s += "ProtoSchemaType::k" + ToCamelCase(field->type.ToString()) + ", ";
+    s += "TranslationStrategy::kInvalidTranslationStrategy";
+    s += "}, ";
   }
+  s += "}, ";
+
+  s += "kUnsetFtraceId, ";
+  s += std::to_string(proto_field_id) + ", ";
+  s += "kUnsetSize";
+  s += "}";
   return s;
 }
 
@@ -187,20 +200,20 @@ namespace perfetto {
 using protozero::proto_utils::ProtoSchemaType;
 
 std::vector<Event> GetStaticEventInfo() {
-  std::vector<Event> events;
+  static constexpr uint16_t kUnsetOffset = 0;
+  static constexpr uint16_t kUnsetSize = 0;
+  static constexpr uint16_t kUnsetFtraceId = 0;
+  return
 )";
 
+  s += " {";
   for (const auto& event : events_info) {
-    s += "\n";
-    s += "  {\n";
-    s += "    events.emplace_back(Event{});\n";
-    s += "    Event* event = &events.back();\n";
     s += event;
-    s += "  }\n";
+    s += ",\n";
   }
+  s += "};";
 
   s += R"(
-  return events;
 }
 
 }  // namespace perfetto
