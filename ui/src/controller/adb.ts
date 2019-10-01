@@ -125,7 +125,7 @@ export class AdbOverWebUsb implements Adb {
     if (!this.dev) return;
 
     new Map(this.streams).forEach((stream, _id) => stream.setClosed());
-    console.assert(this.streams.size == 0);
+    console.assert(this.streams.size === 0);
     this.dev = undefined;
   }
 
