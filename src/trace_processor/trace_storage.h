@@ -1275,6 +1275,14 @@ class TraceStorage {
 
   tables::SymbolTable* mutable_symbol_table() { return &symbol_table_; }
 
+  const tables::HeapGraphObjectTable& heap_graph_object_table() const {
+    return heap_graph_object_table_;
+  }
+
+  tables::HeapGraphObjectTable* mutable_heap_graph_object_table() {
+    return &heap_graph_object_table_;
+  }
+
   const tables::GpuTrackTable& gpu_track_table() const {
     return gpu_track_table_;
   }
@@ -1385,6 +1393,7 @@ class TraceStorage {
 
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_, nullptr};
+  tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_, nullptr};
 };
 
 }  // namespace trace_processor

@@ -33,6 +33,17 @@ namespace tables {
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
 
+#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C) \
+  NAME(HeapGraphObjectTable, "heap_graph_object")          \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
+  C(int64_t, upid)                                         \
+  C(int64_t, graph_sample_ts)                              \
+  C(int64_t, object_id)                                    \
+  C(int64_t, self_size)                                    \
+  C(StringPool::Id, type_name)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

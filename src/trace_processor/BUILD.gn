@@ -87,6 +87,8 @@ source_set("lib") {
     "graphics_event_parser.h",
     "gzip_trace_parser.cc",
     "gzip_trace_parser.h",
+    "heap_graph_tracker.cc",
+    "heap_graph_tracker.h",
     "heap_profile_allocation_table.cc",
     "heap_profile_allocation_table.h",
     "heap_profile_tracker.cc",
