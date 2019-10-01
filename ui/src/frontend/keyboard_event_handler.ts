@@ -21,7 +21,8 @@ import {executeSearch} from './search_handler';
 
 // Handles all key events than are not handled by the
 // pan and zoom handler.
-export function handleKey(key: string, down: boolean, isShiftDown: boolean) {
+export function handleKey(e: KeyboardEvent, down: boolean) {
+  const key = e.key;
   if (down && 'm' === key) {
     selectSliceSpan();
   }
@@ -43,7 +44,8 @@ export function handleKey(key: string, down: boolean, isShiftDown: boolean) {
     toggleHelp();
   }
   if (down && 'Enter' === key) {
-    executeSearch(isShiftDown);
+    e.preventDefault();
+    executeSearch(e.shiftKey);
   }
 }
 
