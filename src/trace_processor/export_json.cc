@@ -323,8 +323,6 @@ ResultCode ExportSlices(const TraceStorage* storage,
             virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
         thread_duration_ns =
             virtual_track_slices.thread_duration_ns()[*vtrack_slice_row];
-        thread_ts_ns =
-            virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
         thread_instruction_count =
             virtual_track_slices.thread_instruction_counts()[*vtrack_slice_row];
         thread_instruction_delta =
