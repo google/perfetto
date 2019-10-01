@@ -232,7 +232,9 @@ class GProfileBuilder {
       std::string query = "SELECT hpa.callsite_id ";
       query += ", " + std::string(v.aggregator) +
                " FROM heap_profile_allocation hpa ";
-      query += "WHERE hpa.upid = " + std::to_string(upid) + " ";
+      // TODO(fmayer): Figure out where negative callsite_id comes from.
+      query += "WHERE hpa.callsite_id >= 0 ";
+      query += "AND hpa.upid = " + std::to_string(upid) + " ";
       query += "AND hpa.ts <= " + std::to_string(ts) + " ";
       if (v.filter)
         query += "AND " + std::string(v.filter) + " ";
@@ -451,7 +453,10 @@ class GProfileBuilder {
   }
 
   const std::vector<int64_t>& FramesForCallstack(int64_t callstack_id) {
-    return callsite_to_frames_[static_cast<size_t>(callstack_id)];
+    size_t callsite_idx = static_cast<size_t>(callstack_id);
+    PERFETTO_CHECK(callstack_id >= 0 &&
+                   callsite_idx < callsite_to_frames_.size());
+    return callsite_to_frames_[callsite_idx];
   }
 
   const std::vector<Line>& LineForSymbolSetId(int64_t symbol_set_id) {
@@ -540,8 +545,8 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
   }
 
   int64_t max_symbol_id = max_symbol_id_it.Get(0).long_value;
-  auto callsite_to_frames = GetCallsiteToFrames(tp);
-  auto symbol_set_id_to_lines = GetSymbolSetIdToLines(tp);
+  const auto callsite_to_frames = GetCallsiteToFrames(tp);
+  const auto symbol_set_id_to_lines = GetSymbolSetIdToLines(tp);
 
   bool any_fail = false;
   Iterator it = tp->ExecuteQuery(kQueryProfiles);
