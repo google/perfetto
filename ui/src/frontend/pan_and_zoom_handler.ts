@@ -217,7 +217,7 @@ export class PanAndZoomHandler {
     }
 
     // Handle key events that are not pan or zoom.
-    handleKey(e.key, true, this.shiftDown);
+    handleKey(e, true);
   }
 
   private onKeyUp(e: KeyboardEvent) {
@@ -230,7 +230,7 @@ export class PanAndZoomHandler {
     }
 
     // Handle key events that are not pan or zoom.
-    handleKey(e.key, false, this.shiftDown);
+    handleKey(e, false);
   }
 
   private updateShift(down: boolean) {
