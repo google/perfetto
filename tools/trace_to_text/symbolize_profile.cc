@@ -21,8 +21,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/profiling/symbolizer.h"
 
-#ifndef PERFETTO_NOLOCALSYMBOLIZE
-#include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+#include "tools/trace_to_text/local_symbolizer.h"
 #endif
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -54,7 +54,7 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
   std::unique_ptr<Symbolizer> symbolizer;
   auto binary_path = GetPerfettoBinaryPath();
   if (!binary_path.empty()) {
-#ifndef PERFETTO_NOLOCALSYMBOLIZE
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
     symbolizer.reset(new LocalSymbolizer(GetPerfettoBinaryPath()));
 #else
     PERFETTO_FATAL("This build does not support local symbolization.");

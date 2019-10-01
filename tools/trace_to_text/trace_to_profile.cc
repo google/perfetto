@@ -19,8 +19,10 @@
 #include <string>
 #include <vector>
 
-#ifndef PERFETTO_NOLOCALSYMBOLIZE
-#include "tools/trace_to_text/local_symbolizer.h"  // nogncheck
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+#include "tools/trace_to_text/local_symbolizer.h"
 #endif
 #include "tools/trace_to_text/utils.h"
 
@@ -54,7 +56,7 @@ int TraceToProfile(std::istream* input,
   std::unique_ptr<Symbolizer> symbolizer;
   auto binary_path = GetPerfettoBinaryPath();
   if (!binary_path.empty()) {
-#ifndef PERFETTO_NOLOCALSYMBOLIZE
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
     symbolizer.reset(new LocalSymbolizer(GetPerfettoBinaryPath()));
 #else
     PERFETTO_ELOG(
