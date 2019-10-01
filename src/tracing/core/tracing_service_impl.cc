@@ -209,7 +209,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   endpoint->shmem_page_size_hint_bytes_ = shared_memory_page_size_hint_bytes;
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
 
-  return std::move(endpoint);
+  return std::unique_ptr<TracingService::ProducerEndpoint>(std::move(endpoint));
 }
 
 void TracingServiceImpl::DisconnectProducer(ProducerID id) {
