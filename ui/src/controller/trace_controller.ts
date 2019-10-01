@@ -58,6 +58,11 @@ declare interface FileReaderSync { readAsArrayBuffer(blob: Blob): ArrayBuffer; }
 declare var FileReaderSync:
     {prototype: FileReaderSync; new (): FileReaderSync;};
 
+interface ThreadSliceTrack {
+  maxDepth: number;
+  trackId: number;
+}
+
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
 // tracks data and SQL queries. There is one TraceController instance for each
@@ -310,13 +315,10 @@ export class TraceController extends Controller<States> {
 
     const upidToProcessTracks = new Map();
     const rawProcessTracks = await engine.query(`
-      select id, upid, name, maxDepth
+      select id, upid, name, max(depth) as maxDepth
       from process_track
-      join (
-        select ref as id, max(depth) as maxDepth
-        from slice
-        where ref_type = 'track' group by ref
-      ) using(id)
+      inner join slice on slice.track_id = process_track.id
+      group by track_id
     `);
     for (let i = 0; i < rawProcessTracks.numRecords; i++) {
       const trackId = rawProcessTracks.columns[0].longValues![i];
@@ -424,14 +426,19 @@ export class TraceController extends Controller<States> {
 
     // Local experiments shows getting maxDepth separately is ~2x faster than
     // joining with threads and processes.
-    const maxDepthQuery =
-        await engine.query('select utid, max(depth) from slices group by utid');
+    const maxDepthQuery = await engine.query(`
+          select thread_track.utid, thread_track.id, max(depth) as maxDepth
+          from slice
+          inner join thread_track on slice.track_id = thread_track.id
+          group by thread_track.id
+        `);
 
-    const utidToMaxDepth = new Map<number, number>();
+    const utidToThreadTrack = new Map<number, ThreadSliceTrack>();
     for (let i = 0; i < maxDepthQuery.numRecords; i++) {
       const utid = maxDepthQuery.columns[0].longValues![i] as number;
-      const maxDepth = maxDepthQuery.columns[1].longValues![i] as number;
-      utidToMaxDepth.set(utid, maxDepth);
+      const trackId = maxDepthQuery.columns[1].longValues![i] as number;
+      const maxDepth = maxDepthQuery.columns[2].longValues![i] as number;
+      utidToThreadTrack.set(utid, {maxDepth, trackId});
     }
 
     // Return all threads
@@ -481,8 +488,9 @@ export class TraceController extends Controller<States> {
           await engine.query(`select count(1) from sched where utid = ${utid}`);
       const threadHasSched = threadSched.columns[0].longValues![0] > 0;
 
-      const maxDepth = utid === null ? undefined : utidToMaxDepth.get(utid);
-      if (maxDepth === undefined &&
+      const threadTrack =
+          utid === null ? undefined : utidToThreadTrack.get(utid);
+      if (threadTrack === undefined &&
           (upid === null || counterUpids[upid] === undefined) &&
           counterUtids[utid] === undefined && !threadHasSched) {
         continue;
@@ -580,13 +588,18 @@ export class TraceController extends Controller<States> {
         });
       }
 
-      if (maxDepth !== undefined) {
+      if (threadTrack !== undefined) {
         tracksToAdd.push({
           engineId: this.engineId,
           kind: SLICE_TRACK_KIND,
           name: `${threadName} [${tid}]`,
           trackGroup: pUuid,
-          config: {upid, utid, maxDepth},
+          config: {
+            upid,
+            utid,
+            maxDepth: threadTrack.maxDepth,
+            trackId: threadTrack.trackId
+          },
         });
       }
     }
@@ -664,13 +677,21 @@ export class TraceController extends Controller<States> {
     // Slices overview.
     const traceStartNs = toNs(traceTime.start);
     const stepSecNs = toNs(stepSec);
-    const sliceSummaryQuery = await engine.query(
-        `select bucket, upid, sum(utid_sum) / cast(${stepSecNs} as float) ` +
-        `as upid_sum from thread inner join ` +
-        `(select cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket, ` +
-        `sum(dur) as utid_sum, ref as utid from internal_slice ` +
-        `where ref_type = 'utid' group by bucket, ref) ` +
-        `using(utid) group by bucket, upid`);
+    const sliceSummaryQuery = await engine.query(`select
+           bucket,
+           upid,
+           sum(utid_sum) / cast(${stepSecNs} as float) as upid_sum
+         from thread
+         inner join (
+           select
+             cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket
+             sum(dur) as utid_sum,
+             utid
+           from slice
+           inner join thread_track on slice.track_id = thread_track.id
+           group by bucket, utid
+         ) using(utid)
+         group by bucket, upid`);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
     for (let i = 0; i < sliceSummaryQuery.numRecords; i++) {

@@ -39,7 +39,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       await this.query(
           `create view ${this.tableName('small')} as ` +
           `select ts,dur,depth,name,slice_id from slice ` +
-          `where utid = ${this.config.utid} ` +
+          `where track_id = ${this.config.trackId} ` +
           `and dur < ${minNs} ` +
           `order by ts;`);
 
@@ -64,14 +64,14 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
     await this.query(
         `create view ${this.tableName('small')} as ` +
         `select ts,dur,depth,name,slice_id from slice ` +
-        `where utid = ${this.config.utid} ` +
+        `where track_id = ${this.config.trackId} ` +
         `and dur < ${minNs} ` +
         `order by ts `);
 
     await this.query(
         `create view ${this.tableName('big')} as ` +
         `select ts,dur,depth,name,slice_id from slice ` +
-        `where utid = ${this.config.utid} ` +
+        `where track_id = ${this.config.trackId} ` +
         `and ts >= ${startNs} - dur ` +
         `and ts <= ${endNs} ` +
         `and dur >= ${minNs} ` +
