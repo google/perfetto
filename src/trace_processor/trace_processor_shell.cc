@@ -744,6 +744,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
   if (argc == 2) {
     command_line_options.trace_file_path = argv[1];
+    command_line_options.launch_shell = true;
   } else if (argc == 4) {
     if (strcmp(argv[1], "-q") != 0) {
       PrintUsage(argv);
