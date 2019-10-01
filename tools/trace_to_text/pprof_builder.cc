@@ -88,6 +88,59 @@ constexpr const char* kQueryProfiles =
     "select distinct hpa.upid, hpa.ts, p.pid from heap_profile_allocation hpa, "
     "process p where p.upid = hpa.upid;";
 
+int64_t GetStatsInt(trace_processor::TraceProcessor* tp,
+                    const std::string& name,
+                    uint64_t pid) {
+  auto it = tp->ExecuteQuery("SELECT value from stats where name = '" + name +
+                             "' AND idx = " + std::to_string(pid));
+  if (!it.Next()) {
+    if (!it.Status().ok()) {
+      PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
+                              it.Status().message().c_str());
+      return -1;
+    }
+    // TODO(fmayer): Remove this case once we always get an entry in the stats
+    // table.
+    return 0;
+  }
+  return it.Get(0).long_value;
+}
+
+bool VerifyPIDStats(trace_processor::TraceProcessor* tp, uint64_t pid) {
+  bool success = true;
+  int64_t stat = GetStatsInt(tp, "heapprofd_buffer_corrupted", pid);
+  if (stat == -1) {
+    PERFETTO_DFATAL_OR_ELOG("Failed to get heapprofd_buffer_corrupted stat");
+  } else if (stat > 0) {
+    success = false;
+    PERFETTO_ELOG("WARNING: The profile for %" PRIu64
+                  " ended early due to a buffer corruption."
+                  " THIS IS ALWAYS A BUG IN HEAPPROFD OR"
+                  " CLIENT MEMORY CORRUPTION.",
+                  pid);
+  }
+  stat = GetStatsInt(tp, "heapprofd_buffer_overran", pid);
+  if (stat == -1) {
+    PERFETTO_DFATAL_OR_ELOG("Failed to get heapprofd_buffer_overran stat");
+  } else if (stat > 0) {
+    success = false;
+    PERFETTO_ELOG("WARNING: The profile for %" PRIu64
+                  " ended early due to a buffer overrun.",
+                  pid);
+  }
+
+  stat = GetStatsInt(tp, "heapprofd_rejected_concurrent", pid);
+  if (stat == -1) {
+    PERFETTO_DFATAL_OR_ELOG("Failed to get heapprofd_rejected_concurrent stat");
+  } else if (stat > 0) {
+    success = false;
+    PERFETTO_ELOG("WARNING: The profile for %" PRIu64
+                  " was rejected due to a concurrent profile.",
+                  pid);
+  }
+  return success;
+}
+
 struct Callsite {
   int64_t id;
   int64_t frame_id;
@@ -485,6 +538,7 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
   auto callsite_to_frames = GetCallsiteToFrames(tp);
   auto symbol_set_id_to_lines = GetSymbolSetIdToLines(tp);
 
+  bool any_fail = false;
   Iterator it = tp->ExecuteQuery(kQueryProfiles);
   while (it.Next()) {
     GProfileBuilder builder(callsite_to_frames, symbol_set_id_to_lines,
@@ -498,6 +552,9 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
       continue;
     }
 
+    if (!VerifyPIDStats(tp, pid))
+      any_fail = true;
+
     std::string pid_query = "select pid from process where upid = ";
     pid_query += std::to_string(upid) + ";";
     Iterator pid_it = tp->ExecuteQuery(pid_query);
@@ -507,6 +564,11 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
     output->emplace_back(
         SerializedProfile{static_cast<uint64_t>(pid_it.Get(0).long_value),
                           profile.SerializeAsString()});
+  }
+  if (any_fail) {
+    PERFETTO_ELOG(
+        "One or more of your profiles had an issue. Please consult "
+        "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.");
   }
   if (!it.Status().ok()) {
     PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
