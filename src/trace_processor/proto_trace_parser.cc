@@ -1477,6 +1477,7 @@ void ProtoTraceParser::ParseProfilePacket(
     ProtoIncrementalState::PacketSequenceState* sequence_state,
     ConstBytes blob) {
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
+  context_->heap_profile_tracker->SetProfilePacketIndex(packet.index());
 
   for (auto it = packet.strings(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(it->data(), it->size());

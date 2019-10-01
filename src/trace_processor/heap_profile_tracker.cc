@@ -29,6 +29,14 @@ HeapProfileTracker::HeapProfileTracker(TraceProcessorContext* context)
 
 HeapProfileTracker::~HeapProfileTracker() = default;
 
+void HeapProfileTracker::SetProfilePacketIndex(uint64_t index) {
+  if (last_profile_packet_index_ != 0 &&
+      last_profile_packet_index_ + 1 != index) {
+    context_->storage->IncrementStats(stats::heapprofd_missing_packet);
+  }
+  last_profile_packet_index_ = index;
+}
+
 void HeapProfileTracker::AddAllocation(
     const SourceAllocation& alloc,
     const StackProfileTracker::InternLookup* intern_lookup) {
