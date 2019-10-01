@@ -140,8 +140,22 @@ constexpr uint32_t MakeTagLengthDelimited(uint32_t field_id) {
 // Proto types: sint64, sint32.
 template <typename T>
 inline typename std::make_unsigned<T>::type ZigZagEncode(T value) {
-  return static_cast<typename std::make_unsigned<T>::type>(
-      (value << 1) ^ (value >> (sizeof(T) * 8 - 1)));
+  using UnsignedType = typename std::make_unsigned<T>::type;
+
+  // Right-shift of negative values is implementation specific.
+  // Assert the implementation does what we expect, which is that shifting any
+  // positive value by sizeof(T) * 8 - 1 gives an all 0 bitmap, and a negative
+  // value gives and all 1 bitmap.
+  constexpr uint64_t kUnsignedZero = 0u;
+  constexpr int64_t kNegativeOne = -1;
+  constexpr int64_t kPositiveOne = 1;
+  static_assert(static_cast<uint64_t>(kNegativeOne >> 63) == ~kUnsignedZero,
+                "implementation does not support assumed rightshift");
+  static_assert(static_cast<uint64_t>(kPositiveOne >> 63) == kUnsignedZero,
+                "implementation does not support assumed rightshift");
+
+  return (static_cast<UnsignedType>(value) << 1) ^
+         static_cast<UnsignedType>(value >> (sizeof(T) * 8 - 1));
 }
 
 template <typename T>
