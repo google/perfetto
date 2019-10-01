@@ -35,6 +35,7 @@
 #include "src/trace_processor/cpu_profile_stack_sample_table.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/instants_table.h"
@@ -273,6 +274,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
+  context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -316,6 +318,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
                                storage->gpu_track_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->symbol_table(),
                                storage->symbol_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->heap_graph_object_table(),
+                               storage->heap_graph_object_table().table_name());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {

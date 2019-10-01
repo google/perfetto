@@ -141,6 +141,7 @@ class ProtoTraceParser : public TraceParser {
                        ArgsTracker*,
                        RowId);
   void ParseModuleSymbols(ConstBytes);
+  void ParseHeapGraph(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* context_;
