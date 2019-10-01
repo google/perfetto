@@ -262,7 +262,7 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
         "already in use)");
     return nullptr;
   }
-  return std::move(data_source);
+  return std::unique_ptr<ProbesDataSource>(std::move(data_source));
 }
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateInodeFileDataSource(
