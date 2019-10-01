@@ -15,6 +15,11 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/build_config.h"
+
+// This translation unit is built only on Linux. See //gn/BUILD.gn.
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+
 #include "tools/trace_to_text/local_symbolizer.h"
 
 #include "perfetto/ext/base/string_splitter.h"
@@ -399,3 +404,5 @@ LocalSymbolizer::~LocalSymbolizer() = default;
 
 }  // namespace trace_to_text
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)

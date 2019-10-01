@@ -123,6 +123,7 @@ static_library("libpprofbuilder") {
 # executable) and by the "lite" version (the WASM module for the UI).
 source_set("common") {
   deps = [
+    ":local_symbolizer",
     ":pprofbuilder",
     ":symbolizer",
     ":utils",
@@ -151,12 +152,6 @@ source_set("common") {
     "trace_to_systrace.h",
     "trace_to_text.h",
   ]
-  defines = []
-  if (is_linux || is_android) {
-    deps += [ ":local_symbolizer" ]
-  } else {
-    defines += [ "PERFETTO_NOLOCALSYMBOLIZE" ]
-  }
   if (enable_perfetto_version_gen) {
     deps += [ "//gn/standalone:gen_git_revision" ]
   }
