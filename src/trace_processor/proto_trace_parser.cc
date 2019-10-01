@@ -33,6 +33,7 @@
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
@@ -69,6 +70,7 @@
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
+#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
@@ -488,6 +490,10 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_module_symbols()) {
     ParseModuleSymbols(packet.module_symbols());
+  }
+
+  if (packet.has_heap_graph()) {
+    ParseHeapGraph(ts, packet.heap_graph());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
@@ -2678,6 +2684,32 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
            context_->storage->InternString(line.source_file_name()),
            line.line_number()});
     }
+  }
+}
+
+void ProtoTraceParser::ParseHeapGraph(int64_t ts, ConstBytes blob) {
+  protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(heap_graph.pid()));
+  context_->heap_graph_tracker->SetPacketIndex(heap_graph.index());
+  for (auto it = heap_graph.objects(); it; ++it) {
+    protos::pbzero::HeapGraphObject::Decoder object(it->data(), it->size());
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = object.id();
+    obj.self_size = object.self_size();
+    obj.type_id = object.type_id();
+    context_->heap_graph_tracker->AddObject(upid, ts, std::move(obj));
+  }
+  for (auto it = heap_graph.type_names(); it; ++it) {
+    protos::pbzero::InternedString::Decoder entry(it->data(), it->size());
+    const char* str = reinterpret_cast<const char*>(entry.str().data);
+    auto str_view = base::StringView(str, entry.str().size);
+
+    context_->heap_graph_tracker->AddInternedTypeName(
+        entry.iid(), context_->storage->InternString(str_view));
+  }
+  if (!heap_graph.continued()) {
+    context_->heap_graph_tracker->FinalizeProfile();
   }
 }
 

@@ -632,6 +632,8 @@ filegroup(
         "src/trace_processor/graphics_event_parser.h",
         "src/trace_processor/gzip_trace_parser.cc",
         "src/trace_processor/gzip_trace_parser.h",
+        "src/trace_processor/heap_graph_tracker.cc",
+        "src/trace_processor/heap_graph_tracker.h",
         "src/trace_processor/heap_profile_allocation_table.cc",
         "src/trace_processor/heap_profile_allocation_table.h",
         "src/trace_processor/heap_profile_tracker.cc",
