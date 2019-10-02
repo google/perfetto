@@ -181,3 +181,27 @@ BENCHMARK(BM_BitVectorGetNumBitsSet)
     ->Arg(8192)
     ->Arg(123456)
     ->Arg(1234567);
+
+static void BM_BitVectorResize(benchmark::State& state) {
+  static constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+
+  static constexpr uint32_t kPoolSize = 1024 * 1024;
+  static constexpr uint32_t kMaxSize = 1234567;
+
+  std::vector<bool> resize_fill_pool(kPoolSize);
+  std::vector<uint32_t> resize_count_pool(kPoolSize);
+  for (uint32_t i = 0; i < kPoolSize; ++i) {
+    resize_fill_pool[i] = rnd_engine() % 2;
+    resize_count_pool[i] = rnd_engine() % kMaxSize;
+  }
+
+  uint32_t pool_idx = 0;
+  BitVector bv;
+  for (auto _ : state) {
+    bv.Resize(resize_count_pool[pool_idx], resize_fill_pool[pool_idx]);
+    pool_idx = (pool_idx + 1) % kPoolSize;
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_BitVectorResize);
