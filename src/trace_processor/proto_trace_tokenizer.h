@@ -66,6 +66,8 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   void ParseInternedData(const protos::pbzero::TracePacket::Decoder&,
                          TraceBlobView interned_data);
   void ParseTrackDescriptorPacket(const protos::pbzero::TracePacket::Decoder&);
+  void ParseProcessDescriptorPacket(
+      const protos::pbzero::TracePacket::Decoder&);
   void ParseThreadDescriptorPacket(const protos::pbzero::TracePacket::Decoder&);
   void ParseThreadDescriptor(const protos::pbzero::ThreadDescriptor::Decoder&);
   void ParseTrackEventPacket(const protos::pbzero::TracePacket::Decoder&,
