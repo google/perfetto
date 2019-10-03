@@ -113,6 +113,20 @@ TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_FALSE(it.Next());
 }
 
+TEST_F(TraceProcessorIntegrationTest, Hash) {
+  auto it = Query("select HASH()");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xcbf29ce484222325));
+
+  it = Query("select HASH('test')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xf9e6e6ef197c2b25));
+
+  it = Query("select HASH('test', 1)");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xa9cb070fdc15f7a4));
+}
+
 // TODO(hjd): Add trace to test_data.
 TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
   ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")).ok());
