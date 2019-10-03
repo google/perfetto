@@ -222,6 +222,37 @@ void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
 }
 #endif
 
+void Hash(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  base::Hash hash;
+  for (int i = 0; i < argc; ++i) {
+    sqlite3_value* value = argv[i];
+    switch (sqlite3_value_type(value)) {
+      case SQLITE_INTEGER:
+        hash.Update(sqlite3_value_int64(value));
+        break;
+      case SQLITE_TEXT: {
+        const char* ptr =
+            reinterpret_cast<const char*>(sqlite3_value_text(value));
+        hash.Update(ptr, strlen(ptr));
+        break;
+      }
+      default:
+        sqlite3_result_error(ctx, "Unsupported type of arg passed to HASH", -1);
+        return;
+    }
+  }
+  sqlite3_result_int64(ctx, static_cast<int64_t>(hash.digest()));
+}
+
+void CreateHashFunction(sqlite3* db) {
+  auto ret = sqlite3_create_function_v2(
+      db, "HASH", -1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr, &Hash,
+      nullptr, nullptr, nullptr);
+  if (ret) {
+    PERFETTO_ELOG("Error initializing HASH");
+  }
+}
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics) {
@@ -282,6 +313,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   CreateJsonExportFunction(this->context_.storage.get(), db);
 #endif
+  CreateHashFunction(db);
 
   SetupMetrics(this, *db_, &sql_metrics_);
 
