@@ -19,7 +19,6 @@ source_set("core") {
   ]
   sources = [
     "basic_types.h",
-    "buffer_exhausted_policy.h",
     "commit_data_request.h",
     "consumer.h",
     "observable_events.h",
