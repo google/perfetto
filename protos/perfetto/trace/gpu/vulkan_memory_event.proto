@@ -1,0 +1,78 @@
+/*
+ * Copyright (C) 2019 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
+
+package perfetto.protos;
+
+// All the information that cannot be sent within a VulkanMemoryEvent message,
+// are sent as annotations to the main memory event. One example is the
+// properties of the object that consumes the allocated memory, for example, a
+// buffer or an image.
+// key_iid and string_iid are both interned strings. Original string value is
+// stored in vulkan_memory_keys from
+// protos/perfetto/trace/interned_data/interned_data.proto.
+message VulkanMemoryEventAnnotation {
+  optional uint64 key_iid = 1;
+  oneof value {
+    int64 int_value = 2;
+    double double_value = 3;
+    uint64 string_iid = 4;
+  }
+}
+
+// Each VulkanMemoryEvent encompasses information regarding one signle function
+// call that results in reserving, binding or freeing host or GPU memory. There
+// is a special message type, ANNOTATIONS, which is used to communicate
+// information that are not directly related to a memory event, nonetheless are
+// essential to understand the memory usage. An example is the size and memory
+// types of the memory heaps.
+message VulkanMemoryEvent {
+  enum Source {
+    UNKNOWN_SOURCE = 0;
+    DEVICE = 1;
+    HOST = 2;
+    GPU_DEVICE_MEMORY = 3;
+    GPU_BUFFER = 4;
+    GPU_IMAGE = 5;
+  }
+
+  enum Type {
+    UNKNOWN_TYPE = 0;
+    CREATE = 1;         // alloc, create
+    DESTROY = 2;        // free, destroy (non-bound)
+    BIND = 3;           // bind buffer and image
+    DESTROY_BOUND = 4;  // destroy (bound)
+    ANNOTATIONS = 5;    // only annotations
+  }
+
+  optional Source source = 1;
+  optional Type type = 2;
+  optional int64 timestamp = 3;
+  optional uint32 pid = 4;
+  optional fixed64 device = 5;
+  optional fixed64 device_memory = 6;
+  optional uint32 heap = 7;
+  // Interned string. Original string value is stored in function_names from
+  // protos/perfetto/trace/interned_data/interned_data.proto.
+  optional uint64 caller_iid = 8;  // caller api, interned string
+  optional fixed64 object_handle = 9;
+  optional fixed64 memory_address = 10;
+  optional uint64 memory_size = 11;
+  // Extra related information, e.g., create configs, etc.
+  repeated VulkanMemoryEventAnnotation annotations = 12;
+}

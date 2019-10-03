@@ -716,6 +716,8 @@ filegroup(
         "src/trace_processor/track_tracker.h",
         "src/trace_processor/variadic.h",
         "src/trace_processor/virtual_destructors.cc",
+        "src/trace_processor/vulkan_memory_tracker.cc",
+        "src/trace_processor/vulkan_memory_tracker.h",
         "src/trace_processor/window_operator_table.cc",
         "src/trace_processor/window_operator_table.h",
     ],
@@ -1474,6 +1476,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
+        "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
     ],
     deps = [
         ":protos_perfetto_common_protos",
