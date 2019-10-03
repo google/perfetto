@@ -16,6 +16,8 @@
 
 #include "tools/trace_to_text/trace_to_text.h"
 
+#include <zlib.h>
+
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -26,14 +28,19 @@
 #include "tools/trace_to_text/proto_full_utils.h"
 #include "tools/trace_to_text/utils.h"
 
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
+
 namespace perfetto {
 namespace trace_to_text {
 
 namespace {
 using google::protobuf::Descriptor;
 using google::protobuf::DynamicMessageFactory;
+using google::protobuf::FieldDescriptor;
 using google::protobuf::FileDescriptor;
 using google::protobuf::Message;
+using google::protobuf::Reflection;
 using google::protobuf::TextFormat;
 using google::protobuf::compiler::DiskSourceTree;
 using google::protobuf::compiler::Importer;
@@ -59,8 +66,61 @@ inline void WriteToZeroCopyOutput(ZeroCopyOutputStream* output,
   output->BackUp(size - static_cast<int>(bytes_to_copy));
 }
 
+constexpr char kCompressedPacketsPrefix[] = "compressed_packets {\n";
+constexpr char kCompressedPacketsSuffix[] = "}\n";
+
+constexpr char kIndentedPacketPrefix[] = "  packet {\n";
+constexpr char kIndentedPacketSuffix[] = "  }\n";
+
 constexpr char kPacketPrefix[] = "packet {\n";
 constexpr char kPacketSuffix[] = "}\n";
+
+void PrintCompressedPackets(const std::string& packets,
+                            Message* compressed_msg_scratch,
+                            ZeroCopyOutputStream* output) {
+  uint8_t out[4096];
+  std::vector<uint8_t> data;
+
+  z_stream stream{};
+  stream.next_in =
+      const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(packets.data()));
+  stream.avail_in = static_cast<unsigned int>(packets.length());
+
+  if (inflateInit(&stream) != Z_OK) {
+    PERFETTO_ELOG("Error when initiliazing zlib to decompress packets");
+    return;
+  }
+
+  int ret;
+  do {
+    stream.next_out = out;
+    stream.avail_out = sizeof(out);
+    ret = inflate(&stream, Z_NO_FLUSH);
+    if (ret != Z_STREAM_END && ret != Z_OK) {
+      PERFETTO_ELOG("Error when decompressing packets");
+      return;
+    }
+    data.insert(data.end(), out, out + (sizeof(out) - stream.avail_out));
+  } while (ret != Z_STREAM_END);
+  inflateEnd(&stream);
+
+  protos::pbzero::Trace::Decoder decoder(data.data(), data.size());
+  WriteToZeroCopyOutput(output, kCompressedPacketsPrefix,
+                        sizeof(kCompressedPacketsPrefix) - 1);
+  TextFormat::Printer printer;
+  printer.SetInitialIndentLevel(2);
+  for (auto it = decoder.packet(); it; ++it) {
+    compressed_msg_scratch->ParseFromArray(it->data(),
+                                           static_cast<int>(it->size()));
+    WriteToZeroCopyOutput(output, kIndentedPacketPrefix,
+                          sizeof(kIndentedPacketPrefix) - 1);
+    printer.Print(*compressed_msg_scratch, output);
+    WriteToZeroCopyOutput(output, kIndentedPacketSuffix,
+                          sizeof(kIndentedPacketSuffix) - 1);
+  }
+  WriteToZeroCopyOutput(output, kCompressedPacketsSuffix,
+                        sizeof(kCompressedPacketsSuffix) - 1);
+}
 
 }  // namespace
 
@@ -89,18 +149,35 @@ int TraceToText(std::istream* input, std::ostream* output) {
   OstreamOutputStream* zero_copy_output_ptr = &zero_copy_output;
   Message* msg = root->New();
 
+  constexpr uint32_t kCompressedPacketFieldDescriptor = 50;
+  const Reflection* reflect = msg->GetReflection();
+  const FieldDescriptor* compressed_desc =
+      trace_descriptor->FindFieldByNumber(kCompressedPacketFieldDescriptor);
+  Message* compressed_msg_scratch = root->New();
+  std::string compressed_packet_scratch;
+
+  TextFormat::Printer printer;
+  printer.SetInitialIndentLevel(1);
   ForEachPacketBlobInTrace(
-      input,
-      [msg, zero_copy_output_ptr](std::unique_ptr<char[]> buf, size_t size) {
+      input, [msg, reflect, compressed_desc, zero_copy_output_ptr,
+              &compressed_packet_scratch, compressed_msg_scratch,
+              &printer](std::unique_ptr<char[]> buf, size_t size) {
         if (!msg->ParseFromArray(buf.get(), static_cast<int>(size))) {
           PERFETTO_ELOG("Skipping invalid packet");
           return;
         }
-        WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketPrefix,
-                              sizeof(kPacketPrefix) - 1);
-        TextFormat::Print(*msg, zero_copy_output_ptr);
-        WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketSuffix,
-                              sizeof(kPacketSuffix) - 1);
+        if (reflect->HasField(*msg, compressed_desc)) {
+          const auto& compressed_packets = reflect->GetStringReference(
+              *msg, compressed_desc, &compressed_packet_scratch);
+          PrintCompressedPackets(compressed_packets, compressed_msg_scratch,
+                                 zero_copy_output_ptr);
+        } else {
+          WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketPrefix,
+                                sizeof(kPacketPrefix) - 1);
+          printer.Print(*msg, zero_copy_output_ptr);
+          WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketSuffix,
+                                sizeof(kPacketSuffix) - 1);
+        }
       });
   return 0;
 }
