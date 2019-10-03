@@ -176,6 +176,7 @@ source_set("full") {
     ":utils",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
+    "../../gn:zlib",
   ]
   sources = [
     "proto_full_utils.cc",
