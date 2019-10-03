@@ -204,34 +204,38 @@ class BitVector {
     blocks_.resize(new_blocks_size);
     counts_.resize(new_blocks_size);
 
-    if (new_blocks_size > old_blocks_size) {
-      // If we've increased the number of blocks, we need to fix the
-      // counts vector by setting the newly added counts to the
-      // count of the bitvector. This matches the empty blocks we just
-      // added. Below, we will actually set the bits in the newly added
-      // blocks and as we do that, we will update the counts.
-      //
-      // Note: as we haven't updated |size_| yet GetNumBitsSet() won't take into
-      // account the newly added blocks yet.
-      uint32_t count = GetNumBitsSet();
-      for (uint32_t i = old_blocks_size; i < new_blocks_size; ++i) {
-        counts_[i] = count;
-      }
-    }
-
-    // Actually update the size before we call |Set| below to ensure Set's
-    // invariants make sense.
-    size_ = size;
     if (size > old_size) {
-      // Just go through all the newly added bits and set them to the true - we
-      // don't need to do this if !value because we always expect the newly
-      // added bits to be zeroed (this is ensured by the else branch).
-      // TODO(lalitm): this is clearly non optimal. Try and have a more
-      // optimized version of this based on setting whole blocks
-      // to 1.
       if (value) {
-        for (uint32_t i = old_size; i < size; ++i) {
-          Set(i);
+        // If the new space should be filled with true, then set all the bits
+        // between the address of the old size and the new last address.
+        const Address& start = IndexToAddress(old_size);
+        Set(start, last_addr);
+
+        // We then need to update the counts vector to match the changes we
+        // made to the blocks.
+
+        // We start by adding the bits we set in the first block to the
+        // cummulative count before the range we changed.
+        uint32_t count_in_block_after_end =
+            AddressToIndex(last_addr) - AddressToIndex(start) + 1;
+        uint32_t set_count = GetNumBitsSet() + count_in_block_after_end;
+
+        for (uint32_t i = start.block_idx + 1; i <= last_addr.block_idx; ++i) {
+          // Set the count to the cummulative count so far.
+          counts_[i] = set_count;
+
+          // Add a full block of set bits to the count.
+          set_count += Block::kBits;
+        }
+      } else {
+        // If the newly added bits are false, we just need to update the
+        // counts vector with the current size of the bitvector for all
+        // the newly added blocks.
+        if (new_blocks_size > old_blocks_size) {
+          uint32_t count = GetNumBitsSet();
+          for (uint32_t i = old_blocks_size; i < new_blocks_size; ++i) {
+            counts_[i] = count;
+          }
         }
       }
     } else {
@@ -240,6 +244,9 @@ class BitVector {
       // trailing garbage bits in the last block.
       blocks_[last_addr.block_idx].ClearAfter(last_addr.block_offset);
     }
+
+    // Actually update the size.
+    size_ = size;
   }
 
   // Updates the ith set bit of this bitvector with the value of
@@ -374,6 +381,12 @@ class BitVector {
       word = WordUntil(idx);
     }
 
+    // Sets all bits between the bit at |start| and |end| (inclusive).
+    void Set(uint32_t start, uint32_t end) {
+      uint32_t diff = end - start;
+      word |= (MaskAllBitsSetUntil(diff) << static_cast<uint64_t>(start));
+    }
+
    private:
     // Constant with all the low bit of every byte set.
     static constexpr uint64_t L8 = 0x0101010101010101;
@@ -409,7 +422,14 @@ class BitVector {
       // The easiest way to do this would be if we had a mask with only
       // the bottom 7 bits set:
       // mask: 00000000001111111
-      //
+      uint64_t mask = MaskAllBitsSetUntil(idx);
+
+      // Finish up by anding the the atom with the computed msk.
+      return word & mask;
+    }
+
+    // Return a mask of all the bits up to and including bit at |idx|.
+    static uint64_t MaskAllBitsSetUntil(uint32_t idx) {
       // Start with 1 and shift it up (idx + 1) bits we get:
       // top : 00000000010000000
       uint64_t top = 1ull << ((idx + 1ull) % kBits);
@@ -418,15 +438,12 @@ class BitVector {
       // zero because 1 << ((idx + 1) % 64) == 1 << (64 % 64) == 1.
       // In this case, we actually want top == 0. We can do this by shifting
       // down by (idx + 1) / kBits - this will be a noop for every index other
-      // than idx == 63. This should also be free on intel because of the mod
+      // than idx == 63. This should also be free on x86 because of the mod
       // instruction above.
       top = top >> ((idx + 1) / kBits);
 
       // Then if we take away 1, we get precisely the mask we want.
-      uint64_t mask = top - 1u;
-
-      // Finish up by anding the the atom with the computed msk.
-      return word & mask;
+      return top - 1u;
     }
 
     uint64_t word = 0;
@@ -525,6 +542,31 @@ class BitVector {
       }
     }
 
+    // Set all the bits between the offsets given by |start| and |end|
+    // (inclusive).
+    void Set(const BlockOffset& start, const BlockOffset& end) {
+      if (start.word_idx == end.word_idx) {
+        // If there is only one word we will change, just set the range within
+        // the word.
+        words_[start.word_idx].Set(start.bit_idx, end.bit_idx);
+        return;
+      }
+
+      // Otherwise, we have more than one word to set. To do this, we will
+      // do this in three steps.
+
+      // First, we set the first word from the start to the end of the word.
+      words_[start.word_idx].Set(start.bit_idx, BitWord::kBits - 1);
+
+      // Next, we set all words (except the last).
+      for (uint32_t i = start.word_idx + 1; i < end.word_idx; ++i) {
+        words_[i].Set(0, BitWord::kBits - 1);
+      }
+
+      // Finally, we set the word block from the start to the end offset.
+      words_[end.word_idx].Set(0, end.bit_idx);
+    }
+
    private:
     std::array<BitWord, kWords> words_{};
   };
@@ -535,6 +577,37 @@ class BitVector {
 
   BitVector(const BitVector&) = delete;
   BitVector& operator=(const BitVector&) = delete;
+
+  // Set all the bits between the addresses given by |start| and |end|
+  // (inclusive).
+  // Note: this method does not update the counts vector - that is the
+  // responibility of the caller.
+  void Set(const Address& start, const Address& end) {
+    static constexpr BlockOffset kFirstBlockOffset = BlockOffset{0, 0};
+    static constexpr BlockOffset kLastBlockOffset =
+        BlockOffset{Block::kWords - 1, BitWord::kBits - 1};
+
+    if (start.block_idx == end.block_idx) {
+      // If there is only one block we will change, just set the range within
+      // the block.
+      blocks_[start.block_idx].Set(start.block_offset, end.block_offset);
+      return;
+    }
+
+    // Otherwise, we have more than one block to set. To do this, we will
+    // do this in three steps.
+
+    // First, we set the first block from the start to the end of the block.
+    blocks_[start.block_idx].Set(start.block_offset, kLastBlockOffset);
+
+    // Next, we set all blocks (except the last).
+    for (uint32_t i = start.block_idx + 1; i < end.block_idx; ++i) {
+      blocks_[i].Set(kFirstBlockOffset, kLastBlockOffset);
+    }
+
+    // Finally, we set the last block from the start to the end offset.
+    blocks_[end.block_idx].Set(kFirstBlockOffset, end.block_offset);
+  }
 
   static Address IndexToAddress(uint32_t idx) {
     Address a;
