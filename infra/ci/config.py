@@ -104,6 +104,10 @@ JOB_CONFIGS = {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_fuzzer=true is_asan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/fuzzer_tests.sh',
     },
+    'linux-clang-x86_64-bazel': {
+        'PERFETTO_TEST_GN_ARGS': '',
+        'PERFETTO_TEST_SCRIPT': 'test/ci/bazel_tests.sh',
+    },
     'ui-clang-x86_64-debug': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/ui_tests.sh',
