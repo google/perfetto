@@ -13,8 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+
 import os
 import subprocess
+
+from compat import quote
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -22,7 +26,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 def call(cmd, *args):
   path = os.path.join('tools', cmd)
   command = [path] + list(args)
-  print 'Running', ' '.join(command)
+  print('Running:', ' '.join(quote(c) for c in command))
   try:
     return subprocess.check_output(command, cwd=ROOT_DIR)
   except subprocess.CalledProcessError as e:

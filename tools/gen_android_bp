@@ -33,6 +33,8 @@ import sys
 
 import gn_utils
 
+from compat import itervalues
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def EnumerateDataDeps():
@@ -371,7 +373,7 @@ class Blueprint(object):
         self.modules[module.name] = module
 
     def to_string(self, output):
-        for m in sorted(self.modules.itervalues(), key=lambda m: m.name):
+        for m in sorted(itervalues(self.modules), key=lambda m: m.name):
             m.to_string(output)
 
 
@@ -401,7 +403,7 @@ def is_generated_by_action(desc, label):
     Returns True if a GN output label |label| is an output for any action,
     i.e., the file is generated dynamically.
     """
-    for target in desc.itervalues():
+    for target in itervalues(desc):
         if target['type'] == 'action' and label in target['outputs']:
             return True
     return False

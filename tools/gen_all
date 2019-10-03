@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 import os
 import argparse
 import subprocess
@@ -29,7 +30,7 @@ def protoc_path(out_directory):
 def call(cmd, *args):
   path = os.path.join('tools', cmd)
   command = [path] + list(args)
-  print 'Running', ' '.join(command)
+  print('Running', ' '.join(command))
   try:
     subprocess.check_call(command, cwd=ROOT_DIR)
   except subprocess.CalledProcessError as e:
