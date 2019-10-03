@@ -135,12 +135,13 @@ export class TrackGroupPanel extends Panel<Attrs> {
                             size.height,
                             `rgb(52,69,150)`);
     }
-    if (globals.state.timeSpan !== null) {
+    if (globals.frontendLocalState.selectedTimeRange.startSec !== undefined &&
+        globals.frontendLocalState.selectedTimeRange.endSec !== undefined) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
-          globals.state.timeSpan.startTs,
-          globals.state.timeSpan.endTs,
+          globals.frontendLocalState.selectedTimeRange.startSec,
+          globals.frontendLocalState.selectedTimeRange.endSec,
           size.height,
           `rgba(0,0,0,0.5)`);
     }
