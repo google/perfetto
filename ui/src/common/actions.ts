@@ -24,6 +24,7 @@ import {
   OmniboxState,
   RecordConfig,
   SCROLLING_TRACK_GROUP,
+  SelectedTimeRange,
   State,
   Status,
   TargetOs,
@@ -404,18 +405,6 @@ export const StateActions = {
     state.currentSelection = {kind: 'CHROME_SLICE', id: args.id};
   },
 
-  selectTimeSpan(state: StateDraft, args: {startTs: number, endTs: number}):
-      void {
-        state.timeSpan = {
-          startTs: args.startTs,
-          endTs: args.endTs,
-        };
-      },
-
-  removeTimeSpan(state: StateDraft, _: {}): void {
-    state.timeSpan = null;
-  },
-
   selectThreadState(
       state: StateDraft,
       args:
@@ -476,6 +465,10 @@ export const StateActions = {
 
   setOmnibox(state: StateDraft, args: OmniboxState): void {
     state.frontendLocalState.omniboxState = args;
+  },
+
+  selectTimeRange(state: StateDraft, args: SelectedTimeRange): void {
+    state.frontendLocalState.selectedTimeRange = args;
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
