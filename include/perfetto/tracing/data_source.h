@@ -35,6 +35,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
@@ -108,6 +109,12 @@ class PERFETTO_EXPORT DataSourceBase {
 template <typename DataSourceType, typename IncrementalStateType = void>
 class DataSource : public DataSourceBase {
  public:
+  // The BufferExhaustedPolicy to use for TraceWriters of this DataSource.
+  // Override this in your DataSource class to change the default, which is to
+  // drop data on shared memory overruns.
+  constexpr static BufferExhaustedPolicy kBufferExhaustedPolicy =
+      BufferExhaustedPolicy::kDrop;
+
   // Argument passed to the lambda function passed to Trace() (below).
   class TraceContext {
    public:
@@ -275,7 +282,8 @@ class DataSource : public DataSourceBase {
           return;
         tls_inst.backend_id = instance_state->backend_id;
         tls_inst.buffer_id = instance_state->buffer_id;
-        tls_inst.trace_writer = tracing_impl->CreateTraceWriter(instance_state);
+        tls_inst.trace_writer = tracing_impl->CreateTraceWriter(
+            instance_state, DataSourceType::kBufferExhaustedPolicy);
         CreateIncrementalState(&tls_inst,
                                static_cast<IncrementalStateType*>(nullptr));
 

@@ -86,7 +86,8 @@ class PERFETTO_EXPORT TracingMuxer {
   // projects this means "same thread"). Alternatively the client needs to take
   // care of using synchronization primitives to prevent concurrent accesses.
   virtual std::unique_ptr<TraceWriterBase> CreateTraceWriter(
-      DataSourceState*) = 0;
+      DataSourceState*,
+      BufferExhaustedPolicy buffer_exhausted_policy) = 0;
 
   virtual void DestroyStoppedTraceWritersForCurrentThread() = 0;
 

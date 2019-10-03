@@ -26,13 +26,13 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 
 namespace perfetto {
 

@@ -99,7 +99,9 @@ class TracingMuxerImpl : public TracingMuxer {
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
                           DataSourceStaticState*) override;
-  std::unique_ptr<TraceWriterBase> CreateTraceWriter(DataSourceState*) override;
+  std::unique_ptr<TraceWriterBase> CreateTraceWriter(
+      DataSourceState*,
+      BufferExhaustedPolicy buffer_exhausted_policy) override;
   void DestroyStoppedTraceWritersForCurrentThread() override;
 
   std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
