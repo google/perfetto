@@ -22,9 +22,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
@@ -329,6 +331,10 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     ParseThreadDescriptorPacket(decoder);
     return util::OkStatus();
   }
+  if (decoder.has_process_descriptor()) {
+    ParseProcessDescriptorPacket(decoder);
+    return util::OkStatus();
+  }
 
   if (decoder.has_compressed_packets()) {
     protozero::ConstBytes field = decoder.compressed_packets();
@@ -542,6 +548,44 @@ void ProtoTraceTokenizer::ParseTrackDescriptorPacket(
 
   context_->track_tracker->UpdateDescriptorTrack(
       track_descriptor_decoder.uuid(), name_id, upid, utid);
+}
+
+void ProtoTraceTokenizer::ParseProcessDescriptorPacket(
+    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
+  protos::pbzero::ProcessDescriptor::Decoder process_descriptor_decoder(
+      packet_decoder.process_descriptor());
+  if (!process_descriptor_decoder.has_chrome_process_type())
+    return;
+  base::StringView name = "Unknown";
+  switch (process_descriptor_decoder.chrome_process_type()) {
+    case protos::pbzero::ProcessDescriptor::PROCESS_BROWSER:
+      name = "Browser";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_RENDERER:
+      name = "Renderer";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_UTILITY:
+      name = "Utility";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_ZYGOTE:
+      name = "Zygote";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_SANDBOX_HELPER:
+      name = "SandboxHelper";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_GPU:
+      name = "Gpu";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_PPAPI_PLUGIN:
+      name = "PpapiPlugin";
+      break;
+    case protos::pbzero::ProcessDescriptor::PROCESS_PPAPI_BROKER:
+      name = "PpapiBroker";
+      break;
+  }
+  context_->process_tracker->SetProcessMetadata(
+      static_cast<uint32_t>(process_descriptor_decoder.pid()), base::nullopt,
+      name);
 }
 
 void ProtoTraceTokenizer::ParseThreadDescriptorPacket(
