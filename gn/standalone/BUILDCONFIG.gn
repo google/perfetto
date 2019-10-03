@@ -23,10 +23,6 @@ declare_args() {
   extra_ldflags = ""
 }
 
-declare_args() {
-  ar = "ar"
-}
-
 # Platform detection
 if (target_os == "") {
   target_os = host_os
@@ -54,6 +50,8 @@ if (target_cpu == "") {
 if (current_cpu == "") {
   current_cpu = target_cpu
 }
+
+is_cross_compiling = target_cpu != host_cpu || target_os != host_os
 
 default_configs = [
   "//gn/standalone:debug_symbols",
@@ -102,8 +100,8 @@ set_defaults("executable") {
 _default_toolchain = "//gn/standalone/toolchain:gcc_like"
 set_default_toolchain(_default_toolchain)
 
-if (target_os == host_os) {
-  host_toolchain = _default_toolchain
-} else {
+if (is_cross_compiling) {
   host_toolchain = "//gn/standalone/toolchain:gcc_like_host"
+} else {
+  host_toolchain = _default_toolchain
 }
