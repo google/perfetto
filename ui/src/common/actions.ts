@@ -375,10 +375,9 @@ export const StateActions = {
     }
   },
 
-  selectSlice(state: StateDraft, args: {utid: number, id: number}): void {
+  selectSlice(state: StateDraft, args: {id: number}): void {
     state.currentSelection = {
       kind: 'SLICE',
-      utid: args.utid,
       id: args.id,
     };
   },

@@ -300,7 +300,6 @@ class TraceViewer implements m.ClassComponent {
         case 'SLICE':
           detailsPanels.push(m(SliceDetailsPanel, {
             key: 'slice',
-            utid: curSelection.utid,
           }));
           break;
         case 'COUNTER':

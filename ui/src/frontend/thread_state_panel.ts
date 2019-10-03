@@ -14,11 +14,13 @@
 
 import * as m from 'mithril';
 
+import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {timeToCode} from '../common/time';
+import {timeToCode, toNs} from '../common/time';
 
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
+import {scrollToTrackAndTs} from './scroll_helper';
 
 interface ThreadStateDetailsAttr {
   utid: number;
@@ -51,11 +53,7 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
                     '(b/140256335)'))),
               m('tr',
                 m('th', `State`),
-                m('td',
-                  `${translateState(attrs.state)}` +
-                      `${
-                          attrs.state === 'Running' ? ` on CPU ${attrs.cpu}` :
-                                                      ''}`)),
+                m('td', this.getStateContent(attrs.state, attrs.cpu))),
               m('tr',
                 m('th', `Process`),
                 m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
@@ -66,4 +64,42 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
+
+  // If it is the running state, we want to show which CPU and a button to
+  // go to the sched slice. Otherwise, just show the state.
+  getStateContent(state: string, cpu: number) {
+    if (state !== 'Running') {
+      return [translateState(state)];
+    }
+
+    return [
+      `${translateState(state)} on CPU ${cpu}`,
+      m('i.material-icons',
+        {
+          onclick: () => {
+            if (globals.sliceDetails.id && globals.sliceDetails.ts) {
+              globals.makeSelection(
+                  Actions.selectSlice({id: globals.sliceDetails.id}));
+              // TODO(taylori): Use trackId from TP.
+              let trackId;
+              for (const track of Object.values(globals.state.tracks)) {
+                if (track.kind === 'CpuSliceTrack' &&
+                    (track.config as {cpu: number}).cpu === cpu) {
+                  trackId = track.id;
+                }
+              }
+              if (trackId) {
+                scrollToTrackAndTs(
+                    trackId,
+                    toNs(
+                        globals.sliceDetails.ts +
+                        globals.state.traceTime.startSec));
+              }
+            }
+          },
+          title: 'Go to CPU slice'
+        },
+        'call_made')
+    ];
+  }
 }
