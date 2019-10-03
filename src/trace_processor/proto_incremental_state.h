@@ -86,6 +86,7 @@ struct DefaultFieldName;
 struct BuildIdFieldName;
 struct MappingPathsFieldName;
 struct FunctionNamesFieldName;
+struct VulkanAnnotationsFieldName;
 
 // Stores per-packet-sequence incremental state during trace parsing, such as
 // reference timestamps for delta timestamp calculation and interned messages.
@@ -208,6 +209,7 @@ class ProtoIncrementalState {
     InternedDataMap<protos::pbzero::InternedString> build_ids_;
     InternedDataMap<protos::pbzero::InternedString> mapping_paths_;
     InternedDataMap<protos::pbzero::InternedString> function_names_;
+    InternedDataMap<protos::pbzero::InternedString> vulkan_memory_keys_;
     InternedDataMap<protos::pbzero::LogMessageBody> interned_log_messages_;
     InternedDataMap<protos::pbzero::Mapping> mappings_;
     InternedDataMap<protos::pbzero::Frame> frames_;
@@ -288,6 +290,14 @@ ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
     protos::pbzero::InternedString,
     FunctionNamesFieldName>() {
   return &function_names_;
+}
+
+template <>
+inline ProtoIncrementalState::InternedDataMap<protos::pbzero::InternedString>*
+ProtoIncrementalState::PacketSequenceState::GetInternedDataMap<
+    protos::pbzero::InternedString,
+    VulkanAnnotationsFieldName>() {
+  return &vulkan_memory_keys_;
 }
 
 template <>
