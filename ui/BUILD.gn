@@ -296,6 +296,7 @@ scss_srcs = [
   "src/assets/record.scss",
   "src/assets/common.scss",
   "src/assets/modal.scss",
+  "src/assets/details.scss",
 ]
 
 # Build css.
