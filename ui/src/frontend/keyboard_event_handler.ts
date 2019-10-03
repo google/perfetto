@@ -67,7 +67,7 @@ function selectSliceSpan() {
   }
 
   if (startTs !== -1 && endTs !== -1) {
-    globals.dispatch(Actions.selectTimeSpan({startTs, endTs}));
+    globals.frontendLocalState.selectTimeRange(startTs, endTs);
     // Zoom into the highlighted time region.
     horizontalScrollAndZoomToRange(startTs, endTs);
   }
