@@ -44,6 +44,7 @@ function is_ssh_target() {
 }
 
 function is_mac() {
+  # shellcheck disable=2251
   ! test -d /proc
   return $?
 }
@@ -70,7 +71,7 @@ function reset_tracing() {
 
     if is_ssh_target; then
       # shellcheck disable=SC2029
-      ssh "$SSH_TARGET" "sh -c '$script'"
+      ssh -t "$SSH_TARGET" "sh -c '$script'"
     else
       sh -c "$script"
     fi
@@ -126,7 +127,7 @@ while getopts "bl:nt:c:C:z:" o; do
     C) OUT=${OPTARG} ;;
     z) CPU_MASK=${OPTARG} ;;
     *)
-      echo "Invalid option $o"
+      >&2 echo "Invalid option $o"
       exit
       ;;
   esac
@@ -136,7 +137,7 @@ done
 shift $((OPTIND - 1))
 OUT="${OUT:-$1}"
 
-# Warn about invalid output directories
+# Provide useful usage information
 if [ -z "$OUT" ]; then
   echo "Usage: $0 [OPTION]... [OUTPUT]"
   echo ""
@@ -158,17 +159,22 @@ fi
 
 # Warn about invalid output directories
 if [ ! -f "$OUT/args.gn" ]; then
-  echo "OUT=$OUT doesn't look like an output directory."
-  echo "Please specify a directory by doing:"
-  echo "  export OUT=out/xxx $0"
+  >&2 echo "OUT=$OUT doesn't look like an output directory."
+  >&2 echo "Please specify a directory by doing:"
+  >&2 echo "  export OUT=out/xxx $0"
   exit 1
 fi
 
-# If we are cross-compiling we need to know the SSH target
+# Check SSH target is valid
 if is_ssh_target && ! ssh -q "$SSH_TARGET" exit; then
-  echo "SSH_TARGET=$SSH_TARGET doesn't look like a valid SSH target."
-  echo "Please specify a SSH cross-compilation target by doing:"
-  echo "  export SSH_TARGET=<user>@<host> $0"
+  >&2 echo "SSH_TARGET=$SSH_TARGET doesn't look like a valid SSH target."
+  >&2 echo "Please specify a SSH cross-compilation target by doing:"
+  >&2 echo "  export SSH_TARGET=<user>@<host> $0"
+  exit 1
+fi
+
+if ! builtin type -P tmux &> /dev/null; then
+  >&2 echo "tmux not found"
   exit 1
 fi
 
@@ -210,7 +216,7 @@ if [[ "$CONFIG" == *.protobuf ]]; then
   CONFIG_DEVICE_PATH="$CONFIG"
   CONFIG_PATH=$OUT/$CONFIG
   if [[ ! -f $CONFIG_PATH ]]; then
-    echo "Config \"$CONFIG_PATH\" not known."
+    >&2 echo "Config \"$CONFIG_PATH\" not known."
     exit 1
   fi
   push "$CONFIG_PATH"
@@ -221,7 +227,7 @@ elif [[ "$CONFIG" != ":test" ]]; then
   if [[ ! -f $CONFIG_PATH ]]; then
     CONFIG_PATH=$CONFIG
     if [[ ! -f $CONFIG_PATH ]]; then
-      echo "Config \"$CONFIG\" not known."
+      >&2 echo "Config \"$CONFIG\" not known."
       exit 1
     fi
   fi
