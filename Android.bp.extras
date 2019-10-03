@@ -83,17 +83,3 @@ cc_binary {
     "perfetto_defaults",
   ],
 }
-
-// TODO(primiano): remove this target after the dep from
-// frameworks/native/services/surfaceflinger/Android.bp goes away. This has been
-// introduced only to avoid multi-repo atomic CLs.
-
-cc_library_static {
-  name: "perfetto_src_tracing_ipc",
-  srcs: [
-    "src/android_internal/empty_file.cc",
-  ],
-  defaults: [
-    "perfetto_defaults",
-  ],
-}
