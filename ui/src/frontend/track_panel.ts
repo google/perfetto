@@ -147,15 +147,17 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         globals.rafScheduler.scheduleRedraw();
       },
       onclick: (e: MouseEvent) => {
-        // If we are selecting a timespan - do not pass the click to the track.
+        // If we are selecting a time range - do not pass the click to the
+        // track.
         if (e.shiftKey) return;
-        // If the click is outside of the current timespan, clear it.
+        // If the click is outside of the current time range, clear it.
         const clickTime =
             globals.frontendLocalState.timeScale.pxToTime(e.layerX);
-        if (globals.state.timeSpan !== null &&
-            (clickTime < globals.state.timeSpan.startTs ||
-             clickTime > globals.state.timeSpan.endTs)) {
-          globals.dispatch(Actions.removeTimeSpan({}));
+        const start = globals.frontendLocalState.selectedTimeRange.startSec;
+        const end = globals.frontendLocalState.selectedTimeRange.endSec;
+        if (start !== undefined && end !== undefined &&
+            (clickTime < start || clickTime > end)) {
+          globals.frontendLocalState.removeTimeRange();
           e.stopPropagation();
         } else if (attrs.track.onMouseClick({x: e.layerX, y: e.layerY})) {
           e.stopPropagation();
@@ -256,12 +258,13 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                              size.height,
                              `rgb(52,69,150)`);
     }
-    if (globals.state.timeSpan !== null) {
+    if (globals.frontendLocalState.selectedTimeRange.startSec !== undefined &&
+        globals.frontendLocalState.selectedTimeRange.endSec !== undefined) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
-          globals.state.timeSpan.startTs,
-          globals.state.timeSpan.endTs,
+          globals.frontendLocalState.selectedTimeRange.startSec,
+          globals.frontendLocalState.selectedTimeRange.endSec,
           size.height,
           `rgba(0,0,0,0.5)`);
     }
