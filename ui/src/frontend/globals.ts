@@ -28,6 +28,8 @@ export interface SliceDetails {
   dur?: number;
   priority?: number;
   endState?: string;
+  id?: number;
+  utid?: number;
   wakeupTs?: number;
   wakerUtid?: number;
   wakerCpu?: number;
