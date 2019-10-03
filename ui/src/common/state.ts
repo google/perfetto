@@ -102,7 +102,6 @@ export interface NoteSelection {
 
 export interface SliceSelection {
   kind: 'SLICE';
-  utid: number;
   id: number;
 }
 
