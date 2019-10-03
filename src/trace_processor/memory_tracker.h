@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_MEMORY_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_MEMORY_TRACKER_H_
 
 #include <deque>
 
@@ -54,4 +54,4 @@ class VulkanMemoryTracker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_MEMORY_TRACKER_H_
