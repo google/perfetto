@@ -107,8 +107,8 @@ if (perfetto_build_standalone) {
     "protos/perfetto/trace:merged_trace",  # For syntax-checking the proto.
 
     # The diff testing framework depends on these descriptors.
-    "protos/perfetto/metrics:descriptor",
-    "protos/perfetto/trace:descriptor",
+    "protos/perfetto/metrics:descriptor($host_toolchain)",
+    "protos/perfetto/trace:descriptor($host_toolchain)",
 
     # Used in the when updating the ftrace protos
     "protos/perfetto/trace/ftrace:descriptor",
