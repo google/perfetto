@@ -31,6 +31,7 @@
 #include "src/trace_processor/systrace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/vulkan_memory_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {

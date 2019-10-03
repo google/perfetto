@@ -67,6 +67,7 @@ enum TableId : uint8_t {
   kNestableSlices = 5,
   kMetadataTable = 6,
   kTrack = 7,
+  kVulkanMemoryAllocation = 8,
 };
 
 // The top 8 bits are set to the TableId and the bottom 32 to the row of the
@@ -1288,6 +1289,16 @@ class TraceStorage {
   }
   tables::GpuTrackTable* mutable_gpu_track_table() { return &gpu_track_table_; }
 
+  const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
+      const {
+    return vulkan_memory_allocations_table_;
+  }
+
+  tables::VulkanMemoryAllocationsTable*
+  mutable_vulkan_memory_allocations_table() {
+    return &vulkan_memory_allocations_table_;
+  }
+
   const StringPool& string_pool() const { return string_pool_; }
 
   // |unique_processes_| always contains at least 1 element because the 0th ID
@@ -1394,6 +1405,9 @@ class TraceStorage {
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_, nullptr};
   tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_, nullptr};
+
+  tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
+      &string_pool_, nullptr};
 };
 
 }  // namespace trace_processor

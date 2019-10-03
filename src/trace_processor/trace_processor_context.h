@@ -29,6 +29,7 @@ class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
 class HeapProfileTracker;
+class VulkanMemoryTracker;
 class ProcessTracker;
 class SliceTracker;
 class StackProfileTracker;
@@ -61,6 +62,7 @@ class TraceProcessorContext {
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<SystraceParser> systrace_parser;
   std::unique_ptr<HeapGraphTracker> heap_graph_tracker;
+  std::unique_ptr<VulkanMemoryTracker> vulkan_memory_tracker;
 };
 
 }  // namespace trace_processor
