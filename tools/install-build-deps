@@ -21,10 +21,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib
 import zipfile
 
 from collections import namedtuple
+
+from compat import urlretrieve
 
 # The format for the deps below is the following:
 # (target_folder, source_url, sha1, target_platform)
@@ -337,7 +338,7 @@ def ExtractZipfilePreservePermissions(zf, info, path):
   zf.extract(info.filename, path=path)
   target_path = os.path.join(path, info.filename)
   min_acls = 0o755 if info.filename.endswith('/') else 0o644
-  os.chmod(target_path, (info.external_attr >> 16L) | min_acls)
+  os.chmod(target_path, (info.external_attr >> 16) | min_acls)
 
 
 def IsGitRepoCheckoutOutAtRevision(path, revision):
@@ -378,7 +379,7 @@ def CheckHashes():
       logging.info('Downloading %s from %s', rel_path, url)
       with tempfile.NamedTemporaryFile(delete=False) as f:
         f.close()
-        urllib.urlretrieve(url, f.name)
+        urlretrieve(url, f.name)
         actual_sha1 = HashLocalFile(f.name)
         os.unlink(f.name)
         if (actual_sha1 != expected_sha1):
@@ -421,7 +422,7 @@ def Main():
     if HashLocalFile(local_path) != expected_sha1:
       download_path = local_path + '.tmp'
       logging.info('Downloading %s from %s', local_path, url)
-      urllib.urlretrieve(url, download_path)
+      urlretrieve(url, download_path)
       os.chmod(download_path, 0o755)
       actual_sha1 = HashLocalFile(download_path)
       if (actual_sha1 != expected_sha1):
@@ -470,8 +471,8 @@ def Main():
   if deps_updated:
     # Stale binary files may be compiled against old sysroot headers that aren't
     # tracked by gn.
-    logging.warn('Remember to run "gn clean <output_directory>" ' +
-                 'to avoid stale binary files.')
+    logging.warning('Remember to run "gn clean <output_directory>" ' +
+                    'to avoid stale binary files.')
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.INFO)

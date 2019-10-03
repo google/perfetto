@@ -19,6 +19,7 @@ from __future__ import print_function
 import os
 import re
 import sys
+from codecs import open
 
 COMMON_PROTOS = (
   'protos/perfetto/common/android_log_constants.proto',
@@ -127,7 +128,7 @@ def merge_protos(proto_paths, output_path):
   merged_content = ''
   for proto in proto_paths:
     path = os.path.join(root_dir, proto)
-    with open(path) as f:
+    with open(path, 'r', encoding='utf-8') as f:
       content = f.read()
 
     # Remove header
@@ -166,7 +167,7 @@ def merge_protos(proto_paths, output_path):
 
   prev_content = None
   if os.path.exists(out_path):
-    with open(out_path, 'rb') as fprev:
+    with open(out_path, 'r', encoding='utf-8') as fprev:
       prev_content = fprev.read()
 
   if prev_content == merged_content:
@@ -176,7 +177,7 @@ def merge_protos(proto_paths, output_path):
     return False
 
   print('Updating {}'.format(output_path))
-  with open(out_path, 'wb') as fout:
+  with open(out_path, 'w', encoding='utf-8') as fout:
     fout.write(merged_content)
   return True
 

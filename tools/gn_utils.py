@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+from compat import iteritems
 
 
 BUILDFLAGS_TARGET = '//gn:gen_buildflags'
@@ -98,7 +99,7 @@ def build_targets(out, targets, quiet=False):
     source files in the amalgamated result.
     """
     targets = [t.replace('//', '') for t in targets]
-    with open(os.devnull, 'rw') as devnull:
+    with open(os.devnull, 'w') as devnull:
         stdout = devnull if quiet else None
         subprocess.check_call([_tool_path('ninja')] + targets, cwd=out,
                               stdout=stdout)
@@ -246,9 +247,17 @@ class GnParser(object):
             # placeholder target once we hit //gn:protoc or similar.
             self.is_third_party_dep_ = False
 
+        def __lt__(self, other):
+            if isinstance(other, self.__class__):
+                return self.name < other.name
+            raise TypeError(
+                '\'<\' not supported between instances of \'%s\' and \'%s\'' % (
+                    type(self).__name__, type(other).__name__))
+
         def __repr__(self):
-            return json.dumps({k:(list(v) if isinstance(v, set) else v)
-                    for (k,v) in self.__dict__.iteritems()}, indent=4)
+            return json.dumps({k:(list(sorted(v)) if isinstance(v, set) else v)
+                    for (k,v) in iteritems(self.__dict__)}, indent=4,
+                    sort_keys=True)
 
         def update(self, other):
             for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
