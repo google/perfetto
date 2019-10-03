@@ -29,6 +29,9 @@ export type OmniboxState =
 export type VisibleState =
     Timestamped<{startSec: number; endSec: number; resolution: number;}>;
 
+export type SelectedTimeRange =
+    Timestamped<{startSec?: number; endSec?: number;}>;
+
 export const MAX_TIME = 180;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
@@ -76,6 +79,7 @@ export interface TraceTime {
 export interface FrontendLocalState {
   omniboxState: OmniboxState;
   visibleState: VisibleState;
+  selectedTimeRange: SelectedTimeRange;
 }
 
 export interface Status {
@@ -119,11 +123,6 @@ export interface HeapDumpSelection {
 export interface ChromeSliceSelection {
   kind: 'CHROME_SLICE';
   id: number;
-}
-
-export interface TimeSpanRange {
-  startTs: number;
-  endTs: number;
 }
 
 export interface ThreadStateSelection {
@@ -175,7 +174,6 @@ export interface State {
   permalink: PermalinkConfig;
   notes: ObjectById<Note>;
   status: Status;
-  timeSpan: TimeSpanRange|null;
   currentSelection: Selection|null;
 
   logsPagination: LogsPagination;
@@ -369,6 +367,9 @@ export function createEmptyState(): State {
         lastUpdate: 0,
         resolution: 0,
       },
+      selectedTimeRange: {
+        lastUpdate: 0,
+      },
     },
 
     logsPagination: {
@@ -378,7 +379,6 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
-    timeSpan: null,
 
     video: null,
     videoEnabled: false,

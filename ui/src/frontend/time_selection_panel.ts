@@ -124,10 +124,13 @@ export class TimeSelectionPanel extends Panel {
       ctx.fillRect(xAndTime[0], 0, 1, size.height);
     }
 
-    const timeSpan = globals.state.timeSpan;
-    if (timeSpan !== null) {
-      const start = Math.min(timeSpan.startTs, timeSpan.endTs);
-      const end = Math.max(timeSpan.startTs, timeSpan.endTs);
+    const selectedTimeRange = globals.frontendLocalState.selectedTimeRange;
+    if (selectedTimeRange.startSec !== undefined &&
+        selectedTimeRange.endSec !== undefined) {
+      const start =
+          Math.min(selectedTimeRange.startSec, selectedTimeRange.endSec);
+      const end =
+          Math.max(selectedTimeRange.startSec, selectedTimeRange.endSec);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     } else if (globals.frontendLocalState.showTimeSelectPreview) {
       this.renderHover(ctx, size, globals.frontendLocalState.hoveredTimestamp);
