@@ -25,8 +25,8 @@
 #include "perfetto/base/export.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 
 namespace perfetto {
 
