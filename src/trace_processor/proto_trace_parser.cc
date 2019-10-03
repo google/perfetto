@@ -496,6 +496,11 @@ void ProtoTraceParser::ParseTracePacket(
     ParseHeapGraph(ts, packet.heap_graph());
   }
 
+  if (packet.has_vulkan_memory_event()) {
+    graphics_event_parser_->ParseVulkanMemoryEvent(
+        packet.graphics_frame_event());
+  }
+
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.

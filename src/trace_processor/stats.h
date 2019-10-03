@@ -104,6 +104,7 @@ namespace stats {
   F(track_event_tokenizer_errors,             kSingle,  kInfo,     kAnalysis), \
   F(tokenizer_skipped_packets,                kSingle,  kInfo,     kAnalysis), \
   F(vmstat_unknown_keys,                      kSingle,  kError,    kAnalysis), \
+  F(vulkan_allocations_invalid_string_id,     kSingle,  kError,    kTrace),    \
   F(clock_sync_failure,                       kSingle,  kError,    kAnalysis), \
   F(process_tracker_errors,                   kSingle,  kError,    kAnalysis), \
   F(json_tokenizer_failure,                   kSingle,  kError,    kTrace),    \
