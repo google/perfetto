@@ -16,88 +16,109 @@ import("//gn/standalone/android.gni")
 import("//gn/standalone/wasm.gni")
 import("llvm.gni")
 
-# Note: is_android is true also on mac when building with target_os = "android".
+# This file is evaluated once, within the context of the default toolchain,
+# which is the target toolchain.
+# Note: This means that is_android=true even on a mac when cross-compiling for
+# Android.
+assert(current_os == target_os && current_cpu == target_cpu,
+       "Assumptions on current_xxx in this file have been violated")
 
 declare_args() {
-  if (is_clang) {
-    gcc_prefix = ""
-  } else if (current_cpu == host_cpu && current_os == host_os) {
-    gcc_prefix = ""
-  } else if (current_os == "linux" && current_cpu == "arm64") {
-    gcc_prefix = "aarch64-linux-gnu-"
-  } else if (current_os == "linux" && current_cpu == "x64") {
-    gcc_prefix = "x86_64-linux-gnu-"
-  } else if (current_os == "linux" && current_cpu == "x86") {
-    gcc_prefix = "x86-linux-gnu-"
-  } else if (current_os == "android" && current_cpu == "arm64") {
-    gcc_prefix = "aarch64-linux-android-"
-  } else if (current_os == "android" && current_cpu == "arm") {
-    gcc_prefix = "arm-linux-androideabi-"
-  } else if (current_os == "android" && current_cpu == "x86") {
-    gcc_prefix = "i686-linux-android-"
-  } else if (current_os == "android" && current_cpu == "x86_64") {
-    gcc_prefix = "x86_64-linux-android-"
-  } else {
-    assert(0, "Unsupported cross-compilation for ${current_os}-${current_cpu}")
-  }
+  cc_wrapper = ""
 }
 
+# First of all determine the host toolchain. The user can override this by:
+# 1. setting ar/cc/cxx vars in args.gn.
+# 2. setting is_system_compiler=true in args.gn and the env vars AR/CC/CXX.
+#    This is used by OSSFuzz.
 declare_args() {
-  if (is_clang) {
-    if (is_system_compiler) {
-      cc = "\$CC "
-      cxx = "\$CXX "
-    } else if (is_linux) {
+  ar = "ar"
+  if (is_linux_host) {
+    linker = "gold"
+  } else {
+    linker = ""
+  }
+
+  if (is_system_compiler) {
+    ar = "\$AR"
+    cc = "\$CC"
+    cxx = "\$CXX"
+  } else if (is_clang) {
+    if (is_linux_host) {
       cc = linux_clang_bin
       cxx = linux_clangxx_bin
+      linker = linux_clang_linker
     } else {
       cc = "clang"
       cxx = "clang++"
+      linker = ""
     }
+  } else {  # GCC
+    cc = "gcc"
+    cxx = "g++"
+  }
+}
+
+# Then determine the target toolchain.
+
+# GCC only: determine the cross-toolchain triplet.
+declare_args() {
+  if (is_clang || !is_cross_compiling) {
+    gcc_target_triplet = ""
+  } else if (target_os == "mac" && target_cpu == "x64") {
+    gcc_target_triplet = "x86_64-apple-darwin"
+  } else if (target_os == "mac" && target_cpu == "x86") {
+    gcc_target_triplet = "i686-apple-darwin"
+  } else if (target_os == "linux" && target_cpu == "arm64") {
+    gcc_target_triplet = "aarch64-linux-gnu"
+  } else if (target_os == "linux" && target_cpu == "x64") {
+    gcc_target_triplet = "x86_64-linux-gnu"
+  } else if (target_os == "linux" && target_cpu == "x86") {
+    gcc_target_triplet = "i686-linux-gnu"
+  } else if (target_os == "android" && target_cpu == "arm64") {
+    gcc_target_triplet = "aarch64-linux-android"
+  } else if (target_os == "android" && target_cpu == "arm") {
+    gcc_target_triplet = "arm-linux-androideabi"
+  } else if (target_os == "android" && target_cpu == "x86") {
+    gcc_target_triplet = "i686-linux-android"
+  } else if (target_os == "android" && target_cpu == "x86_64") {
+    gcc_target_triplet = "x86_64-linux-android"
   } else {
-    cc = "${gcc_prefix}gcc"
-    cxx = "${gcc_prefix}g++"
+    assert(false,
+           "Unsupported cross-compilation for ${target_os}-${target_cpu}")
   }
 }
 
 declare_args() {
-  host_ar = ar
-  if (is_linux_host && is_clang) {
-    host_cc = linux_clang_bin
-    host_cxx = linux_clangxx_bin
-    host_linker = linux_clang_linker
-  } else {
-    host_cc = cc
-    host_cxx = cxx
-    if (is_linux_host) {
-      host_linker = "gold"
-    } else {
-      host_linker = ""
-    }
-  }
-
-  if (is_android) {
-    target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
-    target_cc = "$android_llvm_dir/bin/clang"
-    target_cxx = "$android_llvm_dir/bin/clang++"
-    target_linker = "gold"
-  } else {
+  if (!is_cross_compiling) {
     target_ar = ar
     target_cc = cc
     target_cxx = cxx
-    if (is_linux && is_clang) {
-      target_linker = linux_clang_linker
-    } else if (is_linux) {
+    target_linker = linker
+  } else {
+    target_ar = "ar"
+    if (is_linux || is_android) {
       target_linker = "gold"
     } else {
       target_linker = ""
     }
+    if (is_android) {
+      target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
+      target_cc = "$android_llvm_dir/bin/clang"
+      target_cxx = "$android_llvm_dir/bin/clang++"
+    } else if (is_clang) {
+      target_cc = linux_clang_bin
+      target_cxx = linux_clangxx_bin
+      target_linker = linux_clang_linker
+    } else {  # GCC
+      assert(gcc_target_triplet != "",
+             "gcc_target_triplet must be non-empty when cross-compiling")
+      ar = "${gcc_target_triplet}-ar"
+      cc = "${gcc_target_triplet}-gcc"
+      cxx = "${gcc_target_triplet}-g++"
+    }
   }
-  cc_wrapper = ""
 }
-
-python = "python"
-stamp = "touch"
 
 template("gcc_like_toolchain") {
   toolchain(target_name) {
@@ -213,10 +234,10 @@ gcc_like_toolchain("gcc_like") {
 gcc_like_toolchain("gcc_like_host") {
   cpu = host_cpu
   os = host_os
-  ar = host_ar
-  cc = host_cc
-  cxx = host_cxx
-  linker = host_linker
+  ar = ar
+  cc = cc
+  cxx = cxx
+  linker = linker
 }
 
 gcc_like_toolchain("wasm") {
