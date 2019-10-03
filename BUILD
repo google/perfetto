@@ -271,7 +271,6 @@ filegroup(
     name = "include_perfetto_ext_tracing_core_core",
     srcs = [
         "include/perfetto/ext/tracing/core/basic_types.h",
-        "include/perfetto/ext/tracing/core/buffer_exhausted_policy.h",
         "include/perfetto/ext/tracing/core/commit_data_request.h",
         "include/perfetto/ext/tracing/core/consumer.h",
         "include/perfetto/ext/tracing/core/observable_events.h",
@@ -362,6 +361,7 @@ filegroup(
 filegroup(
     name = "include_perfetto_tracing_tracing",
     srcs = [
+        "include/perfetto/tracing/buffer_exhausted_policy.h",
         "include/perfetto/tracing/data_source.h",
         "include/perfetto/tracing/internal/basic_types.h",
         "include/perfetto/tracing/internal/data_source_internal.h",
