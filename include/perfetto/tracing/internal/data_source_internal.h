@@ -27,6 +27,7 @@
 #include <mutex>
 
 // No perfetto headers (other than tracing/api and protozero) should be here.
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/trace_writer_base.h"
 

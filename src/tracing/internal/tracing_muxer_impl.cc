@@ -26,10 +26,10 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/waitable_event.h"
-#include "perfetto/ext/tracing/core/buffer_exhausted_policy.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
@@ -800,15 +800,11 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
 
 // Can be called from any thread.
 std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
-    DataSourceState* data_source) {
+    DataSourceState* data_source,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
   ProducerImpl* producer = backends_[data_source->backend_id].producer.get();
-  // We choose BufferExhaustedPolicy::kDrop to avoid stalls when all SMB chunks
-  // are allocated, ensuring that the app keeps working even when tracing hits
-  // its SMB limit. Note that this means we will lose data in such a case
-  // (tracked in BufferStats::trace_writer_packet_loss). To reduce this data
-  // loss, apps should choose a large enough SMB size.
   return producer->service_->CreateTraceWriter(data_source->buffer_id,
-                                               BufferExhaustedPolicy::kDrop);
+                                               buffer_exhausted_policy);
 }
 
 // This is called via the public API Tracing::NewTrace().
