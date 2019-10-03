@@ -209,7 +209,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   endpoint->shmem_page_size_hint_bytes_ = shared_memory_page_size_hint_bytes;
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
 
-  return std::unique_ptr<TracingService::ProducerEndpoint>(std::move(endpoint));
+  return std::unique_ptr<ProducerEndpoint>(std::move(endpoint));
 }
 
 void TracingServiceImpl::DisconnectProducer(ProducerID id) {
@@ -253,7 +253,7 @@ TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
   auto it_and_inserted = consumers_.emplace(endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   task_runner_->PostTask(std::bind(&Consumer::OnConnect, endpoint->consumer_));
-  return std::move(endpoint);
+  return std::unique_ptr<ConsumerEndpoint>(std::move(endpoint));
 }
 
 void TracingServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
