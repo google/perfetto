@@ -75,7 +75,6 @@ function selectCurrentSearchResult() {
 
   if (refType === 'cpu') {
     globals.dispatch(Actions.selectSlice({
-      utid: globals.currentSearchResults.utids[index],
       id: currentId,
     }));
   } else {
