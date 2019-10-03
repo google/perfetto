@@ -32,6 +32,8 @@ import sys
 
 import gn_utils
 
+from compat import itervalues, iteritems, basestring
+
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
 gn_args = ' '.join([
@@ -103,7 +105,7 @@ external_deps = {
 
 def gen_sql_metrics(target):
   label = BazelLabel(get_bazel_label_name(target.name), 'genrule')
-  label.srcs += [re.sub('^//', '', x) for x in target.inputs]
+  label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
   label.outs += target.outputs
   label.cmd = r'$(location gen_merged_sql_metrics_py) --cpp_out=$@ $(SRCS)'
   label.tools += [':gen_merged_sql_metrics_py']
@@ -137,6 +139,13 @@ class BazelLabel(object):
     self.tools = []
     self.outs = []
 
+  def __lt__(self, other):
+    if isinstance(other, self.__class__):
+      return self.name < other.name
+    raise TypeError(
+      '\'<\' not supported between instances of \'%s\' and \'%s\'' % (
+      type(self).__name__, type(other).__name__))
+
   def __str__(self):
     """Converts the object into a Bazel Starlark label."""
     res = ''
@@ -144,8 +153,9 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = ['name', 'srcs', 'hdrs', 'visibility', 'deps', 'outs', 'cmd', 'tools']
-    key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else '99-' + kv[0]
-    for k, v in sorted(self.__dict__.iteritems(), key=key_sorter):
+    hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
+    key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
+    for k, v in sorted(iteritems(self.__dict__), key=key_sorter):
       if k in ('type', 'comment',
                'external_deps') or v is None or (v == [] and
                                                  (k != 'deps' or not any_deps)):
@@ -276,7 +286,7 @@ def gen_target(gn_target):
         label.hdrs += [name]
       else:
         label.srcs += [name]
-    for dep in gn_target.deps:
+    for dep in sorted(gn_target.deps):
       if dep.startswith('//gn:'):
         assert (dep in external_deps), dep
       if dep in external_deps:
@@ -363,7 +373,7 @@ exports_files(["NOTICE"])
     res += gen_target_str(target)
 
   # Generate all the intermediate targets.
-  for target in sorted(gn.all_targets.itervalues(), key=lambda x: x.name):
+  for target in sorted(itervalues(gn.all_targets)):
     if target.name in default_targets or target.name in gn.proto_libs:
       continue
     res += gen_target_str(target)
@@ -375,17 +385,17 @@ exports_files(["NOTICE"])
 
 '''.lstrip()
   # Force discovery of explicilty listed root proto targets.
-  for target_name in proto_targets:
+  for target_name in sorted(proto_targets):
     gn.get_target(target_name)
 
   # Generate targets for the transitive set of proto targets.
   # TODO explain deduping here.
   labels = {}
-  for target in gn.proto_libs.itervalues():
+  for target in sorted(itervalues(gn.proto_libs)):
     for label in gen_target(target):
       labels[label.name] = label
 
-  res += ''.join(str(x) for x in labels.itervalues())
+  res += ''.join(str(x) for x in sorted(itervalues(labels)))
 
   res += '''
 # ##############################################################################

@@ -25,6 +25,8 @@ import sys
 import subprocess
 import tempfile
 
+from codecs import open
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--descriptor_set_out', default=None)
@@ -40,15 +42,15 @@ def main():
         '--dependency_out',
         t.name
       ]
-      subprocess.call([args.protoc] + custom + remaining)
+      subprocess.check_call([args.protoc] + custom + remaining)
 
-      dependency_data = t.read()
+      dependency_data = t.read().decode('utf-8')
 
-    with open(args.dependency_out, 'w') as f:
+    with open(args.dependency_out, 'w', encoding = 'utf-8') as f:
       f.write(args.descriptor_set_out + ":")
       f.write(dependency_data)
   else:
-    subprocess.call(sys.argv[1:])
+    subprocess.check_call(sys.argv[1:])
 
 if __name__ == '__main__':
   sys.exit(main())

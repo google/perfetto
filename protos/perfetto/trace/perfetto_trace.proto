@@ -2889,7 +2889,7 @@ message MmVmscanKswapdSleepFtraceEvent {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 22.
+// Next id: 23.
 message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
@@ -2923,6 +2923,9 @@ message InternedData {
   repeated Frame frames = 6;
   // A callstack of a program.
   repeated Callstack callstacks = 7;
+
+  // Additional Vulkan information sent in a VulkanMemoryEvent message
+  repeated InternedString vulkan_memory_keys = 22;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -3476,7 +3479,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 62.
+// Next id: 63.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3524,6 +3527,7 @@ message TracePacket {
     StreamingProfilePacket streaming_profile_packet = 54;
     HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
+    // removed field with id 62
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

@@ -13,10 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+
 import argparse
 import os
+import platform
 import subprocess
 import sys
+
+from compat import iteritems, quote
 
 MAC_BUILD_CONFIGS = {
   'mac_debug': ('is_clang=true', 'is_debug=true'),
@@ -60,17 +65,20 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def main():
   parser = argparse.ArgumentParser()
+  parser.add_argument('--ccache', action='store_true', default=False)
   parser.add_argument('--host-only', action='store_true', default=False)
-  parser.add_argument('--build', default=None)
+  parser.add_argument('--no-android', action='store_true', default=False)
+  parser.add_argument('--build', metavar='TARGET')
   args = parser.parse_args()
 
   configs = {}
   if not args.host_only:
-    for config_name, gn_args in ANDROID_BUILD_CONFIGS.iteritems():
-      for arch in ANDROID_ARCHS:
-        full_config_name = '%s_%s' % (config_name, arch)
-        configs[full_config_name] = gn_args + ('target_cpu="%s"' % arch,)
-    for config_name, gn_args in LINUX_BUILD_CONFIGS.iteritems():
+    if not args.no_android:
+      for config_name, gn_args in iteritems(ANDROID_BUILD_CONFIGS):
+        for arch in ANDROID_ARCHS:
+          full_config_name = '%s_%s' % (config_name, arch)
+          configs[full_config_name] = gn_args + ('target_cpu="%s"' % arch,)
+    for config_name, gn_args in iteritems(LINUX_BUILD_CONFIGS):
       if dict(a.split('=') for a in gn_args).get('is_clang', None) == 'true':
         continue
       for arch in LINUX_ARCHS:
@@ -78,12 +86,17 @@ def main():
         configs[full_config_name] = gn_args + ('target_cpu="%s"' % arch,
                                                'target_os="linux"')
 
-  if sys.platform == 'linux2':
+  system = platform.system().lower()
+  if system == 'linux':
     configs.update(LINUX_BUILD_CONFIGS)
-  elif sys.platform == 'darwin':
+  elif system == 'darwin':
     configs.update(MAC_BUILD_CONFIGS)
   else:
-    assert (False)
+    assert False, 'Unsupported system %r' % system
+
+  if args.ccache:
+    for config_name, gn_args in iteritems(configs):
+      configs[config_name] = gn_args + ('cc_wrapper="ccache"',)
 
   out_base_dir = os.path.join(ROOT_DIR, 'out')
   if not os.path.isdir(out_base_dir):
@@ -91,14 +104,14 @@ def main():
 
   gn = os.path.join(ROOT_DIR, 'tools', 'gn')
 
-  for config_name, gn_args in configs.iteritems():
-    print '\n\033[32mBuilding %-20s[%s]\033[0m' % (config_name,
-                                                   ','.join(gn_args))
+  for config_name, gn_args in iteritems(configs):
+    print('\n\033[32mBuilding %-20s[%s]\033[0m' % (config_name,
+                                                   ','.join(gn_args)))
     out_dir = os.path.join(ROOT_DIR, 'out', config_name)
     if not os.path.isdir(out_dir):
       os.mkdir(out_dir)
     gn_cmd = (gn, 'gen', out_dir, '--args=%s' % (' '.join(gn_args)), '--check')
-    print ' '.join(gn_cmd)
+    print(' '.join(quote(c) for c in gn_cmd))
     subprocess.check_call(gn_cmd, cwd=ROOT_DIR)
     if args.build:
       ninja = os.path.join(ROOT_DIR, 'tools', 'ninja')
