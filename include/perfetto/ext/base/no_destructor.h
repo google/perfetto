@@ -54,8 +54,19 @@ class NoDestructor {
 
   ~NoDestructor() = default;
 
-  const T& ref() const { return *reinterpret_cast<const T*>(storage_); }
-  T& ref() { return *reinterpret_cast<T*>(storage_); }
+  /* To avoid type-punned pointer strict aliasing warnings on GCC6 and below
+   * these need to be split over two lines. If they are collapsed onto one line.
+   *   return reinterpret_cast<const T*>(storage_);
+   * The error fires.
+   */
+  const T& ref() const {
+    auto* const cast = reinterpret_cast<const T*>(storage_);
+    return *cast;
+  }
+  T& ref() {
+    auto* const cast = reinterpret_cast<T*>(storage_);
+    return *cast;
+  }
 
  private:
   alignas(T) char storage_[sizeof(T)];

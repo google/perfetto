@@ -46,6 +46,11 @@ config("test_warning_suppressions") {
       "-Wno-zero-as-null-pointer-constant",
       "-Wno-weak-vtables",
     ]
+  } else {
+    cflags = [
+      "-Wno-unknown-warning-option",
+      "-Wno-deprecated-copy",
+    ]
   }
 }
 

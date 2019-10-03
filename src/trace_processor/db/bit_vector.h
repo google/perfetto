@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_BIT_VECTOR_H_
 #define SRC_TRACE_PROCESSOR_DB_BIT_VECTOR_H_
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
