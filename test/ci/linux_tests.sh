@@ -35,12 +35,24 @@ ${OUT_PATH}/perfetto_unittests
 ${OUT_PATH}/perfetto_integrationtests
 BENCHMARK_FUNCTIONAL_TEST_ONLY=true ${OUT_PATH}/perfetto_benchmarks
 
+# If this is a split host+target build, use the trace_processoer_shell binary
+# from the host directory. In some cases (e.g. lsan x86 builds) the host binary
+# that is copied into the target directory (OUT_PATH) cannot run because depends
+# on libc++.so within the same folder (which is built using target bitness,
+# not host bitness).
+TP_SHELL=${OUT_PATH}/gcc_like_host/trace_processor_shell
+if [ ! -f ${TP_SHELL} ]; then
+  TP_SHELL=${OUT_PATH}/trace_processor_shell
+fi
+
 mkdir -p /ci/artifacts/perf
+
 tools/diff_test_trace_processor.py \
   --test-type=queries \
   --perf-file=/ci/artifacts/perf/tp-perf-queries.json \
-  ${OUT_PATH}/trace_processor_shell
+  ${TP_SHELL}
+
 tools/diff_test_trace_processor.py \
   --test-type=metrics \
   --perf-file=/ci/artifacts/perf/tp-perf-metrics.json \
-  ${OUT_PATH}/trace_processor_shell
+  ${TP_SHELL}
