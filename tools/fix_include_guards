@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+
 import os
 import re
 import sys
 
+from codecs import open
+from compat import xrange
+
 def fix_guards(fpath, checkonly):
-  with open(fpath, 'rb') as f:
+  with open(fpath, 'r', encoding='utf-8') as f:
     lines = [l.strip('\n') for l in f.readlines()]
 
   if any(x.startswith('// fix_include_guards: off') for x in lines):
@@ -51,9 +56,9 @@ def fix_guards(fpath, checkonly):
   if res == lines:
     return 0
   if checkonly:
-    print >>sys.stderr, 'Wrong #include guards in %s' % fpath
+    print('Wrong #include guards in %s' % fpath, file=sys.stderr)
     return 1
-  with open(fpath, 'w') as f:
+  with open(fpath, 'w', encoding='utf-8') as f:
     f.write('\n'.join(res) + '\n')
   return 1
 
@@ -70,7 +75,7 @@ def main():
   if checkonly:
     return 0 if num_files_changed == 0 else 1
   else:
-    print '%d files changed' % num_files_changed
+    print('%d files changed' % num_files_changed)
 
 if __name__ == '__main__':
   sys.exit(main())
