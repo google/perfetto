@@ -43,6 +43,7 @@ the `tools/` prefix below and just use gn/ninja from depot_tools.
 target_os = "android"                 # Only when building for Android
 target_cpu = "arm" / "arm64" / "x64"  # Only when building for Android
 is_debug = true / false
+cc_wrapper = "ccache"                 # Optionally speed repeated builds with ccache
 ```
 
 (See the [Build Configurations](#build-configurations) section below for more)
@@ -124,6 +125,11 @@ Use bundled toolchain from `buildtools/` rather than system-wide one.
 
 `cc = "gcc" / cxx = "g++"`:  
 Uses a different compiler binary (default: autodetected depending on is_clang).
+
+`cc_wrapper = "tool"`:  
+Prepends all build commands with a wrapper command. Using `"ccache"` here
+enables the [ccache](https://github.com/ccache/ccache) caching compiler,
+which can considerable speed up repeat builds.
 
 `is_asan = true`:  
 Enables [Address Sanitizer](https://github.com/google/sanitizers/wiki/AddressSanitizer)
