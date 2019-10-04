@@ -2583,7 +2583,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       RowId row_id = storage->mutable_raw_events()->AddRawEvent(
           ts, raw_chrome_legacy_user_trace_event_id_, 0, 0);
       Variadic value =
-          Variadic::Json(storage->InternString(legacy_trace.data()));
+          Variadic::String(storage->InternString(legacy_trace.data()));
       args.AddArg(row_id, data_name_id_, data_name_id_, value);
     }
   }

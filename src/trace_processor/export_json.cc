@@ -112,11 +112,24 @@ class TraceFormatWriter {
     system_trace_data_ += data;
   }
 
+  void AddUserTraceData(const std::string& data) { user_trace_data_ += data; }
+
  private:
   void WriteHeader() { fputs("{\"traceEvents\":[\n", output_); }
 
   void WriteFooter() {
     Json::FastWriter writer;
+    if (!user_trace_data_.empty()) {
+      Json::Reader reader;
+      Json::Value result;
+      if (reader.parse(user_trace_data_, result)) {
+        WriteCommonEvent(result);
+      } else {
+        PERFETTO_DLOG(
+            "can't parse legacy user json trace export, skipping. data: %s",
+            user_trace_data_.c_str());
+      }
+    }
     fputs("]", output_);
     if (!system_trace_data_.empty()) {
       fputs(",\"systemTraceEvents\":\n", output_);
@@ -134,6 +147,7 @@ class TraceFormatWriter {
   bool first_event_;
   Json::Value metadata_;
   std::string system_trace_data_;
+  std::string user_trace_data_;
 };
 
 std::string PrintUint64(uint64_t x) {
@@ -592,7 +606,7 @@ ResultCode ExportRawEvents(const TraceStorage* storage,
                events.name_ids()[i] == *raw_legacy_user_trace_event_id) {
       Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
       PERFETTO_DCHECK(args.isMember("data"));
-      writer->WriteCommonEvent(args["data"]);
+      writer->AddUserTraceData(args["data"].asString());
     } else if (raw_chrome_metadata_event_id &&
                events.name_ids()[i] == *raw_chrome_metadata_event_id) {
       Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
