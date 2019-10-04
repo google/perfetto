@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """ Mirrors a Gerrit repo into GitHub.
 
 Mirrors all the branches (refs/heads/foo) from Gerrit to Github as-is, taking
@@ -49,8 +48,12 @@ ENV = {'GIT_SSH_COMMAND': 'ssh -i ' + os.path.join(CUR_DIR, 'deploy_key')}
 def GitCmd(*args, **kwargs):
   cmd = ['git'] + list(args)
   p = subprocess.Popen(
-      cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr,
-      cwd=WORKDIR, env=ENV)
+      cmd,
+      stdin=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+      stderr=sys.stderr,
+      cwd=WORKDIR,
+      env=ENV)
   out = p.communicate(kwargs.get('stdin'))[0]
   assert p.returncode == 0, 'FAIL: ' + ' '.join(cmd)
   return out
@@ -98,7 +101,6 @@ def Sync(args):
       branch = ref[len(PREFIX):]
       future_heads['refs/heads/' + branch] = ref_sha1
       continue
-
 
   deleted_heads = set(current_heads) - set(future_heads)
   logging.info('current_heads: %d, future_heads: %d, deleted_heads: %d',

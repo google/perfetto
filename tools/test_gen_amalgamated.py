@@ -40,9 +40,9 @@ def check_amalgamated_output():
 def check_amalgamated_dependencies():
   os_deps = {}
   for os_name in ['android', 'linux', 'mac']:
-    os_deps[os_name] = call(
-        'gen_amalgamated', '--gn_args', 'target_os="%s"' % os_name,
-        '--dump-deps', '--quiet').split('\n')
+    os_deps[os_name] = call('gen_amalgamated', '--gn_args',
+                            'target_os="%s"' % os_name, '--dump-deps',
+                            '--quiet').split('\n')
   for os_name, deps in os_deps.items():
     for dep in deps:
       for other_os, other_deps in os_deps.items():

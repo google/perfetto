@@ -22,6 +22,7 @@ import sys
 from codecs import open
 from compat import xrange
 
+
 def fix_guards(fpath, checkonly):
   with open(fpath, 'r', encoding='utf-8') as f:
     lines = [l.strip('\n') for l in f.readlines()]
@@ -49,7 +50,7 @@ def fix_guards(fpath, checkonly):
       line = '#define ' + guard
       replacements = 2
     elif line_idx == endif_line_idx and replacements == 2:
-      assert(line.startswith('#endif'))
+      assert (line.startswith('#endif'))
       line = '#endif  // ' + guard
     res.append(line)
     line_idx += 1
@@ -61,6 +62,7 @@ def fix_guards(fpath, checkonly):
   with open(fpath, 'w', encoding='utf-8') as f:
     f.write('\n'.join(res) + '\n')
   return 1
+
 
 def main():
   checkonly = '--check-only' in sys.argv
@@ -76,6 +78,7 @@ def main():
     return 0 if num_files_changed == 0 else 1
   else:
     print('%d files changed' % num_files_changed)
+
 
 if __name__ == '__main__':
   sys.exit(main())

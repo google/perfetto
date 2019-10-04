@@ -56,8 +56,11 @@ def defer(action, **kwargs):
   - Performance: tasks are run concurrently, which is quite important given that
     most of them are bound by HTTP latency to Gerrit of Firebase.
   '''
-  taskqueue.add(queue_name='deferred-jobs', url='/controller/' + action,
-                params=kwargs, method='GET')
+  taskqueue.add(
+      queue_name='deferred-jobs',
+      url='/controller/' + action,
+      params=kwargs,
+      method='GET')
 
 
 def create_stackdriver_metric_definitions():
@@ -76,11 +79,18 @@ def write_metrics(metric_dict):
             'type': STACKDRIVER_METRICS[key]['type'],
             'labels': spec.get('l', {})
         },
-        'resource': {'type': 'global'},
+        'resource': {
+            'type': 'global'
+        },
         'points': [{
-            'interval': {'endTime': now},
-            'value': {'int64Value': str(spec['v'])}
-        }]}]
+            'interval': {
+                'endTime': now
+            },
+            'value': {
+                'int64Value': str(spec['v'])
+            }
+        }]
+    }]
   try:
     req('POST', STACKDRIVER_API + '/timeSeries', body=desc)
   except Exception as e:
@@ -92,6 +102,7 @@ def write_metrics(metric_dict):
 
 def is_trusted(email):
   return re.match(TRUSTED_EMAILS, email)
+
 
 # ------------------------------------------------------------------------------
 # Deferred job handlers
@@ -109,8 +120,8 @@ def tick(handler):
   # Avoid avalanching effects due to the failsafe tick job in cron.yaml.
   if now - last_tick < GERRIT_POLL_SEC - 1:
     return
-  taskqueue.add(url='/controller/tick', queue_name='tick',
-                countdown=GERRIT_POLL_SEC)
+  taskqueue.add(
+      url='/controller/tick', queue_name='tick', countdown=GERRIT_POLL_SEC)
   defer('check_new_cls')
   defer('check_pending_cls')
   defer('update_queue_metrics')
@@ -136,14 +147,15 @@ def check_new_cls(handler):
     # account or are marked as Presubmit-Verified by a trustd account.
     if not is_trusted(owner) and not is_trusted(prs_owner):
       continue
-    defer('check_new_cl',
-          cl=str(change['_number']),
-          patchset=str(rev['_number']),
-          change_id=change['id'],
-          rev_hash=rev_hash,
-          ref=rev['ref'],
-          owner=rev['uploader']['email'],
-          wants_vote='1' if prs_ready else '0')
+    defer(
+        'check_new_cl',
+        cl=str(change['_number']),
+        patchset=str(rev['_number']),
+        change_id=change['id'],
+        rev_hash=rev_hash,
+        ref=rev['ref'],
+        owner=rev['uploader']['email'],
+        wants_vote='1' if prs_ready else '0')
 
 
 def append_jobs(patch_obj, src, git_ref, now=None):
@@ -304,8 +316,8 @@ def comment_and_vote_cl(handler):
     if job_obj['status'] == 'CANCELLED':
       cancelled = True
     if '-ui-' in job_id:
-      ui_links.append('https://storage.googleapis.com/%s/%s/ui/index.html' % (
-          GCS_ARTIFACTS, job_id))
+      ui_links.append('https://storage.googleapis.com/%s/%s/ui/index.html' %
+                      (GCS_ARTIFACTS, job_id))
     if job_obj['status'] == 'COMPLETED':
       passed_jobs.append(job_id)
     elif not job_config.get('SKIP_VOTING', False):
@@ -319,8 +331,10 @@ def comment_and_vote_cl(handler):
   log_url = CI_SITE + '/#!/logs'
   if failed_jobs:
     msg += 'FAIL:\n'
-    msg += ''.join([' %s/%s (%s)\n' % (log_url, job_id, status)
-                    for (job_id, status) in failed_jobs.iteritems()])
+    msg += ''.join([
+        ' %s/%s (%s)\n' % (log_url, job_id, status)
+        for (job_id, status) in failed_jobs.iteritems()
+    ])
   if passed_jobs:
     msg += 'PASS:\n'
     msg += ''.join([' %s/%s\n' % (log_url, job_id) for job_id in passed_jobs])
@@ -367,13 +381,16 @@ def queue_postsubmit_jobs(handler):
   # Enqueue jobs.
   src = 'branches/%s-%s' % (branch, time_committed.strftime('%Y%m%d%H%M%S'))
   now = datetime.utcnow()
-  patch_obj = {src: {'rev': revision,
-                     'subject': commit_info['subject'][:100],
-                     'author': commit_info['author'].get('email', 'N/A'),
-                     'time_committed': utc_now_iso(time_committed),
-                     'time_queued': utc_now_iso(),
-                     'jobs': {},
-                     }}
+  patch_obj = {
+      src: {
+          'rev': revision,
+          'subject': commit_info['subject'][:100],
+          'author': commit_info['author'].get('email', 'N/A'),
+          'time_committed': utc_now_iso(time_committed),
+          'time_queued': utc_now_iso(),
+          'jobs': {},
+      }
+  }
   ref = 'refs/heads/' + branch
   append_jobs(patch_obj, src, ref, now)
   req('PATCH', DB + '.json', body=patch_obj)
@@ -426,9 +443,12 @@ def update_cl_metrics(handler):
   cl_obj = req('GET', '%s/%s.json' % (DB, handler.request.get('src')))
   t_queued = parse_iso_time(cl_obj['time_queued'])
   t_ended = parse_iso_time(cl_obj['time_ended'])
-  write_metrics({'ci_cl_completion_time': {
-      'l': {}, 'v': int((t_ended - t_queued).total_seconds())
-  }})
+  write_metrics({
+      'ci_cl_completion_time': {
+          'l': {},
+          'v': int((t_ended - t_queued).total_seconds())
+      }
+  })
 
 
 def update_job_metrics(handler):
@@ -439,14 +459,20 @@ def update_job_metrics(handler):
     t_queued = parse_iso_time(job['time_queued'])
     t_started = parse_iso_time(job['time_started'])
     metrics['ci_job_queue_time'] = {
-        'l': {'job_type': job['type']},
-        'v': int((t_started - t_queued).total_seconds())}
+        'l': {
+            'job_type': job['type']
+        },
+        'v': int((t_started - t_queued).total_seconds())
+    }
   if 'time_ended' in job and 'time_started' in job:
     t_started = parse_iso_time(job['time_started'])
     t_ended = parse_iso_time(job['time_ended'])
     metrics['ci_job_run_time'] = {
-        'l': {'job_type': job['type']},
-        'v': int((t_ended - t_started).total_seconds())}
+        'l': {
+            'job_type': job['type']
+        },
+        'v': int((t_ended - t_started).total_seconds())
+    }
   if metrics:
     write_metrics(metrics)
 
@@ -490,4 +516,5 @@ class ControllerHandler(webapp2.RequestHandler):
 app = webapp2.WSGIApplication([
     ('/_ah/(start)', ControllerHandler),
     (r'/controller/(\w+)', ControllerHandler),
-], debug=True)
+],
+                              debug=True)

@@ -20,7 +20,6 @@ import sys
 
 from config import DB, PROJECT
 from common_utils import req, SCOPES
-
 '''
 Uploads the performance metrics of the Perfetto tests to StackDriver and
 Firebase.
@@ -45,7 +44,6 @@ The expected format of the JSON is as follows:
   ]
 }
 '''
-
 
 STACKDRIVER_API = 'https://monitoring.googleapis.com/v3/projects/%s' % PROJECT
 SCOPES.append('https://www.googleapis.com/auth/firebase.database')
@@ -73,26 +71,37 @@ def create_stackdriver_metrics(ts, metrics):
     metric_name = metric['metric']
     desc['timeSeries'] += [{
         'metric': {
-          'type': 'custom.googleapis.com/perfetto-ci/perf/%s' % metric_name,
-          'labels': dict(
-            list(metric.get('tags', {}).items()) +
-            list(metric.get('labels', {}).items())
-          ),
+            'type':
+                'custom.googleapis.com/perfetto-ci/perf/%s' % metric_name,
+            'labels':
+                dict(
+                    list(metric.get('tags', {}).items()) +
+                    list(metric.get('labels', {}).items())),
         },
-        'resource': {'type': 'global'},
+        'resource': {
+            'type': 'global'
+        },
         'points': [{
-          'interval': {'endTime': ts},
-          'value': {'doubleValue': str(metric['value'])}
-        }]}]
+            'interval': {
+                'endTime': ts
+            },
+            'value': {
+                'doubleValue': str(metric['value'])
+            }
+        }]
+    }]
   return desc
 
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--job-id', type=str, required=True,
-                      help='The Perfetto CI job ID to tie this upload to')
-  parser.add_argument('metrics_file', type=str,
-                      help='File containing the metrics to upload')
+  parser.add_argument(
+      '--job-id',
+      type=str,
+      required=True,
+      help='The Perfetto CI job ID to tie this upload to')
+  parser.add_argument(
+      'metrics_file', type=str, help='File containing the metrics to upload')
   args = parser.parse_args()
 
   with open(args.metrics_file, 'r') as metrics_file:

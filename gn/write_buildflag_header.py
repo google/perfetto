@@ -28,6 +28,7 @@ import os
 import shlex
 import sys
 
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--rsp', help='Input response file containing the flags.')
@@ -65,6 +66,6 @@ def main():
   with open(args.out, 'w') as out:
     out.write('\n'.join(lines))
 
+
 if __name__ == '__main__':
   sys.exit(main())
-

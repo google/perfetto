@@ -20,7 +20,11 @@ STACKDRIVER_METRICS = {
         'type': 'custom.googleapis.com/perfetto-ci/ci_job_queue_len',
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
-        'metadata': {'samplePeriod': {'seconds': 1}},
+        'metadata': {
+            'samplePeriod': {
+                'seconds': 1
+            }
+        },
         'labels': []
     },
     'ci_job_queue_time': {
@@ -31,8 +35,15 @@ STACKDRIVER_METRICS = {
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'unit': 's',
-        'metadata': {'samplePeriod': {'seconds': 1}},
-        'labels': [{'key': 'job_type', 'valueType': 'STRING'}]
+        'metadata': {
+            'samplePeriod': {
+                'seconds': 1
+            }
+        },
+        'labels': [{
+            'key': 'job_type',
+            'valueType': 'STRING'
+        }]
     },
     'ci_job_run_time': {
         'name': 'ci_job_run_time',
@@ -42,8 +53,15 @@ STACKDRIVER_METRICS = {
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'unit': 's',
-        'metadata': {'samplePeriod': {'seconds': 1}},
-        'labels': [{'key': 'job_type', 'valueType': 'STRING'}]
+        'metadata': {
+            'samplePeriod': {
+                'seconds': 1
+            }
+        },
+        'labels': [{
+            'key': 'job_type',
+            'valueType': 'STRING'
+        }]
     },
     'ci_cl_completion_time': {
         'name': 'ci_cl_completion_time',
@@ -53,7 +71,11 @@ STACKDRIVER_METRICS = {
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'unit': 's',
-        'metadata': {'samplePeriod': {'seconds': 1}},
+        'metadata': {
+            'samplePeriod': {
+                'seconds': 1
+            }
+        },
         'labels': []
     },
 }

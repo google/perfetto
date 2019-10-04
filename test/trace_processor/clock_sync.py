@@ -63,17 +63,15 @@ trace.add_gpu_counter(ts=4, clock_id=GLOBAL_CLK2, counter_id=42, value=9)
 # Use a sequence-scoped clock on two differents sequences.
 # On seq 2, BOOTTIME = SEQ_CLOCK1 + 2000
 # On seq 3, BOOTTIME = SEQ_CLOCK1 + 3000
-trace.add_clock_snapshot(seq_id=2,
-                         clocks={SEQ_CLOCK1: 1, CLOCK_BOOTTIME: 2001})
-trace.add_clock_snapshot(seq_id=3,
-                         clocks={SEQ_CLOCK1: 1, CLOCK_BOOTTIME: 3001})
+trace.add_clock_snapshot(seq_id=2, clocks={SEQ_CLOCK1: 1, CLOCK_BOOTTIME: 2001})
+trace.add_clock_snapshot(seq_id=3, clocks={SEQ_CLOCK1: 1, CLOCK_BOOTTIME: 3001})
 
 # This counter should be translated @ BOOTTIME : 3000 + 7
-trace.add_gpu_counter(ts=7, clock_id=SEQ_CLOCK1,
-                      counter_id=42, value=13, seq_id=3)
+trace.add_gpu_counter(
+    ts=7, clock_id=SEQ_CLOCK1, counter_id=42, value=13, seq_id=3)
 
 # This counter should be translated @ BOOTTIME : 2000 + 6
-trace.add_gpu_counter(ts=6, clock_id=SEQ_CLOCK1, seq_id=2, counter_id=42,
-                      value=11)
+trace.add_gpu_counter(
+    ts=6, clock_id=SEQ_CLOCK1, seq_id=2, counter_id=42, value=11)
 
 print(trace.trace.SerializeToString())

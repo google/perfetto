@@ -21,7 +21,9 @@
 import sys
 import argparse
 
+
 class Node(object):
+
   def __init__(self, name, label=None):
     self.name = name
     self.label = label
@@ -81,8 +83,8 @@ def BuildTree(stream=sys.stdin):
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('labels', metavar='L', type=str, nargs='+',
-                      help='labels we want to find')
+  parser.add_argument(
+      'labels', metavar='L', type=str, nargs='+', help='labels we want to find')
   args = parser.parse_args()
   root = BuildTree()
   for fullpath, elem in root:

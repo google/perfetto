@@ -27,15 +27,15 @@ trace.add_process(3, 1, 'com.google.android.calendar')
 trace.add_ftrace_packet(cpu=0)
 
 # Start intent for a successful launch of calendar
-trace.add_atrace_begin(ts=102, tid=2, pid=2,
-    buf='MetricsLogger:launchObserverNotifyIntentStarted')
+trace.add_atrace_begin(
+    ts=102, tid=2, pid=2, buf='MetricsLogger:launchObserverNotifyIntentStarted')
 trace.add_atrace_end(ts=103, tid=2, pid=2)
 
-trace.add_atrace_async_begin(ts=110, tid=2, pid=2,
-    buf='launching: com.google.android.calendar')
+trace.add_atrace_async_begin(
+    ts=110, tid=2, pid=2, buf='launching: com.google.android.calendar')
 
-trace.add_atrace_begin(ts=120, tid=2, pid=2,
-    buf='Start proc: com.google.android.calendar')
+trace.add_atrace_begin(
+    ts=120, tid=2, pid=2, buf='Start proc: com.google.android.calendar')
 trace.add_atrace_end(ts=155, tid=2, pid=2)
 
 # Unrelated process binding, ignored
@@ -45,9 +45,12 @@ trace.add_atrace_end(ts=195, tid=1, pid=1)
 trace.add_atrace_begin(ts=185, tid=3, pid=3, buf='bindApplication')
 trace.add_atrace_end(ts=195, tid=3, pid=3)
 
-trace.add_atrace_async_end(ts=210, tid=2, pid=2,
-    buf='launching: com.google.android.calendar')
-trace.add_atrace_begin(ts=211, tid=2, pid=2,
+trace.add_atrace_async_end(
+    ts=210, tid=2, pid=2, buf='launching: com.google.android.calendar')
+trace.add_atrace_begin(
+    ts=211,
+    tid=2,
+    pid=2,
     buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
 trace.add_atrace_end(ts=212, tid=2, pid=2)
 
