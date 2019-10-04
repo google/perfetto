@@ -44,12 +44,21 @@ export interface CounterDetails {
   duration?: number;
 }
 
+export interface CallsiteInfo {
+  hash: number;
+  parentHash: number;
+  depth: number;
+  name?: string;
+  totalSize: number;
+}
+
 export interface HeapDumpDetails {
   ts?: number;
   tsNs?: number;
   allocated?: number;
   allocatedNotFreed?: number;
   pid?: number;
+  flamegraphData?: CallsiteInfo[];
 }
 
 export interface QuantizedLoad {
