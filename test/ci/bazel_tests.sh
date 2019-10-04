@@ -15,9 +15,16 @@
 
 set -eux -o pipefail
 
+# cd into the project root (two levels up from /test/ci).
 cd $(dirname ${BASH_SOURCE[0]})/../..
 
-# TODO(primiano): Add --disk_cache=/ci/cache/bazel-$(hostname) to speed up
-# builds. That requires a daily cleanup of the cache though because bazel
-# otherwise grows it indefinitely.
-bazel build //:all
+bazel build //:all --verbose_failures
+
+# Smoke test that processes run without crashing.
+./bazel-bin/traced &
+./bazel-bin/traced_probes &
+sleep 5
+TRACE=/ci/artifacts/bazel.trace
+./bazel-bin/perfetto -c :test -o $TRACE
+kill $(jobs -p)
+./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
