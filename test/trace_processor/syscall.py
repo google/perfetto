@@ -26,7 +26,6 @@ trace.add_process(pid=2, ppid=1, cmdline="two_thread_process")
 trace.add_process(pid=4, ppid=1, cmdline="single_thread_process")
 trace.add_thread(tid=3, tgid=2, cmdline="two_thread_process")
 
-
 trace.add_ftrace_packet(cpu=0)
 trace.add_sys_enter(ts=100, tid=1, id=0)
 trace.add_sys_enter(ts=105, tid=2, id=1)

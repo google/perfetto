@@ -66,8 +66,10 @@ NAMESPACE_END = '''
 }  // namsepace perfetto
 '''
 
+
 def filename_to_variable(filename):
   return "k" + "".join([x.capitalize() for x in filename.split("_")])
+
 
 def main():
   parser = argparse.ArgumentParser()
@@ -75,8 +77,7 @@ def main():
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
-  root_path = os.path.commonprefix(
-    [os.path.abspath(x) for x in args.sql_files])
+  root_path = os.path.commonprefix([os.path.abspath(x) for x in args.sql_files])
 
   # Extract the SQL output from each file.
   sql_outputs = {}
@@ -84,7 +85,7 @@ def main():
     with open(file_name, 'r') as f:
       relpath = os.path.relpath(file_name, root_path)
       sql_outputs[relpath] = "".join(
-        x for x in f.readlines() if not x.startswith('--'))
+          x for x in f.readlines() if not x.startswith('--'))
 
   with open(args.cpp_out, 'w+') as output:
     output.write(REPLACEMENT_HEADER)
@@ -94,8 +95,9 @@ def main():
     for path, sql in sql_outputs.items():
       name = os.path.basename(path)
       variable = filename_to_variable(os.path.splitext(name)[0])
-      output.write('\nconst char {}[] = R"gendelimiter(\n{})gendelimiter";\n'
-        .format(variable, sql))
+      output.write(
+          '\nconst char {}[] = R"gendelimiter(\n{})gendelimiter";\n'.format(
+              variable, sql))
 
     output.write(FILE_TO_SQL_STRUCT)
 
@@ -113,6 +115,7 @@ def main():
     output.write(NAMESPACE_END)
 
   return 0
+
 
 if __name__ == '__main__':
   sys.exit(main())

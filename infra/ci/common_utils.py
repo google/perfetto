@@ -42,8 +42,10 @@ def get_gerrit_credentials():
   gitcookie: is the password after the = token.
   '''
   body = {'query': {'kind': [{'name': 'GerritAuth'}]}}
-  res = req('POST', 'https://datastore.googleapis.com/v1/projects/%s:runQuery' %
-            PROJECT, body=body)
+  res = req(
+      'POST',
+      'https://datastore.googleapis.com/v1/projects/%s:runQuery' % PROJECT,
+      body=body)
   auth = res['batch']['entityResults'][0]['entity']['properties']
   user = auth['user']['stringValue']
   gitcookie = auth['gitcookie']['stringValue']
@@ -91,6 +93,7 @@ def req(method, uri, body=None, req_etag=False, etag=None, gerrit=False):
 
 # Datetime functions to deal with the fact that Javascript expects a trailing
 # 'Z' (Z == 'Zulu' == UTC) for timestamps.
+
 
 def parse_iso_time(time_str):
   return datetime.strptime(time_str, r'%Y-%m-%dT%H:%M:%SZ')

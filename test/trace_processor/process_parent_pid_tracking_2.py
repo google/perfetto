@@ -27,8 +27,7 @@ trace = synth_common.create_trace()
 
 # Fork off the new process from the worker thread.
 trace.add_ftrace_packet(0)
-trace.add_newtask(ts=15, tid=11, new_tid=20,
-                  new_comm='child', flags=0)
+trace.add_newtask(ts=15, tid=11, new_tid=20, new_comm='child', flags=0)
 
 # Create a multi-threaded process which will be forked below.
 trace.add_process_tree_packet(ts=25)

@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 ''' Worker main loop. Pulls jobs from the DB and runs them in the sandbox
 
 It also handles timeouts and graceful container termination.
@@ -97,7 +96,9 @@ def worker_loop():
   # Update the db, move the job to the running queue.
   patch_obj = {
       'jobs_queued/' + job_id: {},  # = DELETE
-      'jobs_running/' + job_id: {'worker': WORKER_NAME},
+      'jobs_running/' + job_id: {
+          'worker': WORKER_NAME
+      },
       'workers/' + WORKER_NAME: make_worker_obj('RUNNING', job_id=job_id)
   }
   req('PATCH', '%s.json' % DB, body=patch_obj)
@@ -132,11 +133,8 @@ def worker_loop():
       cancelled = True
       job_runner.terminate()
 
-  status = ('INTERRUPTED' if sigterm.is_set() else
-            'CANCELLED' if cancelled else
-            'TIMED_OUT' if timed_out else
-            'COMPLETED' if res == 0 else
-            'FAILED')
+  status = ('INTERRUPTED' if sigterm.is_set() else 'CANCELLED' if cancelled else
+            'TIMED_OUT' if timed_out else 'COMPLETED' if res == 0 else 'FAILED')
   logging.info('Job %s %s with code %s', job_id, status, res)
 
   # Update the DB, unless the job has been cancelled. The "is not None"
@@ -168,7 +166,8 @@ def main():
     logging.debug('Starting poll cycle')
     try:
       worker_loop()
-      req('PUT', '%s/workers/%s.json' % (DB, WORKER_NAME),
+      req('PUT',
+          '%s/workers/%s.json' % (DB, WORKER_NAME),
           body=make_worker_obj('IDLE'))
     except:
       logging.error('Exception in worker loop:\n%s', traceback.format_exc())
@@ -180,7 +179,8 @@ def main():
   # We mark the worker as terminated and the job as cancelled so we don't wait
   # forever for it.
   logging.warn('Exiting the worker loop, got signal: %s', sigterm.is_set())
-  req('PUT', '%s/workers/%s.json' % (DB, WORKER_NAME),
+  req('PUT',
+      '%s/workers/%s.json' % (DB, WORKER_NAME),
       body=make_worker_obj('TERMINATED'))
 
 
