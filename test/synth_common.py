@@ -237,7 +237,7 @@ class Trace(object):
     if seq_id is not None:
       packet.trusted_packet_sequence_id = seq_id
     snap = self.packet.clock_snapshot
-    for k,v in clocks.iteritems():
+    for k, v in clocks.iteritems():
       clock = snap.clocks.add()
       clock.clock_id = k
       clock.timestamp = v
@@ -261,7 +261,6 @@ class Trace(object):
     spec.numerator_units.extend(unit_numerators)
     spec.denominator_units.extend(unit_denominators)
 
-
   def add_gpu_counter(self, ts, counter_id, value, clock_id=None, seq_id=None):
     packet = self.add_packet()
     packet.timestamp = ts
@@ -274,7 +273,8 @@ class Trace(object):
     gpu_counter.counter_id = counter_id
     gpu_counter.int_value = value
 
-  def add_buffer_event_packet(self, ts, buffer_id, layer_name, frame_number, event_type, duration):
+  def add_buffer_event_packet(self, ts, buffer_id, layer_name, frame_number,
+                              event_type, duration):
     packet = self.add_packet()
     packet.timestamp = ts
     buffer_event = packet.graphics_frame_event.buffer_event
@@ -285,6 +285,7 @@ class Trace(object):
     if event_type >= 0:
       buffer_event.type = event_type
     buffer_event.duration_ns = duration
+
 
 def create_trace():
   parser = argparse.ArgumentParser()

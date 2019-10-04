@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """ Script to list all files in a directory filtering by pattern.
 
 Do NOT use this script to pull in sources for GN targets. Globbing inputs is
@@ -21,11 +20,12 @@ script should be used only for cases where false positives won't affect the
 output of the build but just cause spurious re-runs (e.g. as input section of
 an "action" target).
 """
-from __future__ import print_function 
+from __future__ import print_function
 import argparse
 import fnmatch
 import os
 import sys
+
 
 def main():
   parser = argparse.ArgumentParser()
@@ -37,6 +37,7 @@ def main():
   args = parser.parse_args()
 
   fout = open(args.output, 'w') if args.output else sys.stdout
+
   def writepath(path):
     if args.deps:
       path = '\t' + path
@@ -63,6 +64,7 @@ def main():
           break
       if match:
         writepath(fpath)
+
 
 if __name__ == '__main__':
   sys.exit(main())

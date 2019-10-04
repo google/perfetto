@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Script to wrap protoc execution.
 
 This script exists to work-around the bad depfile generation by protoc when
@@ -27,6 +26,7 @@ import tempfile
 
 from codecs import open
 
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--descriptor_set_out', default=None)
@@ -37,20 +37,19 @@ def main():
   if args.dependency_out and args.descriptor_set_out:
     with tempfile.NamedTemporaryFile() as t:
       custom = [
-        '--descriptor_set_out',
-        args.descriptor_set_out,
-        '--dependency_out',
-        t.name
+          '--descriptor_set_out', args.descriptor_set_out, '--dependency_out',
+          t.name
       ]
       subprocess.check_call([args.protoc] + custom + remaining)
 
       dependency_data = t.read().decode('utf-8')
 
-    with open(args.dependency_out, 'w', encoding = 'utf-8') as f:
+    with open(args.dependency_out, 'w', encoding='utf-8') as f:
       f.write(args.descriptor_set_out + ":")
       f.write(dependency_data)
   else:
     subprocess.check_call(sys.argv[1:])
+
 
 if __name__ == '__main__':
   sys.exit(main())

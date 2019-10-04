@@ -35,7 +35,6 @@ RESCAN_PERIOD_SEC = 5  # Scan for new artifact directories every X seconds.
 WATCHDOG_SEC = 60 * 6  # Self kill after 5 minutes
 
 tls = threading.local()
-
 '''Polls for new directories under ARTIFACTS_DIR and uploads them to GCS'''
 
 
@@ -54,7 +53,7 @@ def upload_one_file(fpath):
   http = get_http_obj()
   relpath = os.path.relpath(fpath, os.getenv('ARTIFACTS_DIR'))
   logging.debug('Uploading %s', relpath)
-  assert(os.path.exists(fpath))
+  assert (os.path.exists(fpath))
   fsize = os.path.getsize(fpath)
   mime_type = mimetypes.guess_type(fpath)[0] or 'application/octet-stream'
   mm = ''
@@ -105,8 +104,11 @@ def main():
 
   parser = argparse.ArgumentParser()
   parser.add_argument('--rm', action='store_true', help='Removes the directory')
-  parser.add_argument('--job-id', type=str, required=True,
-                      help='The Perfetto CI job ID to tie this upload to')
+  parser.add_argument(
+      '--job-id',
+      type=str,
+      required=True,
+      help='The Perfetto CI job ID to tie this upload to')
   args = parser.parse_args()
   job_id = args.job_id
   dirpath = os.path.join(os.getenv('ARTIFACTS_DIR', default=os.curdir), job_id)

@@ -26,15 +26,20 @@ def main():
   parser.add_argument(
       'encode_or_decode',
       choices=['encode', 'decode'],
-      help='encode into binary format or decode to text.'
-  )
-  parser.add_argument('--proto_name', default='TraceConfig',
+      help='encode into binary format or decode to text.')
+  parser.add_argument(
+      '--proto_name',
+      default='TraceConfig',
       help='name of proto to encode/decode (default: TraceConfig).')
-  parser.add_argument('--protoc', default='protoc',
-      help='Path to the protoc executable')
-  parser.add_argument('--input', default='-',
+  parser.add_argument(
+      '--protoc', default='protoc', help='Path to the protoc executable')
+  parser.add_argument(
+      '--input',
+      default='-',
       help='input file, or "-" for stdin (default: "-")')
-  parser.add_argument('--output', default='-',
+  parser.add_argument(
+      '--output',
+      default='-',
       help='output file, or "-" for stdout (default: "-")')
   args = parser.parse_args()
 
