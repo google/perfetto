@@ -27,6 +27,8 @@ import sys
 from compat import iteritems
 
 BUILDFLAGS_TARGET = '//gn:gen_buildflags'
+TARGET_TOOLCHAIN = '//gn/standalone/toolchain:gcc_like_host'
+HOST_TOOLCHAIN = '//gn/standalone/toolchain:gcc_like_host'
 LINKER_UNIT_TYPES = ('executable', 'shared_library', 'static_library')
 
 
@@ -219,6 +221,8 @@ class GnParser(object):
                      'action', 'source_set', 'proto_library')
       assert (type in VALID_TYPES)
       self.type = type
+      self.testonly = False
+      self.toolchain = None
 
       # Only set when type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
@@ -237,6 +241,7 @@ class GnParser(object):
       self.cflags = set()
       self.defines = set()
       self.deps = set()
+      self.libs = set()
       self.include_dirs = set()
       self.ldflags = set()
       self.source_set_deps = set()  # Transitive set of source_set deps.
@@ -266,7 +271,7 @@ class GnParser(object):
 
     def update(self, other):
       for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
-                  'source_set_deps', 'proto_deps'):
+                  'source_set_deps', 'proto_deps', 'libs'):
         self.__dict__[key].update(other.__dict__.get(key, []))
 
   def __init__(self, gn_desc):
@@ -289,6 +294,8 @@ class GnParser(object):
 
     desc = self.gn_desc_[gn_target_name]
     target = GnParser.Target(gn_target_name, desc['type'])
+    target.testonly = desc.get('testonly', False)
+    target.toolchain = desc.get('toolchain', None)
     self.all_targets[gn_target_name] = target
 
     # We should never have GN targets directly depend on buidtools. They
@@ -302,12 +309,11 @@ class GnParser(object):
       target.is_third_party_dep_ = True
       return target
 
-    proto_target_type = self.get_proto_target_type_(target)
+    proto_target_type, proto_desc = self.get_proto_target_type_(target)
     if proto_target_type is not None:
       self.proto_libs[target.name] = target
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
-      proto_desc = self.gn_desc_[target.name + '_gen']
       target.sources.update(proto_desc.get('sources', []))
       assert (all(x.endswith('.proto') for x in target.sources))
     elif target.type == 'source_set':
@@ -319,7 +325,7 @@ class GnParser(object):
     elif target.type == 'action':
       self.actions[gn_target_name] = target
       target.inputs.update(desc['inputs'])
-      outs = [re.sub('^//out/[^/]+/gen/', '', x) for x in desc['outputs']]
+      outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
       target.outputs.update(outs)
       target.script = desc['script']
       # Args are typically relative to the root build dir (../../xxx)
@@ -327,6 +333,7 @@ class GnParser(object):
       target.args = [re.sub('^../../', '//', x) for x in desc['args']]
 
     target.cflags.update(desc.get('cflags', []) + desc.get('cflags_cc', []))
+    target.libs.update(desc.get('libs', []))
     target.ldflags.update(desc.get('ldflags', []))
     target.defines.update(desc.get('defines', []))
     target.include_dirs.update(desc.get('include_dirs', []))
@@ -345,7 +352,8 @@ class GnParser(object):
       elif dep.type == 'group':
         target.update(dep)  # Bubble up groups's cflags/ldflags etc.
       elif dep.type == 'action':
-        target.deps.add(dep_name)
+        if proto_target_type is None:
+          target.deps.add(dep_name)
       elif dep.type in LINKER_UNIT_TYPES:
         target.deps.add(dep_name)
 
@@ -355,21 +363,25 @@ class GnParser(object):
     """ Checks if the target is a proto library and return the plugin.
 
         Returns:
-            None: if the target is not a proto library.
-            The plugin name (or 'proto' in the default case) for proto library
-            targets.
+            (None, None): if the target is not a proto library.
+            (plugin, gen_desc) where |plugin| is 'proto' in the default (lite)
+            case or 'protozero' or 'ipc'; |gen_desc| is the GN json descriptor
+            of the _gen target (the one with .proto sources).
         """
-    gen_desc = self.gn_desc_.get(target.name + '_gen')
+    parts = target.name.split('(', 1)
+    name = parts[0]
+    toolchain = '(' + parts[1] if len(parts) > 1 else ''
+    gen_desc = self.gn_desc_.get('%s_gen%s' % (name, toolchain))
     if gen_desc is None or gen_desc['type'] != 'action':
-      return None
+      return None, None
     args = gen_desc.get('args', [])
     if '/protoc' not in args[0]:
-      return None
-    for arg in args:
-      if arg.startswith('--plugin='):
-        # |arg| at this point looks like:
-        #  --plugin=protoc-gen-plugin=gcc_like_host/protozero_plugin
-        # or
-        #  --plugin=protoc-gen-plugin=protozero_plugin
-        return arg.split('=')[-1].split('/')[-1].replace('_plugin', '')
-    return 'proto'
+      return None, None
+    plugin = 'proto'
+    for arg in (arg for arg in args if arg.startswith('--plugin=')):
+      # |arg| at this point looks like:
+      #  --plugin=protoc-gen-plugin=gcc_like_host/protozero_plugin
+      # or
+      #  --plugin=protoc-gen-plugin=protozero_plugin
+      plugin = arg.split('=')[-1].split('/')[-1].replace('_plugin', '')
+    return plugin, gen_desc
