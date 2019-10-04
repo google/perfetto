@@ -113,9 +113,9 @@ declare_args() {
     } else {  # GCC
       assert(gcc_target_triplet != "",
              "gcc_target_triplet must be non-empty when cross-compiling")
-      ar = "${gcc_target_triplet}-ar"
-      cc = "${gcc_target_triplet}-gcc"
-      cxx = "${gcc_target_triplet}-g++"
+      target_ar = "${gcc_target_triplet}-ar"
+      target_cc = "${gcc_target_triplet}-gcc"
+      target_cxx = "${gcc_target_triplet}-g++"
     }
   }
 }
