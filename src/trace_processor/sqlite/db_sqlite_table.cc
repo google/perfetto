@@ -113,11 +113,11 @@ double DbSqliteTable::EstimateCost(const QueryConstraints& qc) {
   // enough for the simplest cases.
   // TODO(lalitm): flesh out this algorithm to cover more complex cases.
 
-  // If we have no constraints, we always return the max possible value as we
+  // If we have no constraints, we always return the size of the table as we
   // want to discourage the query planner from taking this road.
   const auto& constraints = qc.constraints();
   if (constraints.empty())
-    return std::numeric_limits<int32_t>::max();
+    return table_->size();
 
   // This means we have at least one constraint. Check if any of the constraints
   // is an equality constraint on an id column.
