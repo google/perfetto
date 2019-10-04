@@ -2262,8 +2262,9 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
 
   EXPECT_EQ(storage_->args().args_count(), 1u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
-                     Variadic::Json(storage_->InternString(kUserTraceEvent))));
+  EXPECT_TRUE(
+      HasArg(1u, storage_->InternString("data"),
+             Variadic::String(storage_->InternString(kUserTraceEvent))));
 }
 
 TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
