@@ -178,6 +178,17 @@ void CreateBuiltinViews(sqlite3* db) {
     sqlite3_free(error);
   }
 
+  sqlite3_exec(db,
+               "CREATE VIEW gpu_slice AS "
+               "SELECT "
+               "* "
+               "FROM internal_gpu_slice join internal_slice using(slice_id);",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+
   // Legacy view for "slice" table with a deprecated table name.
   // TODO(eseckler): Remove this view when all users have switched to "slice".
   sqlite3_exec(db,
