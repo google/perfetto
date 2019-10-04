@@ -15,6 +15,7 @@
 
 set -eux -o pipefail
 
+# cd into the project root (two levels up from /test/ci).
 cd $(dirname ${BASH_SOURCE[0]})/../..
 
 OUT_PATH="out/dist"
