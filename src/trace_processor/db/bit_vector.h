@@ -217,8 +217,10 @@ class BitVector {
 
         // We start by adding the bits we set in the first block to the
         // cummulative count before the range we changed.
+        Address end_of_block = {start.block_idx,
+                                {Block::kWords - 1, BitWord::kBits - 1}};
         uint32_t count_in_block_after_end =
-            AddressToIndex(last_addr) - AddressToIndex(start) + 1;
+            AddressToIndex(end_of_block) - AddressToIndex(start) + 1;
         uint32_t set_count = GetNumBitsSet() + count_in_block_after_end;
 
         for (uint32_t i = start.block_idx + 1; i <= last_addr.block_idx; ++i) {
