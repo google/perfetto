@@ -952,7 +952,8 @@ TEST(ExportJsonTest, RawEvent) {
 
 TEST(ExportJsonTest, LegacyRawEvents) {
   const char* kLegacyFtraceData = "some \"data\"\nsome :data:";
-  const char* kLegacyJsonData = "{\"user\": 1}";
+  const char* kLegacyJsonData1 = "{\"us";
+  const char* kLegacyJsonData2 = "er\": 1}";
 
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
@@ -968,8 +969,13 @@ TEST(ExportJsonTest, LegacyRawEvents) {
 
   row_id = storage->mutable_raw_events()->AddRawEvent(
       0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
-  StringId json_data_id = storage->InternString(kLegacyJsonData);
-  args.AddArg(row_id, data_id, data_id, Variadic::Json(json_data_id));
+  StringId json_data1_id = storage->InternString(kLegacyJsonData1);
+  args.AddArg(row_id, data_id, data_id, Variadic::String(json_data1_id));
+
+  row_id = storage->mutable_raw_events()->AddRawEvent(
+      0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
+  StringId json_data2_id = storage->InternString(kLegacyJsonData2);
+  args.AddArg(row_id, data_id, data_id, Variadic::String(json_data2_id));
 
   args.Flush();
 
