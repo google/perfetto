@@ -202,6 +202,14 @@ TEST(BitVectorUnittest, Resize) {
   ASSERT_EQ(bv.GetNumBitsSet(), 2u);
 }
 
+TEST(BitVectorUnittest, ResizeHasCorrectCount) {
+  BitVector bv(1, false);
+  ASSERT_EQ(bv.GetNumBitsSet(), 0u);
+
+  bv.Resize(1024, true);
+  ASSERT_EQ(bv.GetNumBitsSet(), 1023u);
+}
+
 TEST(BitVectorUnittest, AppendAfterResizeDown) {
   BitVector bv(2049, false);
   bv.Set(2048);
