@@ -68,13 +68,17 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
   std::string filename = "/proc/" + std::to_string(pid) + "/cmdline";
   base::ScopedFile fd(base::OpenFile(filename, O_RDONLY | O_CLOEXEC));
   if (!fd) {
-    PERFETTO_DLOG("Failed to open %s", filename.c_str());
+    // We do not expect errors other than permission errors here.
+    if (errno != EPERM && errno != EACCES)
+      PERFETTO_PLOG("Failed to open %s", filename.c_str());
+    else
+      PERFETTO_DPLOG("Failed to open %s", filename.c_str());
     return false;
   }
   char cmdline[512];
   ssize_t rd = read(*fd, cmdline, sizeof(cmdline) - 1);
   if (rd == -1) {
-    PERFETTO_DLOG("Failed to read %s", filename.c_str());
+    PERFETTO_DPLOG("Failed to read %s", filename.c_str());
     return false;
   }
 
