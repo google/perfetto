@@ -20,7 +20,7 @@ def parse_tlb(data):
   table = {}
   for line in data.splitlines():
     line = line.strip()
-    if line.startswith('#') or not(line):
+    if line.startswith('#') or not (line):
       continue
     parts = line.split()
     table[int(parts[0])] = 'sys_' + parts[2]
