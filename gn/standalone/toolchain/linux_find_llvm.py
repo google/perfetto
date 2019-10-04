@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 
+
 def main():
   devnull = open(os.devnull, 'w')
   for clang in ('clang', 'clang-3.8', 'clang-3.5'):
@@ -35,6 +36,7 @@ def main():
         return 0
   print 'Could not find the LLVM lib dir'
   return 1
+
 
 if __name__ == '__main__':
   sys.exit(main())

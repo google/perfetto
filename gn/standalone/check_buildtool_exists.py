@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """ Script to check whether a given buildtool folder exists.
 
 Prints a user-friendly message if it doesn't.
@@ -22,6 +21,7 @@ import os
 import sys
 import argparse
 
+
 def main():
   parser = argparse.ArgumentParser(description='Test path for existence')
   parser.add_argument('path', help='Path to test for existence')
@@ -30,7 +30,7 @@ def main():
 
   if not os.path.exists(args.path):
     err = '\x1b[31mCannot find %s/%s\nRun tools/install-build-deps --ui\x1b[0m'
-    print >>sys.stderr,  err % (os.path.abspath('.'), sys.argv[1])
+    print >> sys.stderr, err % (os.path.abspath('.'), sys.argv[1])
     return 127
 
   if args.touch:
@@ -38,6 +38,7 @@ def main():
       os.utime(args.touch, None)
 
   return 0
+
 
 if __name__ == '__main__':
   sys.exit(main())

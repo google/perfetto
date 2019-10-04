@@ -19,10 +19,10 @@ import urllib
 from google.appengine.api import urlfetch
 from google.appengine.api import memcache
 from config import GERRIT_HOST, GERRIT_PROJECT
-
 ''' Makes anonymous GET-only requests to Gerrit.
 
 Solves the lack of CORS headers from AOSP gerrit.'''
+
 
 def req_cached(url):
   '''Used for requests that return immutable data, avoid hitting Gerrit 500'''
@@ -36,6 +36,7 @@ def req_cached(url):
 
 
 class GerritCommitsHandler(webapp2.RequestHandler):
+
   def get(self, sha1):
     project = urllib.quote(GERRIT_PROJECT, '')
     url = 'https://%s/projects/%s/commits/%s' % (GERRIT_HOST, project, sha1)
@@ -45,15 +46,17 @@ class GerritCommitsHandler(webapp2.RequestHandler):
 
 
 class GerritLogHandler(webapp2.RequestHandler):
+
   def get(self, first, second):
-    url = 'https://%s/%s/+log/%s..%s?format=json' % (
-        GERRIT_HOST.replace('-review', ''), GERRIT_PROJECT, first, second)
+    url = 'https://%s/%s/+log/%s..%s?format=json' % (GERRIT_HOST.replace(
+        '-review', ''), GERRIT_PROJECT, first, second)
     status, content = req_cached(url)
     self.response.status_int = status
     self.response.write(content[4:])  # 4: -> Strip Gerrit XSSI chars.
 
 
 class GerritChangesHandler(webapp2.RequestHandler):
+
   def get(self):
     url = 'https://%s/changes/?q=project:%s+' % (GERRIT_HOST, GERRIT_PROJECT)
     url += self.request.query_string
@@ -66,4 +69,5 @@ app = webapp2.WSGIApplication([
     ('/gerrit/commits/([a-f0-9]+)', GerritCommitsHandler),
     ('/gerrit/log/([a-f0-9]+)..([a-f0-9]+)', GerritLogHandler),
     ('/gerrit/changes/', GerritChangesHandler),
-], debug=True)
+],
+                              debug=True)

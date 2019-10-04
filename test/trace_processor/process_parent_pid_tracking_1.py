@@ -31,7 +31,6 @@ trace.add_thread(11, 10, "worker_thread")
 
 # Fork off the new process from the worker thread.
 trace.add_ftrace_packet(0)
-trace.add_newtask(ts=15, tid=11, new_tid=20,
-                  new_comm='child', flags=0)
+trace.add_newtask(ts=15, tid=11, new_tid=20, new_comm='child', flags=0)
 
 print(trace.trace.SerializeToString())

@@ -19,8 +19,10 @@ import os
 import subprocess
 import tempfile
 
+
 def test_command(*args):
   subprocess.check_call(args, stdout=sys.stdout, stderr=sys.stderr)
+
 
 if __name__ == '__main__':
   if len(sys.argv) != 4:
@@ -32,8 +34,5 @@ if __name__ == '__main__':
   tmpdir = tempfile.mkdtemp()
   proto_path = os.path.join(tmpdir, 'format.proto')
   test_command(ftrace_proto_gen_path, format_path, proto_path)
-  test_command(
-      protoc_path,
-      proto_path,
-      '--proto_path='+tmpdir,
-      '--cpp_out='+tmpdir)
+  test_command(protoc_path, proto_path, '--proto_path=' + tmpdir,
+               '--cpp_out=' + tmpdir)

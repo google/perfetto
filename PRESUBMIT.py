@@ -19,11 +19,16 @@ import subprocess
 def CheckChange(input, output):
   # There apparently is no way to wrap strings in blueprints, so ignore long
   # lines in them.
-  def long_line_sources(x): return input.FilterSourceFile(
-      x, white_list=".*",
-      black_list=['Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
-                  'test/trace_processor/index$', '.*\bBUILD$', 'WORKSPACE',
-                  '.*/Makefile$', '/perfetto_build_flags.h$'])
+  def long_line_sources(x):
+    return input.FilterSourceFile(
+        x,
+        white_list=".*",
+        black_list=[
+            'Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
+            'test/trace_processor/index$', '.*\bBUILD$', 'WORKSPACE',
+            '.*/Makefile$', '/perfetto_build_flags.h$'
+        ])
+
   results = []
   results += input.canned_checks.CheckDoNotSubmit(input, output)
   results += input.canned_checks.CheckChangeHasNoTabs(input, output)
@@ -52,44 +57,53 @@ def CheckChangeOnCommit(input_api, output_api):
 
 def CheckBuild(input_api, output_api):
   tool = 'tools/gen_bazel'
+
   # If no GN files were modified, bail out.
-  def build_file_filter(x): return input_api.FilterSourceFile(
-      x,
-      white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'BUILD\.extras', tool))
+  def build_file_filter(x):
+    return input_api.FilterSourceFile(
+        x, white_list=('.*BUILD[.]gn$', '.*[.]gni$', 'BUILD\.extras', tool))
+
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
   if subprocess.call([tool, '--check-only']):
-    return [output_api.PresubmitError('Bazel BUILD(s) are out of date. Run '
-            + tool + ' to update them.')]
+    return [
+        output_api.PresubmitError('Bazel BUILD(s) are out of date. Run ' +
+                                  tool + ' to update them.')
+    ]
   return []
 
 
 def CheckAndroidBlueprint(input_api, output_api):
   tool = 'tools/gen_android_bp'
+
   # If no GN files were modified, bail out.
-  def build_file_filter(x): return input_api.FilterSourceFile(
-      x,
-      white_list=('.*BUILD[.]gn$', '.*[.]gni$', tool))
+  def build_file_filter(x):
+    return input_api.FilterSourceFile(
+        x, white_list=('.*BUILD[.]gn$', '.*[.]gni$', tool))
+
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
   if subprocess.call([tool, '--check-only']):
-    return [output_api.PresubmitError('Android build files are out of date. ' +
-            'Run ' + tool + ' to update them.')]
+    return [
+        output_api.PresubmitError('Android build files are out of date. ' +
+                                  'Run ' + tool + ' to update them.')
+    ]
   return []
 
 
 def CheckIncludeGuards(input_api, output_api):
   tool = 'tools/fix_include_guards'
 
-  def file_filter(x): return input_api.FilterSourceFile(
-      x,
-      white_list=['.*[.]cc$', '.*[.]h$', tool])
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, white_list=['.*[.]cc$', '.*[.]h$', tool])
+
   if not input_api.AffectedSourceFiles(file_filter):
     return []
   if subprocess.call([tool, '--check-only']):
     return [
-        output_api.PresubmitError(
-            'Please run ' + tool + ' to fix include guards.')
+        output_api.PresubmitError('Please run ' + tool +
+                                  ' to fix include guards.')
     ]
   return []
 
@@ -97,9 +111,9 @@ def CheckIncludeGuards(input_api, output_api):
 def CheckIncludeViolations(input_api, output_api):
   tool = 'tools/check_include_violations'
 
-  def file_filter(x): return input_api.FilterSourceFile(
-      x,
-      white_list=['include/.*[.]h$', tool])
+  def file_filter(x):
+    return input_api.FilterSourceFile(x, white_list=['include/.*[.]h$', tool])
+
   if not input_api.AffectedSourceFiles(file_filter):
     return []
   if subprocess.call([tool]):
@@ -110,15 +124,16 @@ def CheckIncludeViolations(input_api, output_api):
 def CheckBinaryDescriptors(input_api, output_api):
   tool = 'tools/gen_binary_descriptors'
 
-  def file_filter(x): return input_api.FilterSourceFile(
-      x,
-      white_list=['protos/perfetto/.*[.]proto$', '.*[.]h', tool])
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, white_list=['protos/perfetto/.*[.]proto$', '.*[.]h', tool])
+
   if not input_api.AffectedSourceFiles(file_filter):
     return []
   if subprocess.call([tool, '--check-only']):
     return [
-        output_api.PresubmitError(
-            'Please run ' + tool + ' to update binary descriptors.')
+        output_api.PresubmitError('Please run ' + tool +
+                                  ' to update binary descriptors.')
     ]
   return []
 
@@ -126,9 +141,10 @@ def CheckBinaryDescriptors(input_api, output_api):
 def CheckMergedTraceConfigProto(input_api, output_api):
   tool = 'tools/gen_merged_protos'
 
-  def build_file_filter(x): return input_api.FilterSourceFile(
-      x,
-      white_list=['protos/perfetto/.*[.]proto$', tool])
+  def build_file_filter(x):
+    return input_api.FilterSourceFile(
+        x, white_list=['protos/perfetto/.*[.]proto$', tool])
+
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
   if subprocess.call([tool, '--check-only']):
@@ -145,13 +161,12 @@ def CheckWhitelist(input_api, output_api):
   for f in input_api.AffectedFiles():
     if f.LocalPath() != 'tools/ftrace_proto_gen/event_whitelist':
       continue
-    if any((not new_line.startswith('removed'))
-            and new_line != old_line for old_line, new_line
-           in itertools.izip(f.OldContents(), f.NewContents())):
+    if any((not new_line.startswith('removed')) and new_line != old_line
+           for old_line, new_line in itertools.izip(f.OldContents(),
+                                                    f.NewContents())):
       return [
           output_api.PresubmitError(
               'event_whitelist only has two supported changes: '
-              'appending a new line, and replacing a line with removed.'
-          )
+              'appending a new line, and replacing a line with removed.')
       ]
   return []

@@ -18,20 +18,32 @@ from os import sys, path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import synth_common
 
+
 def add_startup(trace, ts, pid):
   trace.add_ftrace_packet(cpu=0)
-  trace.add_atrace_begin(ts=ts, tid=2, pid=2,
+  trace.add_atrace_begin(
+      ts=ts,
+      tid=2,
+      pid=2,
       buf='MetricsLogger:launchObserverNotifyIntentStarted')
-  trace.add_atrace_end(ts=ts+1, tid=2, pid=2)
-  trace.add_atrace_async_begin(ts=ts+2, tid=2, pid=2,
-      buf='launching: com.google.android.calendar')
-  trace.add_newtask(ts=ts+3, tid=1, new_tid=pid,
-      new_comm='com.google.android.calendar', flags=0)
-  trace.add_atrace_async_end(ts=ts+4, tid=2, pid=2,
-      buf='launching: com.google.android.calendar')
-  trace.add_atrace_begin(ts=ts+5, tid=2, pid=2,
+  trace.add_atrace_end(ts=ts + 1, tid=2, pid=2)
+  trace.add_atrace_async_begin(
+      ts=ts + 2, tid=2, pid=2, buf='launching: com.google.android.calendar')
+  trace.add_newtask(
+      ts=ts + 3,
+      tid=1,
+      new_tid=pid,
+      new_comm='com.google.android.calendar',
+      flags=0)
+  trace.add_atrace_async_end(
+      ts=ts + 4, tid=2, pid=2, buf='launching: com.google.android.calendar')
+  trace.add_atrace_begin(
+      ts=ts + 5,
+      tid=2,
+      pid=2,
       buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
-  trace.add_atrace_end(ts=ts+6, tid=2, pid=2)
+  trace.add_atrace_end(ts=ts + 6, tid=2, pid=2)
+
 
 # Build a trace where calendar starts, exits and restarts.
 # Verify that each startup is only associated with a single process
