@@ -32,6 +32,12 @@ set -eux
 date
 env
 
+mkdir src && cd src
+
+if [[ $PERFETTO_TEST_GIT_REF == "file://"* ]]; then
+# This is used only by tools/run_test_like_ci.
+git clone -q --no-tags --single-branch --depth=1 "$PERFETTO_TEST_GIT_REF" .
+else
 git clone -q --no-tags --single-branch \
   https://android.googlesource.com/platform/external/perfetto.git .
 git config user.email "ci-bot@perfetto.dev"
@@ -41,6 +47,7 @@ git fetch -q origin "$PERFETTO_TEST_GIT_REF"
 # We really want to test the result of the merge of the CL in ToT master. Don't
 # really care about whether the CL passes the test at the time it was written.
 git merge -q FETCH_HEAD -m merge
+fi
 
 # The android buildtools are huge due to the emulator, keep that as a separate
 # cache and pack/unpack separately. It's worth  ~30s on each non-android test.

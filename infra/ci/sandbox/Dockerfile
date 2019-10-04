@@ -24,13 +24,18 @@ RUN set -ex; \
              /etc/apt/sources.list.d/testing.list; \
     apt-get update; \
     apt-get -y install python git curl sudo lz4 tar ccache tini libpulse0 \
-                       libgl1 libxml2 libc6-dev-i386 libtinfo5; \
+                       libgl1 libxml2 libc6-dev-i386 libtinfo5 gnupg2 \
+                       pkg-config zip g++ zlib1g-dev unzip python3; \
     apt-get -y -t testing install gcc-7 g++-7 clang; \
     curl https://bootstrap.pypa.io/get-pip.py | python -; \
     pip install --quiet protobuf; \
-    rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*; \
-    mkdir /ci; \
-    useradd -d /ci/ramdisk perfetto;
+    curl -LO https://github.com/bazelbuild/bazel/releases/download/0.29.1/bazel-0.29.1-installer-linux-x86_64.sh; \
+    chmod +x bazel-*-installer-linux-x86_64.sh; \
+    ./bazel-*-installer-linux-x86_64.sh; \
+    rm bazel-*-installer-linux-x86_64.sh; \
+    bazel version; \
+    useradd -d /ci/ramdisk perfetto; \
+    rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*;
 
 COPY testrunner.sh /ci/testrunner.sh
 COPY init.sh /ci/init.sh
