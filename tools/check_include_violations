@@ -37,8 +37,8 @@ def main():
       if not os.path.isfile(fpath):
         continue
       if fpath.endswith('.cc'):
-        sys.stderr.write(
-            '.cc files not allowed in includes/ : ' + rel_path + '\n')
+        sys.stderr.write('.cc files not allowed in includes/ : ' + rel_path +
+                         '\n')
         errors += 1
         continue
       if fpath.endswith('.h'):
@@ -67,7 +67,7 @@ def main():
 
           # Public (non-/ext/) headers cannot include /ext/ headers.
           if (not rel_path.startswith('include/perfetto/ext/') and
-                  incl.startswith('perfetto/ext/')):
+              incl.startswith('perfetto/ext/')):
             sys.stderr.write(('Public header %s cannot include the non-public' +
                               '/ext/ header %s.\n') % (rel_path, incl))
             errors += 1

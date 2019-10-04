@@ -19,7 +19,6 @@ import datetime
 import os
 import subprocess
 import sys
-
 """Pulls all format files from an Android device.
 
 Usage: ./tools/pull_ftrace_format_files.py [-s serial] [-p directory_prefix]
@@ -27,6 +26,7 @@ Usage: ./tools/pull_ftrace_format_files.py [-s serial] [-p directory_prefix]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ADB_PATH = os.path.join(ROOT_DIR, 'buildtools/android_sdk/platform-tools/adb')
+
 
 def adb(*cmd, **kwargs):
   serial = kwargs.get('serial', None)
@@ -121,10 +121,13 @@ def get_output_directory(prefix=None, serial=None):
 
 def main():
   parser = argparse.ArgumentParser(description='Pull format files.')
-  parser.add_argument('-p', dest='prefix', default=None,
-                      help='the output directory prefix')
-  parser.add_argument('-s', dest='serial', default=None,
-                      help='use device with the given serial')
+  parser.add_argument(
+      '-p', dest='prefix', default=None, help='the output directory prefix')
+  parser.add_argument(
+      '-s',
+      dest='serial',
+      default=None,
+      help='use device with the given serial')
   args = parser.parse_args()
 
   prefix = args.prefix
@@ -140,5 +143,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
-
+  sys.exit(main())

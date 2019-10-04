@@ -43,38 +43,38 @@ duration_ms: 15000
 '''
 
 PERFETTO_PER_CPU_BUFFER_SIZE_KB_PARAMS = [
-  128,
-  256,
-  512,
-  1 * 1024, # 1 MB
-  2 * 1024, # 2 MB
-  4 * 1024, # 4 MB
+    128,
+    256,
+    512,
+    1 * 1024,  # 1 MB
+    2 * 1024,  # 2 MB
+    4 * 1024,  # 4 MB
 ]
 
 PERFETTO_DRAIN_RATE_MS_PARAMS = [
-  100,
-  240,
-  500,
-  1 * 1000, # 1s
-  2 * 1000, # 2s
-  5 * 1000, # 5s
+    100,
+    240,
+    500,
+    1 * 1000,  # 1s
+    2 * 1000,  # 2s
+    5 * 1000,  # 5s
 ]
 
 BUSY_THREADS_NUM_THREADS_PARAMS = [
-  8,
-  32,
-  128,
+    8,
+    32,
+    128,
 ]
 
 BUSY_THREADS_DUTY_CYCLE_PARAMS = [
-  10,
-  100,
+    10,
+    100,
 ]
 
 BUSY_THREADS_PERIOD_US_PARAMS = [
-  500,
-  1 * 1000,  # 1 ms
-  10 * 1000, # 10 ms
+    500,
+    1 * 1000,  # 1 ms
+    10 * 1000,  # 10 ms
 ]
 
 TRACE_PROCESSOR_QUERY = """
@@ -91,58 +91,42 @@ FROM (
 ) as b
 """
 
+
 def AdbArgs(*args):
   cmd = [ADB_PATH] + list([str(x) for x in args])
   logging.debug('> adb ' + ' '.join([str(x) for x in args]))
   return cmd
 
+
 def AdbCall(*args):
   return subprocess.check_output(AdbArgs(*args)).decode('utf-8').rstrip()
 
-def SingleTraceRun(out_dir,
-                   prio_name,
-                   buffer_size_kb,
-                   drain_rate_ms,
-                   num_threads,
-                   duty_cycle,
-                   period_us):
-  busy_threads_args = AdbArgs(
-    'shell',
-    '/data/local/tmp/busy_threads',
-    '--threads={}'.format(num_threads),
-    '--duty_cycle={}'.format(duty_cycle),
-    '--period_us={}'.format(period_us)
-  )
-  perfetto_args = AdbArgs(
-    'shell',
-    'perfetto',
-    '--txt',
-    '-c',
-    '-',
-    '-o',
-    '-'
-  )
+
+def SingleTraceRun(out_dir, prio_name, buffer_size_kb, drain_rate_ms,
+                   num_threads, duty_cycle, period_us):
+  busy_threads_args = AdbArgs('shell', '/data/local/tmp/busy_threads',
+                              '--threads={}'.format(num_threads),
+                              '--duty_cycle={}'.format(duty_cycle),
+                              '--period_us={}'.format(period_us))
+  perfetto_args = AdbArgs('shell', 'perfetto', '--txt', '-c', '-', '-o', '-')
 
   # Create a file object to read the trace into.
   with tempfile.NamedTemporaryFile() as trace_file:
-    logging.info("Starting trace with parameters ({}, {}, {}, {}, {}, {})"
-      .format(prio_name,
-              buffer_size_kb,
-              drain_rate_ms,
-              num_threads,
-              duty_cycle,
-              period_us))
+    logging.info(
+        "Starting trace with parameters ({}, {}, {}, {}, {}, {})".format(
+            prio_name, buffer_size_kb, drain_rate_ms, num_threads, duty_cycle,
+            period_us))
 
     # Start the busy threads running.
     busy_threads_handle = subprocess.Popen(busy_threads_args)
 
     # Start the Perfetto trace.
     perfetto_handle = subprocess.Popen(
-      perfetto_args, stdin=subprocess.PIPE, stdout=trace_file)
+        perfetto_args, stdin=subprocess.PIPE, stdout=trace_file)
 
     # Create the config with the parameters
     config = TEMPLATED_PERFETTO_CFG.format(
-      buffer_size_kb=buffer_size_kb, drain_period_ms=drain_rate_ms)
+        buffer_size_kb=buffer_size_kb, drain_period_ms=drain_rate_ms)
 
     # Send the config to the Perfetto binary and wait for response.
     perfetto_handle.stdin.write(config.encode())
@@ -155,7 +139,7 @@ def SingleTraceRun(out_dir,
     # Return any errors from Perfetto.
     if perfetto_ret:
       raise subprocess.CalledProcessError(
-        cmd=perfetto_args, returncode=perfetto_ret)
+          cmd=perfetto_args, returncode=perfetto_ret)
 
     # TODO(lalitm): allow trace processor to take the query file from stdin
     # to prevent this hack from being required.
@@ -166,21 +150,16 @@ def SingleTraceRun(out_dir,
       # Run the trace processor on the config.
       tp_path = os.path.join(out_dir, 'trace_processor_shell')
       tp_out = subprocess.check_output(
-        [tp_path, '-q', trace_query_file.name, trace_file.name])
+          [tp_path, '-q', trace_query_file.name, trace_file.name])
 
       # Get the CSV output from trace processor (stripping the header).
       [num_sched, num_overrun] = str(tp_out).split('\n')[1].split(',')
 
     # Print the row to stdout.
-    sys.stdout.write('"{}",{},{},{},{},{},{},{}\n'
-      .format(prio_name,
-              buffer_size_kb,
-              drain_rate_ms,
-              num_threads,
-              duty_cycle,
-              period_us,
-              num_sched,
-              num_overrun))
+    sys.stdout.write('"{}",{},{},{},{},{},{},{}\n'.format(
+        prio_name, buffer_size_kb, drain_rate_ms, num_threads, duty_cycle,
+        period_us, num_sched, num_overrun))
+
 
 def SinglePriorityRun(out_dir, prio_name):
   for buffer_size_kb in PERFETTO_PER_CPU_BUFFER_SIZE_KB_PARAMS:
@@ -188,15 +167,9 @@ def SinglePriorityRun(out_dir, prio_name):
       for num_threads in BUSY_THREADS_NUM_THREADS_PARAMS:
         for duty_cycle in BUSY_THREADS_DUTY_CYCLE_PARAMS:
           for period_us in BUSY_THREADS_PERIOD_US_PARAMS:
-            SingleTraceRun(
-              out_dir,
-              prio_name,
-              buffer_size_kb,
-              drain_rate_ms,
-              num_threads,
-              duty_cycle,
-              period_us
-            )
+            SingleTraceRun(out_dir, prio_name, buffer_size_kb, drain_rate_ms,
+                           num_threads, duty_cycle, period_us)
+
 
 def CycleTracedAndProbes():
   AdbCall('shell', 'stop', 'traced')
@@ -206,8 +179,9 @@ def CycleTracedAndProbes():
   AdbCall('shell', 'sleep', '5')
   traced_pid = AdbCall('shell', 'pidof', 'traced')
   probes_pid = AdbCall('shell', 'pidof', 'traced_probes')
-  assert(traced_pid is not None and probes_pid is not None)
+  assert (traced_pid is not None and probes_pid is not None)
   return (traced_pid, probes_pid)
+
 
 def Main():
   parser = argparse.ArgumentParser()
@@ -231,15 +205,9 @@ def Main():
   (traced_pid, probes_pid) = CycleTracedAndProbes()
 
   # Print the header for csv.
-  sys.stdout.write('"{}","{}","{}","{}","{}","{}","{}","{}"\n'
-      .format('prio_name',
-              'buffer_size_kb',
-              'drain_rate_ms',
-              'num_threads',
-              'duty_cycle',
-              'period_us',
-              'num_sched',
-              'num_overrun'))
+  sys.stdout.write('"{}","{}","{}","{}","{}","{}","{}","{}"\n'.format(
+      'prio_name', 'buffer_size_kb', 'drain_rate_ms', 'num_threads',
+      'duty_cycle', 'period_us', 'num_sched', 'num_overrun'))
 
   # First, do a single run in all configurations without changing prio.
   SinglePriorityRun(args.linux_out_dir, 'Default')
@@ -279,6 +247,7 @@ def Main():
   AdbCall('unroot')
 
   return 0
+
 
 if __name__ == '__main__':
   logging.basicConfig(level=logging.INFO)

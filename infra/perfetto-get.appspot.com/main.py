@@ -28,12 +28,14 @@ RESOURCES = {
 
 
 class RedirectHandler(webapp2.RequestHandler):
+
   def get(self):
     self.error(301)
     self.response.headers['Location'] = 'https://www.perfetto.dev/'
 
 
 class GitilesMirrorHandler(webapp2.RequestHandler):
+
   def get(self, resource):
     resource = resource.lower()
     if resource not in RESOURCES:
@@ -49,8 +51,7 @@ class GitilesMirrorHandler(webapp2.RequestHandler):
         memcache.delete(url)
         self.response.set_status(result.status_code)
         self.response.write(
-            'http error %d while fetching %s' % (
-                result.status_code, url))
+            'http error %d while fetching %s' % (result.status_code, url))
         return
       contents = base64.b64decode(result.content)
       memcache.set(url, contents, time=3600)  # 1h
@@ -63,4 +64,5 @@ class GitilesMirrorHandler(webapp2.RequestHandler):
 app = webapp2.WSGIApplication([
     ('/', RedirectHandler),
     ('/(.*)', GitilesMirrorHandler),
-], debug=True)
+],
+                              debug=True)

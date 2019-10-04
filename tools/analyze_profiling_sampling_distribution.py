@@ -24,6 +24,7 @@ import seaborn as sns
 from collections import defaultdict
 from matplotlib import pyplot as plt
 
+
 def main(argv):
   sns.set()
 
@@ -44,8 +45,9 @@ def main(argv):
       distributions[code_location][int(itr)] += int(size)
 
   # Map from key to list of bytes allocated, one for each iteration.
-  flat_distributions = {key: value.values() for key, value
-                        in distributions.iteritems()}
+  flat_distributions = {
+      key: value.values() for key, value in distributions.iteritems()
+  }
 
   for key, value in flat_distributions.iteritems():
     print key, "ground truth %d " % ground_truth[key], sp.stats.describe(value)

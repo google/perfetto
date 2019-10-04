@@ -24,38 +24,40 @@ import sys
 from compat import iteritems, quote
 
 MAC_BUILD_CONFIGS = {
-  'mac_debug': ('is_clang=true', 'is_debug=true'),
-  'mac_release': ('is_clang=true', 'is_debug=false'),
-  'mac_asan': ('is_clang=true', 'is_debug=false', 'is_asan=true'),
-  'mac_tsan': ('is_clang=true', 'is_debug=false', 'is_tsan=true'),
-  'mac_ubsan': ('is_clang=true', 'is_debug=false', 'is_ubsan=true'),
+    'mac_debug': ('is_clang=true', 'is_debug=true'),
+    'mac_release': ('is_clang=true', 'is_debug=false'),
+    'mac_asan': ('is_clang=true', 'is_debug=false', 'is_asan=true'),
+    'mac_tsan': ('is_clang=true', 'is_debug=false', 'is_tsan=true'),
+    'mac_ubsan': ('is_clang=true', 'is_debug=false', 'is_ubsan=true'),
 }
 
 ANDROID_BUILD_CONFIGS = {
-  'android_debug': ('target_os="android"', 'is_clang=true', 'is_debug=true'),
-  'android_release': ('target_os="android"', 'is_clang=true', 'is_debug=false'),
-  'android_release_incl_heapprofd': ('target_os="android"', 'is_clang=true',
-                                     'is_debug=false', 'android_api_level=26'),
-  'android_asan': ('target_os="android"', 'is_clang=true', 'is_debug=false',
-                   'is_asan=true'),
-  'android_lsan': ('target_os="android"', 'is_clang=true', 'is_debug=false',
-                   'is_lsan=true'),
+    'android_debug': ('target_os="android"', 'is_clang=true', 'is_debug=true'),
+    'android_release': ('target_os="android"', 'is_clang=true',
+                        'is_debug=false'),
+    'android_release_incl_heapprofd': ('target_os="android"', 'is_clang=true',
+                                       'is_debug=false',
+                                       'android_api_level=26'),
+    'android_asan': ('target_os="android"', 'is_clang=true', 'is_debug=false',
+                     'is_asan=true'),
+    'android_lsan': ('target_os="android"', 'is_clang=true', 'is_debug=false',
+                     'is_lsan=true'),
 }
 
 ANDROID_ARCHS = ('arm', 'arm64')
 
 LINUX_BUILD_CONFIGS = {
-  'linux_gcc_debug': ('is_clang=false', 'is_debug=true'),
-  'linux_gcc_release': ('is_clang=false', 'is_debug=false'),
-  'linux_clang_debug': ('is_clang=true', 'is_debug=true'),
-  'linux_clang_release': ('is_clang=true', 'is_debug=false'),
-  'linux_asan': ('is_clang=true', 'is_debug=false', 'is_asan=true'),
-  'linux_lsan': ('is_clang=true', 'is_debug=false', 'is_lsan=true'),
-  'linux_msan': ('is_clang=true', 'is_debug=false', 'is_msan=true'),
-  'linux_tsan': ('is_clang=true', 'is_debug=false', 'is_tsan=true'),
-  'linux_ubsan': ('is_clang=true', 'is_debug=false', 'is_ubsan=true'),
-  'linux_fuzzer': ('is_clang=true', 'is_debug=false', 'is_fuzzer=true',
-                   'is_asan=true'),
+    'linux_gcc_debug': ('is_clang=false', 'is_debug=true'),
+    'linux_gcc_release': ('is_clang=false', 'is_debug=false'),
+    'linux_clang_debug': ('is_clang=true', 'is_debug=true'),
+    'linux_clang_release': ('is_clang=true', 'is_debug=false'),
+    'linux_asan': ('is_clang=true', 'is_debug=false', 'is_asan=true'),
+    'linux_lsan': ('is_clang=true', 'is_debug=false', 'is_lsan=true'),
+    'linux_msan': ('is_clang=true', 'is_debug=false', 'is_msan=true'),
+    'linux_tsan': ('is_clang=true', 'is_debug=false', 'is_tsan=true'),
+    'linux_ubsan': ('is_clang=true', 'is_debug=false', 'is_ubsan=true'),
+    'linux_fuzzer': ('is_clang=true', 'is_debug=false', 'is_fuzzer=true',
+                     'is_asan=true'),
 }
 
 LINUX_ARCHS = ('arm64',)
