@@ -25,40 +25,20 @@
 #include <memory>
 #include <utility>
 
-#include <zlib.h>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "tools/trace_to_text/utils.h"
 
-// When running in Web Assembly, fflush() is a no-op and the stdio buffering
-// sends progress updates to JS only when a write ends with \n.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
-#define PROGRESS_CHAR "\n"
-#else
-#define PROGRESS_CHAR "\r"
-#endif
+#define FILTER_RAW_EVENTS \
+  " where not (name like \"chrome_event.%\" or name like \"track_event.%\")"
 
 namespace perfetto {
 namespace trace_to_text {
 
 namespace {
-
-const size_t kCompressionBufferSize = 500 * 1024;
-
-// Having an empty traceEvents object is necessary for trace viewer to
-// load the json properly.
-const char kTraceHeader[] = R"({
-  "traceEvents": [],
-)";
-
-const char kTraceFooter[] = R"(\n",
-  "controllerTraceDataKey": "systraceController"
-})";
 
 const char kProcessDumpHeader[] =
     ""
@@ -127,72 +107,6 @@ inline void FormatThread(uint32_t tid,
   }
 }
 
-class TraceWriter {
- public:
-  TraceWriter(std::ostream* output) : output_(output) {}
-  virtual ~TraceWriter() = default;
-
-  void Write(std::string s) { Write(s.data(), s.size()); }
-
-  virtual void Write(const char* data, size_t sz) {
-    output_->write(data, static_cast<std::streamsize>(sz));
-  }
-
- private:
-  std::ostream* output_;
-};
-
-class DeflateTraceWriter : public TraceWriter {
- public:
-  DeflateTraceWriter(std::ostream* output)
-      : TraceWriter(output),
-        buf_(base::PagedMemory::Allocate(kCompressionBufferSize)),
-        start_(static_cast<uint8_t*>(buf_.Get())),
-        end_(start_ + buf_.size()) {
-    CheckEq(deflateInit(&stream_, 9), Z_OK);
-    stream_.next_out = start_;
-    stream_.avail_out = static_cast<unsigned int>(end_ - start_);
-  }
-
-  ~DeflateTraceWriter() override {
-    while (deflate(&stream_, Z_FINISH) != Z_STREAM_END) {
-      Flush();
-    }
-    CheckEq(deflateEnd(&stream_), Z_OK);
-  }
-
-  void Write(const char* data, size_t sz) override {
-    stream_.next_in = reinterpret_cast<uint8_t*>(const_cast<char*>(data));
-    stream_.avail_in = static_cast<unsigned int>(sz);
-    while (stream_.avail_in > 0) {
-      CheckEq(deflate(&stream_, Z_NO_FLUSH), Z_OK);
-      if (stream_.avail_out == 0) {
-        Flush();
-      }
-    }
-  }
-
- private:
-  void Flush() {
-    TraceWriter::Write(reinterpret_cast<char*>(start_),
-                       static_cast<size_t>(stream_.next_out - start_));
-    stream_.next_out = start_;
-    stream_.avail_out = static_cast<unsigned int>(end_ - start_);
-  }
-
-  void CheckEq(int actual_code, int expected_code) {
-    if (actual_code == expected_code)
-      return;
-    PERFETTO_FATAL("Expected %d got %d: %s", actual_code, expected_code,
-                   stream_.msg);
-  }
-
-  z_stream stream_{};
-  base::PagedMemory buf_;
-  uint8_t* const start_;
-  uint8_t* const end_;
-};
-
 class QueryWriter {
  public:
   QueryWriter(trace_processor::TraceProcessor* tp, TraceWriter* trace_writer)
@@ -210,7 +124,7 @@ class QueryWriter {
       callback(&iterator, &line_writer);
 
       if (global_writer_.pos() + line_writer.pos() >= global_writer_.size()) {
-        fprintf(stderr, "Writing row %" PRIu32 PROGRESS_CHAR, rows);
+        fprintf(stderr, "Writing row %" PRIu32 "%c", rows, kProgressChar);
         auto str = global_writer_.GetStringView();
         trace_writer_->Write(str.data(), str.size());
         global_writer_.reset();
@@ -245,11 +159,8 @@ class QueryWriter {
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
-                    SystraceKind kind,
+                    bool compress,
                     Keep truncate_keep) {
-  bool wrap_in_json = kind == kSystraceJson;
-  bool compress = kind == kSystraceCompressed;
-
   std::unique_ptr<TraceWriter> trace_writer(
       compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
@@ -260,13 +171,21 @@ int TraceToSystrace(std::istream* input,
   if (!ReadTrace(tp.get(), input))
     return 1;
   tp->NotifyEndOfFile();
+
+  *output << "TRACE:\n";
+  return ExtractSystrace(tp.get(), trace_writer.get(),
+                         /*wrapped_in_json=*/false, truncate_keep);
+}
+
+int ExtractSystrace(trace_processor::TraceProcessor* tp,
+                    TraceWriter* trace_writer,
+                    bool wrapped_in_json,
+                    Keep truncate_keep) {
   using Iterator = trace_processor::TraceProcessor::Iterator;
 
-  QueryWriter q_writer(tp.get(), trace_writer.get());
-  if (wrap_in_json) {
-    *output << kTraceHeader;
-
-    *output << kProcessDumpHeader;
+  QueryWriter q_writer(tp, trace_writer);
+  if (wrapped_in_json) {
+    trace_writer->Write(kProcessDumpHeader);
 
     // Write out all the processes in the trace.
     // TODO(lalitm): change this query to actually use ppid when it is exposed
@@ -284,7 +203,7 @@ int TraceToSystrace(std::istream* input,
     if (!q_writer.RunQuery(kPSql, p_callback))
       return 1;
 
-    *output << kThreadHeader;
+    trace_writer->Write(kThreadHeader);
 
     // Write out all the threads in the trace.
     static const char kTSql[] =
@@ -302,18 +221,18 @@ int TraceToSystrace(std::istream* input,
     if (!q_writer.RunQuery(kTSql, t_callback))
       return 1;
 
-    *output << "\",";
-    *output << kSystemTraceEvents;
-    *output << kFtraceJsonHeader;
+    trace_writer->Write("\",");
+    trace_writer->Write(kSystemTraceEvents);
+    trace_writer->Write(kFtraceJsonHeader);
   } else {
-    *output << "TRACE:\n";
     trace_writer->Write(kFtraceHeader);
   }
 
-  fprintf(stderr, "Converting trace events" PROGRESS_CHAR);
+  fprintf(stderr, "Converting ftrace events%c", kProgressChar);
   fflush(stderr);
 
-  static const char kEstimateSql[] = "select count(1) from raw";
+  static const char kEstimateSql[] =
+      "select count(1) from raw" FILTER_RAW_EVENTS;
   uint32_t raw_events = 0;
   auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
     raw_events = static_cast<uint32_t>(it->Get(0).long_value);
@@ -321,9 +240,10 @@ int TraceToSystrace(std::istream* input,
   if (!q_writer.RunQuery(kEstimateSql, e_callback))
     return 1;
 
-  auto raw_callback = [wrap_in_json](Iterator* it, base::StringWriter* writer) {
+  auto raw_callback = [wrapped_in_json](Iterator* it,
+                                        base::StringWriter* writer) {
     const char* line = it->Get(0 /* col */).string_value;
-    if (wrap_in_json) {
+    if (wrapped_in_json) {
       for (uint32_t i = 0; line[i] != '\0'; i++) {
         char c = line[i];
         switch (c) {
@@ -365,28 +285,24 @@ int TraceToSystrace(std::istream* input,
   // and threads.
   const uint32_t max_ftrace_events = (140 * 1024 * 1024) / 130;
 
-  char kEndTrunc[100];
-  sprintf(kEndTrunc,
-          "select to_ftrace(id) from raw limit %d "
-          "offset %d",
-          max_ftrace_events, raw_events - max_ftrace_events);
-  char kStartTruncate[100];
-  sprintf(kStartTruncate, "select to_ftrace(id) from raw limit %d",
-          max_ftrace_events);
+  static const char kRawEventsQuery[] =
+      "select to_ftrace(id) from raw" FILTER_RAW_EVENTS;
 
   if (truncate_keep == Keep::kEnd && raw_events > max_ftrace_events) {
-    if (!q_writer.RunQuery(kEndTrunc, raw_callback))
+    char end_truncate[150];
+    sprintf(end_truncate, "%s limit %d offset %d", kRawEventsQuery,
+            max_ftrace_events, raw_events - max_ftrace_events);
+    if (!q_writer.RunQuery(end_truncate, raw_callback))
       return 1;
   } else if (truncate_keep == Keep::kStart) {
-    if (!q_writer.RunQuery(kStartTruncate, raw_callback))
+    char start_truncate[150];
+    sprintf(start_truncate, "%s limit %d", kRawEventsQuery, max_ftrace_events);
+    if (!q_writer.RunQuery(start_truncate, raw_callback))
       return 1;
   } else {
-    if (!q_writer.RunQuery("select to_ftrace(id) from raw", raw_callback))
+    if (!q_writer.RunQuery(kRawEventsQuery, raw_callback))
       return 1;
   }
-
-  if (wrap_in_json)
-    *output << kTraceFooter;
 
   return 0;
 }

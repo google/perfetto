@@ -26,7 +26,10 @@
 #include <memory>
 #include <vector>
 
+#include <zlib.h>
+
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/profiling/symbolizer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -62,6 +65,35 @@ void SymbolizeDatabase(
     trace_processor::TraceProcessor* tp,
     Symbolizer* symbolizer,
     std::function<void(perfetto::protos::TracePacket)> callback);
+
+class TraceWriter {
+ public:
+  TraceWriter(std::ostream* output);
+  virtual ~TraceWriter();
+
+  void Write(std::string s);
+  virtual void Write(const char* data, size_t sz);
+
+ private:
+  std::ostream* output_;
+};
+
+class DeflateTraceWriter : public TraceWriter {
+ public:
+  DeflateTraceWriter(std::ostream* output);
+  ~DeflateTraceWriter() override;
+
+  void Write(const char* data, size_t sz) override;
+
+ private:
+  void Flush();
+  void CheckEq(int actual_code, int expected_code);
+
+  z_stream stream_{};
+  base::PagedMemory buf_;
+  uint8_t* const start_;
+  uint8_t* const end_;
+};
 
 }  // namespace trace_to_text
 }  // namespace perfetto
