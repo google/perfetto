@@ -301,8 +301,16 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
   }
 
   if (chromeCategories.size !== 0) {
-    const traceConfigJson =
-        JSON.stringify({included_categories: [...chromeCategories.values()]});
+    let chromeRecordMode = '';
+    if (uiCfg.mode === 'STOP_WHEN_FULL') {
+      chromeRecordMode = 'record-until-full';
+    } else {
+      chromeRecordMode = 'record-continuously';
+    }
+    const traceConfigJson = JSON.stringify({
+      record_mode: chromeRecordMode,
+      included_categories: [...chromeCategories.values()],
+    });
 
     const traceDs = new TraceConfig.DataSource();
     traceDs.config = new DataSourceConfig();
