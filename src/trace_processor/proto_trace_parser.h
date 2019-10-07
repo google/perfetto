@@ -133,6 +133,8 @@ class ProtoTraceParser : public TraceParser {
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
+  void ParseTraceConfig(ConstBytes);
+  void ParseStatsdMetadata(ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
   void ParseLogMessage(ConstBytes,
                        ProtoIncrementalState::PacketSequenceState*,
