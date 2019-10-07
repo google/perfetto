@@ -47,6 +47,9 @@ message ProcessTree {
     // No longer used as of Apr 2018, when the dedicated |threads| field was
     // introduced in ProcessTree.
     repeated Thread threads_deprecated = 4 [deprecated = true];
+
+    // The uid for the process, as per /proc/pid/status.
+    optional int32 uid = 5;
   }
 
   // List of processes and threads in the client. These lists are incremental
