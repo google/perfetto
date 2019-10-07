@@ -235,6 +235,8 @@ void ProcessStatsDataSource::WriteProcess(int32_t pid,
   auto* proc = GetOrCreatePsTree()->add_processes();
   proc->set_pid(pid);
   proc->set_ppid(ToInt(ReadProcStatusEntry(proc_status, "PPid:")));
+  // Uid will have multiple entries, only return first (real uid).
+  proc->set_uid(ToInt(ReadProcStatusEntry(proc_status, "Uid:")));
 
   std::string cmdline = ReadProcPidFile(pid, "cmdline");
   if (!cmdline.empty()) {
