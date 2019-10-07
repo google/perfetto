@@ -47,6 +47,7 @@
 
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
@@ -477,6 +478,10 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_gpu_render_stage_event()) {
     graphics_event_parser_->ParseGpuRenderStageEvent(
         ts, packet.gpu_render_stage_event());
+  }
+
+  if (packet.has_trace_config()) {
+    ParseTraceConfig(packet.trace_config());
   }
 
   if (packet.has_packages_list()) {
@@ -2622,6 +2627,23 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
   if (event.has_overruns())
     context_->storage->IncrementStats(stats::metatrace_overruns);
+}
+
+void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
+  protos::pbzero::TraceConfig::Decoder trace_config(blob.data, blob.size);
+  if (trace_config.has_statsd_metadata()) {
+    ParseStatsdMetadata(trace_config.statsd_metadata());
+  }
+}
+
+void ProtoTraceParser::ParseStatsdMetadata(ConstBytes blob) {
+  protos::pbzero::TraceConfig::StatsdMetadata::Decoder metadata(blob.data,
+                                                                blob.size);
+  if (metadata.has_triggering_subscription_id()) {
+    context_->storage->SetMetadata(
+        metadata::statsd_triggering_subscription_id,
+        Variadic::Integer(metadata.triggering_subscription_id()));
+  }
 }
 
 void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
