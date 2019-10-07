@@ -41,7 +41,6 @@ namespace trace_to_text {
 namespace {
 
 const char kProcessDumpHeader[] =
-    ""
     "\"androidProcessDump\": "
     "\"PROCESS DUMP\\nUSER           PID  PPID     VSZ    RSS WCHAN  "
     "PC S NAME                        COMM                       \\n";
@@ -49,7 +48,6 @@ const char kProcessDumpHeader[] =
 const char kThreadHeader[] = "USER           PID   TID CMD \\n";
 
 const char kSystemTraceEvents[] =
-    ""
     "  \"systemTraceEvents\": \"";
 
 const char kFtraceHeader[] =
@@ -77,6 +75,13 @@ const char kFtraceJsonHeader[] =
     "#                                    ||| /     delay\\n"
     "#           TASK-PID    TGID   CPU#  ||||    TIMESTAMP  FUNCTION\\n"
     "#              | |        |      |   ||||       |         |\\n";
+
+// The legacy trace viewer requires a clock sync marker to tie ftrace and
+// userspace clocks together. Trace processor already aligned these clocks, so
+// we just emit a clock sync for an equality mapping.
+const char kSystemTraceEventsFooter[] =
+    "\\n<...>-12345 (-----) [000] ...1 0.000000: tracing_mark_write: "
+    "trace_event_clock_sync: parent_ts=0\\n\"";
 
 inline void FormatProcess(uint32_t pid,
                           uint32_t ppid,
@@ -221,7 +226,7 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
     if (!q_writer.RunQuery(kTSql, t_callback))
       return 1;
 
-    trace_writer->Write("\",");
+    trace_writer->Write("\",\n");
     trace_writer->Write(kSystemTraceEvents);
     trace_writer->Write(kFtraceJsonHeader);
   } else {
@@ -303,6 +308,9 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
     if (!q_writer.RunQuery(kRawEventsQuery, raw_callback))
       return 1;
   }
+
+  if (wrapped_in_json)
+    trace_writer->Write(kSystemTraceEventsFooter);
 
   return 0;
 }
