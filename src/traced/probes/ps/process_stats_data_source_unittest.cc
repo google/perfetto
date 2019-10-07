@@ -72,7 +72,8 @@ class ProcessStatsDataSourceTest : public ::testing::Test {
 TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
   auto data_source = GetProcessStatsDataSource(DataSourceConfig());
   EXPECT_CALL(*data_source, ReadProcPidFile(42, "status"))
-      .WillOnce(Return("Name: foo\nTgid:\t42\nPid:   42\nPPid:  17\n"));
+      .WillOnce(Return(
+          "Name: foo\nTgid:\t42\nPid:   42\nPPid:  17\nUid:  43 44 45 56\n"));
   EXPECT_CALL(*data_source, ReadProcPidFile(42, "cmdline"))
       .WillOnce(Return(std::string("foo\0bar\0baz\0", 12)));
 
@@ -85,6 +86,7 @@ TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
   auto first_process = ps_tree.processes(0);
   ASSERT_EQ(first_process.pid(), 42);
   ASSERT_EQ(first_process.ppid(), 17);
+  ASSERT_EQ(first_process.uid(), 43);
   ASSERT_THAT(first_process.cmdline(), ElementsAreArray({"foo", "bar", "baz"}));
 }
 
