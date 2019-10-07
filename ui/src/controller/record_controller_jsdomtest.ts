@@ -107,6 +107,7 @@ test('ChromeConfig', () => {
   const config = createEmptyRecordConfig();
   config.ipcFlows = true;
   config.jsExecution = true;
+  config.mode = 'STOP_WHEN_FULL';
   const result = TraceConfig.decode(genConfigProto(config));
   const sources = assertExists(result.dataSources);
 
@@ -120,8 +121,57 @@ test('ChromeConfig', () => {
   const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
 
-  const expectedTraceConfig = '{"included_categories":["toplevel","disable\
-d-by-default-ipc.flow","v8"]}';
+  const expectedTraceConfig = '{"record_mode":"record-until-full",' +
+      '"included_categories":["toplevel","disabled-by-default-ipc.flow","v8"]}';
+  expect(traceConfigM).toEqual(expectedTraceConfig);
+  expect(traceConfig).toEqual(expectedTraceConfig);
+});
+
+test('ChromeConfigRingBuffer', () => {
+  const config = createEmptyRecordConfig();
+  config.ipcFlows = true;
+  config.jsExecution = true;
+  config.mode = 'RING_BUFFER';
+  const result = TraceConfig.decode(genConfigProto(config));
+  const sources = assertExists(result.dataSources);
+
+  const traceConfigSource = assertExists(sources[0].config);
+  expect(traceConfigSource.name).toBe('org.chromium.trace_event');
+  const chromeConfig = assertExists(traceConfigSource.chromeConfig);
+  const traceConfig = assertExists(chromeConfig.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[1].config);
+  expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
+  const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
+  const traceConfigM = assertExists(chromeConfigM.traceConfig);
+
+  const expectedTraceConfig = '{"record_mode":"record-continuously",' +
+      '"included_categories":["toplevel","disabled-by-default-ipc.flow","v8"]}';
+  expect(traceConfigM).toEqual(expectedTraceConfig);
+  expect(traceConfig).toEqual(expectedTraceConfig);
+});
+
+
+test('ChromeConfigLongTrace', () => {
+  const config = createEmptyRecordConfig();
+  config.ipcFlows = true;
+  config.jsExecution = true;
+  config.mode = 'RING_BUFFER';
+  const result = TraceConfig.decode(genConfigProto(config));
+  const sources = assertExists(result.dataSources);
+
+  const traceConfigSource = assertExists(sources[0].config);
+  expect(traceConfigSource.name).toBe('org.chromium.trace_event');
+  const chromeConfig = assertExists(traceConfigSource.chromeConfig);
+  const traceConfig = assertExists(chromeConfig.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[1].config);
+  expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
+  const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
+  const traceConfigM = assertExists(chromeConfigM.traceConfig);
+
+  const expectedTraceConfig = '{"record_mode":"record-continuously",' +
+      '"included_categories":["toplevel","disabled-by-default-ipc.flow","v8"]}';
   expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfig).toEqual(expectedTraceConfig);
 });
