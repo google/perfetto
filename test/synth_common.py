@@ -273,6 +273,14 @@ class Trace(object):
     gpu_counter.counter_id = counter_id
     gpu_counter.int_value = value
 
+  def add_gpu_log(self, ts, severity, tag, message):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    gpu_log = self.packet.gpu_log
+    gpu_log.severity = severity
+    gpu_log.tag = tag
+    gpu_log.log_message = message
+
   def add_buffer_event_packet(self, ts, buffer_id, layer_name, frame_number,
                               event_type, duration):
     packet = self.add_packet()
