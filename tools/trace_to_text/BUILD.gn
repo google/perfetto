@@ -42,6 +42,7 @@ source_set("utils") {
   ]
   public_deps = [
     "../../gn:default_deps",
+    "../../gn:zlib",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
@@ -127,7 +128,6 @@ source_set("common") {
     ":pprofbuilder",
     ":symbolizer",
     ":utils",
-    "../../gn:zlib",
   ]
   public_deps = [
     "../../gn:default_deps",
@@ -146,6 +146,8 @@ source_set("common") {
     "main.cc",
     "symbolize_profile.cc",
     "symbolize_profile.h",
+    "trace_to_json.cc",
+    "trace_to_json.h",
     "trace_to_profile.cc",
     "trace_to_profile.h",
     "trace_to_systrace.cc",
@@ -168,7 +170,7 @@ source_set("lite") {
   ]
 }
 
-# Full traget for the host. Depends on libprotobuf-full.
+# Full target for the host. Depends on libprotobuf-full.
 source_set("full") {
   testonly = true
   deps = [
