@@ -484,6 +484,10 @@ void ProtoTraceParser::ParseTracePacket(
     ParseTraceConfig(packet.trace_config());
   }
 
+  if (packet.has_gpu_log()) {
+    graphics_event_parser_->ParseGpuLog(ts, packet.gpu_log());
+  }
+
   if (packet.has_packages_list()) {
     ParseAndroidPackagesList(packet.packages_list());
   }

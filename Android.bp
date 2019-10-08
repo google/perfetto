@@ -2542,6 +2542,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_gpu_lite_gen",
   srcs: [
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+    "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
@@ -2551,6 +2552,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pb.cc",
+    "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pb.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pb.cc",
   ],
@@ -2561,6 +2563,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
   srcs: [
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+    "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
@@ -2570,6 +2573,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pb.h",
+    "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pb.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pb.h",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pb.h",
   ],
@@ -2584,6 +2588,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_gpu_zero_gen",
   srcs: [
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+    "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
@@ -2594,6 +2599,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.cc",
   ],
@@ -2604,6 +2610,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
   srcs: [
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+    "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
@@ -2614,6 +2621,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pbzero.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h",
   ],
