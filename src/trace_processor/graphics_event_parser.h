@@ -37,6 +37,7 @@ class GraphicsEventParser {
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
   void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
+  void ParseGpuLog(int64_t ts, ConstBytes);
 
   void ParseVulkanMemoryEvent(ConstBytes);
   void UpdateVulkanMemoryAllocationCounters(
@@ -70,6 +71,12 @@ class GraphicsEventParser {
   int64_t vulkan_live_buffer_objects_;
   int64_t vulkan_bound_image_objects_;
   int64_t vulkan_bound_buffer_objects_;
+  // For GpuLog
+  const StringId gpu_log_track_name_id_;
+  const StringId gpu_log_scope_id_;
+  const StringId tag_id_;
+  const StringId log_message_id_;
+  std::array<StringId, 6> log_severity_ids_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
