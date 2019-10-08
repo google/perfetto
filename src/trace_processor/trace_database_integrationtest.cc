@@ -132,6 +132,34 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
   ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")).ok());
 }
 
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14357) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_14357", 100).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14730) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_14730", 100).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14753) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_14753", 100).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14762) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_14762", 100).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14767) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_14767", 100).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14799) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_14799", 100).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz15252) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_15252", 100).ok());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
