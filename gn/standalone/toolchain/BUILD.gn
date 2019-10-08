@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//gn/perfetto.gni")
 import("//gn/standalone/android.gni")
 import("//gn/standalone/wasm.gni")
 import("llvm.gni")
@@ -32,6 +33,7 @@ declare_args() {
 # 2. setting is_system_compiler=true in args.gn and the env vars AR/CC/CXX.
 #    This is used by OSSFuzz.
 declare_args() {
+  sysroot = ""
   ar = "ar"
   if (is_linux_host) {
     linker = "gold"
@@ -61,28 +63,28 @@ declare_args() {
 
 # Then determine the target toolchain.
 
-# GCC only: determine the cross-toolchain triplet.
 declare_args() {
-  if (is_clang || !is_cross_compiling) {
-    gcc_target_triplet = ""
+  target_sysroot = sysroot
+  if (!is_cross_compiling) {
+    target_triplet = ""
   } else if (target_os == "mac" && target_cpu == "x64") {
-    gcc_target_triplet = "x86_64-apple-darwin"
+    target_triplet = "x86_64-apple-darwin"
   } else if (target_os == "mac" && target_cpu == "x86") {
-    gcc_target_triplet = "i686-apple-darwin"
+    target_triplet = "i686-apple-darwin"
   } else if (target_os == "linux" && target_cpu == "arm64") {
-    gcc_target_triplet = "aarch64-linux-gnu"
+    target_triplet = "aarch64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x64") {
-    gcc_target_triplet = "x86_64-linux-gnu"
+    target_triplet = "x86_64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x86") {
-    gcc_target_triplet = "i686-linux-gnu"
+    target_triplet = "i686-linux-gnu"
   } else if (target_os == "android" && target_cpu == "arm64") {
-    gcc_target_triplet = "aarch64-linux-android"
+    target_triplet = "aarch64-linux-android"
   } else if (target_os == "android" && target_cpu == "arm") {
-    gcc_target_triplet = "arm-linux-androideabi"
+    target_triplet = "arm-linux-androideabi"
   } else if (target_os == "android" && target_cpu == "x86") {
-    gcc_target_triplet = "i686-linux-android"
+    target_triplet = "i686-linux-android"
   } else if (target_os == "android" && target_cpu == "x86_64") {
-    gcc_target_triplet = "x86_64-linux-android"
+    target_triplet = "x86_64-linux-android"
   } else {
     assert(false,
            "Unsupported cross-compilation for ${target_os}-${target_cpu}")
@@ -90,7 +92,7 @@ declare_args() {
 }
 
 declare_args() {
-  if (!is_cross_compiling) {
+  if (!is_cross_compiling || is_perfetto_build_generator) {
     target_ar = ar
     target_cc = cc
     target_cxx = cxx
@@ -106,16 +108,18 @@ declare_args() {
       target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
       target_cc = "$android_llvm_dir/bin/clang"
       target_cxx = "$android_llvm_dir/bin/clang++"
-    } else if (is_clang) {
-      target_cc = linux_clang_bin
-      target_cxx = linux_clangxx_bin
-      target_linker = linux_clang_linker
-    } else {  # GCC
-      assert(gcc_target_triplet != "",
-             "gcc_target_triplet must be non-empty when cross-compiling")
-      target_ar = "${gcc_target_triplet}-ar"
-      target_cc = "${gcc_target_triplet}-gcc"
-      target_cxx = "${gcc_target_triplet}-g++"
+    } else {
+      assert(target_triplet != "",
+             "target_triplet must be non-empty when cross-compiling")
+      if (is_clang) {
+        target_cc = "${linux_clang_bin} --target=${target_triplet}"
+        target_cxx = "${linux_clangxx_bin} --target=${target_triplet}"
+        target_linker = "${linux_clang_linker} --target=${target_triplet}"
+      } else {  # GCC
+        target_ar = "${target_triplet}-ar"
+        target_cc = "${target_triplet}-gcc"
+        target_cxx = "${target_triplet}-g++"
+      }
     }
   }
 }
@@ -128,9 +132,14 @@ template("gcc_like_toolchain") {
     lib_switch = "-l"
     lib_dir_switch = "-L"
     ld_arg = ""
-    if (invoker.linker != "") {
+    if (defined(invoker.linker) && invoker.linker != "") {
       _invoker_linker = invoker.linker
       ld_arg = "-fuse-ld=$_invoker_linker"
+    }
+    if (defined(invoker.sysroot) && invoker.sysroot != "") {
+      _invoker_sysroot = invoker.sysroot
+      cc = "$cc --sysroot=$_invoker_sysroot"
+      cxx = "$cxx --sysroot=$_invoker_sysroot"
     }
 
     tool("cc") {
@@ -229,6 +238,7 @@ gcc_like_toolchain("gcc_like") {
   cc = target_cc
   cxx = target_cxx
   linker = target_linker
+  sysroot = target_sysroot
 }
 
 gcc_like_toolchain("gcc_like_host") {
@@ -238,6 +248,7 @@ gcc_like_toolchain("gcc_like_host") {
   cc = cc
   cxx = cxx
   linker = linker
+  sysroot = sysroot
 }
 
 gcc_like_toolchain("wasm") {
@@ -247,5 +258,4 @@ gcc_like_toolchain("wasm") {
   ar = "$emsdk_dir/emscripten/emar --em-config $em_config"
   cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
   cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
-  linker = ""
 }
