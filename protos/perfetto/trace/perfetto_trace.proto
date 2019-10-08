@@ -3482,7 +3482,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 63.
+// Next id: 64.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3531,6 +3531,7 @@ message TracePacket {
     HeapGraph heap_graph = 56;
     GraphicsFrameEvent graphics_frame_event = 57;
     // removed field with id 62
+    GpuLog gpu_log = 63;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -4142,6 +4143,26 @@ message GpuCounterEvent {
 }
 
 // End of protos/perfetto/trace/gpu/gpu_counter_event.proto
+
+// Begin of protos/perfetto/trace/gpu/gpu_log.proto
+
+// Message for logging events GPU data producer.
+message GpuLog {
+  enum Severity {
+    VERBOSE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARNING = 3;
+    ERROR = 4;
+  };
+  optional Severity severity = 1;
+
+  optional string tag = 2;
+
+  optional string log_message = 3;
+}
+
+// End of protos/perfetto/trace/gpu/gpu_log.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 

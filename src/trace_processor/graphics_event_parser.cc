@@ -28,6 +28,7 @@
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/android/graphics_frame_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
@@ -80,7 +81,17 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
       vulkan_live_image_objects_(0),
       vulkan_live_buffer_objects_(0),
       vulkan_bound_image_objects_(0),
-      vulkan_bound_buffer_objects_(0) {}
+      vulkan_bound_buffer_objects_(0),
+      gpu_log_track_name_id_(context_->storage->InternString("GPU Log")),
+      gpu_log_scope_id_(context_->storage->InternString("gpu_log")),
+      tag_id_(context_->storage->InternString("tag")),
+      log_message_id_(context->storage->InternString("message")),
+      log_severity_ids_{{context_->storage->InternString("VERBOSE"),
+                         context_->storage->InternString("DEBUG"),
+                         context_->storage->InternString("INFO"),
+                         context_->storage->InternString("WARNING"),
+                         context_->storage->InternString("ERROR"),
+                         context_->storage->InternString("UNKNOWN_SEVERITY") /* must be last */}} {}
 
 void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
@@ -466,6 +477,40 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(ConstBytes blob) {
       }
     }
   }
+}
+
+void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
+  protos::pbzero::GpuLog::Decoder event(blob.data, blob.size);
+
+  tables::GpuTrackTable::Row track(gpu_log_track_name_id_.id);
+  track.scope = gpu_log_scope_id_;
+  TrackId track_id = context_->track_tracker->InternGpuTrack(track);
+
+  auto args_callback = [this, &event](ArgsTracker* args_tracker, RowId row_id) {
+    if (event.has_tag()) {
+      args_tracker->AddArg(
+          row_id, tag_id_, tag_id_,
+          Variadic::String(context_->storage->InternString(event.tag())));
+    }
+    if (event.has_log_message()) {
+      args_tracker->AddArg(row_id, log_message_id_, log_message_id_,
+                           Variadic::String(context_->storage->InternString(
+                               event.log_message())));
+    }
+  };
+
+  auto severity = static_cast<size_t>(event.severity());
+  StringId severity_id =
+      severity < log_severity_ids_.size()
+          ? log_severity_ids_[static_cast<size_t>(event.severity())]
+          : log_severity_ids_[log_severity_ids_.size() - 1];
+  const auto slice_id = context_->slice_tracker->Scoped(ts, track_id, track_id, RefType::kRefTrack,
+                                  0 /* cat */, severity_id, 0 /* duration */,
+                                  args_callback);
+
+  tables::GpuSliceTable::Row row;
+  row.slice_id = slice_id.value();
+  context_->storage->mutable_gpu_slice_table()->Insert(row);
 }
 
 }  // namespace trace_processor
