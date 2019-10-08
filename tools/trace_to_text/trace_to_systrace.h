@@ -20,14 +20,25 @@
 #include <iostream>
 
 namespace perfetto {
+
+namespace trace_processor {
+class TraceProcessor;
+}  // namespace trace_processor
+
 namespace trace_to_text {
 
+class TraceWriter;
+
 enum class Keep { kStart = 0, kEnd, kAll };
-enum SystraceKind { kSystraceNormal = 0, kSystraceCompressed, kSystraceJson };
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
-                    SystraceKind kind,
+                    bool compress,
+                    Keep truncate_keep);
+
+int ExtractSystrace(trace_processor::TraceProcessor*,
+                    TraceWriter*,
+                    bool wrapped_in_json,
                     Keep truncate_keep);
 
 }  // namespace trace_to_text
