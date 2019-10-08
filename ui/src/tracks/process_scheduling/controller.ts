@@ -38,7 +38,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    if (!this.config.upid) {
+    if (this.config.upid === null) {
       throw new Error('Upid not set.');
     }
 
