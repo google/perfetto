@@ -103,6 +103,7 @@ TRACE_PROTOS = (
   'protos/perfetto/trace/track_event/track_event.proto',
   'protos/perfetto/trace/trigger.proto',
   'protos/perfetto/trace/gpu/gpu_counter_event.proto',
+  'protos/perfetto/trace/gpu/gpu_log.proto',
   'protos/perfetto/trace/gpu/gpu_render_stage_event.proto',
 )
 

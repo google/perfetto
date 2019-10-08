@@ -1592,6 +1592,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_gpu_protos",
     srcs = [
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
+        "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
     ],
