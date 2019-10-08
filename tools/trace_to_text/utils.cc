@@ -44,6 +44,8 @@ constexpr const char* kQueryUnsymbolized =
     "on spf.mapping = spm.id "
     "where spm.build_id != '' and spf.symbol_set_id == 0";
 
+constexpr size_t kCompressionBufferSize = 500 * 1024;
+
 std::string FromHex(const char* str, size_t size) {
   if (size % 2) {
     PERFETTO_DFATAL_OR_ELOG("Failed to parse hex %s", str);
@@ -234,6 +236,60 @@ void SymbolizeDatabase(
     }
     callback(std::move(packet));
   }
+}
+
+TraceWriter::TraceWriter(std::ostream* output) : output_(output) {}
+
+TraceWriter::~TraceWriter() = default;
+
+void TraceWriter::Write(std::string s) {
+  Write(s.data(), s.size());
+}
+
+void TraceWriter::Write(const char* data, size_t sz) {
+  output_->write(data, static_cast<std::streamsize>(sz));
+}
+
+DeflateTraceWriter::DeflateTraceWriter(std::ostream* output)
+    : TraceWriter(output),
+      buf_(base::PagedMemory::Allocate(kCompressionBufferSize)),
+      start_(static_cast<uint8_t*>(buf_.Get())),
+      end_(start_ + buf_.size()) {
+  CheckEq(deflateInit(&stream_, 9), Z_OK);
+  stream_.next_out = start_;
+  stream_.avail_out = static_cast<unsigned int>(end_ - start_);
+}
+
+DeflateTraceWriter::~DeflateTraceWriter() {
+  while (deflate(&stream_, Z_FINISH) != Z_STREAM_END) {
+    Flush();
+  }
+  CheckEq(deflateEnd(&stream_), Z_OK);
+}
+
+void DeflateTraceWriter::Write(const char* data, size_t sz) {
+  stream_.next_in = reinterpret_cast<uint8_t*>(const_cast<char*>(data));
+  stream_.avail_in = static_cast<unsigned int>(sz);
+  while (stream_.avail_in > 0) {
+    CheckEq(deflate(&stream_, Z_NO_FLUSH), Z_OK);
+    if (stream_.avail_out == 0) {
+      Flush();
+    }
+  }
+}
+
+void DeflateTraceWriter::Flush() {
+  TraceWriter::Write(reinterpret_cast<char*>(start_),
+                     static_cast<size_t>(stream_.next_out - start_));
+  stream_.next_out = start_;
+  stream_.avail_out = static_cast<unsigned int>(end_ - start_);
+}
+
+void DeflateTraceWriter::CheckEq(int actual_code, int expected_code) {
+  if (actual_code == expected_code)
+    return;
+  PERFETTO_FATAL("Expected %d got %d: %s", actual_code, expected_code,
+                 stream_.msg);
 }
 
 }  // namespace trace_to_text
