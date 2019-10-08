@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "tools/trace_to_text/symbolize_profile.h"
+#include "tools/trace_to_text/trace_to_json.h"
 #include "tools/trace_to_text/trace_to_profile.h"
 #include "tools/trace_to_text/trace_to_systrace.h"
 #include "tools/trace_to_text/trace_to_text.h"
@@ -105,15 +106,15 @@ int Main(int argc, char** argv) {
   std::string format(positional_args[0]);
 
   if (format == "json")
-    return TraceToSystrace(input_stream, output_stream, kSystraceJson,
-                           truncate_keep);
+    return TraceToJson(input_stream, output_stream, /*compress=*/false,
+                       truncate_keep);
 
   if (format == "systrace")
-    return TraceToSystrace(input_stream, output_stream, kSystraceNormal,
+    return TraceToSystrace(input_stream, output_stream, /*compress=*/false,
                            truncate_keep);
 
   if (format == "ctrace")
-    return TraceToSystrace(input_stream, output_stream, kSystraceCompressed,
+    return TraceToSystrace(input_stream, output_stream, /*compress=*/true,
                            truncate_keep);
 
   if (truncate_keep != Keep::kAll) {
