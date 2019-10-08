@@ -520,7 +520,7 @@ genrule(
         "src/trace_processor/metrics/android/android_startup_cpu.sql",
         "src/trace_processor/metrics/android/android_startup_launches.sql",
         "src/trace_processor/metrics/android/android_task_state.sql",
-        "src/trace_processor/metrics/android/heap_profile_callsite_stats.sql",
+        "src/trace_processor/metrics/android/heap_profile_callsites.sql",
         "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",
         "src/trace_processor/metrics/android/process_mem.sql",
         "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
@@ -1396,7 +1396,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/metrics/android/batt_metric.proto",
         "protos/perfetto/metrics/android/cpu_metric.proto",
-        "protos/perfetto/metrics/android/heap_profile_callsite_stats.proto",
+        "protos/perfetto/metrics/android/heap_profile_callsites.proto",
         "protos/perfetto/metrics/android/ion_metric.proto",
         "protos/perfetto/metrics/android/lmk_metric.proto",
         "protos/perfetto/metrics/android/mem_metric.proto",
