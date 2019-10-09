@@ -76,7 +76,7 @@ class GraphicsEventParser {
   const StringId gpu_log_scope_id_;
   const StringId tag_id_;
   const StringId log_message_id_;
-  std::array<StringId, 6> log_severity_ids_;
+  std::array<StringId, 7> log_severity_ids_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
