@@ -41,6 +41,11 @@ void HeapGraphTracker::AddInternedTypeName(uint64_t intern_id,
   interned_type_names_.emplace(intern_id, strid);
 }
 
+void HeapGraphTracker::AddInternedFieldName(uint64_t intern_id,
+                                            StringPool::Id strid) {
+  interned_field_names_.emplace(intern_id, strid);
+}
+
 void HeapGraphTracker::SetPacketIndex(uint64_t index) {
   if (prev_index_ != 0 && prev_index_ + 1 != index) {
     PERFETTO_ELOG("Missing packets between %" PRIu64 " and %" PRIu64,
@@ -61,8 +66,48 @@ void HeapGraphTracker::FinalizeProfile() {
     }
     context_->storage->mutable_heap_graph_object_table()->Insert(
         {current_upid_, current_ts_, static_cast<int64_t>(obj.object_id),
-         static_cast<int64_t>(obj.self_size), it->second});
+         static_cast<int64_t>(obj.self_size), -1, it->second});
+    object_id_to_row_.emplace(
+        obj.object_id, context_->storage->heap_graph_object_table().size() - 1);
   }
+
+  for (const SourceObject& obj : current_objects_) {
+    auto it = object_id_to_row_.find(obj.object_id);
+    if (it == object_id_to_row_.end())
+      continue;
+    int64_t owner_row = it->second;
+
+    int64_t reference_set_id =
+        context_->storage->heap_graph_reference_table().size();
+    for (const SourceObject::Reference& ref : obj.references) {
+      // This is true for unset reference fields.
+      if (ref.owned_object_id == 0)
+        continue;
+
+      it = object_id_to_row_.find(ref.owned_object_id);
+      // This can only happen for an invalid type string id, which is already
+      // reported as an error. Silently continue here.
+      if (it == object_id_to_row_.end())
+        continue;
+
+      int64_t owned_row = it->second;
+      auto field_name_it = interned_field_names_.find(obj.type_id);
+      if (field_name_it == interned_field_names_.end()) {
+        context_->storage->IncrementIndexedStats(
+            stats::heap_graph_invalid_string_id,
+            static_cast<int>(current_upid_));
+        continue;
+      }
+      StringPool::Id field_name = field_name_it->second;
+      context_->storage->mutable_heap_graph_reference_table()->Insert(
+          {reference_set_id, owner_row, owned_row, field_name});
+    }
+    context_->storage->mutable_heap_graph_object_table()
+        ->mutable_reference_set_id()
+        ->Set(static_cast<uint32_t>(owner_row), reference_set_id);
+  }
+  interned_field_names_.clear();
+  object_id_to_row_.clear();
   interned_type_names_.clear();
   current_objects_.clear();
   current_upid_ = 0;
