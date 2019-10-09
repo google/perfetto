@@ -43,7 +43,7 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   if (down && '?' === key) {
     toggleHelp();
   }
-  if (down && 'Enter' === key) {
+  if (down && 'enter' === key) {
     e.preventDefault();
     executeSearch(e.shiftKey);
   }
