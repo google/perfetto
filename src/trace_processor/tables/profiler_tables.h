@@ -40,9 +40,20 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
   C(int64_t, graph_sample_ts)                              \
   C(int64_t, object_id)                                    \
   C(int64_t, self_size)                                    \
+  C(int64_t, reference_set_id)                             \
   C(StringPool::Id, type_name)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
+
+#define PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF(NAME, PARENT, C) \
+  NAME(HeapGraphReferenceTable, "heap_graph_reference")       \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
+  C(int64_t, reference_set_id)                                \
+  C(int64_t, owner_id)                                        \
+  C(int64_t, owned_id)                                        \
+  C(StringPool::Id, field_name)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);
 
 #define PERFETTO_TP_VULKAN_MEMORY_ALLOCATIONS_DEF(NAME, PARENT, C) \
   NAME(VulkanMemoryAllocationsTable, "vulkan_memory_allocations")  \
