@@ -601,10 +601,10 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
 
   EXPECT_EQ(1,
             ExecPerfetto({"-c", "-", "--txt", "-o", "-", "--attach=foo"}, cfg));
-  EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
+  EXPECT_THAT(stderr_, HasSubstr("trace config with "));
 
   EXPECT_EQ(1, ExecPerfetto({"-t", "2s", "-o", "-", "--attach=foo"}, cfg));
-  EXPECT_THAT(stderr_, HasSubstr("trace config with --attach"));
+  EXPECT_THAT(stderr_, HasSubstr("trace config with "));
 
   EXPECT_EQ(1, ExecPerfetto({"--attach"}, cfg));
   EXPECT_THAT(stderr_, ContainsRegex("option.*--attach.*requires an argument"));
