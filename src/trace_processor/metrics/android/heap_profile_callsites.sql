@@ -174,13 +174,17 @@ SELECT
   ca.upid,
   ca.self_hash,
   tree.parent_hash,
-  symbolized_frame.frame_proto,
+  frame.frame_proto,
   sa.allocs_proto AS self_allocs_proto,
   ca.allocs_proto AS child_allocs_proto
 FROM hashed_callsite_tree tree
-JOIN symbolized_frame USING (frame_hash)
-JOIN child_allocs_proto ca USING (self_hash)
-LEFT JOIN self_allocs_proto sa USING (self_hash, upid);
+JOIN (SELECT DISTINCT frame_hash, frame_proto FROM symbolized_frame) frame
+  USING (frame_hash)
+JOIN child_allocs_proto ca
+  USING (self_hash)
+LEFT JOIN self_allocs_proto sa
+  USING (self_hash, upid)
+ORDER BY 1, 2;
 
 DROP INDEX symbolized_frame_hash_idx;
 
