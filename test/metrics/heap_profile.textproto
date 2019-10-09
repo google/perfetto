@@ -60,6 +60,11 @@ packet {
       frame_ids: 2
       frame_ids: 3
     }
+    callstacks {
+      iid: 2
+      frame_ids: 1
+      frame_ids: 2
+    }
     mappings {
       iid: 1
       path_string_ids: 4
@@ -72,6 +77,13 @@ packet {
         self_allocated: 2000
         self_freed: 1000
         alloc_count: 2
+        free_count: 1
+      }
+      samples {
+        callstack_id: 2
+        self_allocated: 100
+        self_freed: 10
+        alloc_count: 10
         free_count: 1
       }
     }
