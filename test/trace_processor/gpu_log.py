@@ -18,11 +18,11 @@ sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import synth_common
 
 trace = synth_common.create_trace()
-trace.add_gpu_log(ts=1, severity=0, tag="tag0", message="message0")
-trace.add_gpu_log(ts=2, severity=1, tag="tag0", message="message1")
-trace.add_gpu_log(ts=3, severity=2, tag="tag0", message="message2")
-trace.add_gpu_log(ts=4, severity=3, tag="tag0", message="message3")
-trace.add_gpu_log(ts=4, severity=4, tag="tag0", message="message4")
-trace.add_gpu_log(ts=5, severity=0, tag="tag1", message="message5")
+trace.add_gpu_log(ts=1, severity=1, tag="tag0", message="message0")
+trace.add_gpu_log(ts=2, severity=2, tag="tag0", message="message1")
+trace.add_gpu_log(ts=3, severity=3, tag="tag0", message="message2")
+trace.add_gpu_log(ts=4, severity=4, tag="tag0", message="message3")
+trace.add_gpu_log(ts=4, severity=5, tag="tag0", message="message4")
+trace.add_gpu_log(ts=5, severity=1, tag="tag1", message="message5")
 
 print(trace.trace.SerializeToString())

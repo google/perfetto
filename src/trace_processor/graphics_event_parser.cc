@@ -86,12 +86,14 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
       gpu_log_scope_id_(context_->storage->InternString("gpu_log")),
       tag_id_(context_->storage->InternString("tag")),
       log_message_id_(context->storage->InternString("message")),
-      log_severity_ids_{{context_->storage->InternString("VERBOSE"),
+      log_severity_ids_{{context_->storage->InternString("UNSPECIFIED"),
+                         context_->storage->InternString("VERBOSE"),
                          context_->storage->InternString("DEBUG"),
                          context_->storage->InternString("INFO"),
                          context_->storage->InternString("WARNING"),
                          context_->storage->InternString("ERROR"),
-                         context_->storage->InternString("UNKNOWN_SEVERITY") /* must be last */}} {}
+                         context_->storage->InternString(
+                             "UNKNOWN_SEVERITY") /* must be last */}} {}
 
 void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
@@ -504,9 +506,9 @@ void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
       severity < log_severity_ids_.size()
           ? log_severity_ids_[static_cast<size_t>(event.severity())]
           : log_severity_ids_[log_severity_ids_.size() - 1];
-  const auto slice_id = context_->slice_tracker->Scoped(ts, track_id, track_id, RefType::kRefTrack,
-                                  0 /* cat */, severity_id, 0 /* duration */,
-                                  args_callback);
+  const auto slice_id = context_->slice_tracker->Scoped(
+      ts, track_id, track_id, RefType::kRefTrack, 0 /* cat */, severity_id,
+      0 /* duration */, args_callback);
 
   tables::GpuSliceTable::Row row;
   row.slice_id = slice_id.value();
