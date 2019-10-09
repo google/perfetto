@@ -13,39 +13,48 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-message HeapProfileCallsiteStats {
+message HeapProfileCallsites {
   message Frame {
     optional string name = 1;
     optional string mapping_name = 2;
   }
 
-  message Callsite { repeated Frame frame = 1; }
-
-  message CallsiteStats {
-    optional Callsite callsite = 1;
-
-    // Count of objects allocated at this callsite
-    optional int64 total_count = 2;
-    // Count of bytes allocated at this callsite
-    optional int64 total_bytes = 3;
+  message Counters {
+    // Count of objects allocated
+    optional int64 total_count = 1;
+    // Count of bytes allocated
+    optional int64 total_bytes = 2;
 
     // Count of allocated objects that were not freed
-    optional int64 delta_count = 4;
+    optional int64 delta_count = 3;
     // Count of allocated bytes that were not freed
-    optional int64 delta_bytes = 5;
+    optional int64 delta_bytes = 4;
   }
 
-  // Next id: 4
+  message Callsite {
+    // The hash unambiguously identifies a callsite in a heap profile (as a
+    // traversal from the root node). It is based on the symbol names (instead
+    // of the addresses).
+    optional int64 hash = 1;
+    optional int64 parent_hash = 2;
+
+    // Leaf frame of the callsite. Use parent_hash to traverse to parent nodes.
+    optional Frame frame = 3;
+
+    optional Counters self_allocs = 4;
+    optional Counters child_allocs = 5;
+  }
+
+  // Callsites per process instance.
   message InstanceStats {
-    optional uint32 pid = 3;
-    optional string process_name = 1;
-    repeated CallsiteStats callsite_stats = 2;
+    optional uint32 pid = 1;
+    optional string process_name = 2;
+    repeated Callsite callsites = 3;
   }
 
   repeated InstanceStats instance_stats = 1;
