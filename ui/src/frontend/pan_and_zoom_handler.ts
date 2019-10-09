@@ -43,6 +43,10 @@ const KEYBOARD_PAN_PX_PER_FRAME = 8;
 const HORIZONTAL_WHEEL_PAN_SPEED = 1;
 const WHEEL_ZOOM_SPEED = -0.02;
 
+const EDITING_RANGE_CURSOR = 'ew-resize';
+const SHIFT_CURSOR = 'text';
+const DEFAULT_CURSOR = 'default';
+
 enum Pan {
   None = 0,
   Left = -1,
@@ -91,20 +95,28 @@ export class PanAndZoomHandler {
   private contentOffsetX: number;
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
-  private onDragSelect: (selectStartPx: number, selectEndPx: number) => void;
+  private shouldDrag: (currentPx: number) => boolean;
+  private onDrag:
+      (dragStartPx: number, prevPx: number, currentPx: number,
+       editing: boolean) => void;
 
-  constructor({element, contentOffsetX, onPanned, onZoomed, onDragSelect}: {
-    element: HTMLElement,
-    contentOffsetX: number,
-    onPanned: (movedPx: number) => void,
-    onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
-    onDragSelect: (selectStartPx: number, selectEndPx: number) => void
-  }) {
+  constructor(
+      {element, contentOffsetX, onPanned, onZoomed, shouldDrag, onDrag}: {
+        element: HTMLElement,
+        contentOffsetX: number,
+        onPanned: (movedPx: number) => void,
+        onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
+        shouldDrag: (currentPx: number) => boolean,
+        onDrag:
+            (dragStartPx: number, prevPx: number, currentPx: number,
+             editing: boolean) => void,
+      }) {
     this.element = element;
     this.contentOffsetX = contentOffsetX;
     this.onPanned = onPanned;
     this.onZoomed = onZoomed;
-    this.onDragSelect = onDragSelect;
+    this.shouldDrag = shouldDrag;
+    this.onDrag = onDrag;
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
@@ -112,22 +124,39 @@ export class PanAndZoomHandler {
     this.element.addEventListener('wheel', this.boundOnWheel, {passive: true});
 
     let lastX = -1;
-    new DragGestureHandler(this.element, x => {
-      if (this.shiftDown && this.dragStartPx !== -1) {
-        this.onDragSelect(this.dragStartPx, x);
-      } else {
-        this.onPanned(lastX - x);
-      }
-      lastX = x;
-    }, x => {
-      lastX = x;
-      if (this.shiftDown) {
-        this.dragStartPx = x;
-      }
-    }, () => {
-      this.dragStartPx = -1;
-    });
+    let drag = false;
+    new DragGestureHandler(
+        this.element,
+        x => {
+          // If we started our drag on a time range boundary or shift is down
+          // then we are drag selecting rather than panning.
+          if (drag || this.shiftDown) {
+            this.onDrag(this.dragStartPx, lastX, x, !this.shiftDown);
+          } else {
+            this.onPanned(lastX - x);
+          }
+          lastX = x;
+        },
+        x => {
+          lastX = x;
+          this.dragStartPx = x;
+          drag = this.shouldDrag(x);
+          // Set the cursor style based on where the cursor is when the drag
+          // starts.
+          if (drag) {
+            this.element.style.cursor = EDITING_RANGE_CURSOR;
+          } else if (this.shiftDown) {
+            this.element.style.cursor = SHIFT_CURSOR;
+          }
+        },
+        () => {
+          // Reset the cursor now the drag has ended.
+          this.element.style.cursor =
+              this.shiftDown ? SHIFT_CURSOR : DEFAULT_CURSOR;
+          this.dragStartPx = -1;
+        });
   }
+
 
   shutdown() {
     document.body.removeEventListener('keydown', this.boundOnKeyDown);
@@ -176,10 +205,21 @@ export class PanAndZoomHandler {
         globals.frontendLocalState.sidebarVisible ? this.contentOffsetX : 0;
     // We can't use layerX here because there are many layers in this element.
     this.mousePositionX = e.clientX - pageOffset;
+    // Only change the cursor when hovering, the DragGestureHandler handles
+    // changing the cursor during drag events. This avoids the problem of
+    // the cursor flickering between styles if you drag fast and get too
+    // far from the current time range.
+    if (e.buttons === 0) {
+      if (!this.shouldDrag(this.mousePositionX)) {
+        this.element.style.cursor =
+            this.shiftDown ? SHIFT_CURSOR : DEFAULT_CURSOR;
+      } else {
+        this.element.style.cursor = EDITING_RANGE_CURSOR;
+      }
+    }
     if (this.shiftDown) {
       const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
-      const ts =
-        globals.frontendLocalState.timeScale.pxToTime(pos);
+      const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
       globals.frontendLocalState.setHoveredTimestamp(ts);
     }
   }
@@ -235,19 +275,20 @@ export class PanAndZoomHandler {
     handleKey(e, false);
   }
 
+  // TODO(taylori): Move this shift handling into the viewer page.
   private updateShift(down: boolean) {
     if (down === this.shiftDown) return;
     this.shiftDown = down;
     if (this.shiftDown) {
       if (this.mousePositionX) {
-        this.element.style.cursor = 'text';
+        this.element.style.cursor = SHIFT_CURSOR;
         const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
         const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
         globals.frontendLocalState.setHoveredTimestamp(ts);
       }
     } else {
       globals.frontendLocalState.setHoveredTimestamp(-1);
-      this.element.style.cursor = 'default';
+      this.element.style.cursor = DEFAULT_CURSOR;
     }
 
     globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
