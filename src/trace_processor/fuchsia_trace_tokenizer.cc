@@ -424,6 +424,10 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       uint64_t ticks = record[1];
       int64_t ts = fuchsia_trace_utils::TicksToNs(
           ticks, current_provider_->ticks_per_second);
+      if (ts == -1) {
+        context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+        break;
+      }
 
       const uint64_t* current = &record[2];
 
