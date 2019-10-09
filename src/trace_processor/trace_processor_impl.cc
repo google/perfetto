@@ -376,6 +376,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   DbSqliteTable::RegisterTable(*db_, &storage->heap_graph_object_table(),
                                storage->heap_graph_object_table().table_name());
   DbSqliteTable::RegisterTable(
+      *db_, &storage->heap_graph_reference_table(),
+      storage->heap_graph_reference_table().table_name());
+  DbSqliteTable::RegisterTable(
       *db_, &storage->vulkan_memory_allocations_table(),
       storage->vulkan_memory_allocations_table().table_name());
 }
