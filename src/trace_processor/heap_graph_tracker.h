@@ -34,15 +34,23 @@ class TraceProcessorContext;
 class HeapGraphTracker {
  public:
   struct SourceObject {
+    // All ids in this are in the trace iid space, not in the trace processor
+    // id space.
+    struct Reference {
+      uint64_t field_name_id = 0;
+      uint64_t owned_object_id = 0;
+    };
     uint64_t object_id = 0;
     uint64_t self_size = 0;
     uint64_t type_id = 0;
+    std::vector<Reference> references;
   };
 
   explicit HeapGraphTracker(TraceProcessorContext* context);
 
   void AddObject(UniquePid upid, int64_t ts, SourceObject obj);
   void AddInternedTypeName(uint64_t intern_id, StringPool::Id strid);
+  void AddInternedFieldName(uint64_t intern_id, StringPool::Id strid);
   void FinalizeProfile();
   void SetPacketIndex(uint64_t index);
 
@@ -53,6 +61,8 @@ class HeapGraphTracker {
   int64_t current_ts_ = 0;
   std::vector<SourceObject> current_objects_;
   std::map<uint64_t, StringPool::Id> interned_type_names_;
+  std::map<uint64_t, StringPool::Id> interned_field_names_;
+  std::map<uint64_t, int64_t> object_id_to_row_;
   uint64_t prev_index_ = 0;
 };
 

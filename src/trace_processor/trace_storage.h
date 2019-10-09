@@ -1284,6 +1284,14 @@ class TraceStorage {
     return &heap_graph_object_table_;
   }
 
+  const tables::HeapGraphReferenceTable& heap_graph_reference_table() const {
+    return heap_graph_reference_table_;
+  }
+
+  tables::HeapGraphReferenceTable* mutable_heap_graph_reference_table() {
+    return &heap_graph_reference_table_;
+  }
+
   const tables::GpuTrackTable& gpu_track_table() const {
     return gpu_track_table_;
   }
@@ -1405,6 +1413,8 @@ class TraceStorage {
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_, nullptr};
   tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_, nullptr};
+  tables::HeapGraphReferenceTable heap_graph_reference_table_{&string_pool_,
+                                                              nullptr};
 
   tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
       &string_pool_, nullptr};

@@ -2730,6 +2730,21 @@ void ProtoTraceParser::ParseHeapGraph(int64_t ts, ConstBytes blob) {
     obj.object_id = object.id();
     obj.self_size = object.self_size();
     obj.type_id = object.type_id();
+    auto ref_field_ids_it = object.reference_field_id();
+    auto ref_object_ids_it = object.reference_object_id();
+    for (; ref_field_ids_it && ref_object_ids_it;
+         ++ref_field_ids_it, ++ref_object_ids_it) {
+      HeapGraphTracker::SourceObject::Reference ref;
+      ref.field_name_id = ref_field_ids_it->as_uint64();
+      ref.owned_object_id = ref_object_ids_it->as_uint64();
+      obj.references.emplace_back(std::move(ref));
+    }
+
+    if (ref_field_ids_it || ref_object_ids_it) {
+      context_->storage->IncrementIndexedStats(stats::heap_graph_missing_packet,
+                                               static_cast<int>(upid));
+      continue;
+    }
     context_->heap_graph_tracker->AddObject(upid, ts, std::move(obj));
   }
   for (auto it = heap_graph.type_names(); it; ++it) {
@@ -2738,6 +2753,14 @@ void ProtoTraceParser::ParseHeapGraph(int64_t ts, ConstBytes blob) {
     auto str_view = base::StringView(str, entry.str().size);
 
     context_->heap_graph_tracker->AddInternedTypeName(
+        entry.iid(), context_->storage->InternString(str_view));
+  }
+  for (auto it = heap_graph.field_names(); it; ++it) {
+    protos::pbzero::InternedString::Decoder entry(it->data(), it->size());
+    const char* str = reinterpret_cast<const char*>(entry.str().data);
+    auto str_view = base::StringView(str, entry.str().size);
+
+    context_->heap_graph_tracker->AddInternedFieldName(
         entry.iid(), context_->storage->InternString(str_view));
   }
   if (!heap_graph.continued()) {
