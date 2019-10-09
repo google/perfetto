@@ -339,6 +339,7 @@ filegroup(
     name = "include_perfetto_trace_processor_trace_processor",
     srcs = [
         "include/perfetto/trace_processor/basic_types.h",
+        "include/perfetto/trace_processor/read_trace.h",
         "include/perfetto/trace_processor/status.h",
         "include/perfetto/trace_processor/trace_processor.h",
     ],
@@ -660,6 +661,7 @@ filegroup(
         "src/trace_processor/proto_trace_tokenizer.h",
         "src/trace_processor/raw_table.cc",
         "src/trace_processor/raw_table.h",
+        "src/trace_processor/read_trace.cc",
         "src/trace_processor/row_iterators.cc",
         "src/trace_processor/row_iterators.h",
         "src/trace_processor/sched_slice_table.cc",
