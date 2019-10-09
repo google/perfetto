@@ -110,6 +110,7 @@ namespace stats {
   F(json_tokenizer_failure,                   kSingle,  kError,    kTrace),    \
   F(heap_graph_invalid_string_id,             kIndexed, kError,    kTrace),    \
   F(heap_graph_non_finalized_graph,           kSingle,  kError,    kTrace),    \
+  F(heap_graph_malformed_packet,              kIndexed, kError,    kTrace),    \
   F(heap_graph_missing_packet,                kIndexed, kDataLoss, kTrace),    \
   F(heapprofd_buffer_corrupted,               kIndexed, kError,    kTrace),    \
   F(heapprofd_buffer_overran,                 kIndexed, kDataLoss, kTrace),    \
