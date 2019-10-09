@@ -22,12 +22,12 @@ package perfetto.protos;
 // Message for logging events GPU data producer.
 message GpuLog {
   enum Severity {
-    SEVERITY_UNSPECIFIED = 0;
-    SEVERITY_VERBOSE = 1;
-    SEVERITY_DEBUG = 2;
-    SEVERITY_INFO = 3;
-    SEVERITY_WARNING = 4;
-    SEVERITY_ERROR = 5;
+    LOG_SEVERITY_UNSPECIFIED = 0;
+    LOG_SEVERITY_VERBOSE = 1;
+    LOG_SEVERITY_DEBUG = 2;
+    LOG_SEVERITY_INFO = 3;
+    LOG_SEVERITY_WARNING = 4;
+    LOG_SEVERITY_ERROR = 5;
   };
   optional Severity severity = 1;
 
