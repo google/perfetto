@@ -179,6 +179,26 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 }
 
+// Checks if the mousePos is within 3px of the start or end of the
+// current selected time range.
+function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
+  const startSec = globals.frontendLocalState.selectedTimeRange.startSec;
+  const endSec = globals.frontendLocalState.selectedTimeRange.endSec;
+  if (startSec !== undefined && endSec !== undefined) {
+    const start = globals.frontendLocalState.timeScale.timeToPx(startSec);
+    const end = globals.frontendLocalState.timeScale.timeToPx(endSec);
+    const startDrag = mousePos - TRACK_SHELL_WIDTH;
+    const startDistance = Math.abs(start - startDrag);
+    const endDistance = Math.abs(end - startDrag);
+    const range = 3 * window.devicePixelRatio;
+    // We might be within 3px of both boundaries but we should choose
+    // the closest one.
+    if (startDistance < range && startDistance <= endDistance) return 'START';
+    if (endDistance < range && endDistance <= startDistance) return 'END';
+  }
+  return null;
+}
+
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
@@ -245,19 +265,39 @@ class TraceViewer implements m.ClassComponent {
         frontendLocalState.updateVisibleTime(newSpan);
         globals.rafScheduler.scheduleRedraw();
       },
-      onDragSelect: (selectStartPx: number|null, selectEndPx: number) => {
-        if (!selectStartPx) return;
-        this.keepCurrentSelection = true;
-        globals.frontendLocalState.setShowTimeSelectPreview(false);
+      shouldDrag: (currentPx: number) => {
+        return onTimeRangeBoundary(currentPx) !== null;
+      },
+      onDrag: (
+          dragStartPx: number,
+          prevPx: number,
+          currentPx: number,
+          editing: boolean) => {
         const traceTime = globals.state.traceTime;
         const scale = frontendLocalState.timeScale;
-        const startPx = Math.min(selectStartPx, selectEndPx);
-        const endPx = Math.max(selectStartPx, selectEndPx);
-        const startTs = Math.max(traceTime.startSec,
-                               scale.pxToTime(startPx - TRACK_SHELL_WIDTH));
-        const endTs = Math.min(traceTime.endSec,
-                               scale.pxToTime(endPx - TRACK_SHELL_WIDTH));
-        globals.frontendLocalState.selectTimeRange(startTs, endTs);
+        this.keepCurrentSelection = true;
+        if (editing) {
+          const startSec = frontendLocalState.selectedTimeRange.startSec;
+          const endSec = frontendLocalState.selectedTimeRange.endSec;
+          if (startSec !== undefined && endSec !== undefined) {
+            const newTime = scale.pxToTime(currentPx - TRACK_SHELL_WIDTH);
+            // Have to check again for when one boundary crosses over the other.
+            const curBoundary = onTimeRangeBoundary(prevPx);
+            if (curBoundary == null) return;
+            const keepTime = curBoundary === 'START' ? endSec : startSec;
+            frontendLocalState.selectTimeRange(
+                Math.max(Math.min(keepTime, newTime), traceTime.startSec),
+                Math.min(Math.max(keepTime, newTime), traceTime.endSec));
+          }
+        } else {
+          frontendLocalState.setShowTimeSelectPreview(false);
+          const dragStartTime = scale.pxToTime(dragStartPx - TRACK_SHELL_WIDTH);
+          const dragEndTime = scale.pxToTime(currentPx - TRACK_SHELL_WIDTH);
+          frontendLocalState.selectTimeRange(
+              Math.max(
+                  Math.min(dragStartTime, dragEndTime), traceTime.startSec),
+              Math.min(Math.max(dragStartTime, dragEndTime), traceTime.endSec));
+        }
         globals.rafScheduler.scheduleRedraw();
       }
     });
