@@ -147,8 +147,9 @@ additional_args = {
         ('header_libs', {'bionic_libc_platform_headers'}),
     ],
     'perfetto_unittests': [('data', set(enumerate_data_deps())),],
-    'traced_probes': [('required',
-                       {'libperfetto_android_internal', 'trigger_perfetto'}),],
+    'traced_probes': [
+        ('required', {'libperfetto_android_internal', 'trigger_perfetto'}),
+    ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
 }
 
@@ -496,12 +497,12 @@ def create_proto_modules(blueprint, gn, target):
   header_module.tools = tools
 
   for sfx in suffixes:
-    source_module.out.update(
-        '%s/%s' % (tree_path, src.replace('.proto', '.%s.cc' % sfx))
-        for src in source_module.srcs)
-    header_module.out.update(
-        '%s/%s' % (tree_path, src.replace('.proto', '.%s.h' % sfx))
-        for src in header_module.srcs)
+    source_module.out.update('%s/%s' %
+                             (tree_path, src.replace('.proto', '.%s.cc' % sfx))
+                             for src in source_module.srcs)
+    header_module.out.update('%s/%s' %
+                             (tree_path, src.replace('.proto', '.%s.h' % sfx))
+                             for src in header_module.srcs)
   return source_module
 
 
@@ -702,8 +703,8 @@ def main():
       action='store_true')
   parser.add_argument(
       '--desc',
-      help=
-      'GN description (e.g., gn desc out --format=json --all-toolchains "//*"')
+      help='GN description (e.g., gn desc out --format=json --all-toolchains "//*"'
+  )
   parser.add_argument(
       '--extras',
       help='Extra targets to include at the end of the Blueprint file',
