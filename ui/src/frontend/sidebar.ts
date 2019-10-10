@@ -69,6 +69,19 @@ select process.name as process, thread, core, cpu_sec from (
   ) inner join thread using(utid)
 ) inner join process using(upid) limit 30;`;
 
+const HEAP_GRAPH_BYTES_PER_TYPE = `
+select
+  upid,
+  graph_sample_ts,
+  type_name,
+  sum(self_size) as total_self_size
+from heap_graph_object
+group by
+ upid,
+ graph_sample_ts,
+ type_name
+order by total_self_size desc
+limit 100;`;
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -174,6 +187,11 @@ const SECTIONS = [
       {
         t: 'CPU Time by cluster by process',
         a: createCannedQuery(CPU_TIME_BY_CLUSTER_BY_PROCESS),
+        i: 'search',
+      },
+      {
+        t: 'Heap Graph: Bytes per type',
+        a: createCannedQuery(HEAP_GRAPH_BYTES_PER_TYPE),
         i: 'search',
       },
       {
