@@ -97,9 +97,9 @@ external_deps = {
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
     '//gn/standalone:gen_git_revision': [],
-    '//src/trace_processor/metrics:gen_merged_sql_metrics': [
-        [":cc_merged_sql_metrics"]
-    ]
+    '//src/trace_processor/metrics:gen_merged_sql_metrics': [[
+        ":cc_merged_sql_metrics"
+    ]]
 }
 
 
@@ -143,8 +143,8 @@ class BazelLabel(object):
     if isinstance(other, self.__class__):
       return self.name < other.name
     raise TypeError(
-      '\'<\' not supported between instances of \'%s\' and \'%s\'' % (
-      type(self).__name__, type(other).__name__))
+        '\'<\' not supported between instances of \'%s\' and \'%s\'' %
+        (type(self).__name__, type(other).__name__))
 
   def __str__(self):
     """Converts the object into a Bazel Starlark label."""
