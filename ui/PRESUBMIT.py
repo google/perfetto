@@ -53,6 +53,9 @@ def CheckTslint(input_api, output_api):
     return [
         output_api.PresubmitError("""\
 There were tslint errors. You may be able to fix some of them using
-$ {} {} --project {} --fix""".format(relpath(node), relpath(tslint), ui_path))
+$ {} {} --project {} --fix
+
+If this is unexpected: did you remember to do a UI build before running the
+presubmit?""".format(relpath(node), relpath(tslint), ui_path))
     ]
   return []
