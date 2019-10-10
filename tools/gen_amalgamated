@@ -548,10 +548,10 @@ def main():
   if args.check:
     output = os.path.join(tempfile.mkdtemp(), 'perfetto_amalgamated')
 
+  out = gn_utils.prepare_out_directory(args.gn_args, 'tmp.gen_amalgamated')
+  if not args.quiet:
+    print('Building project...')
   try:
-    if not args.quiet:
-      print('Building project...')
-    out = gn_utils.prepare_out_directory(args.gn_args, 'tmp.gen_amalgamated')
     desc = gn_utils.load_build_description(out)
 
     # We need to build everything first so that the necessary header
