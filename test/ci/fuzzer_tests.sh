@@ -13,25 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eux -o pipefail
-
-# cd into the project root (two levels up from /test/ci).
-cd $(dirname ${BASH_SOURCE[0]})/../..
-
-OUT_PATH="out/dist"
-
-tools/install-build-deps --no-android
-
-if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
-  export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
-  export MSAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
-fi
+INSTALL_BUILD_DEPS_ARGS="--no-android"
+source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
 tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS} fuzzers
-
-# Check the amalgamated build here to avoid slowing down all the Linux bots.
-tools/test_gen_amalgamated.py
 
 # Run a single iteration each to make sure they are not crashing.
 for fuzzer in $(find ${OUT_PATH} -name '*_fuzzer' -executable); do
