@@ -85,7 +85,7 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
   auto ub = std::find(lb, set_ids.end(), arg_set_id + 1);
 
   auto start_row = static_cast<uint32_t>(std::distance(set_ids.begin(), lb));
-
+  auto end_row = static_cast<uint32_t>(std::distance(set_ids.begin(), ub));
   using ValueWriter = std::function<void(const Variadic&)>;
   auto write_value = [this, writer](const Variadic& value) {
     switch (value.type) {
@@ -243,9 +243,9 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
                          });
     return;
   } else if (event_name == "print") {
-    using P = protos::pbzero::PrintFtraceEvent;
-
-    uint32_t arg_row = start_row + P::kBufFieldNumber - 1;
+    // 'ip' may be the first field or it may be dropped. We only care
+    // about the 'buf' field which will always appear last.
+    uint32_t arg_row = end_row - 1;
     const auto& args = storage_->args();
     const auto& value = args.arg_values()[arg_row];
     const auto& str = storage_->GetString(value.string_value);
