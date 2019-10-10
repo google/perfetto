@@ -20,6 +20,15 @@ import subprocess
 
 from compat import quote
 
+GN_ARGS = ' '.join(
+    quote(s) for s in (
+        'is_debug=false',
+        'is_perfetto_build_generator=true',
+        'is_perfetto_embedder=true',
+        'use_custom_libcxx=false',
+        'enable_perfetto_ipc=true',
+    ))
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 
@@ -28,7 +37,7 @@ def call(cmd, *args):
   command = [path] + list(args)
   print('Running:', ' '.join(quote(c) for c in command))
   try:
-    return subprocess.check_output(command, cwd=ROOT_DIR)
+    return subprocess.check_output(command, cwd=ROOT_DIR).decode()
   except subprocess.CalledProcessError as e:
     assert False, 'Command: {} failed'.format(' '.join(command))
 
@@ -40,9 +49,9 @@ def check_amalgamated_output():
 def check_amalgamated_dependencies():
   os_deps = {}
   for os_name in ['android', 'linux', 'mac']:
-    os_deps[os_name] = call('gen_amalgamated', '--gn_args',
-                            'target_os="%s"' % os_name, '--dump-deps',
-                            '--quiet').split('\n')
+    gn_args = (' target_os="%s"' % os_name) + GN_ARGS
+    os_deps[os_name] = call('gen_amalgamated', '--gn_args', gn_args,
+                            '--dump-deps', '--quiet').split('\n')
   for os_name, deps in os_deps.items():
     for dep in deps:
       for other_os, other_deps in os_deps.items():

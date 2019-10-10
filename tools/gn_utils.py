@@ -39,10 +39,10 @@ def _check_command_output(cmd, cwd):
     print(
         'Command "{}" failed in {}:'.format(' '.join(cmd), cwd),
         file=sys.stderr)
-    print(e.output, file=sys.stderr)
+    print(e.output.decode(), file=sys.stderr)
     sys.exit(1)
   else:
-    return output
+    return output.decode()
 
 
 def repo_root():
