@@ -46,12 +46,9 @@ def hash_path(path):
 
 
 def find_protoc():
-  for root, dirs, files in os.walk(ROOT_DIR):
+  for root, _, files in os.walk(os.path.join(ROOT_DIR, 'out')):
     if 'protoc' in files:
       return os.path.join(root, 'protoc')
-    for name in ('src', 'buildtools'):
-      if name in dirs:
-        dirs.remove(name)
   return None
 
 

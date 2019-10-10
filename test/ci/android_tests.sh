@@ -13,19 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eux -o pipefail
-
-# cd into the project root (two levels up from /test/ci).
-cd $(dirname ${BASH_SOURCE[0]})/../..
-
-OUT_PATH="out/dist"
-
-tools/install-build-deps
-
-if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
-  export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
-  export MSAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
-fi
+INSTALL_BUILD_DEPS_ARGS=""  # Run without args, without --no-android.
+source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 # Run the emulator earlier so by the time we build it's booted.
 # tools/run_android_test will perform a wait-for-device. This is just an

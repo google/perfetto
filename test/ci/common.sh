@@ -13,19 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS="SKIP"
-source $(dirname ${BASH_SOURCE[0]})/common.sh
+set -eux -o pipefail
 
-bazel build //:all --verbose_failures
+cd $(dirname ${BASH_SOURCE[0]})/../..
+OUT_PATH="out/dist"
 
-# Smoke test that processes run without crashing.
-./bazel-bin/traced &
-./bazel-bin/traced_probes &
-sleep 5
-TRACE=/ci/artifacts/bazel.trace
-./bazel-bin/perfetto -c :test -o $TRACE
-kill $(jobs -p)
-./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
+if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
+  export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
+  export MSAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
+fi
 
-# Check the amalgamated build here to avoid slowing down all the Linux bots.
-tools/test_gen_amalgamated.py
+if [ "$INSTALL_BUILD_DEPS_ARGS" != "SKIP" ]; then
+tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
+fi
+
+# Performs checks on generated protos and build files.
+tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
+tools/gen_all --check-only out/tmp.protoc
+rm -f out/tmp.protoc &
