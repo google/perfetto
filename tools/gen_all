@@ -39,6 +39,7 @@ def call(cmd, *args):
 
 def main():
   parser = argparse.ArgumentParser()
+  parser.add_argument('--check-only', default=False, action='store_true')
   parser.add_argument('OUT')
   args = parser.parse_args()
   out = args.OUT
@@ -46,13 +47,19 @@ def main():
   try:
     assert os.path.isdir(out), \
         'Output directory "{}" is not a directory'.format(out)
-    call('fix_include_guards')
-    call('gen_bazel')
-    call('gen_android_bp')
-    call('gen_merged_protos')
+    check_only = ['--check-only'] if args.check_only else []
+    call('check_include_violations')
+    call('fix_include_guards', *check_only)
+    call('gen_bazel', *check_only)
+    call('gen_android_bp', *check_only)
+    call('gen_merged_protos', *check_only)
     call('ninja', '-C', out, 'protoc')
-    call('gen_binary_descriptors', '--protoc', protoc_path(out))
-    call('gen_tracing_cpp_headers_from_protos', out)
+    call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
+
+    # TODO(primiano): gen_tracing_cpp_headers_from_protos is going away soon
+    # and there is no point adding --check-only support to that.
+    if not check_only:
+      call('gen_tracing_cpp_headers_from_protos', out)
 
   except AssertionError as e:
     if not str(e):

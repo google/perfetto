@@ -13,14 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eux -o pipefail
-
-# cd into the project root (two levels up from /test/ci).
-cd $(dirname ${BASH_SOURCE[0]})/../..
-
-OUT_PATH="out/dist"
-
-tools/install-build-deps --no-android --ui
+INSTALL_BUILD_DEPS_ARGS="--no-android --ui"
+source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
 tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS} ui
