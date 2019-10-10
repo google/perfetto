@@ -353,8 +353,8 @@ class AmalgamatedProject(object):
       try:
         self.source.extend(
             self._patch_source(
-                source_name, self._process_source_includes(
-                    include_dirs, deps, f)))
+                source_name,
+                self._process_source_includes(include_dirs, deps, f)))
       except Error as e:
         raise Error('Failed adding source %s: %s' % (source_name, e.message))
 
@@ -498,8 +498,8 @@ Build settings:
 Example build command:
 
 %s
-""" % (header_file, source_file, ' '.join(self.cflags), ' '.join(self.ldflags),
-       ' '.join(self.libs), ' '.join(build_cmd))
+""" % (header_file, source_file, ' '.join(self.cflags), ' '.join(
+        self.ldflags), ' '.join(self.libs), ' '.join(build_cmd))
 
   def get_build_command(self, output_prefix):
     """Returns an example command line for building the output source."""

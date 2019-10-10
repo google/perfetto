@@ -20,7 +20,7 @@
 # cat ./trace_processor | bash
 # cat ./trace_processor | python -
 
-BASH_FALLBACK=""" "
+BASH_FALLBACK = """ "
 exec python - "$@" <<'#'EOF
 #"""
 
@@ -31,17 +31,18 @@ import tempfile
 import urllib
 
 TRACE_PROCESSOR_SHELL_SHAS = {
-  'linux': '8e7ce3affdaa1d1f66a0bd58368782784bf6c9a6',
-  'mac':'78709d06d30260119f31963143073dde24f03da0',
+    'linux': '8e7ce3affdaa1d1f66a0bd58368782784bf6c9a6',
+    'mac': '78709d06d30260119f31963143073dde24f03da0',
 }
 TRACE_PROCESSOR_SHELL_PATH = tempfile.gettempdir()
-TRACE_PROCESSOR_SHELL_BASE_URL = (
-    'https://storage.googleapis.com/perfetto/')
+TRACE_PROCESSOR_SHELL_BASE_URL = ('https://storage.googleapis.com/perfetto/')
+
 
 def check_hash(file_name, sha_value):
   with open(file_name, 'rb') as fd:
     file_hash = hashlib.sha1(fd.read()).hexdigest()
     return file_hash == sha_value
+
 
 def load_trace_processor_shell(platform):
   sha_value = TRACE_PROCESSOR_SHELL_SHAS[platform]
@@ -62,6 +63,7 @@ def load_trace_processor_shell(platform):
   os.chmod(local_file, 0o755)
   return local_file
 
+
 def main(argv):
   platform = None
   if sys.platform.startswith('linux'):
@@ -75,6 +77,7 @@ def main(argv):
   trace_processor_shell_binary = load_trace_processor_shell(platform)
   os.execv(trace_processor_shell_binary,
            [trace_processor_shell_binary] + argv[1:])
+
 
 if __name__ == '__main__':
   sys.exit(main(sys.argv))
