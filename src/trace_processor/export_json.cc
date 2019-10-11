@@ -195,6 +195,8 @@ class ArgsBuilder {
       case Variadic::kUint:
         return Json::UInt64(variadic.uint_value);
       case Variadic::kString:
+        if (variadic.string_value == kNullStringId)
+          return "";
         return storage_->GetString(variadic.string_value).c_str();
       case Variadic::kReal:
         return variadic.real_value;
@@ -743,9 +745,7 @@ ResultCode ExportMetadata(const TraceStorage* storage,
             "storyTags", storage->GetString(values[pos].string_value).c_str());
         break;
 
-      default:
-        PERFETTO_DFATAL("unexpected metadata key");
-        break;
+        // Other metadata entries are ignored for now.
     }
   }
   return kResultOk;
