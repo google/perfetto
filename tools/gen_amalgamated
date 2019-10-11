@@ -35,9 +35,9 @@ import gn_utils
 # and we need to list targets here individually, which is unmaintainable.
 default_targets = [
     '//:libperfetto_client_experimental',
-    "//include/perfetto/protozero:protozero",
-    "//protos/perfetto/config:zero",
-    "//protos/perfetto/trace:zero",
+    '//include/perfetto/protozero:protozero',
+    '//protos/perfetto/config:zero',
+    '//protos/perfetto/trace:zero',
 ]
 
 # Arguments for the GN output directory (unless overridden from the command
@@ -326,12 +326,13 @@ class AmalgamatedProject(object):
       return
     self._processed_source_headers.add(header_name)
     for include_dir in include_dirs:
-      full_path = os.path.join(include_dir, header_name)
+      rel_path = os.path.join(include_dir, header_name)
+      full_path = os.path.join(gn_utils.repo_root(), rel_path)
       if os.path.exists(full_path):
-        if not full_path in allowed_files:
+        if not rel_path in allowed_files:
           return
         with open(full_path) as f:
-          self.source.append('// %s begin header: %s' % (tool_name, full_path))
+          self.source.append('// %s begin header: %s' % (tool_name, rel_path))
           self.source.extend(
               self._process_source_includes(include_dirs, allowed_files, f))
         return
@@ -346,9 +347,10 @@ class AmalgamatedProject(object):
     self._processed_sources.add(source_name)
     include_dirs = self._get_include_dirs(target_name)
     deps = self.source_deps[source_name]
-    if not os.path.exists(source_name):
+    full_path = os.path.join(gn_utils.repo_root(), source_name)
+    if not os.path.exists(full_path):
       raise Error('Source file %s not found' % source_name)
-    with open(source_name) as f:
+    with open(full_path) as f:
       self.source.append('// %s begin source: %s' % (tool_name, source_name))
       try:
         self.source.extend(
@@ -363,7 +365,7 @@ class AmalgamatedProject(object):
       return
     self._processed_headers.add(header_name)
     for include_dir in include_dirs:
-      full_path = os.path.join(include_dir, header_name)
+      full_path = os.path.join(gn_utils.repo_root(), include_dir, header_name)
       if os.path.exists(full_path):
         with open(full_path) as f:
           self.header.append('// %s begin header: %s' % (tool_name, full_path))
@@ -379,11 +381,12 @@ class AmalgamatedProject(object):
       return
     self._processed_headers.add(header_name)
     include_dirs = self._get_include_dirs(target_name)
-    if not os.path.exists(header_name):
+    full_path = os.path.join(gn_utils.repo_root(), header_name)
+    if not os.path.exists(full_path):
       if self._compute_deps_only:
         return
       raise Error('Header file %s not found' % header_name)
-    with open(header_name) as f:
+    with open(full_path) as f:
       self.header.append('// %s begin header: %s' % (tool_name, header_name))
       try:
         self.header.extend(self._process_header_includes(include_dirs, f))
@@ -473,6 +476,10 @@ class AmalgamatedProject(object):
     return os.path.join(
         os.path.relpath(os.path.dirname(prefix)), format % basename)
 
+  def _make_directories(self, directory):
+    if not os.path.isdir(directory):
+      os.makedirs(directory)
+
   def save(self, output_prefix):
     """Save the generated header and source file pair.
 
@@ -480,6 +487,8 @@ class AmalgamatedProject(object):
         """
     header_file = self._get_nice_path(output_prefix, '%s.h')
     source_file = self._get_nice_path(output_prefix, '%s.cc')
+    self._make_directories(os.path.dirname(header_file))
+    self._make_directories(os.path.dirname(source_file))
     with open(header_file, 'w') as f:
       f.write('\n'.join([preamble] + self.header + ['\n']))
     with open(source_file, 'w') as f:
@@ -517,9 +526,13 @@ def main():
       description='Generate an amalgamated header/source pair from a GN '
       'build description.')
   parser.add_argument(
+      '--out',
+      help='The name of the temporary build folder in \'out\'',
+      default='tmp.gen_amalgamated.%u' % os.getpid())
+  parser.add_argument(
       '--output',
       help='Base name of files to create. A .cc/.h extension will be added',
-      default=os.path.join(gn_utils.repo_root(), 'perfetto'))
+      default=os.path.join(gn_utils.repo_root(), 'out/amalgamated/perfetto'))
   parser.add_argument(
       '--gn_args',
       help='GN arguments used to prepare the output directory',
@@ -548,7 +561,7 @@ def main():
   if args.check:
     output = os.path.join(tempfile.mkdtemp(), 'perfetto_amalgamated')
 
-  out = gn_utils.prepare_out_directory(args.gn_args, 'tmp.gen_amalgamated')
+  out = gn_utils.prepare_out_directory(args.gn_args, args.out)
   if not args.quiet:
     print('Building project...')
   try:
