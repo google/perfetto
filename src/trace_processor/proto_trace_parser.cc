@@ -507,7 +507,7 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_vulkan_memory_event()) {
     graphics_event_parser_->ParseVulkanMemoryEvent(
-        packet.graphics_frame_event());
+        packet.vulkan_memory_event());
   }
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
