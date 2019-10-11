@@ -191,6 +191,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
   uint64_t header = *record;
 
   uint32_t record_type = fuchsia_trace_utils::ReadField<uint32_t>(header, 0, 3);
+
+  // All non-metadata events require current_provider_ to be set.
+  if (record_type != kMetadata && current_provider_ == nullptr) {
+    context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+    return;
+  }
+
   switch (record_type) {
     case kMetadata: {
       uint32_t metadata_type =
@@ -230,6 +237,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         uint32_t len = fuchsia_trace_utils::ReadField<uint32_t>(header, 32, 46);
         base::StringView s(reinterpret_cast<const char*>(&record[1]), len);
         StringId id = storage->InternString(s);
+
         current_provider_->string_table[index] = id;
       }
       break;
