@@ -937,15 +937,17 @@ class TraceStorage {
       names_.emplace_back(row.name_id);
 
       size_t row_number = build_ids_.size() - 1;
-      index_.emplace(std::make_pair(row.name_id, row.build_id), row_number);
+      index_[std::make_pair(row.name_id, row.build_id)].emplace_back(
+          row_number);
       return static_cast<int64_t>(row_number);
     }
 
-    ssize_t FindMappingRow(StringId name, StringId build_id) const {
+    std::vector<int64_t> FindMappingRow(StringId name,
+                                        StringId build_id) const {
       auto it = index_.find(std::make_pair(name, build_id));
       if (it == index_.end())
-        return -1;
-      return static_cast<ssize_t>(it->second);
+        return {};
+      return it->second;
     }
 
     const std::deque<StringId>& build_ids() const { return build_ids_; }
@@ -965,7 +967,8 @@ class TraceStorage {
     std::deque<int64_t> load_biases_;
     std::deque<StringId> names_;
 
-    std::map<std::pair<StringId /* name */, StringId /* build id */>, size_t>
+    std::map<std::pair<StringId /* name */, StringId /* build id */>,
+             std::vector<int64_t>>
         index_;
   };
 

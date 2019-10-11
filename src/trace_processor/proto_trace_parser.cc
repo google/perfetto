@@ -2686,25 +2686,28 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
   std::string hex_build_id = base::ToHex(module_symbols.build_id().data,
                                          module_symbols.build_id().size);
-  ssize_t mapping_row =
+  auto mapping_rows =
       context_->storage->stack_profile_mappings().FindMappingRow(
           context_->storage->InternString(module_symbols.path()),
           context_->storage->InternString(base::StringView(hex_build_id)));
-  if (mapping_row == -1) {
-    PERFETTO_LOG("Could not find mapping %s (%s).",
-                 base::StringView(module_symbols.path()).ToStdString().c_str(),
-                 hex_build_id.c_str());
+  if (mapping_rows.empty()) {
+    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
   }
   for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
     protos::pbzero::AddressSymbols::Decoder address_symbols(addr_it->data(),
                                                             addr_it->size());
 
-    ssize_t frame_row = context_->storage->stack_profile_frames().FindFrameRow(
-        static_cast<size_t>(mapping_row), address_symbols.address());
+    ssize_t frame_row = -1;
+    for (int64_t mapping_row : mapping_rows) {
+      frame_row = context_->storage->stack_profile_frames().FindFrameRow(
+          static_cast<size_t>(mapping_row), address_symbols.address());
+      if (frame_row != -1)
+        break;
+    }
     if (frame_row == -1) {
-      PERFETTO_DFATAL_OR_ELOG("Could not find frame.");
-      return;
+      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      continue;
     }
     uint32_t symbol_set_id = context_->storage->symbol_table().size();
     context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
