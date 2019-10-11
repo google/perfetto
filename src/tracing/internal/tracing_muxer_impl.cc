@@ -79,7 +79,8 @@ void TracingMuxerImpl::ProducerImpl::OnConnect() {
 void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = false;
-  PERFETTO_DFATAL("Producer::OnDisconnect not implemented");  // TODO.
+  // TODO: handle more graceful.
+  PERFETTO_ELOG("Cannot connect to traced. Is it running?");
 }
 
 void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
