@@ -23,9 +23,7 @@ if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
   export MSAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
 fi
 
-if [ "$INSTALL_BUILD_DEPS_ARGS" != "SKIP" ]; then
 tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
-fi
 
 # Performs checks on generated protos and build files.
 tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
