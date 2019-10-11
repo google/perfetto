@@ -21,6 +21,12 @@ and available on the CI page.
 If the label `Presubmit-Ready: +1` is set, the CI will also publish a comment
 like [this][ci-example] on the CL.
 
+### Community
+
+You can reach us on our [Discord channel](https://discord.gg/35ShE3A).
+If you prefer using IRC we have an experimental Discord <> IRC bridge
+synced with `#perfetto-dev` on [Freenode](https://webchat.freenode.net/).
+
 [perfetto-gerrit]: https://android-review.googlesource.com/q/project:platform%252Fexternal%252Fperfetto+status:open
 [google-cpp-style]: https://google.github.io/styleguide/cppguide.html
 [depot-tools]: https://dev.chromium.org/developers/how-tos/depottools
