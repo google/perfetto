@@ -24,6 +24,14 @@ import "protos/perfetto/trace/profiling/profile_common.proto";
 
 package perfetto.protos;
 
+message HeapGraphRoot {
+  // Objects retained by this root.
+  repeated uint64 object_ids = 1;
+
+  // From art:RootType, e.g. "kRootThreadObject".
+  optional string root_type = 2;
+}
+
 message HeapGraphObject {
   optional uint64 id = 1;
 
@@ -44,8 +52,18 @@ message HeapGraphObject {
 message HeapGraph {
   optional int32 pid = 1;
 
-  // Live objects at the time this dump was taken.
+  // This contains all objects at the time this dump was taken. Some of these
+  // will be live, some of those unreachable (garbage). To find the live
+  // objects, the client needs to build the transitive closure of objects
+  // reachable from |roots|.
+  // All objects not contained within that transitive closure are garbage that
+  // has not yet been collected.
   repeated HeapGraphObject objects = 2;
+
+  // Roots at the time this dump was taken.
+  // All live objects are reachable from the roots. All other objects are
+  // garbage.
+  repeated HeapGraphRoot roots = 7;
 
   // Type names used in managed heap graph.
   repeated InternedString type_names = 3;
