@@ -114,7 +114,7 @@ def compute_source_dependencies(out):
   deps = {}
   current_source = None
   for line in ninja_deps.split('\n'):
-    filename = os.path.relpath(os.path.join(out, line.strip()))
+    filename = os.path.relpath(os.path.join(out, line.strip()), repo_root())
     if not line or line[0] != ' ':
       current_source = None
       continue
