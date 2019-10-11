@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS="SKIP"
+INSTALL_BUILD_DEPS_ARGS="--no-android"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 bazel build //:all --verbose_failures
