@@ -745,7 +745,9 @@ ResultCode ExportMetadata(const TraceStorage* storage,
             "storyTags", storage->GetString(values[pos].string_value).c_str());
         break;
 
-        // Other metadata entries are ignored for now.
+      default:
+        PERFETTO_DLOG("Ignoring metadata key %zu", static_cast<size_t>(keys[pos]));
+        break;
     }
   }
   return kResultOk;
