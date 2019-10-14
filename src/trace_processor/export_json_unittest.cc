@@ -1016,11 +1016,27 @@ TEST(ExportJsonTest, CpuProfileEvent) {
       {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
        storage->InternString("bar_module_name")});
 
+  // TODO(140860736): Once we support null values for
+  // stack_profile_frame.symbol_set_id remove this hack
+  storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
+
   RowId frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
-      {storage->InternString("foo_func"), module_row_id_1, 0x42});
+      {/*name_id=*/0, module_row_id_1, 0x42});
+  uint32_t symbol_set_id = storage->symbol_table().size();
+  storage->mutable_symbol_table()->Insert(
+      {symbol_set_id, storage->InternString("foo_func"),
+       storage->InternString("foo_file"), 66});
+  storage->mutable_stack_profile_frames()->SetSymbolSetId(
+      static_cast<size_t>(frame_row_id_1), symbol_set_id);
 
   RowId frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
-      {storage->InternString("bar_func"), module_row_id_2, 0x4242});
+      {/*name_id=*/0, module_row_id_2, 0x4242});
+  symbol_set_id = storage->symbol_table().size();
+  storage->mutable_symbol_table()->Insert(
+      {symbol_set_id, storage->InternString("bar_func"),
+       storage->InternString("bar_file"), 77});
+  storage->mutable_stack_profile_frames()->SetSymbolSetId(
+      static_cast<size_t>(frame_row_id_2), symbol_set_id);
 
   RowId frame_callsite_id_1 =
       storage->mutable_stack_profile_callsites()->Insert(
