@@ -1,12 +1,12 @@
 # heapprofd - Android Heap Profiler
 
-**heapprofd requires Android Q.**
+**heapprofd requires Android 10.**
 
 heapprofd is a tool that tracks native heap allocations & deallocations of an
 Android process within a given time period. The resulting profile can be used
 to attribute memory usage to particular function callstacks, supporting a mix
-of both native and java code. The tool should be useful to Android platform
-developers, and app developers investigating memory issues.
+of both native and java code. The tool can be used by Android platform and app
+developers to investigate memory issues.
 
 On debug Android builds, you can profile all apps and most system services.
 On "user" builds, you can only use it on apps with the debuggable or
@@ -169,7 +169,7 @@ will read symbol information from these files.
 You can save the symbolized version by issuing the `proto` command in pprof.
 
 ## Idle page tracking
-This is only available in Android versions newer than Q.
+This is only available in Android versions newer than 10.
 
 Idle page tracking allows you to analyze which allocations made by your
 program are being used by a workload. This can be useful for finding leaks
