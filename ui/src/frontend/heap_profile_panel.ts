@@ -20,9 +20,10 @@ import {timeToCode} from '../common/time';
 import {globals} from './globals';
 import {Panel} from './panel';
 
-interface HeapDumpDetailsPanelAttrs {}
+interface HeapProfileDetailsPanelAttrs {}
 
-export class HeapDumpDetailsPanel extends Panel<HeapDumpDetailsPanelAttrs> {
+export class HeapProfileDetailsPanel extends
+    Panel<HeapProfileDetailsPanelAttrs> {
   private ts = 0;
   private pid = 0;
 

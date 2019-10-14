@@ -28,11 +28,14 @@ import {
   LogExistsKey
 } from '../common/logs';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {
+  HeapProfileFlamegraphKey
+} from '../tracks/heap_profile_flamegraph/common';
 
 import {
   CounterDetails,
   globals,
-  HeapDumpDetails,
+  HeapProfileDetails,
   QuantizedLoad,
   SliceDetails,
   ThreadDesc
@@ -95,6 +98,8 @@ class FrontendApi {
     if ([LogExistsKey, LogBoundsKey, LogEntriesKey].includes(args.id)) {
       const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
       if (data && data.exists) globals.rafScheduler.scheduleFullRedraw();
+    } else if (HeapProfileFlamegraphKey === args.id) {
+      globals.rafScheduler.scheduleFullRedraw();
     } else {
       globals.rafScheduler.scheduleRedraw();
     }
@@ -123,7 +128,7 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishHeapDumpDetails(click: HeapDumpDetails) {
+  publishHeapDumpDetails(click: HeapProfileDetails) {
     globals.heapDumpDetails = click;
     this.redraw();
   }
