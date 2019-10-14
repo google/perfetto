@@ -190,6 +190,8 @@ class TraceSorter {
         : json_value(std::move(value)),
           fuchsia_provider_view(std::move(fpv)),
           packet_sequence_state(sequence_state),
+          packet_sequence_state_generation(
+              sequence_state ? sequence_state->current_generation() : 0),
           timestamp(ts),
           thread_timestamp(thread_ts),
           thread_instruction_count(thread_instructions),
@@ -214,6 +216,7 @@ class TraceSorter {
     std::unique_ptr<Json::Value> json_value;
     std::unique_ptr<FuchsiaProviderView> fuchsia_provider_view;
     ProtoIncrementalState::PacketSequenceState* packet_sequence_state;
+    size_t packet_sequence_state_generation;
 
     int64_t timestamp;
     int64_t thread_timestamp;
