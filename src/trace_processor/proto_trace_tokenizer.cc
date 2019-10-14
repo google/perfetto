@@ -41,7 +41,6 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -63,38 +62,6 @@ namespace {
 
 constexpr uint8_t kTracePacketTag =
     MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
-
-template <typename MessageType, typename FieldName = DefaultFieldName>
-void InternMessage(TraceProcessorContext* context,
-                   ProtoIncrementalState::PacketSequenceState* state,
-                   TraceBlobView message) {
-  constexpr auto kIidFieldNumber = MessageType::kIidFieldNumber;
-
-  uint64_t iid = 0;
-  auto message_start = message.data();
-  auto message_size = message.length();
-  protozero::ProtoDecoder decoder(message_start, message_size);
-
-  auto field = decoder.FindField(kIidFieldNumber);
-  if (PERFETTO_UNLIKELY(!field)) {
-    PERFETTO_ELOG("Interned message without interning_id");
-    context->storage->IncrementStats(stats::interned_data_tokenizer_errors);
-    return;
-  }
-  iid = field.as_uint64();
-
-  auto res = state->GetInternedDataMap<MessageType, FieldName>()->emplace(
-      iid,
-      ProtoIncrementalState::InternedDataView<MessageType>(std::move(message)));
-  // If a message with this ID is already interned, its data should not have
-  // changed (this is forbidden by the InternedData proto).
-  // TODO(eseckler): This DCHECK assumes that the message is encoded the
-  // same way whenever it is re-emitted.
-  PERFETTO_DCHECK(res.second ||
-                  (res.first->second.message.length() == message_size &&
-                   memcmp(res.first->second.message.data(), message_start,
-                          message_size) == 0));
-}
 
 TraceBlobView Decompress(TraceBlobView input) {
   uint8_t out[4096];
@@ -433,75 +400,20 @@ void ProtoTraceTokenizer::ParseInternedData(
   auto* state = GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id());
 
-  protos::pbzero::InternedData::Decoder interned_data_decoder(
-      interned_data.data(), interned_data.length());
+  // Don't parse interned data entries until incremental state is valid, because
+  // they could otherwise be associated with the wrong generation in the state.
+  if (!state->IsIncrementalStateValid()) {
+    context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+    return;
+  }
 
   // Store references to interned data submessages into the sequence's state.
-  for (auto it = interned_data_decoder.event_categories(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::EventCategory>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-
-  for (auto it = interned_data_decoder.event_names(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::EventName>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-
-  for (auto it = interned_data_decoder.debug_annotation_names(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::DebugAnnotationName>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-
-  for (auto it = interned_data_decoder.source_locations(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::SourceLocation>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-
-  for (auto it = interned_data_decoder.build_ids(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString, BuildIdFieldName>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-  for (auto it = interned_data_decoder.mapping_paths(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString, MappingPathsFieldName>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-  for (auto it = interned_data_decoder.function_names(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString, FunctionNamesFieldName>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-  for (auto it = interned_data_decoder.vulkan_memory_keys(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::InternedString, VulkanAnnotationsFieldName>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-
-  for (auto it = interned_data_decoder.mappings(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::Mapping>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-  for (auto it = interned_data_decoder.frames(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::Frame>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-  for (auto it = interned_data_decoder.callstacks(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::Callstack>(
-        context_, state, interned_data.slice(offset, it->size()));
-  }
-
-  for (auto it = interned_data_decoder.log_message_body(); it; ++it) {
-    size_t offset = interned_data.offset_of(it->data());
-    InternMessage<protos::pbzero::LogMessageBody>(
-        context_, state, interned_data.slice(offset, it->size()));
+  protozero::ProtoDecoder decoder(interned_data.data(), interned_data.length());
+  for (protozero::Field f = decoder.ReadField(); f.valid();
+       f = decoder.ReadField()) {
+    auto bytes = f.as_bytes();
+    auto offset = interned_data.offset_of(bytes.data);
+    state->InternMessage(f.id(), interned_data.slice(offset, bytes.size));
   }
 }
 
