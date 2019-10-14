@@ -62,11 +62,14 @@ int64_t ReadTimestamp(const uint64_t** current_ptr, uint64_t ticks_per_second) {
 
 // Converts a tick count to nanoseconds. Returns -1 if the result would not
 // fit in a nonnegative int64_t. Negative timestamps are not allowed by the
-// Fuchsia trace format.
+// Fuchsia trace format. Also returns -1 if ticks_per_second is zero.
 int64_t TicksToNs(uint64_t ticks, uint64_t ticks_per_second) {
   uint64_t ticks_hi = ticks >> 32;
   uint64_t ticks_lo = ticks & ((uint64_t(1) << 32) - 1);
   uint64_t ns_per_sec = 1000000000;
+  if (ticks_per_second == 0) {
+    return -1;
+  }
   // This multiplication may overflow.
   uint64_t result_hi = ticks_hi * ((ns_per_sec << 32) / ticks_per_second);
   if (ticks_hi != 0 &&
