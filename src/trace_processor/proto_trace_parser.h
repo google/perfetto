@@ -97,14 +97,17 @@ class ProtoTraceParser : public TraceParser {
   void ParseFtraceStats(ConstBytes);
   void ParseProfilePacket(int64_t ts,
                           ProtoIncrementalState::PacketSequenceState*,
+                          size_t sequence_state_generation,
                           ConstBytes);
   void ParseStreamingProfilePacket(ProtoIncrementalState::PacketSequenceState*,
+                                   size_t sequence_state_generation,
                                    ConstBytes);
   void ParseSystemInfo(ConstBytes);
   void ParseTrackEvent(int64_t ts,
                        int64_t tts,
                        int64_t ticount,
                        ProtoIncrementalState::PacketSequenceState*,
+                       size_t sequence_state_generation,
                        ConstBytes);
   void ParseLegacyEventAsRawEvent(
       int64_t ts,
@@ -115,21 +118,21 @@ class ProtoTraceParser : public TraceParser {
       StringId name_id,
       const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
       SliceTracker::SetArgsCallback args_callback);
-  void ParseDebugAnnotationArgs(
-      ConstBytes debug_annotation,
-      ProtoIncrementalState::PacketSequenceState* sequence_state,
-      ArgsTracker* args_tracker,
-      RowId row);
+  void ParseDebugAnnotationArgs(ConstBytes debug_annotation,
+                                ProtoIncrementalState::PacketSequenceState*,
+                                size_t sequence_state_generation,
+                                ArgsTracker* args_tracker,
+                                RowId row);
   void ParseNestedValueArgs(ConstBytes nested_value,
                             base::StringView flat_key,
                             base::StringView key,
                             ArgsTracker* args_tracker,
                             RowId row);
-  void ParseTaskExecutionArgs(
-      ConstBytes task_execution,
-      ProtoIncrementalState::PacketSequenceState* sequence_state,
-      ArgsTracker* args_tracker,
-      RowId row);
+  void ParseTaskExecutionArgs(ConstBytes task_execution,
+                              ProtoIncrementalState::PacketSequenceState*,
+                              size_t sequence_state_generation,
+                              ArgsTracker* args_tracker,
+                              RowId row);
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
@@ -138,6 +141,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseAndroidPackagesList(ConstBytes);
   void ParseLogMessage(ConstBytes,
                        ProtoIncrementalState::PacketSequenceState*,
+                       size_t sequence_state_generation,
                        int64_t,
                        base::Optional<UniqueTid>,
                        ArgsTracker*,
