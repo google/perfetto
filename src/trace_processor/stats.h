@@ -50,6 +50,7 @@ namespace stats {
   F(ftrace_cpu_read_events_end,               kIndexed, kInfo,     kTrace),    \
   F(fuchsia_non_numeric_counters,             kSingle,  kError,    kAnalysis), \
   F(fuchsia_timestamp_overflow,               kSingle,  kError,    kAnalysis), \
+  F(fuchsia_invalid_event,                    kSingle,  kError,    kAnalysis), \
   F(gpu_counters_invalid_spec,                kSingle,  kError,    kAnalysis), \
   F(gpu_counters_missing_spec,                kSingle,  kError,    kAnalysis), \
   F(graphics_frame_event_parser_errors,       kSingle,  kInfo,     kAnalysis), \
