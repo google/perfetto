@@ -284,12 +284,17 @@ void FuchsiaTraceParser::ParseTracePacket(
         case kDurationComplete: {
           int64_t end_ts = fuchsia_trace_utils::ReadTimestamp(
               &current, provider_view->get_ticks_per_second());
+          int64_t duration = end_ts - ts;
+          if (duration < 0) {
+            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+            break;
+          }
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
           slices->Scoped(ts, track_id, utid, RefType::kRefUtid, cat, name,
-                         end_ts - ts);
+                         duration);
           break;
         }
         case kAsyncBegin: {
