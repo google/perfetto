@@ -27,9 +27,17 @@ namespace trace_processor {
 StackProfileTracker::InternLookup::~InternLookup() = default;
 
 StackProfileTracker::StackProfileTracker(TraceProcessorContext* context)
-    : context_(context), empty_(context_->storage->InternString({"", 0})) {}
+    : context_(context), empty_(kNullStringId) {}
 
 StackProfileTracker::~StackProfileTracker() = default;
+
+StringId StackProfileTracker::GetEmptyStringId() {
+  if (empty_ == kNullStringId) {
+    empty_ = context_->storage->InternString({"", 0});
+  }
+
+  return empty_;
+}
 
 void StackProfileTracker::AddString(SourceStringId id, base::StringView str) {
   string_map_.emplace(id, str.ToStdString());
@@ -57,7 +65,7 @@ int64_t StackProfileTracker::AddMapping(SourceMappingId id,
   const StringId raw_build_id = opt_build_id.value();
   NullTermStringView raw_build_id_str =
       context_->storage->GetString(raw_build_id);
-  StringId build_id = empty_;
+  StringId build_id = GetEmptyStringId();
   if (raw_build_id_str.size() > 0) {
     std::string hex_build_id =
         base::ToHex(raw_build_id_str.c_str(), raw_build_id_str.size());
@@ -176,11 +184,11 @@ base::Optional<StringId> StackProfileTracker::FindAndInternString(
     const InternLookup* intern_lookup,
     StackProfileTracker::InternedStringType type) {
   if (id == 0)
-    return empty_;
+    return GetEmptyStringId();
 
   auto opt_str = FindString(id, intern_lookup, type);
   if (!opt_str)
-    return empty_;
+    return GetEmptyStringId();
 
   return context_->storage->InternString(base::StringView(*opt_str));
 }
