@@ -940,7 +940,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     event->add_category_iids(2);
     event->add_category_iids(3);
     auto* legacy_event = event->set_legacy_event();
-    legacy_event->set_name_iid(2);
+    legacy_event->set_name_iid(4);
     legacy_event->set_phase('X');
     legacy_event->set_duration_us(23);               // absolute end: 1028.
     legacy_event->set_thread_duration_us(12);        // absolute end: 2015.
@@ -954,7 +954,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     cat3->set_iid(3);
     cat3->set_name("cat3");
     auto ev2 = interned_data->add_event_names();
-    ev2->set_iid(2);
+    ev2->set_iid(4);
     ev2->set_name("ev2");
   }
 

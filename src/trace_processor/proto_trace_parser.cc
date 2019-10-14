@@ -1696,7 +1696,7 @@ void ProtoTraceParser::ParseTrackEvent(
   if (PERFETTO_LIKELY(name_iid)) {
     auto* decoder = sequence_state->LookupInternedMessage<
         protos::pbzero::InternedData::kEventNamesFieldNumber,
-        protos::pbzero::EventName>(sequence_state_generation, category_iids[0]);
+        protos::pbzero::EventName>(sequence_state_generation, name_iid);
     if (decoder)
       name_id = storage->InternString(decoder->name());
   } else if (event.has_name()) {
