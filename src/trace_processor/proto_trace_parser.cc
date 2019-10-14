@@ -132,86 +132,70 @@ StackProfileTracker::SourceCallstack MakeSourceCallstack(
 class ProfilePacketInternLookup : public StackProfileTracker::InternLookup {
  public:
   ProfilePacketInternLookup(
-      ProtoIncrementalState::PacketSequenceState* seq_state)
-      : seq_state_(seq_state) {}
+      ProtoIncrementalState::PacketSequenceState* seq_state,
+      size_t seq_state_generation)
+      : seq_state_(seq_state), seq_state_generation_(seq_state_generation) {}
 
   base::Optional<base::StringView> GetString(
       StackProfileTracker::SourceStringId iid,
       StackProfileTracker::InternedStringType type) const override {
-    ProtoIncrementalState::InternedDataMap<protos::pbzero::InternedString>*
-        map = nullptr;
+    protos::pbzero::InternedString::Decoder* decoder = nullptr;
     switch (type) {
       case StackProfileTracker::InternedStringType::kBuildId:
-        map = seq_state_->GetInternedDataMap<protos::pbzero::InternedString,
-                                             BuildIdFieldName>();
+        decoder = seq_state_->LookupInternedMessage<
+            protos::pbzero::InternedData::kBuildIdsFieldNumber,
+            protos::pbzero::InternedString>(seq_state_generation_, iid);
         break;
       case StackProfileTracker::InternedStringType::kFunctionName:
-        map = seq_state_->GetInternedDataMap<protos::pbzero::InternedString,
-                                             FunctionNamesFieldName>();
+        decoder = seq_state_->LookupInternedMessage<
+            protos::pbzero::InternedData::kFunctionNamesFieldNumber,
+            protos::pbzero::InternedString>(seq_state_generation_, iid);
         break;
       case StackProfileTracker::InternedStringType::kMappingPath:
-        map = seq_state_->GetInternedDataMap<protos::pbzero::InternedString,
-                                             MappingPathsFieldName>();
+        decoder = seq_state_->LookupInternedMessage<
+            protos::pbzero::InternedData::kMappingPathsFieldNumber,
+            protos::pbzero::InternedString>(seq_state_generation_, iid);
         break;
     }
-    auto it = map->find(iid);
-    if (it == map->end()) {
-      PERFETTO_DLOG("Did not find string %" PRIu64 " in %zu elems", iid,
-                    map->size());
+    if (!decoder)
       return base::nullopt;
-    }
-    auto entry = it->second.CreateDecoder();
-    return base::StringView(reinterpret_cast<const char*>(entry.str().data),
-                            entry.str().size);
+    return base::StringView(reinterpret_cast<const char*>(decoder->str().data),
+                            decoder->str().size);
   }
 
   base::Optional<StackProfileTracker::SourceMapping> GetMapping(
       StackProfileTracker::SourceMappingId iid) const override {
-    base::Optional<StackProfileTracker::SourceMapping> res;
-    auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Mapping>();
-    auto it = map->find(iid);
-    if (it == map->end()) {
-      PERFETTO_DLOG("Did not find mapping %" PRIu64 " in %zu elems", iid,
-                    map->size());
-      return res;
-    }
-    auto entry = it->second.CreateDecoder();
-    res = MakeSourceMapping(entry);
-    return res;
+    auto* decoder = seq_state_->LookupInternedMessage<
+        protos::pbzero::InternedData::kMappingsFieldNumber,
+        protos::pbzero::Mapping>(seq_state_generation_, iid);
+    if (!decoder)
+      return base::nullopt;
+    return MakeSourceMapping(*decoder);
   }
 
   base::Optional<StackProfileTracker::SourceFrame> GetFrame(
       StackProfileTracker::SourceFrameId iid) const override {
-    base::Optional<StackProfileTracker::SourceFrame> res;
-    auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Frame>();
-    auto it = map->find(iid);
-    if (it == map->end()) {
-      PERFETTO_DLOG("Did not find frame %" PRIu64 " in %zu elems", iid,
-                    map->size());
-      return res;
-    }
-    auto entry = it->second.CreateDecoder();
-    res = MakeSourceFrame(entry);
-    return res;
+    auto* decoder = seq_state_->LookupInternedMessage<
+        protos::pbzero::InternedData::kFramesFieldNumber,
+        protos::pbzero::Frame>(seq_state_generation_, iid);
+    if (!decoder)
+      return base::nullopt;
+    return MakeSourceFrame(*decoder);
   }
 
   base::Optional<StackProfileTracker::SourceCallstack> GetCallstack(
       StackProfileTracker::SourceCallstackId iid) const override {
-    base::Optional<StackProfileTracker::SourceCallstack> res;
-    auto* map = seq_state_->GetInternedDataMap<protos::pbzero::Callstack>();
-    auto it = map->find(iid);
-    if (it == map->end()) {
-      PERFETTO_DLOG("Did not find callstack %" PRIu64 " in %zu elems", iid,
-                    map->size());
-      return res;
-    }
-    auto entry = it->second.CreateDecoder();
-    res = MakeSourceCallstack(entry);
-    return res;
+    auto* decoder = seq_state_->LookupInternedMessage<
+        protos::pbzero::InternedData::kCallstacksFieldNumber,
+        protos::pbzero::Callstack>(seq_state_generation_, iid);
+    if (!decoder)
+      return base::nullopt;
+    return MakeSourceCallstack(*decoder);
   }
 
  private:
   ProtoIncrementalState::PacketSequenceState* seq_state_;
+  size_t seq_state_generation_;
 };
 
 namespace {
@@ -442,11 +426,15 @@ void ProtoTraceParser::ParseTracePacket(
   if (packet.has_android_log())
     ParseAndroidLogPacket(packet.android_log());
 
-  if (packet.has_profile_packet())
-    ParseProfilePacket(ts, ttp.packet_sequence_state, packet.profile_packet());
+  if (packet.has_profile_packet()) {
+    ParseProfilePacket(ts, ttp.packet_sequence_state,
+                       ttp.packet_sequence_state_generation,
+                       packet.profile_packet());
+  }
 
   if (packet.has_streaming_profile_packet()) {
     ParseStreamingProfilePacket(ttp.packet_sequence_state,
+                                ttp.packet_sequence_state_generation,
                                 packet.streaming_profile_packet());
   }
 
@@ -455,7 +443,8 @@ void ProtoTraceParser::ParseTracePacket(
 
   if (packet.has_track_event()) {
     ParseTrackEvent(ts, ttp.thread_timestamp, ttp.thread_instruction_count,
-                    ttp.packet_sequence_state, packet.track_event());
+                    ttp.packet_sequence_state,
+                    ttp.packet_sequence_state_generation, packet.track_event());
   }
 
   if (packet.has_chrome_benchmark_metadata()) {
@@ -1489,6 +1478,7 @@ void ProtoTraceParser::ParseFtraceStats(ConstBytes blob) {
 void ProtoTraceParser::ParseProfilePacket(
     int64_t,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
+    size_t sequence_state_generation,
     ConstBytes blob) {
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
   context_->heap_profile_tracker->SetProfilePacketIndex(packet.index());
@@ -1554,13 +1544,15 @@ void ProtoTraceParser::ParseProfilePacket(
   }
   if (!packet.continued()) {
     PERFETTO_CHECK(sequence_state);
-    ProfilePacketInternLookup intern_lookup(sequence_state);
+    ProfilePacketInternLookup intern_lookup(sequence_state,
+                                            sequence_state_generation);
     context_->heap_profile_tracker->FinalizeProfile(&intern_lookup);
   }
 }
 
 void ProtoTraceParser::ParseStreamingProfilePacket(
     ProtoIncrementalState::PacketSequenceState* sequence_state,
+    size_t sequence_state_generation,
     ConstBytes blob) {
   protos::pbzero::StreamingProfilePacket::Decoder packet(blob.data, blob.size);
 
@@ -1568,7 +1560,8 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
   TraceStorage* storage = context_->storage.get();
   StackProfileTracker* stack_profile_tracker =
       context_->stack_profile_tracker.get();
-  ProfilePacketInternLookup intern_lookup(sequence_state);
+  ProfilePacketInternLookup intern_lookup(sequence_state,
+                                          sequence_state_generation);
 
   uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
   uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
@@ -1624,6 +1617,7 @@ void ProtoTraceParser::ParseTrackEvent(
     int64_t tts,
     int64_t ticount,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
+    size_t sequence_state_generation,
     ConstBytes blob) {
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
@@ -1660,45 +1654,26 @@ void ProtoTraceParser::ParseTrackEvent(
   // If there's a single category, we can avoid building a concatenated
   // string.
   if (PERFETTO_LIKELY(category_iids.size() == 1 && category_strings.empty())) {
-    auto* map =
-        sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
-    auto cat_view_it = map->find(category_iids[0]);
-    if (cat_view_it == map->end()) {
-      storage->IncrementStats(stats::track_event_tokenizer_errors);
-      PERFETTO_DLOG("Could not find category interning entry for ID %" PRIu64,
-                    category_iids[0]);
-    } else {
-      // If the name is already in the pool, no need to decode it again.
-      if (cat_view_it->second.storage_refs) {
-        category_id = cat_view_it->second.storage_refs->name_id;
-      } else {
-        auto cat = cat_view_it->second.CreateDecoder();
-        category_id = storage->InternString(cat.name());
-        // Avoid having to decode & look up the name again in the future.
-        cat_view_it->second.storage_refs =
-            ProtoIncrementalState::StorageReferences<
-                protos::pbzero::EventCategory>{category_id};
-      }
-    }
+    auto* decoder = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kEventCategoriesFieldNumber,
+        protos::pbzero::EventCategory>(sequence_state_generation,
+                                       category_iids[0]);
+    if (decoder)
+      category_id = storage->InternString(decoder->name());
   } else if (category_iids.empty() && category_strings.size() == 1) {
     category_id = storage->InternString(category_strings[0]);
   } else if (category_iids.size() + category_strings.size() > 1) {
-    auto* map =
-        sequence_state->GetInternedDataMap<protos::pbzero::EventCategory>();
     // We concatenate the category strings together since we currently only
     // support a single "cat" column.
     // TODO(eseckler): Support multi-category events in the table schema.
     std::string categories;
     for (uint64_t iid : category_iids) {
-      auto cat_view_it = map->find(iid);
-      if (cat_view_it == map->end()) {
-        storage->IncrementStats(stats::track_event_tokenizer_errors);
-        PERFETTO_DLOG("Could not find category interning entry for ID %" PRIu64,
-                      iid);
+      auto* decoder = sequence_state->LookupInternedMessage<
+          protos::pbzero::InternedData::kEventCategoriesFieldNumber,
+          protos::pbzero::EventCategory>(sequence_state_generation, iid);
+      if (!decoder)
         continue;
-      }
-      auto cat = cat_view_it->second.CreateDecoder();
-      base::StringView name = cat.name();
+      base::StringView name = decoder->name();
       if (!categories.empty())
         categories.append(",");
       categories.append(name.data(), name.size());
@@ -1719,25 +1694,11 @@ void ProtoTraceParser::ParseTrackEvent(
     name_iid = legacy_event.name_iid();
 
   if (PERFETTO_LIKELY(name_iid)) {
-    auto* map = sequence_state->GetInternedDataMap<protos::pbzero::EventName>();
-    auto name_view_it = map->find(name_iid);
-    if (name_view_it == map->end()) {
-      storage->IncrementStats(stats::track_event_tokenizer_errors);
-      PERFETTO_DLOG("Could not find event name interning entry for ID %" PRIu64,
-                    name_iid);
-    } else {
-      // If the name is already in the pool, no need to decode it again.
-      if (name_view_it->second.storage_refs) {
-        name_id = name_view_it->second.storage_refs->name_id;
-      } else {
-        auto event_name = name_view_it->second.CreateDecoder();
-        name_id = storage->InternString(event_name.name());
-        // Avoid having to decode & look up the name again in the future.
-        name_view_it->second.storage_refs =
-            ProtoIncrementalState::StorageReferences<protos::pbzero::EventName>{
-                name_id};
-      }
-    }
+    auto* decoder = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kEventNamesFieldNumber,
+        protos::pbzero::EventName>(sequence_state_generation, category_iids[0]);
+    if (decoder)
+      name_id = storage->InternString(decoder->name());
   } else if (event.has_name()) {
     name_id = storage->InternString(event.name());
   }
@@ -1888,21 +1849,23 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  auto args_callback = [this, &event, &sequence_state, ts, utid](
-                           ArgsTracker* args_tracker, RowId row_id) {
+  auto args_callback = [this, &event, &sequence_state,
+                        sequence_state_generation, ts,
+                        utid](ArgsTracker* args_tracker, RowId row_id) {
     for (auto it = event.debug_annotations(); it; ++it) {
-      ParseDebugAnnotationArgs(it->as_bytes(), sequence_state, args_tracker,
-                               row_id);
+      ParseDebugAnnotationArgs(it->as_bytes(), sequence_state,
+                               sequence_state_generation, args_tracker, row_id);
     }
 
     if (event.has_task_execution()) {
       ParseTaskExecutionArgs(event.task_execution(), sequence_state,
-                             args_tracker, row_id);
+                             sequence_state_generation, args_tracker, row_id);
     }
 
     if (event.has_log_message()) {
-      ParseLogMessage(event.log_message(), sequence_state, ts, utid,
-                      args_tracker, row_id);
+      ParseLogMessage(event.log_message(), sequence_state,
+                      sequence_state_generation, ts, utid, args_tracker,
+                      row_id);
     }
   };
 
@@ -2248,6 +2211,7 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
 void ProtoTraceParser::ParseDebugAnnotationArgs(
     ConstBytes debug_annotation,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
+    size_t sequence_state_generation,
     ArgsTracker* args_tracker,
     RowId row_id) {
   TraceStorage* storage = context_->storage.get();
@@ -2260,33 +2224,15 @@ void ProtoTraceParser::ParseDebugAnnotationArgs(
 
   uint64_t name_iid = annotation.name_iid();
   if (PERFETTO_LIKELY(name_iid)) {
-    auto* map = sequence_state
-                    ->GetInternedDataMap<protos::pbzero::DebugAnnotationName>();
-    auto name_view_it = map->find(name_iid);
-    if (name_view_it == map->end()) {
-      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
-      PERFETTO_DLOG(
-          "Could not find debug annotation name interning entry for ID "
-          "%" PRIu64,
-          name_iid);
+    auto* decoder = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
+        protos::pbzero::DebugAnnotationName>(sequence_state_generation,
+                                             name_iid);
+    if (!decoder)
       return;
-    }
 
-    // If the name is already in the pool, no need to decode it again.
-    if (name_view_it->second.storage_refs) {
-      name_id = name_view_it->second.storage_refs->name_id;
-    } else {
-      // TODO(khokhlov): If there are dots or brackets in argument names, they
-      // will confuse the JSON exporter. Either introduce escape sequences (both
-      // here and in export_json.cc), or find another way to encode such names.
-      auto name = name_view_it->second.CreateDecoder();
-      std::string name_prefixed = "debug." + name.name().ToStdString();
-      name_id = storage->InternString(base::StringView(name_prefixed));
-      // Avoid having to decode & look up the name again in the future.
-      name_view_it->second.storage_refs =
-          ProtoIncrementalState::StorageReferences<
-              protos::pbzero::DebugAnnotationName>{name_id};
-    }
+    std::string name_prefixed = "debug." + decoder->name().ToStdString();
+    name_id = storage->InternString(base::StringView(name_prefixed));
   } else if (annotation.has_name()) {
     name_id = storage->InternString(annotation.name());
   } else {
@@ -2385,6 +2331,7 @@ void ProtoTraceParser::ParseNestedValueArgs(ConstBytes nested_value,
 void ProtoTraceParser::ParseTaskExecutionArgs(
     ConstBytes task_execution,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
+    size_t sequence_state_generation,
     ArgsTracker* args_tracker,
     RowId row) {
   protos::pbzero::TaskExecution::Decoder task(task_execution.data,
@@ -2393,37 +2340,20 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
   if (!iid)
     return;
 
-  auto* map =
-      sequence_state->GetInternedDataMap<protos::pbzero::SourceLocation>();
-  auto location_view_it = map->find(iid);
-  if (location_view_it == map->end()) {
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
-    PERFETTO_DLOG(
-        "Could not find source location interning entry for ID %" PRIu64, iid);
+  auto* decoder = sequence_state->LookupInternedMessage<
+      protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+      protos::pbzero::SourceLocation>(sequence_state_generation, iid);
+  if (!decoder)
     return;
-  }
 
   StringId file_name_id = 0;
   StringId function_name_id = 0;
   uint32_t line_number = 0;
 
-  // If the names are already in the pool, no need to decode them again.
-  if (location_view_it->second.storage_refs) {
-    file_name_id = location_view_it->second.storage_refs->file_name_id;
-    function_name_id = location_view_it->second.storage_refs->function_name_id;
-    line_number = location_view_it->second.storage_refs->line_number;
-  } else {
-    TraceStorage* storage = context_->storage.get();
-    auto location = location_view_it->second.CreateDecoder();
-    file_name_id = storage->InternString(location.file_name());
-    function_name_id = storage->InternString(location.function_name());
-    line_number = location.line_number();
-    // Avoid having to decode & look up the names again in the future.
-    location_view_it->second.storage_refs =
-        ProtoIncrementalState::StorageReferences<
-            protos::pbzero::SourceLocation>{file_name_id, function_name_id,
-                                            line_number};
-  }
+  TraceStorage* storage = context_->storage.get();
+  file_name_id = storage->InternString(decoder->file_name());
+  function_name_id = storage->InternString(decoder->function_name());
+  line_number = decoder->line_number();
 
   args_tracker->AddArg(row, task_file_name_args_key_id_,
                        task_file_name_args_key_id_,
@@ -2440,6 +2370,7 @@ void ProtoTraceParser::ParseTaskExecutionArgs(
 void ProtoTraceParser::ParseLogMessage(
     ConstBytes blob,
     ProtoIncrementalState::PacketSequenceState* sequence_state,
+    size_t sequence_state_generation,
     int64_t ts,
     base::Optional<UniqueTid> utid,
     ArgsTracker* args_tracker,
@@ -2456,27 +2387,14 @@ void ProtoTraceParser::ParseLogMessage(
 
   StringId log_message_id = 0;
 
-  auto* map =
-      sequence_state->GetInternedDataMap<protos::pbzero::LogMessageBody>();
-  auto message_body_entry = map->find(message.body_iid());
-  if (message_body_entry == map->end()) {
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
-    PERFETTO_DLOG(
-        "Could not find source location interning entry for ID %" PRIu64,
-        message.body_iid());
+  auto* decoder = sequence_state->LookupInternedMessage<
+      protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
+      protos::pbzero::LogMessageBody>(sequence_state_generation,
+                                      message.body_iid());
+  if (!decoder)
     return;
-  }
-  if (message_body_entry->second.storage_refs) {
-    log_message_id = message_body_entry->second.storage_refs->body_id;
-  } else {
-    auto body = message_body_entry->second.CreateDecoder();
-    log_message_id = storage->InternString(body.body());
 
-    // Avoid having to decode & look up the name again in the future.
-    message_body_entry->second.storage_refs =
-        ProtoIncrementalState::StorageReferences<
-            protos::pbzero::LogMessageBody>{log_message_id};
-  }
+  log_message_id = storage->InternString(decoder->body());
 
   // TODO(nicomazz): LogMessage also contains the source of the message (file
   // and line number). Android logs doesn't support this so far.
