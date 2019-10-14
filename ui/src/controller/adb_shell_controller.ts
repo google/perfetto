@@ -118,6 +118,18 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
     };
   }
 
+  async getPidFromShellAsString() {
+    const pidStr =
+        await this.adb.shellOutputAsString(`ps -u shell | grep perfetto`);
+    // We used to use awk '{print $2}' but older phones/Go phones don't have
+    // awk installed. Instead we implement similar functionality here.
+    const awk = pidStr.split(' ').filter(str => str !== '');
+    if (awk.length < 1) {
+      throw Error(`Unabled to find perfetto pid in string "${pidStr}"`);
+    }
+    return awk[1];
+  }
+
   async disableTracing() {
     if (!this.recordShell) return;
     try {
@@ -125,8 +137,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
       // -u shell' is meant to catch processes started from shell, so if there
       // are other ongoing tracing sessions started by others, we are not
       // killing them.
-      const pid = await this.adb.shellOutputAsString(
-          `ps -u shell | grep perfetto | awk '{print $2}'`);
+      const pid = await this.getPidFromShellAsString();
 
       if (pid.length === 0 || isNaN(Number(pid))) {
         throw Error(`Perfetto pid not found. Impossible to stop/cancel the
