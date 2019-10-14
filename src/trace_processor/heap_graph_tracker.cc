@@ -91,7 +91,7 @@ void HeapGraphTracker::FinalizeProfile() {
         continue;
 
       int64_t owned_row = it->second;
-      auto field_name_it = interned_field_names_.find(obj.type_id);
+      auto field_name_it = interned_field_names_.find(ref.field_name_id);
       if (field_name_it == interned_field_names_.end()) {
         context_->storage->IncrementIndexedStats(
             stats::heap_graph_invalid_string_id,
