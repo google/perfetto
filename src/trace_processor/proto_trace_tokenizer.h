@@ -80,7 +80,7 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   ProtoIncrementalState::PacketSequenceState*
   GetIncrementalStateForPacketSequence(uint32_t sequence_id) {
     if (!incremental_state)
-      incremental_state.reset(new ProtoIncrementalState());
+      incremental_state.reset(new ProtoIncrementalState(context_));
     return incremental_state->GetOrCreateStateForPacketSequence(sequence_id);
   }
 
