@@ -3,8 +3,9 @@ heap_profile_callsites {
     pid: 2
     process_name: "system_server"
     callsites {
-      hash: -3761178652842017503
-      parent_hash: 5412623030728177384
+      hash: -2067767828047084124
+      parent_hash: 3061552492032359760
+
       frame {
         name: "symbolized f3"
         mapping_name: "/liblib.so"
@@ -23,10 +24,11 @@ heap_profile_callsites {
       }
     }
     callsites {
-      hash: 5412623030728177384
+      hash: 3061552492032359760
       parent_hash: 6947621464292123521
+
       frame {
-        name: "f2"
+        name: "symbolized f2"
         mapping_name: "/liblib.so"
       }
       self_allocs {
