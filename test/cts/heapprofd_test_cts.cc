@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/cts/utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -40,76 +41,6 @@ constexpr uint64_t kExpectedIndividualAllocSz = 4153;
 static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
               "kTestSamplingInterval invalid");
 
-bool IsDebuggableBuild() {
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.debuggable", buf);
-  PERFETTO_CHECK(ret >= 0);
-  std::string debuggable(buf);
-  if (debuggable == "1")
-    return true;
-  return false;
-}
-
-// note: cannot use gtest macros due to return type
-bool IsAppRunning(const std::string& name) {
-  std::string cmd = "pgrep -f " + name;
-  int retcode = system(cmd.c_str());
-  PERFETTO_CHECK(retcode >= 0);
-  int exit_status = WEXITSTATUS(retcode);
-  if (exit_status == 0)
-    return true;
-  if (exit_status == 1)
-    return false;
-  PERFETTO_FATAL("unexpected exit status from system(pgrep): %d", exit_status);
-}
-
-// invokes |callback| once the target app is in the desired state
-void PollRunState(bool desired_run_state,
-                  base::TestTaskRunner* task_runner,
-                  const std::string& name,
-                  std::function<void()> callback) {
-  bool app_running = IsAppRunning(name);
-  if (app_running == desired_run_state) {
-    callback();
-    return;
-  }
-  task_runner->PostTask([desired_run_state, task_runner, name, callback] {
-    PollRunState(desired_run_state, task_runner, name, std::move(callback));
-  });
-}
-
-void StartAppActivity(const std::string& app_name,
-                      const std::string& checkpoint_name,
-                      base::TestTaskRunner* task_runner,
-                      int delay_ms = 1) {
-  std::string start_cmd = "am start " + app_name + "/.MainActivity";
-  int status = system(start_cmd.c_str());
-  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
-
-  bool desired_run_state = true;
-  const auto checkpoint = task_runner->CreateCheckpoint(checkpoint_name);
-  task_runner->PostDelayedTask(
-      [desired_run_state, task_runner, app_name, checkpoint] {
-        PollRunState(desired_run_state, task_runner, app_name,
-                     std::move(checkpoint));
-      },
-      delay_ms);
-}
-
-void StopApp(const std::string& app_name,
-             const std::string& checkpoint_name,
-             base::TestTaskRunner* task_runner) {
-  std::string stop_cmd = "am force-stop " + app_name;
-  int status = system(stop_cmd.c_str());
-  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
-
-  bool desired_run_state = false;
-  auto checkpoint = task_runner->CreateCheckpoint(checkpoint_name);
-  task_runner->PostTask([desired_run_state, task_runner, app_name, checkpoint] {
-    PollRunState(desired_run_state, task_runner, app_name,
-                 std::move(checkpoint));
-  });
-}
 
 std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   base::TestTaskRunner task_runner;
@@ -224,11 +155,6 @@ void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
   for (const auto& packet : packets) {
     ASSERT_EQ(packet.profile_packet().process_dumps_size(), 0);
   }
-}
-
-void StopApp(std::string app_name) {
-  std::string stop_cmd = "am force-stop " + app_name;
-  system(stop_cmd.c_str());
 }
 
 TEST(HeapprofdCtsTest, DebuggableAppRuntime) {
