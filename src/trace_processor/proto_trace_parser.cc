@@ -1849,7 +1849,7 @@ void ProtoTraceParser::ParseTrackEvent(
     }
   }
 
-  auto args_callback = [this, &event, &sequence_state,
+  auto args_callback = [this, &event, &legacy_event, &sequence_state,
                         sequence_state_generation, ts,
                         utid](ArgsTracker* args_tracker, RowId row_id) {
     for (auto it = event.debug_annotations(); it; ++it) {
@@ -1866,6 +1866,42 @@ void ProtoTraceParser::ParseTrackEvent(
       ParseLogMessage(event.log_message(), sequence_state,
                       sequence_state_generation, ts, utid, args_tracker,
                       row_id);
+    }
+
+    // TODO(eseckler): Parse legacy flow events into flow events table once we
+    // have a design for it.
+    if (legacy_event.has_bind_id()) {
+      args_tracker->AddArg(row_id, legacy_event_bind_id_key_id_,
+                           legacy_event_bind_id_key_id_,
+                           Variadic::UnsignedInteger(legacy_event.bind_id()));
+    }
+
+    if (legacy_event.bind_to_enclosing()) {
+      args_tracker->AddArg(row_id, legacy_event_bind_to_enclosing_key_id_,
+                           legacy_event_bind_to_enclosing_key_id_,
+                           Variadic::Boolean(true));
+    }
+
+    if (legacy_event.flow_direction()) {
+      StringId value;
+      switch (legacy_event.flow_direction()) {
+        case protos::pbzero::TrackEvent::LegacyEvent::FLOW_IN:
+          value = flow_direction_value_in_id_;
+          break;
+        case protos::pbzero::TrackEvent::LegacyEvent::FLOW_OUT:
+          value = flow_direction_value_out_id_;
+          break;
+        case protos::pbzero::TrackEvent::LegacyEvent::FLOW_INOUT:
+          value = flow_direction_value_inout_id_;
+          break;
+        default:
+          PERFETTO_FATAL("Unknown flow direction: %d",
+                         legacy_event.flow_direction());
+          break;
+      }
+      args_tracker->AddArg(row_id, legacy_event_flow_direction_key_id_,
+                           legacy_event_flow_direction_key_id_,
+                           Variadic::String(value));
     }
   };
 
@@ -2088,8 +2124,6 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
     StringId name_id,
     const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
     SliceTracker::SetArgsCallback args_callback) {
-  using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
-
   if (!utid) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("raw legacy event without thread association");
@@ -2165,41 +2199,6 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
                 legacy_event_id_scope_key_id_,
                 Variadic::String(
                     context_->storage->InternString(legacy_event.id_scope())));
-  }
-
-  // TODO(eseckler): Parse legacy flow events into flow events table once we
-  // have a design for it.
-  if (legacy_event.has_bind_id()) {
-    args.AddArg(row_id, legacy_event_bind_id_key_id_,
-                legacy_event_bind_id_key_id_,
-                Variadic::UnsignedInteger(legacy_event.bind_id()));
-  }
-
-  if (legacy_event.bind_to_enclosing()) {
-    args.AddArg(row_id, legacy_event_bind_to_enclosing_key_id_,
-                legacy_event_bind_to_enclosing_key_id_,
-                Variadic::Boolean(true));
-  }
-
-  if (legacy_event.flow_direction()) {
-    StringId value;
-    switch (legacy_event.flow_direction()) {
-      case LegacyEvent::FLOW_IN:
-        value = flow_direction_value_in_id_;
-        break;
-      case LegacyEvent::FLOW_OUT:
-        value = flow_direction_value_out_id_;
-        break;
-      case LegacyEvent::FLOW_INOUT:
-        value = flow_direction_value_inout_id_;
-        break;
-      default:
-        PERFETTO_FATAL("Unknown flow direction: %d",
-                       legacy_event.flow_direction());
-        break;
-    }
-    args.AddArg(row_id, legacy_event_flow_direction_key_id_,
-                legacy_event_flow_direction_key_id_, Variadic::String(value));
   }
 
   // No need to parse legacy_event.instant_event_scope() because we import

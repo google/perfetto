@@ -950,6 +950,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     legacy_event->set_duration_us(23);               // absolute end: 1028.
     legacy_event->set_thread_duration_us(12);        // absolute end: 2015.
     legacy_event->set_thread_instruction_delta(50);  // absolute end: 3060.
+    legacy_event->set_bind_id(9999);
+    legacy_event->set_bind_to_enclosing(true);
+    legacy_event->set_flow_direction(
+        protos::pbzero::TrackEvent::LegacyEvent::FLOW_INOUT);
 
     auto* interned_data = packet->set_interned_data();
     auto cat2 = interned_data->add_event_categories();
@@ -991,12 +995,17 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
+  RowId first_slice_row_id =
+      TraceStorage::CreateRowId(TableId::kNestableSlices, 3u);
   EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, 1, RefType::kRefUtid,
                               StringId(1), StringId(2), 23000, _))
-      .WillOnce(DoAll(
-          InvokeArgument<7>(
-              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 0u)),
-          Return(0u)));
+      .WillOnce(
+          DoAll(InvokeArgument<7>(&args, first_slice_row_id), Return(0u)));
+
+  EXPECT_CALL(
+      args, AddArg(first_slice_row_id, _, _, Variadic::UnsignedInteger(9999u)));
+  EXPECT_CALL(args, AddArg(first_slice_row_id, _, _, Variadic::Boolean(true)));
+  EXPECT_CALL(args, AddArg(first_slice_row_id, _, _, _));
 
   EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, 1, RefType::kRefUtid,
                              StringId(3), StringId(4), _))
