@@ -132,3 +132,6 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 # sched_switch event doesn't start a slice). Six slices in this case.
 ../data/sched_switch_original.pb sched_slices.sql sched_slices_sched_switch_original.out
 ../data/sched_switch_compact.pb sched_slices.sql sched_slices_sched_switch_compact.out
+
+heap_graph.textproto heap_graph_object.sql heap_graph_object.out
+heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
