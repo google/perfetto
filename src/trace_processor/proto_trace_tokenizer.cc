@@ -231,6 +231,14 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
           is_seq_scoped ? seq_extra_err : "");
     }
     timestamp = trace_ts.value();
+  } else if (decoder.has_chrome_events() || decoder.has_chrome_metadata()) {
+    // Chrome timestamps are in MONOTONIC domain. Adjust to trace time if we
+    // have a clock snapshot.
+    // TODO(eseckler): Set timestamp_clock_id in chrome and then remove this.
+    auto trace_ts = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+    if (trace_ts.has_value())
+      timestamp = trace_ts.value();
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
@@ -673,10 +681,24 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
     }
     timestamp = state->IncrementAndGetTrackEventTimeNs(
         ts_delta_field.as_int64() * 1000);
+
+    // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
+    // trace time if we have a clock snapshot.
+    auto trace_ts = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+    if (trace_ts.has_value())
+      timestamp = trace_ts.value();
   } else if (auto ts_absolute_field =
                  event_decoder.FindField(kTimestampAbsoluteUsFieldNumber)) {
     // One-off absolute timestamps don't affect delta computation.
     timestamp = ts_absolute_field.as_int64() * 1000;
+
+    // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
+    // trace time if we have a clock snapshot.
+    auto trace_ts = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+    if (trace_ts.has_value())
+      timestamp = trace_ts.value();
   } else if (packet_decoder.has_timestamp()) {
     timestamp = packet_timestamp;
   } else {
