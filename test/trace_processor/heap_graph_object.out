@@ -1,0 +1,3 @@
+"id","type","upid","graph_sample_ts","object_id","self_size","reference_set_id","type_name"
+0,"heap_graph_object",0,10,1,64,0,"FactoryProducerDelegateImplActor"
+1,"heap_graph_object",0,10,2,32,1,"Foo"
