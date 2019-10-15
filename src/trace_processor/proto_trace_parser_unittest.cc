@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
@@ -35,6 +36,7 @@
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -212,6 +214,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.process_tracker.reset(process_);
     slice_ = new MockSliceTracker(&context_);
     context_.slice_tracker.reset(slice_);
+    clock_ = new ClockTracker(&context_);
+    context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
     context_.systrace_parser.reset(new SystraceParser(&context_));
@@ -266,6 +270,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   MockEventTracker* event_;
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
+  ClockTracker* clock_;
   NiceMock<MockTraceStorage>* storage_;
 };
 
@@ -2157,6 +2162,55 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.flow_direction"),
                      Variadic::String(storage_->InternString("inout"))));
   EXPECT_TRUE(HasArg(1u, 5u, Variadic::UnsignedInteger(10u)));
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  std::map<ClockTracker::ClockId, int64_t> clock_map;
+  clock_map[protos::pbzero::ClockSnapshot::Clock::BOOTTIME] = 0u;
+  clock_map[protos::pbzero::ClockSnapshot::Clock::MONOTONIC] = 1000000u;
+  clock_->AddSnapshot(clock_map);
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);  // MONOTONIC.
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_delta_us(10);  // absolute: 1010 (mon), 10 (boot).
+    event->add_category_iids(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(1);
+  }
+
+  Tokenize();
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+
+  TraceStorage::Thread thread(16);
+  thread.upid = 1u;
+  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+
+  MockArgsTracker args(&context_);
+
+  constexpr TrackId track = 0u;
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  // Timestamp should be adjusted to trace time (BOOTTIME).
+  EXPECT_CALL(*slice_, Begin(10000, track, 1, RefType::kRefUtid, kNullStringId,
+                             kNullStringId, _));
+
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
