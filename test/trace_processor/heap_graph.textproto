@@ -1,0 +1,50 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    objects {
+      id: 0x01
+      type_id: 1
+      self_size: 64
+      reference_field_id: 1
+      reference_object_id: 2
+    }
+    objects {
+      id: 0x02
+      type_id: 2
+      self_size: 32
+    }
+    continued: true
+    index: 1
+  }
+  heap_graph {
+    type_names {
+      iid: 1
+      str: "FactoryProducerDelegateImplActor"
+    }
+    type_names {
+      iid: 2
+      str: "Foo"
+    }
+    field_names {
+      iid: 1
+      str: "FactoryProducerDelegateImplActor.foo"
+    }
+    continued: false
+    index: 2
+  }
+}
