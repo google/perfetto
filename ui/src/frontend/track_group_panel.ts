@@ -66,20 +66,20 @@ export class TrackGroupPanel extends Panel<Attrs> {
         `.track-group-panel[collapsed=${collapsed}]`,
         {id: 'track_' + this.trackGroupId},
         m('.shell',
+          {
+            onclick: (e: MouseEvent) => {
+              globals.dispatch(Actions.toggleTrackGroupCollapsed({
+                trackGroupId: attrs.trackGroupId,
+              })),
+                  e.stopPropagation();
+            }
+          },
           m('h1',
             {
               title: name,
             },
             name),
           m('.fold-button',
-            {
-              onclick: (e: MouseEvent) => {
-                globals.dispatch(Actions.toggleTrackGroupCollapsed({
-                  trackGroupId: attrs.trackGroupId,
-                })),
-                e.stopPropagation();
-              }
-            },
             m('i.material-icons',
               this.trackGroupState.collapsed ? 'expand_more' : 'expand_less'))),
         this.summaryTrack ? m(TrackContent, {track: this.summaryTrack}) : null);
