@@ -30,9 +30,17 @@
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/trace_storage.h"
 
+namespace perfetto {
+namespace trace_processor {
+namespace json {
+
 namespace {
 
 using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
+
+const char* GetNonNullString(const TraceStorage* storage, StringId id) {
+  return id == kNullStringId ? "" : storage->GetString(id).c_str();
+}
 
 class TraceFormatWriter {
  public:
@@ -156,14 +164,6 @@ std::string PrintUint64(uint64_t x) {
   return hex_str;
 }
 
-}  // anonymous namespace
-
-namespace perfetto {
-namespace trace_processor {
-namespace json {
-
-namespace {
-
 class ArgsBuilder {
  public:
   explicit ArgsBuilder(const TraceStorage* storage) : storage_(storage) {
@@ -176,7 +176,7 @@ class ArgsBuilder {
     args_sets_.resize(args.set_ids().back() + 1, empty_value);
     for (size_t i = 0; i < args.args_count(); ++i) {
       ArgSetId set_id = args.set_ids()[i];
-      const char* key = storage_->GetString(args.keys()[i]).c_str();
+      const char* key = GetNonNullString(storage_, args.keys()[i]);
       Variadic value = args.arg_values()[i];
       AppendArg(set_id, key, VariadicToJson(value));
     }
@@ -195,9 +195,7 @@ class ArgsBuilder {
       case Variadic::kUint:
         return Json::UInt64(variadic.uint_value);
       case Variadic::kString:
-        if (variadic.string_value == kNullStringId)
-          return "";
-        return storage_->GetString(variadic.string_value).c_str();
+        return GetNonNullString(storage_, variadic.string_value);
       case Variadic::kReal:
         return variadic.real_value;
       case Variadic::kPointer:
@@ -207,8 +205,7 @@ class ArgsBuilder {
       case Variadic::kJson:
         Json::Reader reader;
         Json::Value result;
-        reader.parse(storage_->GetString(variadic.string_value).c_str(),
-                     result);
+        reader.parse(GetNonNullString(storage_, variadic.json_value), result);
         return result;
     }
     PERFETTO_FATAL("Not reached");  // For gcc.
@@ -275,7 +272,7 @@ ResultCode ExportThreadNames(const TraceStorage* storage,
   for (UniqueTid i = 1; i < storage->thread_count(); ++i) {
     auto thread = storage->GetThread(i);
     if (!thread.name_id.is_null()) {
-      const char* thread_name = storage->GetString(thread.name_id).c_str();
+      const char* thread_name = GetNonNullString(storage, thread.name_id);
       uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
       writer->WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
     }
@@ -288,7 +285,7 @@ ResultCode ExportProcessNames(const TraceStorage* storage,
   for (UniquePid i = 1; i < storage->process_count(); ++i) {
     auto process = storage->GetProcess(i);
     if (!process.name_id.is_null()) {
-      const char* process_name = storage->GetString(process.name_id).c_str();
+      const char* process_name = GetNonNullString(storage, process.name_id);
       writer->WriteMetadataEvent("process_name", process_name, 0, process.pid);
     }
   }
@@ -302,8 +299,8 @@ ResultCode ExportSlices(const TraceStorage* storage,
   for (uint32_t i = 0; i < slices.slice_count(); ++i) {
     Json::Value event;
     event["ts"] = Json::Int64(slices.start_ns()[i] / 1000);
-    event["cat"] = storage->GetString(slices.categories()[i]).c_str();
-    event["name"] = storage->GetString(slices.names()[i]).c_str();
+    event["cat"] = GetNonNullString(storage, slices.categories()[i]);
+    event["name"] = GetNonNullString(storage, slices.names()[i]);
     event["pid"] = 0;
     const Json::Value& args = args_builder.GetArgs(slices.arg_set_ids()[i]);
     if (!args.empty()) {
@@ -668,8 +665,8 @@ ResultCode ExportCpuProfileSamples(const TraceStorage* storage,
                ? PrintUint64(static_cast<uint64_t>(frames.rel_pcs()[frame_id]))
                      .c_str()
                : symbol_name.c_str()),
-          storage->GetString(mappings.names()[mapping_id]).c_str(),
-          storage->GetString(mappings.build_ids()[mapping_id]).c_str());
+          GetNonNullString(storage, mappings.names()[mapping_id]),
+          GetNonNullString(storage, mappings.build_ids()[mapping_id]));
 
       callstack.emplace_back(frame_entry);
 
@@ -700,12 +697,12 @@ ResultCode ExportMetadata(const TraceStorage* storage,
       case metadata::benchmark_description:
         writer->AppendTelemetryMetadataString(
             "benchmarkDescriptions",
-            storage->GetString(values[pos].string_value).c_str());
+            GetNonNullString(storage, values[pos].string_value));
         break;
 
       case metadata::benchmark_name:
         writer->AppendTelemetryMetadataString(
-            "benchmarks", storage->GetString(values[pos].string_value).c_str());
+            "benchmarks", GetNonNullString(storage, values[pos].string_value));
         break;
 
       case metadata::benchmark_start_time_us:
@@ -722,12 +719,12 @@ ResultCode ExportMetadata(const TraceStorage* storage,
 
       case metadata::benchmark_label:
         writer->AppendTelemetryMetadataString(
-            "labels", storage->GetString(values[pos].string_value).c_str());
+            "labels", GetNonNullString(storage, values[pos].string_value));
         break;
 
       case metadata::benchmark_story_name:
         writer->AppendTelemetryMetadataString(
-            "stories", storage->GetString(values[pos].string_value).c_str());
+            "stories", GetNonNullString(storage, values[pos].string_value));
         break;
 
       case metadata::benchmark_story_run_index:
@@ -742,11 +739,12 @@ ResultCode ExportMetadata(const TraceStorage* storage,
 
       case metadata::benchmark_story_tags:  // repeated
         writer->AppendTelemetryMetadataString(
-            "storyTags", storage->GetString(values[pos].string_value).c_str());
+            "storyTags", GetNonNullString(storage, values[pos].string_value));
         break;
 
       default:
-        PERFETTO_DLOG("Ignoring metadata key %zu", static_cast<size_t>(keys[pos]));
+        PERFETTO_DLOG("Ignoring metadata key %zu",
+                      static_cast<size_t>(keys[pos]));
         break;
     }
   }
@@ -825,7 +823,7 @@ ResultCode ExportStats(const TraceStorage* storage, TraceFormatWriter* writer) {
   return kResultOk;
 }
 
-}  // anonymous namespace
+}  // namespace
 
 ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
   TraceFormatWriter writer(output);
