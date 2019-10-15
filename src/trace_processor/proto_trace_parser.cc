@@ -1488,26 +1488,28 @@ void ProtoTraceParser::ParseProfilePacket(
 
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_view = base::StringView(str, entry.str().size);
-    context_->stack_profile_tracker->AddString(entry.iid(), str_view);
+    sequence_state->stack_profile_tracker().AddString(entry.iid(), str_view);
   }
 
   for (auto it = packet.mappings(); it; ++it) {
     protos::pbzero::Mapping::Decoder entry(it->data(), it->size());
     StackProfileTracker::SourceMapping src_mapping = MakeSourceMapping(entry);
-    context_->stack_profile_tracker->AddMapping(entry.iid(), src_mapping);
+    sequence_state->stack_profile_tracker().AddMapping(entry.iid(),
+                                                       src_mapping);
   }
 
   for (auto it = packet.frames(); it; ++it) {
     protos::pbzero::Frame::Decoder entry(it->data(), it->size());
     StackProfileTracker::SourceFrame src_frame = MakeSourceFrame(entry);
-    context_->stack_profile_tracker->AddFrame(entry.iid(), src_frame);
+    sequence_state->stack_profile_tracker().AddFrame(entry.iid(), src_frame);
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
     protos::pbzero::Callstack::Decoder entry(it->data(), it->size());
     StackProfileTracker::SourceCallstack src_callstack =
         MakeSourceCallstack(entry);
-    context_->stack_profile_tracker->AddCallstack(entry.iid(), src_callstack);
+    sequence_state->stack_profile_tracker().AddCallstack(entry.iid(),
+                                                         src_callstack);
   }
 
   for (auto it = packet.process_dumps(); it; ++it) {
@@ -1546,7 +1548,8 @@ void ProtoTraceParser::ParseProfilePacket(
     PERFETTO_CHECK(sequence_state);
     ProfilePacketInternLookup intern_lookup(sequence_state,
                                             sequence_state_generation);
-    context_->heap_profile_tracker->FinalizeProfile(&intern_lookup);
+    context_->heap_profile_tracker->FinalizeProfile(
+        &sequence_state->stack_profile_tracker(), &intern_lookup);
   }
 }
 
@@ -1558,8 +1561,8 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
 
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
-  StackProfileTracker* stack_profile_tracker =
-      context_->stack_profile_tracker.get();
+  StackProfileTracker& stack_profile_tracker =
+      sequence_state->stack_profile_tracker();
   ProfilePacketInternLookup intern_lookup(sequence_state,
                                           sequence_state_generation);
 
@@ -1577,7 +1580,7 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
       break;
     }
 
-    auto maybe_callstack_id = stack_profile_tracker->FindCallstack(
+    auto maybe_callstack_id = stack_profile_tracker.FindCallstack(
         callstack_it->as_uint64(), &intern_lookup);
     if (!maybe_callstack_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);
