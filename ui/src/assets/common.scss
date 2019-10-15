@@ -533,8 +533,10 @@ button.query-ctrl {
     }
     .fold-button {
       grid-area: fold-button;
+    }
+    &:hover {
       cursor: pointer;
-      &:hover {
+      .fold-button {
         color: hsl(45, 100%, 48%);
       }
     }
