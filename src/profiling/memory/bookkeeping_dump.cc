@@ -45,6 +45,8 @@ void WriteFixedInternings(TraceWriter* trace_writer) {
   interned_string = interned_data->add_function_names();
   interned_string->set_iid(0);
   interned_string->set_str(kEmptyString, 0);
+
+  packet->set_incremental_state_cleared(true);
 }
 
 void DumpState::WriteMap(const Interned<Mapping> map) {
