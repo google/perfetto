@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/protozero/proto_decoder.h"
+#include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
@@ -97,7 +98,8 @@ class ProtoIncrementalState {
 
   class PacketSequenceState {
    public:
-    PacketSequenceState(TraceProcessorContext* context) : context_(context) {
+    PacketSequenceState(TraceProcessorContext* context)
+        : context_(context), stack_profile_tracker_(context) {
       interned_data_.emplace_back();
     }
 
@@ -144,6 +146,10 @@ class ProtoIncrementalState {
     }
 
     bool IsIncrementalStateValid() const { return !packet_loss_; }
+
+    StackProfileTracker& stack_profile_tracker() {
+      return stack_profile_tracker_;
+    }
 
     // Returns the index of the current generation in the
     // InternedDataGenerationList.
@@ -238,6 +244,7 @@ class ProtoIncrementalState {
     int64_t track_event_thread_instruction_count_ = 0;
 
     InternedDataGenerationList interned_data_;
+    StackProfileTracker stack_profile_tracker_;
   };
 
   // Returns the PacketSequenceState for the packet sequence with the given id.
