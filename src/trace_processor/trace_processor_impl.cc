@@ -325,7 +325,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
-  context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));

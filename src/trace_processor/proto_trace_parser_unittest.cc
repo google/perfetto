@@ -219,7 +219,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
     context_.systrace_parser.reset(new SystraceParser(&context_));
-    context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
   }
 
