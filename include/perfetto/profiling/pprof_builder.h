@@ -23,8 +23,6 @@
 
 #include "perfetto/trace_processor/trace_processor.h"
 
-// TODO(135923303): do not depend on anything in this file as it will be
-// changed heavily as part of fixing b/135923303.
 namespace perfetto {
 namespace trace_to_text {
 
