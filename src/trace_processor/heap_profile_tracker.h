@@ -54,16 +54,19 @@ class HeapProfileTracker {
   // Call after the last profile packet of a dump to commit the allocations
   // that had been stored using StoreAllocation and clear internal indices
   // for that dump.
-  void FinalizeProfile(const StackProfileTracker::InternLookup* lookup);
+  void FinalizeProfile(StackProfileTracker* stack_profile_tracker,
+                       const StackProfileTracker::InternLookup* lookup);
 
   // Only commit the allocations that had been stored using StoreAllocations.
   // This is only needed in tests, use FinalizeProfile instead.
-  void CommitAllocations(const StackProfileTracker::InternLookup* lookup);
+  void CommitAllocations(StackProfileTracker* stack_profile_tracker,
+                         const StackProfileTracker::InternLookup* lookup);
 
   ~HeapProfileTracker();
 
  private:
   void AddAllocation(
+      StackProfileTracker* stack_profile_tracker,
       const SourceAllocation&,
       const StackProfileTracker::InternLookup* intern_lookup = nullptr);
 

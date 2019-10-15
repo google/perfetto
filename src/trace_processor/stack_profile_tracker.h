@@ -156,6 +156,8 @@ class StackProfileTracker {
   void ClearIndices();
 
  private:
+  StringId GetEmptyStringId();
+
   std::unordered_map<SourceStringId, std::string> string_map_;
   std::unordered_map<SourceMappingId, int64_t> mappings_;
   std::unordered_map<SourceFrameId, int64_t> frames_;
@@ -169,7 +171,7 @@ class StackProfileTracker {
       callsite_idx_;
 
   TraceProcessorContext* const context_;
-  const StringId empty_;
+  StringId empty_;
 };
 
 }  // namespace trace_processor
