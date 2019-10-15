@@ -655,8 +655,12 @@ ResultCode ExportCpuProfileSamples(const TraceStorage* storage,
                       frames.mappings()[frame_id] < mappings.size());
       size_t mapping_id = static_cast<size_t>(frames.mappings()[frame_id]);
 
-      NullTermStringView symbol_name =
-          storage->GetString(frames.names()[frame_id]);
+      NullTermStringView symbol_name;
+      uint32_t symbol_set_id = frames.symbol_set_ids()[frame_id];
+      if (symbol_set_id) {
+        symbol_name =
+            storage->GetString(storage->symbol_table().name()[symbol_set_id]);
+      }
 
       char frame_entry[1024];
       snprintf(
