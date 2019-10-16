@@ -190,7 +190,7 @@ class MacroTable : public Table {
 
 // Inserts the value into the corresponding column
 #define PERFETTO_TP_COLUMN_APPEND(type, name, ...) \
-  name##_.Append(std::move(row.name));
+  mutable_##name()->Append(std::move(row.name));
 
 // Defines the accessors for a column.
 #define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)       \
