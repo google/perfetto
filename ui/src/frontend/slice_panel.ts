@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {Actions} from '../common/actions';
 import {drawDoubleHeadedArrow} from '../common/canvas_utils';
 import {translateState} from '../common/thread_state';
 import {timeToCode} from '../common/time';
@@ -21,37 +22,46 @@ import {timeToCode} from '../common/time';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 
-
 export class SliceDetailsPanel extends Panel {
   view() {
     const sliceInfo = globals.sliceDetails;
-    if (!sliceInfo.utid) return;
+    if (sliceInfo.utid === undefined) return;
     const threadInfo = globals.threads.get(sliceInfo.utid);
 
-    if (threadInfo && sliceInfo.ts && sliceInfo.dur) {
+    if (threadInfo && sliceInfo.ts !== undefined &&
+        sliceInfo.dur !== undefined) {
       return m(
           '.details-panel',
           m('.details-panel-heading', `Slice Details:`),
-          m('.details-table', [m('table', [
-              m('tr', m('th', `PID`), m('td', `${threadInfo.pid}`)),
-              m('tr',
-                m('th', `Process name`),
-                m('td', `${threadInfo.procName}`)),
-              m('tr', m('th', `TID`), m('td', `${threadInfo.tid}`)),
-              m('tr',
-                m('th', `Thread name`),
-                m('td', `${threadInfo.threadName}`)),
-              m('tr',
-                m('th', `Start time`),
-                m('td', `${timeToCode(sliceInfo.ts)}`)),
-              m('tr',
-                m('th', `Duration`),
-                m('td', `${timeToCode(sliceInfo.dur)}`)),
-              m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
-              m('tr',
-                m('th', `End State`),
-                m('td', `${translateState(sliceInfo.endState)}`))
-            ])], ));
+          m(
+              '.details-table',
+              [m('table',
+                 [
+                   m('tr',
+                     m('th', `Process`),
+                     m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
+                   m('tr',
+                     m('th', `Thread`),
+                     m('td',
+                       `${threadInfo.threadName} [${threadInfo.tid}]`,
+                       m('i.material-icons',
+                         {
+                           onclick: () => this.goToThread(),
+                           title: 'Go to thread'
+                         },
+                         'call_made'))),
+                   m('tr',
+                     m('th', `Start time`),
+                     m('td', `${timeToCode(sliceInfo.ts)}`)),
+                   m('tr',
+                     m('th', `Duration`),
+                     m('td', `${timeToCode(sliceInfo.dur)}`)),
+                   m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
+                   m('tr',
+                     m('th', `End State`),
+                     m('td', `${translateState(sliceInfo.endState)}`))
+                 ])],
+              ));
     } else {
       return m(
           '.details-panel',
@@ -61,6 +71,41 @@ export class SliceDetailsPanel extends Panel {
               ));
     }
   }
+
+  goToThread() {
+    const sliceInfo = globals.sliceDetails;
+    if (sliceInfo.utid === undefined) return;
+    const threadInfo = globals.threads.get(sliceInfo.utid);
+
+    if (sliceInfo.id === undefined || sliceInfo.ts === undefined ||
+        sliceInfo.dur === undefined || sliceInfo.cpu === undefined ||
+        threadInfo === undefined) {
+      return;
+    }
+    globals.makeSelection(Actions.selectThreadState({
+      utid: threadInfo.utid,
+      ts: sliceInfo.ts + globals.state.traceTime.startSec,
+      dur: sliceInfo.dur,
+      state: 'Running',
+      cpu: sliceInfo.cpu,
+    }));
+    let trackId: string|number|undefined;
+    let trackGroupId;
+    for (const track of Object.values(globals.state.tracks)) {
+      if (track.kind === 'ThreadStateTrack' &&
+          (track.config as {utid: number}).utid === threadInfo.utid) {
+        trackGroupId = track.trackGroup;
+        trackId = track.id;
+      }
+    }
+    // After the track exists in the dom, it will be scrolled to.
+    globals.frontendLocalState.scrollToTrackId = trackId;
+
+    if (trackGroupId && globals.state.trackGroups[trackGroupId].collapsed) {
+      globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    }
+  }
+
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const details = globals.sliceDetails;

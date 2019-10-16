@@ -95,6 +95,7 @@ export class FrontendLocalState {
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
+  scrollToTrackId: undefined|string|number = undefined;
   private scrollBarWidth: undefined|number = undefined;
 
   private _omniboxState: OmniboxState = {
