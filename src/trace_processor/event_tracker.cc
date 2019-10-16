@@ -240,7 +240,7 @@ RowId EventTracker::PushCounter(int64_t timestamp,
     defn_id = definitions->AddCounterDefinition(name_id, ref, ref_type);
   }
   RowId row_id = PushCounter(timestamp, value, defn_id);
-  if (resolve_utid_to_upid) {
+  if (resolve_utid_to_upid && row_id != kInvalidRowId) {
     auto table_and_row = TraceStorage::ParseRowId(row_id);
     PendingUpidResolutionCounter pending;
     pending.row = table_and_row.second;
