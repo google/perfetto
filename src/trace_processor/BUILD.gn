@@ -151,7 +151,6 @@ source_set("lib") {
     "systrace_trace_parser.h",
     "thread_table.cc",
     "thread_table.h",
-    "timestamped_trace_piece.h",
     "trace_blob_view.h",
     "trace_parser.h",
     "trace_processor.cc",
