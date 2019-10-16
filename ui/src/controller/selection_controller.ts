@@ -116,7 +116,7 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async sliceDetails(id: number) {
-    const sqlQuery = `SELECT ts, dur, priority, end_state, utid FROM sched
+    const sqlQuery = `SELECT ts, dur, priority, end_state, utid, cpu FROM sched
     WHERE row_id = ${id}`;
     this.args.engine.query(sqlQuery).then(result => {
       // Check selection is still the same on completion of query.
@@ -128,8 +128,9 @@ export class SelectionController extends Controller<'main'> {
         const priority = result.columns[2].longValues![0] as number;
         const endState = result.columns[3].stringValues![0];
         const utid = result.columns[4].longValues![0] as number;
+        const cpu = result.columns[5].longValues![0] as number;
         const selected: SliceDetails =
-            {ts: timeFromStart, dur, priority, endState, id, utid};
+            {ts: timeFromStart, dur, priority, endState, cpu, id, utid};
         this.schedulingDetails(ts, utid).then(wakeResult => {
           Object.assign(selected, wakeResult);
           globals.publish('SliceDetails', selected);
