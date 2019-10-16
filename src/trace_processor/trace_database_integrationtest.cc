@@ -151,7 +151,7 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14762) {
   ASSERT_GT(it.Get(0).long_value, 0);
 }
 
-TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14767) {
+TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14767) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14767", 4096 * 1024).ok());
   auto it = Query("select sum(value) from stats where severity = 'error';");
   ASSERT_TRUE(it.Next());

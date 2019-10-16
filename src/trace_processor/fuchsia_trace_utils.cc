@@ -31,33 +31,8 @@ bool IsInlineString(uint32_t string_ref) {
   return (string_ref & kInlineStringMarker) || (string_ref == 0);
 }
 
-base::StringView ReadInlineString(const uint64_t** current_ptr,
-                                  uint32_t string_ref) {
-  // Note that this works correctly for the empty string, where string_ref is 0.
-  size_t len = string_ref & kInlineStringLengthMask;
-  size_t len_words = (len + 7) / 8;
-  base::StringView s(reinterpret_cast<const char*>(*current_ptr), len);
-  *current_ptr += len_words;
-  return s;
-}
-
 bool IsInlineThread(uint32_t thread_ref) {
   return thread_ref == 0;
-}
-
-ThreadInfo ReadInlineThread(const uint64_t** current_ptr) {
-  ThreadInfo ret;
-  ret.pid = **current_ptr;
-  (*current_ptr)++;
-  ret.tid = **current_ptr;
-  (*current_ptr)++;
-  return ret;
-}
-
-int64_t ReadTimestamp(const uint64_t** current_ptr, uint64_t ticks_per_second) {
-  uint64_t ticks = **current_ptr;
-  (*current_ptr)++;
-  return TicksToNs(ticks, ticks_per_second);
 }
 
 // Converts a tick count to nanoseconds. Returns -1 if the result would not
@@ -112,6 +87,107 @@ Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {
       return Variadic::String(storage->InternString("unknown"));
   }
   PERFETTO_FATAL("Not reached");  // Make GCC happy.
+}
+
+size_t RecordCursor::WordIndex() {
+  return word_index_;
+}
+
+void RecordCursor::SetWordIndex(size_t index) {
+  word_index_ = index;
+}
+
+bool RecordCursor::ReadTimestamp(uint64_t ticks_per_second, int64_t* ts_out) {
+  const uint64_t* ts_data;
+  if (!ReadWords(1, &ts_data)) {
+    return false;
+  }
+  if (ts_out != nullptr) {
+    *ts_out = TicksToNs(*ts_data, ticks_per_second);
+  }
+  return true;
+}
+
+bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
+                                    base::StringView* string_out) {
+  // Note that this works correctly for the empty string, where string_ref is 0.
+  size_t len = string_ref_or_len & kInlineStringLengthMask;
+  size_t len_words = (len + 7) / 8;
+  const uint64_t* string_data;
+  if (!ReadWords(len_words, &string_data)) {
+    return false;
+  }
+  if (string_out != nullptr) {
+    *string_out =
+        base::StringView(reinterpret_cast<const char*>(string_data), len);
+  }
+  return true;
+}
+
+bool RecordCursor::ReadInlineThread(ThreadInfo* thread_out) {
+  const uint64_t* thread_data;
+  if (!ReadWords(2, &thread_data)) {
+    return false;
+  }
+  if (thread_out != nullptr) {
+    thread_out->pid = thread_data[0];
+    thread_out->tid = thread_data[1];
+  }
+  return true;
+}
+
+bool RecordCursor::ReadInt64(int64_t* out) {
+  const uint64_t* out_data;
+  if (!ReadWords(1, &out_data)) {
+    return false;
+  }
+  if (out != nullptr) {
+    *out = static_cast<int64_t>(*out_data);
+  }
+  return true;
+}
+
+bool RecordCursor::ReadUint64(uint64_t* out) {
+  const uint64_t* out_data;
+  if (!ReadWords(1, &out_data)) {
+    return false;
+  }
+  if (out != nullptr) {
+    *out = *out_data;
+  }
+  return true;
+}
+
+bool RecordCursor::ReadDouble(double* out) {
+  static_assert(sizeof(double) == sizeof(uint64_t), "double must be 64 bits");
+
+  const uint64_t* out_data;
+  if (!ReadWords(1, &out_data)) {
+    return false;
+  }
+  if (out != nullptr) {
+    memcpy(out, out_data, sizeof(double));
+  }
+  return true;
+}
+
+bool RecordCursor::ReadWords(size_t num_words, const uint64_t** data_out) {
+  const uint64_t* end =
+      reinterpret_cast<const uint64_t*>(tbv_.data() + tbv_.length());
+  const uint64_t* data =
+      reinterpret_cast<const uint64_t*>(tbv_.data()) + word_index_;
+  // This addition is unconditional so that callers with data_out == nullptr do
+  // not necessarily have to check the return value, as future calls will fail
+  // due to attempting to read out of bounds.
+  word_index_ += num_words;
+  if (data + num_words <= end) {
+    if (data_out != nullptr) {
+      *data_out = data;
+    }
+    return true;
+  } else {
+    return false;
+  }
 }
 
 }  // namespace fuchsia_trace_utils
