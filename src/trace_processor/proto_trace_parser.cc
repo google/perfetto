@@ -205,6 +205,43 @@ constexpr int64_t kPendingThreadDuration = -1;
 constexpr int64_t kPendingThreadInstructionDelta = -1;
 }  // namespace
 
+const char* HeapGraphRootTypeToString(int32_t type) {
+  switch (type) {
+    case protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN:
+      return "ROOT_UNKNOWN";
+    case protos::pbzero::HeapGraphRoot::ROOT_JNI_GLOBAL:
+      return "ROOT_JNI_GLOBAL";
+    case protos::pbzero::HeapGraphRoot::ROOT_JNI_LOCAL:
+      return "ROOT_JNI_LOCAL";
+    case protos::pbzero::HeapGraphRoot::ROOT_JAVA_FRAME:
+      return "ROOT_JAVA_FRAME";
+    case protos::pbzero::HeapGraphRoot::ROOT_NATIVE_STACK:
+      return "ROOT_NATIVE_STACK";
+    case protos::pbzero::HeapGraphRoot::ROOT_STICKY_CLASS:
+      return "ROOT_STICKY_CLASS";
+    case protos::pbzero::HeapGraphRoot::ROOT_THREAD_BLOCK:
+      return "ROOT_THREAD_BLOCK";
+    case protos::pbzero::HeapGraphRoot::ROOT_MONITOR_USED:
+      return "ROOT_MONITOR_USED";
+    case protos::pbzero::HeapGraphRoot::ROOT_THREAD_OBJECT:
+      return "ROOT_THREAD_OBJECT";
+    case protos::pbzero::HeapGraphRoot::ROOT_INTERNED_STRING:
+      return "ROOT_INTERNED_STRING";
+    case protos::pbzero::HeapGraphRoot::ROOT_FINALIZING:
+      return "ROOT_FINALIZING";
+    case protos::pbzero::HeapGraphRoot::ROOT_DEBUGGER:
+      return "ROOT_DEBUGGER";
+    case protos::pbzero::HeapGraphRoot::ROOT_REFERENCE_CLEANUP:
+      return "ROOT_REFERENCE_CLEANUP";
+    case protos::pbzero::HeapGraphRoot::ROOT_VM_INTERNAL:
+      return "ROOT_VM_INTERNAL";
+    case protos::pbzero::HeapGraphRoot::ROOT_JNI_MONITOR:
+      return "ROOT_JNI_MONITOR";
+    default:
+      return "ROOT_UNKNOWN";
+  }
+}
+
 }  // namespace
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
@@ -2685,6 +2722,17 @@ void ProtoTraceParser::ParseHeapGraph(int64_t ts, ConstBytes blob) {
 
     context_->heap_graph_tracker->AddInternedFieldName(
         entry.iid(), context_->storage->InternString(str_view));
+  }
+  for (auto it = heap_graph.roots(); it; ++it) {
+    protos::pbzero::HeapGraphRoot::Decoder entry(it->data(), it->size());
+    const char* str = HeapGraphRootTypeToString(entry.root_type());
+    auto str_view = base::StringView(str);
+
+    HeapGraphTracker::SourceRoot src_root;
+    src_root.root_type = context_->storage->InternString(str_view);
+    for (auto obj_it = entry.object_ids(); obj_it; ++obj_it)
+      src_root.object_ids.emplace_back(obj_it->as_uint64());
+    context_->heap_graph_tracker->AddRoot(upid, ts, std::move(src_root));
   }
   if (!heap_graph.continued()) {
     context_->heap_graph_tracker->FinalizeProfile();

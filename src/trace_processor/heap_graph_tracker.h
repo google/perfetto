@@ -46,8 +46,14 @@ class HeapGraphTracker {
     std::vector<Reference> references;
   };
 
+  struct SourceRoot {
+    StringPool::Id root_type;
+    std::vector<uint64_t> object_ids;
+  };
+
   explicit HeapGraphTracker(TraceProcessorContext* context);
 
+  void AddRoot(UniquePid upid, int64_t ts, SourceRoot root);
   void AddObject(UniquePid upid, int64_t ts, SourceObject obj);
   void AddInternedTypeName(uint64_t intern_id, StringPool::Id strid);
   void AddInternedFieldName(uint64_t intern_id, StringPool::Id strid);
@@ -55,11 +61,13 @@ class HeapGraphTracker {
   void SetPacketIndex(uint64_t index);
 
  private:
+  bool SetPidAndTimestamp(UniquePid upid, int64_t ts);
   TraceProcessorContext* const context_;
 
   UniquePid current_upid_ = 0;
   int64_t current_ts_ = 0;
   std::vector<SourceObject> current_objects_;
+  std::vector<SourceRoot> current_roots_;
   std::map<uint64_t, StringPool::Id> interned_type_names_;
   std::map<uint64_t, StringPool::Id> interned_field_names_;
   std::map<uint64_t, int64_t> object_id_to_row_;
