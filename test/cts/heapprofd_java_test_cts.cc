@@ -73,14 +73,19 @@ void AssertGraphPresent(std::vector<protos::TracePacket> packets) {
   ASSERT_GT(packets.size(), 0);
 
   size_t objects = 0;
-  for (const auto& packet : packets)
+  size_t roots = 0;
+  for (const auto& packet : packets) {
     objects += packet.heap_graph().objects_size();
+    roots += packet.heap_graph().roots_size();
+  }
   ASSERT_GT(objects, 0);
+  ASSERT_GT(roots, 0);
 }
 
 void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
   // If profile packets are present, they must be empty.
   for (const auto& packet : packets) {
+    ASSERT_EQ(packet.heap_graph().roots_size(), 0);
     ASSERT_EQ(packet.heap_graph().objects_size(), 0);
     ASSERT_EQ(packet.heap_graph().type_names_size(), 0);
     ASSERT_EQ(packet.heap_graph().field_names_size(), 0);
