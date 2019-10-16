@@ -131,6 +131,9 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   if (start_ns == std::numeric_limits<int64_t>::max()) {
     return std::make_pair(0, 0);
   }
+  if (start_ns == end_ns) {
+    end_ns += 1;
+  }
   return std::make_pair(start_ns, end_ns);
 }
 
