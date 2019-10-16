@@ -32,9 +32,13 @@ namespace trace_processor {
 // Represents the possible filter operations on a column.
 enum class FilterOp {
   kEq,
-  kNeq,
+  kNe,
   kGt,
   kLt,
+  kGe,
+  kLe,
+  kIsNull,
+  kIsNotNull,
 };
 
 // Represents a constraint on a column.
@@ -190,8 +194,20 @@ class Column {
   Constraint lt(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kLt, value};
   }
-  Constraint neq(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kNeq, value};
+  Constraint ne(SqlValue value) const {
+    return Constraint{col_idx_, FilterOp::kNe, value};
+  }
+  Constraint ge(SqlValue value) const {
+    return Constraint{col_idx_, FilterOp::kGe, value};
+  }
+  Constraint le(SqlValue value) const {
+    return Constraint{col_idx_, FilterOp::kLe, value};
+  }
+  Constraint is_not_null() const {
+    return Constraint{col_idx_, FilterOp::kIsNotNull, SqlValue()};
+  }
+  Constraint is_null() const {
+    return Constraint{col_idx_, FilterOp::kIsNull, SqlValue()};
   }
 
   // Returns an Order for each Order type for this Column.

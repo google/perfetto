@@ -32,8 +32,17 @@ FilterOp SqliteOpToFilterOp(int sqlite_op) {
       return FilterOp::kGt;
     case SQLITE_INDEX_CONSTRAINT_LT:
       return FilterOp::kLt;
+    case SQLITE_INDEX_CONSTRAINT_ISNOT:
     case SQLITE_INDEX_CONSTRAINT_NE:
-      return FilterOp::kNeq;
+      return FilterOp::kNe;
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return FilterOp::kGe;
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return FilterOp::kLe;
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      return FilterOp::kIsNull;
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      return FilterOp::kIsNotNull;
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
