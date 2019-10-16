@@ -39,8 +39,9 @@ class TrackTracker {
 
   // Interns a legacy Chrome async event track into the storage.
   TrackId InternLegacyChromeAsyncTrack(StringId name,
-                                       base::Optional<UniquePid> upid,
+                                       uint32_t upid,
                                        int64_t source_id,
+                                       bool source_id_is_process_scoped,
                                        StringId source_scope);
 
   // Interns a Android async track into the storage.

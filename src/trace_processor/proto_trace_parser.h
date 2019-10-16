@@ -201,6 +201,7 @@ class ProtoTraceParser : public TraceParser {
   const StringId legacy_event_thread_instruction_count_key_id_;
   const StringId legacy_event_thread_instruction_delta_key_id_;
   const StringId legacy_event_use_async_tts_key_id_;
+  const StringId legacy_event_unscoped_id_key_id_;
   const StringId legacy_event_global_id_key_id_;
   const StringId legacy_event_local_id_key_id_;
   const StringId legacy_event_id_scope_key_id_;
