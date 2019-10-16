@@ -70,6 +70,10 @@ perfetto_unittest_source_set("unittests") {
 # Generates both xxx.pbzero.h and xxx.pb.h (official proto).
 
 perfetto_proto_library("testing_messages_@TYPE@") {
+  proto_generators = [
+    "lite",
+    "zero",
+  ]
   sources = [
     "test/example_proto/library.proto",
     "test/example_proto/library_internals/galaxies.proto",

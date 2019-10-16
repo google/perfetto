@@ -175,8 +175,7 @@ message UnregisterTraceWriterResponse {}
 
 // Arguments for rpc CommitData().
 // See commit_data_request.proto for CommitDataRequest. That has its own file
-// because it is used also as input to generate the C++ classes in tracing/core
-// via tools/gen_tracing_cpp_headers_from_protos.py.
+// because it is used also as input to generate C++ classes (xxx.gen.h).
 
 message CommitDataResponse {}
 

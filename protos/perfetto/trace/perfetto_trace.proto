@@ -40,9 +40,6 @@ enum AndroidLogPriority {
 
 // Begin of protos/perfetto/common/data_source_descriptor.proto
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos
-// to reflect changes in the corresponding C++ headers.
-
 // This message is sent from Producer(s) to the tracing Service when registering
 // to advertise their capabilities. It describes the structure of tracing
 // protos that will be produced by the data source and the supported filters.
@@ -466,9 +463,6 @@ message TraceStats {
 // End of protos/perfetto/common/trace_stats.proto
 
 // Begin of protos/perfetto/common/tracing_service_state.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
 
 // Reports the state of the tracing service. Used to gather details about the
 // data sources connected.
@@ -4270,9 +4264,6 @@ message AndroidLogConfig {
 
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
 message ChromeConfig {
   optional string trace_config = 1;
 
@@ -4284,9 +4275,6 @@ message ChromeConfig {
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
 // Begin of protos/perfetto/config/data_source_config.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
 
 // The configuration that is passed to each data source when starting tracing.
 message DataSourceConfig {
@@ -4367,9 +4355,6 @@ message DataSourceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -4396,9 +4381,6 @@ message FtraceConfig {
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
 
 message InodeFileConfig {
   message MountPointMappingEntry {
@@ -4450,9 +4432,6 @@ message AndroidPowerConfig {
 
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
@@ -4497,9 +4476,6 @@ message ProcessStatsConfig {
 
 // Begin of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
 // This file defines the configuration for the Linux /proc poller data source,
 // which injects counters in the trace.
 // Counters that are needed in the trace must be explicitly listed in the
@@ -4542,9 +4518,6 @@ message SysStatsConfig {
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
 // Begin of protos/perfetto/config/test_config.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
 
 // The configuration for a fake producer used in tests.
 message TestConfig {
@@ -4593,9 +4566,6 @@ message TestConfig {
 // End of protos/perfetto/config/test_config.proto
 
 // Begin of protos/perfetto/config/trace_config.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos
-// to reflect changes in the corresponding C++ headers.
 
 // The overall config that is used when starting a new tracing session through
 // ProducerPort::StartTracing().
@@ -5011,9 +4981,6 @@ message JavaHprofConfig {
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
 
 // Begin of protos/perfetto/config/gpu/gpu_counter_config.proto
-
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
 
 message GpuCounterConfig {
   // Desired sampling interval for counters.
