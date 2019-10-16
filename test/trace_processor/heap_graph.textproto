@@ -16,6 +16,10 @@ packet {
   trusted_packet_sequence_id: 999
   timestamp: 10
   heap_graph {
+    roots {
+      root_type: ROOT_JAVA_FRAME
+      object_ids: 0x01
+    }
     objects {
       id: 0x01
       type_id: 1
@@ -31,6 +35,8 @@ packet {
     continued: true
     index: 1
   }
+}
+packet {
   heap_graph {
     type_names {
       iid: 1

@@ -41,7 +41,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
   C(int64_t, object_id)                                    \
   C(int64_t, self_size)                                    \
   C(int64_t, reference_set_id)                             \
-  C(StringPool::Id, type_name)
+  C(StringPool::Id, type_name)                             \
+  C(base::Optional<StringPool::Id>, root_type)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
 
