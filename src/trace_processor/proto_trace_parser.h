@@ -29,12 +29,10 @@
 #include "src/trace_processor/graphics_event_parser.h"
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/slice_tracker.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
@@ -50,10 +48,11 @@ class ProtoTraceParser : public TraceParser {
   ~ProtoTraceParser() override;
 
   // TraceParser implementation.
-  void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) override;
+  void ParseTracePacket(int64_t timestamp,
+                        TraceSorter::TimestampedTracePiece) override;
   void ParseFtracePacket(uint32_t cpu,
                          int64_t timestamp,
-                         TimestampedTracePiece) override;
+                         TraceSorter::TimestampedTracePiece) override;
 
   void ParseProcessTree(ConstBytes);
   void ParseProcessStats(int64_t timestamp, ConstBytes);

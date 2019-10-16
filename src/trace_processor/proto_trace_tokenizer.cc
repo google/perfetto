@@ -803,7 +803,7 @@ void ProtoTraceTokenizer::ParseFtraceCompactSched(uint32_t cpu,
   auto comm_it = compact.switch_next_comm_index(&parse_error);
   for (; timestamp_it && pstate_it && npid_it && nprio_it && comm_it;
        ++timestamp_it, ++pstate_it, ++npid_it, ++nprio_it, ++comm_it) {
-    InlineSchedSwitch event{};
+    TraceSorter::InlineSchedSwitch event{};
 
     // delta-encoded timestamp
     timestamp_acc += static_cast<int64_t>(*timestamp_it);
@@ -817,8 +817,8 @@ void ProtoTraceTokenizer::ParseFtraceCompactSched(uint32_t cpu,
     event.next_pid = *npid_it;
     event.next_prio = *nprio_it;
 
-    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp,
-                                            InlineEvent::SchedSwitch(event));
+    context_->sorter->PushInlineFtraceEvent(
+        cpu, event_timestamp, TraceSorter::InlineEvent::SchedSwitch(event));
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
