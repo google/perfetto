@@ -15,9 +15,8 @@
 import {Engine} from '../common/engine';
 import {fromNs, toNs} from '../common/time';
 import {
-  CallsiteInfo,
   CounterDetails,
-  HeapDumpDetails,
+  HeapProfileDetails,
   SliceDetails
 } from '../frontend/globals';
 
@@ -52,7 +51,7 @@ export class SelectionController extends Controller<'main'> {
       return;
     }
 
-    const selectWithId = ['SLICE', 'COUNTER', 'CHROME_SLICE', 'HEAP_DUMP'];
+    const selectWithId = ['SLICE', 'COUNTER', 'CHROME_SLICE', 'HEAP_PROFILE'];
     if (!selectWithId.includes(selection.kind) ||
         (selectWithId.includes(selection.kind) &&
          selection.id === this.lastSelectedId &&
@@ -66,8 +65,8 @@ export class SelectionController extends Controller<'main'> {
 
     if (selectedId === undefined) return;
 
-    if (selection.kind === 'HEAP_DUMP') {
-      const selected: HeapDumpDetails = {};
+    if (selection.kind === 'HEAP_PROFILE') {
+      const selected: HeapProfileDetails = {};
       const ts = selection.ts;
       const upid = selection.upid;
       this.heapDumpDetails(ts, upid).then(results => {
@@ -154,94 +153,12 @@ export class SelectionController extends Controller<'main'> {
             ts} and upid = ${upid}`);
     const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;
-
-    // Collecting data for drawing flagraph for selected heap profile.
-    // Data needs to be in following format:
-    // id, name, parent_id, depth, total_size
-
-    // Joining the callsite table with frame table then with alloc table to get
-    // the size and name for each callsite.
-    await this.args.engine.query(
-        // TODO(tneda|lalitm): get names from symbols to exactly replicate
-        // pprof.
-        `create view callsite_with_name_and_size as
-      select cs.id, parent_id, depth, name, SUM(IFNULL(size, 0)) as size
-      from stack_profile_callsite cs
-      join stack_profile_frame on cs.frame_id = stack_profile_frame.id
-      left join heap_profile_allocation alloc on alloc.callsite_id = cs.id and
-      alloc.ts <= ${ts} and alloc.upid = ${upid} group by cs.id
-    `);
-
-    // Recursive query to compute the hash for each callsite based on names
-    // rather than ids.
-    // We get all the children of the row in question and emit a row with hash
-    // equal hash(name, parent.hash). Roots without the parent will have -1 as
-    // hash.  Slices will be merged into a big slice.
-    await this.args.engine.query(`create view callsite_hash_name_size as
-      with recursive callsite_table_names(
-        id, hash, name, size, parent_hash, depth) AS (
-      select id, hash(name) as hash, name, size, -1, depth
-      from callsite_with_name_and_size
-      where depth = 0
-      UNION ALL
-      SELECT cs.id, hash(cs.name, ctn.hash) as hash, cs.name, cs.size, ctn.hash,
-       cs.depth
-      FROM callsite_table_names ctn
-      INNER JOIN callsite_with_name_and_size cs ON ctn.id = cs.parent_id
-      )
-      SELECT hash, name, parent_hash, depth, SUM(size) as size
-      FROM callsite_table_names
-      group by hash`);
-
-    // Recursive query to compute the cumulative size of each callsite.
-    // Base case: We get all the callsites where the size is non-zero.
-    // Recursive case: We get the callsite which is the parent of the current
-    //  callsite(in terms of hashes) and emit a row with the size of the current
-    //  callsite plus all the info of the parent.
-    // Grouping: For each callsite, our recursive table has n rows where n is
-    //  the number of descendents with a non-zero self size. We need to group on
-    //  the hash and sum all the sizes to get the cumulative size for each
-    //  callsite hash.
-    const callsites = await this.args.engine.query(
-        `with recursive callsite_children(hash, name, parent_hash, depth, size)
-         AS (
-        select *
-        from callsite_hash_name_size
-        where size > 0
-        union all
-        select chns.hash, chns.name, chns.parent_hash, chns.depth, cc.size
-        from callsite_hash_name_size chns
-        inner join callsite_children cc on chns.hash = cc.parent_hash
-        )
-        SELECT hash, name, parent_hash, depth, SUM(size) as size
-        from callsite_children
-        group by hash
-        order by depth, parent_hash, size desc, name
-        `);
-
-    const flamegraphData: CallsiteInfo[] = new Array();
-    for (let i = 0; i < callsites.numRecords; i++) {
-      const hash = callsites.columns[0].longValues![i];
-      const name = callsites.columns[1].stringValues![i];
-      const parentHash = callsites.columns[2].longValues![i];
-      const depth = callsites.columns[3].longValues![i];
-      const totalSize = callsites.columns[4].longValues![i];
-      flamegraphData.push({
-        hash: +hash,
-        totalSize: +totalSize,
-        depth: +depth,
-        parentHash: +parentHash,
-        name
-      });
-    }
-
     return {
       ts: startTime,
       allocated,
       allocatedNotFreed,
       tsNs: ts,
       pid,
-      flamegraphData
     };
   }
 
