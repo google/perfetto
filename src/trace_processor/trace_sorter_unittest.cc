@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "test/gtest_and_gmock.h"
@@ -46,7 +47,7 @@ class MockTraceParser : public ProtoTraceParser {
 
   void ParseFtracePacket(uint32_t cpu,
                          int64_t timestamp,
-                         TraceSorter::TimestampedTracePiece ttp) override {
+                         TimestampedTracePiece ttp) override {
     TraceBlobView& tbv = ttp.blob_view;
     MOCK_ParseFtracePacket(cpu, timestamp, tbv.data(), tbv.length());
   }
@@ -54,8 +55,7 @@ class MockTraceParser : public ProtoTraceParser {
   MOCK_METHOD3(MOCK_ParseTracePacket,
                void(int64_t ts, const uint8_t* data, size_t length));
 
-  void ParseTracePacket(int64_t ts,
-                        TraceSorter::TimestampedTracePiece ttp) override {
+  void ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) override {
     TraceBlobView& tbv = ttp.blob_view;
     MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
