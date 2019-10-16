@@ -14,6 +14,8 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 999
+  previous_packet_dropped: true
+  incremental_state_cleared: true
   timestamp: 10
   profile_packet {
     strings {
