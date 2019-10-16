@@ -318,7 +318,7 @@ export class TraceController extends Controller<States> {
 
     const upidToProcessTracks = new Map();
     const rawProcessTracks = await engine.query(`
-      select id, upid, name, max(depth) as maxDepth
+      select id, upid, process_track.name, max(depth) as maxDepth
       from process_track
       inner join slice on slice.track_id = process_track.id
       group by track_id
