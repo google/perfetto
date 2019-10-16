@@ -20,6 +20,7 @@ import {TrackState} from '../common/state';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
+import {verticalScrollToTrack} from './scroll_helper';
 import {Track} from './track';
 import {TRACK_SHELL_WIDTH} from './track_constants';
 import {trackRegistry} from './track_registry';
@@ -186,6 +187,13 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           m(TrackShell, {track: attrs.track, trackState: attrs.trackState}),
           m(TrackContent, {track: attrs.track})
         ]);
+  }
+
+  onupdate({attrs}: m.CVnode<TrackComponentAttrs>) {
+    if (globals.frontendLocalState.scrollToTrackId === attrs.trackState.id) {
+      verticalScrollToTrack(attrs.trackState.id);
+      globals.frontendLocalState.scrollToTrackId = undefined;
+    }
   }
 }
 
