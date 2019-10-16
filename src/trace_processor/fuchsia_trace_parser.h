@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_PARSER_H_
 
 #include "src/trace_processor/fuchsia_provider_view.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_parser.h"
 
 namespace perfetto {
@@ -31,11 +32,8 @@ class FuchsiaTraceParser : public TraceParser {
   ~FuchsiaTraceParser() override;
 
   // TraceParser implementation
-  void ParseTracePacket(int64_t timestamp,
-                        TraceSorter::TimestampedTracePiece) override;
-  void ParseFtracePacket(uint32_t,
-                         int64_t,
-                         TraceSorter::TimestampedTracePiece) override;
+  void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) override;
+  void ParseFtracePacket(uint32_t, int64_t, TimestampedTracePiece) override;
 
  private:
   TraceProcessorContext* const context_;

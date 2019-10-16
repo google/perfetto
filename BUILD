@@ -703,6 +703,7 @@ filegroup(
         "src/trace_processor/systrace_trace_parser.h",
         "src/trace_processor/thread_table.cc",
         "src/trace_processor/thread_table.h",
+        "src/trace_processor/timestamped_trace_piece.h",
         "src/trace_processor/trace_blob_view.h",
         "src/trace_processor/trace_parser.h",
         "src/trace_processor/trace_processor.cc",
