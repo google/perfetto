@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,11 +28,10 @@ class TraceParser {
  public:
   virtual ~TraceParser();
 
-  virtual void ParseTracePacket(int64_t timestamp,
-                                TraceSorter::TimestampedTracePiece) = 0;
+  virtual void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) = 0;
   virtual void ParseFtracePacket(uint32_t cpu,
                                  int64_t timestamp,
-                                 TraceSorter::TimestampedTracePiece) = 0;
+                                 TimestampedTracePiece) = 0;
 };
 
 }  // namespace trace_processor
