@@ -29,14 +29,17 @@ interface CallsiteInfoWidth {
   width: number;
 }
 
-const NODE_HEIGHT_MIN = 12;
+const NODE_HEIGHT_MIN = 10;
 const NODE_HEIGHT_MAX = 25;
+const NODE_HEIGHT_DEFAULT = 15;
 
 export class Flamegraph {
-  private nodeHeight = NODE_HEIGHT_MIN;
+  private nodeHeight = NODE_HEIGHT_DEFAULT;
+  // If selected, node height will be calculated based on space that is provided
+  // in draw method
   private flamegraphData: CallsiteInfo[];
   private maxDepth = -1;
-  private calculateNodeHeight = true;
+  private totalSize = -1;
   private textSize = 12;
   // Key for the map is depth followed by x coordinate - `depth;x`
   private graphData: Map<string, CallsiteInfoWidth> = new Map();
@@ -56,13 +59,23 @@ export class Flamegraph {
   constructor(flamegraphData: CallsiteInfo[]) {
     this.flamegraphData = flamegraphData;
     this.findMaxDepth();
-    this.calculateNodeHeight = true;
   }
 
   private findMaxDepth() {
+    this.maxDepth = -1;
     this.flamegraphData.forEach((value: CallsiteInfo) => {
       this.maxDepth = this.maxDepth < value.depth ? value.depth : this.maxDepth;
     });
+  }
+
+  private findTotalSize() {
+    let totalSize = 0;
+    this.flamegraphData.forEach((value: CallsiteInfo) => {
+      if (value.parentHash === -1) {
+        totalSize += value.totalSize;
+      }
+    });
+    return totalSize;
   }
 
   hash(s: string): number {
@@ -87,39 +100,40 @@ export class Flamegraph {
    * Caller will have to call draw method ater updating data to have updated
    * graph.
    */
-  updateData(flamegraphData: CallsiteInfo[]) {
+  updateDataIfChanged(flamegraphData: CallsiteInfo[]) {
+    if (this.flamegraphData === flamegraphData) {
+      return;
+    }
     this.flamegraphData = flamegraphData;
+    this.clickedCallsite = undefined;
     this.findMaxDepth();
-    this.calculateNodeHeight = true;
+    // Finding total size of roots.
+    this.totalSize = this.findTotalSize();
   }
 
   draw(
       ctx: CanvasRenderingContext2D, width: number, height: number, x = 0,
-      y = 0, unit = 'B') {
-    if (this.calculateNodeHeight) {
+      y = 0, unit = 'B', fillHeight = false) {
+    // TODO(tneda): Instead of pesimistic approach improve displaying text.
+    const name = '____MMMMMMQQwwZZZZZZzzzzzznnnnnnwwwwwwWWWWWqq$$mmmmmm__';
+    const charWidth = ctx.measureText(name).width / name.length;
+    if (fillHeight) {
       const calcHeight = Math.round((height - 10) / (this.maxDepth + 2));
-      this.calculateNodeHeight = false;
       this.nodeHeight = calcHeight < NODE_HEIGHT_MIN ?
           NODE_HEIGHT_MIN :
           calcHeight > NODE_HEIGHT_MAX ? NODE_HEIGHT_MAX : calcHeight;
       this.textSize = this.nodeHeight - 3 > 15 ? 15 : this.nodeHeight - 3;
+    } else {
+      this.nodeHeight = NODE_HEIGHT_DEFAULT;
     }
 
     if (this.flamegraphData !== undefined) {
-      // Finding total size of roots.
-      let totalSize = 0;
-      this.flamegraphData.forEach((value: CallsiteInfo) => {
-        if (value.parentHash === -1) {
-          totalSize += value.totalSize;
-        }
-      });
-
       // For each node, we use this map to get information about it's parent
       // (total size of it, width and where it starts in graph) so we can
       // calculate it's own position in graph.
       const nodesMap = new Map<number, Node>();
       let currentY = y;
-      nodesMap.set(-1, {width, nextXForChildren: x, size: totalSize, x});
+      nodesMap.set(-1, {width, nextXForChildren: x, size: this.totalSize, x});
 
       // Initialize data needed for click/hover behaivior.
       this.graphData = new Map();
@@ -164,7 +178,7 @@ export class Flamegraph {
           continue;
         }
         const parent = value.parentHash;
-        const parentSize = parent === -1 ? totalSize : parentNode.size;
+        const parentSize = parent === -1 ? this.totalSize : parentNode.size;
         // Calculate node's width based on its proportion in parent.
         const width =
             (isFullWidth ? 1 : value.totalSize / parentSize) * parentNode.width;
@@ -180,8 +194,7 @@ export class Flamegraph {
         // Draw name.
         const name = this.getCallsiteName(value);
         ctx.font = `${this.textSize}px Google Sans`;
-        const charWidth = ctx.measureText(name).width / name.length;
-        const text = cropText(name, charWidth, width);
+        const text = cropText(name, charWidth, width - 2);
         ctx.fillStyle = 'black';
         ctx.fillText(text, currentX + 5, currentY + this.nodeHeight - 4);
 
@@ -233,7 +246,8 @@ export class Flamegraph {
       if (this.hoveredX > -1 && this.hoveredY > -1 && this.hoveredCallsite) {
         // Draw the tooltip.
         const line1 = this.getCallsiteName(this.hoveredCallsite);
-        const percentage = this.hoveredCallsite.totalSize / totalSize * 100;
+        const percentage =
+            this.hoveredCallsite.totalSize / this.totalSize * 100;
         const line2 = `total: ${this.hoveredCallsite.totalSize}${unit} (${
             percentage.toFixed(2)}%)`;
         ctx.font = '12px Google Sans';
@@ -296,5 +310,11 @@ export class Flamegraph {
     haystack = haystack.sort((n1, n2) => n1 - n2);
     const [left, ] = searchSegment(haystack, needle);
     return left === -1 ? -1 : haystack[left];
+  }
+
+  getHeight(): number {
+    return this.flamegraphData.length === 0 ?
+        0 :
+        (this.maxDepth + 2) * this.nodeHeight;
   }
 }

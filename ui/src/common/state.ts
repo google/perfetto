@@ -112,8 +112,15 @@ export interface CounterSelection {
   id: number;
 }
 
-export interface HeapDumpSelection {
-  kind: 'HEAP_DUMP';
+export interface HeapProfileSelection {
+  kind: 'HEAP_PROFILE';
+  id: number;
+  upid: number;
+  ts: number;
+}
+
+export interface HeapProfileFlamegraph {
+  kind: 'HEAP_PROFILE_FLAMEGRAPH';
   id: number;
   upid: number;
   ts: number;
@@ -134,7 +141,7 @@ export interface ThreadStateSelection {
 }
 
 type Selection = NoteSelection|SliceSelection|CounterSelection|
-    HeapDumpSelection|ChromeSliceSelection|ThreadStateSelection;
+    HeapProfileSelection|ChromeSliceSelection|ThreadStateSelection;
 
 export interface LogsPagination {
   offset: number;
@@ -174,6 +181,7 @@ export interface State {
   notes: ObjectById<Note>;
   status: Status;
   currentSelection: Selection|null;
+  currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
 
   logsPagination: LogsPagination;
 
@@ -378,6 +386,7 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
+    currentHeapProfileFlamegraph: null,
 
     video: null,
     videoEnabled: false,

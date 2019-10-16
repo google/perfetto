@@ -394,10 +394,20 @@ export const StateActions = {
         };
       },
 
-  selectHeapDump(
+  selectHeapProfile(
       state: StateDraft, args: {id: number, upid: number, ts: number}): void {
     state.currentSelection =
-        {kind: 'HEAP_DUMP', id: args.id, upid: args.upid, ts: args.ts};
+        {kind: 'HEAP_PROFILE', id: args.id, upid: args.upid, ts: args.ts};
+  },
+
+  showHeapProfileFlamegraph(
+      state: StateDraft, args: {id: number, upid: number, ts: number}): void {
+    state.currentHeapProfileFlamegraph = {
+      kind: 'HEAP_PROFILE_FLAMEGRAPH',
+      id: args.id,
+      upid: args.upid,
+      ts: args.ts
+    };
   },
 
   selectChromeSlice(state: StateDraft, args: {id: number}): void {
