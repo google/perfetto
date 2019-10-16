@@ -19,10 +19,10 @@
 #include <stdint.h>
 
 #include "perfetto/ext/base/optional.h"
+#include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/traced/probes/ftrace/event_info_constants.h"
-#include "src/traced/probes/ftrace/ftrace_config.h"
 
 namespace perfetto {
 

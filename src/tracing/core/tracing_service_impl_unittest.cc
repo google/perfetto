@@ -1127,8 +1127,7 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   trace_config.add_buffers()->set_size_kb(128);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("data_source");
-  trace_config.set_lockdown_mode(
-      TraceConfig::LockdownModeOperation::LOCKDOWN_SET);
+  trace_config.set_lockdown_mode(TraceConfig::LOCKDOWN_SET);
   consumer->EnableTracing(trace_config);
 
   producer->WaitForTracingSetup();
@@ -1147,8 +1146,7 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 
-  trace_config.set_lockdown_mode(
-      TraceConfig::LockdownModeOperation::LOCKDOWN_CLEAR);
+  trace_config.set_lockdown_mode(TraceConfig::LOCKDOWN_CLEAR);
   consumer->EnableTracing(trace_config);
   producer->WaitForDataSourceSetup("data_source");
   producer->WaitForDataSourceStart("data_source");
@@ -2703,8 +2701,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
     ObservableEvents::DataSourceInstanceStateChange change;
     change.set_producer_name("mock_producer");
     change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DataSourceInstanceStateChange::
-                         DATA_SOURCE_INSTANCE_STATE_STARTED);
+    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
     EXPECT_EQ(events.instance_state_changes_size(), 1);
     EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
   }
@@ -2718,8 +2715,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
     ObservableEvents::DataSourceInstanceStateChange change;
     change.set_producer_name("mock_producer");
     change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DataSourceInstanceStateChange::
-                         DATA_SOURCE_INSTANCE_STATE_STOPPED);
+    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
     EXPECT_EQ(events.instance_state_changes_size(), 1);
     EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
   }
@@ -2739,8 +2735,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
     ObservableEvents::DataSourceInstanceStateChange change;
     change.set_producer_name("mock_producer");
     change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DataSourceInstanceStateChange::
-                         DATA_SOURCE_INSTANCE_STATE_STOPPED);
+    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
     EXPECT_EQ(events.instance_state_changes_size(), 1);
     EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
   }
@@ -2756,8 +2751,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
     ObservableEvents::DataSourceInstanceStateChange change;
     change.set_producer_name("mock_producer");
     change.set_data_source_name("data_source");
-    change.set_state(ObservableEvents::DataSourceInstanceStateChange::
-                         DATA_SOURCE_INSTANCE_STATE_STARTED);
+    change.set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
     EXPECT_EQ(events.instance_state_changes_size(), 1);
     EXPECT_THAT(events.instance_state_changes(), Contains(Eq(change)));
   }
@@ -2803,8 +2797,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstancesUnregister) {
         event.add_instance_state_changes();
     change->set_producer_name("mock_producer");
     change->set_data_source_name("data_source");
-    change->set_state(ObservableEvents::DataSourceInstanceStateChange::
-                          DATA_SOURCE_INSTANCE_STATE_STARTED);
+    change->set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED);
     EXPECT_CALL(*consumer, OnObservableEvents(Eq(event)))
         .WillOnce(InvokeWithoutArgs(
             task_runner.CreateCheckpoint("data_source_started")));
@@ -2817,8 +2810,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstancesUnregister) {
         event.add_instance_state_changes();
     change->set_producer_name("mock_producer");
     change->set_data_source_name("data_source");
-    change->set_state(ObservableEvents::DataSourceInstanceStateChange::
-                          DATA_SOURCE_INSTANCE_STATE_STOPPED);
+    change->set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
     EXPECT_CALL(*consumer, OnObservableEvents(Eq(event)))
         .WillOnce(InvokeWithoutArgs(
             task_runner.CreateCheckpoint("data_source_stopped")));

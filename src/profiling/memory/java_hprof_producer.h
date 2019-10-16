@@ -28,7 +28,8 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
-#include "src/profiling/memory/java_hprof_config.h"
+
+#include "protos/perfetto/config/profiling/java_hprof_config.gen.h"
 
 namespace perfetto {
 namespace profiling {

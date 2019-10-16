@@ -32,9 +32,6 @@ import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
 // The configuration that is passed to each data source when starting tracing.
 message DataSourceConfig {
   // Data source unique name, e.g., "linux.ftrace". This must match

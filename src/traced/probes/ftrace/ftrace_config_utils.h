@@ -20,7 +20,7 @@
 #include <set>
 #include <string>
 
-#include "src/traced/probes/ftrace/ftrace_config.h"
+#include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 
 namespace perfetto {
 

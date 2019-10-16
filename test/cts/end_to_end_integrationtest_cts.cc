@@ -21,10 +21,10 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/test_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/test_helper.h"
 
+#include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pb.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
