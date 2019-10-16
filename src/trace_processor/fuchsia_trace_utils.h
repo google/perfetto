@@ -22,6 +22,7 @@
 #include <functional>
 
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -40,12 +41,7 @@ T ReadField(uint64_t word, size_t begin, size_t end) {
 }
 
 bool IsInlineString(uint32_t);
-base::StringView ReadInlineString(const uint64_t**, uint32_t);
-
 bool IsInlineThread(uint32_t);
-ThreadInfo ReadInlineThread(const uint64_t**);
-
-int64_t ReadTimestamp(const uint64_t**, uint64_t);
 int64_t TicksToNs(uint64_t ticks, uint64_t ticks_per_second);
 
 class ArgValue {
@@ -189,6 +185,35 @@ class ArgValue {
     uint64_t pointer_;
     uint64_t koid_;
   };
+};
+
+// This class maintains a location into the record, with helper functions to
+// read various trace data from the current location in a safe manner.
+//
+// In the context of Fuchsia trace records, a "word" is defined as 64 bits
+// regardless of platform. For more information, see
+// https://fuchsia.googlesource.com/fuchsia/+/refs/heads/master/docs/development/tracing/trace-format/
+class RecordCursor {
+ public:
+  RecordCursor(const TraceBlobView* tbv) : tbv_(*tbv), word_index_(0) {}
+
+  size_t WordIndex();
+  void SetWordIndex(size_t index);
+
+  bool ReadTimestamp(uint64_t ticks_per_second, int64_t* ts_out);
+  bool ReadInlineString(uint32_t string_ref_or_len,
+                        base::StringView* string_out);
+  bool ReadInlineThread(ThreadInfo* thread_out);
+
+  bool ReadInt64(int64_t* out);
+  bool ReadUint64(uint64_t* out);
+  bool ReadDouble(double* out);
+
+ private:
+  bool ReadWords(size_t num_words, const uint64_t** data_out);
+
+  const TraceBlobView& tbv_;
+  size_t word_index_;
 };
 
 }  // namespace fuchsia_trace_utils
