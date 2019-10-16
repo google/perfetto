@@ -45,12 +45,12 @@ JsonTraceParser::~JsonTraceParser() = default;
 
 void JsonTraceParser::ParseFtracePacket(uint32_t,
                                         int64_t,
-                                        TimestampedTracePiece) {
+                                        TraceSorter::TimestampedTracePiece) {
   PERFETTO_FATAL("Json Trace Parser cannot handle ftrace packets.");
 }
 
 void JsonTraceParser::ParseTracePacket(int64_t timestamp,
-                                       TimestampedTracePiece ttp) {
+                                       TraceSorter::TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value != nullptr);
   const Json::Value& value = *(ttp.json_value);
 
