@@ -34,6 +34,7 @@ struct TypedColumn : public Column {
 
   T operator[](uint32_t row) const { return *GetTyped<T>(row); }
   void Set(uint32_t row, T value) { SetTyped(row, value); }
+  void Append(T value) { return mutable_sparse_vector<T>()->Append(value); }
 };
 
 template <typename T>
@@ -42,6 +43,10 @@ struct TypedColumn<base::Optional<T>> : public Column {
 
   base::Optional<T> operator[](uint32_t row) const { return GetTyped<T>(row); }
   void Set(uint32_t row, T value) { SetTyped(row, value); }
+
+  void Append(base::Optional<T> value) {
+    return mutable_sparse_vector<T>()->Append(value);
+  }
 };
 
 template <>
@@ -55,6 +60,26 @@ struct TypedColumn<StringPool::Id> : public Column {
     return GetStringPoolString(row);
   }
   void Set(uint32_t row, StringPool::Id value) { SetTyped(row, value); }
+  void Append(StringPool::Id value) {
+    return mutable_sparse_vector<StringPool::Id>()->Append(value);
+  }
+};
+
+template <>
+struct TypedColumn<base::Optional<StringPool::Id>>
+    : public TypedColumn<StringPool::Id> {
+  void Append(base::Optional<StringPool::Id> value) {
+    // Since StringPool::Id == 0 is always treated as null, rewrite
+    // base::nullopt -> 0 to remove an extra check at filter time for
+    // base::nullopt. Instead, that code can assume that the SparseVector layer
+    // always returns a valid id and can handle the nullability at the
+    // stringpool level.
+    // TODO(lalitm): remove this special casing if we migrate all tables over
+    // to macro tables and find that we can remove support for null stringids
+    // in the stringpool.
+    return TypedColumn<StringPool::Id>::Append(value ? *value
+                                                     : StringPool::Id(0u));
+  }
 };
 
 }  // namespace trace_processor
