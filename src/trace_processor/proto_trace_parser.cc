@@ -41,7 +41,6 @@
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/systrace_parser.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/track_tracker.h"
 #include "src/trace_processor/variadic.h"
@@ -395,7 +394,9 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
 
 ProtoTraceParser::~ProtoTraceParser() = default;
 
-void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
+void ProtoTraceParser::ParseTracePacket(
+    int64_t ts,
+    TraceSorter::TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
   const TraceBlobView& blob = ttp.blob_view;
 
@@ -676,13 +677,14 @@ void ProtoTraceParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
   }
 }
 
-void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
-                                         int64_t ts,
-                                         TimestampedTracePiece ttp) {
+void ProtoTraceParser::ParseFtracePacket(
+    uint32_t cpu,
+    int64_t ts,
+    TraceSorter::TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
 
   // Handle the (optional) alternative encoding format for sched_switch.
-  if (ttp.inline_event.type == InlineEvent::Type::kSchedSwitch) {
+  if (ttp.inline_event.type == TraceSorter::InlineEvent::Type::kSchedSwitch) {
     const auto& event = ttp.inline_event.sched_switch;
     context_->event_tracker->PushSchedSwitchCompact(
         cpu, ts, event.prev_state, static_cast<uint32_t>(event.next_pid),
