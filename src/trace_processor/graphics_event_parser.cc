@@ -456,6 +456,8 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(ConstBytes blob) {
           vulkan_memory_event_row);
 
   if (vulkan_memory_event.has_annotations()) {
+    auto global_row_id =
+        TraceStorage::CreateRowId(TableId::kVulkanMemoryAllocation, row_id);
     for (auto itt = vulkan_memory_event.annotations(); itt; ++itt) {
       protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(
           itt->data(), itt->size());
@@ -463,17 +465,17 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(ConstBytes blob) {
           *(context_->vulkan_memory_tracker->FindString(annotation.key_iid()));
       if (annotation.has_int_value()) {
         context_->args_tracker->AddArg(
-            row_id, annotation_id, annotation_id,
+            global_row_id, annotation_id, annotation_id,
             Variadic::Integer(annotation.int_value()));
 
       } else if (annotation.has_double_value()) {
         context_->args_tracker->AddArg(
-            row_id, annotation_id, annotation_id,
+            global_row_id, annotation_id, annotation_id,
             Variadic::Real(annotation.double_value()));
 
       } else if (annotation.has_string_iid()) {
         context_->args_tracker->AddArg(
-            row_id, annotation_id, annotation_id,
+            global_row_id, annotation_id, annotation_id,
             Variadic::String(*(context_->vulkan_memory_tracker->FindString(
                 annotation.string_iid()))));
       }
