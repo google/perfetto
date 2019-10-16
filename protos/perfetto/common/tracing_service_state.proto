@@ -21,9 +21,6 @@ package perfetto.protos;
 
 import "protos/perfetto/common/data_source_descriptor.proto";
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos.py
-// to reflect changes in the corresponding C++ headers.
-
 // Reports the state of the tracing service. Used to gather details about the
 // data sources connected.
 // See ConsumerPort::QueryServiceState().

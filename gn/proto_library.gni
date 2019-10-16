@@ -94,6 +94,48 @@ template("protozero_library") {
   }
 }
 
+# This template generates .gen.cc/h files from .proto files. The generated
+# sources are actual C++ classes that can be moved and copied around, very
+# similar to the libprotobuf generated ones API-wise, but use protozero under
+# the hoods, without any zero-copy benefit though.
+# They are mainly used for the perfetto IPC layer and tests.
+template("protozero_cpp_library") {
+  proto_library(target_name) {
+    perfetto_root_path = invoker.perfetto_root_path
+
+    generate_cc = false
+    generate_python = false
+    generator_plugin_label =
+        perfetto_root_path + "src/protozero/protoc_plugin:cppgen_plugin"
+    generator_plugin_suffix = ".gen"
+    if (build_with_chromium) {
+      component_build_force_source_set = true
+    }
+
+    deps = [
+      "$perfetto_root_path/gn:default_deps",
+      "$perfetto_root_path/include/perfetto/base",
+    ]
+
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
+
+    forward_variables_from(invoker,
+                           [
+                             "defines",
+                             "generator_plugin_options",
+                             "include_dirs",
+                             "proto_in_dir",
+                             "proto_out_dir",
+                             "sources",
+                             "testonly",
+                             "visibility",
+                             "generate_descriptor",
+                           ])
+  }
+}
+
 # The template used everywhere in the codebase.
 template("perfetto_proto_library") {
   if (defined(invoker.proto_generators)) {
@@ -102,6 +144,7 @@ template("perfetto_proto_library") {
     proto_generators = [
       "zero",
       "lite",
+      "cpp",
     ]
   }
 
@@ -117,16 +160,16 @@ template("perfetto_proto_library") {
     "visibility",
     "testonly",
   ]
-  type_expansion_token = "@TYPE@"
+  expansion_token = "@TYPE@"
 
   foreach(gen_type, proto_generators) {
-    target_name_ = string_replace(target_name, type_expansion_token, gen_type)
+    target_name_ = string_replace(target_name, expansion_token, gen_type)
 
     # Translate deps from xxx:@TYPE@ to xxx:lite/zero.
     deps_ = []
     if (defined(invoker.deps)) {
       foreach(dep, invoker.deps) {
-        deps_ += [ string_replace(dep, type_expansion_token, gen_type) ]
+        deps_ += [ string_replace(dep, expansion_token, gen_type) ]
       }
     }
 
@@ -136,6 +179,14 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=pbzero"
         deps = deps_
+        forward_variables_from(invoker, vars_to_forward)
+      }
+    } else if (gen_type == "cpp") {
+      lite_target_name_ = string_replace(target_name, expansion_token, "lite")
+      protozero_cpp_library(target_name_) {
+        proto_in_dir = proto_path
+        proto_out_dir = proto_path
+        deps = deps_ + [ ":$lite_target_name_" ]
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "lite") {

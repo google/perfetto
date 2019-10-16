@@ -25,7 +25,6 @@ group("tools") {
     ":idle_alloc",
     "compact_reencode",
     "ftrace_proto_gen",
-    "proto_to_cpp",
     "protoprofile",
     "trace_to_text",
     "trace_to_text:trace_to_text_lite",

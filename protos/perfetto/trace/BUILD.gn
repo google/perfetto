@@ -61,11 +61,14 @@ group("lite") {
   ]
 }
 
-perfetto_proto_library("non_minimal_@TYPE@") {
-  visibility = [
-    ":lite",
-    ":zero",
+group("cpp") {
+  public_deps = [
+    ":minimal_cpp",
+    ":non_minimal_cpp",
   ]
+}
+
+perfetto_proto_library("non_minimal_@TYPE@") {
   deps = [
     ":minimal_@TYPE@",
     "../config:@TYPE@",

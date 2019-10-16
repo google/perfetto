@@ -106,6 +106,12 @@ if (perfetto_build_standalone) {
     "protos/perfetto/config:merged_config",
     "protos/perfetto/trace:merged_trace",  # For syntax-checking the proto.
 
+    # For checking all generated xxx.gen.{cc,h} files without waiting for
+    # embedders to try to use them and fail.
+    "protos/perfetto/trace:cpp",
+    "protos/perfetto/config:cpp",
+    "protos/perfetto/common:cpp",
+
     # The diff testing framework depends on these descriptors.
     "protos/perfetto/metrics:descriptor($host_toolchain)",
     "protos/perfetto/trace:descriptor($host_toolchain)",
