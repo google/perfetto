@@ -29,9 +29,10 @@ export class HeapProfileDetailsPanel extends
 
   view() {
     const heapDumpInfo = globals.heapDumpDetails;
-    if (heapDumpInfo && heapDumpInfo.ts && heapDumpInfo.allocated &&
-        heapDumpInfo.allocatedNotFreed && heapDumpInfo.tsNs &&
-        heapDumpInfo.pid) {
+    if (heapDumpInfo && heapDumpInfo.ts !== undefined &&
+        heapDumpInfo.allocated !== undefined &&
+        heapDumpInfo.allocatedNotFreed !== undefined &&
+        heapDumpInfo.tsNs !== undefined && heapDumpInfo.pid !== undefined) {
       this.ts = heapDumpInfo.tsNs;
       this.pid = heapDumpInfo.pid;
       return m(
