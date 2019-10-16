@@ -70,6 +70,10 @@ perfetto_unittest_source_set("unittests") {
 }
 
 perfetto_proto_library("test_messages_@TYPE@") {
+  proto_generators = [
+    "lite",
+    "zero",
+  ]
   sources = [
     "test/test_messages.proto",
   ]
@@ -104,6 +108,7 @@ source_set("ftrace") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/config/ftrace:cpp",
     "../../../../protos/perfetto/config/ftrace:lite",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
@@ -124,8 +129,6 @@ source_set("ftrace") {
     "event_info.h",
     "event_info_constants.cc",
     "event_info_constants.h",
-    "ftrace_config.cc",
-    "ftrace_config.h",
     "ftrace_config_muxer.cc",
     "ftrace_config_muxer.h",
     "ftrace_config_utils.cc",

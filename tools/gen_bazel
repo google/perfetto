@@ -66,6 +66,7 @@ default_targets = [
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:libprotozero',
     '//src/protozero/protoc_plugin:protozero_plugin',
+    '//src/protozero/protoc_plugin:cppgen_plugin',
 ] + public_targets
 
 # Root proto targets (to force discovery of intermediate proto targets).
@@ -142,9 +143,8 @@ class BazelLabel(object):
   def __lt__(self, other):
     if isinstance(other, self.__class__):
       return self.name < other.name
-    raise TypeError(
-        '\'<\' not supported between instances of \'%s\' and \'%s\'' %
-        (type(self).__name__, type(other).__name__))
+    raise TypeError('\'<\' not supported between instances of \'%s\' and \'%s\''
+                    % (type(self).__name__, type(other).__name__))
 
   def __str__(self):
     """Converts the object into a Bazel Starlark label."""
@@ -225,6 +225,8 @@ def gen_proto_labels(target):
     plugin_label_type = 'perfetto_cc_proto_library'
   elif target.proto_plugin == 'protozero':
     plugin_label_type = 'perfetto_cc_protozero_library'
+  elif target.proto_plugin == 'cppgen':
+    plugin_label_type = 'perfetto_cc_protocpp_library'
   elif target.proto_plugin == 'ipc':
     plugin_label_type = 'perfetto_cc_ipc_library'
   else:
@@ -233,6 +235,17 @@ def gen_proto_labels(target):
   plugin_label = BazelLabel(plugin_label_name, plugin_label_type)
   plugin_label.comment = target.name
   plugin_label.deps += [':' + sources_label_name]
+
+  # When using the cppgen plugin we need to pass down also the transitive deps.
+  # For instance consider foo.proto including common.proto. The generated
+  # foo.cc will #include "common.gen.h". Hence the generated cc_protocpp_library
+  # rule need to pass down the dependency on the target that generates
+  # common.gen.{cc,h}. This is not needed for protozero because protozero
+  # headers are fully hermetic deps-wise and use only on forward declarations.
+  if target.proto_deps and target.proto_plugin == 'cppgen':
+    plugin_label.deps += [
+        ':' + get_bazel_label_name(x) for x in target.proto_deps
+    ]
 
   # Generates 2.
   sources_label = BazelLabel(sources_label_name, 'perfetto_proto_library')
@@ -338,6 +351,7 @@ load(
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
     "perfetto_cc_proto_library",
+    "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_java_proto_library",
     "perfetto_proto_library",

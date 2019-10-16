@@ -35,11 +35,12 @@
 
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bookkeeping_dump.h"
-#include "src/profiling/memory/heapprofd_config.h"
 #include "src/profiling/memory/page_idle_checker.h"
 #include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
+
+#include "protos/perfetto/config/profiling/heapprofd_config.gen.h"
 
 namespace perfetto {
 namespace profiling {

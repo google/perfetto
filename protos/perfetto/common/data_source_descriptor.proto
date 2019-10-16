@@ -22,9 +22,6 @@ package perfetto.protos;
 import "protos/perfetto/common/gpu_counter_descriptor.proto";
 import "protos/perfetto/common/track_event_descriptor.proto";
 
-// When editing this file run ./tools/gen_tracing_cpp_headers_from_protos
-// to reflect changes in the corresponding C++ headers.
-
 // This message is sent from Producer(s) to the tracing Service when registering
 // to advertise their capabilities. It describes the structure of tracing
 // protos that will be produced by the data source and the supported filters.

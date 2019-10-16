@@ -13,11 +13,14 @@
 # limitations under the License.
 
 source_set("core") {
+  public_deps = [
+    "../../../../protos/perfetto/common:cpp",
+    "../../../../protos/perfetto/config:cpp",
+  ]
   sources = [
     "chrome_config.h",
     "data_source_config.h",
     "data_source_descriptor.h",
-    "test_config.h",
     "trace_config.h",
     "tracing_service_state.h",
   ]
