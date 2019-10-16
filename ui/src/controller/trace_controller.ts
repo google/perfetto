@@ -495,7 +495,8 @@ export class TraceController extends Controller<States> {
           utid === null ? undefined : utidToThreadTrack.get(utid);
       if (threadTrack === undefined &&
           (upid === null || counterUpids[upid] === undefined) &&
-          counterUtids[utid] === undefined && !threadHasSched) {
+          counterUtids[utid] === undefined && !threadHasSched &&
+          (upid === null || upid !== null && !heapUpids.has(upid))) {
         continue;
       }
 
@@ -523,11 +524,16 @@ export class TraceController extends Controller<States> {
           config: {pidForColor, upid, utid},
         });
 
+        const name = upid === null ?
+            `${threadName} ${tid}` :
+            `${
+                processName === null && heapUpids.has(upid) ?
+                    'Heap Profile for' :
+                    processName} ${pid}`;
         addTrackGroupActions.push(Actions.addTrackGroup({
           engineId: this.engineId,
           summaryTrackId,
-          name: upid === null ? `${threadName} ${tid}` :
-                                `${processName} ${pid}`,
+          name,
           id: pUuid,
           collapsed: true,
         }));
