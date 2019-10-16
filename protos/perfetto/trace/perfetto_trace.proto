@@ -3008,7 +3008,7 @@ message HeapGraphRoot {
   // Objects retained by this root.
   repeated uint64 object_ids = 1;
 
-  // From art:RootType, e.g. "kRootThreadObject".
+  // From art:RootType, e.g. "RootThreadObject".
   optional string root_type = 2;
 }
 
