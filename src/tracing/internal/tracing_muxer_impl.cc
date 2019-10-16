@@ -245,8 +245,7 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
                               state_change.data_source_name()};
       data_source_states_[handle] =
           state_change.state() ==
-          ObservableEvents::DataSourceInstanceStateChange::
-              DATA_SOURCE_INSTANCE_STATE_STARTED;
+          ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED;
     }
     // Data sources are first reported as being stopped before starting, so once
     // all the data sources we know about have started we can declare tracing

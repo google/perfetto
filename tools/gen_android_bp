@@ -66,6 +66,9 @@ default_targets = [
 ipc_plugin = '//src/ipc/protoc_plugin:ipc_plugin(%s)' % gn_utils.HOST_TOOLCHAIN
 protozero_plugin = '//src/protozero/protoc_plugin:protozero_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
+cppgen_plugin = '//src/protozero/protoc_plugin:cppgen_plugin(%s)' % (
+    gn_utils.HOST_TOOLCHAIN)
+
 default_targets += [
     '//src/trace_processor:trace_processor_shell(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//tools/trace_to_text:trace_to_text(%s)' % gn_utils.HOST_TOOLCHAIN,
@@ -481,6 +484,12 @@ def create_proto_modules(blueprint, gn, target):
     tools.add(plugin.name)
     cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
     cmd += ['--plugin_out=wrapper_namespace=pbzero:' + cpp_out_dir]
+  elif target.proto_plugin == 'cppgen':
+    suffixes = ['gen']
+    plugin = create_modules_from_target(blueprint, gn, cppgen_plugin)
+    tools.add(plugin.name)
+    cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
+    cmd += ['--plugin_out=:' + cpp_out_dir]
   elif target.proto_plugin == 'ipc':
     suffixes.append('ipc')
     plugin = create_modules_from_target(blueprint, gn, ipc_plugin)
