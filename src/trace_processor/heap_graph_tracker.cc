@@ -22,18 +22,32 @@ namespace trace_processor {
 HeapGraphTracker::HeapGraphTracker(TraceProcessorContext* context)
     : context_(context) {}
 
-void HeapGraphTracker::AddObject(UniquePid upid, int64_t ts, SourceObject obj) {
+bool HeapGraphTracker::SetPidAndTimestamp(UniquePid upid, int64_t ts) {
   if (current_upid_ != 0 && current_upid_ != upid) {
     context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
-    return;
+    return false;
   }
   if (current_ts_ != 0 && current_ts_ != ts) {
     context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
-    return;
+    return false;
   }
   current_upid_ = upid;
   current_ts_ = ts;
+  return true;
+}
+
+void HeapGraphTracker::AddObject(UniquePid upid, int64_t ts, SourceObject obj) {
+  if (!SetPidAndTimestamp(upid, ts))
+    return;
+
   current_objects_.emplace_back(std::move(obj));
+}
+
+void HeapGraphTracker::AddRoot(UniquePid upid, int64_t ts, SourceRoot root) {
+  if (!SetPidAndTimestamp(upid, ts))
+    return;
+
+  current_roots_.emplace_back(std::move(root));
 }
 
 void HeapGraphTracker::AddInternedTypeName(uint64_t intern_id,
@@ -66,7 +80,7 @@ void HeapGraphTracker::FinalizeProfile() {
     }
     context_->storage->mutable_heap_graph_object_table()->Insert(
         {current_upid_, current_ts_, static_cast<int64_t>(obj.object_id),
-         static_cast<int64_t>(obj.self_size), -1, it->second});
+         static_cast<int64_t>(obj.self_size), -1, it->second, base::nullopt});
     object_id_to_row_.emplace(
         obj.object_id, context_->storage->heap_graph_object_table().size() - 1);
   }
@@ -106,10 +120,26 @@ void HeapGraphTracker::FinalizeProfile() {
         ->mutable_reference_set_id()
         ->Set(static_cast<uint32_t>(owner_row), reference_set_id);
   }
+
+  for (const SourceRoot& root : current_roots_) {
+    for (uint64_t obj_id : root.object_ids) {
+      auto it = object_id_to_row_.find(obj_id);
+      // This can only happen for an invalid type string id, which is already
+      // reported as an error. Silently continue here.
+      if (it == object_id_to_row_.end())
+        continue;
+
+      int64_t obj_row = it->second;
+      context_->storage->mutable_heap_graph_object_table()
+          ->mutable_root_type()
+          ->Set(static_cast<uint32_t>(obj_row), root.root_type);
+    }
+  }
   interned_field_names_.clear();
   object_id_to_row_.clear();
   interned_type_names_.clear();
   current_objects_.clear();
+  current_roots_.clear();
   current_upid_ = 0;
   current_ts_ = 0;
 }
