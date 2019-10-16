@@ -20,7 +20,6 @@ import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
-
 import {Config, Data, HEAP_PROFILE_TRACK_KIND} from './common';
 
 // 0.5 Makes the horizontal lines sharp.
@@ -57,8 +56,8 @@ class HeapProfileTrack extends Track<Config, Data> {
       const centerX = data.tsStarts[i];
       const selection = globals.state.currentSelection;
       const isHovered = this.hoveredTs === centerX;
-      const isSelected = selection !== null && selection.kind === 'HEAP_DUMP' &&
-          selection.ts === centerX;
+      const isSelected = selection !== null &&
+          selection.kind === 'HEAP_PROFILE' && selection.ts === centerX;
       const lightness = isHovered ? '65' : '85';
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
@@ -115,8 +114,10 @@ class HeapProfileTrack extends Track<Config, Data> {
 
     if (index !== -1) {
       const ts = data.tsStarts[index];
+      globals.dispatch(Actions.showHeapProfileFlamegraph(
+          {id: index, upid: this.config.upid, ts}));
       globals.makeSelection(
-          Actions.selectHeapDump({id: index, upid: this.config.upid, ts}));
+          Actions.selectHeapProfile({id: index, upid: this.config.upid, ts}));
       return true;
     }
     return false;
