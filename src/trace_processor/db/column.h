@@ -217,18 +217,28 @@ class Column {
   base::Optional<T> GetTyped(uint32_t row) const {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
     auto idx = row_map().Get(row);
-    return static_cast<const SparseVector<T>*>(sparse_vector_)->Get(idx);
+    return sparse_vector<T>().Get(idx);
   }
 
   template <typename T>
   void SetTyped(uint32_t row, T value) {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
     auto idx = row_map().Get(row);
-    return static_cast<SparseVector<T>*>(sparse_vector_)->Set(idx, value);
+    return mutable_sparse_vector<T>()->Set(idx, value);
   }
 
   NullTermStringView GetStringPoolString(uint32_t row) const {
     return string_pool_->Get(*GetTyped<StringPool::Id>(row));
+  }
+
+  template <typename T>
+  const SparseVector<T>& sparse_vector() const {
+    return *static_cast<const SparseVector<T>*>(sparse_vector_);
+  }
+
+  template <typename T>
+  SparseVector<T>* mutable_sparse_vector() {
+    return static_cast<SparseVector<T>*>(sparse_vector_);
   }
 
   // type_ is used to cast sparse_vector_ to the correct type.
