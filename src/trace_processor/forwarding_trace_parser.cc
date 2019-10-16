@@ -24,6 +24,7 @@
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/proto_trace_tokenizer.h"
 #include "src/trace_processor/systrace_trace_parser.h"
+#include "src/trace_processor/trace_sorter.h"
 
 // JSON parsing and exporting is only supported in the standalone and
 // Chromium builds.

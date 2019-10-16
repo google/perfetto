@@ -20,7 +20,6 @@
 #include <stdint.h>
 
 #include "src/trace_processor/chunked_trace_reader.h"
-#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace Json {
