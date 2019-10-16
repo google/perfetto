@@ -61,7 +61,10 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
                "PresentFenceSignaled") /* PRESENT_FENCE */,
            context->storage->InternString(
                "ReleaseFenceSignaled") /* RELEASE_FENCE */,
-           context->storage->InternString("Modify") /* MODIFY */}},
+           context->storage->InternString("Modify") /* MODIFY */,
+           context->storage->InternString("Detach") /* DETACH */,
+           context->storage->InternString("Attach") /* ATTACH */,
+           context->storage->InternString("Cancel") /* CANCEL */}},
       vulkan_allocated_host_memory_id_(
           context->storage->InternString("vulkan.host.memory")),
       vulkan_allocated_gpu_memory_id_(
