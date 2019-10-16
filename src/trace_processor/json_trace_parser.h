@@ -23,8 +23,8 @@
 #include <tuple>
 #include <unordered_map>
 
+#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_parser.h"
-#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace Json {
@@ -47,11 +47,8 @@ class JsonTraceParser : public TraceParser {
   ~JsonTraceParser() override;
 
   // TraceParser implementation.
-  void ParseTracePacket(int64_t timestamp,
-                        TraceSorter::TimestampedTracePiece) override;
-  void ParseFtracePacket(uint32_t,
-                         int64_t,
-                         TraceSorter::TimestampedTracePiece) override;
+  void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) override;
+  void ParseFtracePacket(uint32_t, int64_t, TimestampedTracePiece) override;
 
  private:
   TraceProcessorContext* const context_;
