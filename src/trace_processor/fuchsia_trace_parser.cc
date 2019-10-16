@@ -63,11 +63,13 @@ FuchsiaTraceParser::~FuchsiaTraceParser() = default;
 
 void FuchsiaTraceParser::ParseFtracePacket(uint32_t,
                                            int64_t,
-                                           TimestampedTracePiece) {
+                                           TraceSorter::TimestampedTracePiece) {
   PERFETTO_FATAL("Fuchsia Trace Parser cannot handle ftrace packets.");
 }
 
-void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
+void FuchsiaTraceParser::ParseTracePacket(
+    int64_t,
+    TraceSorter::TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.fuchsia_provider_view != nullptr);
 
   // The timestamp is also present in the record, so we'll ignore the one passed
