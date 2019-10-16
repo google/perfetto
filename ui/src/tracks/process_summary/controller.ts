@@ -64,7 +64,8 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     }
 
     // |resolution| is in s/px we want # ns for 10px window:
-    const bucketSizeNs = Math.round(resolution * 10 * 1e9);
+    // Max value with 1 so we don't end up with resolution 0.
+    const bucketSizeNs = Math.max(1, Math.round(resolution * 10 * 1e9));
     const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
     const windowDurNs = Math.max(1, endNs - windowStartNs);
 
