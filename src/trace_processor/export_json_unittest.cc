@@ -104,6 +104,7 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_FALSE(event.isMember("args"));
 }
+
 TEST(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = -1;
@@ -379,6 +380,63 @@ TEST(ExportJsonTest, StorageWithArgs) {
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_EQ(event["args"]["src"].asString(), kSrc);
+}
+
+TEST(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  constexpr TrackId track = 22;
+  const uint64_t kBindId = 0xaa00aa00aa00aa00;
+  const char* kFlowDirection = "inout";
+  const char* kArgName = "arg_name";
+  const int kArgValue = 123;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  TraceStorage* storage = context.storage.get();
+
+  UniqueTid utid = storage->AddEmptyThread(0);
+  StringId cat_id = storage->InternString(base::StringView(kCategory));
+  StringId name_id = storage->InternString(base::StringView(kName));
+  RowId row_id = TraceStorage::CreateRowId(
+      kNestableSlices,
+      storage->mutable_nestable_slices()->AddSlice(
+          0, 0, track, utid, RefType::kRefUtid, cat_id, name_id, 0, 0, 0));
+
+  ArgsTracker args(&context);
+  auto add_arg = [&](const char* key, Variadic value) {
+    StringId key_id = storage->InternString(key);
+    args.AddArg(row_id, key_id, key_id, value);
+  };
+
+  add_arg("legacy_event.bind_id", Variadic::UnsignedInteger(kBindId));
+  add_arg("legacy_event.bind_to_enclosing", Variadic::Boolean(true));
+  StringId flow_direction_id = storage->InternString(kFlowDirection);
+  add_arg("legacy_event.flow_direction", Variadic::String(flow_direction_id));
+
+  add_arg(kArgName, Variadic::Integer(kArgValue));
+
+  args.Flush();
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  int code = ExportJson(storage, output);
+
+  EXPECT_EQ(code, kResultOk);
+
+  Json::Reader reader;
+  Json::Value result;
+  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["cat"].asString(), kCategory);
+  EXPECT_EQ(event["name"].asString(), kName);
+  EXPECT_EQ(event["bind_id"].asString(), "0xaa00aa00aa00aa00");
+  EXPECT_EQ(event["bp"].asString(), "e");
+  EXPECT_EQ(event["flow_in"].asBool(), true);
+  EXPECT_EQ(event["flow_out"].asBool(), true);
+  EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
 }
 
 TEST(ExportJsonTest, StorageWithListArgs) {
