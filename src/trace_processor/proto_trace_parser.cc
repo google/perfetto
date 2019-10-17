@@ -29,12 +29,15 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/ftrace_descriptors.h"
 #include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
+#include "src/trace_processor/importers/proto/ftrace_module.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_incremental_state.h"
@@ -434,9 +437,29 @@ ProtoTraceParser::~ProtoTraceParser() = default;
 
 void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
-  const TraceBlobView& blob = ttp.blob_view;
 
+  const TraceBlobView& blob = ttp.blob_view;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
+
+  ParseTracePacketImpl(ts, std::move(ttp), packet);
+
+  // TODO(lalitm): maybe move this to the flush method in the trace processor
+  // once we have it. This may reduce performance in the ArgsTracker though so
+  // needs to be handled carefully.
+  context_->args_tracker->Flush();
+  PERFETTO_DCHECK(!packet.bytes_left());
+}
+
+void ProtoTraceParser::ParseTracePacketImpl(
+    int64_t ts,
+    TimestampedTracePiece ttp,
+    const protos::pbzero::TracePacket::Decoder& packet) {
+  // TODO(eseckler): Propagate statuses from modules.
+  if (!context_->ftrace_module.ParsePacket(packet, ttp).ignored())
+    return;
+
+  if (!context_->track_event_module.ParsePacket(packet, ttp).ignored())
+    return;
 
   if (packet.has_process_tree())
     ParseProcessTree(packet.process_tree());
@@ -534,12 +557,6 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
     graphics_event_parser_->ParseVulkanMemoryEvent(
         packet.vulkan_memory_event());
   }
-
-  // TODO(lalitm): maybe move this to the flush method in the trace processor
-  // once we have it. This may reduce performance in the ArgsTracker though so
-  // needs to be handled carefully.
-  context_->args_tracker->Flush();
-  PERFETTO_DCHECK(!packet.bytes_left());
 }
 
 void ProtoTraceParser::ParseSysStats(int64_t ts, ConstBytes blob) {
@@ -717,6 +734,10 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
                                          int64_t ts,
                                          TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
+
+  // TODO(eseckler): Propagate status.
+  if (!context_->ftrace_module.ParseFtracePacket(cpu, ttp).ignored())
+    return;
 
   // Handle the (optional) alternative encoding format for sched_switch.
   if (ttp.inline_event.type == InlineEvent::Type::kSchedSwitch) {
