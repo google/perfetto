@@ -679,9 +679,11 @@ class GeneratorJob {
             field->name(), "id", std::to_string(field->number()));
       } else if (field->is_repeated()) {
         stub_h_->Print(
-            "::protozero::RepeatedFieldIterator $name$() const { return "
-            "GetRepeated($id$); }\n",
-            "name", field->name(), "id", std::to_string(field->number()));
+            "::protozero::RepeatedFieldIterator<$cpp_type$> $name$() const { "
+            "return "
+            "GetRepeated<$cpp_type$>($id$); }\n",
+            "name", field->name(), "cpp_type", cpp_type, "id",
+            std::to_string(field->number()));
       } else {
         stub_h_->Print(
             "$cpp_type$ $name$() const { return at<$id$>().$getter$(); }\n",

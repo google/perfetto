@@ -297,8 +297,7 @@ util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
   const auto& rep = decoder.repeated();
   protos::pbzero::RepeatedBuilderResult::Decoder repeated(rep.data, rep.size);
   for (auto it = repeated.value(); it; ++it) {
-    protos::pbzero::RepeatedBuilderResult::Value::Decoder value(it->data(),
-                                                                it->size());
+    protos::pbzero::RepeatedBuilderResult::Value::Decoder value(*it);
     util::Status status;
     if (value.has_int_value()) {
       status = AppendLong(field.name(), value.int_value(), true);
