@@ -12,10 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LoadingManager} from '../controller/loading_manager';
-
 import {RawQueryResult, TraceProcessor} from './protos';
 import {TimeSpan} from './time';
+
+export interface LoadingTracker {
+  beginLoading(): void;
+  endLoading(): void;
+}
+
+export class NullLoadingTracker implements LoadingTracker {
+  beginLoading(): void {}
+
+  endLoading(): void {}
+}
 
 /**
  * Abstract interface of a trace proccessor.
@@ -32,10 +41,10 @@ export abstract class Engine {
   abstract readonly id: string;
   private _cpus?: number[];
   private _numGpus?: number;
-  private loadingManager: LoadingManager;
+  private loadingTracker: LoadingTracker;
 
-  constructor() {
-    this.loadingManager = LoadingManager.getInstance;
+  constructor(tracker?: LoadingTracker) {
+    this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
   }
 
   /**
@@ -60,9 +69,9 @@ export abstract class Engine {
    */
   query(sqlQuery: string): Promise<RawQueryResult> {
     const timeQueuedNs = Math.floor(performance.now() * 1e6);
-    this.loadingManager.beginLoading();
+    this.loadingTracker.beginLoading();
     return this.rpc.rawQuery({sqlQuery, timeQueuedNs}).finally(() => {
-      this.loadingManager.endLoading();
+      this.loadingTracker.endLoading();
     });
   }
 
