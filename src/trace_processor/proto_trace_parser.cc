@@ -324,6 +324,8 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
               "legacy_event.thread_instruction_delta")),
       legacy_event_use_async_tts_key_id_(
           context->storage->InternString("legacy_event.use_async_tts")),
+      legacy_event_unscoped_id_key_id_(
+          context->storage->InternString("legacy_event.unscoped_id")),
       legacy_event_global_id_key_id_(
           context->storage->InternString("legacy_event.global_id")),
       legacy_event_local_id_key_id_(
@@ -1802,8 +1804,8 @@ void ProtoTraceParser::ParseTrackEvent(
       case 'e':
       case 'n': {
         // Intern tracks for legacy async events based on legacy event ids.
-        base::Optional<UniquePid> event_upid;
         int64_t source_id = 0;
+        bool source_id_is_process_scoped = false;
         if (legacy_event.has_unscoped_id()) {
           source_id = static_cast<int64_t>(legacy_event.unscoped_id());
         } else if (legacy_event.has_global_id()) {
@@ -1817,20 +1819,25 @@ void ProtoTraceParser::ParseTrackEvent(
           }
 
           source_id = static_cast<int64_t>(legacy_event.local_id());
-          event_upid = upid;
+          source_id_is_process_scoped = true;
         } else {
           storage->IncrementStats(stats::track_event_parser_errors);
           PERFETTO_DLOG("Async LegacyEvent without ID");
           return;
         }
 
-        StringId id_scope = 0;
+        // Catapult treats nestable async events of different categories with
+        // the same ID as separate tracks. We replicate the same behavior here.
+        StringId id_scope = category_id;
         if (legacy_event.has_id_scope()) {
-          id_scope = storage->InternString(legacy_event.id_scope());
+          std::string concat = storage->GetString(category_id).ToStdString() +
+                               ":" + legacy_event.id_scope().ToStdString();
+          id_scope = storage->InternString(base::StringView(concat));
         }
 
         track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
-            name_id, event_upid, source_id, id_scope);
+            name_id, upid ? *upid : 0, source_id, source_id_is_process_scoped,
+            id_scope);
         break;
       }
       case 'i':
@@ -2216,8 +2223,10 @@ void ProtoTraceParser::ParseLegacyEventAsRawEvent(
 
   bool has_id = false;
   if (legacy_event.has_unscoped_id()) {
-    args.AddArg(row_id, legacy_event_global_id_key_id_,
-                legacy_event_global_id_key_id_,
+    // Unscoped ids are either global or local depending on the phase. Pass them
+    // through as unscoped IDs to JSON export to preserve this behavior.
+    args.AddArg(row_id, legacy_event_unscoped_id_key_id_,
+                legacy_event_unscoped_id_key_id_,
                 Variadic::UnsignedInteger(legacy_event.unscoped_id()));
     has_id = true;
   } else if (legacy_event.has_global_id()) {
