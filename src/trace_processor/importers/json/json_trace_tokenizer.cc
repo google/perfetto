@@ -17,12 +17,12 @@
 #include "perfetto/base/build_config.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
-#include "src/trace_processor/json_trace_tokenizer.h"
+#include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
 #include <json/reader.h>
 #include <json/value.h>
 
-#include "src/trace_processor/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_trace_utils.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"

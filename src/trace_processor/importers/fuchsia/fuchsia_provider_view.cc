@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/fuchsia_provider_view.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
 
 namespace perfetto {
 namespace trace_processor {
