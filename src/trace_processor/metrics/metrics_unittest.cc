@@ -204,9 +204,9 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<true>(result_ser);
-  auto it = proto.GetRepeated(1);
-  ASSERT_EQ(it->as_int64(), 1234);
-  ASSERT_EQ((++it)->as_int64(), 5678);
+  auto it = proto.GetRepeated<int64_t>(1);
+  ASSERT_EQ(*it, 1234);
+  ASSERT_EQ(*++it, 5678);
   ASSERT_FALSE(++it);
 }
 

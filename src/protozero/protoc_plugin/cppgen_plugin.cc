@@ -402,17 +402,8 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
                GetCppType(field, false), "n", field->lowercase_name());
       p->Print("void clear_$n$() { $n$_.clear(); }\n", "n",
                field->lowercase_name());
-
-      if (field->type() == TYPE_MESSAGE && !field->options().lazy()) {
-        p->Print(
-            "$t$* add_$n$() { $n$_.emplace_back(); return &$n$_.back(); "
-            "}\n",
-            "t", GetCppType(field, false), "n", field->lowercase_name());
-      } else {
-        p->Print(
-            "$t$* add_$n$() { $n$_.emplace_back(); return &$n$_.back(); }\n",
-            "t", GetCppType(field, false), "n", field->lowercase_name());
-      }
+      p->Print("$t$* add_$n$() { $n$_.emplace_back(); return &$n$_.back(); }\n",
+               "t", GetCppType(field, false), "n", field->lowercase_name());
     }
   }
   p->Outdent();
