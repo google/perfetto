@@ -286,6 +286,57 @@ TEST(BitVectorUnittest, IterateAllBitsClear) {
   }
 }
 
+TEST(BitVectorUnittest, IterateSetBitsConst) {
+  BitVector bv;
+  std::vector<uint32_t> set_indices;
+  for (uint32_t i = 0; i < 12345; ++i) {
+    if (i % 7 == 0 || i % 13 == 0) {
+      bv.AppendTrue();
+      set_indices.emplace_back(i);
+    } else {
+      bv.AppendFalse();
+    }
+  }
+
+  uint32_t i = 0;
+  for (auto it = bv.IterateSetBits(); it; it.Next(), ++i) {
+    ASSERT_EQ(it.IsSet(), true);
+    ASSERT_EQ(it.index(), set_indices[i]);
+  }
+  ASSERT_EQ(i, set_indices.size());
+}
+
+TEST(BitVectorUnittest, IterateSetBitslear) {
+  BitVector bv;
+  for (uint32_t i = 0; i < 12345; ++i) {
+    if (i % 7 == 0 || i % 13 == 0) {
+      bv.AppendTrue();
+    } else {
+      bv.AppendFalse();
+    }
+  }
+
+  for (auto it = bv.IterateSetBits(); it; it.Next()) {
+    if (it.index() % 15 == 0) {
+      it.Clear();
+    }
+  }
+
+  // Go through the iterator manually and check it has updated
+  // to not have every 15th bit set.
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < 12345; ++i) {
+    bool is_set = i % 15 != 0 && (i % 7 == 0 || i % 13 == 0);
+
+    ASSERT_EQ(bv.IsSet(i), is_set);
+    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+
+    if (is_set) {
+      ASSERT_EQ(bv.IndexOfNthSet(count++), i);
+    }
+  }
+}
+
 TEST(BitVectorUnittest, QueryStressTest) {
   BitVector bv;
   std::vector<bool> bool_vec;
@@ -305,23 +356,30 @@ TEST(BitVectorUnittest, QueryStressTest) {
       int_vec.emplace_back(i);
   }
 
-  auto it = bv.IterateAllBits();
+  auto all_it = bv.IterateAllBits();
   for (uint32_t i = 0; i < kCount; ++i) {
     uint32_t count = static_cast<uint32_t>(std::count(
         bool_vec.begin(), bool_vec.begin() + static_cast<int32_t>(i), true));
     ASSERT_EQ(bv.IsSet(i), bool_vec[i]);
     ASSERT_EQ(bv.GetNumBitsSet(i), count);
 
-    ASSERT_TRUE(it);
-    ASSERT_EQ(it.IsSet(), bool_vec[i]);
-    ASSERT_EQ(it.index(), i);
-    it.Next();
+    ASSERT_TRUE(all_it);
+    ASSERT_EQ(all_it.IsSet(), bool_vec[i]);
+    ASSERT_EQ(all_it.index(), i);
+    all_it.Next();
   }
-  ASSERT_FALSE(it);
+  ASSERT_FALSE(all_it);
 
+  auto set_it = bv.IterateSetBits();
   for (uint32_t i = 0; i < int_vec.size(); ++i) {
     ASSERT_EQ(bv.IndexOfNthSet(i), int_vec[i]);
+
+    ASSERT_TRUE(set_it);
+    ASSERT_EQ(set_it.IsSet(), true);
+    ASSERT_EQ(set_it.index(), int_vec[i]);
+    set_it.Next();
   }
+  ASSERT_FALSE(set_it);
 }
 
 }  // namespace
