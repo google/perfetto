@@ -40,7 +40,7 @@ function is_android() {
 }
 
 function is_ssh_target() {
-  [[ -n "$SSH_TARGET" ]];
+  [[ -n "$SSH_TARGET" ]]
 }
 
 function is_mac() {
@@ -117,7 +117,7 @@ SKIP_CONVERTERS=0
 TMUX_LAYOUT="even-vertical"
 CPU_MASK=""
 
-while getopts "bl:nt:c:C:z:" o; do
+while getopts "bl:nt:c:C:z:s:" o; do
   case "$o" in
     b) BACKGROUND=1 ;;
     l) TMUX_LAYOUT=${OPTARG} ;;
@@ -126,8 +126,9 @@ while getopts "bl:nt:c:C:z:" o; do
     c) CONFIG=${OPTARG} ;;
     C) OUT=${OPTARG} ;;
     z) CPU_MASK=${OPTARG} ;;
+    s) SCRIPT=${OPTARG} ;;
     *)
-      >&2 echo "Invalid option $o"
+      echo >&2 "Invalid option $o"
       exit
       ;;
   esac
@@ -149,6 +150,7 @@ if [ -z "$OUT" ]; then
   echo "  -c CONFIG   trace configuration file"
   echo "  -C OUTPUT   output directory"
   echo "  -z MASK     constrain binaries to given cpu mask (taskset syntax)"
+  echo "  -s SCRIPT   a script to put into a tmux pane"
   echo ""
   echo "Environment variables:"
   echo "  SSH_TARGET  SSH device target"
@@ -159,22 +161,22 @@ fi
 
 # Warn about invalid output directories
 if [ ! -f "$OUT/args.gn" ]; then
-  >&2 echo "OUT=$OUT doesn't look like an output directory."
-  >&2 echo "Please specify a directory by doing:"
-  >&2 echo "  export OUT=out/xxx $0"
+  echo >&2 "OUT=$OUT doesn't look like an output directory."
+  echo >&2 "Please specify a directory by doing:"
+  echo >&2 "  export OUT=out/xxx $0"
   exit 1
 fi
 
 # Check SSH target is valid
 if is_ssh_target && ! ssh -q "$SSH_TARGET" exit; then
-  >&2 echo "SSH_TARGET=$SSH_TARGET doesn't look like a valid SSH target."
-  >&2 echo "Please specify a SSH cross-compilation target by doing:"
-  >&2 echo "  export SSH_TARGET=<user>@<host> $0"
+  echo >&2 "SSH_TARGET=$SSH_TARGET doesn't look like a valid SSH target."
+  echo >&2 "Please specify a SSH cross-compilation target by doing:"
+  echo >&2 "  export SSH_TARGET=<user>@<host> $0"
   exit 1
 fi
 
-if ! builtin type -P tmux &> /dev/null; then
-  >&2 echo "tmux not found"
+if ! builtin type -P tmux &>/dev/null; then
+  echo >&2 "tmux not found"
   exit 1
 fi
 
@@ -216,7 +218,7 @@ if [[ "$CONFIG" == *.protobuf ]]; then
   CONFIG_DEVICE_PATH="$CONFIG"
   CONFIG_PATH=$OUT/$CONFIG
   if [[ ! -f $CONFIG_PATH ]]; then
-    >&2 echo "Config \"$CONFIG_PATH\" not known."
+    echo >&2 "Config \"$CONFIG_PATH\" not known."
     exit 1
   fi
   push "$CONFIG_PATH"
@@ -227,12 +229,16 @@ elif [[ "$CONFIG" != ":test" ]]; then
   if [[ ! -f $CONFIG_PATH ]]; then
     CONFIG_PATH=$CONFIG
     if [[ ! -f $CONFIG_PATH ]]; then
-      >&2 echo "Config \"$CONFIG\" not known."
+      echo >&2 "Config \"$CONFIG\" not known."
       exit 1
     fi
   fi
   CMD_OPTS="--txt $CMD_OPTS"
   push "$CONFIG_PATH"
+fi
+
+if [[ -f "$SCRIPT" ]]; then
+  push "$SCRIPT"
 fi
 
 POSTFIX=""
@@ -263,6 +269,10 @@ fi
 tmux split-window -v
 tmux split-window -v
 
+if [[ -n "$SCRIPT" ]]; then
+  tmux split-window -v
+fi
+
 tmux select-layout "${TMUX_LAYOUT}"
 
 tmux select-pane -t 0
@@ -283,6 +293,11 @@ if is_android "$OUT"; then
   tmux send-keys "adb shell" C-m
 fi
 
+if [[ -n "$SCRIPT" ]]; then
+  tmux select-pane -t 3
+  tmux send-keys "clear" C-m
+fi
+
 sleep 2
 
 tmux select-pane -t 1
@@ -292,6 +307,7 @@ fi
 tmux_ensure_bash
 tmux send-keys "PS1='[traced]$ '" Enter
 tmux send-keys "cd $DIR" Enter
+tmux send-keys "clear" C-m
 tmux send-keys "$PREFIX ./traced $POSTFIX" Enter
 
 tmux select-pane -t 0
@@ -301,6 +317,7 @@ fi
 tmux_ensure_bash
 tmux send-keys "PS1='[traced_probes]$ '" Enter
 tmux send-keys "cd $DIR" Enter
+tmux send-keys "clear" C-m
 tmux send-keys "$PREFIX ./traced_probes $POSTFIX" Enter
 
 tmux select-pane -t 2
@@ -310,7 +327,20 @@ fi
 tmux_ensure_bash
 tmux send-keys "PS1='[consumer]$ '" Enter
 tmux send-keys "cd $DIR" Enter
+tmux send-keys "clear" C-m
 tmux send-keys "$PREFIX ./perfetto $CMD_OPTS -c $CONFIG_DEVICE_PATH -o trace $POSTFIX"
+
+if [[ -n "$SCRIPT" ]]; then
+  tmux select-pane -t 3
+  if is_ssh_target; then
+    tmux send-keys "ssh $SSH_TARGET" Enter
+  fi
+  tmux_ensure_bash
+  tmux send-keys "PS1='[script]$ '" Enter
+  tmux send-keys "cd $DIR" Enter
+  tmux send-keys "clear" C-m
+  tmux send-keys "./$(basename "$SCRIPT")"
+fi
 
 # Select consumer pane.
 tmux select-pane -t 2
