@@ -23,68 +23,69 @@ import "protos/perfetto/trace/track_event/task_execution.proto";
 
 package perfetto.protos;
 
+// NOTE: Full TrackEvent support in the client lib and chrome is WIP, thus these
+// protos are still subject to change. Don't depend on them staying as they are.
+
 // Trace events emitted by client instrumentation library (TRACE_EVENT macros),
 // which describe activity on a track, such as a thread or asynchronous event
 // track. The track is specified using separate TrackDescriptor messages and
 // referred to via the track's UUID.
 //
-// This message is optimized for writing and makes heavy use of data interning
-// and delta encoding (e.g. of timestamps) to reduce data repetition and encoded
-// data size.
+// A simple TrackEvent packet specifies a timestamp, category, name and type:
+//   trace_packet {
+//     timestamp: 1000
+//     track_event {
+//       categories: ["my_cat"]
+//       name: "my_event"
+//       type: TYPE_INSTANT
+//      }
+//    }
 //
-// A TrackEvent exists in the context of its packet sequence (TracePackets
-// emitted by the same producer + writer) and refers to data in preceding
-// TracePackets emitted on the same sequence, both directly and indirectly. For
-// example, interned data entries are emitted as part of a TracePacket and
-// directly referred to from TrackEvents by their interning IDs. Default values
-// for attributes of events on the same sequence (e.g. their default track
-// association) can be emitted as part of a TrackEventDefaults message.
+// To associate an event with a custom track (e.g. a thread), the track is
+// defined in a separate packet and referred to from the TrackEvent by its UUID:
+//   trace_packet {
+//     track_descriptor {
+//       track_uuid: 1234
+//       name: "my_track"
 //
-// Next reserved id: 12 (up to 15).
-// Next id: 24.
+//       // Optionally, associate the track with a thread.
+//       thread_descriptor {
+//         pid: 10
+//         tid: 10
+//         ..
+//       }
+//     }
+//   }
+//
+// A pair of TYPE_SLICE_BEGIN and _END events form a slice on the track:
+//   trace_packet {
+//     timestamp: 1200
+//     track_event {
+//       track_uuid: 1234
+//       categories: ["my_cat"]
+//       name: "my_slice"
+//       type: TYPE_SLICE_BEGIN
+//     }
+//   }
+//   trace_packet {
+//     timestamp: 1400
+//     track_event {
+//       track_uuid: 1234
+//       type: TYPE_SLICE_END
+//     }
+//   }
+//
+// TrackEvents also support optimizations to reduce data repetition and encoded
+// data size, e.g. through data interning (names, categories, ...) and delta
+// encoding of timestamps/counters. For details, see the InternedData message.
+// Further, default values for attributes of events on the same sequence (e.g.
+// their default track association) can be emitted as part of a
+// TrackEventDefaults message.
+//
+// Next reserved id: 12 (up to 15). Next id: 24.
 message TrackEvent {
-  // Timestamp in microseconds (usually CLOCK_MONOTONIC).
-  oneof timestamp {
-    // Delta timestamp value since the last TrackEvent or ThreadDescriptor. To
-    // calculate the absolute timestamp value, sum up all delta values of the
-    // preceding TrackEvents since the last ThreadDescriptor and add the sum to
-    // the |reference_timestamp| in ThreadDescriptor. This value should always
-    // be positive.
-    int64 timestamp_delta_us = 1;
-    // Absolute value (e.g. a manually specified timestamp in the macro).
-    // This is a one-off value that does not affect delta timestamp computation
-    // in subsequent TrackEvents.
-    int64 timestamp_absolute_us = 16;
-  }
-
-  // CPU time for the current thread (e.g., CLOCK_THREAD_CPUTIME_ID) in
-  // microseconds.
-  oneof thread_time {
-    // Same encoding as |timestamp| fields above.
-    int64 thread_time_delta_us = 2;
-    // TODO(eseckler): Consider removing absolute thread time support. It's
-    // currently required to support writing PHASE_COMPLETE events out-of-order,
-    // but shouldn't be required anymore when we split them into begin/end.
-    int64 thread_time_absolute_us = 17;
-  }
-
-  // Value of the instruction counter for the current thread.
-  oneof thread_instruction_count {
-    // Same encoding as |timestamp| fields above.
-    int64 thread_instruction_count_delta = 8;
-    // TODO(eseckler): Consider removing absolute thread instruction count
-    // support. It's currently required to support writing PHASE_COMPLETE events
-    // out-of-order, but shouldn't be required anymore when we split them into
-    // begin/end.
-    int64 thread_instruction_count_absolute = 20;
-  }
-
-  // TODO(eseckler): Add a way to specify Tracks.
-
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
-  //
-  // We intend to add a binary symbol version of this in the future.
   repeated uint64 category_iids = 3;  // interned EventCategoryName.
   repeated string categories = 22;    // non-interned variant.
 
@@ -94,12 +95,12 @@ message TrackEvent {
   // Note that metrics should not rely on event names, as they are prone to
   // changing. Instead, they should use typed arguments to identify the events
   // they are interested in.
-  //
-  // We intend to add a binary symbol version of this in the future.
   oneof name_field {
     uint64 name_iid = 10;  // interned EventName.
     string name = 23;      // non-interned variant.
   }
+
+  // TODO(eseckler): Support using binary symbols for category/event names.
 
   // Type of the TrackEvent (required if |phase| in LegacyEvent is not set).
   enum Type {
@@ -139,6 +140,36 @@ message TrackEvent {
   // implicit trace-global track (uuid 0). See TrackDescriptor::uuid.
   optional uint64 track_uuid = 11;
 
+  // TODO(eseckler): Add flow event support.
+
+  // TODO(eseckler): Encode thread_time and thread_instruction_count using a
+  // ClockSnapshot + clock id instead of ThreadDescriptor's reference values.
+
+  // CPU time for the current thread (e.g., CLOCK_THREAD_CPUTIME_ID) in
+  // microseconds.
+  oneof thread_time {
+    // Delta timestamp value since the last TrackEvent or ThreadDescriptor. To
+    // calculate the absolute timestamp value, sum up all delta values of the
+    // preceding TrackEvents since the last ThreadDescriptor and add the sum to
+    // the |reference_timestamp| in ThreadDescriptor. This value should always
+    // be positive.
+    int64 thread_time_delta_us = 2;
+    // This is a one-off absolute value that does not affect delta timestamp
+    // computation in subsequent TrackEvents.
+    int64 thread_time_absolute_us = 17;
+  }
+
+  // Value of the instruction counter for the current thread.
+  oneof thread_instruction_count {
+    // Same encoding as |thread_time| field above.
+    int64 thread_instruction_count_delta = 8;
+    int64 thread_instruction_count_absolute = 20;
+  }
+
+  // ---------------------------------------------------------------------------
+  // TrackEvent arguments:
+  // ---------------------------------------------------------------------------
+
   // Unstable key/value annotations shown in the trace viewer but not intended
   // for metrics use.
   repeated DebugAnnotation debug_annotations = 4;
@@ -146,8 +177,28 @@ message TrackEvent {
   // Typed event arguments:
   optional TaskExecution task_execution = 5;
   optional LogMessage log_message = 21;
+  // New argument types go here :)
 
-  // TODO(eseckler): New argument types go here :)
+  // ---------------------------------------------------------------------------
+  // Deprecated / legacy event fields, which will be removed in the future:
+  // ---------------------------------------------------------------------------
+
+  // Deprecated. Use the |timestamp| and |timestamp_clock_id| fields in
+  // TracePacket instead.
+  //
+  // Timestamp in microseconds (usually CLOCK_MONOTONIC).
+  oneof timestamp {
+    // Delta timestamp value since the last TrackEvent or ThreadDescriptor. To
+    // calculate the absolute timestamp value, sum up all delta values of the
+    // preceding TrackEvents since the last ThreadDescriptor and add the sum to
+    // the |reference_timestamp| in ThreadDescriptor. This value should always
+    // be positive.
+    int64 timestamp_delta_us = 1;
+    // Absolute value (e.g. a manually specified timestamp in the macro).
+    // This is a one-off value that does not affect delta timestamp computation
+    // in subsequent TrackEvents.
+    int64 timestamp_absolute_us = 16;
+  }
 
   // Apart from {category, time, thread time, tid, pid}, other legacy trace
   // event attributes are initially simply proxied for conversion to a JSON
