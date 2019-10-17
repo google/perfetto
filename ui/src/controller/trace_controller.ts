@@ -535,7 +535,7 @@ export class TraceController extends Controller<States> {
           summaryTrackId,
           name,
           id: pUuid,
-          collapsed: true,
+          collapsed: !(upid !== null && heapUpids.has(upid)),
         }));
 
         if (upid !== null) {
