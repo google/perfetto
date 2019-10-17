@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {LoadingTracker} from '../common/engine';
+
 import {globals} from './globals';
 
 // Used to keep track of whether the engine is currently querying.
-export class LoadingManager {
+export class LoadingManager implements LoadingTracker {
   private static _instance: LoadingManager;
   private currentlyLoading = 0;
 
-  static get getInstance() {
+  static get getInstance(): LoadingManager {
     return this._instance || (this._instance = new this());
   }
 

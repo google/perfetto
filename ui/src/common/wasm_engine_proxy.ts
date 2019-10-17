@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import * as protobufjs from 'protobufjs/light';
+import {Message, Method, rpc} from 'protobufjs/light';
 
 import {defer} from '../base/deferred';
 import {WasmBridgeRequest, WasmBridgeResponse} from '../engine/wasm_bridge';
 
-import {Engine} from './engine';
+import {Engine, LoadingTracker} from './engine';
 import {TraceProcessor} from './protos';
-import {Method, rpc, Message} from 'protobufjs/light';
 
 const activeWorkers = new Map<string, Worker>();
 let warmWorker: null|Worker = null;
@@ -77,8 +77,9 @@ export class WasmEngineProxy extends Engine {
   private nextRequestId: number;
   readonly id: string;
 
-  constructor(args: {id: string, worker: Worker}) {
-    super();
+  constructor(
+      args: {id: string, loadingTracker?: LoadingTracker, worker: Worker}) {
+    super(args.loadingTracker);
     this.nextRequestId = 0;
     this.pendingCallbacks = new Map();
     this.id = args.id;
