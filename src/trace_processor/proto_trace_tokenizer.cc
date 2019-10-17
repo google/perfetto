@@ -29,6 +29,8 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/proto/ftrace_module.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/stats.h"
@@ -283,6 +285,15 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     const size_t offset = packet.offset_of(field.data);
     ParseInternedData(decoder, packet.slice(offset, field.size));
   }
+
+  ModuleResult res = ModuleResult::Ignored();
+  res = context_->ftrace_module.TokenizePacket(decoder);
+  if (!res.ignored())
+    return res.ToStatus();
+
+  res = context_->track_event_module.TokenizePacket(decoder);
+  if (!res.ignored())
+    return res.ToStatus();
 
   if (decoder.has_ftrace_events()) {
     auto ftrace_field = decoder.ftrace_events();

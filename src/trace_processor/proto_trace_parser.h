@@ -55,6 +55,9 @@ class ProtoTraceParser : public TraceParser {
                          int64_t timestamp,
                          TimestampedTracePiece) override;
 
+  void ParseTracePacketImpl(int64_t ts,
+                            TimestampedTracePiece,
+                            const protos::pbzero::TracePacket::Decoder&);
   void ParseProcessTree(ConstBytes);
   void ParseProcessStats(int64_t timestamp, ConstBytes);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, ConstBytes);

@@ -201,14 +201,18 @@ declare_args() {
   enable_perfetto_trace_processor_percentile =
       enable_perfetto_trace_processor && perfetto_build_standalone
 
-  # Enables JSON support in the trace processor.
-  enable_perfetto_trace_processor_json =
-      enable_perfetto_trace_processor && !perfetto_build_with_android
-
   # Enables the REPL interactive prompt in the trace processor.
   enable_perfetto_trace_processor_linenoise =
       perfetto_build_standalone && enable_perfetto_trace_processor &&
       (is_linux || is_android || is_mac)
+
+  # Enables ftrace support in the trace processor.
+  enable_perfetto_trace_processor_ftrace =
+      enable_perfetto_trace_processor && !build_with_chromium
+
+  # Enables JSON support in the trace processor.
+  enable_perfetto_trace_processor_json =
+      enable_perfetto_trace_processor && !perfetto_build_with_android
 }
 
 # +---------------------------------------------------------------------------+
