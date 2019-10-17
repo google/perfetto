@@ -102,8 +102,7 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       event.counter_descriptor());
   // Add counter spec to ID map.
   for (auto it = descriptor.specs(); it; ++it) {
-    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(
-        it->data(), it->size());
+    protos::pbzero::GpuCounterDescriptor_GpuCounterSpec::Decoder spec(*it);
     if (!spec.has_counter_id()) {
       PERFETTO_ELOG("Counter spec missing counter id");
       context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
@@ -127,12 +126,12 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
           if (unit.pos()) {
             unit.AppendChar(':');
           }
-          unit.AppendInt(numer->as_int64());
+          unit.AppendInt(*numer);
         }
         char sep = '/';
         for (auto denom = spec.denominator_units(); denom; ++denom) {
           unit.AppendChar(sep);
-          unit.AppendInt(denom->as_int64());
+          unit.AppendInt(*denom);
           sep = ':';
         }
         unit_id = context_->storage->InternString(unit.GetStringView());
@@ -153,8 +152,7 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = event.counters(); it; ++it) {
-    protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(it->data(),
-                                                                it->size());
+    protos::pbzero::GpuCounterEvent_GpuCounter::Decoder counter(*it);
     if (counter.has_counter_id() &&
         (counter.has_int_value() || counter.has_double_value())) {
       auto counter_id = counter.counter_id();
@@ -192,7 +190,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
         event.specifications().data, event.specifications().size);
     for (auto it = spec.hw_queue(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
-          hw_queue(it->data(), it->size());
+          hw_queue(*it);
       if (hw_queue.has_name()) {
         StringId track_name = context_->storage->InternString(hw_queue.name());
         tables::GpuTrackTable::Row track(track_name.id);
@@ -203,7 +201,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
     }
     for (auto it = spec.stage(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
-          stage(it->data(), it->size());
+          stage(*it);
       if (stage.has_name()) {
         gpu_render_stage_ids_.emplace_back(
             context_->storage->InternString(stage.name()));
@@ -213,8 +211,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
 
   auto args_callback = [this, &event](ArgsTracker* args_tracker, RowId row_id) {
     for (auto it = event.extra_data(); it; ++it) {
-      protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(it->data(),
-                                                                  it->size());
+      protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
       StringId name_id = context_->storage->InternString(datum.name());
       StringId value = context_->storage->InternString(
           datum.has_value() ? datum.value() : base::StringView());
@@ -459,8 +456,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(ConstBytes blob) {
     auto global_row_id =
         TraceStorage::CreateRowId(TableId::kVulkanMemoryAllocation, row_id);
     for (auto itt = vulkan_memory_event.annotations(); itt; ++itt) {
-      protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(
-          itt->data(), itt->size());
+      protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(*itt);
       auto annotation_id =
           *(context_->vulkan_memory_tracker->FindString(annotation.key_iid()));
       if (annotation.has_int_value()) {
