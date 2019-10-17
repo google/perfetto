@@ -18,6 +18,8 @@ source_set("lib") {
   sources = [
     "bit_vector.cc",
     "bit_vector.h",
+    "bit_vector_iterators.cc",
+    "bit_vector_iterators.h",
     "column.cc",
     "column.h",
     "row_map.cc",
