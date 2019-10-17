@@ -88,6 +88,8 @@ class BaseIterator {
 
   uint32_t size() const { return size_; }
 
+  const BitVector& bv() const { return *bv_; }
+
  private:
   BaseIterator(const BaseIterator&) = delete;
   BaseIterator& operator=(const BaseIterator&) = delete;
@@ -122,6 +124,49 @@ class AllBitsIterator : public BaseIterator {
 
   // Returns whether the iterator is valid.
   operator bool() const { return index() < size(); }
+};
+
+// Iterator over all the set bits in a bitvector.
+//
+// This iterator works by first finding a batch of indices of set bits.
+// Then, the fast path involves simply incrementing a counter to go to
+// the next index in this batch. On every batch boundary, we hit the
+// slow path where we need to find another n set bits.
+class SetBitsIterator : public BaseIterator {
+ public:
+  SetBitsIterator(const BitVector*);
+
+  // Increments the iterator to point to the next set bit.
+  void Next() {
+    // If we are out of bounds, just bail out.
+    if (PERFETTO_UNLIKELY(++set_bit_index_ >= set_bit_count_))
+      return;
+
+    if (PERFETTO_UNLIKELY(set_bit_index_ % kBatchSize == 0))
+      ReadSetBitBatch(batch_.back() + 1);
+
+    SetIndex(batch_[set_bit_index_ % kBatchSize]);
+  }
+
+  // Returns whether the iterator is valid.
+  operator bool() const { return set_bit_index_ < set_bit_count_; }
+
+ private:
+  static constexpr uint32_t kBatchSize = 1024;
+
+  // Reads a full batch of set bit indices from the bitvector and stores them
+  // in |batch_| below.
+  //
+  // This batch of indices is used on the fast path to quickly jump between
+  // set bits.
+  void ReadSetBitBatch(uint32_t start_idx);
+
+  uint32_t set_bit_index_ = 0;
+  uint32_t set_bit_count_ = 0;
+
+  // Contains an array of indexes; each index points to a set bit in the
+  // bitvector.
+  std::array<uint32_t, kBatchSize> batch_;
 };
 
 }  // namespace internal
