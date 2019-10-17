@@ -23,11 +23,14 @@ message PowerRails {
   message RailDescriptor {
     // Index corresponding to the rail
     optional uint32 index = 1;
+
     // Name of the rail
     optional string rail_name = 2;
+
     // Name of the subsystem to which this rail belongs
     optional string subsys_name = 3;
-    // Hardware sampling rate
+
+    // Hardware sampling rate (Hz).
     optional uint32 sampling_rate = 4;
   }
 
@@ -37,9 +40,11 @@ message PowerRails {
   message EnergyData {
     // Index corresponding to RailDescriptor.index
     optional uint32 index = 1;
-    // Time since device boot(CLOCK_BOOTTIME) in milli-seconds
+
+    // Time since device boot(CLOCK_BOOTTIME) in milli-seconds.
     optional uint64 timestamp_ms = 2;
-    // Accumulated energy since device boot in microwatt-seconds (uWs)
+
+    // Accumulated energy since device boot in microwatt-seconds (uWs).
     optional uint64 energy = 3;
   }
 
