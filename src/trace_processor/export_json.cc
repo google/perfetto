@@ -48,6 +48,7 @@ const char kLegacyEventThreadDurationNsKey[] = "thread_duration_ns";
 const char kLegacyEventThreadInstructionCountKey[] = "thread_instruction_count";
 const char kLegacyEventThreadInstructionDeltaKey[] = "thread_instruction_delta";
 const char kLegacyEventUseAsyncTtsKey[] = "use_async_tts";
+const char kLegacyEventUnscopedIdKey[] = "unscoped_id";
 const char kLegacyEventGlobalIdKey[] = "global_id";
 const char kLegacyEventLocalIdKey[] = "local_id";
 const char kLegacyEventIdScopeKey[] = "id_scope";
@@ -561,6 +562,11 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
 
   if (legacy_args.isMember(kLegacyEventUseAsyncTtsKey))
     event["use_async_tts"] = legacy_args[kLegacyEventUseAsyncTtsKey];
+
+  if (legacy_args.isMember(kLegacyEventUnscopedIdKey)) {
+    event["id"] =
+        PrintUint64(legacy_args[kLegacyEventUnscopedIdKey].asUInt64());
+  }
 
   if (legacy_args.isMember(kLegacyEventGlobalIdKey)) {
     event["id2"]["global"] =

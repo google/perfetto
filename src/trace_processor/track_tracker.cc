@@ -80,11 +80,13 @@ TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
 
 TrackId TrackTracker::InternLegacyChromeAsyncTrack(
     StringId name,
-    base::Optional<uint32_t> upid,
+    uint32_t upid,
     int64_t source_id,
+    bool source_id_is_process_scoped,
     StringId source_scope) {
   ChromeTrackTuple tuple;
-  tuple.upid = upid;
+  if (source_id_is_process_scoped)
+    tuple.upid = upid;
   tuple.source_id = source_id;
   tuple.source_scope = source_scope;
 
@@ -92,15 +94,11 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   if (it != chrome_tracks_.end())
     return it->second;
 
-  TrackId id;
-  if (upid.has_value()) {
-    tables::ProcessTrackTable::Row track(name);
-    track.upid = *upid;
-    id = context_->storage->mutable_process_track_table()->Insert(track);
-  } else {
-    tables::TrackTable::Row track(name);
-    id = context_->storage->mutable_track_table()->Insert(track);
-  }
+  // Legacy async tracks are always drawn in the context of a process, even if
+  // the ID's scope is global.
+  tables::ProcessTrackTable::Row track(name);
+  track.upid = upid;
+  TrackId id = context_->storage->mutable_process_track_table()->Insert(track);
   chrome_tracks_[tuple] = id;
 
   RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
