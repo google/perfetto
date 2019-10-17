@@ -119,13 +119,12 @@ InodeFileDataSource::InodeFileDataSource(
   using protos::pbzero::InodeFileConfig;
   InodeFileConfig::Decoder cfg(ds_config.inode_file_config_raw());
   for (auto mp = cfg.scan_mount_points(); mp; ++mp)
-    scan_mount_points_.insert(mp->as_std_string());
+    scan_mount_points_.insert((*mp).ToStdString());
   for (auto mpm = cfg.mount_point_mapping(); mpm; ++mpm) {
-    auto raw = mpm->as_bytes();
-    InodeFileConfig::MountPointMappingEntry::Decoder entry(raw.data, raw.size);
+    InodeFileConfig::MountPointMappingEntry::Decoder entry(*mpm);
     std::vector<std::string> scan_roots;
     for (auto scan_root = entry.scan_roots(); scan_root; ++scan_root)
-      scan_roots.push_back(scan_root->as_std_string());
+      scan_roots.push_back((*scan_root).ToStdString());
     std::string mountpoint = entry.mountpoint().ToStdString();
     mount_point_mapping_.emplace(mountpoint, std::move(scan_roots));
   }

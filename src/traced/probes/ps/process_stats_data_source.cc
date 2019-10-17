@@ -101,7 +101,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
-    if (quirk->as_int32() == ProcessStatsConfig::DISABLE_ON_DEMAND)
+    if (*quirk == ProcessStatsConfig::DISABLE_ON_DEMAND)
       enable_on_demand_dumps_ = false;
   }
 

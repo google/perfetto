@@ -97,11 +97,12 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
   std::bitset<kMaxMeminfoEnum + 1> meminfo_counters_enabled{};
   if (!cfg.has_meminfo_counters())
     meminfo_counters_enabled.set();
-  for (auto counter = cfg.meminfo_counters(); counter; ++counter) {
-    if (counter->as_uint32() > 0 && counter->as_uint32() <= kMaxMeminfoEnum) {
-      meminfo_counters_enabled.set(counter->as_uint32());
+  for (auto it = cfg.meminfo_counters(); it; ++it) {
+    uint32_t counter = static_cast<uint32_t>(*it);
+    if (counter > 0 && counter <= kMaxMeminfoEnum) {
+      meminfo_counters_enabled.set(counter);
     } else {
-      PERFETTO_DFATAL("Meminfo counter out of bounds %u", counter->as_uint32());
+      PERFETTO_DFATAL("Meminfo counter out of bounds %u", counter);
     }
   }
   for (size_t i = 0; i < base::ArraySize(kMeminfoKeys); i++) {
@@ -114,11 +115,12 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
   std::bitset<kMaxVmstatEnum + 1> vmstat_counters_enabled{};
   if (!cfg.has_vmstat_counters())
     vmstat_counters_enabled.set();
-  for (auto counter = cfg.vmstat_counters(); counter; ++counter) {
-    if (counter->as_uint32() > 0 && counter->as_uint32() <= kMaxVmstatEnum) {
-      vmstat_counters_enabled.set(counter->as_uint32());
+  for (auto it = cfg.vmstat_counters(); it; ++it) {
+    uint32_t counter = static_cast<uint32_t>(*it);
+    if (counter > 0 && counter <= kMaxVmstatEnum) {
+      vmstat_counters_enabled.set(counter);
     } else {
-      PERFETTO_DFATAL("Vmstat counter out of bounds %u", counter->as_uint32());
+      PERFETTO_DFATAL("Vmstat counter out of bounds %u", counter);
     }
   }
   for (size_t i = 0; i < base::ArraySize(kVmstatKeys); i++) {
@@ -130,7 +132,7 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
   if (!cfg.has_stat_counters())
     stat_enabled_fields_ = ~0u;
   for (auto counter = cfg.stat_counters(); counter; ++counter) {
-    stat_enabled_fields_ |= 1ul << counter->as_uint32();
+    stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
   std::array<uint32_t, 3> periods_ms{};
