@@ -18,19 +18,19 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/fuchsia_trace_parser.h"
-#include "src/trace_processor/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/gzip_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/proto_trace_tokenizer.h"
-#include "src/trace_processor/systrace_trace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 
 // JSON parsing and exporting is only supported in the standalone and
 // Chromium builds.
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#include "src/trace_processor/json_trace_parser.h"
-#include "src/trace_processor/json_trace_tokenizer.h"
+#include "src/trace_processor/importers/json/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #endif
 
 namespace perfetto {

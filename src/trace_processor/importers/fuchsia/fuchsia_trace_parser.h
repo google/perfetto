@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,39 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_JSON_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_JSON_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 
-#include <stdint.h>
-
-#include <memory>
-#include <tuple>
-#include <unordered_map>
-
+#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_parser.h"
-#include "src/trace_processor/trace_storage.h"
-
-namespace Json {
-class Value;
-}
 
 namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
 
-base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
-base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
-
-// Parses legacy chrome JSON traces. The support for now is extremely rough
-// and supports only explicit TRACE_EVENT_BEGIN/END events.
-class JsonTraceParser : public TraceParser {
+class FuchsiaTraceParser : public TraceParser {
  public:
-  explicit JsonTraceParser(TraceProcessorContext*);
-  ~JsonTraceParser() override;
+  explicit FuchsiaTraceParser(TraceProcessorContext*);
+  ~FuchsiaTraceParser() override;
 
-  // TraceParser implementation.
+  // TraceParser implementation
   void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) override;
   void ParseFtracePacket(uint32_t, int64_t, TimestampedTracePiece) override;
 
@@ -57,4 +42,4 @@ class JsonTraceParser : public TraceParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_JSON_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_

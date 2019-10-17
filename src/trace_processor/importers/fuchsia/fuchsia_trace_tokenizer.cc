@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 
 #include <inttypes.h>
 #include <unordered_map>
@@ -22,7 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/ftrace_utils.h"
-#include "src/trace_processor/fuchsia_provider_view.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -540,7 +540,9 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
                 ftrace_utils::TaskState(ftrace_utils::TaskState::kExitDead);
             break;
           }
-          default: { break; }
+          default: {
+            break;
+          }
         }
 
         storage->mutable_slices()->AddSlice(cpu, previous_thread.start_ts,
