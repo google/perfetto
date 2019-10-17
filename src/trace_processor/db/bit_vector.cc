@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/db/bit_vector.h"
 
+#include "src/trace_processor/db/bit_vector_iterators.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -32,6 +34,26 @@ BitVector::BitVector(std::vector<Block> blocks,
 
 BitVector BitVector::Copy() const {
   return BitVector(blocks_, counts_, size_);
+}
+
+BitVector::AllBitsIterator BitVector::IterateAllBits() const {
+  return AllBitsIterator(this);
+}
+
+void BitVector::UpdateSetBits(const BitVector& other) {
+  PERFETTO_DCHECK(other.size() == GetNumBitsSet());
+
+  // Go through each set bit and if |other| has it unset, then unset the
+  // bit taking care to update the index we consider to take into account
+  // the bits we just unset.
+  // TODO(lalitm): we add a set bits iterator implementation to remove this
+  // inefficient loop.
+  uint32_t removed = 0;
+  for (auto it = other.IterateAllBits(); it; it.Next()) {
+    if (!it.IsSet()) {
+      Clear(IndexOfNthSet(it.index() - removed++));
+    }
+  }
 }
 
 }  // namespace trace_processor

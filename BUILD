@@ -516,6 +516,8 @@ filegroup(
     srcs = [
         "src/trace_processor/db/bit_vector.cc",
         "src/trace_processor/db/bit_vector.h",
+        "src/trace_processor/db/bit_vector_iterators.cc",
+        "src/trace_processor/db/bit_vector_iterators.h",
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
         "src/trace_processor/db/row_map.cc",
