@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_JSON_TRACE_UTILS_H_
-#define SRC_TRACE_PROCESSOR_JSON_TRACE_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_UTILS_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_UTILS_H_
 
 #include <stdint.h>
 
@@ -40,4 +40,4 @@ base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_JSON_TRACE_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_UTILS_H_

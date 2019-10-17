@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/fuchsia_trace_utils.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 
 #include "test/gtest_and_gmock.h"
 

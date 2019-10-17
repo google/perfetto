@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/systrace_parser.h"
+#include "src/trace_processor/importers/systrace/systrace_parser.h"
 
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/event_tracker.h"

@@ -17,7 +17,7 @@
 #include "perfetto/base/build_config.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
-#include "src/trace_processor/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_trace_parser.h"
 
 #include <inttypes.h>
 #include <json/reader.h>
@@ -29,7 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_trace_utils.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
