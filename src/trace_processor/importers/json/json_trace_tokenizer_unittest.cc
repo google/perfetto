@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/json_trace_tokenizer.h"
+#include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
 #include <json/value.h>
 
