@@ -19,7 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/fuchsia_provider_view.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"

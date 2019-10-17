@@ -17,7 +17,7 @@
 #include "perfetto/base/build_config.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
-#include "src/trace_processor/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_trace_utils.h"
 
 #include <json/value.h>
 #include <limits>
