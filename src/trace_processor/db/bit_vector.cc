@@ -40,6 +40,10 @@ BitVector::AllBitsIterator BitVector::IterateAllBits() const {
   return AllBitsIterator(this);
 }
 
+BitVector::SetBitsIterator BitVector::IterateSetBits() const {
+  return SetBitsIterator(this);
+}
+
 void BitVector::UpdateSetBits(const BitVector& other) {
   PERFETTO_DCHECK(other.size() == GetNumBitsSet());
 
