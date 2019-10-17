@@ -70,9 +70,10 @@ action("gen_buildflags") {
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
-    "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
-    "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
+    "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
+    "PERFETTO_TP_FTRACE=$enable_perfetto_trace_processor_ftrace",
+    "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
   ]
 
