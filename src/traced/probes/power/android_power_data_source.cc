@@ -106,7 +106,7 @@ AndroidPowerDataSource::AndroidPowerDataSource(
   }
   for (auto counter = pcfg.battery_counters(); counter; ++counter) {
     auto hal_id = android_internal::BatteryCounter::kUnspecified;
-    switch (counter->as_int32()) {
+    switch (*counter) {
       case AndroidPowerConfig::BATTERY_COUNTER_UNSPECIFIED:
         break;
       case AndroidPowerConfig::BATTERY_COUNTER_CHARGE:

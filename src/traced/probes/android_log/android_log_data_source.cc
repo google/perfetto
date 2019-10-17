@@ -97,7 +97,7 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
 
   std::vector<uint32_t> log_ids;
   for (auto id = cfg.log_ids(); id; ++id)
-    log_ids.push_back(id->as_uint32());
+    log_ids.push_back(static_cast<uint32_t>(*id));
 
   if (log_ids.empty()) {
     // If no log id is specified, add the most popular ones.
@@ -124,7 +124,7 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
   // their existence in the set.
   std::vector<std::pair<size_t, size_t>> tag_boundaries;
   for (auto it = cfg.filter_tags(); it; ++it) {
-    base::StringView tag(it->as_string());
+    base::StringView tag(*it);
     const size_t begin = filter_tags_strbuf_.size();
     filter_tags_strbuf_.insert(filter_tags_strbuf_.end(), tag.begin(),
                                tag.end());
