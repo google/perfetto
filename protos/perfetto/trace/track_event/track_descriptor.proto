@@ -25,9 +25,10 @@ package perfetto.protos;
 // Defines a track for TrackEvents. Slices and instant events on the same track
 // will be nested based on their timestamps, see TrackEvent::Type.
 //
-// A packet sequence needs to emit a TrackDescriptor for every track on which it
-// emits TrackEvents. TrackDescriptors should be reemitted whenever incremental
-// state is cleared.
+// A TrackDescriptor only needs to be emitted by one trace writer / producer and
+// is valid for the entirety of the trace. To ensure the descriptor isn't lost
+// when the ring buffer wraps, it should be reemitted whenever incremental state
+// is cleared.
 //
 // As a fallback, TrackEvents emitted without an explicit track association will
 // be associated with an implicit trace-global track (uuid = 0), see also
@@ -50,7 +51,8 @@ message TrackDescriptor {
   // Name of the track.
   optional string name = 2;
 
-  // Optional arguments for specific types of tracks.
+  // Associate the track with a process or thread - the UI will draw this track
+  // in the context of the process/thread.
   optional ProcessDescriptor process = 3;
   optional ThreadDescriptor thread = 4;
 }

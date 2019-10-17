@@ -54,6 +54,9 @@ package perfetto.protos;
 // Next reserved id: 8 (up to 15).
 // Next id: 23.
 message InternedData {
+  // TODO(eseckler): Replace iid fields inside interned messages with
+  // map<iid, message> type fields in InternedData.
+
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
   // index, thus interning IDs are scoped to the tracing session and field
