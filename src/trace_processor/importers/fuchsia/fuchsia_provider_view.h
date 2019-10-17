@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_FUCHSIA_PROVIDER_VIEW_H_
-#define SRC_TRACE_PROCESSOR_FUCHSIA_PROVIDER_VIEW_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_PROVIDER_VIEW_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_PROVIDER_VIEW_H_
 
-#include "src/trace_processor/fuchsia_trace_utils.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/trace_storage.h"
 
 #include <vector>
@@ -63,4 +63,4 @@ class FuchsiaProviderView {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_FUCHSIA_PROVIDER_VIEW_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_PROVIDER_VIEW_H_

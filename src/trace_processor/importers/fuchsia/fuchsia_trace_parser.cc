@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/fuchsia_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/systrace_parser.h"
+#include "src/trace_processor/importers/systrace/systrace_parser.h"
 
 #include "test/gtest_and_gmock.h"
 

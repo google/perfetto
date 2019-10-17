@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_TOKENIZER_H_
-#define SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_TOKENIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
 
 #include "src/trace_processor/chunked_trace_reader.h"
-#include "src/trace_processor/fuchsia_trace_utils.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -70,4 +70,4 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_TOKENIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_

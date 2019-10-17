@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_UTILS_H_
-#define SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_UTILS_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_UTILS_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -220,4 +220,4 @@ class RecordCursor {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_FUCHSIA_TRACE_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_UTILS_H_
