@@ -25,6 +25,10 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 
+namespace protozero {
+struct ConstBytes;
+}
+
 namespace perfetto {
 namespace trace_processor {
 namespace metrics {
@@ -105,12 +109,10 @@ class DescriptorPool {
  private:
   void AddNestedProtoDescriptors(const std::string& package_name,
                                  base::Optional<uint32_t> parent_idx,
-                                 const uint8_t* descriptor_proto,
-                                 size_t size);
+                                 protozero::ConstBytes descriptor_proto);
 
   util::Status AddExtensionField(const std::string& package_name,
-                                 const uint8_t* field_desc_proto,
-                                 size_t size);
+                                 protozero::ConstBytes field_desc_proto);
 
   // Recursively searches for the given short type in all parent messages
   // and packages.

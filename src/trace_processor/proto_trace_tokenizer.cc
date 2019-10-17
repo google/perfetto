@@ -171,9 +171,10 @@ util::Status ProtoTraceTokenizer::ParseInternal(
 
   protos::pbzero::Trace::Decoder decoder(data, size);
   for (auto it = decoder.packet(); it; ++it) {
-    size_t field_offset = whole_buf.offset_of(it->data());
+    protozero::ConstBytes packet = *it;
+    size_t field_offset = whole_buf.offset_of(packet.data);
     util::Status status =
-        ParsePacket(whole_buf.slice(field_offset, it->size()));
+        ParsePacket(whole_buf.slice(field_offset, packet.size));
     if (PERFETTO_UNLIKELY(!status.ok()))
       return status;
   }
@@ -609,7 +610,7 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
   std::map<ClockTracker::ClockId, int64_t> clock_map;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   for (auto it = evt.clocks(); it; ++it) {
-    protos::pbzero::ClockSnapshot::Clock::Decoder clk(it->data(), it->size());
+    protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
     ClockTracker::ClockId clock_id = clk.clock_id();
     if (ClockTracker::IsReservedSeqScopedClockId(clk.clock_id())) {
       if (!seq_id) {
@@ -770,8 +771,9 @@ void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
   }
 
   for (auto it = decoder.event(); it; ++it) {
-    size_t off = bundle.offset_of(it->data());
-    ParseFtraceEvent(cpu, bundle.slice(off, it->size()));
+    protozero::ConstBytes event = *it;
+    size_t off = bundle.offset_of(event.data);
+    ParseFtraceEvent(cpu, bundle.slice(off, event.size));
   }
   context_->sorter->FinalizeFtraceEventBatch(cpu);
 }
@@ -785,7 +787,7 @@ void ProtoTraceTokenizer::ParseFtraceCompactSched(uint32_t cpu,
   std::vector<StringId> string_table;
   string_table.reserve(512);
   for (auto it = compact.switch_next_comm_table(); it; it++) {
-    StringId value = context_->storage->InternString(it->as_string());
+    StringId value = context_->storage->InternString(*it);
     string_table.push_back(value);
   }
 

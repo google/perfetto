@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/metrics/descriptors.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 
 #include "protos/perfetto/common/descriptor.pbzero.h"
 
@@ -67,11 +68,11 @@ base::Optional<uint32_t> DescriptorPool::ResolveShortType(
   return ResolveShortType(parent_substr, short_type);
 }
 
-util::Status DescriptorPool::AddExtensionField(const std::string& package_name,
-                                               const uint8_t* field_desc_proto,
-                                               size_t size) {
+util::Status DescriptorPool::AddExtensionField(
+    const std::string& package_name,
+    protozero::ConstBytes field_desc_proto) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  FieldDescriptorProto::Decoder f_decoder(field_desc_proto, size);
+  FieldDescriptorProto::Decoder f_decoder(field_desc_proto);
   auto field = CreateFieldFromDecoder(f_decoder);
 
   auto extendee_name =
@@ -87,9 +88,8 @@ util::Status DescriptorPool::AddExtensionField(const std::string& package_name,
 void DescriptorPool::AddNestedProtoDescriptors(
     const std::string& package_name,
     base::Optional<uint32_t> parent_idx,
-    const uint8_t* descriptor_proto,
-    size_t size) {
-  protos::pbzero::DescriptorProto::Decoder decoder(descriptor_proto, size);
+    protozero::ConstBytes descriptor_proto) {
+  protos::pbzero::DescriptorProto::Decoder decoder(descriptor_proto);
 
   auto parent_name =
       parent_idx ? descriptors_[*parent_idx].full_name() : package_name;
@@ -99,14 +99,14 @@ void DescriptorPool::AddNestedProtoDescriptors(
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   ProtoDescriptor proto_descriptor(package_name, full_name, parent_idx);
   for (auto it = decoder.field(); it; ++it) {
-    FieldDescriptorProto::Decoder f_decoder(it->data(), it->size());
+    FieldDescriptorProto::Decoder f_decoder(*it);
     proto_descriptor.AddField(CreateFieldFromDecoder(f_decoder));
   }
   descriptors_.emplace_back(std::move(proto_descriptor));
 
   auto idx = static_cast<uint32_t>(descriptors_.size()) - 1;
   for (auto it = decoder.nested_type(); it; ++it) {
-    AddNestedProtoDescriptors(package_name, idx, it->data(), it->size());
+    AddNestedProtoDescriptors(package_name, idx, *it);
   }
 }
 
@@ -118,22 +118,21 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
   for (auto it = proto.file(); it; ++it) {
-    protos::pbzero::FileDescriptorProto::Decoder file(it->data(), it->size());
+    protos::pbzero::FileDescriptorProto::Decoder file(*it);
     std::string package = "." + base::StringView(file.package()).ToStdString();
     for (auto message_it = file.message_type(); message_it; ++message_it) {
-      AddNestedProtoDescriptors(package, base::nullopt, message_it->data(),
-                                message_it->size());
+      AddNestedProtoDescriptors(package, base::nullopt, *message_it);
     }
   }
 
   // Second pass: extract all the extension protos and add them to the real
   // protos.
   for (auto it = proto.file(); it; ++it) {
-    protos::pbzero::FileDescriptorProto::Decoder file(it->data(), it->size());
+    protos::pbzero::FileDescriptorProto::Decoder file(*it);
 
     std::string package = "." + base::StringView(file.package()).ToStdString();
     for (auto ext_it = file.extension(); ext_it; ++ext_it) {
-      auto status = AddExtensionField(package, ext_it->data(), ext_it->size());
+      auto status = AddExtensionField(package, *ext_it);
       if (!status.ok())
         return status;
     }

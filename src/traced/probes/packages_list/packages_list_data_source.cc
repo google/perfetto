@@ -112,7 +112,7 @@ PackagesListDataSource::PackagesListDataSource(
     : ProbesDataSource(session_id, kTypeId), writer_(std::move(writer)) {
   PackagesListConfig::Decoder cfg(ds_config.packages_list_config_raw());
   for (auto name = cfg.package_name_filter(); name; ++name) {
-    package_name_filter_.emplace(name->as_std_string());
+    package_name_filter_.emplace((*name).ToStdString());
   }
 }
 
