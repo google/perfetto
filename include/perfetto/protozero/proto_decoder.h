@@ -108,10 +108,6 @@ class RepeatedFieldIterator {
   explicit operator bool() const { return iter_ != end_; }
   const Field& field() const { return *iter_; }
 
-  // TODO(primiano): remove this once the corresponding code in ART has been
-  // updated.
-  const Field* operator->() const { return iter_; }
-
   T operator*() const {
     T val{};
     iter_->get(&val);
