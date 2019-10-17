@@ -19,17 +19,15 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-// Periodically emitted data that's common to all events emitted by the same
-// thread, i.e. all events in the same packet sequence. Valid for all subsequent
-// events in the same sequence.
+// Describes a thread's attributes. Emitted as part of a TrackDescriptor,
+// usually by the thread's trace writer.
 //
 // Next id: 9.
 message ThreadDescriptor {
   optional int32 pid = 1;
   optional int32 tid = 2;
 
-  // To support old UI. New UI should determine default sorting by thread_type.
-  optional int32 legacy_sort_index = 3;
+  optional string thread_name = 5;
 
   enum ChromeThreadType {
     CHROME_THREAD_UNSPECIFIED = 0;
@@ -58,13 +56,21 @@ message ThreadDescriptor {
   };
   optional ChromeThreadType chrome_thread_type = 4;
 
-  // TODO(eseckler): Replace this with ChromeThreadType where possible.
-  optional string thread_name = 5;
+  // ---------------------------------------------------------------------------
+  // Deprecated / legacy fields, which will be removed in the future:
+  // ---------------------------------------------------------------------------
+
+  // Deprecated. Use ClockSnapshot in combination with TracePacket's timestamp
+  // and timestamp_clock_id fields instead.
+  optional int64 reference_timestamp_us = 6;
 
   // Absolute reference values. Clock values in subsequent TrackEvents can be
   // encoded accumulatively and relative to these. This reduces their var-int
   // encoding size.
-  optional int64 reference_timestamp_us = 6;
+  // TODO(eseckler): Deprecated. Replace these with ClockSnapshot encoding.
   optional int64 reference_thread_time_us = 7;
   optional int64 reference_thread_instruction_count = 8;
+
+  // To support old UI. New UI should determine default sorting by thread_type.
+  optional int32 legacy_sort_index = 3;
 }
