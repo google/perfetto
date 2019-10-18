@@ -164,6 +164,8 @@ class TraceSorter {
     SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
 
+  int64_t max_timestamp() const { return global_max_ts_; }
+
  private:
   static constexpr uint32_t kNoBatch = std::numeric_limits<uint32_t>::max();
 

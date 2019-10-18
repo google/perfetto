@@ -28,7 +28,9 @@ class TrackEventModule : public ProtoImporterModuleBase</*IsEnabled=*/1> {
   explicit TrackEventModule(TraceProcessorContext* context)
       : ProtoImporterModuleBase(context) {}
 
-  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&) {
+  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&,
+                              TraceBlobView* /*packet*/,
+                              int64_t /*packet_timestamp*/) {
     // TODO(eseckler): implement.
     return ModuleResult::Ignored();
   }

@@ -18,7 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FTRACE_MODULE_H_
 
 #include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/proto/ftrace_tokenizer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/trace_blob_view.h"
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -27,10 +31,19 @@ class FtraceModule
     : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)> {
  public:
   explicit FtraceModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context) {}
+      : ProtoImporterModuleBase(context), tokenizer_(context) {}
 
-  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&) {
-    // TODO(eseckler): implement.
+  ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t /*packet_timestamp*/) {
+    if (decoder.has_ftrace_events()) {
+      auto ftrace_field = decoder.ftrace_events();
+      const size_t fld_off = packet->offset_of(ftrace_field.data);
+      tokenizer_.TokenizeFtraceBundle(
+          packet->slice(fld_off, ftrace_field.size));
+      return ModuleResult::Handled();
+    }
     return ModuleResult::Ignored();
   }
 
@@ -45,6 +58,9 @@ class FtraceModule
     // TODO(eseckler): implement.
     return ModuleResult::Ignored();
   }
+
+ private:
+  FtraceTokenizer tokenizer_;
 };
 
 }  // namespace trace_processor

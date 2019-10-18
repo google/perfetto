@@ -273,6 +273,9 @@ class ProtoTraceParserTest : public ::testing::Test {
   NiceMock<MockTraceStorage>* storage_;
 };
 
+// TODO(eseckler): Refactor these into a new file for ftrace tests.
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+
 TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   auto* bundle = trace_.add_packet()->set_ftrace_events();
   bundle->set_cpu(10);
@@ -534,6 +537,23 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   Tokenize();
 }
 
+TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
+  auto* bundle = trace_.add_packet()->set_ftrace_events();
+  bundle->set_cpu(12);
+  auto* event = bundle->add_event();
+  event->set_timestamp(1000);
+  event->set_pid(12);
+  auto* cpu_freq = event->set_cpu_frequency();
+  cpu_freq->set_cpu_id(10);
+  cpu_freq->set_state(2000);
+
+  EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), _, 10,
+                                   RefType::kRefCpuId, false));
+  Tokenize();
+}
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_.add_packet();
   uint64_t ts = 1000;
@@ -562,21 +582,6 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value), _,
                                    0, RefType::kRefNoRef, false));
-  Tokenize();
-}
-
-TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
-  auto* bundle = trace_.add_packet()->set_ftrace_events();
-  bundle->set_cpu(12);
-  auto* event = bundle->add_event();
-  event->set_timestamp(1000);
-  event->set_pid(12);
-  auto* cpu_freq = event->set_cpu_frequency();
-  cpu_freq->set_cpu_id(10);
-  cpu_freq->set_state(2000);
-
-  EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), _, 10,
-                                   RefType::kRefCpuId, false));
   Tokenize();
 }
 

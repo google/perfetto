@@ -57,7 +57,6 @@ namespace trace_processor {
 
 using protozero::ProtoDecoder;
 using protozero::proto_utils::MakeTagLengthDelimited;
-using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
 
 namespace {
@@ -196,9 +195,10 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     return util::ErrStatus(
         "Failed to parse proto packet fully; the trace is probably corrupt.");
 
-  auto timestamp = decoder.has_timestamp()
-                       ? static_cast<int64_t>(decoder.timestamp())
-                       : latest_timestamp_;
+  auto timestamp =
+      decoder.has_timestamp()
+          ? static_cast<int64_t>(decoder.timestamp())
+          : std::max(latest_timestamp_, context_->sorter->max_timestamp());
 
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
 
@@ -287,20 +287,14 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   }
 
   ModuleResult res = ModuleResult::Ignored();
-  res = context_->ftrace_module.TokenizePacket(decoder);
+  res = context_->ftrace_module.TokenizePacket(decoder, &packet, timestamp);
   if (!res.ignored())
     return res.ToStatus();
 
-  res = context_->track_event_module.TokenizePacket(decoder);
+  res =
+      context_->track_event_module.TokenizePacket(decoder, &packet, timestamp);
   if (!res.ignored())
     return res.ToStatus();
-
-  if (decoder.has_ftrace_events()) {
-    auto ftrace_field = decoder.ftrace_events();
-    const size_t fld_off = packet.offset_of(ftrace_field.data);
-    ParseFtraceBundle(packet.slice(fld_off, ftrace_field.size));
-    return util::OkStatus();
-  }
 
   if (decoder.has_track_descriptor()) {
     ParseTrackDescriptorPacket(decoder);
@@ -719,8 +713,6 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
     return;
   }
 
-  latest_timestamp_ = std::max(timestamp, latest_timestamp_);
-
   if (auto tt_delta_field =
           event_decoder.FindField(kThreadTimeDeltaUsFieldNumber)) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
@@ -757,130 +749,6 @@ void ProtoTraceTokenizer::ParseTrackEventPacket(
   context_->sorter->PushTrackEventPacket(timestamp, thread_timestamp,
                                          thread_instructions, state,
                                          std::move(packet));
-}
-
-PERFETTO_ALWAYS_INLINE
-void ProtoTraceTokenizer::ParseFtraceBundle(TraceBlobView bundle) {
-  protos::pbzero::FtraceEventBundle::Decoder decoder(bundle.data(),
-                                                     bundle.length());
-
-  if (PERFETTO_UNLIKELY(!decoder.has_cpu())) {
-    PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
-    return;
-  }
-
-  uint32_t cpu = decoder.cpu();
-  if (PERFETTO_UNLIKELY(cpu > base::kMaxCpus)) {
-    PERFETTO_ELOG("CPU larger than kMaxCpus (%u > %zu)", cpu, base::kMaxCpus);
-    return;
-  }
-
-  if (decoder.has_compact_sched()) {
-    ParseFtraceCompactSched(cpu, decoder.compact_sched().data,
-                            decoder.compact_sched().size);
-  }
-
-  for (auto it = decoder.event(); it; ++it) {
-    protozero::ConstBytes event = *it;
-    size_t off = bundle.offset_of(event.data);
-    ParseFtraceEvent(cpu, bundle.slice(off, event.size));
-  }
-  context_->sorter->FinalizeFtraceEventBatch(cpu);
-}
-
-void ProtoTraceTokenizer::ParseFtraceCompactSched(uint32_t cpu,
-                                                  const uint8_t* data,
-                                                  size_t size) {
-  protos::pbzero::FtraceEventBundle_CompactSched::Decoder compact(data, size);
-
-  // Build the interning table for next_comm fields.
-  std::vector<StringId> string_table;
-  string_table.reserve(512);
-  for (auto it = compact.switch_next_comm_table(); it; it++) {
-    StringId value = context_->storage->InternString(*it);
-    string_table.push_back(value);
-  }
-
-  // Accumulator for timestamp deltas.
-  int64_t timestamp_acc = 0;
-
-  // The events' fields are stored in a structure-of-arrays style, using packed
-  // repeated fields. Walk each repeated field in step to recover individual
-  // events.
-  bool parse_error = false;
-  auto timestamp_it = compact.switch_timestamp(&parse_error);
-  auto pstate_it = compact.switch_prev_state(&parse_error);
-  auto npid_it = compact.switch_next_pid(&parse_error);
-  auto nprio_it = compact.switch_next_prio(&parse_error);
-  auto comm_it = compact.switch_next_comm_index(&parse_error);
-  for (; timestamp_it && pstate_it && npid_it && nprio_it && comm_it;
-       ++timestamp_it, ++pstate_it, ++npid_it, ++nprio_it, ++comm_it) {
-    InlineSchedSwitch event{};
-
-    // delta-encoded timestamp
-    timestamp_acc += static_cast<int64_t>(*timestamp_it);
-    int64_t event_timestamp = timestamp_acc;
-
-    // index into the interned string table
-    PERFETTO_DCHECK(*comm_it < string_table.size());
-    event.next_comm = string_table[*comm_it];
-
-    event.prev_state = *pstate_it;
-    event.next_pid = *npid_it;
-    event.next_prio = *nprio_it;
-
-    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp,
-                                            InlineEvent::SchedSwitch(event));
-  }
-
-  // Check that all packed buffers were decoded correctly, and fully.
-  bool sizes_match =
-      !timestamp_it && !pstate_it && !npid_it && !nprio_it && !comm_it;
-  if (parse_error || !sizes_match)
-    context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
-
-  latest_timestamp_ = std::max(timestamp_acc, latest_timestamp_);
-}
-
-PERFETTO_ALWAYS_INLINE
-void ProtoTraceTokenizer::ParseFtraceEvent(uint32_t cpu, TraceBlobView event) {
-  constexpr auto kTimestampFieldNumber =
-      protos::pbzero::FtraceEvent::kTimestampFieldNumber;
-  const uint8_t* data = event.data();
-  const size_t length = event.length();
-  ProtoDecoder decoder(data, length);
-  uint64_t raw_timestamp = 0;
-  bool timestamp_found = false;
-
-  // Speculate on the fact that the timestamp is often the 1st field of the
-  // event.
-  constexpr auto timestampFieldTag = MakeTagVarInt(kTimestampFieldNumber);
-  if (PERFETTO_LIKELY(length > 10 && data[0] == timestampFieldTag)) {
-    // Fastpath.
-    const uint8_t* next = ParseVarInt(data + 1, data + 11, &raw_timestamp);
-    timestamp_found = next != data + 1;
-    decoder.Reset(next);
-  } else {
-    // Slowpath.
-    if (auto ts_field = decoder.FindField(kTimestampFieldNumber)) {
-      timestamp_found = true;
-      raw_timestamp = ts_field.as_uint64();
-    }
-  }
-
-  if (PERFETTO_UNLIKELY(!timestamp_found)) {
-    PERFETTO_ELOG("Timestamp field not found in FtraceEvent");
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
-    return;
-  }
-
-  int64_t timestamp = static_cast<int64_t>(raw_timestamp);
-  latest_timestamp_ = std::max(timestamp, latest_timestamp_);
-
-  // We don't need to parse this packet, just push it to be sorted with
-  // the timestamp.
-  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event));
 }
 
 }  // namespace trace_processor
