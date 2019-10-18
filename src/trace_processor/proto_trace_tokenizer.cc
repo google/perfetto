@@ -287,12 +287,12 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   }
 
   ModuleResult res = ModuleResult::Ignored();
-  res = context_->ftrace_module.TokenizePacket(decoder, &packet, timestamp);
+  res = context_->ftrace_module->TokenizePacket(decoder, &packet, timestamp);
   if (!res.ignored())
     return res.ToStatus();
 
   res =
-      context_->track_event_module.TokenizePacket(decoder, &packet, timestamp);
+      context_->track_event_module->TokenizePacket(decoder, &packet, timestamp);
   if (!res.ignored())
     return res.ToStatus();
 
