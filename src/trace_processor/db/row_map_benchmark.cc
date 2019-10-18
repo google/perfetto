@@ -156,3 +156,21 @@ static void BM_RowMapBvSelectSingleRow(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_RowMapBvSelectSingleRow);
+
+static void BM_RowMapBvRemoveIf(benchmark::State& state) {
+  RowMap rm(CreateRandomBitVector(kSize));
+
+  static constexpr uint32_t kRandomSeed = 123;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (auto _ : state) {
+    state.PauseTiming();
+    RowMap copy = rm.Copy();
+    uint32_t mod_row_to_keep = rnd_engine() % kSize;
+    state.ResumeTiming();
+
+    copy.RemoveIf(
+        [mod_row_to_keep](uint32_t row) { return row % mod_row_to_keep != 0; });
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_RowMapBvRemoveIf);
