@@ -19,6 +19,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -110,9 +111,11 @@ class ProtoImporterModule {
   // returns a result other than ModuleResult::Ignored(), tokenization of the
   // packet will be aborted after the module.
   ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder) {
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t packet_timestamp) {
     if (ModuleType::kEnabled)
-      return impl_->TokenizePacket(decoder);
+      return impl_->TokenizePacket(decoder, packet, packet_timestamp);
     return ModuleResult::Ignored();
   }
 

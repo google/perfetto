@@ -671,6 +671,8 @@ filegroup(
         "src/trace_processor/importers/json/json_trace_utils.cc",
         "src/trace_processor/importers/json/json_trace_utils.h",
         "src/trace_processor/importers/proto/ftrace_module.h",
+        "src/trace_processor/importers/proto/ftrace_tokenizer.cc",
+        "src/trace_processor/importers/proto/ftrace_tokenizer.h",
         "src/trace_processor/importers/proto/proto_importer_module.h",
         "src/trace_processor/importers/proto/track_event_module.h",
         "src/trace_processor/importers/systrace/systrace_parser.cc",
