@@ -67,7 +67,12 @@ SetBitsIterator::SetBitsIterator(const BitVector* bv)
   set_bit_count_ = bv->GetNumBitsSet();
 
   if (set_bit_count_ > 0) {
+    // Read a batch of set bit indices starting at index 0.
     ReadSetBitBatch(0);
+
+    // Fast forward the iterator to the first index in the freshly read
+    // batch of set bots.
+    SetIndex(batch_[0]);
   }
 }
 
