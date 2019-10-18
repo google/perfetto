@@ -94,6 +94,7 @@ source_set("lib") {
     "importers/fuchsia/fuchsia_trace_utils.cc",
     "importers/fuchsia/fuchsia_trace_utils.h",
     "importers/proto/ftrace_module.h",
+    "importers/proto/ftrace_tokenizer.h",
     "importers/proto/proto_importer_module.h",
     "importers/proto/track_event_module.h",
     "importers/systrace/systrace_parser.cc",
@@ -220,6 +221,9 @@ source_set("lib") {
       "importers/json/json_trace_utils.h",
     ]
     deps += [ "../../gn:jsoncpp" ]
+  }
+  if (enable_perfetto_trace_processor_ftrace) {
+    sources += [ "importers/proto/ftrace_tokenizer.cc" ]
   }
 }
 
