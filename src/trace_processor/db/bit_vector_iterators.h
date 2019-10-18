@@ -151,6 +151,10 @@ class SetBitsIterator : public BaseIterator {
   // Returns whether the iterator is valid.
   operator bool() const { return set_bit_index_ < set_bit_count_; }
 
+  // Returns the index of the bit interms of set bits (i.e. how many times
+  // Next() has been called).
+  uint32_t set_bit_index() const { return set_bit_index_; }
+
  private:
   static constexpr uint32_t kBatchSize = 1024;
 
