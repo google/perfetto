@@ -38,6 +38,9 @@
 #include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
+#include "src/trace_processor/importers/proto/ftrace_module.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/instants_table.h"
@@ -329,6 +332,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
   context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
+  context_.ftrace_module.reset(
+      new ProtoImporterModule<FtraceModule>(&context_));
+  context_.track_event_module.reset(
+      new ProtoImporterModule<TrackEventModule>(&context_));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   CreateJsonExportFunction(this->context_.storage.get(), db);
