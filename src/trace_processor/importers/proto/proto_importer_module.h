@@ -40,14 +40,21 @@ class TraceProcessorContext;
 //     defining the TokenizePacket() and/or ParsePacket() methods.
 //     Typically, a build-time macro will inform the value of IsEnabled.
 //     See ftrace_module.h for an example.
-// (2) Add a member of type ProtoImporterModule<MyModule> to
-//     TraceProcessorContext (trace_processor_context.h).
-// (3) Add includes to my_module.h and calls to your module's TokenizePacket /
+// (2) Add a member of type std::unique_ptr<ProtoImporterModule<MyModule>> to
+//     TraceProcessorContext (trace_processor_context.h) and init it from
+//     TraceProcessorImpl() and appropriate tests.
+// (3) Add an include of my_module.h and calls to your module's TokenizePacket /
 //     ParsePacket methods in ProtoTraceTokenizer and/or ProtoTraceParser
 //     (proxying via the wrapper).
 
 class ModuleResult {
  public:
+  // Allow auto conversion from util::Status to Handled / Error result.
+  ModuleResult(util::Status status)
+      : ignored_(false),
+        error_(status.ok() ? base::nullopt
+                           : base::make_optional(status.message())) {}
+
   // Constructs a result that indicates the module ignored the packet and is
   // deferring the handling of the packet to other modules.
   static ModuleResult Ignored() { return ModuleResult(true); }
@@ -63,7 +70,7 @@ class ModuleResult {
   }
 
   bool ignored() const { return ignored_; }
-  bool ok() const { return error_.has_value(); }
+  bool ok() const { return !error_.has_value(); }
   const std::string& message() const { return *error_; }
 
   util::Status ToStatus() const {
@@ -74,8 +81,9 @@ class ModuleResult {
   }
 
  private:
-  ModuleResult(bool ignored) : ignored_(ignored) {}
-  ModuleResult(const std::string& error) : ignored_(false), error_(error) {}
+  explicit ModuleResult(bool ignored) : ignored_(ignored) {}
+  explicit ModuleResult(const std::string& error)
+      : ignored_(false), error_(error) {}
 
   bool ignored_;
   base::Optional<std::string> error_;

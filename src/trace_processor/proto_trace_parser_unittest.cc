@@ -21,6 +21,9 @@
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/proto/ftrace_module.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
@@ -220,6 +223,10 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.parser.reset(new ProtoTraceParser(&context_));
     context_.systrace_parser.reset(new SystraceParser(&context_));
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
+    context_.ftrace_module.reset(
+        new ProtoImporterModule<FtraceModule>(&context_));
+    context_.track_event_module.reset(
+        new ProtoImporterModule<TrackEventModule>(&context_));
   }
 
   void ResetTraceBuffers() {
