@@ -62,7 +62,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseProcessStats(int64_t timestamp, ConstBytes);
   void ParseSysStats(int64_t ts, ConstBytes);
   void ParseBatteryCounters(int64_t ts, ConstBytes);
-  void ParsePowerRails(ConstBytes);
+  void ParsePowerRails(int64_t ts, ConstBytes);
   void ParseAndroidLogPacket(ConstBytes);
   void ParseAndroidLogEvent(ConstBytes);
   void ParseAndroidLogStats(ConstBytes);
