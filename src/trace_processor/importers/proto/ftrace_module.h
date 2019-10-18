@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FTRACE_MODULE_H_
 
 #include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/proto/ftrace_parser.h"
 #include "src/trace_processor/importers/proto/ftrace_tokenizer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -31,7 +33,9 @@ class FtraceModule
     : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)> {
  public:
   explicit FtraceModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context), tokenizer_(context) {}
+      : ProtoImporterModuleBase(context),
+        tokenizer_(context),
+        parser_(context) {}
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -47,20 +51,32 @@ class FtraceModule
     return ModuleResult::Ignored();
   }
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder&,
+  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
                            const TimestampedTracePiece&) {
     // TODO(eseckler): implement.
+    if (decoder.has_ftrace_stats()) {
+      parser_.ParseFtraceStats(decoder.ftrace_stats());
+      return ModuleResult::Handled();
+    }
+
     return ModuleResult::Ignored();
   }
 
-  ModuleResult ParseFtracePacket(uint32_t /*cpu*/,
-                                 const TimestampedTracePiece&) {
-    // TODO(eseckler): implement.
-    return ModuleResult::Ignored();
+  ModuleResult ParseFtracePacket(uint32_t cpu,
+                                 const TimestampedTracePiece& ttp) {
+    // Handle the (optional) alternative encoding format for sched_switch.
+    if (ttp.inline_event.type == InlineEvent::Type::kSchedSwitch) {
+      parser_.ParseInlineSchedSwitch(cpu, ttp.timestamp,
+                                     ttp.inline_event.sched_switch);
+      return ModuleResult::Handled();
+    }
+
+    return parser_.ParseFtraceEvent(cpu, ttp.timestamp, ttp.blob_view);
   }
 
  private:
   FtraceTokenizer tokenizer_;
+  FtraceParser parser_;
 };
 
 }  // namespace trace_processor

@@ -66,8 +66,8 @@ class TraceProcessorContext {
   std::unique_ptr<HeapGraphTracker> heap_graph_tracker;
   std::unique_ptr<VulkanMemoryTracker> vulkan_memory_tracker;
 
-  ProtoImporterModule<FtraceModule> ftrace_module;
-  ProtoImporterModule<TrackEventModule> track_event_module;
+  std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
+  std::unique_ptr<ProtoImporterModule<TrackEventModule>> track_event_module;
 };
 
 }  // namespace trace_processor

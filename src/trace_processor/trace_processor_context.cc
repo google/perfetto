@@ -38,8 +38,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-TraceProcessorContext::TraceProcessorContext()
-    : ftrace_module(this), track_event_module(this) {}
+TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::~TraceProcessorContext() = default;
 
 }  // namespace trace_processor
