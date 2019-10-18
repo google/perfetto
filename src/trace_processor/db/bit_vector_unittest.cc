@@ -337,6 +337,20 @@ TEST(BitVectorUnittest, IterateSetBitslear) {
   }
 }
 
+TEST(BitVectorUnittest, IterateSetBitsStartsCorrectly) {
+  BitVector bv;
+  bv.AppendFalse();
+  bv.AppendTrue();
+
+  auto it = bv.IterateSetBits();
+  ASSERT_TRUE(it);
+  ASSERT_EQ(it.index(), 1u);
+  ASSERT_TRUE(it.IsSet());
+
+  it.Next();
+  ASSERT_FALSE(it);
+}
+
 TEST(BitVectorUnittest, QueryStressTest) {
   BitVector bv;
   std::vector<bool> bool_vec;
