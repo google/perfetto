@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_FTRACE_DESCRIPTORS_H_
-#define SRC_TRACE_PROCESSOR_FTRACE_DESCRIPTORS_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_DESCRIPTORS_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_DESCRIPTORS_H_
 
 #include <array>
 #include "perfetto/protozero/proto_utils.h"
@@ -51,4 +51,4 @@ size_t GetDescriptorsSize();
 
 }  // namespace trace_processor
 }  // namespace perfetto
-#endif  // SRC_TRACE_PROCESSOR_FTRACE_DESCRIPTORS_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_DESCRIPTORS_H_

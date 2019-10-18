@@ -18,7 +18,7 @@
 
 #include <inttypes.h>
 
-#include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/variadic.h"
 
