@@ -390,7 +390,7 @@ void ProtoTraceParser::ParseTracePacketImpl(
     ParseBatteryCounters(ts, packet.battery());
 
   if (packet.has_power_rails())
-    ParsePowerRails(packet.power_rails());
+    ParsePowerRails(ts, packet.power_rails());
 
   if (packet.has_trace_stats())
     ParseTraceStats(packet.trace_stats());
@@ -681,7 +681,7 @@ void ProtoTraceParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   }
 }
 
-void ProtoTraceParser::ParsePowerRails(ConstBytes blob) {
+void ProtoTraceParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
   protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
   if (evt.has_rail_descriptor()) {
     for (auto it = evt.rail_descriptor(); it; ++it) {
@@ -705,8 +705,11 @@ void ProtoTraceParser::ParsePowerRails(ConstBytes blob) {
     for (auto it = evt.energy_data(); it; ++it) {
       protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
       if (desc.index() < power_rails_strs_id_.size()) {
-        int64_t ts = static_cast<int64_t>(desc.timestamp_ms()) * 1000000;
-        context_->event_tracker->PushCounter(ts, desc.energy(),
+        int64_t actual_ts =
+            desc.has_timestamp_ms()
+                ? static_cast<int64_t>(desc.timestamp_ms()) * 1000000
+                : ts;
+        context_->event_tracker->PushCounter(actual_ts, desc.energy(),
                                              power_rails_strs_id_[desc.index()],
                                              0, RefType::kRefNoRef);
       } else {
