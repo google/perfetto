@@ -205,3 +205,43 @@ static void BM_BitVectorResize(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_BitVectorResize);
+
+static void BM_BitVectorUpdateSetBits(benchmark::State& state) {
+  static constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  BitVector bv;
+  BitVector picker;
+  for (uint32_t i = 0; i < size; ++i) {
+    bool value = rnd_engine() % 2;
+    if (value) {
+      bv.AppendTrue();
+
+      bool picker_value = rnd_engine() % 2;
+      if (picker_value) {
+        picker.AppendTrue();
+      } else {
+        picker.AppendFalse();
+      }
+    } else {
+      bv.AppendFalse();
+    }
+  }
+
+  for (auto _ : state) {
+    state.PauseTiming();
+    BitVector copy = bv.Copy();
+    state.ResumeTiming();
+
+    copy.UpdateSetBits(picker);
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_BitVectorUpdateSetBits)
+    ->Arg(64)
+    ->Arg(512)
+    ->Arg(8192)
+    ->Arg(123456)
+    ->Arg(1234567);
