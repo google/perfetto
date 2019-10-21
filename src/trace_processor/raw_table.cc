@@ -18,7 +18,7 @@
 
 #include <inttypes.h>
 
-#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/variadic.h"
 
@@ -35,6 +35,7 @@ namespace trace_processor {
 
 RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
     : storage_(storage) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     auto* thiz = static_cast<RawTable*>(sqlite3_user_data(ctx));
     thiz->ToSystrace(ctx, argc, argv);
@@ -42,6 +43,9 @@ RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
   sqlite3_create_function(db, "to_ftrace", 1,
                           SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
                           nullptr);
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+  base::ignore_result(db);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 }
 
 void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
@@ -77,6 +81,7 @@ int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 void RawTable::FormatSystraceArgs(NullTermStringView event_name,
                                   ArgSetId arg_set_id,
                                   base::StringWriter* writer) {
@@ -366,6 +371,7 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
   FormatSystraceArgs(event_name, raw_evts.arg_set_ids()[row], &writer);
   sqlite3_result_text(ctx, writer.CreateStringCopy(), -1, free);
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 }  // namespace trace_processor
 }  // namespace perfetto

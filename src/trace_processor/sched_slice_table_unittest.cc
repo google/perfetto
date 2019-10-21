@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -43,6 +44,7 @@ class SchedSliceTableTest : public ::testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.event_tracker.reset(new EventTracker(&context_));
+    context_.sched_tracker.reset(new SchedEventTracker(&context_));
 
     SchedSliceTable::RegisterTable(db_.get(), context_.storage.get());
   }
@@ -70,16 +72,16 @@ TEST_F(SchedSliceTableTest, RowsReturnedInCorrectOrderWithinCpu) {
   static const char kCommProc2[] = "process2";
   uint32_t pid_2 = 4;
   int32_t prio = 1024;
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp, pid_1, kCommProc2,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, kCommProc2,
                                           prio, prev_state, pid_2, kCommProc1,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp + 3, pid_2, kCommProc1,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 3, pid_2, kCommProc1,
                                           prio, prev_state, pid_1, kCommProc2,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp + 4, pid_1, kCommProc2,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 4, pid_1, kCommProc2,
                                           prio, prev_state, pid_2, kCommProc1,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp + 10, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 10, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
 
@@ -115,22 +117,22 @@ TEST_F(SchedSliceTableTest, RowsReturnedInCorrectOrderBetweenCpu) {
   static const char kCommProc2[] = "process2";
   uint32_t pid_2 = 4;
   int32_t prio = 1024;
-  context_.event_tracker->PushSchedSwitch(cpu_3, timestamp - 2, pid_1,
+  context_.sched_tracker->PushSchedSwitch(cpu_3, timestamp - 2, pid_1,
                                           kCommProc2, prio, prev_state, pid_2,
                                           kCommProc1, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_3, timestamp - 1, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu_3, timestamp - 1, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp, pid_1, kCommProc2,
+  context_.sched_tracker->PushSchedSwitch(cpu_1, timestamp, pid_1, kCommProc2,
                                           prio, prev_state, pid_2, kCommProc1,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 3, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu_2, timestamp + 3, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_1,
+  context_.sched_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_1,
                                           kCommProc2, prio, prev_state, pid_2,
                                           kCommProc1, prio);
 
@@ -165,16 +167,16 @@ TEST_F(SchedSliceTableTest, FilterCpus) {
   static const char kCommProc2[] = "process2";
   uint32_t pid_2 = 4;
   int32_t prio = 1024;
-  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp, pid_1, kCommProc2,
+  context_.sched_tracker->PushSchedSwitch(cpu_1, timestamp, pid_1, kCommProc2,
                                           prio, prev_state, pid_2, kCommProc1,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 3, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu_2, timestamp + 3, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu_1, timestamp + 4, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
-  context_.event_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_1,
+  context_.sched_tracker->PushSchedSwitch(cpu_2, timestamp + 10, pid_1,
                                           kCommProc2, prio, prev_state, pid_2,
                                           kCommProc1, prio);
 
@@ -198,16 +200,16 @@ TEST_F(SchedSliceTableTest, UtidTest) {
   static const char kCommProc2[] = "process2";
   uint32_t pid_2 = 4;
   int32_t prio = 1024;
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp, pid_1, kCommProc2,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp, pid_1, kCommProc2,
                                           prio, prev_state, pid_2, kCommProc1,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp + 3, pid_2, kCommProc1,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 3, pid_2, kCommProc1,
                                           prio, prev_state, pid_1, kCommProc2,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp + 4, pid_1, kCommProc2,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 4, pid_1, kCommProc2,
                                           prio, prev_state, pid_2, kCommProc1,
                                           prio);
-  context_.event_tracker->PushSchedSwitch(cpu, timestamp + 10, pid_2,
+  context_.sched_tracker->PushSchedSwitch(cpu, timestamp + 10, pid_2,
                                           kCommProc1, prio, prev_state, pid_1,
                                           kCommProc2, prio);
 
@@ -236,11 +238,11 @@ TEST_F(SchedSliceTableTest, TimestampFiltering) {
   // Fill |cpu_5| and |cpu_7) with one sched switch per time unit starting,
   // respectively, @ T=50 and T=70.
   for (int64_t i = 0; i <= 11; i++) {
-    context_.event_tracker->PushSchedSwitch(cpu_5, 50 + i, pid_1, "pid_1", prio,
+    context_.sched_tracker->PushSchedSwitch(cpu_5, 50 + i, pid_1, "pid_1", prio,
                                             prev_state, pid_1, "pid_1", prio);
   }
   for (int64_t i = 0; i <= 11; i++) {
-    context_.event_tracker->PushSchedSwitch(cpu_7, 70 + i, pid_2, "pid_2", prio,
+    context_.sched_tracker->PushSchedSwitch(cpu_7, 70 + i, pid_2, "pid_2", prio,
                                             prev_state, pid_2, "pid_2", prio);
   }
 

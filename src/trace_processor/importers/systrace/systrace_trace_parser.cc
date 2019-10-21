@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -187,7 +188,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     auto next_comm = base::StringView(args["next_comm"]);
     auto next_prio = std::stoi(args["next_prio"]);
 
-    context_->event_tracker->PushSchedSwitch(
+    context_->sched_tracker->PushSchedSwitch(
         static_cast<uint32_t>(cpu), ts, static_cast<uint32_t>(prev_pid),
         prev_comm, prev_prio, prev_state, static_cast<uint32_t>(next_pid),
         next_comm, next_prio);
