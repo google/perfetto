@@ -67,6 +67,7 @@ message GpuCounterDescriptor {
   // command buffer.
   optional bool supports_instrumented_sampling = 5;
 
+  // next id: 41
   enum MeasureUnit {
     NONE = 0;
 
@@ -101,6 +102,8 @@ message GpuCounterDescriptor {
     VERTEX = 25;
     PIXEL = 26;
     TRIANGLE = 27;
+    PRIMITIVE = 38;
+    FRAGMENT = 39;
 
     MILLIWATT = 28;
     WATT = 29;
@@ -115,5 +118,7 @@ message GpuCounterDescriptor {
     KELVIN = 36;
 
     PERCENT = 37;
+
+    INSTRUCTION = 40;
   };
 }
