@@ -47,17 +47,16 @@ BitVector::SetBitsIterator BitVector::IterateSetBits() const {
 void BitVector::UpdateSetBits(const BitVector& other) {
   PERFETTO_DCHECK(other.size() == GetNumBitsSet());
 
-  // Go through each set bit and if |other| has it unset, then unset the
-  // bit taking care to update the index we consider to take into account
-  // the bits we just unset.
-  // TODO(lalitm): we add a set bits iterator implementation to remove this
-  // inefficient loop.
-  uint32_t removed = 0;
-  for (auto it = other.IterateAllBits(); it; it.Next()) {
-    if (!it.IsSet()) {
-      Clear(IndexOfNthSet(it.index() - removed++));
-    }
+  // For each set bit in this bitvector, we lookup whether |other| has the
+  // bit set. If not, we clear the bit.
+  for (auto it = IterateSetBits(); it; it.Next()) {
+    if (!other.IsSet(it.set_bit_index()))
+      it.Clear();
   }
+
+  // After the loop, we should have precisely the same number of bits
+  // set as |other|.
+  PERFETTO_DCHECK(GetNumBitsSet() == other.GetNumBitsSet());
 }
 
 }  // namespace trace_processor
