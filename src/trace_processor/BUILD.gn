@@ -186,8 +186,6 @@ source_set("lib") {
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:zero",
-    "../../protos/perfetto/metrics:zero",
-    "../../protos/perfetto/metrics/android:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/chrome:zero",
@@ -203,7 +201,6 @@ source_set("lib") {
     "../base",
     "../protozero",
     "db:lib",
-    "metrics:lib",
     "sqlite",
     "tables",
   ]
@@ -229,6 +226,13 @@ source_set("lib") {
       "importers/ftrace/ftrace_tokenizer.cc",
     ]
   }
+  if (enable_perfetto_trace_processor_metrics) {
+    deps += [
+      "../../protos/perfetto/metrics:zero",
+      "../../protos/perfetto/metrics/android:zero",
+      "metrics:lib",
+    ]
+  }
 }
 
 # TODO(lalitm): we need to find a better home for the classes here.
@@ -246,26 +250,28 @@ source_set("common") {
   ]
 }
 
-perfetto_host_executable("trace_processor_shell") {
-  deps = [
-    ":lib",
-    "../../gn:default_deps",
-    "../../gn:protoc_lib",
-    "../base",
-    "metrics:lib",
-  ]
-  if (enable_perfetto_version_gen) {
-    deps += [ "../../gn/standalone:gen_git_revision" ]
-  }
-  if (enable_perfetto_trace_processor_linenoise) {
-    deps += [ "../../gn:linenoise" ]
-  }
+if (enable_perfetto_trace_processor_metrics) {  # shell requires metrics.
+  perfetto_host_executable("trace_processor_shell") {
+    deps = [
+      ":lib",
+      "../../gn:default_deps",
+      "../../gn:protoc_lib",
+      "../base",
+      "metrics:lib",
+    ]
+    if (enable_perfetto_version_gen) {
+      deps += [ "../../gn/standalone:gen_git_revision" ]
+    }
+    if (enable_perfetto_trace_processor_linenoise) {
+      deps += [ "../../gn:linenoise" ]
+    }
 
-  sources = [
-    "proto_to_json.cc",
-    "proto_to_json.h",
-    "trace_processor_shell.cc",
-  ]
+    sources = [
+      "proto_to_json.cc",
+      "proto_to_json.h",
+      "trace_processor_shell.cc",
+    ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {
