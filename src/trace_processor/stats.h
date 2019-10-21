@@ -120,7 +120,8 @@ namespace stats {
   F(metatrace_overruns,                       kSingle,  kError,    kTrace),    \
   F(packages_list_has_parse_errors,           kSingle,  kError,    kTrace),    \
   F(packages_list_has_read_errors,            kSingle,  kError,    kTrace),    \
-  F(compact_sched_has_parse_errors,           kSingle,  kError,    kTrace)
+  F(compact_sched_has_parse_errors,           kSingle,  kError,    kTrace),    \
+  F(misplaced_end_event,                      kSingle,  kDataLoss, kAnalysis)
 // clang-format on
 
 enum Type {

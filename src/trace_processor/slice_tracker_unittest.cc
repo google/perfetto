@@ -177,11 +177,11 @@ TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
   SliceTracker tracker(&context);
 
   constexpr TrackId track = 22u;
-  tracker.Begin(2 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 0 /*cat*/,
+  tracker.Begin(2 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 5 /*cat*/,
                 1 /*name*/);
   tracker.End(3 /*ts*/, track, 1 /*cat*/, 1 /*name*/);
   tracker.End(4 /*ts*/, track, 0 /*cat*/, 2 /*name*/);
-  tracker.End(5 /*ts*/, track, 0 /*cat*/, 1 /*name*/);
+  tracker.End(5 /*ts*/, track, 5 /*cat*/, 1 /*name*/);
 
   auto slices = ToSliceInfo(context.storage->nestable_slices());
   EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 3}));
@@ -233,6 +233,49 @@ TEST(SliceTrackerTest, DifferentTracks) {
   EXPECT_EQ(context.storage->nestable_slices().depths()[0], 0);
   EXPECT_EQ(context.storage->nestable_slices().depths()[1], 0);
   EXPECT_EQ(context.storage->nestable_slices().depths()[2], 1);
+}
+
+TEST(SliceTrackerTest, EndEventOutOfOrder) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  constexpr TrackId track = 22u;
+  tracker.Scoped(50 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 11 /*cat*/,
+                 21 /*name*/, 100 /*dur*/);
+  tracker.Begin(100 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 12 /*cat*/,
+                22 /*name*/);
+  tracker.Scoped(450 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 12 /*cat*/,
+                 22 /*name*/, 100 /*dur*/);
+  tracker.End(500 /*ts*/, track, 12 /*cat*/, 22 /*name*/);
+
+  // This slice should now have depth 0.
+  tracker.Begin(800 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 13 /*cat*/,
+                23 /*name*/);
+  // Null cat and name matches everything.
+  tracker.End(1000 /*ts*/, track, 0 /*cat*/, 0 /*name*/);
+
+  // Slice will not close if category is different.
+  tracker.Begin(1100 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 11 /*cat*/,
+                21 /*name*/);
+  tracker.End(1200 /*ts*/, track, 12 /*cat*/, 21 /*name*/);
+
+  // Slice will not close if name is different.
+  tracker.Begin(1300 /*ts*/, track, 42 /*ref*/, RefType::kRefUtid, 11 /*cat*/,
+                21 /*name*/);
+  tracker.End(1400 /*ts*/, track, 11 /*cat*/, 22 /*name*/);
+
+  tracker.FlushPendingSlices();
+
+  auto slices = ToSliceInfo(context.storage->nestable_slices());
+  EXPECT_THAT(slices, ElementsAre(SliceInfo{50, 100}, SliceInfo{100, 400},
+                                  SliceInfo{450, 100}, SliceInfo{800, 200},
+                                  SliceInfo{1100, -1}, SliceInfo{1300, 0 - 1}));
+
+  EXPECT_EQ(context.storage->nestable_slices().depths()[0], 0);
+  EXPECT_EQ(context.storage->nestable_slices().depths()[1], 1);
+  EXPECT_EQ(context.storage->nestable_slices().depths()[2], 2);
+  EXPECT_EQ(context.storage->nestable_slices().depths()[3], 0);
 }
 
 }  // namespace

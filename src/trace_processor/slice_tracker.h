@@ -90,6 +90,9 @@ class SliceTracker {
   base::Optional<uint32_t> CompleteSlice(TrackId track_id);
 
   void MaybeCloseStack(int64_t end_ts, SlicesStack*);
+  base::Optional<size_t> MatchingIncompleteSliceIndex(SlicesStack& stack,
+                                                      StringId name,
+                                                      StringId category);
   int64_t GetStackHash(const SlicesStack&);
 
   // Timestamp of the previous event. Used to discard events arriving out
