@@ -661,6 +661,8 @@ filegroup(
         "src/trace_processor/importers/ftrace/ftrace_parser.h",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.h",
+        "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
+        "src/trace_processor/importers/ftrace/sched_event_tracker.h",
         "src/trace_processor/importers/fuchsia/fuchsia_provider_view.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",

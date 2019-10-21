@@ -34,6 +34,7 @@ class HeapGraphTracker;
 class HeapProfileTracker;
 class VulkanMemoryTracker;
 class ProcessTracker;
+class SchedEventTracker;
 class SliceTracker;
 class SyscallTracker;
 class SystraceParser;
@@ -57,6 +58,7 @@ class TraceProcessorContext {
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<SyscallTracker> syscall_tracker;
   std::unique_ptr<EventTracker> event_tracker;
+  std::unique_ptr<SchedEventTracker> sched_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<TraceParser> parser;
   std::unique_ptr<TraceSorter> sorter;
