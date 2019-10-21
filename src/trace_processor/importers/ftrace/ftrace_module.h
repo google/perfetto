@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FTRACE_MODULE_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FTRACE_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 
 #include "perfetto/base/build_config.h"
-#include "src/trace_processor/importers/proto/ftrace_parser.h"
-#include "src/trace_processor/importers/proto/ftrace_tokenizer.h"
+#include "src/trace_processor/importers/ftrace/ftrace_parser.h"
+#include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
@@ -82,4 +82,4 @@ class FtraceModule
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FTRACE_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_

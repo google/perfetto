@@ -35,7 +35,7 @@ void GenerateFtraceDescriptors(
   *fout << std::string("// ") + __FILE__ + "\n";
   *fout << "// Do not edit.\n";
   *fout << R"(
-#include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 
 namespace perfetto {
 namespace trace_processor {

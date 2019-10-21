@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/ftrace_tokenizer.h"
+#include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
