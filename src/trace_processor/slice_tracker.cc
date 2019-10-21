@@ -147,6 +147,30 @@ base::Optional<uint32_t> SliceTracker::EndAndroid(int64_t timestamp,
   return End(timestamp, track_id);
 }
 
+// Returns the first incomplete slice in the stack with matching name and
+// category. We assume null category/name matches everything. Returns
+// nullopt if no matching slice is found.
+base::Optional<size_t> SliceTracker::MatchingIncompleteSliceIndex(
+    SlicesStack& stack,
+    StringId name,
+    StringId category) {
+  auto* slices = context_->storage->mutable_nestable_slices();
+  for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
+    uint32_t slice_idx = stack[static_cast<size_t>(i)].first;
+    if (slices->durations()[slice_idx] != kPendingDuration)
+      continue;
+    const StringId& other_category = slices->categories()[slice_idx];
+    if (!category.is_null() && !other_category.is_null() &&
+        category != other_category)
+      continue;
+    const StringId& other_name = slices->names()[slice_idx];
+    if (!name.is_null() && !other_name.is_null() && name != other_name)
+      continue;
+    return static_cast<size_t>(i);
+  }
+  return base::nullopt;
+}
+
 base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
                                            TrackId track_id,
                                            StringId category,
@@ -166,14 +190,29 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
     return base::nullopt;
 
   auto* slices = context_->storage->mutable_nestable_slices();
-  uint32_t slice_idx = stack.back().first;
+  base::Optional<size_t> stack_idx =
+      MatchingIncompleteSliceIndex(stack, name, category);
 
-  // If we are trying to close mismatching slices (e.g., slices that began
-  // before tracing started), bail out.
-  if (!category.is_null() && slices->categories()[slice_idx] != category)
+  // If we are trying to close slices that are not open on the stack (e.g.,
+  // slices that began before tracing started), bail out.
+  if (!stack_idx)
     return base::nullopt;
-  if (!name.is_null() && slices->names()[slice_idx] != name)
-    return base::nullopt;
+
+  if (*stack_idx != stack.size() - 1) {
+    // This usually happens because we have two slices that are partially
+    // overlapping.
+    // [  slice  1    ]
+    //          [     slice 2     ]
+    // This is invalid in chrome and should be fixed. Duration events should
+    // either be nested or disjoint, never partially intersecting.
+    PERFETTO_DLOG(
+        "Incorrect ordering of End slice event around timestamp "
+        "%" PRId64,
+        timestamp);
+    context_->storage->IncrementStats(stats::misplaced_end_event);
+  }
+
+  uint32_t slice_idx = stack[stack_idx.value()].first;
 
   PERFETTO_DCHECK(slices->durations()[slice_idx] == kPendingDuration);
   slices->set_duration(slice_idx, timestamp - slices->start_ns()[slice_idx]);
