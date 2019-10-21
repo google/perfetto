@@ -28,10 +28,13 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/metrics/descriptors.h"
-#include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/trace_processor_context.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
+#include "src/trace_processor/metrics/descriptors.h"
+#include "src/trace_processor/metrics/metrics.h"
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
 namespace perfetto {
 
@@ -52,6 +55,7 @@ class TraceProcessorImpl : public TraceProcessor {
   Iterator ExecuteQuery(const std::string& sql,
                         int64_t time_queued = 0) override;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
   util::Status RegisterMetric(const std::string& path,
                               const std::string& sql) override;
 
@@ -59,6 +63,7 @@ class TraceProcessorImpl : public TraceProcessor {
 
   util::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
   void InterruptQuery() override;
 
@@ -70,8 +75,10 @@ class TraceProcessorImpl : public TraceProcessor {
   TraceProcessorContext context_;
   bool unrecoverable_parse_error_ = false;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
   metrics::DescriptorPool pool_;
   std::vector<metrics::SqlMetricFile> sql_metrics_;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
   std::vector<IteratorImpl*> iterators_;
 
