@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/db/bit_vector.h"
+#include "src/trace_processor/db/bit_vector_iterators.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -114,14 +115,9 @@ class RowMap {
   template <typename Predicate>
   void RemoveIf(Predicate p) {
     if (compact_) {
-      const auto& bv = bit_vector_;
-      uint32_t removed = 0;
-      for (uint32_t i = 0, size = bv.GetNumBitsSet(); i < size; ++i) {
-        uint32_t idx = bv.IndexOfNthSet(i - removed);
-        if (p(idx)) {
-          removed++;
-          bit_vector_.Clear(idx);
-        }
+      for (auto it = bit_vector_.IterateSetBits(); it; it.Next()) {
+        if (p(it.index()))
+          it.Clear();
       }
     } else {
       auto it = std::remove_if(index_vector_.begin(), index_vector_.end(), p);
