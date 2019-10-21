@@ -331,13 +331,15 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
-  context_.sched_tracker.reset(new SchedEventTracker(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+  context_.sched_tracker.reset(new SchedEventTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
   context_.ftrace_module.reset(
       new ProtoImporterModule<FtraceModule>(&context_));
@@ -355,7 +357,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
 
   ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   SchedSliceTable::RegisterTable(*db_, context_.storage.get());
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   SliceTable::RegisterTable(*db_, context_.storage.get());
   SqlStatsTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
@@ -426,7 +430,9 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 
   if (context_.sorter)
     context_.sorter->ExtractEventsForced();
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.sched_tracker->FlushPendingEvents();
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());

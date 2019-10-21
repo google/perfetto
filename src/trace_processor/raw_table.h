@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_RAW_TABLE_H_
 #define SRC_TRACE_PROCESSOR_RAW_TABLE_H_
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/storage_table.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -35,10 +36,12 @@ class RawTable : public StorageTable {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   void FormatSystraceArgs(NullTermStringView event_name,
                           ArgSetId arg_set_id,
                           base::StringWriter* writer);
   void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
   const TraceStorage* const storage_;
 };

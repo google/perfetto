@@ -101,8 +101,12 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
       }
       case kSystraceTraceType:
         PERFETTO_DLOG("Systrace trace detected");
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
         reader_.reset(new SystraceTraceParser(context_));
         break;
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+        return util::ErrStatus("Systrace support is disabled");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
       case kGzipTraceType:
         PERFETTO_DLOG("gzip trace detected");
         reader_.reset(new GzipTraceParser(context_));

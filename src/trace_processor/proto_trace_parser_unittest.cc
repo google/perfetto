@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/proto_trace_tokenizer.h"
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/args_tracker.h"
@@ -89,6 +90,7 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   return fabs(d_arg - d_exp) < 1e-128;
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 class MockSchedEventTracker : public SchedEventTracker {
  public:
   MockSchedEventTracker(TraceProcessorContext* context)
@@ -106,6 +108,7 @@ class MockSchedEventTracker : public SchedEventTracker {
                     base::StringView next_comm,
                     int32_t next_prio));
 };
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 class MockEventTracker : public EventTracker {
  public:
@@ -138,8 +141,6 @@ class MockEventTracker : public EventTracker {
                      int64_t ref,
                      RefType ref_type,
                      bool resolve_utid_to_upid));
-
-  MockSchedEventTracker* mock_sched_tracker;
 };
 
 class MockProcessTracker : public ProcessTracker {
@@ -234,8 +235,10 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     sched_ = new MockSchedEventTracker(&context_);
     context_.sched_tracker.reset(sched_);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     process_ = new MockProcessTracker(&context_);
     context_.process_tracker.reset(process_);
     slice_ = new MockSliceTracker(&context_);
@@ -244,7 +247,9 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.systrace_parser.reset(new SystraceParser(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
     context_.ftrace_module.reset(
         new ProtoImporterModule<FtraceModule>(&context_));
@@ -297,7 +302,9 @@ class ProtoTraceParserTest : public ::testing::Test {
   protos::pbzero::Trace trace_;
   TraceProcessorContext context_;
   MockEventTracker* event_;
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   MockSchedEventTracker* sched_;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
   ClockTracker* clock_;

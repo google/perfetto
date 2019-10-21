@@ -18,6 +18,7 @@
 
 #include <math.h>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
