@@ -60,6 +60,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
   std::unique_ptr<TraceProcessor> processor_;
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
   auto it = Query(
@@ -72,6 +73,7 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
   ASSERT_EQ(it.Get(1).long_value, 19684308497);
   ASSERT_FALSE(it.Next());
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
@@ -102,6 +104,7 @@ TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
   ASSERT_FALSE(it.Next());
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
   auto it = Query("select start_ts, end_ts from trace_bounds");
@@ -112,6 +115,7 @@ TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_EQ(it.Get(1).long_value, 81492700784311);
   ASSERT_FALSE(it.Next());
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(TraceProcessorIntegrationTest, Hash) {
   auto it = Query("select HASH()");

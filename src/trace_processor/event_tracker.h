@@ -29,34 +29,13 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-// This class takes sched events from the trace and processes them to store
-// as sched slices.
+// Tracks sched events, instants, and counters.
 class EventTracker {
  public:
   explicit EventTracker(TraceProcessorContext*);
   EventTracker(const EventTracker&) = delete;
   EventTracker& operator=(const EventTracker&) = delete;
   virtual ~EventTracker();
-
-  // This method is called when a sched_switch event is seen in the trace.
-  virtual void PushSchedSwitch(uint32_t cpu,
-                               int64_t timestamp,
-                               uint32_t prev_pid,
-                               base::StringView prev_comm,
-                               int32_t prev_prio,
-                               int64_t prev_state,
-                               uint32_t next_pid,
-                               base::StringView next_comm,
-                               int32_t next_prio);
-
-  // This method is called when parsing a sched_switch encoded in the compact
-  // format.
-  void PushSchedSwitchCompact(uint32_t cpu,
-                              int64_t ts,
-                              int64_t prev_state,
-                              uint32_t next_pid,
-                              int32_t next_prio,
-                              StringId next_comm_id);
 
   // This method is called when a counter event is seen in the trace.
   virtual RowId PushCounter(int64_t timestamp,
@@ -83,21 +62,13 @@ class EventTracker {
   // storage.
   void FlushPendingEvents();
 
+  // For SchedEventTracker.
+  int64_t max_timestamp() const { return max_timestamp_; }
+  void UpdateMaxTimestamp(int64_t ts) {
+    max_timestamp_ = std::max(ts, max_timestamp_);
+  }
+
  private:
-  // Infromation retained from the preceding sched_switch seen on a given cpu.
-  struct PendingSchedInfo {
-    // The pending scheduling slice that the next event will complete.
-    size_t pending_slice_storage_idx = std::numeric_limits<size_t>::max();
-
-    // pid/utid/prio corresponding to the last sched_switch seen on this cpu
-    // (its "next_*" fields). There is some duplication with respect to the
-    // slices storage, but we don't always have a slice when decoding events in
-    // the compact format.
-    uint32_t last_pid = std::numeric_limits<uint32_t>::max();
-    UniqueTid last_utid = std::numeric_limits<UniqueTid>::max();
-    int32_t last_prio = std::numeric_limits<int32_t>::max();
-  };
-
   // Represents a counter event which is currently pending upid resolution.
   struct PendingUpidResolutionCounter {
     uint32_t row = 0;
@@ -111,23 +82,6 @@ class EventTracker {
     UniqueTid utid = 0;
   };
 
-  size_t AddRawEventAndStartSlice(uint32_t cpu,
-                                  int64_t ts,
-                                  UniqueTid prev_utid,
-                                  uint32_t prev_pid,
-                                  StringId prev_comm_id,
-                                  int32_t prev_prio,
-                                  int64_t prev_state,
-                                  UniqueTid next_utid,
-                                  uint32_t next_pid,
-                                  StringId next_comm_id,
-                                  int32_t next_prio);
-
-  void ClosePendingSlice(size_t slice_idx, int64_t ts, int64_t prev_state);
-
-  // Infromation retained from the preceding sched_switch seen on a given cpu.
-  std::array<PendingSchedInfo, base::kMaxCpus> pending_sched_per_cpu_{};
-
   // Store the rows in the counters table which need upids resolved.
   std::vector<PendingUpidResolutionCounter> pending_upid_resolution_counter_;
 
@@ -136,11 +90,7 @@ class EventTracker {
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
-  int64_t prev_timestamp_ = 0;
-
-  static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
-  std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
-  StringId sched_switch_id_;
+  int64_t max_timestamp_ = 0;
 
   TraceProcessorContext* const context_;
 };
