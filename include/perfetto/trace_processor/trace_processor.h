@@ -97,6 +97,7 @@ class PERFETTO_EXPORT TraceProcessor {
   virtual Iterator ExecuteQuery(const std::string& sql,
                                 int64_t time_queued = 0) = 0;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
   // Registers a metric at the given path which will run the specified SQL.
   virtual util::Status RegisterMetric(const std::string& path,
                                       const std::string& sql) = 0;
@@ -113,6 +114,7 @@ class PERFETTO_EXPORT TraceProcessor {
   virtual util::Status ComputeMetric(
       const std::vector<std::string>& metric_names,
       std::vector<uint8_t>* metrics_proto) = 0;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;
