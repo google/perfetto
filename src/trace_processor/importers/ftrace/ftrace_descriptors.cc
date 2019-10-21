@@ -2,7 +2,7 @@
 // ../../tools/ftrace_proto_gen/ftrace_descriptor_gen.cc
 // Do not edit.
 
-#include "src/trace_processor/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 
 namespace perfetto {
 namespace trace_processor {

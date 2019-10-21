@@ -71,8 +71,6 @@ source_set("lib") {
     "filtered_row_index.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
-    "ftrace_descriptors.cc",
-    "ftrace_descriptors.h",
     "ftrace_utils.cc",
     "ftrace_utils.h",
     "graphics_event_parser.cc",
@@ -85,6 +83,11 @@ source_set("lib") {
     "heap_profile_allocation_table.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
+    "importers/ftrace/ftrace_descriptors.cc",
+    "importers/ftrace/ftrace_descriptors.h",
+    "importers/ftrace/ftrace_module.h",
+    "importers/ftrace/ftrace_parser.h",
+    "importers/ftrace/ftrace_tokenizer.h",
     "importers/fuchsia/fuchsia_provider_view.cc",
     "importers/fuchsia/fuchsia_provider_view.h",
     "importers/fuchsia/fuchsia_trace_parser.cc",
@@ -93,9 +96,6 @@ source_set("lib") {
     "importers/fuchsia/fuchsia_trace_tokenizer.h",
     "importers/fuchsia/fuchsia_trace_utils.cc",
     "importers/fuchsia/fuchsia_trace_utils.h",
-    "importers/proto/ftrace_module.h",
-    "importers/proto/ftrace_parser.h",
-    "importers/proto/ftrace_tokenizer.h",
     "importers/proto/proto_importer_module.h",
     "importers/proto/track_event_module.h",
     "importers/systrace/systrace_parser.cc",
@@ -225,8 +225,8 @@ source_set("lib") {
   }
   if (enable_perfetto_trace_processor_ftrace) {
     sources += [
-      "importers/proto/ftrace_parser.cc",
-      "importers/proto/ftrace_tokenizer.cc",
+      "importers/ftrace/ftrace_parser.cc",
+      "importers/ftrace/ftrace_tokenizer.cc",
     ]
   }
 }
