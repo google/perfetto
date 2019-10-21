@@ -39,6 +39,7 @@
 #include "src/trace_processor/heap_profile_allocation_table.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -330,6 +331,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
+  context_.sched_tracker.reset(new SchedEventTracker(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
@@ -424,6 +426,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 
   if (context_.sorter)
     context_.sorter->ExtractEventsForced();
+  context_.sched_tracker->FlushPendingEvents();
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());

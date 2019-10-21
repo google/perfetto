@@ -22,6 +22,7 @@
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -88,6 +89,24 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   return fabs(d_arg - d_exp) < 1e-128;
 }
 
+class MockSchedEventTracker : public SchedEventTracker {
+ public:
+  MockSchedEventTracker(TraceProcessorContext* context)
+      : SchedEventTracker(context) {}
+  virtual ~MockSchedEventTracker() = default;
+
+  MOCK_METHOD9(PushSchedSwitch,
+               void(uint32_t cpu,
+                    int64_t timestamp,
+                    uint32_t prev_pid,
+                    base::StringView prev_comm,
+                    int32_t prev_prio,
+                    int64_t prev_state,
+                    uint32_t next_pid,
+                    base::StringView next_comm,
+                    int32_t next_prio));
+};
+
 class MockEventTracker : public EventTracker {
  public:
   MockEventTracker(TraceProcessorContext* context) : EventTracker(context) {}
@@ -119,6 +138,8 @@ class MockEventTracker : public EventTracker {
                      int64_t ref,
                      RefType ref_type,
                      bool resolve_utid_to_upid));
+
+  MockSchedEventTracker* mock_sched_tracker;
 };
 
 class MockProcessTracker : public ProcessTracker {
@@ -213,6 +234,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
+    sched_ = new MockSchedEventTracker(&context_);
+    context_.sched_tracker.reset(sched_);
     process_ = new MockProcessTracker(&context_);
     context_.process_tracker.reset(process_);
     slice_ = new MockSliceTracker(&context_);
@@ -274,6 +297,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   protos::pbzero::Trace trace_;
   TraceProcessorContext context_;
   MockEventTracker* event_;
+  MockSchedEventTracker* sched_;
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
   ClockTracker* clock_;
@@ -302,7 +326,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   sched_switch->set_next_pid(100);
   sched_switch->set_next_prio(1024);
 
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1000, 10, base::StringView(kProc2Name), 256,
                               32, 100, base::StringView(kProc1Name), 1024));
   Tokenize();
@@ -447,11 +471,11 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
   sched_switch->set_next_pid(10);
   sched_switch->set_next_prio(512);
 
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1000, 10, base::StringView(kProcName2), 256,
                               32, 100, base::StringView(kProcName1), 1024));
 
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
 
@@ -493,11 +517,11 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
   sched_switch->set_next_pid(10);
   sched_switch->set_next_prio(512);
 
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1000, 10, base::StringView(kProcName2), 256,
                               32, 100, base::StringView(kProcName1), 1024));
 
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
   Tokenize();
@@ -519,7 +543,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   sched_switch->set_next_comm(kProcName1);
   sched_switch->set_next_pid(100);
   sched_switch->set_next_prio(1024);
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1000, 10, base::StringView(kProcName2), 256,
                               32, 100, base::StringView(kProcName1), 1024));
   Tokenize();
@@ -538,7 +562,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
   sched_switch->set_next_pid(10);
   sched_switch->set_next_prio(512);
 
-  EXPECT_CALL(*event_,
+  EXPECT_CALL(*sched_,
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
   Tokenize();

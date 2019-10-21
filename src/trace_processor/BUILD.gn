@@ -88,6 +88,8 @@ source_set("lib") {
     "importers/ftrace/ftrace_module.h",
     "importers/ftrace/ftrace_parser.h",
     "importers/ftrace/ftrace_tokenizer.h",
+    "importers/ftrace/sched_event_tracker.cc",
+    "importers/ftrace/sched_event_tracker.h",
     "importers/fuchsia/fuchsia_provider_view.cc",
     "importers/fuchsia/fuchsia_provider_view.h",
     "importers/fuchsia/fuchsia_trace_parser.cc",
