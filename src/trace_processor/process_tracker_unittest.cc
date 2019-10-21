@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/process_tracker.h"
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -35,6 +37,9 @@ class ProcessTrackerTest : public ::testing::Test {
     context.args_tracker.reset(new ArgsTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+    context.sched_tracker.reset(new SchedEventTracker(&context));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   }
 
  protected:
@@ -84,6 +89,7 @@ TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
             "test");
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
@@ -92,10 +98,10 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   static const char kCommProc2[] = "process2";
   int32_t prio = 1024;
 
-  context.event_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, kCommProc2,
+  context.sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, kCommProc2,
                                          prio, prev_state,
                                          /*tid=*/4, kCommProc1, prio);
-  context.event_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
+  context.sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4,
                                          kCommProc1, prio, prev_state,
                                          /*tid=*/1, kCommProc2, prio);
 
@@ -110,6 +116,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   ASSERT_EQ(process.pid, 2u);
   ASSERT_EQ(process.start_ns, 0);
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   context.process_tracker->UpdateThread(12, 2);
