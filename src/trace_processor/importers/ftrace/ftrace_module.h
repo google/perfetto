@@ -40,7 +40,8 @@ class FtraceModule
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
-      int64_t /*packet_timestamp*/) {
+      int64_t /*packet_timestamp*/,
+      PacketSequenceState* /*state*/) {
     if (decoder.has_ftrace_events()) {
       auto ftrace_field = decoder.ftrace_events();
       const size_t fld_off = packet->offset_of(ftrace_field.data);
