@@ -164,6 +164,26 @@ void TracingMuxerImpl::ConsumerImpl::OnDisconnect() {
   connected_ = false;
 
   // TODO notify the client somehow.
+
+  // Notify the muxer that it is safe to destroy |this|. This is needed because
+  // the ConsumerEndpoint stored in |service_| requires that |this| be safe to
+  // access until OnDisconnect() is called.
+  muxer_->OnConsumerDisconnected(this);
+}
+
+void TracingMuxerImpl::ConsumerImpl::Disconnect() {
+  // This is weird and deserves a comment.
+  //
+  // When we called the ConnectConsumer method on the service it returns
+  // us a ConsumerEndpoint which we stored in |service_|, however this
+  // ConsumerEndpoint holds a pointer to the ConsumerImpl pointed to by
+  // |this|. Part of the API contract to TracingService::ConnectConsumer is that
+  // the ConsumerImpl pointer has to be valid until the
+  // ConsumerImpl::OnDisconnect method is called. Therefore we reset the
+  // ConsumerEndpoint |service_|. Eventually this will call
+  // ConsumerImpl::OnDisconnect and we will inform the muxer it is safe to
+  // call the destructor of |this|.
+  service_.reset();
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnTracingDisabled() {
@@ -721,11 +741,6 @@ void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {
   if (!consumer)
     return;
 
-  if (!consumer->trace_config_) {
-    PERFETTO_ELOG("Must call Setup(config) and Start() first");
-    return;
-  }
-
   if (consumer->start_pending_) {
     // If the session hasn't started yet, wait until it does before stopping.
     consumer->stop_pending_ = true;
@@ -737,6 +752,9 @@ void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {
     // If the session was already stopped (e.g., it failed to start), don't try
     // stopping again.
     consumer->NotifyStopComplete();
+  } else if (!consumer->trace_config_) {
+    PERFETTO_ELOG("Must call Setup(config) and Start() first");
+    return;
   } else {
     consumer->service_->DisableTracing();
   }
@@ -749,11 +767,15 @@ void TracingMuxerImpl::DestroyTracingSession(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   for (RegisteredBackend& backend : backends_) {
     auto pred = [session_id](const std::unique_ptr<ConsumerImpl>& consumer) {
-      return consumer->session_id_ == session_id;
+      return consumer->session_id_ != session_id;
     };
-    backend.consumers.erase(std::remove_if(backend.consumers.begin(),
-                                           backend.consumers.end(), pred),
-                            backend.consumers.end());
+    auto it = std::partition(backend.consumers.begin(), backend.consumers.end(),
+                             pred);
+    PERFETTO_DCHECK(std::distance(it, backend.consumers.end()) <= 1);
+    if (it != backend.consumers.end()) {
+      PERFETTO_DCHECK(it->get());
+      it->get()->Disconnect();
+    }
   }
 }
 
@@ -774,11 +796,25 @@ TracingMuxerImpl::ConsumerImpl* TracingMuxerImpl::FindConsumer(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   for (RegisteredBackend& backend : backends_) {
     for (auto& consumer : backend.consumers) {
-      if (consumer->session_id_ == session_id)
+      if (consumer->session_id_ == session_id) {
+        PERFETTO_DCHECK(consumer->service_);
         return consumer.get();
+      }
     }
   }
   return nullptr;
+}
+
+void TracingMuxerImpl::OnConsumerDisconnected(ConsumerImpl* consumer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (RegisteredBackend& backend : backends_) {
+    auto pred = [consumer](const std::unique_ptr<ConsumerImpl>& con) {
+      return con.get() == consumer;
+    };
+    backend.consumers.erase(std::remove_if(backend.consumers.begin(),
+                                           backend.consumers.end(), pred),
+                            backend.consumers.end());
+  }
 }
 
 TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(

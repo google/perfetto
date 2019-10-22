@@ -225,6 +225,57 @@ void MockDataSource::OnStop(const StopArgs& args) {
 // Test fixtures
 // -------------
 
+TEST_F(PerfettoApiTest, TrackEventStartStopAndDestroy) {
+  // This test used to cause a use after free as the tracing session got
+  // destroyed. It needed to be run approximately 2000 times to catch it so test
+  // with --gtest_repeat=3000 (less if running under GDB).
+  perfetto::TrackEvent::Initialize(/* TODO(skyostil): Register categories */);
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("test");
+  // Create five new trace sessions.
+  std::vector<std::unique_ptr<perfetto::TracingSession>> sessions;
+  for (size_t i = 0; i < 5; ++i) {
+    sessions.push_back(
+        perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend));
+    sessions[i]->Setup(cfg);
+    sessions[i]->Start();
+    sessions[i]->Stop();
+  }
+}
+
+TEST_F(PerfettoApiTest, TrackEventStartStopAndStopBlocking) {
+  // This test used to cause a deadlock (due to StopBlocking() after the session
+  // already stopped). This usually occurred within 1 or 2 runs of the test so
+  // use --gtest_repeat=10
+  perfetto::TrackEvent::Initialize(/* TODO(skyostil): Register categories */);
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("test");
+  // Create five new trace sessions.
+  std::vector<std::unique_ptr<perfetto::TracingSession>> sessions;
+  for (size_t i = 0; i < 5; ++i) {
+    sessions.push_back(
+        perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend));
+    sessions[i]->Setup(cfg);
+    sessions[i]->Start();
+    sessions[i]->Stop();
+  }
+  for (auto& session : sessions) {
+    session->StopBlocking();
+  }
+}
+
 TEST_F(PerfettoApiTest, TrackEvent) {
   perfetto::TrackEvent::Initialize(/* TODO(skyostil): Register categories */);
 
