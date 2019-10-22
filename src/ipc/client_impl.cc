@@ -43,7 +43,9 @@ std::unique_ptr<Client> Client::CreateInstance(const char* socket_name,
 
 ClientImpl::ClientImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
-  sock_ = base::UnixSocket::Connect(socket_name, this, task_runner);
+  sock_ = base::UnixSocket::Connect(socket_name, this, task_runner,
+                                    base::SockFamily::kUnix,
+                                    base::SockType::kStream);
 }
 
 ClientImpl::~ClientImpl() {

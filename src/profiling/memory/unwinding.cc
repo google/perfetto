@@ -374,7 +374,7 @@ void UnwindingWorker::PostHandoffSocket(HandoffData handoff_data) {
 void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
   auto sock = base::UnixSocket::AdoptConnected(
       handoff_data.sock.ReleaseFd(), this, this->thread_task_runner_.get(),
-      base::SockType::kStream);
+      base::SockFamily::kUnix, base::SockType::kStream);
   pid_t peer_pid = sock->peer_pid();
 
   UnwindingMetadata metadata(peer_pid, std::move(handoff_data.maps_fd),
