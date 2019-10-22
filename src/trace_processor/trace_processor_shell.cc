@@ -329,6 +329,7 @@ enum OutputFormat {
   kBinaryProto,
   kTextProto,
   kJson,
+  kNone,
 };
 
 int RunMetrics(const std::vector<std::string>& metric_names,
@@ -339,6 +340,9 @@ int RunMetrics(const std::vector<std::string>& metric_names,
   if (!status.ok()) {
     PERFETTO_ELOG("Error when computing metrics: %s", status.c_message());
     return 1;
+  }
+  if (format == OutputFormat::kNone) {
+    return 0;
   }
   if (format == OutputFormat::kBinaryProto) {
     fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);
@@ -365,6 +369,7 @@ int RunMetrics(const std::vector<std::string>& metric_names,
       break;
     }
     case OutputFormat::kBinaryProto:
+    case OutputFormat::kNone:
       PERFETTO_FATAL("Unsupported output format.");
   }
   return 0;
@@ -685,6 +690,9 @@ Options:
                                       the file will only be written if the
                                       execution is successful.
  -q, --query-file FILE                Read and execute an SQL query from a file.
+                                      If used with --run-metrics, the query is
+                                      executed after the selected metrics and
+                                      the metrics output is suppressed.
  -i, --interactive                    Starts interactive mode even after a query
                                       file is specified with -q or
                                       --run-metrics.
@@ -955,7 +963,9 @@ int TraceProcessorMain(int argc, char** argv) {
     }
 
     OutputFormat format;
-    if (options.metric_output == "binary") {
+    if (!options.query_file_path.empty()) {
+      format = OutputFormat::kNone;
+    } else if (options.metric_output == "binary") {
       format = OutputFormat::kBinaryProto;
     } else if (options.metric_output == "json") {
       format = OutputFormat::kJson;
@@ -969,24 +979,24 @@ int TraceProcessorMain(int argc, char** argv) {
     }
     if (ret)
       return ret;
-  } else {
-    // If we were given a query file, load contents
-    std::vector<std::string> queries;
-    if (!options.query_file_path.empty()) {
-      base::ScopedFstream file(fopen(options.query_file_path.c_str(), "r"));
-      if (!file) {
-        PERFETTO_ELOG("Could not open query file (path: %s)",
-                      options.query_file_path.c_str());
-        return 1;
-      }
-      if (!LoadQueries(file.get(), &queries)) {
-        return 1;
-      }
-    }
+  }
 
-    if (!RunQueryAndPrintResult(queries, stdout)) {
+  // If we were given a query file, load contents
+  std::vector<std::string> queries;
+  if (!options.query_file_path.empty()) {
+    base::ScopedFstream file(fopen(options.query_file_path.c_str(), "r"));
+    if (!file) {
+      PERFETTO_ELOG("Could not open query file (path: %s)",
+                    options.query_file_path.c_str());
       return 1;
     }
+    if (!LoadQueries(file.get(), &queries)) {
+      return 1;
+    }
+  }
+
+  if (!RunQueryAndPrintResult(queries, stdout)) {
+    return 1;
   }
 
   if (!options.sqlite_file_path.empty()) {
