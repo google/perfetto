@@ -219,8 +219,8 @@ declare_args() {
       enable_perfetto_trace_processor && !perfetto_build_with_android
 
   # Enables Fuchsia trace format support in trace processor.
-  # TODO(eseckler): Actually support this disabling this.
-  enable_perfetto_trace_processor_fuchsia = true
+  enable_perfetto_trace_processor_fuchsia =
+      enable_perfetto_trace_processor && !build_with_chromium
 }
 
 # +---------------------------------------------------------------------------+
