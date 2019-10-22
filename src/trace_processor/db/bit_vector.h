@@ -48,6 +48,8 @@ class BitVector {
   // Creates an empty bitvector.
   BitVector();
 
+  explicit BitVector(std::initializer_list<bool> init);
+
   // Creates a bitvector of |count| size filled with |value|.
   BitVector(uint32_t count, bool value = false);
 

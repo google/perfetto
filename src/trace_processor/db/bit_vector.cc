@@ -23,6 +23,16 @@ namespace trace_processor {
 
 BitVector::BitVector() = default;
 
+BitVector::BitVector(std::initializer_list<bool> init) {
+  for (bool x : init) {
+    if (x) {
+      AppendTrue();
+    } else {
+      AppendFalse();
+    }
+  }
+}
+
 BitVector::BitVector(uint32_t count, bool value) {
   Resize(count, value);
 }
