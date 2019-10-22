@@ -32,9 +32,9 @@ if (enable_perfetto_ui) {
     # outer "is_wasm" block.
     deps = [
       ":lib",
+      ":rpc",
       "../../gn:default_deps",
       "../../include/perfetto/ext/base",
-      "../../protos/perfetto/trace_processor:lite",
     ]
   }
 }
@@ -255,6 +255,22 @@ source_set("common") {
   ]
 }
 
+# This source_set is used both by WASM (for the function-call-based query
+# interface) and by the upcoming :httpd module for the HTTP interface.
+source_set("rpc") {
+  sources = [
+    "rpc.cc",
+    "rpc.h",
+  ]
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base",
+    "../../include/perfetto/protozero",
+    "../../protos/perfetto/trace_processor:zero",
+  ]
+}
+
 if (enable_perfetto_trace_processor_metrics) {  # shell requires metrics.
   perfetto_host_executable("trace_processor_shell") {
     deps = [
@@ -357,7 +373,6 @@ source_set("integrationtests") {
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/trace:lite",
-    "../../protos/perfetto/trace_processor:lite",
     "../base",
     "../base:test_support",
     "sqlite",
