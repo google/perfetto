@@ -15,7 +15,10 @@
  */
 
 #include "perfetto/ext/base/string_utils.h"
+
 #include "test/gtest_and_gmock.h"
+
+#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {
@@ -37,6 +40,68 @@ TEST(StringUtilsTest, Uppercase) {
   EXPECT_EQ(Uppercase('Z'), 'Z');
   EXPECT_EQ(Uppercase('z'), 'Z');
   EXPECT_EQ(Uppercase('!'), '!');
+}
+
+TEST(StringUtilsTest, CStringToUInt32) {
+  EXPECT_EQ(CStringToUInt32("0"), make_optional<uint32_t>(0U));
+  EXPECT_EQ(CStringToUInt32("1"), make_optional<uint32_t>(1U));
+  EXPECT_EQ(CStringToUInt32("42"), make_optional<uint32_t>(42U));
+  EXPECT_EQ(CStringToUInt32(""), nullopt);
+  EXPECT_EQ(CStringToUInt32("!?"), nullopt);
+  EXPECT_EQ(CStringToUInt32("abc"), nullopt);
+  EXPECT_EQ(CStringToUInt32("123 abc"), nullopt);
+}
+
+TEST(StringUtilsTest, CStringToInt32) {
+  EXPECT_EQ(CStringToInt32("0"), make_optional<int32_t>(0));
+  EXPECT_EQ(CStringToInt32("1"), make_optional<int32_t>(1));
+  EXPECT_EQ(CStringToInt32("-42"), make_optional<int32_t>(-42));
+  EXPECT_EQ(CStringToInt32(""), nullopt);
+  EXPECT_EQ(CStringToInt32("!?"), nullopt);
+  EXPECT_EQ(CStringToInt32("abc"), nullopt);
+  EXPECT_EQ(CStringToInt32("123 abc"), nullopt);
+}
+
+TEST(StringUtilsTest, CStringToDouble) {
+  EXPECT_DOUBLE_EQ(CStringToDouble("0").value(), 0l);
+  EXPECT_DOUBLE_EQ(CStringToDouble("1").value(), 1l);
+  EXPECT_DOUBLE_EQ(CStringToDouble("-42").value(), -42l);
+  EXPECT_DOUBLE_EQ(CStringToDouble("-42.5").value(), -42.5l);
+  EXPECT_EQ(CStringToDouble(""), nullopt);
+  EXPECT_EQ(CStringToDouble("!?"), nullopt);
+  EXPECT_EQ(CStringToDouble("abc"), nullopt);
+  EXPECT_EQ(CStringToDouble("123 abc"), nullopt);
+}
+
+TEST(StringUtilsTest, StringToUInt32) {
+  EXPECT_EQ(StringToUInt32("0"), make_optional<uint32_t>(0U));
+  EXPECT_EQ(StringToUInt32("1"), make_optional<uint32_t>(1U));
+  EXPECT_EQ(StringToUInt32("42"), make_optional<uint32_t>(42U));
+  EXPECT_EQ(StringToUInt32(""), nullopt);
+  EXPECT_EQ(StringToUInt32("!?"), nullopt);
+  EXPECT_EQ(StringToUInt32("abc"), nullopt);
+  EXPECT_EQ(StringToUInt32("123 abc"), nullopt);
+}
+
+TEST(StringUtilsTest, StringToInt32) {
+  EXPECT_EQ(StringToInt32("0"), make_optional<int32_t>(0));
+  EXPECT_EQ(StringToInt32("1"), make_optional<int32_t>(1));
+  EXPECT_EQ(StringToInt32("-42"), make_optional<int32_t>(-42));
+  EXPECT_EQ(StringToInt32(""), nullopt);
+  EXPECT_EQ(StringToInt32("!?"), nullopt);
+  EXPECT_EQ(StringToInt32("abc"), nullopt);
+  EXPECT_EQ(StringToInt32("123 abc"), nullopt);
+}
+
+TEST(StringUtilsTest, StringToDouble) {
+  EXPECT_DOUBLE_EQ(StringToDouble("0").value(), 0l);
+  EXPECT_DOUBLE_EQ(StringToDouble("1").value(), 1l);
+  EXPECT_DOUBLE_EQ(StringToDouble("-42").value(), -42l);
+  EXPECT_DOUBLE_EQ(StringToDouble("-42.5").value(), -42.5l);
+  EXPECT_EQ(StringToDouble(""), nullopt);
+  EXPECT_EQ(StringToDouble("!?"), nullopt);
+  EXPECT_EQ(StringToDouble("abc"), nullopt);
+  EXPECT_EQ(StringToDouble("123 abc"), nullopt);
 }
 
 TEST(StringUtilsTest, StartsWith) {
