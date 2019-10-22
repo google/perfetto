@@ -15,8 +15,8 @@
 import("../../../gn/proto_library.gni")
 import("proto_files.gni")
 
-perfetto_proto_library("lite") {
-  proto_generators = [ "lite" ]
+perfetto_proto_library("@TYPE@") {
+  proto_generators = [ "zero" ]
   sources = []
   foreach(source, trace_processor_protos) {
     sources += [ "$source.proto" ]
