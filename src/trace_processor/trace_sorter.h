@@ -21,7 +21,6 @@
 
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
 #include "src/trace_processor/proto_incremental_state.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
@@ -34,6 +33,8 @@ class Value;
 
 namespace perfetto {
 namespace trace_processor {
+
+class FuchsiaProviderView;
 
 // This class takes care of sorting events parsed from the trace stream in
 // arbitrary order and pushing them to the next pipeline stages (parsing) in
