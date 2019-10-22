@@ -87,14 +87,7 @@ source_set("lib") {
     "importers/ftrace/ftrace_parser.h",
     "importers/ftrace/ftrace_tokenizer.h",
     "importers/ftrace/sched_event_tracker.h",
-    "importers/fuchsia/fuchsia_provider_view.cc",
     "importers/fuchsia/fuchsia_provider_view.h",
-    "importers/fuchsia/fuchsia_trace_parser.cc",
-    "importers/fuchsia/fuchsia_trace_parser.h",
-    "importers/fuchsia/fuchsia_trace_tokenizer.cc",
-    "importers/fuchsia/fuchsia_trace_tokenizer.h",
-    "importers/fuchsia/fuchsia_trace_utils.cc",
-    "importers/fuchsia/fuchsia_trace_utils.h",
     "importers/proto/proto_importer_module.h",
     "importers/proto/track_event_module.h",
     "importers/systrace/systrace_parser.h",
@@ -238,6 +231,17 @@ source_set("lib") {
       "metrics:lib",
     ]
   }
+  if (enable_perfetto_trace_processor_fuchsia) {
+    sources += [
+      "importers/fuchsia/fuchsia_provider_view.cc",
+      "importers/fuchsia/fuchsia_trace_parser.cc",
+      "importers/fuchsia/fuchsia_trace_parser.h",
+      "importers/fuchsia/fuchsia_trace_tokenizer.cc",
+      "importers/fuchsia/fuchsia_trace_tokenizer.h",
+      "importers/fuchsia/fuchsia_trace_utils.cc",
+      "importers/fuchsia/fuchsia_trace_utils.h",
+    ]
+  }
 }
 
 # TODO(lalitm): we need to find a better home for the classes here.
@@ -288,7 +292,6 @@ perfetto_unittest_source_set("unittests") {
     "filtered_row_index_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
     "heap_profile_tracker_unittest.cc",
-    "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
     "metadata_table_unittest.cc",
     "null_term_string_view_unittest.cc",
@@ -344,6 +347,9 @@ perfetto_unittest_source_set("unittests") {
       "sched_slice_table_unittest.cc",
       "thread_table_unittest.cc",
     ]
+  }
+  if (enable_perfetto_trace_processor_fuchsia) {
+    sources += [ "importers/fuchsia/fuchsia_trace_utils_unittest.cc" ]
   }
 }
 
