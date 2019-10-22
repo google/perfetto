@@ -195,6 +195,9 @@ class TracingMuxerImpl : public TracingMuxer {
     void NotifyStartComplete();
     void NotifyStopComplete();
 
+    // Will eventually inform the |muxer_| when it is safe to remove |this|.
+    void Disconnect();
+
     TracingMuxerImpl* const muxer_;
     TracingBackendId const backend_id_;
     TracingSessionGlobalID const session_id_;
@@ -283,6 +286,7 @@ class TracingMuxerImpl : public TracingMuxer {
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
+  void OnConsumerDisconnected(ConsumerImpl* consumer);
 
   struct FindDataSourceRes {
     FindDataSourceRes() = default;
