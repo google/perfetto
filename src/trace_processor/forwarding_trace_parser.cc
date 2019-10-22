@@ -19,12 +19,15 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/gzip_trace_parser.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/proto_trace_tokenizer.h"
 #include "src/trace_processor/trace_sorter.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
 
 // JSON parsing and exporting is only supported in the standalone and
 // Chromium builds.
@@ -91,12 +94,16 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         break;
       }
       case kFuchsiaTraceType: {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         PERFETTO_DLOG("Fuchsia trace detected");
         // Fuschia traces can have massively out of order events.
         int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         reader_.reset(new FuchsiaTraceTokenizer(context_));
         context_->sorter.reset(new TraceSorter(context_, window_size_ns));
         context_->parser.reset(new FuchsiaTraceParser(context_));
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
+        PERFETTO_FATAL("Fuchsia traces not supported.");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         break;
       }
       case kSystraceTraceType:
