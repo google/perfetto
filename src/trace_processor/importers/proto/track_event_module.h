@@ -65,7 +65,6 @@ class TrackEventModule : public ProtoImporterModuleBase</*IsEnabled=*/1> {
 
   ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
                            const TimestampedTracePiece& ttp) {
-    // TODO(eseckler): implement.
     if (decoder.has_track_event()) {
       parser_.ParseTrackEvent(
           ttp.timestamp, ttp.thread_timestamp, ttp.thread_instruction_count,
