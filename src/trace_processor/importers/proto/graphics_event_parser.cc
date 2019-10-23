@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/graphics_event_parser.h"
+#include "src/trace_processor/importers/proto/graphics_event_parser.h"
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/args_tracker.h"
@@ -34,8 +34,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-
-GraphicsEventParser::~GraphicsEventParser() = default;
 
 GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
     : context_(context),

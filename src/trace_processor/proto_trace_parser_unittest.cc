@@ -24,6 +24,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -255,6 +256,8 @@ class ProtoTraceParserTest : public ::testing::Test {
         new ProtoImporterModule<FtraceModule>(&context_));
     context_.track_event_module.reset(
         new ProtoImporterModule<TrackEventModule>(&context_));
+    context_.graphics_event_module.reset(
+        new ProtoImporterModule<GraphicsEventModule>(&context_));
   }
 
   void ResetTraceBuffers() {

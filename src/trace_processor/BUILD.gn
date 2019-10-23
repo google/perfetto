@@ -72,8 +72,6 @@ source_set("lib") {
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
     "ftrace_utils.h",
-    "graphics_event_parser.cc",
-    "graphics_event_parser.h",
     "gzip_trace_parser.cc",
     "gzip_trace_parser.h",
     "heap_graph_tracker.cc",
@@ -88,6 +86,8 @@ source_set("lib") {
     "importers/ftrace/ftrace_tokenizer.h",
     "importers/ftrace/sched_event_tracker.h",
     "importers/fuchsia/fuchsia_provider_view.h",
+    "importers/proto/graphics_event_module.h",
+    "importers/proto/graphics_event_parser.h",
     "importers/proto/packet_sequence_state.h",
     "importers/proto/proto_importer_module.h",
     "importers/proto/proto_incremental_state.h",
@@ -229,6 +229,9 @@ source_set("lib") {
   if (enable_perfetto_trace_processor_ftrace ||
       enable_perfetto_trace_processor_fuchsia) {
     sources += [ "ftrace_utils.cc" ]
+  }
+  if (enable_perfetto_trace_processor_graphics) {
+    sources += [ "importers/proto/graphics_event_parser.cc" ]
   }
   if (enable_perfetto_trace_processor_metrics) {
     deps += [
