@@ -229,14 +229,10 @@ void ExportJson(sqlite3_context* ctx, int /*argc*/, sqlite3_value** argv) {
     }
   }
 
-  json::ResultCode result = json::ExportJson(storage, output);
-  switch (result) {
-    case json::kResultOk:
-      return;
-    case json::kResultWrongRefType:
-      sqlite3_result_error(ctx, "Encountered a slice with unsupported ref type",
-                           -1);
-      return;
+  util::Status result = json::ExportJson(storage, output);
+  if (!result.ok()) {
+    sqlite3_result_error(ctx, result.message().c_str(), -1);
+    return;
   }
 }
 
