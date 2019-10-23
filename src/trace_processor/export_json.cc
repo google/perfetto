@@ -17,6 +17,9 @@
 #include "perfetto/base/build_config.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
+#include "perfetto/ext/trace_processor/export_json.h"
+#include "src/trace_processor/export_json.h"
+
 #include <inttypes.h>
 #include <json/reader.h>
 #include <json/value.h>
@@ -26,8 +29,9 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_splitter.h"
-#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/metadata.h"
+#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/trace_processor_impl.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -63,9 +67,27 @@ const char* GetNonNullString(const TraceStorage* storage, StringId id) {
   return id == kNullStringId ? "" : storage->GetString(id).c_str();
 }
 
+class FileWriter : public OutputWriter {
+ public:
+  FileWriter(FILE* file) : file_(file) {}
+  ~FileWriter() override { fflush(file_); }
+
+  util::Status AppendString(const std::string& s) override {
+    size_t written =
+        fwrite(s.data(), sizeof(std::string::value_type), s.size(), file_);
+    if (written != s.size())
+      return util::ErrStatus("Error writing to file: %d", ferror(file_));
+    return util::OkStatus();
+  }
+
+ private:
+  FILE* file_;
+};
+
 class TraceFormatWriter {
  public:
-  TraceFormatWriter(FILE* output) : output_(output), first_event_(true) {
+  TraceFormatWriter(OutputWriter* output)
+      : output_(output), first_event_(true) {
     WriteHeader();
   }
 
@@ -73,10 +95,10 @@ class TraceFormatWriter {
 
   void WriteCommonEvent(const Json::Value& event) {
     if (!first_event_) {
-      fputs(",", output_);
+      output_->AppendString(",");
     }
     Json::FastWriter writer;
-    fputs(writer.write(event).c_str(), output_);
+    output_->AppendString(writer.write(event));
     first_event_ = false;
   }
 
@@ -85,7 +107,7 @@ class TraceFormatWriter {
                           uint32_t tid,
                           uint32_t pid) {
     if (!first_event_) {
-      fputs(",", output_);
+      output_->AppendString(",");
     }
     Json::FastWriter writer;
     Json::Value value;
@@ -100,7 +122,7 @@ class TraceFormatWriter {
     args["name"] = metadata_value;
     value["args"] = args;
 
-    fputs(writer.write(value).c_str(), output_);
+    output_->AppendString(writer.write(value));
     first_event_ = false;
   }
 
@@ -144,7 +166,7 @@ class TraceFormatWriter {
   void AddUserTraceData(const std::string& data) { user_trace_data_ += data; }
 
  private:
-  void WriteHeader() { fputs("{\"traceEvents\":[\n", output_); }
+  void WriteHeader() { output_->AppendString("{\"traceEvents\":[\n"); }
 
   void WriteFooter() {
     Json::FastWriter writer;
@@ -159,20 +181,19 @@ class TraceFormatWriter {
             user_trace_data_.c_str());
       }
     }
-    fputs("]", output_);
+    output_->AppendString("]");
     if (!system_trace_data_.empty()) {
-      fputs(",\"systemTraceEvents\":\n", output_);
-      fputs(writer.write(Json::Value(system_trace_data_)).c_str(), output_);
+      output_->AppendString(",\"systemTraceEvents\":\n");
+      output_->AppendString(writer.write(Json::Value(system_trace_data_)));
     }
     if (!metadata_.empty()) {
-      fputs(",\"metadata\":\n", output_);
-      fputs(writer.write(metadata_).c_str(), output_);
+      output_->AppendString(",\"metadata\":\n");
+      output_->AppendString(writer.write(metadata_));
     }
-    fputs("}", output_);
-    fflush(output_);
+    output_->AppendString("}");
   }
 
-  FILE* output_;
+  OutputWriter* output_;
   bool first_event_;
   Json::Value metadata_;
   std::string system_trace_data_;
@@ -315,8 +336,8 @@ void ConvertLegacyFlowEventArgs(const Json::Value& legacy_args,
   }
 }
 
-ResultCode ExportThreadNames(const TraceStorage* storage,
-                             TraceFormatWriter* writer) {
+util::Status ExportThreadNames(const TraceStorage* storage,
+                               TraceFormatWriter* writer) {
   for (UniqueTid i = 1; i < storage->thread_count(); ++i) {
     auto thread = storage->GetThread(i);
     if (!thread.name_id.is_null()) {
@@ -325,11 +346,11 @@ ResultCode ExportThreadNames(const TraceStorage* storage,
       writer->WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
     }
   }
-  return kResultOk;
+  return util::OkStatus();
 }
 
-ResultCode ExportProcessNames(const TraceStorage* storage,
-                              TraceFormatWriter* writer) {
+util::Status ExportProcessNames(const TraceStorage* storage,
+                                TraceFormatWriter* writer) {
   for (UniquePid i = 1; i < storage->process_count(); ++i) {
     auto process = storage->GetProcess(i);
     if (!process.name_id.is_null()) {
@@ -337,12 +358,12 @@ ResultCode ExportProcessNames(const TraceStorage* storage,
       writer->WriteMetadataEvent("process_name", process_name, 0, process.pid);
     }
   }
-  return kResultOk;
+  return util::OkStatus();
 }
 
-ResultCode ExportSlices(const TraceStorage* storage,
-                        const ArgsBuilder& args_builder,
-                        TraceFormatWriter* writer) {
+util::Status ExportSlices(const TraceStorage* storage,
+                          const ArgsBuilder& args_builder,
+                          TraceFormatWriter* writer) {
   const auto& slices = storage->nestable_slices();
   for (uint32_t i = 0; i < slices.slice_count(); ++i) {
     Json::Value event;
@@ -472,12 +493,14 @@ ResultCode ExportSlices(const TraceStorage* storage,
         } else if (slices.types()[i] == RefType::kRefNoRef) {
           event["s"] = "g";
         } else {
-          return kResultWrongRefType;
+          return util::ErrStatus("unknown ref type: %d",
+                                 static_cast<int>(slices.types()[i]));
         }
         writer->WriteCommonEvent(event);
       } else {  // Complete event.
         if (slices.types()[i] != RefType::kRefUtid) {
-          return kResultWrongRefType;
+          return util::ErrStatus("unknown ref type: %d",
+                                 static_cast<int>(slices.types()[i]));
         }
         if (duration_ns > 0) {
           event["ph"] = "X";
@@ -509,7 +532,7 @@ ResultCode ExportSlices(const TraceStorage* storage,
       }
     }
   }
-  return kResultOk;
+  return util::OkStatus();
 }
 
 Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
@@ -587,9 +610,9 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
   return event;
 }
 
-ResultCode ExportRawEvents(const TraceStorage* storage,
-                           const ArgsBuilder& args_builder,
-                           TraceFormatWriter* writer) {
+util::Status ExportRawEvents(const TraceStorage* storage,
+                             const ArgsBuilder& args_builder,
+                             TraceFormatWriter* writer) {
   base::Optional<StringId> raw_legacy_event_key_id =
       storage->string_pool().GetId("track_event.legacy_event");
   base::Optional<StringId> raw_legacy_system_trace_event_id =
@@ -621,11 +644,11 @@ ResultCode ExportRawEvents(const TraceStorage* storage,
       writer->MergeMetadata(args);
     }
   }
-  return kResultOk;
+  return util::OkStatus();
 }
 
-ResultCode ExportCpuProfileSamples(const TraceStorage* storage,
-                                   TraceFormatWriter* writer) {
+util::Status ExportCpuProfileSamples(const TraceStorage* storage,
+                                     TraceFormatWriter* writer) {
   const TraceStorage::CpuProfileStackSamples& samples =
       storage->cpu_profile_stack_samples();
   for (uint32_t i = 0; i < samples.size(); ++i) {
@@ -695,11 +718,11 @@ ResultCode ExportCpuProfileSamples(const TraceStorage* storage,
     writer->WriteCommonEvent(event);
   }
 
-  return kResultOk;
+  return util::OkStatus();
 }
 
-ResultCode ExportMetadata(const TraceStorage* storage,
-                          TraceFormatWriter* writer) {
+util::Status ExportMetadata(const TraceStorage* storage,
+                            TraceFormatWriter* writer) {
   const auto& trace_metadata = storage->metadata();
   const auto& keys = trace_metadata.keys();
   const auto& values = trace_metadata.values();
@@ -761,10 +784,11 @@ ResultCode ExportMetadata(const TraceStorage* storage,
         break;
     }
   }
-  return kResultOk;
+  return util::OkStatus();
 }
 
-ResultCode ExportStats(const TraceStorage* storage, TraceFormatWriter* writer) {
+util::Status ExportStats(const TraceStorage* storage,
+                         TraceFormatWriter* writer) {
   const auto& stats = storage->stats();
 
   writer->SetPerfettoStats("producers_connected",
@@ -833,44 +857,68 @@ ResultCode ExportStats(const TraceStorage* storage, TraceFormatWriter* writer) {
       "trace_writer_packet_loss",
       stats[stats::traced_buf_trace_writer_packet_loss].indexed_values);
 
-  return kResultOk;
+  return util::OkStatus();
+}
+
+util::Status ExportJson(const TraceStorage* storage,
+                        OutputWriter* output,
+                        ArgumentFilterPredicate /*argument_filter*/,
+                        MetadataFilterPredicate /*metadata_filter*/,
+                        LabelFilterPredicate /*label_filter*/) {
+  // TODO(eseckler): Implement argument/metadata/label filtering.
+  TraceFormatWriter writer(output);
+  ArgsBuilder args_builder(storage);
+
+  util::Status status = ExportThreadNames(storage, &writer);
+  if (!status.ok())
+    return status;
+
+  status = ExportProcessNames(storage, &writer);
+  if (!status.ok())
+    return status;
+
+  status = ExportSlices(storage, args_builder, &writer);
+  if (!status.ok())
+    return status;
+
+  status = ExportRawEvents(storage, args_builder, &writer);
+  if (!status.ok())
+    return status;
+
+  status = ExportCpuProfileSamples(storage, &writer);
+  if (!status.ok())
+    return status;
+
+  status = ExportMetadata(storage, &writer);
+  if (!status.ok())
+    return status;
+
+  status = ExportStats(storage, &writer);
+  if (!status.ok())
+    return status;
+
+  return util::OkStatus();
 }
 
 }  // namespace
 
-ResultCode ExportJson(const TraceStorage* storage, FILE* output) {
-  TraceFormatWriter writer(output);
-  ArgsBuilder args_builder(storage);
+OutputWriter::OutputWriter() = default;
+OutputWriter::~OutputWriter() = default;
 
-  ResultCode code = ExportThreadNames(storage, &writer);
-  if (code != kResultOk)
-    return code;
+util::Status ExportJson(TraceProcessor* tp,
+                        OutputWriter* output,
+                        ArgumentFilterPredicate argument_filter,
+                        MetadataFilterPredicate metadata_filter,
+                        LabelFilterPredicate label_filter) {
+  const TraceStorage* storage =
+      reinterpret_cast<TraceProcessorImpl*>(tp)->context()->storage.get();
+  return ExportJson(storage, output, argument_filter, metadata_filter,
+                    label_filter);
+}
 
-  code = ExportProcessNames(storage, &writer);
-  if (code != kResultOk)
-    return code;
-
-  code = ExportSlices(storage, args_builder, &writer);
-  if (code != kResultOk)
-    return code;
-
-  code = ExportRawEvents(storage, args_builder, &writer);
-  if (code != kResultOk)
-    return code;
-
-  code = ExportCpuProfileSamples(storage, &writer);
-  if (code != kResultOk)
-    return code;
-
-  code = ExportMetadata(storage, &writer);
-  if (code != kResultOk)
-    return code;
-
-  code = ExportStats(storage, &writer);
-  if (code != kResultOk)
-    return code;
-
-  return kResultOk;
+util::Status ExportJson(const TraceStorage* storage, FILE* output) {
+  FileWriter writer(output);
+  return ExportJson(storage, &writer, nullptr, nullptr, nullptr);
 }
 
 }  // namespace json

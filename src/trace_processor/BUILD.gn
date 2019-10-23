@@ -177,6 +177,7 @@ source_set("lib") {
     "../../gn:default_deps",
     "../../gn:sqlite",
     "../../gn:zlib",
+    "../../include/perfetto/ext/trace_processor:export_json",
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:zero",
