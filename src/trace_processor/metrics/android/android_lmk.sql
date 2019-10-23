@@ -55,5 +55,6 @@ SELECT AndroidLmkMetric(
         'count', count
       ))
     FROM lmk_counts
+    WHERE score IS NOT NULL
   )
 );
