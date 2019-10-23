@@ -39,26 +39,6 @@ const char kTraceFooter[] = R"(,
 
 bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
                            TraceWriter* writer) {
-  // First check if there are any non-Chrome events. If so then bail out.
-  // TODO(eseckler): support merged Android/Chrome traces.
-  static const char kSystemEventsQuery[] =
-      "select count(1) from raw "
-      "where name not like 'chrome.%' "
-      "and name not like 'track_event.%'";
-  auto raw_it = tp->ExecuteQuery(kSystemEventsQuery);
-  if (!raw_it.Next()) {
-    auto status = raw_it.Status();
-    PERFETTO_ELOG("Failed when counting non-Chrome raw events %s.",
-                  status.c_message());
-    return false;
-  }
-  auto count_val = raw_it.Get(0);
-  PERFETTO_CHECK(count_val.type == trace_processor::SqlValue::kLong);
-  PERFETTO_DCHECK(!raw_it.Next());
-
-  if (count_val.long_value > 0)
-    return false;
-
   fprintf(stderr, "Converting userspace events%c", kProgressChar);
   fflush(stderr);
 
