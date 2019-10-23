@@ -175,6 +175,10 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz15252) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_15252", 4096).ok());
 }
 
+TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_17805", 4096).ok());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
