@@ -256,7 +256,7 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
   perfetto::base::UnixSocketRaw parent_sock;
   perfetto::base::UnixSocketRaw child_sock;
   std::tie(parent_sock, child_sock) = perfetto::base::UnixSocketRaw::CreatePair(
-      perfetto::base::SockType::kStream);
+      perfetto::base::SockFamily::kUnix, perfetto::base::SockType::kStream);
 
   if (!parent_sock || !child_sock) {
     PERFETTO_PLOG("Failed to create socketpair.");

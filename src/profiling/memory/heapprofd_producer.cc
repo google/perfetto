@@ -137,7 +137,7 @@ void HeapprofdProducer::AdoptTargetProcessSocket() {
   PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
   auto socket = base::UnixSocket::AdoptConnected(
       std::move(inherited_fd_), &socket_delegate_, task_runner_,
-      base::SockType::kStream);
+      base::SockFamily::kUnix, base::SockType::kStream);
 
   HandleClientConnection(std::move(socket), target_process_);
 }
@@ -609,7 +609,6 @@ bool HeapprofdProducer::DumpProcessesInDataSource(DataSourceInstanceID id) {
     return false;
   }
   DataSource& data_source = it->second;
-
 
   for (std::pair<const pid_t, ProcessState>& pid_and_process_state :
        data_source.process_states) {
