@@ -383,28 +383,44 @@ util::Status ExportSlices(const TraceStorage* storage,
       }
     }
 
-    if (slices.types()[i] == RefType::kRefTrack) {  // Async event.
-      TrackId track_id = static_cast<TrackId>(slices.refs()[i]);
+    // To prevent duplicate export of slices, only export slices on descriptor
+    // or chrome tracks (i.e. TrackEvent slices). Slices on other tracks may
+    // also be present as raw events and handled by trace_to_text. Only add more
+    // track types here if they are not already covered by trace_to_text.
+    auto track_id = slices.track_id()[i];
+    auto track_args_id = storage->track_table().source_arg_set_id()[track_id];
+    if (!track_args_id)
+      continue;
+    const auto& track_args = args_builder.GetArgs(*track_args_id);
+    bool legacy_chrome_track = track_args["source"].asString() == "chrome";
+    if (!track_args.isMember("source") ||
+        (!legacy_chrome_track &&
+         track_args["source"].asString() != "descriptor")) {
+      continue;
+    }
 
-      // TODO(lalitm): add a check here for looking up source_arg_set_id
-      // and checking that this track originated from Chrome.
+    const auto& thread_track = storage->thread_track_table();
+    const auto& process_track = storage->process_track_table();
+    const auto& thread_slices = storage->thread_slices();
+    const auto& virtual_track_slices = storage->virtual_track_slices();
 
-      const auto& process_track = storage->process_track_table();
-      auto opt_process_row =
-          process_track.id().IndexOf(SqlValue::Long(track_id));
-      if (opt_process_row.has_value()) {
-        uint32_t upid = process_track.upid()[*opt_process_row];
-        event["id2"]["local"] = PrintUint64(track_id);
-        event["pid"] = storage->GetProcess(upid).pid;
-      } else {
-        event["id2"]["global"] = PrintUint64(track_id);
-      }
+    int64_t duration_ns = slices.durations()[i];
+    int64_t thread_ts_ns = 0;
+    int64_t thread_duration_ns = 0;
+    int64_t thread_instruction_count = 0;
+    int64_t thread_instruction_delta = 0;
 
-      const auto& virtual_track_slices = storage->virtual_track_slices();
-      int64_t thread_ts_ns = 0;
-      int64_t thread_duration_ns = 0;
-      int64_t thread_instruction_count = 0;
-      int64_t thread_instruction_delta = 0;
+    base::Optional<uint32_t> thread_slice_row =
+        thread_slices.FindRowForSliceId(i);
+    if (thread_slice_row) {
+      thread_ts_ns = thread_slices.thread_timestamp_ns()[*thread_slice_row];
+      thread_duration_ns =
+          thread_slices.thread_duration_ns()[*thread_slice_row];
+      thread_instruction_count =
+          thread_slices.thread_instruction_counts()[*thread_slice_row];
+      thread_instruction_delta =
+          thread_slices.thread_instruction_deltas()[*thread_slice_row];
+    } else {
       base::Optional<uint32_t> vtrack_slice_row =
           virtual_track_slices.FindRowForSliceId(i);
       if (vtrack_slice_row) {
@@ -417,6 +433,68 @@ util::Status ExportSlices(const TraceStorage* storage,
         thread_instruction_delta =
             virtual_track_slices.thread_instruction_deltas()[*vtrack_slice_row];
       }
+    }
+
+    auto opt_thread_track_row =
+        thread_track.id().IndexOf(SqlValue::Long(track_id));
+
+    if (opt_thread_track_row) {
+      // Synchronous (thread) slice or instant event.
+      UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
+      auto thread = storage->GetThread(utid);
+
+      if (duration_ns == 0) {
+        event["ph"] = "i";
+        if (thread.upid) {
+          event["pid"] = storage->GetProcess(*thread.upid).pid;
+        }
+        if (thread_ts_ns > 0) {
+          event["tts"] = Json::Int64(thread_ts_ns / 1000);
+        }
+        if (thread_instruction_count > 0) {
+          event["ticount"] = Json::Int64(thread_instruction_count);
+        }
+        event["tid"] = thread.tid;
+        event["s"] = "t";
+      } else {
+        if (duration_ns > 0) {
+          event["ph"] = "X";
+          event["dur"] = Json::Int64(duration_ns / 1000);
+        } else {
+          // If the slice didn't finish, the duration may be negative. Only
+          // write a begin event without end event in this case.
+          event["ph"] = "B";
+        }
+        event["tid"] = thread.tid;
+        if (thread.upid) {
+          event["pid"] = storage->GetProcess(*thread.upid).pid;
+        }
+        if (thread_ts_ns > 0) {
+          event["tts"] = Json::Int64(thread_ts_ns / 1000);
+          // Only write thread duration for completed events.
+          if (duration_ns > 0)
+            event["tdur"] = Json::Int64(thread_duration_ns / 1000);
+        }
+        if (thread_instruction_count > 0) {
+          event["ticount"] = Json::Int64(thread_instruction_count);
+          // Only write thread instruction delta for completed events.
+          if (duration_ns > 0)
+            event["tidelta"] = Json::Int64(thread_instruction_delta);
+        }
+      }
+      writer->WriteCommonEvent(event);
+    } else if (!legacy_chrome_track ||
+               (legacy_chrome_track && track_args.isMember("source_id"))) {
+      // Async event slice.
+      auto opt_process_row =
+          process_track.id().IndexOf(SqlValue::Long(track_id));
+      if (opt_process_row) {
+        uint32_t upid = process_track.upid()[*opt_process_row];
+        event["id2"]["local"] = PrintUint64(track_id);
+        event["pid"] = storage->GetProcess(upid).pid;
+      } else {
+        event["id2"]["global"] = PrintUint64(track_id);
+      }
 
       if (thread_ts_ns > 0) {
         event["tts"] = Json::Int64(thread_ts_ns / 1000);
@@ -427,7 +505,6 @@ util::Status ExportSlices(const TraceStorage* storage,
         event["use_async_tts"] = Json::Int(1);
       }
 
-      int64_t duration_ns = slices.durations()[i];
       if (duration_ns == 0) {  // Instant async event.
         event["ph"] = "n";
         writer->WriteCommonEvent(event);
@@ -452,84 +529,21 @@ util::Status ExportSlices(const TraceStorage* storage,
           writer->WriteCommonEvent(event);
         }
       }
-    } else {  // Sync event.
-      const auto& thread_slices = storage->thread_slices();
-      int64_t thread_ts_ns = 0;
-      int64_t thread_duration_ns = 0;
-      int64_t thread_instruction_count = 0;
-      int64_t thread_instruction_delta = 0;
-      base::Optional<uint32_t> thread_slice_row =
-          thread_slices.FindRowForSliceId(i);
-      if (thread_slice_row) {
-        thread_ts_ns = thread_slices.thread_timestamp_ns()[*thread_slice_row];
-        thread_duration_ns =
-            thread_slices.thread_duration_ns()[*thread_slice_row];
-        thread_instruction_count =
-            thread_slices.thread_instruction_counts()[*thread_slice_row];
-        thread_instruction_delta =
-            thread_slices.thread_instruction_deltas()[*thread_slice_row];
+    } else {
+      // Global or process-scoped instant event.
+      PERFETTO_DCHECK(duration_ns == 0);
+      event["ph"] = "i";
+
+      auto opt_process_row =
+          process_track.id().IndexOf(SqlValue::Long(track_id));
+      if (opt_process_row.has_value()) {
+        uint32_t upid = process_track.upid()[*opt_process_row];
+        event["pid"] = storage->GetProcess(upid).pid;
+        event["s"] = "p";
+      } else {
+        event["s"] = "g";
       }
-      int64_t duration_ns = slices.durations()[i];
-      if (duration_ns == 0) {  // Instant event.
-        event["ph"] = "i";
-        if (slices.types()[i] == RefType::kRefUtid) {
-          UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
-          auto thread = storage->GetThread(utid);
-          if (thread.upid) {
-            event["pid"] = storage->GetProcess(*thread.upid).pid;
-          }
-          if (thread_ts_ns > 0) {
-            event["tts"] = Json::Int64(thread_ts_ns / 1000);
-          }
-          if (thread_instruction_count > 0) {
-            event["ticount"] = Json::Int64(thread_instruction_count);
-          }
-          event["tid"] = thread.tid;
-          event["s"] = "t";
-        } else if (slices.types()[i] == RefType::kRefUpid) {
-          UniquePid upid = static_cast<UniquePid>(slices.refs()[i]);
-          event["pid"] = storage->GetProcess(upid).pid;
-          event["s"] = "p";
-        } else if (slices.types()[i] == RefType::kRefNoRef) {
-          event["s"] = "g";
-        } else {
-          return util::ErrStatus("unknown ref type: %d",
-                                 static_cast<int>(slices.types()[i]));
-        }
-        writer->WriteCommonEvent(event);
-      } else {  // Complete event.
-        if (slices.types()[i] != RefType::kRefUtid) {
-          return util::ErrStatus("unknown ref type: %d",
-                                 static_cast<int>(slices.types()[i]));
-        }
-        if (duration_ns > 0) {
-          event["ph"] = "X";
-          event["dur"] = Json::Int64(duration_ns / 1000);
-        } else {
-          // If the slice didn't finish, the duration may be negative. Only
-          // write a begin event without end event in this case.
-          event["ph"] = "B";
-        }
-        UniqueTid utid = static_cast<UniqueTid>(slices.refs()[i]);
-        auto thread = storage->GetThread(utid);
-        event["tid"] = thread.tid;
-        if (thread.upid) {
-          event["pid"] = storage->GetProcess(*thread.upid).pid;
-        }
-        if (thread_ts_ns > 0) {
-          event["tts"] = Json::Int64(thread_ts_ns / 1000);
-          // Only write thread duration for completed events.
-          if (duration_ns > 0)
-            event["tdur"] = Json::Int64(thread_duration_ns / 1000);
-        }
-        if (thread_instruction_count > 0) {
-          event["ticount"] = Json::Int64(thread_instruction_count);
-          // Only write thread instruction delta for completed events.
-          if (duration_ns > 0)
-            event["tidelta"] = Json::Int64(thread_instruction_delta);
-        }
-        writer->WriteCommonEvent(event);
-      }
+      writer->WriteCommonEvent(event);
     }
   }
   return util::OkStatus();
