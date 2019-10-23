@@ -56,8 +56,10 @@ base::ScopedFile CopyFD(int fd) {
   int sv[2];
   PERFETTO_CHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
   base::UnixSocketRaw send_sock(base::ScopedFile(sv[0]),
+                                base::SockFamily::kUnix,
                                 base::SockType::kStream);
   base::UnixSocketRaw recv_sock(base::ScopedFile(sv[1]),
+                                base::SockFamily::kUnix,
                                 base::SockType::kStream);
   char msg[] = "a";
   PERFETTO_CHECK(send_sock.Send(msg, sizeof(msg), &fd, 1));

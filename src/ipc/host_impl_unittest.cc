@@ -88,7 +88,9 @@ class FakeClient : public base::UnixSocket::EventListener {
   MOCK_METHOD0(OnRequestError, void());
 
   explicit FakeClient(base::TaskRunner* task_runner) {
-    sock_ = base::UnixSocket::Connect(kSockName, this, task_runner);
+    sock_ = base::UnixSocket::Connect(kSockName, this, task_runner,
+                                      base::SockFamily::kUnix,
+                                      base::SockType::kStream);
   }
 
   ~FakeClient() override = default;
@@ -334,15 +336,15 @@ TEST_F(HostImplTest, SendFileDescriptor) {
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
   EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
-      .WillOnce(Invoke([on_reply_sent, &tx_file](const RequestProto&,
-                                                 DeferredBase* reply) {
-        std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
-        auto async_res = AsyncResult<ProtoMessage>(
-            std::unique_ptr<ProtoMessage>(reply_args.release()));
-        async_res.set_fd(tx_file.fd());
-        reply->Resolve(std::move(async_res));
-        on_reply_sent();
-      }));
+      .WillOnce(Invoke(
+          [on_reply_sent, &tx_file](const RequestProto&, DeferredBase* reply) {
+            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+            auto async_res = AsyncResult<ProtoMessage>(
+                std::unique_ptr<ProtoMessage>(reply_args.release()));
+            async_res.set_fd(tx_file.fd());
+            reply->Resolve(std::move(async_res));
+            on_reply_sent();
+          }));
   task_runner_->RunUntilCheckpoint("on_reply_sent");
   tx_file.ReleaseFD();
 

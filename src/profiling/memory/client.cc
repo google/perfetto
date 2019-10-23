@@ -101,7 +101,8 @@ const char* GetThreadStackBase() {
 // static
 base::Optional<base::UnixSocketRaw> Client::ConnectToHeapprofd(
     const std::string& sock_name) {
-  auto sock = base::UnixSocketRaw::CreateMayFail(base::SockType::kStream);
+  auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kUnix,
+                                                 base::SockType::kStream);
   if (!sock || !sock.Connect(sock_name)) {
     PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
     return base::nullopt;
