@@ -19,6 +19,9 @@
 
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/track_event_parser.h"
+#include "src/trace_processor/importers/proto/track_event_tokenizer.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -26,20 +29,56 @@ namespace trace_processor {
 class TrackEventModule : public ProtoImporterModuleBase</*IsEnabled=*/1> {
  public:
   explicit TrackEventModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context) {}
+      : ProtoImporterModuleBase(context),
+        tokenizer_(context),
+        parser_(context) {}
 
-  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&,
-                              TraceBlobView* /*packet*/,
-                              int64_t /*packet_timestamp*/) {
-    // TODO(eseckler): implement.
+  ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t packet_timestamp,
+      PacketSequenceState* state) {
+    if (decoder.has_track_descriptor()) {
+      tokenizer_.TokenizeTrackDescriptorPacket(decoder);
+      return ModuleResult::Handled();
+    }
+
+    if (decoder.has_track_event()) {
+      tokenizer_.TokenizeTrackEventPacket(state, decoder, packet,
+                                          packet_timestamp);
+      return ModuleResult::Handled();
+    }
+
+    // TODO(eseckler): Remove these once Chrome has switched fully over to
+    // TrackDescriptors.
+    if (decoder.has_thread_descriptor()) {
+      tokenizer_.TokenizeThreadDescriptorPacket(state, decoder);
+      return ModuleResult::Handled();
+    }
+    if (decoder.has_process_descriptor()) {
+      tokenizer_.TokenizeProcessDescriptorPacket(decoder);
+      return ModuleResult::Handled();
+    }
+
     return ModuleResult::Ignored();
   }
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder&,
-                           const TimestampedTracePiece&) {
+  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                           const TimestampedTracePiece& ttp) {
     // TODO(eseckler): implement.
+    if (decoder.has_track_event()) {
+      parser_.ParseTrackEvent(
+          ttp.timestamp, ttp.thread_timestamp, ttp.thread_instruction_count,
+          ttp.packet_sequence_state, ttp.packet_sequence_state_generation,
+          decoder.track_event());
+      return ModuleResult::Handled();
+    }
     return ModuleResult::Ignored();
   }
+
+ private:
+  TrackEventTokenizer tokenizer_;
+  TrackEventParser parser_;
 };
 
 }  // namespace trace_processor
