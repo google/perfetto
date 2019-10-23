@@ -316,7 +316,10 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     return util::OkStatus();
   }
 
-  if (decoder.has_trace_config()) {
+  // If we're not forcing a full sort and this is a write_into_file trace, then
+  // use flush_period_ms as an indiciator for how big the sliding window for the
+  // sorter should be.
+  if (!context_->config.force_full_sort && decoder.has_trace_config()) {
     auto config = decoder.trace_config();
     protos::pbzero::TraceConfig::Decoder trace_config(config.data, config.size);
 
