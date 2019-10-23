@@ -159,9 +159,9 @@ int StartCentralHeapprofd() {
   HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner);
 
   int listening_raw_socket = GetListeningSocket();
-  auto listening_socket =
-      base::UnixSocket::Listen(base::ScopedFile(listening_raw_socket),
-                               &producer.socket_delegate(), &task_runner);
+  auto listening_socket = base::UnixSocket::Listen(
+      base::ScopedFile(listening_raw_socket), &producer.socket_delegate(),
+      &task_runner, base::SockFamily::kUnix, base::SockType::kStream);
 
   struct sigaction action = {};
   action.sa_handler = [](int) { g_dump_evt->Notify(); };
