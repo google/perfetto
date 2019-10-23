@@ -26,6 +26,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class PacketSequenceState;
 struct TimestampedTracePiece;
 class TraceProcessorContext;
 
@@ -121,9 +122,11 @@ class ProtoImporterModule {
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
-      int64_t packet_timestamp) {
-    if (ModuleType::kEnabled)
-      return impl_->TokenizePacket(decoder, packet, packet_timestamp);
+      int64_t packet_timestamp,
+      PacketSequenceState* state) {
+    if (ModuleType::kEnabled) {
+      return impl_->TokenizePacket(decoder, packet, packet_timestamp, state);
+    }
     return ModuleResult::Ignored();
   }
 

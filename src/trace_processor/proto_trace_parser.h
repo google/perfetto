@@ -26,20 +26,18 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/graphics_event_parser.h"
-#include "src/trace_processor/proto_incremental_state.h"
-#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class ArgsTracker;
+class PacketSequenceState;
 class TraceProcessorContext;
 
 class ProtoTraceParser : public TraceParser {
@@ -68,56 +66,19 @@ class ProtoTraceParser : public TraceParser {
   void ParseAndroidLogStats(ConstBytes);
   void ParseTraceStats(ConstBytes);
   void ParseProfilePacket(int64_t ts,
-                          ProtoIncrementalState::PacketSequenceState*,
+                          PacketSequenceState*,
                           size_t sequence_state_generation,
                           ConstBytes);
-  void ParseStreamingProfilePacket(ProtoIncrementalState::PacketSequenceState*,
+  void ParseStreamingProfilePacket(PacketSequenceState*,
                                    size_t sequence_state_generation,
                                    ConstBytes);
   void ParseSystemInfo(ConstBytes);
-  void ParseTrackEvent(int64_t ts,
-                       int64_t tts,
-                       int64_t ticount,
-                       ProtoIncrementalState::PacketSequenceState*,
-                       size_t sequence_state_generation,
-                       ConstBytes);
-  void ParseLegacyEventAsRawEvent(
-      int64_t ts,
-      int64_t tts,
-      int64_t ticount,
-      base::Optional<UniqueTid> utid,
-      StringId category_id,
-      StringId name_id,
-      const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
-      SliceTracker::SetArgsCallback args_callback);
-  void ParseDebugAnnotationArgs(ConstBytes debug_annotation,
-                                ProtoIncrementalState::PacketSequenceState*,
-                                size_t sequence_state_generation,
-                                ArgsTracker* args_tracker,
-                                RowId row);
-  void ParseNestedValueArgs(ConstBytes nested_value,
-                            base::StringView flat_key,
-                            base::StringView key,
-                            ArgsTracker* args_tracker,
-                            RowId row);
-  void ParseTaskExecutionArgs(ConstBytes task_execution,
-                              ProtoIncrementalState::PacketSequenceState*,
-                              size_t sequence_state_generation,
-                              ArgsTracker* args_tracker,
-                              RowId row);
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
   void ParseTraceConfig(ConstBytes);
   void ParseStatsdMetadata(ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
-  void ParseLogMessage(ConstBytes,
-                       ProtoIncrementalState::PacketSequenceState*,
-                       size_t sequence_state_generation,
-                       int64_t,
-                       base::Optional<UniqueTid>,
-                       ArgsTracker*,
-                       RowId);
   void ParseModuleSymbols(ConstBytes);
   void ParseHeapGraph(int64_t ts, ConstBytes);
 
@@ -144,34 +105,10 @@ class ProtoTraceParser : public TraceParser {
   const StringId batt_current_avg_id_;
   const StringId oom_score_adj_id_;
   const StringId metatrace_id_;
-  const StringId task_file_name_args_key_id_;
-  const StringId task_function_name_args_key_id_;
-  const StringId task_line_number_args_key_id_;
-  const StringId log_message_body_key_id_;
   const StringId data_name_id_;
   const StringId raw_chrome_metadata_event_id_;
   const StringId raw_chrome_legacy_system_trace_event_id_;
   const StringId raw_chrome_legacy_user_trace_event_id_;
-  const StringId raw_legacy_event_id_;
-  const StringId legacy_event_category_key_id_;
-  const StringId legacy_event_name_key_id_;
-  const StringId legacy_event_phase_key_id_;
-  const StringId legacy_event_duration_ns_key_id_;
-  const StringId legacy_event_thread_timestamp_ns_key_id_;
-  const StringId legacy_event_thread_duration_ns_key_id_;
-  const StringId legacy_event_thread_instruction_count_key_id_;
-  const StringId legacy_event_thread_instruction_delta_key_id_;
-  const StringId legacy_event_use_async_tts_key_id_;
-  const StringId legacy_event_unscoped_id_key_id_;
-  const StringId legacy_event_global_id_key_id_;
-  const StringId legacy_event_local_id_key_id_;
-  const StringId legacy_event_id_scope_key_id_;
-  const StringId legacy_event_bind_id_key_id_;
-  const StringId legacy_event_bind_to_enclosing_key_id_;
-  const StringId legacy_event_flow_direction_key_id_;
-  const StringId flow_direction_value_in_id_;
-  const StringId flow_direction_value_out_id_;
-  const StringId flow_direction_value_inout_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
   std::vector<StringId> power_rails_strs_id_;
