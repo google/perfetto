@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_GRAPHICS_EVENT_PARSER_H_
-#define SRC_TRACE_PROCESSOR_GRAPHICS_EVENT_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_PARSER_H_
 
 #include <vector>
 
@@ -32,7 +32,6 @@ class GraphicsEventParser {
  public:
   using ConstBytes = protozero::ConstBytes;
   explicit GraphicsEventParser(TraceProcessorContext*);
-  ~GraphicsEventParser();
 
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
@@ -81,4 +80,4 @@ class GraphicsEventParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_GRAPHICS_EVENT_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_PARSER_H_

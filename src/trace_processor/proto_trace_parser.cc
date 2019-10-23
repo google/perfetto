@@ -36,6 +36,7 @@
 #include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -223,7 +224,6 @@ const char* HeapGraphRootTypeToString(int32_t type) {
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
-      graphics_event_parser_(new GraphicsEventParser(context_)),
       utid_name_id_(context->storage->InternString("utid")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
@@ -318,6 +318,9 @@ void ProtoTraceParser::ParseTracePacketImpl(
   if (!context_->track_event_module->ParsePacket(packet, ttp).ignored())
     return;
 
+  if (!context_->graphics_event_module->ParsePacket(packet, ttp).ignored())
+    return;
+
   if (packet.has_process_tree())
     ParseProcessTree(packet.process_tree());
 
@@ -366,31 +369,12 @@ void ProtoTraceParser::ParseTracePacketImpl(
     ParseMetatraceEvent(ts, packet.perfetto_metatrace());
   }
 
-  if (packet.has_gpu_counter_event()) {
-    graphics_event_parser_->ParseGpuCounterEvent(ts,
-                                                 packet.gpu_counter_event());
-  }
-
-  if (packet.has_gpu_render_stage_event()) {
-    graphics_event_parser_->ParseGpuRenderStageEvent(
-        ts, packet.gpu_render_stage_event());
-  }
-
   if (packet.has_trace_config()) {
     ParseTraceConfig(packet.trace_config());
   }
 
-  if (packet.has_gpu_log()) {
-    graphics_event_parser_->ParseGpuLog(ts, packet.gpu_log());
-  }
-
   if (packet.has_packages_list()) {
     ParseAndroidPackagesList(packet.packages_list());
-  }
-
-  if (packet.has_graphics_frame_event()) {
-    graphics_event_parser_->ParseGraphicsFrameEvent(
-        ts, packet.graphics_frame_event());
   }
 
   if (packet.has_module_symbols()) {
@@ -399,11 +383,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_heap_graph()) {
     ParseHeapGraph(ts, packet.heap_graph());
-  }
-
-  if (packet.has_vulkan_memory_event()) {
-    graphics_event_parser_->ParseVulkanMemoryEvent(
-        packet.vulkan_memory_event());
   }
 }
 
