@@ -30,9 +30,9 @@ class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
 class FtraceModule;
+class GraphicsEventModule;
 class HeapGraphTracker;
 class HeapProfileTracker;
-class VulkanMemoryTracker;
 class ProcessTracker;
 class SchedEventTracker;
 class SliceTracker;
@@ -43,6 +43,7 @@ class TraceStorage;
 class TraceSorter;
 class TrackEventModule;
 class TrackTracker;
+class VulkanMemoryTracker;
 
 class TraceProcessorContext {
  public:
@@ -70,6 +71,8 @@ class TraceProcessorContext {
 
   std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
   std::unique_ptr<ProtoImporterModule<TrackEventModule>> track_event_module;
+  std::unique_ptr<ProtoImporterModule<GraphicsEventModule>>
+      graphics_event_module;
 };
 
 }  // namespace trace_processor
