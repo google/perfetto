@@ -233,6 +233,7 @@ if (build_with_chromium) {
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [
+      "include/perfetto/ext/trace_processor:export_json",
       "include/perfetto/trace_processor",
     ]
   }

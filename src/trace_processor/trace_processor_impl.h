@@ -67,6 +67,8 @@ class TraceProcessorImpl : public TraceProcessor {
 
   void InterruptQuery() override;
 
+  TraceProcessorContext* context() { return &context_; }
+
  private:
   // Needed for iterators to be able to delete themselves from the vector.
   friend class IteratorImpl;

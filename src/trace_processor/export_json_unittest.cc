@@ -46,9 +46,9 @@ TEST(ExportJsonTest, EmptyStorage) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -82,9 +82,9 @@ TEST(ExportJsonTest, StorageWithOneSlice) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -130,9 +130,9 @@ TEST(ExportJsonTest, StorageWithOneUnfinishedSlice) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -164,9 +164,9 @@ TEST(ExportJsonTest, StorageWithThreadName) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -191,9 +191,9 @@ TEST(ExportJsonTest, WrongRefType) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultWrongRefType);
+  EXPECT_FALSE(status.ok());
 }
 
 TEST(ExportJsonTest, StorageWithMetadata) {
@@ -239,9 +239,9 @@ TEST(ExportJsonTest, StorageWithMetadata) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -288,8 +288,8 @@ TEST(ExportJsonTest, StorageWithStats) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
-  EXPECT_EQ(code, kResultOk);
+  util::Status status = ExportJson(&storage, output);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -328,8 +328,8 @@ TEST(ExportJsonTest, StorageWithChromeMetadata) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(storage, output);
-  EXPECT_EQ(code, kResultOk);
+  util::Status status = ExportJson(storage, output);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -367,9 +367,9 @@ TEST(ExportJsonTest, StorageWithArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -420,9 +420,9 @@ TEST(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(storage, output);
+  util::Status status = ExportJson(storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -471,9 +471,9 @@ TEST(ExportJsonTest, StorageWithListArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -517,9 +517,9 @@ TEST(ExportJsonTest, StorageWithMultiplePointerArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -562,9 +562,9 @@ TEST(ExportJsonTest, StorageWithObjectListArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -608,9 +608,9 @@ TEST(ExportJsonTest, StorageWithNestedListArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -649,9 +649,9 @@ TEST(ExportJsonTest, StorageWithLegacyJsonArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -678,9 +678,9 @@ TEST(ExportJsonTest, InstantEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -726,9 +726,9 @@ TEST(ExportJsonTest, AsyncEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -784,9 +784,9 @@ TEST(ExportJsonTest, AsyncEventWithThreadTimestamp) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -841,9 +841,9 @@ TEST(ExportJsonTest, UnfinishedAsyncEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -891,9 +891,9 @@ TEST(ExportJsonTest, AsyncInstantEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(&storage, output);
+  util::Status status = ExportJson(&storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -978,9 +978,9 @@ TEST(ExportJsonTest, RawEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(storage, output);
+  util::Status status = ExportJson(storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -1039,9 +1039,9 @@ TEST(ExportJsonTest, LegacyRawEvents) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(storage, output);
+  util::Status status = ExportJson(storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -1109,9 +1109,9 @@ TEST(ExportJsonTest, CpuProfileEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
-  int code = ExportJson(storage, output);
+  util::Status status = ExportJson(storage, output);
 
-  EXPECT_EQ(code, kResultOk);
+  EXPECT_TRUE(status.ok());
 
   Json::Reader reader;
   Json::Value result;
@@ -1129,6 +1129,9 @@ TEST(ExportJsonTest, CpuProfileEvent) {
             "foo_func - foo_module_name [foo_module_id]\nbar_func - "
             "bar_module_name [bar_module_id]\n");
 }
+
+// TODO(eseckler): Add some tests that exercise the public ExportJson API and
+// argument / metadata / label filters.
 
 }  // namespace
 }  // namespace json
