@@ -245,7 +245,7 @@ cc_binary_host {
     ":perfetto_src_base_base",
     "src/ipc/protoc_plugin/ipc_plugin.cc",
   ],
-  shared_libs: [
+  static_libs: [
     "libprotoc",
   ],
   defaults: [
@@ -4373,7 +4373,7 @@ cc_binary_host {
     ":perfetto_src_base_base",
     "src/protozero/protoc_plugin/cppgen_plugin.cc",
   ],
-  shared_libs: [
+  static_libs: [
     "libprotoc",
   ],
   defaults: [
@@ -5551,7 +5551,7 @@ cc_binary_host {
     ":perfetto_src_base_base",
     "src/protozero/protoc_plugin/protozero_plugin.cc",
   ],
-  shared_libs: [
+  static_libs: [
     "libprotoc",
   ],
   defaults: [
@@ -5611,12 +5611,10 @@ cc_binary_host {
     "src/trace_processor/proto_to_json.cc",
     "src/trace_processor/trace_processor_shell.cc",
   ],
-  shared_libs: [
-    "libprotoc",
-    "libz",
-  ],
   static_libs: [
+    "libprotoc",
     "libsqlite",
+    "libz",
   ],
   generated_headers: [
     "gen_merged_sql_metrics",
@@ -5656,6 +5654,7 @@ cc_binary_host {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
+  static_executable: true,
 }
 
 // GN: //tools/trace_to_text:trace_to_text
@@ -5739,10 +5738,10 @@ cc_binary_host {
   shared_libs: [
     "libprotobuf-cpp-full",
     "libprotobuf-cpp-lite",
-    "libz",
   ],
   static_libs: [
     "libsqlite",
+    "libz",
   ],
   generated_headers: [
     "gen_merged_sql_metrics",
