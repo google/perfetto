@@ -71,7 +71,7 @@ class Rpc {
 
  private:
   std::unique_ptr<TraceProcessor> trace_processor_;
-  bool eof_ = false;  // Set to true when calling LoadTrace(..., eof=true).
+  bool eof_ = true;  // Reset when calling LoadTrace(..., eof).
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
