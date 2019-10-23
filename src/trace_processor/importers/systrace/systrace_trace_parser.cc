@@ -136,27 +136,38 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
 
   auto pid_end = has_tgid ? cpu_idx : tgid_idx;
   std::string pid_str = SubstrTrim(buffer, task_idx + 1, pid_end);
-  auto pid = static_cast<uint32_t>(std::stoi(pid_str));
+  base::Optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
+  if (!maybe_pid.has_value()) {
+    return util::Status("Could not convert pid " + pid_str);
+  }
+  uint32_t pid = maybe_pid.value();
   context_->process_tracker->GetOrCreateThread(pid);
 
   if (has_tgid) {
     auto tgid_end = buffer.find(')', tgid_idx + 1);
     std::string tgid_str = SubstrTrim(buffer, tgid_idx + 1, tgid_end);
-    if (tgid_str != "-----") {
-      context_->process_tracker->UpdateThread(
-          pid, static_cast<uint32_t>(std::stoi(tgid_str)));
+    base::Optional<uint32_t> tgid = base::StringToUInt32(tgid_str);
+    if (tgid) {
+      context_->process_tracker->UpdateThread(pid, tgid.value());
     }
   }
 
   auto cpu_end = buffer.find(']', cpu_idx + 1);
   std::string cpu_str = SubstrTrim(buffer, cpu_idx + 1, cpu_end);
-  auto cpu = static_cast<uint32_t>(std::stoi(cpu_str));
+  base::Optional<uint32_t> maybe_cpu = base::StringToUInt32(cpu_str);
+  if (!maybe_cpu.has_value()) {
+    return util::Status("Could not convert cpu " + cpu_str);
+  }
+  uint32_t cpu = maybe_cpu.value();
 
   auto ts_idx = buffer.find(' ', cpu_end + 2);
   auto ts_end = buffer.find(':', ts_idx + 1);
   std::string ts_str = SubstrTrim(buffer, ts_idx + 1, ts_end);
-  auto ts_float = std::stod(ts_str) * 1e9;
-  auto ts = static_cast<int64_t>(ts_float);
+  base::Optional<double> maybe_ts = base::StringToDouble(ts_str);
+  if (!maybe_ts.has_value()) {
+    return util::Status("Could not convert ts");
+  }
+  int64_t ts = static_cast<int64_t>(maybe_ts.value() * 1e9);
 
   auto fn_idx = buffer.find(':', ts_end + 2);
   std::string fn = SubstrTrim(buffer, ts_end + 2, fn_idx);
@@ -181,34 +192,48 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     int64_t prev_state =
         ftrace_utils::TaskState(prev_state_str.c_str()).raw_state();
 
-    auto prev_pid = std::stoi(args["prev_pid"]);
+    auto prev_pid = base::StringToUInt32(args["prev_pid"]);
     auto prev_comm = base::StringView(args["prev_comm"]);
-    auto prev_prio = std::stoi(args["prev_prio"]);
-    auto next_pid = std::stoi(args["next_pid"]);
+    auto prev_prio = base::StringToInt32(args["prev_prio"]);
+    auto next_pid = base::StringToUInt32(args["next_pid"]);
     auto next_comm = base::StringView(args["next_comm"]);
-    auto next_prio = std::stoi(args["next_prio"]);
+    auto next_prio = base::StringToInt32(args["next_prio"]);
+
+    if (!(prev_pid.has_value() && prev_prio.has_value() &&
+          next_pid.has_value() && next_prio.has_value())) {
+      return util::Status("Could not parse sched_switch");
+    }
 
     context_->sched_tracker->PushSchedSwitch(
-        static_cast<uint32_t>(cpu), ts, static_cast<uint32_t>(prev_pid),
-        prev_comm, prev_prio, prev_state, static_cast<uint32_t>(next_pid),
-        next_comm, next_prio);
+        cpu, ts, prev_pid.value(), prev_comm, prev_prio.value(), prev_state,
+        next_pid.value(), next_comm, next_prio.value());
   } else if (fn == "tracing_mark_write" || fn == "0" || fn == "print") {
     context_->systrace_parser->ParsePrintEvent(ts, pid, args_str.c_str());
   } else if (fn == "sched_wakeup") {
     auto comm = args["comm"];
-    uint32_t wakee_pid = static_cast<uint32_t>(std::stoi(args["pid"]));
+    base::Optional<uint32_t> wakee_pid = base::StringToUInt32(args["pid"]);
+    if (!wakee_pid.has_value()) {
+      return util::Status("Could not convert wakee_pid");
+    }
 
     StringId name_id = context_->storage->InternString(base::StringView(comm));
     auto wakee_utid =
-        context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
+        context_->process_tracker->UpdateThreadName(wakee_pid.value(), name_id);
     context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_,
                                          0 /* value */, wakee_utid,
                                          RefType::kRefUtid);
   } else if (fn == "cpu_idle") {
-    auto new_state = static_cast<double>(std::stoul(args["state"]));
-    uint32_t event_cpu = static_cast<uint32_t>(std::stoi(args["cpu_id"]));
-    context_->event_tracker->PushCounter(ts, new_state, cpu_idle_name_id_,
-                                         event_cpu, RefType::kRefCpuId);
+    base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
+    base::Optional<double> new_state = base::StringToDouble(args["state"]);
+    if (!event_cpu.has_value()) {
+      return util::Status("Could not convert event cpu");
+    }
+    if (!event_cpu.has_value()) {
+      return util::Status("Could not convert state");
+    }
+    context_->event_tracker->PushCounter(ts, new_state.value(),
+                                         cpu_idle_name_id_, event_cpu.value(),
+                                         RefType::kRefCpuId);
   }
 
   return util::OkStatus();

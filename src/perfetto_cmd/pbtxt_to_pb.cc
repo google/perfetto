@@ -23,6 +23,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/message.h"
@@ -372,8 +374,8 @@ class ParserDelegate {
   template <typename T>
   void FixedFloatField(const FieldDescriptorProto* field, Token t) {
     uint32_t field_id = static_cast<uint32_t>(field->number());
-    double n = std::stod(t.ToStdString());
-    msg()->AppendFixed<T>(field_id, static_cast<T>(n));
+    base::Optional<double> opt_n = base::StringToDouble(t.ToStdString());
+    msg()->AppendFixed<T>(field_id, static_cast<T>(opt_n.value_or(0l)));
   }
 
   template <typename T>
