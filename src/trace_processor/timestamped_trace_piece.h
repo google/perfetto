@@ -20,7 +20,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
-#include "src/trace_processor/proto_incremental_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
@@ -65,11 +65,10 @@ struct InlineEvent {
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
 // is sorted by TraceSorter.
 struct TimestampedTracePiece {
-  TimestampedTracePiece(
-      int64_t ts,
-      uint64_t idx,
-      TraceBlobView tbv,
-      ProtoIncrementalState::PacketSequenceState* sequence_state)
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        TraceBlobView tbv,
+                        PacketSequenceState* sequence_state)
       : TimestampedTracePiece(ts,
                               /*thread_ts=*/0,
                               /*thread_instructions=*/0,
@@ -120,13 +119,12 @@ struct TimestampedTracePiece {
                               /*sequence_state=*/nullptr,
                               InlineEvent{}) {}
 
-  TimestampedTracePiece(
-      int64_t ts,
-      int64_t thread_ts,
-      int64_t thread_instructions,
-      uint64_t idx,
-      TraceBlobView tbv,
-      ProtoIncrementalState::PacketSequenceState* sequence_state)
+  TimestampedTracePiece(int64_t ts,
+                        int64_t thread_ts,
+                        int64_t thread_instructions,
+                        uint64_t idx,
+                        TraceBlobView tbv,
+                        PacketSequenceState* sequence_state)
       : TimestampedTracePiece(ts,
                               thread_ts,
                               thread_instructions,
@@ -148,16 +146,15 @@ struct TimestampedTracePiece {
                               /*sequence_state=*/nullptr,
                               inline_evt) {}
 
-  TimestampedTracePiece(
-      int64_t ts,
-      int64_t thread_ts,
-      int64_t thread_instructions,
-      uint64_t idx,
-      TraceBlobView tbv,
-      std::unique_ptr<Json::Value> value,
-      std::unique_ptr<FuchsiaProviderView> fpv,
-      ProtoIncrementalState::PacketSequenceState* sequence_state,
-      InlineEvent inline_evt)
+  TimestampedTracePiece(int64_t ts,
+                        int64_t thread_ts,
+                        int64_t thread_instructions,
+                        uint64_t idx,
+                        TraceBlobView tbv,
+                        std::unique_ptr<Json::Value> value,
+                        std::unique_ptr<FuchsiaProviderView> fpv,
+                        PacketSequenceState* sequence_state,
+                        InlineEvent inline_evt)
       : json_value(std::move(value)),
         fuchsia_provider_view(std::move(fpv)),
         packet_sequence_state(sequence_state),
@@ -186,7 +183,7 @@ struct TimestampedTracePiece {
 
   std::unique_ptr<Json::Value> json_value;
   std::unique_ptr<FuchsiaProviderView> fuchsia_provider_view;
-  ProtoIncrementalState::PacketSequenceState* packet_sequence_state;
+  PacketSequenceState* packet_sequence_state;
   size_t packet_sequence_state_generation;
 
   int64_t timestamp;
