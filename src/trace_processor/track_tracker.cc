@@ -142,6 +142,10 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
   row.upid = upid;
   auto id = context_->storage->mutable_process_track_table()->Insert(row);
   chrome_process_instant_tracks_[upid] = id;
+
+  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
+  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
+                                 Variadic::String(chrome_source_));
   return id;
 }
 
@@ -149,6 +153,11 @@ TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
   if (!chrome_global_instant_track_id_) {
     chrome_global_instant_track_id_ =
         context_->storage->mutable_track_table()->Insert({});
+
+    RowId row_id = TraceStorage::CreateRowId(TableId::kTrack,
+                                             *chrome_global_instant_track_id_);
+    context_->args_tracker->AddArg(row_id, source_key_, source_key_,
+                                   Variadic::String(chrome_source_));
   }
   return *chrome_global_instant_track_id_;
 }
