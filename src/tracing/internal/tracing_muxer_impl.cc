@@ -766,15 +766,28 @@ void TracingMuxerImpl::DestroyTracingSession(
     TracingSessionGlobalID session_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   for (RegisteredBackend& backend : backends_) {
-    auto pred = [session_id](const std::unique_ptr<ConsumerImpl>& consumer) {
-      return consumer->session_id_ != session_id;
-    };
-    auto it = std::partition(backend.consumers.begin(), backend.consumers.end(),
-                             pred);
-    PERFETTO_DCHECK(std::distance(it, backend.consumers.end()) <= 1);
-    if (it != backend.consumers.end()) {
-      PERFETTO_DCHECK(it->get());
-      it->get()->Disconnect();
+    // We need to find the consumer (if any) and call Disconnect as we destroy
+    // the tracing session. We can't call Disconnect() inside this for loop
+    // because in the in-process case this will end up to a synchronous call to
+    // OnConsumerDisconnect which will invalidate all the iterators to
+    // |backend.consumers|.
+    ConsumerImpl* consumer = nullptr;
+    for (auto& con : backend.consumers) {
+      if (con->session_id_ == session_id) {
+        consumer = con.get();
+        break;
+      }
+    }
+    if (consumer) {
+      // We broke out of the loop above on the assumption that each backend will
+      // only have a single consumer per session. This DCHECK ensures that
+      // this is the case.
+      PERFETTO_DCHECK(
+          std::count_if(backend.consumers.begin(), backend.consumers.end(),
+                        [session_id](const std::unique_ptr<ConsumerImpl>& con) {
+                          return con->session_id_ == session_id;
+                        }) == 1u);
+      consumer->Disconnect();
     }
   }
 }
