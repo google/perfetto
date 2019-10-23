@@ -636,6 +636,7 @@ struct CommandLineOptions {
   std::string trace_file_path;
   bool launch_shell = false;
   bool wide = false;
+  bool force_full_sort = false;
 };
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -709,7 +710,10 @@ Options:
  --extra-metrics PATH                 Registers all SQL files at the given path
                                       to the trace processor and extends the
                                       builtin metrics proto with
-                                      $PATH/metrics-ext.proto.)",
+                                      $PATH/metrics-ext.proto.
+ --full-sort                          Forces the trace processor into performing
+                                      a full sort ignoring any windowing
+                                      logic.)",
                 argv[0]);
 }
 
@@ -719,6 +723,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_RUN_METRICS = 1000,
     OPT_METRICS_OUTPUT,
     OPT_EXTRA_METRICS,
+    OPT_FORCE_FULL_SORT,
   };
 
   static const struct option long_options[] = {
@@ -733,6 +738,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"extra-metrics", required_argument, nullptr, OPT_EXTRA_METRICS},
+      {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -791,6 +797,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_EXTRA_METRICS) {
       command_line_options.metric_extra = optarg;
+      continue;
+    }
+
+    if (option == OPT_FORCE_FULL_SORT) {
+      command_line_options.force_full_sort = true;
       continue;
     }
 
@@ -864,6 +875,8 @@ int TraceProcessorMain(int argc, char** argv) {
 
   // Load the trace file into the trace processor.
   Config config;
+  config.force_full_sort = options.force_full_sort;
+
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
 
   auto t_load_start = base::GetWallTimeNs();
