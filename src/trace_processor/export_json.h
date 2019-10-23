@@ -17,21 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_EXPORT_JSON_H_
 #define SRC_TRACE_PROCESSOR_EXPORT_JSON_H_
 
-#include "src/trace_processor/trace_storage.h"
-
 #include <stdio.h>
+
+#include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace json {
 
-enum ResultCode {
-  kResultOk = 0,
-  kResultWrongRefType = 1,
-};
-
-// Export trace to a stream in json format.
-ResultCode ExportJson(const TraceStorage* storage, FILE* output);
+// Export trace to a file stream in json format.
+util::Status ExportJson(const TraceStorage*, FILE* output);
 
 }  // namespace json
 }  // namespace trace_processor
