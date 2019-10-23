@@ -25,7 +25,6 @@
 #include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
-
 namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source and allows
