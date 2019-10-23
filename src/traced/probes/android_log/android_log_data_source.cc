@@ -148,7 +148,8 @@ AndroidLogDataSource::~AndroidLogDataSource() {
 }
 
 base::UnixSocketRaw AndroidLogDataSource::ConnectLogdrSocket() {
-  auto socket = base::UnixSocketRaw::CreateMayFail(base::SockType::kSeqPacket);
+  auto socket = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kUnix,
+                                                   base::SockType::kSeqPacket);
   if (!socket || !socket.Connect(kLogdrSocket)) {
     PERFETTO_PLOG("Failed to connect to %s", kLogdrSocket);
     return base::UnixSocketRaw();

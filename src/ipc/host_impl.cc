@@ -55,13 +55,17 @@ std::unique_ptr<Host> Host::CreateInstance(base::ScopedFile socket_fd,
 HostImpl::HostImpl(base::ScopedFile socket_fd, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_);
+  sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_,
+                                   base::SockFamily::kUnix,
+                                   base::SockType::kStream);
 }
 
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_);
+  sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
+                                   base::SockFamily::kUnix,
+                                   base::SockType::kStream);
 }
 
 HostImpl::~HostImpl() = default;

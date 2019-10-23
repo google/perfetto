@@ -62,8 +62,8 @@ class AndroidLogDataSourceTest : public ::testing::Test {
     base::UnixSocketRaw recv_sock;
     // In theory this should be a kSeqPacket. We use kDgram here so that the
     // test can run also on MacOS (which doesn't support SOCK_SEQPACKET).
-    const auto kSockType = base::SockType::kDgram;
-    std::tie(send_sock, recv_sock) = base::UnixSocketRaw::CreatePair(kSockType);
+    std::tie(send_sock, recv_sock) = base::UnixSocketRaw::CreatePair(
+        base::SockFamily::kUnix, base::SockType::kDgram);
     ASSERT_TRUE(send_sock);
     ASSERT_TRUE(recv_sock);
 
