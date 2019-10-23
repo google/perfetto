@@ -273,6 +273,14 @@ filegroup(
     ],
 )
 
+# GN target: //include/perfetto/ext/trace_processor:export_json
+filegroup(
+    name = "include_perfetto_ext_trace_processor_export_json",
+    srcs = [
+        "include/perfetto/ext/trace_processor/export_json.h",
+    ],
+)
+
 # GN target: //include/perfetto/ext/traced:sys_stats_counters
 filegroup(
     name = "include_perfetto_ext_traced_sys_stats_counters",
@@ -2307,6 +2315,7 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_trace_processor",
@@ -2359,6 +2368,7 @@ perfetto_cc_binary(
         "src/trace_processor/trace_processor_shell.cc",
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_trace_processor",
@@ -2461,6 +2471,7 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_profiling_symbolizer",
         ":include_perfetto_protozero_protozero",
@@ -2536,6 +2547,7 @@ perfetto_cc_binary(
     srcs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_profiling_symbolizer",
         ":include_perfetto_protozero_protozero",
