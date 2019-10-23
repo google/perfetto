@@ -30,7 +30,12 @@
 namespace perfetto {
 namespace trace_processor {
 
-struct PERFETTO_EXPORT Config {};
+// Struct for configuring a TraceProcessor instance (see trace_processor.h).
+struct PERFETTO_EXPORT Config {
+  // When set to true, this option forces trace processor to perform a full
+  // sort ignoring any internal heureustics to skip sorting parts of the data.
+  bool force_full_sort = false;
+};
 
 // Represents a dynamically typed value returned by SQL.
 struct PERFETTO_EXPORT SqlValue {
