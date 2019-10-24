@@ -26,7 +26,16 @@ namespace {
 static constexpr uint32_t kPoolSize = 100000;
 static constexpr uint32_t kSize = 123456;
 
-std::vector<uint32_t> CreateRandomIndexVector(uint32_t size, uint32_t mod) {
+RowMap CreateRange(uint32_t end) {
+  static constexpr uint32_t kRandomSeed = 32;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+
+  uint32_t start = rnd_engine() % end;
+  uint32_t size = rnd_engine() % (end - start);
+  return RowMap(start, start + size);
+}
+
+std::vector<uint32_t> CreateIndexVector(uint32_t size, uint32_t mod) {
   static constexpr uint32_t kRandomSeed = 476;
   std::minstd_rand0 rnd_engine(kRandomSeed);
   std::vector<uint32_t> rows(size);
@@ -36,7 +45,7 @@ std::vector<uint32_t> CreateRandomIndexVector(uint32_t size, uint32_t mod) {
   return rows;
 }
 
-BitVector CreateRandomBitVector(uint32_t size) {
+BitVector CreateBitVector(uint32_t size) {
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
   BitVector bv;
@@ -50,131 +59,164 @@ BitVector CreateRandomBitVector(uint32_t size) {
   return bv;
 }
 
+void BenchRowMapGet(benchmark::State& state, RowMap rm) {
+  auto pool_vec = CreateIndexVector(kPoolSize, rm.size());
+
+  uint32_t pool_idx = 0;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(rm.Get(pool_vec[pool_idx]));
+    pool_idx = (pool_idx + 1) % kPoolSize;
+  }
+}
+
+template <typename Factory>
+void BenchRowMapAddToEmpty(benchmark::State& state, Factory factory) {
+  auto pool_vec = CreateIndexVector(kPoolSize, kSize);
+
+  uint32_t pool_idx = 0;
+  for (auto _ : state) {
+    RowMap rm = factory();
+
+    rm.Add(pool_vec[pool_idx]);
+    pool_idx = (pool_idx + 1) % kPoolSize;
+
+    benchmark::ClobberMemory();
+  }
+}
+
+void BenchRowMapSelect(benchmark::State& state,
+                       RowMap rm,
+                       const RowMap& selector) {
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(rm.SelectRows(selector));
+  }
+}
+
+template <typename Factory>
+void BenchRowMapRemoveIf(benchmark::State& state, Factory factory) {
+  auto pool_vec = CreateIndexVector(kPoolSize, kSize);
+
+  uint32_t pool_idx = 0;
+  for (auto _ : state) {
+    state.PauseTiming();
+    RowMap rm = factory();
+    state.ResumeTiming();
+
+    auto fn = [&pool_vec, pool_idx](uint32_t row) {
+      return (row % pool_vec[pool_idx]) != 0;
+    };
+    rm.RemoveIf(fn);
+    pool_idx = (pool_idx + 1) % kPoolSize;
+
+    benchmark::ClobberMemory();
+  }
+}
+
 }  // namespace
 
-static void BM_RowMapBitVectorGet(benchmark::State& state) {
-  RowMap rm(CreateRandomBitVector(kSize));
-  auto pool_vec = CreateRandomIndexVector(kPoolSize, rm.size());
-
-  uint32_t pool_idx = 0;
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(rm.Get(pool_vec[pool_idx]));
-    pool_idx = (pool_idx + 1) % kPoolSize;
-  }
+static void BM_RowMapRangeGet(benchmark::State& state) {
+  BenchRowMapGet(state, RowMap(CreateRange(kSize)));
 }
-BENCHMARK(BM_RowMapBitVectorGet);
+BENCHMARK(BM_RowMapRangeGet);
 
-static void BM_RowMapIndexVectorGet(benchmark::State& state) {
-  RowMap rm(CreateRandomIndexVector(kSize, kSize));
-  auto pool_vec = CreateRandomIndexVector(kPoolSize, kSize);
-
-  uint32_t pool_idx = 0;
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(rm.Get(pool_vec[pool_idx]));
-    pool_idx = (pool_idx + 1) % kPoolSize;
-  }
+static void BM_RowMapBvGet(benchmark::State& state) {
+  BenchRowMapGet(state, RowMap(CreateBitVector(kSize)));
 }
-BENCHMARK(BM_RowMapIndexVectorGet);
+BENCHMARK(BM_RowMapBvGet);
+
+static void BM_RowMapIvGet(benchmark::State& state) {
+  BenchRowMapGet(state, RowMap(CreateIndexVector(kSize, kSize)));
+}
+BENCHMARK(BM_RowMapIvGet);
 
 // TODO(lalitm): add benchmarks for IndexOf after BitVector is made faster.
 // We can't add them right now because they are just too slow to run.
 
-static void BM_RowMapBitVectorAdd(benchmark::State& state) {
-  auto pool_vec = CreateRandomIndexVector(kPoolSize, kSize);
-
-  uint32_t pool_idx = 0;
-  for (auto _ : state) {
-    state.PauseTiming();
-    RowMap rm(BitVector{});
-    state.ResumeTiming();
-
-    rm.Add(pool_vec[pool_idx]);
-    pool_idx = (pool_idx + 1) % kPoolSize;
-
-    benchmark::ClobberMemory();
-  }
+static void BM_RowMapRangeAddToEmpty(benchmark::State& state) {
+  BenchRowMapAddToEmpty(state, []() { return RowMap(0, 0); });
 }
-BENCHMARK(BM_RowMapBitVectorAdd);
+BENCHMARK(BM_RowMapRangeAddToEmpty);
 
-static void BM_RowMapIndexVectorAdd(benchmark::State& state) {
-  auto pool_vec = CreateRandomIndexVector(kPoolSize, kSize);
-
-  RowMap rm(std::vector<uint32_t>{});
-  uint32_t pool_idx = 0;
-  for (auto _ : state) {
-    rm.Add(pool_vec[pool_idx]);
-    pool_idx = (pool_idx + 1) % kPoolSize;
-    benchmark::ClobberMemory();
-  }
+static void BM_RowMapBvAddToEmpty(benchmark::State& state) {
+  BenchRowMapAddToEmpty(state, []() { return RowMap(BitVector{}); });
 }
-BENCHMARK(BM_RowMapIndexVectorAdd);
+BENCHMARK(BM_RowMapBvAddToEmpty);
 
-static void BM_RowMapBvSelectBv(benchmark::State& state) {
-  RowMap rm(CreateRandomBitVector(kSize));
-  RowMap selector(CreateRandomBitVector(rm.size()));
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(rm.SelectRows(selector));
-  }
+static void BM_RowMapIvAddToEmpty(benchmark::State& state) {
+  BenchRowMapAddToEmpty(state,
+                        []() { return RowMap(std::vector<uint32_t>{}); });
 }
-BENCHMARK(BM_RowMapBvSelectBv);
+BENCHMARK(BM_RowMapIvAddToEmpty);
 
-// TODO(lalitm): add benchmarks for BvSelectIv after BitVector is made faster.
-// We can't add them right now because they are just too slow to run.
-
-static void BM_RowMapIvSelectBv(benchmark::State& state) {
-  RowMap rm(CreateRandomIndexVector(kSize, kSize));
-  RowMap selector(CreateRandomBitVector(rm.size()));
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(rm.SelectRows(selector));
-  }
+static void BM_RowMapSelectRangeWithRange(benchmark::State& state) {
+  RowMap rm(CreateRange(kSize));
+  RowMap selector(CreateRange(rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
 }
-BENCHMARK(BM_RowMapIvSelectBv);
+BENCHMARK(BM_RowMapSelectRangeWithRange);
 
-static void BM_RowMapIvSelectIv(benchmark::State& state) {
-  RowMap rm(CreateRandomIndexVector(kSize, kSize));
-  RowMap selector(CreateRandomIndexVector(rm.size(), rm.size()));
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(rm.SelectRows(selector));
-  }
+static void BM_RowMapSelectRangeWithBv(benchmark::State& state) {
+  RowMap rm(CreateRange(kSize));
+  RowMap selector(CreateBitVector(rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
 }
-BENCHMARK(BM_RowMapIvSelectIv);
+BENCHMARK(BM_RowMapSelectRangeWithBv);
 
-static void BM_RowMapBvSelectSingleRow(benchmark::State& state) {
-  // This benchmark tests the performance of selecting just a single
-  // row of a RowMap. We specially test this case as it occurs on every join
-  // based on id originating from SQLite; nested subqueries will be performed
-  // on the id column and will select just a single row.
-  RowMap rm(CreateRandomBitVector(kSize));
-
-  static constexpr uint32_t kRandomSeed = 123;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
-  BitVector bv(rm.size(), false);
-  bv.Set(rnd_engine() % bv.size());
-  RowMap selector(std::move(bv));
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(rm.SelectRows(selector));
-  }
+static void BM_RowMapSelectRangeWithIv(benchmark::State& state) {
+  RowMap rm(CreateRange(kSize));
+  RowMap selector(CreateIndexVector(rm.size(), rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
 }
-BENCHMARK(BM_RowMapBvSelectSingleRow);
+BENCHMARK(BM_RowMapSelectRangeWithIv);
+
+static void BM_RowMapSelectBvWithRange(benchmark::State& state) {
+  RowMap rm(CreateBitVector(kSize));
+  RowMap selector(CreateRange(rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
+}
+BENCHMARK(BM_RowMapSelectBvWithRange);
+
+static void BM_RowMapSelectBvWithBv(benchmark::State& state) {
+  RowMap rm(CreateBitVector(kSize));
+  RowMap selector(CreateBitVector(rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
+}
+BENCHMARK(BM_RowMapSelectBvWithBv);
+
+static void BM_RowMapSelectBvWithIv(benchmark::State& state) {
+  RowMap rm(CreateBitVector(kSize));
+  RowMap selector(CreateIndexVector(rm.size(), rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
+}
+BENCHMARK(BM_RowMapSelectBvWithIv);
+
+static void BM_RowMapSelectIvWithRange(benchmark::State& state) {
+  RowMap rm(CreateIndexVector(kSize, kSize));
+  RowMap selector(CreateRange(rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
+}
+BENCHMARK(BM_RowMapSelectIvWithRange);
+
+static void BM_RowMapSelectIvWithBv(benchmark::State& state) {
+  RowMap rm(CreateIndexVector(kSize, kSize));
+  RowMap selector(CreateBitVector(rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
+}
+BENCHMARK(BM_RowMapSelectIvWithBv);
+
+static void BM_RowMapSelectIvWithIv(benchmark::State& state) {
+  RowMap rm(CreateIndexVector(kSize, kSize));
+  RowMap selector(CreateIndexVector(rm.size(), rm.size()));
+  BenchRowMapSelect(state, std::move(rm), std::move(selector));
+}
+BENCHMARK(BM_RowMapSelectIvWithIv);
+
+static void BM_RowMapRangeRemoveIf(benchmark::State& state) {
+  BenchRowMapRemoveIf(state, []() { return RowMap(CreateRange(kSize)); });
+}
+BENCHMARK(BM_RowMapRangeRemoveIf);
 
 static void BM_RowMapBvRemoveIf(benchmark::State& state) {
-  RowMap rm(CreateRandomBitVector(kSize));
-
-  static constexpr uint32_t kRandomSeed = 123;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
-  for (auto _ : state) {
-    state.PauseTiming();
-    RowMap copy = rm.Copy();
-    uint32_t mod_row_to_keep = rnd_engine() % kSize;
-    state.ResumeTiming();
-
-    copy.RemoveIf(
-        [mod_row_to_keep](uint32_t row) { return row % mod_row_to_keep != 0; });
-    benchmark::ClobberMemory();
-  }
+  BenchRowMapRemoveIf(state, []() { return RowMap(CreateBitVector(kSize)); });
 }
 BENCHMARK(BM_RowMapBvRemoveIf);

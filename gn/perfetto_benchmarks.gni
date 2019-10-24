@@ -18,6 +18,7 @@ perfetto_benchmarks_targets = [
   "gn:default_deps",
   "src/traced/probes/ftrace:benchmarks",
   "src/trace_processor/db:benchmarks",
+  "src/trace_processor/tables:benchmarks",
   "src/tracing:benchmarks",
   "test:benchmark_main",
   "test:end_to_end_benchmarks",
