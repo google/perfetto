@@ -363,6 +363,7 @@ perfetto_unittest_source_set("unittests") {
       # export_json_unittest.cc uses base::TempFile, which is not supported on
       # windows.
       sources += [ "export_json_unittest.cc" ]
+      deps += [ "../../include/perfetto/ext/trace_processor:export_json" ]
     }
     deps += [ "../../gn:jsoncpp" ]
   }
