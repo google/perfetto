@@ -164,7 +164,19 @@ class Column {
 
   // Updates the given RowMap by only keeping rows where this column meets the
   // given filter constraint.
-  void FilterInto(FilterOp, SqlValue value, RowMap*) const;
+  void FilterInto(FilterOp op, SqlValue value, RowMap* rm) const {
+    // TODO(lalitm): add special logic here to deal with kId and kSorted flags.
+    if (type_ == ColumnType::kId && op == FilterOp::kEq) {
+      auto opt_idx = IndexOf(value);
+      if (opt_idx) {
+        rm->Intersect(RowMap::SingleRow(*opt_idx));
+      } else {
+        rm->Intersect(RowMap());
+      }
+      return;
+    }
+    FilterIntoSlow(op, value, rm);
+  }
 
   // Returns true if this column is considered an id column.
   bool IsId() const { return (flags_ & Flag::kId) != 0; }
@@ -274,6 +286,8 @@ class Column {
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
+
+  void FilterIntoSlow(FilterOp, SqlValue value, RowMap*) const;
 
   template <typename T>
   static ColumnType ToColumnType() {
