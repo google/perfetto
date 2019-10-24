@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/trace_processor/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser.h"
 
 #include <map>
 #include <random>

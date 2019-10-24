@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PROTO_TRACE_TOKENIZER_H_
-#define SRC_TRACE_PROCESSOR_PROTO_TRACE_TOKENIZER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_TOKENIZER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_TOKENIZER_H_
 
 #include <stdint.h>
 
@@ -88,4 +88,4 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PROTO_TRACE_TOKENIZER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_TOKENIZER_H_

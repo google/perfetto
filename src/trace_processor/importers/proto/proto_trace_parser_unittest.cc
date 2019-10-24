@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
@@ -26,11 +26,11 @@
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/proto_trace_parser.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -1199,8 +1199,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   TraceStorage::Thread thread(16);
   thread.upid = 1u;
