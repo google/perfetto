@@ -19,9 +19,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/gzip_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
-#include "src/trace_processor/proto_trace_parser.h"
-#include "src/trace_processor/proto_trace_tokenizer.h"
 #include "src/trace_processor/trace_sorter.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
