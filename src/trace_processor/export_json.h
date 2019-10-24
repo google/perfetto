@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 
+#include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -28,6 +29,13 @@ namespace json {
 
 // Export trace to a file stream in json format.
 util::Status ExportJson(const TraceStorage*, FILE* output);
+
+// For testing.
+util::Status ExportJson(const TraceStorage* storage,
+                        OutputWriter*,
+                        ArgumentFilterPredicate = nullptr,
+                        MetadataFilterPredicate = nullptr,
+                        LabelFilterPredicate = nullptr);
 
 }  // namespace json
 }  // namespace trace_processor

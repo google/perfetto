@@ -26,9 +26,10 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace json {
 
 class TraceProcessor;
+
+namespace json {
 
 using ArgumentNameFilterPredicate = std::function<bool(const char* arg_name)>;
 using ArgumentFilterPredicate =
@@ -38,7 +39,7 @@ using ArgumentFilterPredicate =
 using MetadataFilterPredicate = std::function<bool(const char* metadata_name)>;
 using LabelFilterPredicate = std::function<bool(const char* label_name)>;
 
-class OutputWriter {
+class PERFETTO_EXPORT OutputWriter {
  public:
   OutputWriter();
   virtual ~OutputWriter();
