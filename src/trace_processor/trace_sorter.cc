@@ -18,7 +18,7 @@
 #include <utility>
 
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
