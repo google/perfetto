@@ -38,7 +38,7 @@ namespace trace_to_text {
 namespace {
 
 int Usage(const char* argv0) {
-  printf(
+  fprintf(stderr,
       "Usage: %s systrace|json|ctrace|text|profile [--pid PID] "
       "[--timestamps TIMESTAMP1,TIMESTAMP2,...] "
       "[--truncate start|end] "
