@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PROTO_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_PROTO_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_H_
 
 #include <stdint.h>
 
@@ -121,4 +121,4 @@ class ProtoTraceParser : public TraceParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PROTO_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_H_
