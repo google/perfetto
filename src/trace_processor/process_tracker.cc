@@ -89,6 +89,11 @@ UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
   return utid;
 }
 
+void ProcessTracker::SetThreadName(UniqueTid utid, StringId thread_name_id) {
+  TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
+  thread->name_id = thread_name_id;
+}
+
 UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   auto tids_pair = tids_.equal_range(tid);
 
