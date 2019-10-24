@@ -69,7 +69,7 @@ Table Table::Filter(const std::vector<Constraint>& cs) const {
 
   // Create a RowMap indexing all rows and filter this down to the rows which
   // meet all the constraints.
-  RowMap rm(BitVector(size_, true));
+  RowMap rm(0, size_);
   for (const Constraint& c : cs) {
     columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
   }
