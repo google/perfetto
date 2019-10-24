@@ -137,3 +137,7 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
+
+# TrackEvent tests.
+track_event_same_tids.py process_tracking.sql track_event_same_tids_threads.out
+track_event_same_tids.py track_event_slices.sql track_event_same_tids_slices.out
