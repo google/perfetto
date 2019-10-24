@@ -294,6 +294,35 @@ class Trace(object):
       buffer_event.type = event_type
     buffer_event.duration_ns = duration
 
+  def add_thread_track_descriptor(self,
+                                  ps,
+                                  ts,
+                                  uuid,
+                                  pid,
+                                  tid,
+                                  thread_name,
+                                  inc_state_cleared=False):
+    packet = self.add_packet()
+    packet.trusted_packet_sequence_id = ps
+    packet.timestamp = ts
+    if inc_state_cleared:
+      packet.incremental_state_cleared = True
+    track = packet.track_descriptor
+    track.uuid = uuid
+    track.thread.pid = pid
+    track.thread.tid = tid
+    track.thread.thread_name = thread_name
+
+  def add_track_event(self, ps, ts, track_uuid, cat, name, type):
+    packet = self.add_packet()
+    packet.trusted_packet_sequence_id = ps
+    packet.timestamp = ts
+    event = packet.track_event
+    event.track_uuid = track_uuid
+    event.categories.append(cat)
+    event.name = name
+    event.type = type
+
 
 def create_trace():
   parser = argparse.ArgumentParser()
