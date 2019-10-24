@@ -68,6 +68,8 @@ syscall.py sys.sql sys_syscall.out
 
 # Power rails
 ../data/power_rails.pb power_rails.sql power_rails_power_rails.out
+power_rail_custom_clock.textproto power_rail_event.sql power_rail_event_power_rail_custom_clock.out
+
 
 # Android userspace async slices
 android_async_slice.textproto process_track_slices.sql process_track_slices_android_async_slice.out
