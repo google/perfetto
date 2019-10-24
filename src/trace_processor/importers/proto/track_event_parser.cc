@@ -562,7 +562,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
         if (!thread_name.size)
           break;
         auto thread_name_id = storage->InternString(thread_name);
-        procs->UpdateThreadName(storage->GetThread(*utid).tid, thread_name_id);
+        procs->SetThreadName(*utid, thread_name_id);
         break;
       }
       if (strcmp(event_name.c_str(), "process_name") == 0) {

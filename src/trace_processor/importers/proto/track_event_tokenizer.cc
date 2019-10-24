@@ -209,8 +209,11 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
   if (!name.empty()) {
     auto thread_name_id = context_->storage->InternString(name);
     ProcessTracker* procs = context_->process_tracker.get();
-    procs->UpdateThreadName(
-        static_cast<uint32_t>(thread_descriptor_decoder.tid()), thread_name_id);
+    procs->SetThreadName(
+        procs->UpdateThread(
+            static_cast<uint32_t>(thread_descriptor_decoder.tid()),
+            static_cast<uint32_t>(thread_descriptor_decoder.pid())),
+        thread_name_id);
   }
 }
 
