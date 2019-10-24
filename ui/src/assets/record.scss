@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+:root {
+  --record-text-color: #333;
+}
+
 // The whole record page.
 .record-page {
   position: relative;
@@ -397,7 +401,7 @@
       font-size: 14px;
       font-weight: 200;
       min-height: 50px;
-      color: #666;
+      color: var(--record-text-color);
       line-height: 20px;
     }
 
@@ -473,21 +477,24 @@
   // 1) The full-width one (default), e.g. the one used in the main recording
   //    page for the duration of the trace. This one has both an icon and a
   //    label on the top.
-  // 2) The smaller ones (.thin) used in the probes. This one has no icon and
-  //    the label is just next to the slider.
+  // 2) The smaller ones (.thin) used in the probes. This one has no icon.
   .slider {
     @include transition(0.3s);
     display: grid;
     grid-template-columns: 40px 1fr 130px 0;
-    grid-template-rows: 30px 1fr;
-    grid-template-areas: "hdr hdr hdr hdr" "icon slider label unit";
+    grid-template-rows: 30px min-content 1fr;
+    grid-template-areas: "hdr hdr hdr hdr" "descr descr descr descr"
+    "icon slider label unit";
     margin-top: var(--record-section-padding);
 
     &.thin {
-      grid-template-columns: 1fr 3fr 100px 0;
-      grid-template-rows: 45px;
-      grid-template-areas: "hdr slider label unit";
-      margin-top: initial;
+      grid-template-columns: 1fr 1fr 100px 0;
+      grid-template-areas: "hdr hdr hdr hdr" "descr descr descr descr"
+      "slider slider label unit";
+    }
+
+    &.greyed-out {
+      opacity: 0.5;
     }
 
     >* {
@@ -504,8 +511,16 @@
 
     &.thin >header {
       opacity: 1;
-      color: #666;
+      color: var(--record-text-color);
       font-size: 14px;
+    }
+
+    &.thin >header.descr {
+      grid-area: descr;
+      font-size: 12px;
+      color: #666;
+      height: 20px;
+      line-height: 20px;
     }
 
     &:hover > header {
@@ -527,6 +542,8 @@
       scroll-snap-type: mandatory;
       background-color : transparent;
       outline: none;
+      margin-left: -10px;
+      margin-top: -5px;
 
       &::-webkit-slider-runnable-track {
         margin: 10px;
@@ -601,18 +618,20 @@
 
     &.thin .spinner {
       font-size: 14px;
+      margin-top: -5px;
     }
 
     .unit {
       grid-area: unit;
       font-size: 12px;
-      color: #666;
+      color: var(--record-text-color);
       position: relative;
       line-height: 37px;
       overflow: hidden;
       width: 35px;
       left: -45px;
       text-align: right;
+      margin-top: -5px;
     }
   }
 
@@ -637,7 +656,7 @@
       @include transition();
       min-height: 25px;
       font-size: 12px;
-      color: #666;
+      color: var(--record-text-color);
       cursor: pointer;
       padding: 5px 0;
     }

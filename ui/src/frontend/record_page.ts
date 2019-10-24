@@ -269,6 +269,101 @@ function CpuSettings(cssClass: string) {
       } as ProbeAttrs));
 }
 
+function HeapSettings(cssClass: string) {
+  const valuesForMS = [
+    0,
+    1000,
+    10 * 1000,
+    30 * 1000,
+    60 * 1000,
+    5 * 60 * 1000,
+    10 * 60 * 1000,
+    30 * 60 * 1000,
+    60 * 60 * 1000
+  ];
+  const valuesForShMemBuff = [
+    0,
+    512,
+    1024,
+    2 * 1024,
+    4 * 1024,
+    8 * 1024,
+    16 * 1024,
+    32 * 1024,
+    64 * 1024,
+    128 * 1024,
+    256 * 1024,
+    512 * 1024,
+    1024 * 1024,
+    64 * 1024 * 1024,
+    128 * 1024 * 1024,
+    256 * 1024 * 1024,
+    512 * 1024 * 1024
+  ];
+
+  return m(
+      `.record-section${cssClass}`,
+      m(Textarea, {
+        title: 'Names or pids of the processes to track',
+        placeholder: 'One per line, e.g.:\n' +
+            'system_server\n' +
+            '1503',
+        set: (cfg, val) => cfg.hpProcesses = val,
+        get: (cfg) => cfg.hpProcesses
+      } as TextareaAttrs),
+      m(Slider, {
+        title: 'Sampling interval',
+        cssClass: '.thin',
+        values: [
+          0,     1,     2,      4,      8,      16,     32,   64,
+          128,   256,   512,    1024,   2048,   4096,   8192, 16384,
+          32768, 65536, 131072, 262144, 524288, 1048576
+        ],
+        unit: 'B',
+        min: 0,
+        set: (cfg, val) => cfg.hpSamplingIntervalBytes = val,
+        get: (cfg) => cfg.hpSamplingIntervalBytes
+      } as SliderAttrs),
+      m(Slider, {
+        title: 'Continuous dumps interval ',
+        description: 'Time between following dumps (0 = disabled)',
+        cssClass: '.thin',
+        values: valuesForMS,
+        unit: 'ms',
+        min: 0,
+        set: (cfg, val) => {
+          cfg.hpContinuousDumpsInterval = val;
+        },
+        get: (cfg) => cfg.hpContinuousDumpsInterval
+      } as SliderAttrs),
+      m(Slider, {
+        title: 'Continuous dumps phase',
+        description: 'Time before first dump',
+        cssClass: `.thin${
+            globals.state.recordConfig.hpContinuousDumpsInterval === 0 ?
+                '.greyed-out' :
+                ''}`,
+        values: valuesForMS,
+        unit: 'ms',
+        min: 0,
+        disabled: globals.state.recordConfig.hpContinuousDumpsInterval === 0,
+        set: (cfg, val) => cfg.hpContinuousDumpsPhase = val,
+        get: (cfg) => cfg.hpContinuousDumpsPhase
+      } as SliderAttrs),
+      m(Slider, {
+        title: `Shared memory buffer`,
+        cssClass: '.thin',
+        values: valuesForShMemBuff.filter(
+            value => value === 0 || value >= 8192 && value % 4096 === 0),
+        unit: 'B',
+        min: 0,
+        set: (cfg, val) => cfg.hpSharedMemoryBuffer = val,
+        get: (cfg) => cfg.hpSharedMemoryBuffer
+      } as SliderAttrs)
+      // TODO(tneda): Add advanced options.
+  );
+}
+
 function MemorySettings(cssClass: string) {
   const meminfoOpts = new Map<string, string>();
   for (const x in MeminfoCounters) {
@@ -286,6 +381,17 @@ function MemorySettings(cssClass: string) {
   }
   return m(
       `.record-section${cssClass}`,
+      m(Probe,
+        {
+          title: 'Heap profiling',
+          // TODO(tneda): Image should be one with flamegraphs.
+          img: 'rec_meminfo.png',
+          descr: `Track native heap allocations & deallocations of an Android
+               process. (Available on Android 10+)`,
+          setEnabled: (cfg, val) => cfg.heapProfiling = val,
+          isEnabled: (cfg) => cfg.heapProfiling
+        } as ProbeAttrs,
+        HeapSettings(cssClass)),
       m(Probe,
         {
           title: 'Kernel meminfo',

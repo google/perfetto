@@ -76,6 +76,9 @@ export interface SliderAttrs {
   values: number[];
   get: Getter<number>;
   set: Setter<number>;
+  min?: number;
+  description?: string;
+  disabled?: boolean;
 }
 
 export class Slider implements m.ClassComponent<SliderAttrs> {
@@ -103,6 +106,9 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
     const id = attrs.title.replace(/[^a-z0-9]/gmi, '_').toLowerCase();
     const maxIdx = attrs.values.length - 1;
     const val = attrs.get(globals.state.recordConfig);
+    const min = attrs.min;
+    const description = attrs.description;
+    const disabled = attrs.disabled;
 
     // Find the index of the closest value in the slider.
     let idx = 0;
@@ -127,10 +133,13 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
     return m(
         '.slider' + (attrs.cssClass || ''),
         m('header', attrs.title),
+        description ? m('header.descr', attrs.description) : '',
         attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
-        m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`,
+        m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]
+        ${disabled ? '[disabled]' : ''}`,
           {oninput: m.withAttr('value', v => this.onSliderChange(attrs, v))}),
-        m(`input.spinner[min=1][for=${id}]`, spinnerCfg),
+        m(`input.spinner[min=${min !== undefined ? min : 1}][for=${id}]`,
+          spinnerCfg),
         m('.unit', attrs.unit));
   }
 }
@@ -206,6 +215,7 @@ export interface TextareaAttrs {
   cssClass?: string;
   get: Getter<string>;
   set: Setter<string>;
+  title?: string;
 }
 
 export class Textarea implements m.ClassComponent<TextareaAttrs> {
@@ -217,12 +227,15 @@ export class Textarea implements m.ClassComponent<TextareaAttrs> {
   }
 
   view({attrs}: m.CVnode<TextareaAttrs>) {
-    return m(`textarea.extra-input${attrs.cssClass || ''}`, {
-      onchange: (e: Event) =>
-          this.onChange(attrs, e.target as HTMLTextAreaElement),
-      placeholder: attrs.placeholder,
-      value: attrs.get(globals.state.recordConfig)
-    });
+    return m(
+        '.textarea-holder',
+        m('header', attrs.title),
+        m(`textarea.extra-input${attrs.cssClass || ''}`, {
+          onchange: (e: Event) =>
+              this.onChange(attrs, e.target as HTMLTextAreaElement),
+          placeholder: attrs.placeholder,
+          value: attrs.get(globals.state.recordConfig)
+        }));
   }
 }
 
