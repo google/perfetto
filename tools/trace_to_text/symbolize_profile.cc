@@ -76,7 +76,7 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
                     [output](const perfetto::protos::TracePacket& packet) {
                       WriteTracePacket(packet.SerializeAsString(), output);
                     });
-  return true;
+  return 0;
 }
 
 }  // namespace trace_to_text
