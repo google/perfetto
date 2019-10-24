@@ -4974,9 +4974,10 @@ filegroup {
     "src/tracing/internal/in_process_tracing_backend.cc",
     "src/tracing/internal/system_tracing_backend.cc",
     "src/tracing/internal/tracing_muxer_impl.cc",
+    "src/tracing/internal/track_event_internal.cc",
     "src/tracing/platform.cc",
     "src/tracing/tracing.cc",
-    "src/tracing/track_event.cc",
+    "src/tracing/track_event_category_registry.cc",
     "src/tracing/virtual_destructors.cc",
   ],
 }
@@ -4986,6 +4987,8 @@ filegroup {
   name: "perfetto_src_tracing_client_api_integrationtests",
   srcs: [
     "src/tracing/api_integrationtest.cc",
+    "src/tracing/test/tracing_module.cc",
+    "src/tracing/test/tracing_module2.cc",
   ],
 }
 

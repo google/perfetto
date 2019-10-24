@@ -75,6 +75,11 @@ struct DataSourceState {
   // Only the tuple (backend_id, data_source_instance_id) is globally unique.
   uint64_t data_source_instance_id = 0;
 
+  // A hash of the trace config used by this instance. This is used to
+  // de-duplicate instances for data sources with identical names (e.g., track
+  // event).
+  uint64_t config_hash = 0;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder
@@ -93,8 +98,8 @@ struct DataSourceStateStorage {
 
 // Per-DataSource-type global state.
 struct DataSourceStaticState {
-  uint32_t index =
-      kMaxDataSources;  // Unique ID, assigned at registration time.
+  // Unique index of the data source, assigned at registration time.
+  uint32_t index = kMaxDataSources;
 
   // A bitmap that tells about the validity of each |instances| entry. When the
   // i-th bit of the bitmap it's set, instances[i] is valid.
