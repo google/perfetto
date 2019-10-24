@@ -82,11 +82,15 @@ BENCHMARK(BM_RowMapIndexVectorGet);
 static void BM_RowMapBitVectorAdd(benchmark::State& state) {
   auto pool_vec = CreateRandomIndexVector(kPoolSize, kSize);
 
-  RowMap rm(BitVector{});
   uint32_t pool_idx = 0;
   for (auto _ : state) {
+    state.PauseTiming();
+    RowMap rm(BitVector{});
+    state.ResumeTiming();
+
     rm.Add(pool_vec[pool_idx]);
     pool_idx = (pool_idx + 1) % kPoolSize;
+
     benchmark::ClobberMemory();
   }
 }
