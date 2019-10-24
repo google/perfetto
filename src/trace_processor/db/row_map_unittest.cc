@@ -111,6 +111,42 @@ TEST(RowMapUnittest, AddToIndexVectorAfter) {
   ASSERT_EQ(rm.IndexOf(10u), 4u);
 }
 
+TEST(RowMapUnittest, ContainsRange) {
+  RowMap rm(93, 157);
+
+  ASSERT_TRUE(rm.Contains(93));
+  ASSERT_TRUE(rm.Contains(105));
+  ASSERT_TRUE(rm.Contains(156));
+
+  ASSERT_FALSE(rm.Contains(0));
+  ASSERT_FALSE(rm.Contains(92));
+  ASSERT_FALSE(rm.Contains(157));
+}
+
+TEST(RowMapUnittest, ContainsBitVector) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+
+  ASSERT_TRUE(rm.Contains(0));
+  ASSERT_TRUE(rm.Contains(2));
+  ASSERT_TRUE(rm.Contains(3));
+
+  ASSERT_FALSE(rm.Contains(1));
+  ASSERT_FALSE(rm.Contains(4));
+  ASSERT_FALSE(rm.Contains(6));
+}
+
+TEST(RowMapUnittest, ContainsIndexVector) {
+  RowMap rm(std::vector<uint32_t>{0u, 2u, 3u, 5u});
+
+  ASSERT_TRUE(rm.Contains(0));
+  ASSERT_TRUE(rm.Contains(2));
+  ASSERT_TRUE(rm.Contains(3));
+
+  ASSERT_FALSE(rm.Contains(1));
+  ASSERT_FALSE(rm.Contains(4));
+  ASSERT_FALSE(rm.Contains(6));
+}
+
 TEST(RowMapUnittest, SelectRangeWithRange) {
   RowMap rm(93, 157);
   RowMap picker(4, 7);
@@ -242,6 +278,38 @@ TEST(RowMapUnittest, RemoveIfIndexVector) {
   ASSERT_EQ(rm.Get(1u), 0u);
   ASSERT_EQ(rm.Get(2u), 1u);
   ASSERT_EQ(rm.Get(3u), 1u);
+}
+
+TEST(RowMapUnittest, IntersectNone) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+  rm.Intersect(RowMap());
+
+  ASSERT_EQ(rm.size(), 0u);
+}
+
+TEST(RowMapUnittest, IntersectSinglePresent) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+  rm.Intersect(RowMap::SingleRow(2u));
+
+  ASSERT_EQ(rm.size(), 1u);
+  ASSERT_EQ(rm.Get(0u), 2u);
+}
+
+TEST(RowMapUnittest, IntersectSingleAbsent) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+  rm.Intersect(RowMap::SingleRow(1u));
+
+  ASSERT_EQ(rm.size(), 0u);
+}
+
+TEST(RowMapUnittest, IntersectMany) {
+  RowMap rm(std::vector<uint32_t>{3u, 2u, 0u, 1u, 1u, 3u});
+  rm.Intersect(RowMap(BitVector{false, false, true, true}));
+
+  ASSERT_EQ(rm.size(), 3u);
+  ASSERT_EQ(rm.Get(0u), 3u);
+  ASSERT_EQ(rm.Get(1u), 2u);
+  ASSERT_EQ(rm.Get(2u), 3u);
 }
 
 }  // namespace

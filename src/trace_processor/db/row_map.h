@@ -59,6 +59,10 @@ namespace trace_processor {
 // switch to it but the cases where this happens is not precisely defined.
 class RowMap {
  public:
+  // Creates an empty RowMap.
+  // By default this will be implemented using a range.
+  RowMap();
+
   // Creates a RowMap containing the range of rows between |start| and |end|
   // i.e. all rows between |start| (inclusive) and |end| (exclusive).
   explicit RowMap(uint32_t start, uint32_t end);
@@ -68,6 +72,10 @@ class RowMap {
 
   // Creates a RowMap backed by an std::vector<uint32_t>.
   explicit RowMap(std::vector<uint32_t> vec);
+
+  // Creates a RowMap containing just |row|.
+  // By default this will be implemented using a range.
+  static RowMap SingleRow(uint32_t row) { return RowMap(row, row + 1); }
 
   // Creates a copy of the RowMap.
   // We have an explicit copy function because RowMap can hold onto large chunks
@@ -98,6 +106,23 @@ class RowMap {
         return bit_vector_.IndexOfNthSet(idx);
       case Mode::kIndexVector:
         return index_vector_[idx];
+    }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  // Returns whether the RowMap contains the given row.
+  bool Contains(uint32_t row) const {
+    switch (mode_) {
+      case Mode::kRange: {
+        return row >= start_idx_ && row < end_idx_;
+      }
+      case Mode::kBitVector: {
+        return row < bit_vector_.size() && bit_vector_.IsSet(row);
+      }
+      case Mode::kIndexVector: {
+        auto it = std::find(index_vector_.begin(), index_vector_.end(), row);
+        return it != index_vector_.end();
+      }
     }
     PERFETTO_FATAL("For GCC");
   }
@@ -182,10 +207,7 @@ class RowMap {
           else
             bit_vector_.AppendTrue();
         }
-
-        start_idx_ = 0;
-        end_idx_ = 0;
-        mode_ = Mode::kBitVector;
+        *this = RowMap(std::move(bit_vector_));
         break;
       }
       case Mode::kBitVector: {
@@ -201,6 +223,35 @@ class RowMap {
         break;
       }
     }
+  }
+
+  // Intersects |other| with |this| writing the result into |this|.
+  // By "intersect", we mean to keep only the rows present in both RowMaps. The
+  // order of the preserved rows will be the same as |this|.
+  //
+  // Conceptually, we are performing the following algorithm:
+  // for (idx : this)
+  //   if (!other.Contains(idx))
+  //     Remove(idx)
+  void Intersect(const RowMap& other) {
+    uint32_t size = other.size();
+
+    if (size == 0u) {
+      // If other is empty, then we will also end up being empty.
+      *this = RowMap();
+      return;
+    }
+
+    if (size == 1u) {
+      // If other just has a single row, see if we also have that row. If we
+      // do, then just return that row. Otherwise, make ourselves empty.
+      uint32_t row = other.Get(0);
+      *this = Contains(row) ? RowMap::SingleRow(row) : RowMap();
+      return;
+    }
+
+    // TODO(lalitm): improve efficiency of this if we end up needing it.
+    RemoveIf([&other](uint32_t row) { return !other.Contains(row); });
   }
 
  private:

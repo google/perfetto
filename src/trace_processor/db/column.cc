@@ -54,8 +54,7 @@ Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
                 col_idx, row_map_idx, nullptr);
 }
 
-void Column::FilterInto(FilterOp op, SqlValue value, RowMap* iv) const {
-  // TODO(lalitm): add special logic here to deal with kId and kSorted flags.
+void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* iv) const {
   switch (op) {
     case FilterOp::kLt:
       iv->RemoveIf([this, value](uint32_t row) { return Get(row) >= value; });
