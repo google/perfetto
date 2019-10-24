@@ -120,6 +120,8 @@ RowMap SelectIvWithIv(const std::vector<uint32_t>& iv,
 
 }  // namespace
 
+RowMap::RowMap() : RowMap(0, 0) {}
+
 RowMap::RowMap(uint32_t start, uint32_t end)
     : mode_(Mode::kRange), start_idx_(start), end_idx_(end) {}
 
