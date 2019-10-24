@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/trace_processor/export_json.h"
 #include "src/trace_processor/export_json.h"
+
+#include <string.h>
+
+#include <limits>
+
+#include <json/reader.h>
+#include <json/value.h>
 
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/args_tracker.h"
@@ -22,11 +30,6 @@
 #include "src/trace_processor/track_tracker.h"
 
 #include "test/gtest_and_gmock.h"
-
-#include <json/reader.h>
-#include <json/value.h>
-
-#include <limits>
 
 namespace perfetto {
 namespace trace_processor {
@@ -42,12 +45,46 @@ std::string ReadFile(FILE* input) {
   return std::string(buffer, ret);
 }
 
+class StringOutputWriter : public OutputWriter {
+ public:
+  StringOutputWriter() { str_.reserve(1024); }
+  ~StringOutputWriter() override {}
+
+  util::Status AppendString(const std::string& str) override {
+    str_ += str;
+    return util::OkStatus();
+  }
+
+  std::string TakeStr() { return std::move(str_); }
+
+ private:
+  std::string str_;
+};
+
 class ExportJsonTest : public ::testing::Test {
  public:
   ExportJsonTest() {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.storage.reset(new TraceStorage());
     context_.track_tracker.reset(new TrackTracker(&context_));
+  }
+
+  std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
+                     MetadataFilterPredicate metadata_filter = nullptr,
+                     LabelFilterPredicate label_filter = nullptr) {
+    StringOutputWriter writer;
+    util::Status status =
+        ExportJson(context_.storage.get(), &writer, argument_filter,
+                   metadata_filter, label_filter);
+    EXPECT_TRUE(status.ok());
+    return writer.TakeStr();
+  }
+
+  Json::Value ToJsonValue(const std::string& json) {
+    Json::Reader reader;
+    Json::Value result;
+    EXPECT_TRUE(reader.parse(json, result));
+    return result;
   }
 
  protected:
@@ -61,10 +98,7 @@ TEST_F(ExportJsonTest, EmptyStorage) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 0u);
 }
 
@@ -98,9 +132,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -147,9 +179,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -180,9 +210,7 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -209,9 +237,7 @@ TEST_F(ExportJsonTest, WrongTrackTypeIgnored) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 0u);
 }
 
@@ -266,10 +292,8 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
+  Json::Value result = ToJsonValue(ReadFile(output));
 
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
   EXPECT_TRUE(result.isMember("metadata"));
   EXPECT_TRUE(result["metadata"].isMember("telemetry"));
   Json::Value telemetry_metadata = result["metadata"]["telemetry"];
@@ -314,10 +338,8 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   util::Status status = ExportJson(context_.storage.get(), output);
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
+  Json::Value result = ToJsonValue(ReadFile(output));
 
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
   EXPECT_TRUE(result.isMember("metadata"));
   EXPECT_TRUE(result["metadata"].isMember("perfetto_trace_stats"));
   Json::Value stats = result["metadata"]["perfetto_trace_stats"];
@@ -353,10 +375,8 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
   util::Status status = ExportJson(storage, output);
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
+  Json::Value result = ToJsonValue(ReadFile(output));
 
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
   EXPECT_TRUE(result.isMember("metadata"));
   Json::Value metadata = result["metadata"];
 
@@ -395,9 +415,7 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -447,9 +465,7 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -500,9 +516,7 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -550,9 +564,7 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -600,9 +612,7 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -651,9 +661,7 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -694,9 +702,7 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -724,9 +730,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -758,9 +762,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -809,9 +811,7 @@ TEST_F(ExportJsonTest, AsyncEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 2u);
 
   Json::Value begin_event = result["traceEvents"][0];
@@ -868,9 +868,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 2u);
 
   Json::Value begin_event = result["traceEvents"][0];
@@ -926,9 +924,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value begin_event = result["traceEvents"][0];
@@ -978,9 +974,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -1062,9 +1056,7 @@ TEST_F(ExportJsonTest, RawEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
@@ -1091,7 +1083,7 @@ TEST_F(ExportJsonTest, RawEvent) {
 TEST_F(ExportJsonTest, LegacyRawEvents) {
   const char* kLegacyFtraceData = "some \"data\"\nsome :data:";
   const char* kLegacyJsonData1 = "{\"us";
-  const char* kLegacyJsonData2 = "er\": 1}";
+  const char* kLegacyJsonData2 = "er\": 1},{\"user\": 2}";
 
   TraceStorage* storage = context_.storage.get();
 
@@ -1123,13 +1115,11 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
 
-  EXPECT_EQ(result["traceEvents"].size(), 1u);
-  Json::Value user_event = result["traceEvents"][0];
-  EXPECT_EQ(user_event["user"].asInt(), 1);
+  EXPECT_EQ(result["traceEvents"].size(), 2u);
+  EXPECT_EQ(result["traceEvents"][0]["user"].asInt(), 1);
+  EXPECT_EQ(result["traceEvents"][1]["user"].asInt(), 2);
   EXPECT_EQ(result["systemTraceEvents"].asString(), kLegacyFtraceData);
 }
 
@@ -1191,9 +1181,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   EXPECT_TRUE(status.ok());
 
-  Json::Reader reader;
-  Json::Value result;
-  EXPECT_TRUE(reader.parse(ReadFile(output), result));
+  Json::Value result = ToJsonValue(ReadFile(output));
 
   EXPECT_EQ(result["traceEvents"].size(), 1u);
   Json::Value event = result["traceEvents"][0];
@@ -1208,8 +1196,157 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
             "bar_module_name [bar_module_id]\n");
 }
 
-// TODO(eseckler): Add some tests that exercise the public ExportJson API and
-// argument / metadata / label filters.
+TEST_F(ExportJsonTest, ArgumentFilter) {
+  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  TrackId track =
+      context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
+  context_.args_tracker->Flush();  // Flush track args.
+
+  StringId cat_id = context_.storage->InternString(base::StringView("cat"));
+  std::array<StringId, 3> name_ids{
+      context_.storage->InternString(base::StringView("name1")),
+      context_.storage->InternString(base::StringView("name2")),
+      context_.storage->InternString(base::StringView("name3"))};
+  StringId arg1_id = context_.storage->InternString(base::StringView("arg1"));
+  StringId arg2_id = context_.storage->InternString(base::StringView("arg2"));
+  StringId val_id = context_.storage->InternString(base::StringView("val"));
+
+  std::array<RowId, 3> slice_ids;
+  for (size_t i = 0; i < name_ids.size(); i++) {
+    slice_ids[i] = TraceStorage::CreateRowId(
+        kNestableSlices, context_.storage->mutable_nestable_slices()->AddSlice(
+                             0, 0, track, utid, RefType::kRefUtid, cat_id,
+                             name_ids[i], 0, 0, 0));
+  }
+
+  for (RowId row : slice_ids) {
+    context_.args_tracker->AddArg(row, arg1_id, arg1_id, Variadic::Integer(5));
+    context_.args_tracker->AddArg(row, arg2_id, arg2_id,
+                                  Variadic::String(val_id));
+  }
+  context_.args_tracker->Flush();
+
+  auto arg_filter = [](const char* category_group_name, const char* event_name,
+                       ArgumentNameFilterPredicate* arg_name_filter) {
+    EXPECT_TRUE(strcmp(category_group_name, "cat") == 0);
+    if (strcmp(event_name, "name1") == 0) {
+      // Filter all args for name1.
+      return false;
+    } else if (strcmp(event_name, "name2") == 0) {
+      // Filter only the second arg for name2.
+      *arg_name_filter = [](const char* arg_name) {
+        if (strcmp(arg_name, "arg1") == 0) {
+          return true;
+        }
+        EXPECT_TRUE(strcmp(arg_name, "arg2") == 0);
+        return false;
+      };
+      return true;
+    }
+    // Filter no args for name3.
+    EXPECT_TRUE(strcmp(event_name, "name3") == 0);
+    return true;
+  };
+
+  Json::Value result = ToJsonValue(ToJson(arg_filter));
+
+  EXPECT_EQ(result["traceEvents"].size(), 3u);
+
+  EXPECT_EQ(result["traceEvents"][0]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][0]["name"].asString(), "name1");
+  EXPECT_EQ(result["traceEvents"][0]["args"].asString(), "__stripped__");
+
+  EXPECT_EQ(result["traceEvents"][1]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][1]["name"].asString(), "name2");
+  EXPECT_EQ(result["traceEvents"][1]["args"]["arg1"].asInt(), 5);
+  EXPECT_EQ(result["traceEvents"][1]["args"]["arg2"].asString(),
+            "__stripped__");
+
+  EXPECT_EQ(result["traceEvents"][2]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][2]["name"].asString(), "name3");
+  EXPECT_EQ(result["traceEvents"][2]["args"]["arg1"].asInt(), 5);
+  EXPECT_EQ(result["traceEvents"][2]["args"]["arg2"].asString(), "val");
+}
+
+TEST_F(ExportJsonTest, MetadataFilter) {
+  const char* kName1 = "name1";
+  const char* kName2 = "name2";
+  const char* kValue1 = "value1";
+  const int kValue2 = 222;
+
+  TraceStorage* storage = context_.storage.get();
+
+  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+      0, storage->InternString("chrome_event.metadata"), 0, 0);
+
+  StringId name1_id = storage->InternString(base::StringView(kName1));
+  StringId name2_id = storage->InternString(base::StringView(kName2));
+  StringId value1_id = storage->InternString(base::StringView(kValue1));
+  context_.args_tracker->AddArg(row_id, name1_id, name1_id,
+                                Variadic::String(value1_id));
+  context_.args_tracker->AddArg(row_id, name2_id, name2_id,
+                                Variadic::Integer(kValue2));
+  context_.args_tracker->Flush();
+
+  auto metadata_filter = [](const char* metadata_name) {
+    // Only allow name1.
+    return strcmp(metadata_name, "name1") == 0;
+  };
+
+  Json::Value result = ToJsonValue(ToJson(nullptr, metadata_filter));
+
+  EXPECT_TRUE(result.isMember("metadata"));
+  Json::Value metadata = result["metadata"];
+
+  EXPECT_EQ(metadata[kName1].asString(), kValue1);
+  EXPECT_EQ(metadata[kName2].asString(), "__stripped__");
+}
+
+TEST_F(ExportJsonTest, LabelFilter) {
+  const int64_t kTimestamp1 = 10000000;
+  const int64_t kTimestamp2 = 20000000;
+  const int64_t kDuration = 10000;
+  const int64_t kThreadID = 100;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+
+  UniqueTid utid = context_.storage->AddEmptyThread(kThreadID);
+  TrackId track =
+      context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
+  context_.args_tracker->Flush();  // Flush track args.
+  StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
+  StringId name_id = context_.storage->InternString(base::StringView(kName));
+
+  context_.storage->mutable_nestable_slices()->AddSlice(
+      kTimestamp1, kDuration, track, utid, RefType::kRefUtid, cat_id, name_id,
+      0, 0, 0);
+  context_.storage->mutable_nestable_slices()->AddSlice(
+      kTimestamp2, kDuration, track, utid, RefType::kRefUtid, cat_id, name_id,
+      0, 0, 0);
+
+  auto label_filter = [](const char* label_name) {
+    return strcmp(label_name, "traceEvents") == 0;
+  };
+
+  Json::Value result =
+      ToJsonValue("[" + ToJson(nullptr, nullptr, label_filter) + "]");
+
+  EXPECT_TRUE(result.isArray());
+  EXPECT_EQ(result.size(), 2u);
+
+  EXPECT_EQ(result[0]["ph"].asString(), "X");
+  EXPECT_EQ(result[0]["ts"].asInt64(), kTimestamp1 / 1000);
+  EXPECT_EQ(result[0]["dur"].asInt64(), kDuration / 1000);
+  EXPECT_EQ(result[0]["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(result[0]["cat"].asString(), kCategory);
+  EXPECT_EQ(result[0]["name"].asString(), kName);
+  EXPECT_EQ(result[1]["ph"].asString(), "X");
+  EXPECT_EQ(result[1]["ts"].asInt64(), kTimestamp2 / 1000);
+  EXPECT_EQ(result[1]["dur"].asInt64(), kDuration / 1000);
+  EXPECT_EQ(result[1]["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(result[1]["cat"].asString(), kCategory);
+  EXPECT_EQ(result[1]["name"].asString(), kName);
+}
 
 }  // namespace
 }  // namespace json

@@ -62,6 +62,7 @@ const char kLegacyEventFlowDirectionKey[] = "flow_direction";
 const char kFlowDirectionValueIn[] = "in";
 const char kFlowDirectionValueOut[] = "out";
 const char kFlowDirectionValueInout[] = "inout";
+const char kStrippedArgument[] = "__stripped__";
 
 const char* GetNonNullString(const TraceStorage* storage, StringId id) {
   return id == kNullStringId ? "" : storage->GetString(id).c_str();
@@ -86,19 +87,49 @@ class FileWriter : public OutputWriter {
 
 class TraceFormatWriter {
  public:
-  TraceFormatWriter(OutputWriter* output)
-      : output_(output), first_event_(true) {
+  TraceFormatWriter(OutputWriter* output,
+                    ArgumentFilterPredicate argument_filter,
+                    MetadataFilterPredicate metadata_filter,
+                    LabelFilterPredicate label_filter)
+      : output_(output),
+        argument_filter_(argument_filter),
+        metadata_filter_(metadata_filter),
+        label_filter_(label_filter),
+        first_event_(true) {
     WriteHeader();
   }
 
   ~TraceFormatWriter() { WriteFooter(); }
 
   void WriteCommonEvent(const Json::Value& event) {
+    if (label_filter_ && !label_filter_("traceEvents"))
+      return;
+
     if (!first_event_) {
       output_->AppendString(",");
     }
     Json::FastWriter writer;
-    output_->AppendString(writer.write(event));
+
+    ArgumentNameFilterPredicate argument_name_filter;
+    bool strip_args =
+        argument_filter_ &&
+        !argument_filter_(event["cat"].asCString(), event["name"].asCString(),
+                          &argument_name_filter);
+    if ((strip_args || argument_name_filter) && event.isMember("args")) {
+      Json::Value event_copy = event;
+      if (strip_args) {
+        event_copy["args"] = kStrippedArgument;
+      } else {
+        auto& args = event_copy["args"];
+        for (const auto& member : event["args"].getMemberNames()) {
+          if (!argument_name_filter(member.c_str()))
+            args[member] = kStrippedArgument;
+        }
+      }
+      output_->AppendString(writer.write(event_copy));
+    } else {
+      output_->AppendString(writer.write(event));
+    }
     first_event_ = false;
   }
 
@@ -106,6 +137,9 @@ class TraceFormatWriter {
                           const char* metadata_value,
                           uint32_t tid,
                           uint32_t pid) {
+    if (label_filter_ && !label_filter_("traceEvents"))
+      return;
+
     if (!first_event_) {
       output_->AppendString(",");
     }
@@ -163,37 +197,63 @@ class TraceFormatWriter {
     system_trace_data_ += data;
   }
 
-  void AddUserTraceData(const std::string& data) { user_trace_data_ += data; }
+  void AddUserTraceData(const std::string& data) {
+    if (user_trace_data_.empty())
+      user_trace_data_ = "[";
+    user_trace_data_ += data;
+  }
 
  private:
-  void WriteHeader() { output_->AppendString("{\"traceEvents\":[\n"); }
+  void WriteHeader() {
+    if (!label_filter_)
+      output_->AppendString("{\"traceEvents\":[\n");
+  }
 
   void WriteFooter() {
+    // Filter metadata entries.
+    if (metadata_filter_) {
+      for (const auto& member : metadata_.getMemberNames()) {
+        if (!metadata_filter_(member.c_str()))
+          metadata_[member] = kStrippedArgument;
+      }
+    }
+
     Json::FastWriter writer;
-    if (!user_trace_data_.empty()) {
+    if ((!label_filter_ || label_filter_("traceEvents")) &&
+        !user_trace_data_.empty()) {
+      user_trace_data_ += "]";
       Json::Reader reader;
       Json::Value result;
       if (reader.parse(user_trace_data_, result)) {
-        WriteCommonEvent(result);
+        for (const auto& event : result) {
+          WriteCommonEvent(event);
+        }
       } else {
         PERFETTO_DLOG(
             "can't parse legacy user json trace export, skipping. data: %s",
             user_trace_data_.c_str());
       }
     }
-    output_->AppendString("]");
-    if (!system_trace_data_.empty()) {
+    if (!label_filter_)
+      output_->AppendString("]");
+    if ((!label_filter_ || label_filter_("systemTraceEvents")) &&
+        !system_trace_data_.empty()) {
       output_->AppendString(",\"systemTraceEvents\":\n");
       output_->AppendString(writer.write(Json::Value(system_trace_data_)));
     }
-    if (!metadata_.empty()) {
+    if ((!label_filter_ || label_filter_("metadata")) && !metadata_.empty()) {
       output_->AppendString(",\"metadata\":\n");
       output_->AppendString(writer.write(metadata_));
     }
-    output_->AppendString("}");
+    if (!label_filter_)
+      output_->AppendString("}");
   }
 
   OutputWriter* output_;
+  ArgumentFilterPredicate argument_filter_;
+  MetadataFilterPredicate metadata_filter_;
+  LabelFilterPredicate label_filter_;
+
   bool first_event_;
   Json::Value metadata_;
   std::string system_trace_data_;
@@ -874,13 +934,19 @@ util::Status ExportStats(const TraceStorage* storage,
   return util::OkStatus();
 }
 
+}  // namespace
+
+OutputWriter::OutputWriter() = default;
+OutputWriter::~OutputWriter() = default;
+
 util::Status ExportJson(const TraceStorage* storage,
                         OutputWriter* output,
-                        ArgumentFilterPredicate /*argument_filter*/,
-                        MetadataFilterPredicate /*metadata_filter*/,
-                        LabelFilterPredicate /*label_filter*/) {
+                        ArgumentFilterPredicate argument_filter,
+                        MetadataFilterPredicate metadata_filter,
+                        LabelFilterPredicate label_filter) {
   // TODO(eseckler): Implement argument/metadata/label filtering.
-  TraceFormatWriter writer(output);
+  TraceFormatWriter writer(output, argument_filter, metadata_filter,
+                           label_filter);
   ArgsBuilder args_builder(storage);
 
   util::Status status = ExportThreadNames(storage, &writer);
@@ -913,11 +979,6 @@ util::Status ExportJson(const TraceStorage* storage,
 
   return util::OkStatus();
 }
-
-}  // namespace
-
-OutputWriter::OutputWriter() = default;
-OutputWriter::~OutputWriter() = default;
 
 util::Status ExportJson(TraceProcessor* tp,
                         OutputWriter* output,
