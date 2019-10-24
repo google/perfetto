@@ -16,7 +16,11 @@ import * as m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
-import {TrackGroupState, TrackState} from '../common/state';
+import {
+  getContainingTrackId,
+  TrackGroupState,
+  TrackState
+} from '../common/state';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -62,17 +66,32 @@ export class TrackGroupPanel extends Panel<Attrs> {
     if (name[0] === '/') {
       name = StripPathFromExecutable(name);
     }
+
+    // The shell should be highlighted if the current search result is inside
+    // this track group.
+    let highlightClass = '';
+    const searchIndex = globals.frontendLocalState.searchIndex;
+    if (searchIndex !== -1) {
+      const trackId = globals.currentSearchResults
+                          .trackIds[globals.frontendLocalState.searchIndex];
+      const parentTrackId = getContainingTrackId(globals.state, trackId);
+      if (parentTrackId === attrs.trackGroupId) {
+        highlightClass = 'flash';
+      }
+    }
+
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         {id: 'track_' + this.trackGroupId},
-        m('.shell',
+        m(`.shell`,
           {
             onclick: (e: MouseEvent) => {
               globals.dispatch(Actions.toggleTrackGroupCollapsed({
                 trackGroupId: attrs.trackGroupId,
               })),
                   e.stopPropagation();
-            }
+            },
+            class: `${highlightClass}`,
           },
           m('h1',
             {

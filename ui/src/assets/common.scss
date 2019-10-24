@@ -334,6 +334,9 @@ button.close {
         &:hover .track-button{
           opacity: 1;
         }
+        &.flash {
+          background-color: #ffe263;
+        }
     }
 }
 
@@ -512,6 +515,9 @@ button.query-ctrl {
     background-color: var(--expanded-background);
     color: white;
     font-weight: bold;
+    .shell.flash {
+      color: #121212;
+    }
   }
   .shell {
     padding: 4px 10px;
@@ -539,6 +545,9 @@ button.query-ctrl {
       .fold-button {
         color: hsl(45, 100%, 48%);
       }
+    }
+    &.flash {
+      background-color: #ffe263;
     }
   }
 }
