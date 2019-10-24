@@ -143,7 +143,7 @@ RowMap RowMap::Copy() const {
   PERFETTO_FATAL("For GCC");
 }
 
-RowMap RowMap::SelectRows(const RowMap& selector) const {
+RowMap RowMap::SelectRowsSlow(const RowMap& selector) const {
   // Pick the strategy based on the selector as there is more common code
   // between selectors of the same mode than between the RowMaps being
   // selected of the same mode.
