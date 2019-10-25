@@ -833,14 +833,14 @@ class TraceStorage {
 
     uint32_t size() const { return static_cast<uint32_t>(names_.size()); }
 
-    int64_t Insert(const Row& row) {
+    uint32_t Insert(const Row& row) {
       names_.emplace_back(row.name_id);
       mappings_.emplace_back(row.mapping_row);
       rel_pcs_.emplace_back(row.rel_pc);
       symbol_set_ids_.emplace_back(0);
       size_t row_number = names_.size() - 1;
       index_.emplace(std::make_pair(row.mapping_row, row.rel_pc), row_number);
-      return static_cast<int64_t>(row_number);
+      return static_cast<uint32_t>(row_number);
     }
 
     ssize_t FindFrameRow(size_t mapping_row, uint64_t rel_pc) const {
@@ -872,40 +872,6 @@ class TraceStorage {
         index_;
   };
 
-  class StackProfileCallsites {
-   public:
-    struct Row {
-      int64_t depth;
-      int64_t parent_id;
-      int64_t frame_row;
-
-      bool operator==(const Row& other) const {
-        return std::tie(depth, parent_id, frame_row) ==
-               std::tie(other.depth, other.parent_id, other.frame_row);
-      }
-    };
-
-    uint32_t size() const { return static_cast<uint32_t>(frame_ids_.size()); }
-
-    int64_t Insert(const Row& row) {
-      frame_depths_.emplace_back(row.depth);
-      parent_callsite_ids_.emplace_back(row.parent_id);
-      frame_ids_.emplace_back(row.frame_row);
-      return static_cast<int64_t>(frame_depths_.size()) - 1;
-    }
-
-    const std::deque<int64_t>& frame_depths() const { return frame_depths_; }
-    const std::deque<int64_t>& parent_callsite_ids() const {
-      return parent_callsite_ids_;
-    }
-    const std::deque<int64_t>& frame_ids() const { return frame_ids_; }
-
-   private:
-    std::deque<int64_t> frame_depths_;
-    std::deque<int64_t> parent_callsite_ids_;
-    std::deque<int64_t> frame_ids_;
-  };
-
   class StackProfileMappings {
    public:
     struct Row {
@@ -927,7 +893,7 @@ class TraceStorage {
 
     uint32_t size() const { return static_cast<uint32_t>(names_.size()); }
 
-    int64_t Insert(const Row& row) {
+    uint32_t Insert(const Row& row) {
       build_ids_.emplace_back(row.build_id);
       exact_offsets_.emplace_back(row.exact_offset);
       start_offsets_.emplace_back(row.start_offset);
@@ -939,7 +905,7 @@ class TraceStorage {
       size_t row_number = build_ids_.size() - 1;
       index_[std::make_pair(row.name_id, row.build_id)].emplace_back(
           row_number);
-      return static_cast<int64_t>(row_number);
+      return static_cast<uint32_t>(row_number);
     }
 
     std::vector<int64_t> FindMappingRow(StringId name,
@@ -1255,11 +1221,12 @@ class TraceStorage {
     return &stack_profile_frames_;
   }
 
-  const StackProfileCallsites& stack_profile_callsites() const {
-    return stack_profile_callsites_;
+  const tables::StackProfileCallsiteTable& stack_profile_callsite_table()
+      const {
+    return stack_profile_callsite_table_;
   }
-  StackProfileCallsites* mutable_stack_profile_callsites() {
-    return &stack_profile_callsites_;
+  tables::StackProfileCallsiteTable* mutable_stack_profile_callsite_table() {
+    return &stack_profile_callsite_table_;
   }
 
   const HeapProfileAllocations& heap_profile_allocations() const {
@@ -1409,7 +1376,8 @@ class TraceStorage {
 
   StackProfileMappings stack_profile_mappings_;
   StackProfileFrames stack_profile_frames_;
-  StackProfileCallsites stack_profile_callsites_;
+  tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
+                                                                  nullptr};
   HeapProfileAllocations heap_profile_allocations_;
   CpuProfileStackSamples cpu_profile_stack_samples_;
 
@@ -1443,14 +1411,14 @@ struct hash<
 
 template <>
 struct hash<
-    ::perfetto::trace_processor::TraceStorage::StackProfileCallsites::Row> {
+    ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row> {
   using argument_type =
-      ::perfetto::trace_processor::TraceStorage::StackProfileCallsites::Row;
+      ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
     return std::hash<int64_t>{}(r.depth) ^ std::hash<int64_t>{}(r.parent_id) ^
-           std::hash<int64_t>{}(r.frame_row);
+           std::hash<int64_t>{}(r.frame_id);
   }
 };
 
