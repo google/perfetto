@@ -21,6 +21,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/trace_blob_view.h"
 
+#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -139,6 +140,16 @@ class ProtoImporterModule {
                            const TimestampedTracePiece& ttp) {
     if (ModuleType::kEnabled)
       return impl_->ParsePacket(decoder, ttp);
+    return ModuleResult::Ignored();
+  }
+
+  // Wraps ModuleType::ParseTraceConfig(). If the module is disabled, compiles
+  // into a noop in optimized builds. Called by ProtoTraceParser for trace
+  // config packets after the sorting stage.
+  ModuleResult ParseTraceConfig(
+      const protos::pbzero::TraceConfig::Decoder& decoder) {
+    if (ModuleType::kEnabled)
+      return impl_->ParseTraceConfig(decoder);
     return ModuleResult::Ignored();
   }
 
