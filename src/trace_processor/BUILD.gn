@@ -86,6 +86,8 @@ source_set("lib") {
     "importers/ftrace/ftrace_tokenizer.h",
     "importers/ftrace/sched_event_tracker.h",
     "importers/fuchsia/fuchsia_provider_view.h",
+    "importers/proto/android_probes_module.h",
+    "importers/proto/android_probes_parser.h",
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.h",
     "importers/proto/packet_sequence_state.h",
@@ -95,6 +97,8 @@ source_set("lib") {
     "importers/proto/proto_trace_parser.h",
     "importers/proto/proto_trace_tokenizer.cc",
     "importers/proto/proto_trace_tokenizer.h",
+    "importers/proto/system_probes_module.h",
+    "importers/proto/system_probes_parser.h",
     "importers/proto/track_event_module.h",
     "importers/proto/track_event_parser.cc",
     "importers/proto/track_event_parser.h",
@@ -229,6 +233,12 @@ source_set("lib") {
   if (enable_perfetto_trace_processor_ftrace ||
       enable_perfetto_trace_processor_fuchsia) {
     sources += [ "ftrace_utils.cc" ]
+  }
+  if (enable_perfetto_trace_processor_system_probes) {
+    sources += [ "importers/proto/system_probes_parser.cc" ]
+  }
+  if (enable_perfetto_trace_processor_android_probes) {
+    sources += [ "importers/proto/android_probes_parser.cc" ]
   }
   if (enable_perfetto_trace_processor_graphics) {
     sources += [ "importers/proto/graphics_event_parser.cc" ]

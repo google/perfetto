@@ -25,6 +25,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class AndroidProbesModule;
 class ArgsTracker;
 class ChunkedTraceReader;
 class ClockTracker;
@@ -37,6 +38,7 @@ class ProcessTracker;
 class SchedEventTracker;
 class SliceTracker;
 class SyscallTracker;
+class SystraceProtoModule;
 class SystraceParser;
 class TraceParser;
 class TraceStorage;
@@ -71,6 +73,9 @@ class TraceProcessorContext {
 
   std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
   std::unique_ptr<ProtoImporterModule<TrackEventModule>> track_event_module;
+  std::unique_ptr<ProtoImporterModule<SystraceProtoModule>> systrace_module;
+  std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
+      android_probes_module;
   std::unique_ptr<ProtoImporterModule<GraphicsEventModule>>
       graphics_event_module;
 };
