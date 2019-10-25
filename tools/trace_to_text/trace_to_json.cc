@@ -79,11 +79,13 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
 int TraceToJson(std::istream* input,
                 std::ostream* output,
                 bool compress,
-                Keep truncate_keep) {
+                Keep truncate_keep,
+                bool full_sort) {
   std::unique_ptr<TraceWriter> trace_writer(
       compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
   trace_processor::Config config;
+  config.force_full_sort = full_sort;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 

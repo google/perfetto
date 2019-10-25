@@ -34,7 +34,8 @@ enum class Keep { kStart = 0, kEnd, kAll };
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
                     bool compress,
-                    Keep truncate_keep);
+                    Keep truncate_keep,
+                    bool full_sort);
 
 int ExtractSystrace(trace_processor::TraceProcessor*,
                     TraceWriter*,
