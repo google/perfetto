@@ -158,6 +158,9 @@ class MacroTable : public Table {
 // Defines the variable in Table::Row.
 #define PERFETTO_TP_ROW_DEFINITION(type, name, ...) type name = {};
 
+// Used to generate an equality implementation on Table::Row.
+#define PERFETTO_TP_ROW_EQUALS(type, name, ...) other.name == name&&
+
 // Defines the parent row field in Insert.
 #define PERFETTO_TP_PARENT_ROW_INSERT(type, name, ...) row.name,
 
@@ -231,6 +234,10 @@ class MacroTable : public Table {
          * ...                                                                \
          */                                                                   \
         PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_INITIALIZER)           \
+      }                                                                       \
+                                                                              \
+      bool operator==(const class_name::Row& other) const {                   \
+        return PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_EQUALS) true;   \
       }                                                                       \
                                                                               \
       /* Expands to                                                           \

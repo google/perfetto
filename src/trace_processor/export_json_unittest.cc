@@ -1134,11 +1134,11 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   UniqueTid utid = storage->AddEmptyThread(kThreadID);
   storage->GetMutableThread(utid)->upid = upid;
 
-  RowId module_row_id_1 = storage->mutable_stack_profile_mappings()->Insert(
+  uint32_t module_row_id_1 = storage->mutable_stack_profile_mappings()->Insert(
       {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
        storage->InternString("foo_module_name")});
 
-  RowId module_row_id_2 = storage->mutable_stack_profile_mappings()->Insert(
+  uint32_t module_row_id_2 = storage->mutable_stack_profile_mappings()->Insert(
       {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
        storage->InternString("bar_module_name")});
 
@@ -1146,7 +1146,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   // stack_profile_frame.symbol_set_id remove this hack
   storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
 
-  RowId frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
+  uint32_t frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
       {/*name_id=*/0, module_row_id_1, 0x42});
   uint32_t symbol_set_id = storage->symbol_table().size();
   storage->mutable_symbol_table()->Insert(
@@ -1155,7 +1155,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   storage->mutable_stack_profile_frames()->SetSymbolSetId(
       static_cast<size_t>(frame_row_id_1), symbol_set_id);
 
-  RowId frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
+  uint32_t frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
       {/*name_id=*/0, module_row_id_2, 0x4242});
   symbol_set_id = storage->symbol_table().size();
   storage->mutable_symbol_table()->Insert(
@@ -1164,12 +1164,12 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   storage->mutable_stack_profile_frames()->SetSymbolSetId(
       static_cast<size_t>(frame_row_id_2), symbol_set_id);
 
-  RowId frame_callsite_id_1 =
-      storage->mutable_stack_profile_callsites()->Insert(
+  uint32_t frame_callsite_id_1 =
+      storage->mutable_stack_profile_callsite_table()->Insert(
           {0, -1, frame_row_id_1});
 
-  RowId frame_callsite_id_2 =
-      storage->mutable_stack_profile_callsites()->Insert(
+  uint32_t frame_callsite_id_2 =
+      storage->mutable_stack_profile_callsite_table()->Insert(
           {1, frame_callsite_id_1, frame_row_id_2});
 
   storage->mutable_cpu_profile_stack_samples()->Insert(
