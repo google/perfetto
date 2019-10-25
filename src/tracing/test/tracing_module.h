@@ -14,21 +14,28 @@
  * limitations under the License.
  */
 
-#include "src/tracing/test/api_test_support.h"
+#ifndef SRC_TRACING_TEST_TRACING_MODULE_H_
+#define SRC_TRACING_TEST_TRACING_MODULE_H_
 
-#include "perfetto/base/time.h"
-#include "perfetto/ext/base/proc_utils.h"
+// Note: No non-client API header includes are allowed here.
 
 namespace perfetto {
-namespace test {
-
-int32_t GetCurrentProcessId() {
-  return static_cast<int32_t>(base::GetProcessId());
-}
-
-uint64_t GetWallTimeNs() {
-  return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
-}
-
-}  // namespace test
+namespace internal {
+struct TrackEventIncrementalState;
+}  // namespace internal
 }  // namespace perfetto
+
+namespace tracing_module {
+
+void InitializeCategories();
+void EmitTrackEvents();
+void EmitTrackEvents2();
+perfetto::internal::TrackEventIncrementalState* GetIncrementalState();
+
+// This function is used to check the instruction size overhead of a single
+// track event.
+void FunctionWithOneTrackEvent();
+
+}  // namespace tracing_module
+
+#endif  // SRC_TRACING_TEST_TRACING_MODULE_H_

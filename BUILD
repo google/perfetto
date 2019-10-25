@@ -400,12 +400,15 @@ filegroup(
         "include/perfetto/tracing/internal/tracing_muxer.h",
         "include/perfetto/tracing/internal/tracing_tls.h",
         "include/perfetto/tracing/internal/track_event_data_source.h",
+        "include/perfetto/tracing/internal/track_event_internal.h",
+        "include/perfetto/tracing/internal/track_event_macros.h",
         "include/perfetto/tracing/locked_handle.h",
         "include/perfetto/tracing/platform.h",
         "include/perfetto/tracing/trace_writer_base.h",
         "include/perfetto/tracing/tracing.h",
         "include/perfetto/tracing/tracing_backend.h",
         "include/perfetto/tracing/track_event.h",
+        "include/perfetto/tracing/track_event_category_registry.h",
     ],
 )
 
@@ -946,9 +949,10 @@ filegroup(
         "src/tracing/internal/system_tracing_backend.h",
         "src/tracing/internal/tracing_muxer_impl.cc",
         "src/tracing/internal/tracing_muxer_impl.h",
+        "src/tracing/internal/track_event_internal.cc",
         "src/tracing/platform.cc",
         "src/tracing/tracing.cc",
-        "src/tracing/track_event.cc",
+        "src/tracing/track_event_category_registry.cc",
         "src/tracing/virtual_destructors.cc",
     ],
 )
