@@ -57,12 +57,12 @@ echo ""
 echo "Updating tools/install-build-deps"
 echo ""
 
-OLD_SHA=$(cat tools/install-build-deps | grep '/test-data-.*.zip' -A1 | tail -n1 | cut -c5-44)
+OLD_SHA=$(cat tools/install-build-deps | grep '/test-data-.*.zip' -A1 | tail -n1 | cut -c10-49)
 
 # Cannot easily use sed -i, it has different syntax on Linux vs Mac.
 cat tools/install-build-deps \
-  | sed -e 's|/test-data-.*.zip|/'$NEW_TEST_DATA'|g' \
-  | sed -e 's|'$OLD_SHA'|'$NEW_SHA'|g' \
+  | sed -e "s|/test-data-.*.zip|/$NEW_TEST_DATA|g" \
+  | sed -e "s|$OLD_SHA|$NEW_SHA|g" \
   > tools/install-build-deps.tmp
 
 mv -f tools/install-build-deps.tmp tools/install-build-deps

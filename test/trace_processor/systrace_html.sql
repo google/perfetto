@@ -1,0 +1,1 @@
+select * from sched join thread using(utid)
