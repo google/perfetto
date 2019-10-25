@@ -27,47 +27,37 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/traced/sys_stats_counters.h"
-#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/args_tracker.h"
-#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
-#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/track_tracker.h"
 #include "src/trace_processor/variadic.h"
 
-#include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
-#include "protos/perfetto/trace/android/android_log.pbzero.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
-#include "protos/perfetto/trace/power/battery_counters.pbzero.h"
-#include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "protos/perfetto/trace/ps/process_stats.pbzero.h"
-#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
-#include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -75,13 +65,6 @@ namespace perfetto {
 namespace trace_processor {
 
 namespace {
-
-// kthreadd is the parent process for all kernel threads and always has
-// pid == 2 on Linux and Android.
-const uint32_t kKthreaddPid = 2;
-const char kKthreaddName[] = "kthreadd";
-
-using protozero::ProtoDecoder;
 
 StackProfileTracker::SourceMapping MakeSourceMapping(
     const protos::pbzero::Mapping::Decoder& entry) {
@@ -224,32 +207,6 @@ const char* HeapGraphRootTypeToString(int32_t type) {
 
 ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
     : context_(context),
-      utid_name_id_(context->storage->InternString("utid")),
-      num_forks_name_id_(context->storage->InternString("num_forks")),
-      num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
-      num_softirq_total_name_id_(
-          context->storage->InternString("num_softirq_total")),
-      num_irq_name_id_(context->storage->InternString("num_irq")),
-      num_softirq_name_id_(context->storage->InternString("num_softirq")),
-      cpu_times_user_ns_id_(
-          context->storage->InternString("cpu.times.user_ns")),
-      cpu_times_user_nice_ns_id_(
-          context->storage->InternString("cpu.times.user_nice_ns")),
-      cpu_times_system_mode_ns_id_(
-          context->storage->InternString("cpu.times.system_mode_ns")),
-      cpu_times_idle_ns_id_(
-          context->storage->InternString("cpu.times.idle_ns")),
-      cpu_times_io_wait_ns_id_(
-          context->storage->InternString("cpu.times.io_wait_ns")),
-      cpu_times_irq_ns_id_(context->storage->InternString("cpu.times.irq_ns")),
-      cpu_times_softirq_ns_id_(
-          context->storage->InternString("cpu.times.softirq_ns")),
-      batt_charge_id_(context->storage->InternString("batt.charge_uah")),
-      batt_capacity_id_(context->storage->InternString("batt.capacity_pct")),
-      batt_current_id_(context->storage->InternString("batt.current_ua")),
-      batt_current_avg_id_(
-          context->storage->InternString("batt.current.avg_ua")),
-      oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       metatrace_id_(context->storage->InternString("metatrace")),
       data_name_id_(context->storage->InternString("data")),
       raw_chrome_metadata_event_id_(
@@ -258,33 +215,6 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
           context->storage->InternString("chrome_event.legacy_system_trace")),
       raw_chrome_legacy_user_trace_event_id_(
           context->storage->InternString("chrome_event.legacy_user_trace")) {
-  for (const auto& name : BuildMeminfoCounterNames()) {
-    meminfo_strs_id_.emplace_back(context->storage->InternString(name));
-  }
-  for (const auto& name : BuildVmstatCounterNames()) {
-    vmstat_strs_id_.emplace_back(context->storage->InternString(name));
-  }
-
-  using ProcessStats = protos::pbzero::ProcessStats;
-  proc_stats_process_names_[ProcessStats::Process::kVmSizeKbFieldNumber] =
-      context->storage->InternString("mem.virt");
-  proc_stats_process_names_[ProcessStats::Process::kVmRssKbFieldNumber] =
-      context->storage->InternString("mem.rss");
-  proc_stats_process_names_[ProcessStats::Process::kRssAnonKbFieldNumber] =
-      context->storage->InternString("mem.rss.anon");
-  proc_stats_process_names_[ProcessStats::Process::kRssFileKbFieldNumber] =
-      context->storage->InternString("mem.rss.file");
-  proc_stats_process_names_[ProcessStats::Process::kRssShmemKbFieldNumber] =
-      context->storage->InternString("mem.rss.shmem");
-  proc_stats_process_names_[ProcessStats::Process::kVmSwapKbFieldNumber] =
-      context->storage->InternString("mem.swap");
-  proc_stats_process_names_[ProcessStats::Process::kVmLockedKbFieldNumber] =
-      context->storage->InternString("mem.locked");
-  proc_stats_process_names_[ProcessStats::Process::kVmHwmKbFieldNumber] =
-      context->storage->InternString("mem.rss.watermark");
-  proc_stats_process_names_[ProcessStats::Process::kOomScoreAdjFieldNumber] =
-      oom_score_adj_id_;
-
   // TODO(140860736): Once we support null values for
   // stack_profile_frame.symbol_set_id remove this hack
   context_->storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
@@ -318,29 +248,17 @@ void ProtoTraceParser::ParseTracePacketImpl(
   if (!context_->track_event_module->ParsePacket(packet, ttp).ignored())
     return;
 
+  if (!context_->systrace_module->ParsePacket(packet, ttp).ignored())
+    return;
+
+  if (!context_->android_probes_module->ParsePacket(packet, ttp).ignored())
+    return;
+
   if (!context_->graphics_event_module->ParsePacket(packet, ttp).ignored())
     return;
 
-  if (packet.has_process_tree())
-    ParseProcessTree(packet.process_tree());
-
-  if (packet.has_process_stats())
-    ParseProcessStats(ts, packet.process_stats());
-
-  if (packet.has_sys_stats())
-    ParseSysStats(ts, packet.sys_stats());
-
-  if (packet.has_battery())
-    ParseBatteryCounters(ts, packet.battery());
-
-  if (packet.has_power_rails())
-    ParsePowerRails(ts, packet.power_rails());
-
   if (packet.has_trace_stats())
     ParseTraceStats(packet.trace_stats());
-
-  if (packet.has_android_log())
-    ParseAndroidLogPacket(packet.android_log());
 
   if (packet.has_profile_packet()) {
     ParseProfilePacket(ts, ttp.packet_sequence_state,
@@ -353,9 +271,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
                                 ttp.packet_sequence_state_generation,
                                 packet.streaming_profile_packet());
   }
-
-  if (packet.has_system_info())
-    ParseSystemInfo(packet.system_info());
 
   if (packet.has_chrome_benchmark_metadata()) {
     ParseChromeBenchmarkMetadata(packet.chrome_benchmark_metadata());
@@ -373,186 +288,12 @@ void ProtoTraceParser::ParseTracePacketImpl(
     ParseTraceConfig(packet.trace_config());
   }
 
-  if (packet.has_packages_list()) {
-    ParseAndroidPackagesList(packet.packages_list());
-  }
-
   if (packet.has_module_symbols()) {
     ParseModuleSymbols(packet.module_symbols());
   }
 
   if (packet.has_heap_graph()) {
     ParseHeapGraph(ts, packet.heap_graph());
-  }
-}
-
-void ProtoTraceParser::ParseSysStats(int64_t ts, ConstBytes blob) {
-  protos::pbzero::SysStats::Decoder sys_stats(blob.data, blob.size);
-
-  for (auto it = sys_stats.meminfo(); it; ++it) {
-    protos::pbzero::SysStats::MeminfoValue::Decoder mi(*it);
-    auto key = static_cast<size_t>(mi.key());
-    if (PERFETTO_UNLIKELY(key >= meminfo_strs_id_.size())) {
-      PERFETTO_ELOG("MemInfo key %zu is not recognized.", key);
-      context_->storage->IncrementStats(stats::meminfo_unknown_keys);
-      continue;
-    }
-    // /proc/meminfo counters are in kB, convert to bytes
-    context_->event_tracker->PushCounter(
-        ts, mi.value() * 1024L, meminfo_strs_id_[key], 0, RefType::kRefNoRef);
-  }
-
-  for (auto it = sys_stats.vmstat(); it; ++it) {
-    protos::pbzero::SysStats::VmstatValue::Decoder vm(*it);
-    auto key = static_cast<size_t>(vm.key());
-    if (PERFETTO_UNLIKELY(key >= vmstat_strs_id_.size())) {
-      PERFETTO_ELOG("VmStat key %zu is not recognized.", key);
-      context_->storage->IncrementStats(stats::vmstat_unknown_keys);
-      continue;
-    }
-    context_->event_tracker->PushCounter(ts, vm.value(), vmstat_strs_id_[key],
-                                         0, RefType::kRefNoRef);
-  }
-
-  for (auto it = sys_stats.cpu_stat(); it; ++it) {
-    protos::pbzero::SysStats::CpuTimes::Decoder ct(*it);
-    if (PERFETTO_UNLIKELY(!ct.has_cpu_id())) {
-      PERFETTO_ELOG("CPU field not found in CpuTimes");
-      context_->storage->IncrementStats(stats::invalid_cpu_times);
-      continue;
-    }
-    context_->event_tracker->PushCounter(ts, ct.user_ns(),
-                                         cpu_times_user_ns_id_, ct.cpu_id(),
-                                         RefType::kRefCpuId);
-    context_->event_tracker->PushCounter(ts, ct.user_ice_ns(),
-                                         cpu_times_user_nice_ns_id_,
-                                         ct.cpu_id(), RefType::kRefCpuId);
-    context_->event_tracker->PushCounter(ts, ct.system_mode_ns(),
-                                         cpu_times_system_mode_ns_id_,
-                                         ct.cpu_id(), RefType::kRefCpuId);
-    context_->event_tracker->PushCounter(ts, ct.idle_ns(),
-                                         cpu_times_idle_ns_id_, ct.cpu_id(),
-                                         RefType::kRefCpuId);
-    context_->event_tracker->PushCounter(ts, ct.io_wait_ns(),
-                                         cpu_times_io_wait_ns_id_, ct.cpu_id(),
-                                         RefType::kRefCpuId);
-    context_->event_tracker->PushCounter(ts, ct.irq_ns(), cpu_times_irq_ns_id_,
-                                         ct.cpu_id(), RefType::kRefCpuId);
-    context_->event_tracker->PushCounter(ts, ct.softirq_ns(),
-                                         cpu_times_softirq_ns_id_, ct.cpu_id(),
-                                         RefType::kRefCpuId);
-  }
-
-  for (auto it = sys_stats.num_irq(); it; ++it) {
-    protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
-    context_->event_tracker->PushCounter(ts, ic.count(), num_irq_name_id_,
-                                         ic.irq(), RefType::kRefIrq);
-  }
-
-  for (auto it = sys_stats.num_softirq(); it; ++it) {
-    protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
-    context_->event_tracker->PushCounter(ts, ic.count(), num_softirq_name_id_,
-                                         ic.irq(), RefType::kRefSoftIrq);
-  }
-
-  if (sys_stats.has_num_forks()) {
-    context_->event_tracker->PushCounter(
-        ts, sys_stats.num_forks(), num_forks_name_id_, 0, RefType::kRefNoRef);
-  }
-
-  if (sys_stats.has_num_irq_total()) {
-    context_->event_tracker->PushCounter(ts, sys_stats.num_irq_total(),
-                                         num_irq_total_name_id_, 0,
-                                         RefType::kRefNoRef);
-  }
-
-  if (sys_stats.has_num_softirq_total()) {
-    context_->event_tracker->PushCounter(ts, sys_stats.num_softirq_total(),
-                                         num_softirq_total_name_id_, 0,
-                                         RefType::kRefNoRef);
-  }
-}
-
-void ProtoTraceParser::ParseProcessTree(ConstBytes blob) {
-  protos::pbzero::ProcessTree::Decoder ps(blob.data, blob.size);
-
-  for (auto it = ps.processes(); it; ++it) {
-    protos::pbzero::ProcessTree::Process::Decoder proc(*it);
-    if (!proc.has_cmdline())
-      continue;
-    auto pid = static_cast<uint32_t>(proc.pid());
-    auto ppid = static_cast<uint32_t>(proc.ppid());
-
-    // If the parent pid is kthreadd's pid, even though this pid is of a
-    // "process", we want to treat it as being a child thread of kthreadd.
-    if (ppid == kKthreaddPid) {
-      context_->process_tracker->SetProcessMetadata(kKthreaddPid, base::nullopt,
-                                                    kKthreaddName);
-      context_->process_tracker->UpdateThread(pid, kKthreaddPid);
-    } else {
-      auto args = proc.cmdline();
-      base::StringView argv0 = args ? *args : base::StringView();
-      context_->process_tracker->SetProcessMetadata(pid, ppid, argv0);
-    }
-  }
-
-  for (auto it = ps.threads(); it; ++it) {
-    protos::pbzero::ProcessTree::Thread::Decoder thd(*it);
-    auto tid = static_cast<uint32_t>(thd.tid());
-    auto tgid = static_cast<uint32_t>(thd.tgid());
-    context_->process_tracker->UpdateThread(tid, tgid);
-
-    if (thd.has_name()) {
-      StringId threadNameId = context_->storage->InternString(thd.name());
-      context_->process_tracker->UpdateThreadName(tid, threadNameId);
-    }
-  }
-}
-
-void ProtoTraceParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
-  protos::pbzero::ProcessStats::Decoder stats(blob.data, blob.size);
-  const auto kOomScoreAdjFieldNumber =
-      protos::pbzero::ProcessStats::Process::kOomScoreAdjFieldNumber;
-  for (auto it = stats.processes(); it; ++it) {
-    // Maps a process counter field it to its value.
-    // E.g., 4 := 1024 -> "mem.rss.anon" := 1024.
-    std::array<int64_t, kProcStatsProcessSize> counter_values{};
-    std::array<bool, kProcStatsProcessSize> has_counter{};
-
-    ProtoDecoder proc(*it);
-    uint32_t pid = 0;
-    for (auto fld = proc.ReadField(); fld.valid(); fld = proc.ReadField()) {
-      if (fld.id() == protos::pbzero::ProcessStats::Process::kPidFieldNumber) {
-        pid = fld.as_uint32();
-        continue;
-      }
-      bool is_counter_field = fld.id() < proc_stats_process_names_.size() &&
-                              proc_stats_process_names_[fld.id()] != 0;
-      if (is_counter_field) {
-        // Memory counters are in KB, keep values in bytes in the trace
-        // processor.
-        counter_values[fld.id()] = fld.id() == kOomScoreAdjFieldNumber
-                                       ? fld.as_int64()
-                                       : fld.as_int64() * 1024;
-        has_counter[fld.id()] = true;
-      } else {
-        context_->storage->IncrementStats(stats::proc_stat_unknown_counters);
-      }
-    }
-
-    // Skip field_id 0 (invalid) and 1 (pid).
-    for (size_t field_id = 2; field_id < counter_values.size(); field_id++) {
-      if (!has_counter[field_id])
-        continue;
-
-      // Lookup the interned string id from the field name using the
-      // pre-cached |proc_stats_process_names_| map.
-      StringId name = proc_stats_process_names_[field_id];
-      int64_t value = counter_values[field_id];
-      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-      context_->event_tracker->PushCounter(ts, value, name, upid,
-                                           RefType::kRefUpid);
-    }
   }
 }
 
@@ -572,149 +313,6 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
   context_->args_tracker->Flush();
-}
-
-void ProtoTraceParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
-  protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
-  if (evt.has_charge_counter_uah()) {
-    context_->event_tracker->PushCounter(
-        ts, evt.charge_counter_uah(), batt_charge_id_, 0, RefType::kRefNoRef);
-  }
-  if (evt.has_capacity_percent()) {
-    context_->event_tracker->PushCounter(
-        ts, static_cast<double>(evt.capacity_percent()), batt_capacity_id_, 0,
-        RefType::kRefNoRef);
-  }
-  if (evt.has_current_ua()) {
-    context_->event_tracker->PushCounter(ts, evt.current_ua(), batt_current_id_,
-                                         0, RefType::kRefNoRef);
-  }
-  if (evt.has_current_avg_ua()) {
-    context_->event_tracker->PushCounter(
-        ts, evt.current_avg_ua(), batt_current_avg_id_, 0, RefType::kRefNoRef);
-  }
-}
-
-void ProtoTraceParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
-  protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
-  if (evt.has_rail_descriptor()) {
-    for (auto it = evt.rail_descriptor(); it; ++it) {
-      protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
-      uint32_t idx = desc.index();
-      if (PERFETTO_UNLIKELY(idx > 256)) {
-        PERFETTO_DLOG("Skipping excessively large power_rail index %" PRIu32,
-                      idx);
-        continue;
-      }
-      if (power_rails_strs_id_.size() <= idx)
-        power_rails_strs_id_.resize(idx + 1);
-      char counter_name[255];
-      snprintf(counter_name, sizeof(counter_name), "power.%.*s_uws",
-               int(desc.rail_name().size), desc.rail_name().data);
-      power_rails_strs_id_[idx] = context_->storage->InternString(counter_name);
-    }
-  }
-
-  if (evt.has_energy_data()) {
-    for (auto it = evt.energy_data(); it; ++it) {
-      protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
-      if (desc.index() < power_rails_strs_id_.size()) {
-        int64_t actual_ts =
-            desc.has_timestamp_ms()
-                ? static_cast<int64_t>(desc.timestamp_ms()) * 1000000
-                : ts;
-        context_->event_tracker->PushCounter(actual_ts, desc.energy(),
-                                             power_rails_strs_id_[desc.index()],
-                                             0, RefType::kRefNoRef);
-      } else {
-        context_->storage->IncrementStats(stats::power_rail_unknown_index);
-      }
-    }
-  }
-}
-
-void ProtoTraceParser::ParseAndroidLogPacket(ConstBytes blob) {
-  protos::pbzero::AndroidLogPacket::Decoder packet(blob.data, blob.size);
-  for (auto it = packet.events(); it; ++it)
-    ParseAndroidLogEvent(*it);
-
-  if (packet.has_stats())
-    ParseAndroidLogStats(packet.stats());
-}
-
-void ProtoTraceParser::ParseAndroidLogEvent(ConstBytes blob) {
-  // TODO(primiano): Add events and non-stringified fields to the "raw" table.
-  protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(blob.data, blob.size);
-  int64_t ts = static_cast<int64_t>(evt.timestamp());
-  uint32_t pid = static_cast<uint32_t>(evt.pid());
-  uint32_t tid = static_cast<uint32_t>(evt.tid());
-  uint8_t prio = static_cast<uint8_t>(evt.prio());
-  StringId tag_id = context_->storage->InternString(
-      evt.has_tag() ? evt.tag() : base::StringView());
-  StringId msg_id = context_->storage->InternString(
-      evt.has_message() ? evt.message() : base::StringView());
-
-  char arg_msg[4096];
-  char* arg_str = &arg_msg[0];
-  *arg_str = '\0';
-  auto arg_avail = [&arg_msg, &arg_str]() {
-    return sizeof(arg_msg) - static_cast<size_t>(arg_str - arg_msg);
-  };
-  for (auto it = evt.args(); it; ++it) {
-    protos::pbzero::AndroidLogPacket::LogEvent::Arg::Decoder arg(*it);
-    if (!arg.has_name())
-      continue;
-    arg_str +=
-        snprintf(arg_str, arg_avail(),
-                 " %.*s=", static_cast<int>(arg.name().size), arg.name().data);
-    if (arg.has_string_value()) {
-      arg_str += snprintf(arg_str, arg_avail(), "\"%.*s\"",
-                          static_cast<int>(arg.string_value().size),
-                          arg.string_value().data);
-    } else if (arg.has_int_value()) {
-      arg_str += snprintf(arg_str, arg_avail(), "%" PRId64, arg.int_value());
-    } else if (arg.has_float_value()) {
-      arg_str += snprintf(arg_str, arg_avail(), "%f",
-                          static_cast<double>(arg.float_value()));
-    }
-  }
-
-  if (prio == 0)
-    prio = protos::pbzero::AndroidLogPriority::PRIO_INFO;
-
-  if (arg_str != &arg_msg[0]) {
-    PERFETTO_DCHECK(msg_id.is_null());
-    // Skip the first space char (" foo=1 bar=2" -> "foo=1 bar=2").
-    msg_id = context_->storage->InternString(&arg_msg[1]);
-  }
-  UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-  base::Optional<int64_t> opt_trace_time = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::ClockSnapshot::Clock::REALTIME, ts);
-  if (!opt_trace_time)
-    return;
-
-  // Log events are NOT required to be sorted by trace_time. The virtual table
-  // will take care of sorting on-demand.
-  context_->storage->mutable_android_log()->AddLogEvent(
-      opt_trace_time.value(), utid, prio, tag_id, msg_id);
-}
-
-void ProtoTraceParser::ParseAndroidLogStats(ConstBytes blob) {
-  protos::pbzero::AndroidLogPacket::Stats::Decoder evt(blob.data, blob.size);
-  if (evt.has_num_failed()) {
-    context_->storage->SetStats(stats::android_log_num_failed,
-                                static_cast<int64_t>(evt.num_failed()));
-  }
-
-  if (evt.has_num_skipped()) {
-    context_->storage->SetStats(stats::android_log_num_skipped,
-                                static_cast<int64_t>(evt.num_skipped()));
-  }
-
-  if (evt.has_num_total()) {
-    context_->storage->SetStats(stats::android_log_num_total,
-                                static_cast<int64_t>(evt.num_total()));
-  }
 }
 
 void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
@@ -898,23 +496,6 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
   }
 }
 
-void ProtoTraceParser::ParseSystemInfo(ConstBytes blob) {
-  protos::pbzero::SystemInfo::Decoder packet(blob.data, blob.size);
-  if (packet.has_utsname()) {
-    ConstBytes utsname_blob = packet.utsname();
-    protos::pbzero::Utsname::Decoder utsname(utsname_blob.data,
-                                             utsname_blob.size);
-    base::StringView machine = utsname.machine();
-    if (machine == "aarch64" || machine == "armv8l") {
-      context_->syscall_tracker->SetArchitecture(kAarch64);
-    } else if (machine == "x86_64") {
-      context_->syscall_tracker->SetArchitecture(kX86_64);
-    } else {
-      PERFETTO_ELOG("Unknown architecture %s", machine.ToStdString().c_str());
-    }
-  }
-}
-
 void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
   protos::pbzero::ChromeBenchmarkMetadata::Decoder packet(blob.data, blob.size);
@@ -1056,50 +637,9 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
 void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
   protos::pbzero::TraceConfig::Decoder trace_config(blob.data, blob.size);
-  if (trace_config.has_statsd_metadata()) {
-    ParseStatsdMetadata(trace_config.statsd_metadata());
-  }
-}
 
-void ProtoTraceParser::ParseStatsdMetadata(ConstBytes blob) {
-  protos::pbzero::TraceConfig::StatsdMetadata::Decoder metadata(blob.data,
-                                                                blob.size);
-  if (metadata.has_triggering_subscription_id()) {
-    context_->storage->SetMetadata(
-        metadata::statsd_triggering_subscription_id,
-        Variadic::Integer(metadata.triggering_subscription_id()));
-  }
-}
-
-void ProtoTraceParser::ParseAndroidPackagesList(ConstBytes blob) {
-  protos::pbzero::PackagesList::Decoder pkg_list(blob.data, blob.size);
-  context_->storage->SetStats(stats::packages_list_has_read_errors,
-                              pkg_list.read_error());
-  context_->storage->SetStats(stats::packages_list_has_parse_errors,
-                              pkg_list.parse_error());
-
-  // Insert the package info into arg sets (one set per package), with the arg
-  // set ids collected in the Metadata table, under
-  // metadata::android_packages_list key type.
-  for (auto it = pkg_list.packages(); it; ++it) {
-    // Insert a placeholder metadata entry, which will be overwritten by the
-    // arg_set_id when the arg tracker is flushed.
-    RowId row_id = context_->storage->AppendMetadata(
-        metadata::android_packages_list, Variadic::Integer(0));
-
-    auto add_arg = [this, row_id](base::StringView name, Variadic value) {
-      StringId key_id = context_->storage->InternString(name);
-      context_->args_tracker->AddArg(row_id, key_id, key_id, value);
-    };
-    protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
-    add_arg("name",
-            Variadic::String(context_->storage->InternString(pkg.name())));
-    add_arg("uid", Variadic::UnsignedInteger(pkg.uid()));
-    add_arg("debuggable", Variadic::Boolean(pkg.debuggable()));
-    add_arg("profileable_from_shell",
-            Variadic::Boolean(pkg.profileable_from_shell()));
-    add_arg("version_code", Variadic::Integer(pkg.version_code()));
-  }
+  // TODO(eseckler): Propagate statuses from modules.
+  context_->android_probes_module->ParseTraceConfig(trace_config);
 }
 
 void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
