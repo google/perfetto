@@ -57,23 +57,6 @@ class PERFETTO_EXPORT TracingMuxer {
     return static_cast<TracingTLS*>(platform_->GetOrCreateThreadLocalObject());
   }
 
-  // Note that the returned object is one per-thread per-data-source-type, NOT
-  // per data-soruce *instance*.
-  DataSourceThreadLocalState* GetOrCreateDataSourceTLS(
-      DataSourceStaticState* static_state) {
-    TracingTLS* root_tls = GetOrCreateTracingTLS();
-    auto* ds_tls = &root_tls->data_sources_tls[static_state->index];
-
-    // The per-type TLS is either zero-initialized or must have been initialized
-    // for this specific data source type. We keep re-initializing as the
-    // initialization is idempotent and not worth the code for extra checks.
-    assert(!ds_tls->static_state || ds_tls->static_state == static_state);
-    ds_tls->static_state = static_state;
-    assert(!ds_tls->root_tls || ds_tls->root_tls == root_tls);
-    ds_tls->root_tls = root_tls;
-    return ds_tls;
-  }
-
   // This method can fail and return false if trying to register more than
   // kMaxDataSources types.
   using DataSourceFactory = std::function<std::unique_ptr<DataSourceBase>()>;
