@@ -24,6 +24,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -36,6 +37,7 @@
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
+#include "protos/perfetto/config/trace_config.pb.h"
 #include "src/tracing/internal/in_process_tracing_backend.h"
 #include "src/tracing/internal/system_tracing_backend.h"
 
@@ -54,6 +56,17 @@ class StopArgsImpl : public DataSourceBase::StopArgs {
 
   mutable std::function<void()> async_stop_closure;
 };
+
+uint64_t ComputeConfigHash(const DataSourceConfig& config) {
+  base::Hash hasher;
+  perfetto::protos::DataSourceConfig config_proto;
+  config.ToProto(&config_proto);
+  std::string config_bytes;
+  bool serialized = config_proto.SerializeToString(&config_bytes);
+  PERFETTO_DCHECK(serialized);
+  hasher.Update(&config_bytes[0], config_bytes.size());
+  return hasher.digest();
+}
 
 }  // namespace
 
@@ -461,7 +474,7 @@ bool TracingMuxerImpl::RegisterDataSource(
 
   static std::atomic<uint32_t> last_id{};
   uint32_t new_index = last_id++;
-  if (new_index >= kMaxDataSources - 1) {
+  if (new_index >= kMaxDataSources) {
     PERFETTO_DLOG(
         "RegisterDataSource failed: too many data sources already registered");
     return false;
@@ -493,12 +506,39 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Setting up data source %" PRIu64 " %s", instance_id,
                 cfg.name().c_str());
+  uint64_t config_hash = ComputeConfigHash(cfg);
 
   for (const auto& rds : data_sources_) {
     if (rds.descriptor.name() != cfg.name())
       continue;
-
     DataSourceStaticState& static_state = *rds.static_state;
+
+    // If this data source is already active for this exact config, don't start
+    // another instance. This happens when we have several data sources with the
+    // same name, in which case the service sends one SetupDataSource event for
+    // each one. Since we can't map which event maps to which data source, we
+    // ensure each event only starts one data source instance.
+    // TODO(skyostil): Register a unique id with each data source to the service
+    // to disambiguate.
+    bool active_for_config = false;
+    for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
+      if (!static_state.TryGet(i))
+        continue;
+      auto* internal_state =
+          reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
+      if (internal_state->backend_id == backend_id &&
+          internal_state->config_hash == config_hash) {
+        active_for_config = true;
+        break;
+      }
+    }
+    if (active_for_config) {
+      PERFETTO_DLOG(
+          "Data source %s is already active with this config, skipping",
+          cfg.name().c_str());
+      continue;
+    }
+
     for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
       // Find a free slot.
       if (static_state.TryGet(i))
@@ -515,14 +555,16 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
       internal_state->data_source_instance_id = instance_id;
       internal_state->buffer_id =
           static_cast<internal::BufferId>(cfg.target_buffer());
+      internal_state->config_hash = config_hash;
       internal_state->data_source = rds.factory();
 
       // This must be made at the end. See matching acquire-load in
       // DataSource::Trace().
-      static_state.valid_instances.fetch_or(1 << i, std::memory_order_acq_rel);
+      static_state.valid_instances.fetch_or(1 << i, std::memory_order_release);
 
       DataSourceBase::SetupArgs setup_args;
       setup_args.config = &cfg;
+      setup_args.internal_instance_index = i;
       internal_state->data_source->OnSetup(setup_args);
       return;
     }
@@ -530,6 +572,7 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
         "Maximum number of data source instances exhausted. "
         "Dropping data source %" PRIu64,
         instance_id);
+    break;
   }
 }
 
@@ -545,9 +588,12 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
     return;
   }
 
+  DataSourceBase::StartArgs start_args{};
+  start_args.internal_instance_index = ds.instance_idx;
+
   std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
   ds.internal_state->trace_lambda_enabled = true;
-  ds.internal_state->data_source->OnStart(DataSourceBase::StartArgs{});
+  ds.internal_state->data_source->OnStart(start_args);
 }
 
 // Called by the service of one of the backends.
@@ -564,6 +610,7 @@ void TracingMuxerImpl::StopDataSource_AsyncBegin(
   }
 
   StopArgsImpl stop_args{};
+  stop_args.internal_instance_index = ds.instance_idx;
   stop_args.async_stop_closure = [this, backend_id, instance_id] {
     // TracingMuxerImpl is long lived, capturing |this| is okay.
     // The notification closure can be moved out of the StopArgs by the
@@ -631,12 +678,12 @@ void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
   // Iterate across all possible data source types.
   auto cur_generation = generation_.load(std::memory_order_acquire);
   auto* root_tls = GetOrCreateTracingTLS();
-  for (size_t ds_idx = 0; ds_idx < kMaxDataSources; ds_idx++) {
+
+  auto destroy_stopped_instances = [](DataSourceThreadLocalState& tls) {
     // |tls| has a vector of per-data-source-instance thread-local state.
-    DataSourceThreadLocalState& tls = root_tls->data_sources_tls[ds_idx];
     DataSourceStaticState* static_state = tls.static_state;
     if (!static_state)
-      continue;  // Slot not used.
+      return;  // Slot not used.
 
     // Iterate across all possible instances for this data source.
     for (uint32_t inst = 0; inst < kMaxDataSourceInstances; inst++) {
@@ -653,7 +700,14 @@ void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
       // The DataSource instance has been destroyed or recycled.
       ds_tls.Reset();  // Will also destroy the |ds_tls.trace_writer|.
     }
+  };
+
+  for (size_t ds_idx = 0; ds_idx < kMaxDataSources; ds_idx++) {
+    // |tls| has a vector of per-data-source-instance thread-local state.
+    DataSourceThreadLocalState& tls = root_tls->data_sources_tls[ds_idx];
+    destroy_stopped_instances(tls);
   }
+  destroy_stopped_instances(root_tls->track_event_tls);
   root_tls->generation = cur_generation;
 }
 

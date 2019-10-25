@@ -32,6 +32,7 @@ namespace perfetto {
 namespace test {
 
 int32_t GetCurrentProcessId();
+uint64_t GetWallTimeNs();
 
 }  // namespace test
 }  // namespace perfetto
