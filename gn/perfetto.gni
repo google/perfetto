@@ -214,6 +214,14 @@ declare_args() {
   enable_perfetto_trace_processor_ftrace =
       enable_perfetto_trace_processor && !build_with_chromium
 
+  # Enables parsing support for system probes in trace processor.
+  enable_perfetto_trace_processor_system_probes =
+      enable_perfetto_trace_processor && !build_with_chromium
+
+  # Enables parsing support for android system probes in trace processor.
+  enable_perfetto_trace_processor_android_probes =
+      enable_perfetto_trace_processor && !build_with_chromium
+
   # Enables graphics event support in the trace processor.
   enable_perfetto_trace_processor_graphics =
       enable_perfetto_trace_processor && !build_with_chromium

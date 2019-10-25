@@ -24,9 +24,11 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
@@ -255,6 +257,10 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
     context_.ftrace_module.reset(
         new ProtoImporterModule<FtraceModule>(&context_));
+    context_.systrace_module.reset(
+        new ProtoImporterModule<SystraceProtoModule>(&context_));
+    context_.android_probes_module.reset(
+        new ProtoImporterModule<AndroidProbesModule>(&context_));
     context_.track_event_module.reset(
         new ProtoImporterModule<TrackEventModule>(&context_));
     context_.graphics_event_module.reset(
@@ -598,6 +604,8 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
+
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_.add_packet();
   uint64_t ts = 1000;
@@ -668,6 +676,8 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
 }
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
@@ -2458,6 +2468,7 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
                           Variadic::String(3))}));
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   auto* packet = trace_.add_packet();
   auto* pkg_list = packet->set_packages_list();
@@ -2538,6 +2549,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
             false);
   EXPECT_EQ(find_arg(second_set_id, "version_code").int_value, 43);
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 
 TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   {
