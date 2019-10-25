@@ -25,8 +25,10 @@ import {
   BufferConfig,
   ChromeConfig,
   ConsumerPort,
+  ContinuousDumpConfig,
   DataSourceConfig,
   FtraceConfig,
+  HeapprofdConfig,
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
@@ -222,6 +224,34 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     trackInitialOomScore = true;
   }
 
+  let heapprofd: HeapprofdConfig|undefined = undefined;
+  if (uiCfg.heapProfiling) {
+    // TODO(tneda): Check or inform user if buffer size are too small.
+    if (heapprofd === undefined) heapprofd = new HeapprofdConfig();
+    heapprofd.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
+    if (uiCfg.hpSharedMemoryBuffer >= 8192 &&
+        uiCfg.hpSharedMemoryBuffer % 4096 === 0) {
+      heapprofd.shmemSizeBytes = uiCfg.hpSharedMemoryBuffer;
+    }
+    if (uiCfg.hpProcesses !== '') {
+      uiCfg.hpProcesses.split('\n').forEach(value => {
+        if (isNaN(+value)) {
+          heapprofd!.processCmdline.push(value);
+        } else {
+          heapprofd!.pid.push(+value);
+        }
+      });
+    }
+    if (uiCfg.hpContinuousDumpsInterval > 0) {
+      heapprofd.continuousDumpConfig = new ContinuousDumpConfig();
+      heapprofd.continuousDumpConfig.dumpIntervalMs =
+          uiCfg.hpContinuousDumpsInterval;
+      heapprofd.continuousDumpConfig.dumpPhaseMs =
+          uiCfg.hpContinuousDumpsPhase > 0 ? uiCfg.hpContinuousDumpsPhase :
+                                             undefined;
+    }
+  }
+
   if (uiCfg.procStats || procThreadAssociationPolling || trackInitialOomScore) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
@@ -342,6 +372,15 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     protoCfg.dataSources.push(ds);
   }
 
+  if (heapprofd !== undefined) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.targetBuffer = 0;
+    ds.config.name = 'android.heapprofd';
+    ds.config.heapprofdConfig = heapprofd;
+    protoCfg.dataSources.push(ds);
+  }
+
   if (uiCfg.ftrace || uiCfg.atraceApps.length > 0 || ftraceEvents.size > 0 ||
       atraceCats.size > 0 || atraceApps.size > 0) {
     const ds = new TraceConfig.DataSource();
@@ -395,7 +434,12 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   // definition somehow but for now we just hard code keys which have this
   // problem in the config.
   function is64BitNumber(key: string): boolean {
-    return key === 'maxFileSizeBytes';
+    return [
+      'maxFileSizeBytes',
+      'samplingIntervalBytes',
+      'shmemSizeBytes',
+      'pid'
+    ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
     for (const [key, value] of Object.entries(msg)) {
