@@ -741,19 +741,18 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
     event["scope"] = "t";
 
     std::vector<std::string> callstack;
-    const TraceStorage::StackProfileCallsites& callsites =
-        storage->stack_profile_callsites();
+    const auto& callsites = storage->stack_profile_callsite_table();
     int64_t maybe_callsite_id = samples.callsite_ids()[i];
     PERFETTO_DCHECK(maybe_callsite_id >= 0 &&
                     maybe_callsite_id < callsites.size());
     while (maybe_callsite_id >= 0) {
-      size_t callsite_id = static_cast<size_t>(maybe_callsite_id);
+      uint32_t callsite_id = static_cast<uint32_t>(maybe_callsite_id);
 
       const TraceStorage::StackProfileFrames& frames =
           storage->stack_profile_frames();
-      PERFETTO_DCHECK(callsites.frame_ids()[callsite_id] >= 0 &&
-                      callsites.frame_ids()[callsite_id] < frames.size());
-      size_t frame_id = static_cast<size_t>(callsites.frame_ids()[callsite_id]);
+      PERFETTO_DCHECK(callsites.frame_id()[callsite_id] >= 0 &&
+                      callsites.frame_id()[callsite_id] < frames.size());
+      size_t frame_id = static_cast<size_t>(callsites.frame_id()[callsite_id]);
 
       const TraceStorage::StackProfileMappings& mappings =
           storage->stack_profile_mappings();
@@ -780,7 +779,7 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
 
       callstack.emplace_back(frame_entry);
 
-      maybe_callsite_id = callsites.parent_callsite_ids()[callsite_id];
+      maybe_callsite_id = callsites.parent_id()[callsite_id];
     }
 
     std::string merged_callstack;

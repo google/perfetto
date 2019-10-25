@@ -151,8 +151,8 @@ int64_t StackProfileTracker::AddCallstack(SourceCallstackId id,
     }
     int64_t frame_row = *maybe_frame_row;
 
-    TraceStorage::StackProfileCallsites::Row row{static_cast<int64_t>(depth),
-                                                 parent_id, frame_row};
+    tables::StackProfileCallsiteTable::Row row{static_cast<int64_t>(depth),
+                                               parent_id, frame_row};
 
     int64_t self_id;
     auto callsite_it = callsite_idx_.find(row);
@@ -160,7 +160,8 @@ int64_t StackProfileTracker::AddCallstack(SourceCallstackId id,
       self_id = callsite_it->second;
     } else {
       self_id =
-          context_->storage->mutable_stack_profile_callsites()->Insert(row);
+          context_->storage->mutable_stack_profile_callsite_table()->Insert(
+              row);
       callsite_idx_.emplace(row, self_id);
     }
     parent_id = self_id;

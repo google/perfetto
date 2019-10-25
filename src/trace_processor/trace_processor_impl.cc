@@ -61,7 +61,6 @@
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
-#include "src/trace_processor/stack_profile_callsite_table.h"
 #include "src/trace_processor/stack_profile_frame_table.h"
 #include "src/trace_processor/stack_profile_mapping_table.h"
 #include "src/trace_processor/stack_profile_tracker.h"
@@ -379,7 +378,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   RawTable::RegisterTable(*db_, context_.storage.get());
   HeapProfileAllocationTable::RegisterTable(*db_, context_.storage.get());
   CpuProfileStackSampleTable::RegisterTable(*db_, context_.storage.get());
-  StackProfileCallsiteTable::RegisterTable(*db_, context_.storage.get());
   StackProfileFrameTable::RegisterTable(*db_, context_.storage.get());
   StackProfileMappingTable::RegisterTable(*db_, context_.storage.get());
   MetadataTable::RegisterTable(*db_, context_.storage.get());
@@ -400,6 +398,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
                                storage->symbol_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->heap_graph_object_table(),
                                storage->heap_graph_object_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->stack_profile_callsite_table(),
+      storage->stack_profile_callsite_table().table_name());
   DbSqliteTable::RegisterTable(
       *db_, &storage->heap_graph_reference_table(),
       storage->heap_graph_reference_table().table_name());
