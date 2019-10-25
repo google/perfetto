@@ -193,7 +193,21 @@ class RowMap {
   // for (idx : picker)
   //   rm[i++] = this[idx]
   // return rm;
-  RowMap SelectRows(const RowMap& picker) const;
+  RowMap SelectRows(const RowMap& selector) const {
+    uint32_t size = selector.size();
+
+    // If the selector is empty, just return an empty RowMap.
+    if (size == 0u)
+      return RowMap();
+
+    // If the selector is just picking a single row, just return that row
+    // without any additional overhead.
+    if (size == 1u)
+      return RowMap::SingleRow(Get(selector.Get(0)));
+
+    // For all other cases, go into the slow-path.
+    return SelectRowsSlow(selector);
+  }
 
   // Removes any row where |p(row)| returns false from this RowMap.
   template <typename Predicate>
@@ -272,6 +286,8 @@ class RowMap {
     bit_vector_.Resize(row + 1, false);
     bit_vector_.Set(row);
   }
+
+  RowMap SelectRowsSlow(const RowMap& selector) const;
 
   Mode mode_ = Mode::kRange;
 
