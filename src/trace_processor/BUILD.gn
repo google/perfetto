@@ -129,8 +129,6 @@ source_set("lib") {
     "span_join_operator_table.h",
     "sql_stats_table.cc",
     "sql_stats_table.h",
-    "stack_profile_callsite_table.cc",
-    "stack_profile_callsite_table.h",
     "stack_profile_frame_table.cc",
     "stack_profile_frame_table.h",
     "stack_profile_mapping_table.cc",

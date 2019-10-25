@@ -164,23 +164,29 @@ TEST_F(HeapProfileTrackerDupTest, Callstack) {
   context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
                                                 nullptr);
 
-  EXPECT_THAT(context.storage->stack_profile_callsites().frame_depths(),
-              ElementsAre(0, 1));
-  EXPECT_THAT(context.storage->stack_profile_callsites().parent_callsite_ids(),
-              ElementsAre(-1, 0));
-  EXPECT_THAT(context.storage->stack_profile_callsites().frame_ids(),
-              ElementsAre(0, 0));
+  const auto& callsite_table = context.storage->stack_profile_callsite_table();
+  const auto& depth = callsite_table.depth();
+  const auto& parent_id = callsite_table.parent_id();
+  const auto& frame_id = callsite_table.frame_id();
+
+  EXPECT_EQ(depth[0], 0);
+  EXPECT_EQ(depth[1], 1);
+
+  EXPECT_EQ(parent_id[0], -1);
+  EXPECT_EQ(parent_id[1], 0);
+
+  EXPECT_EQ(frame_id[0], 0);
+  EXPECT_EQ(frame_id[1], 0);
 }
 
 int64_t FindCallstack(const TraceStorage& storage,
                       int64_t depth,
                       int64_t parent,
                       int64_t frame_id) {
-  const auto& callsites = storage.stack_profile_callsites();
-  for (size_t i = 0; i < callsites.frame_depths().size(); ++i) {
-    if (callsites.frame_depths()[i] == depth &&
-        callsites.parent_callsite_ids()[i] == parent &&
-        callsites.frame_ids()[i] == frame_id) {
+  const auto& callsites = storage.stack_profile_callsite_table();
+  for (uint32_t i = 0; i < callsites.size(); ++i) {
+    if (callsites.depth()[i] == depth && callsites.parent_id()[i] == parent &&
+        callsites.frame_id()[i] == frame_id) {
       return static_cast<int64_t>(i);
     }
   }
