@@ -231,6 +231,8 @@ source_set("common") {
 source_set("client_api") {
   deps = [
     ":common",
+    "../../include/perfetto/tracing/core",
+    "../../protos/perfetto/config:lite",
     "../base",
     "../tracing",
   ]
@@ -244,9 +246,10 @@ source_set("client_api") {
     "internal/in_process_tracing_backend.h",
     "internal/tracing_muxer_impl.cc",
     "internal/tracing_muxer_impl.h",
+    "internal/track_event_internal.cc",
     "platform.cc",
     "tracing.cc",
-    "track_event.cc",
+    "track_event_category_registry.cc",
     "virtual_destructors.cc",
   ]
 
@@ -276,6 +279,10 @@ if (enable_perfetto_integration_tests) {
     ]
     sources = [
       "api_integrationtest.cc",
+      "test/tracing_module.cc",
+      "test/tracing_module.h",
+      "test/tracing_module2.cc",
+      "test/tracing_module_categories.h",
     ]
   }
 }

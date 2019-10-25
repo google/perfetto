@@ -29,11 +29,14 @@ source_set("tracing") {
     "internal/tracing_muxer.h",
     "internal/tracing_tls.h",
     "internal/track_event_data_source.h",
+    "internal/track_event_internal.h",
+    "internal/track_event_macros.h",
     "locked_handle.h",
     "platform.h",
     "trace_writer_base.h",
     "tracing.h",
     "tracing_backend.h",
     "track_event.h",
+    "track_event_category_registry.h",
   ]
 }

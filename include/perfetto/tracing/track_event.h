@@ -19,57 +19,98 @@
 
 #include "perfetto/base/time.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
+#include "perfetto/tracing/internal/track_event_macros.h"
+#include "perfetto/tracing/track_event_category_registry.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
-namespace perfetto {
+// This file contains a set of macros designed for instrumenting applications
+// with track event trace points. While the underlying TrackEvent API can also
+// be used directly, doing so efficiently requires some care (e.g., to avoid
+// evaluating arguments while tracing is disabled). These types of optimizations
+// are abstracted away by the macros below.
+//
+// ================
+// Quickstart guide
+// ================
+//
+//   To add track events to your application, first define your categories in,
+//   e.g., my_tracing.h:
+//
+//       PERFETTO_DEFINE_CATEGORIES(
+//           PERFETTO_CATEGORY(base),
+//           PERFETTO_CATEGORY(v8),
+//           PERFETTO_CATEGORY(cc));
+//
+//   Then in a single .cc file, e.g., my_tracing.cc:
+//
+//       #include "my_tracing.h"
+//       PERFETTO_TRACK_EVENT_STATIC_STORAGE();
+//
+//   Finally, register track events at startup, after which you can record
+//   events with the TRACE_EVENT macros:
+//
+//       #include "my_tracing.h"
+//
+//       int main() {
+//         perfetto::TrackEvent::Register();
+//         TRACK_EVENT_BEGIN("category", "MyEvent");
+//         TRACK_EVENT_END("category");
+//         ...
+//       }
 
-// Track events are time-based markers that an application can use to construct
-// a timeline of its operation.
-class TrackEvent {
- public:
-  // Initializes the track event data source. Must be called before any other
-  // method on this class.
-  static void Initialize();
+// Each compilation unit can be in exactly one track event namespace,
+// allowing the overall program to use multiple track event data sources and
+// category lists if necessary. Use this macro to select the namespace for the
+// current compilation unit.
+//
+// If the program uses multiple track event namespaces, category & track event
+// registration (see quickstart above) needs to happen for both namespaces
+// separately.
+#ifndef PERFETTO_TRACK_EVENT_NAMESPACE
+#define PERFETTO_TRACK_EVENT_NAMESPACE perfetto
+#endif
 
-  // Returns the current tracing clock in nanoseconds.
-  static uint64_t GetTimeNs() {
-    // TODO(skyostil): Consider using boot time where available.
-    return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
-  }
+// A name for a single category. Wrapped in a macro in case we need to introduce
+// more fields in the future.
+#define PERFETTO_CATEGORY(name) \
+  { #name }
 
-  // Begin a slice on the current thread. |category| and |name| are free-form
-  // strings that describe the event. Both |category| and |name| must be
-  // statically allocated.
-  static void Begin(const char* category, const char* name) {
-    internal::TrackEventDataSource::WriteEvent(
-        category, name, perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
-  }
+// Register the set of available categories by passing a list of categories to
+// this macro: PERFETTO_CATEGORY(cat1), PERFETTO_CATEGORY(cat2), ...
+#define PERFETTO_DEFINE_CATEGORIES(...)                        \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {                   \
+  /* The list of category names */                             \
+  PERFETTO_INTERNAL_DECLARE_CATEGORIES(__VA_ARGS__);           \
+  /* The track event data source for this set of categories */ \
+  PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE();         \
+  }  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
 
-  // End a slice on the current thread.
-  static void End(const char* category) {
-    internal::TrackEventDataSource::WriteEvent(
-        category, nullptr,
-        perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
-  }
+// Allocate storage for each category by using this macro once per track event
+// namespace.
+#define PERFETTO_TRACK_EVENT_STATIC_STORAGE() \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {  \
+  PERFETTO_INTERNAL_CATEGORY_STORAGE();       \
+  }  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
 
-  // TODO(skyostil): Add per-category enable/disable.
-  // TODO(skyostil): Add arguments.
-  // TODO(skyostil): Add scoped events.
-  // TODO(skyostil): Add async events.
-  // TODO(skyostil): Add flow events.
-  // TODO(skyostil): Add instant events.
-  // TODO(skyostil): Add counters.
+// Begin a thread-scoped slice under |category| with the title |name|. Both
+// strings must be static constants. The track event is only recorded if
+// |category| is enabled for a tracing session.
+#define TRACE_EVENT_BEGIN(category, name) \
+  PERFETTO_INTERNAL_TRACK_EVENT(          \
+      category, name,                     \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN)
 
-  static void Flush() {
-    internal::TrackEventDataSource::Trace(
-        [&](internal::TrackEventDataSource::TraceContext ctx) { ctx.Flush(); });
-  }
-};
+// End a thread-scoped slice under |category|.
+#define TRACE_EVENT_END(category) \
+  PERFETTO_INTERNAL_TRACK_EVENT(  \
+      category, nullptr,          \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END)
 
-}  // namespace perfetto
-
-PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(
-    perfetto::internal::TrackEventDataSource,
-    perfetto::internal::TrackEventIncrementalState);
+// TODO(skyostil): Add arguments.
+// TODO(skyostil): Add scoped events.
+// TODO(skyostil): Add async events.
+// TODO(skyostil): Add flow events.
+// TODO(skyostil): Add instant events.
+// TODO(skyostil): Add counters.
 
 #endif  // INCLUDE_PERFETTO_TRACING_TRACK_EVENT_H_

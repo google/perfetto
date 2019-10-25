@@ -74,7 +74,14 @@ class TracingTLS : public Platform::ThreadLocalObject {
   // thread-local TraceWriter(s) is issued.
   uint32_t generation = 0;
 
+  // By default all data source instances have independent thread-local state
+  // (see above).
   std::array<DataSourceThreadLocalState, kMaxDataSources> data_sources_tls{};
+
+  // Track event data sources, however, share the same thread-local state in
+  // order to be able to share trace writers and interning state across all
+  // track event categories.
+  DataSourceThreadLocalState track_event_tls{};
 };
 
 }  // namespace internal
