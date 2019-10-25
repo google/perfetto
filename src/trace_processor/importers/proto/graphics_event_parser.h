@@ -56,7 +56,7 @@ class GraphicsEventParser {
   const StringId unknown_event_name_id_;
   const StringId no_layer_name_name_id_;
   const StringId layer_name_key_id_;
-  std::array<StringId, 11> event_type_name_ids_;
+  std::array<StringId, 14> event_type_name_ids_;
   // For VulkanMemoryEvent
   const StringId vulkan_allocated_host_memory_id_;
   const StringId vulkan_allocated_gpu_memory_id_;
