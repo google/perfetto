@@ -193,9 +193,22 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
 
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
 
-  // If the TracePacket specifies a non-zero clock-id, translate the timestamp
-  // into the trace-time clock domain.
-  if (decoder.timestamp_clock_id()) {
+  if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
+      (!decoder.timestamp_clock_id() ||
+       decoder.timestamp_clock_id() ==
+           protos::pbzero::ClockSnapshot::Clock::MONOTONIC)) {
+    // Chrome event timestamps are in MONOTONIC domain, but may occur in traces
+    // where (a) no clock snapshots exist or (b) no clock_id is specified for
+    // their timestamps. Adjust to trace time if we have a clock snapshot.
+    // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in chrome
+    // and then remove this.
+    auto trace_ts = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+    if (trace_ts.has_value())
+      timestamp = trace_ts.value();
+  } else if (decoder.timestamp_clock_id()) {
+    // If the TracePacket specifies a non-zero clock-id, translate the timestamp
+    // into the trace-time clock domain.
     PERFETTO_DCHECK(decoder.has_timestamp());
     ClockTracker::ClockId clock_id = decoder.timestamp_clock_id();
     bool is_seq_scoped = ClockTracker::IsReservedSeqScopedClockId(clock_id);
@@ -225,14 +238,6 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
           is_seq_scoped ? seq_extra_err : "");
     }
     timestamp = trace_ts.value();
-  } else if (decoder.has_chrome_events() || decoder.has_chrome_metadata()) {
-    // Chrome timestamps are in MONOTONIC domain. Adjust to trace time if we
-    // have a clock snapshot.
-    // TODO(eseckler): Set timestamp_clock_id in chrome and then remove this.
-    auto trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
-    if (trace_ts.has_value())
-      timestamp = trace_ts.value();
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
