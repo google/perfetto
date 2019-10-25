@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/vulkan_memory_tracker.h"
 
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -25,7 +26,7 @@ namespace perfetto {
 namespace trace_processor {
 
 VulkanMemoryTracker::VulkanMemoryTracker(TraceProcessorContext* context)
-    : context_(context), empty_(context_->storage->InternString({"", 0})) {
+    : context_(context) {
   SetupSourceAndTypeInternedStrings();
 }
 
@@ -89,49 +90,26 @@ void VulkanMemoryTracker::SetupSourceAndTypeInternedStrings() {
   }
 }
 
-void VulkanMemoryTracker::AddString(SourceStringId id, StringId str) {
-  string_map_.emplace(id, str);
-}
-
-base::Optional<StringId> VulkanMemoryTracker::FindString(SourceStringId id) {
-  base::Optional<StringId> res;
-  if (id == 0) {
-    res = empty_;
-    return res;
-  }
-  auto it = string_map_.find(id);
-  if (it == string_map_.end()) {
-    context_->storage->IncrementStats(
-        stats::vulkan_allocations_invalid_string_id);
-    PERFETTO_DFATAL("Invalid string.");
-    return res;
-  }
-  res = it->second;
-  return res;
-}
-
-base::Optional<StringId> VulkanMemoryTracker::FindSourceString(
+StringId VulkanMemoryTracker::FindSourceString(
     SourceStringId source) {
-  base::Optional<StringId> res = empty_;
+  StringId res = kNullStringId;
   auto it = source_string_map_.find(source);
   if (it == source_string_map_.end()) {
     context_->storage->IncrementStats(
         stats::vulkan_allocations_invalid_string_id);
-    PERFETTO_DFATAL("Invalid  memory event source string.");
     return res;
   }
   res = it->second;
   return res;
 }
 
-base::Optional<StringId> VulkanMemoryTracker::FindTypeString(
+StringId VulkanMemoryTracker::FindTypeString(
     SourceStringId type) {
-  base::Optional<StringId> res = empty_;
+  StringId res = kNullStringId;
   auto it = type_string_map_.find(type);
   if (it == type_string_map_.end()) {
     context_->storage->IncrementStats(
         stats::vulkan_allocations_invalid_string_id);
-    PERFETTO_DFATAL("Invalid  memory event type string.");
     return res;
   }
   res = it->second;
