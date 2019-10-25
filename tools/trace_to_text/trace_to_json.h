@@ -27,7 +27,8 @@ namespace trace_to_text {
 int TraceToJson(std::istream* input,
                 std::ostream* output,
                 bool compress,
-                Keep truncate_keep);
+                Keep truncate_keep,
+                bool full_sort);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
