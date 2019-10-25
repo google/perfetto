@@ -32,6 +32,9 @@ message GraphicsFrameEvent {
     PRESENT_FENCE = 8;
     RELEASE_FENCE = 9;
     MODIFY = 10;
+    DETACH = 11;
+    ATTACH = 12;
+    CANCEL = 13;
   }
 
   message BufferEvent {
