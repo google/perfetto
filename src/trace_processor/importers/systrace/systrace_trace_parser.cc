@@ -75,7 +75,10 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
                                     : ParseState::kSystrace;
   }
 
-  const char kSystraceStart[] =
+  // There can be multiple trace data sections in an HTML trace, we want to
+  // ignore any that don't contain systrace data. In the future it would be
+  // good to also parse the process dump section.
+  const char kTraceDataSection[] =
       R"(<script class="trace-data" type="application/text">)";
   auto start_it = partial_buf_.begin();
   for (;;) {
@@ -84,13 +87,20 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
       break;
 
     std::string buffer(start_it, line_it);
+
     if (state_ == ParseState::kHtmlBeforeSystrace) {
-      if (base::Contains(buffer, kSystraceStart)) {
+      if (base::Contains(buffer, kTraceDataSection)) {
+        state_ = ParseState::kTraceDataSection;
+      }
+    } else if (state_ == ParseState::kTraceDataSection) {
+      if (base::StartsWith(buffer, "#")) {
         state_ = ParseState::kSystrace;
+      } else if (base::Contains(buffer, R"(</script>)")) {
+        state_ = ParseState::kHtmlBeforeSystrace;
       }
     } else if (state_ == ParseState::kSystrace) {
       if (base::Contains(buffer, R"(</script>)")) {
-        state_ = kEndOfSystrace;
+        state_ = ParseState::kEndOfSystrace;
         break;
       } else if (!base::StartsWith(buffer, "#")) {
         ParseSingleSystraceEvent(buffer);
@@ -115,7 +125,6 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   //
   // However, sometimes the tgid can be missing and buffer looks like this:
   // <idle>-0     [000] ...2     0.002188: task_newtask: pid=1 ...
-
   size_t task_start;
   size_t task_length;
   std::tie<size_t, size_t>(task_start, task_length) = FindTask(buffer);
@@ -134,7 +143,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     return util::Status("Could not find [ in " + buffer);
   }
 
-  auto pid_end = has_tgid ? cpu_idx : tgid_idx;
+  auto pid_end = has_tgid ? tgid_idx : cpu_idx;
   std::string pid_str = SubstrTrim(buffer, task_idx + 1, pid_end);
   base::Optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
   if (!maybe_pid.has_value()) {

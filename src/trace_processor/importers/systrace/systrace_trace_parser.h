@@ -39,6 +39,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
   enum ParseState {
     kBeforeParse,
     kHtmlBeforeSystrace,
+    kTraceDataSection,
     kSystrace,
     kEndOfSystrace,
   };
