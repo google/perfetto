@@ -39,16 +39,17 @@ namespace {
 
 int Usage(const char* argv0) {
   fprintf(stderr,
-      "Usage: %s systrace|json|ctrace|text|profile [--pid PID] "
-      "[--timestamps TIMESTAMP1,TIMESTAMP2,...] "
-      "[--truncate start|end] "
-      "[trace.pb] "
-      "[trace.txt]\n"
-      "\nProfile mode only:\n"
-      "\t--timestamps TIMESTAMP1,TIMESTAMP2,... generate profiles "
-      "only for these timestamps\n"
-      "\t--pid PID generate profiles only for this process id\n",
-      argv0);
+          "Usage: %s systrace|json|ctrace|text|profile [--pid PID] "
+          "[--timestamps TIMESTAMP1,TIMESTAMP2,...] "
+          "[--truncate start|end] "
+          "[--full-sort] "
+          "[trace.pb] "
+          "[trace.txt]\n"
+          "\nProfile mode only:\n"
+          "\t--timestamps TIMESTAMP1,TIMESTAMP2,... generate profiles "
+          "only for these timestamps\n"
+          "\t--pid PID generate profiles only for this process id\n",
+          argv0);
   return 1;
 }
 
@@ -67,6 +68,7 @@ int Main(int argc, char** argv) {
   Keep truncate_keep = Keep::kAll;
   uint64_t pid = 0;
   std::vector<uint64_t> timestamps;
+  bool full_sort = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", PERFETTO_GET_GIT_REVISION());
@@ -93,6 +95,8 @@ int Main(int argc, char** argv) {
       for (const std::string& ts : ts_strings) {
         timestamps.emplace_back(StringToUint64OrDie(ts.c_str()));
       }
+    } else if (strcmp(argv[i], "--full-sort") == 0) {
+      full_sort = true;
     } else {
       positional_args.push_back(argv[i]);
     }
@@ -141,19 +145,25 @@ int Main(int argc, char** argv) {
 
   if (format == "json")
     return TraceToJson(input_stream, output_stream, /*compress=*/false,
-                       truncate_keep);
+                       truncate_keep, full_sort);
 
   if (format == "systrace")
     return TraceToSystrace(input_stream, output_stream, /*compress=*/false,
-                           truncate_keep);
+                           truncate_keep, full_sort);
 
   if (format == "ctrace")
     return TraceToSystrace(input_stream, output_stream, /*compress=*/true,
-                           truncate_keep);
+                           truncate_keep, full_sort);
 
   if (truncate_keep != Keep::kAll) {
     PERFETTO_ELOG(
         "--truncate is unsupported for text|profile|symbolize format.");
+    return 1;
+  }
+
+  if (full_sort) {
+    PERFETTO_ELOG(
+        "--full-sort is unsupported for text|profile|symbolize format.");
     return 1;
   }
 
