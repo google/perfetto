@@ -83,13 +83,7 @@ export class SliceDetailsPanel extends Panel {
         threadInfo === undefined) {
       return;
     }
-    globals.makeSelection(Actions.selectThreadState({
-      utid: threadInfo.utid,
-      ts: sliceInfo.ts + globals.state.traceTime.startSec,
-      dur: sliceInfo.dur,
-      state: 'Running',
-      cpu: sliceInfo.cpu,
-    }));
+
     let trackId: string|number|undefined;
     for (const track of Object.values(globals.state.tracks)) {
       if (track.kind === 'ThreadStateTrack' &&
@@ -97,7 +91,17 @@ export class SliceDetailsPanel extends Panel {
         trackId = track.id;
       }
     }
+
     if (trackId) {
+      globals.makeSelection(Actions.selectThreadState({
+        utid: threadInfo.utid,
+        ts: sliceInfo.ts + globals.state.traceTime.startSec,
+        dur: sliceInfo.dur,
+        state: 'Running',
+        cpu: sliceInfo.cpu,
+        trackId: trackId.toString(),
+      }));
+
       scrollToTrackAndTs(
           trackId, toNs(sliceInfo.ts + globals.state.traceTime.startSec), true);
     }

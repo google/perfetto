@@ -72,16 +72,13 @@ function selectCurrentSearchResult() {
   const index = state.searchIndex;
   const refType = globals.currentSearchResults.refTypes[index];
   const currentId = globals.currentSearchResults.sliceIds[index];
+  const trackId = globals.currentSearchResults.trackIds[index];
 
   if (currentId === undefined) return;
 
   if (refType === 'cpu') {
-    globals.dispatch(Actions.selectSlice({
-      id: currentId,
-    }));
+    globals.dispatch(Actions.selectSlice({id: currentId, trackId}));
   } else {
-    globals.dispatch(Actions.selectChromeSlice({
-      id: currentId,
-    }));
+    globals.dispatch(Actions.selectChromeSlice({id: currentId, trackId}));
   }
 }

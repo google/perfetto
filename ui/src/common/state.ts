@@ -140,8 +140,9 @@ export interface ThreadStateSelection {
   cpu: number;
 }
 
-type Selection = NoteSelection|SliceSelection|CounterSelection|
-    HeapProfileSelection|ChromeSliceSelection|ThreadStateSelection;
+type Selection =
+    (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
+     ChromeSliceSelection|ThreadStateSelection)&{trackId?: string};
 
 export interface LogsPagination {
   offset: number;

@@ -202,7 +202,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         ]);
   }
 
-  onupdate({attrs}: m.CVnode<TrackComponentAttrs>) {
+  oncreate({attrs}: m.CVnode<TrackComponentAttrs>) {
     if (globals.frontendLocalState.scrollToTrackId === attrs.trackState.id) {
       verticalScrollToTrack(attrs.trackState.id);
       globals.frontendLocalState.scrollToTrackId = undefined;
