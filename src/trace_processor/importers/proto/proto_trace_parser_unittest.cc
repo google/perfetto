@@ -270,15 +270,17 @@ class ProtoTraceParserTest : public ::testing::Test {
 
   void SetUp() override { ResetTraceBuffers(); }
 
-  void Tokenize() {
+  util::Status Tokenize() {
     trace_.Finalize();
     std::vector<uint8_t> trace_bytes = heap_buf_->StitchSlices();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
     memcpy(raw_trace.get(), trace_bytes.data(), trace_bytes.size());
     context_.chunk_reader.reset(new ProtoTraceTokenizer(&context_));
-    context_.chunk_reader->Parse(std::move(raw_trace), trace_bytes.size());
+    auto status =
+        context_.chunk_reader->Parse(std::move(raw_trace), trace_bytes.size());
 
     ResetTraceBuffers();
+    return status;
   }
 
   bool HasArg(ArgSetId set_id, StringId key_id, Variadic value) {
@@ -2288,6 +2290,30 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   context_.sorter->ExtractEventsForced();
 }
 
+TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_timestamp(1000);
+    packet->set_timestamp_clock_id(3);
+    packet->set_trusted_packet_sequence_id(1);
+    auto* bundle = packet->set_chrome_events();
+    auto* metadata = bundle->add_metadata();
+    metadata->set_name("test");
+    metadata->set_int_value(23);
+  }
+
+  util::Status status = Tokenize();
+  EXPECT_TRUE(status.ok());
+  context_.sorter->ExtractEventsForced();
+
+  // Metadata should have created a raw event.
+  const auto& raw_events = storage_->raw_events();
+  EXPECT_EQ(raw_events.raw_event_count(), 1u);
+}
+
 TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   static const char kStringName[] = "string_name";
   static const char kStringValue[] = "string_value";
@@ -2299,6 +2325,8 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
 
   {
     auto* packet = trace_.add_packet();
+    packet->set_timestamp(1000);
+    packet->set_timestamp_clock_id(3);
     packet->set_trusted_packet_sequence_id(1);
     auto* bundle = packet->set_chrome_events();
     auto* metadata = bundle->add_metadata();
