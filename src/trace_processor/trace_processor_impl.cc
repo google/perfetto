@@ -40,9 +40,11 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -342,6 +344,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
       new ProtoImporterModule<FtraceModule>(&context_));
   context_.track_event_module.reset(
       new ProtoImporterModule<TrackEventModule>(&context_));
+  context_.systrace_module.reset(
+      new ProtoImporterModule<SystraceProtoModule>(&context_));
+  context_.android_probes_module.reset(
+      new ProtoImporterModule<AndroidProbesModule>(&context_));
   context_.graphics_event_module.reset(
       new ProtoImporterModule<GraphicsEventModule>(&context_));
 
