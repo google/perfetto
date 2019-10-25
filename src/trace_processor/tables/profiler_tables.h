@@ -23,6 +23,15 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+#define PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF(NAME, PARENT, C) \
+  NAME(StackProfileCallsiteTable, "stack_profile_callsite")     \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                             \
+  C(int64_t, depth)                                             \
+  C(int64_t, parent_id)                                         \
+  C(int64_t, frame_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
+
 #define PERFETTO_TP_SYMBOL_DEF(NAME, PARENT, C) \
   NAME(SymbolTable, "stack_profile_symbol")     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)             \

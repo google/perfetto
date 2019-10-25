@@ -167,7 +167,7 @@ class StackProfileTracker {
   std::unordered_map<TraceStorage::StackProfileMappings::Row, int64_t>
       mapping_idx_;
   std::unordered_map<TraceStorage::StackProfileFrames::Row, int64_t> frame_idx_;
-  std::unordered_map<TraceStorage::StackProfileCallsites::Row, int64_t>
+  std::unordered_map<tables::StackProfileCallsiteTable::Row, int64_t>
       callsite_idx_;
 
   TraceProcessorContext* const context_;
