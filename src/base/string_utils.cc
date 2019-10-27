@@ -102,7 +102,16 @@ std::string ToUpper(const std::string& str) {
   std::string res(str);
   auto end = res.end();
   for (auto c = res.begin(); c != end; ++c)
-    *c = ('a' <= *c && *c <= 'z') ? (*c += 'A' - 'a') : *c;
+    *c = Uppercase(*c);
+  return res;
+}
+
+std::string ToLower(const std::string& str) {
+  // Don't use tolower(), it depends on the locale.
+  std::string res(str);
+  auto end = res.end();
+  for (auto c = res.begin(); c != end; ++c)
+    *c = Lowercase(*c);
   return res;
 }
 
