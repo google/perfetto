@@ -70,12 +70,24 @@ class StringView {
     return data_[pos];
   }
 
-  size_t find(char c) const {
-    for (size_t i = 0; i < size_; ++i) {
+  size_t find(char c, size_t start_pos = 0) const {
+    for (size_t i = start_pos; i < size_; ++i) {
       if (data_[i] == c)
         return i;
     }
     return npos;
+  }
+
+  size_t find(const StringView& str, size_t start_pos = 0) const {
+    if (start_pos > size())
+      return npos;
+    auto it = std::search(begin() + start_pos, end(), str.begin(), str.end());
+    size_t pos = static_cast<size_t>(it - begin());
+    return pos + str.size() <= size() ? pos : npos;
+  }
+
+  size_t find(const char* str, size_t start_pos = 0) const {
+    return find(StringView(str), start_pos);
   }
 
   size_t rfind(char c) const {
@@ -91,6 +103,14 @@ class StringView {
       return StringView("", 0);
     size_t rcount = std::min(count, size_ - pos);
     return StringView(data_ + pos, rcount);
+  }
+
+  bool CaseInsensitiveEq(const StringView& other) {
+    if (size() != other.size())
+      return false;
+    if (size() == 0)
+      return true;
+    return strncasecmp(data(), other.data(), size()) == 0;
   }
 
   std::string ToStdString() const {

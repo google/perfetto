@@ -30,11 +30,11 @@ namespace perfetto {
 namespace base {
 
 inline char Lowercase(char c) {
-  return ('A' <= c && c <= 'Z') ? (c -= 'A' - 'a') : c;
+  return ('A' <= c && c <= 'Z') ? static_cast<char>(c - ('A' - 'a')) : c;
 }
 
 inline char Uppercase(char c) {
-  return ('a' <= c && c <= 'z') ? (c += 'A' - 'a') : c;
+  return ('a' <= c && c <= 'z') ? static_cast<char>(c + ('A' - 'a')) : c;
 }
 
 inline Optional<uint32_t> CStringToUInt32(const char* s) {
@@ -87,6 +87,7 @@ std::vector<std::string> SplitString(const std::string& text,
                                      const std::string& delimiter);
 std::string StripPrefix(const std::string& str, const std::string& prefix);
 std::string StripSuffix(const std::string& str, const std::string& suffix);
+std::string ToLower(const std::string& str);
 std::string ToUpper(const std::string& str);
 std::string StripChars(const std::string& str,
                        const std::string& chars,
