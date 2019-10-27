@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_RPC_H_
-#define SRC_TRACE_PROCESSOR_RPC_H_
+#ifndef SRC_TRACE_PROCESSOR_RPC_RPC_H_
+#define SRC_TRACE_PROCESSOR_RPC_RPC_H_
 
 #include <memory>
 #include <vector>
@@ -65,7 +65,7 @@ class Rpc {
   // Executes a SQL query and returns the results.
   // Args: RawQueryArgs proto-encoded bytes.
   // Returns: RawQueryResult proto-encoded bytes.
-  // See protos/perfetto/trace_processor/raw_query.proto for the proto schema.
+  // See trace_processor.proto for the proto schema.
   // If the query fails the |error| RawQueryResult.field is set accordingly
   std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
 
@@ -80,4 +80,4 @@ class Rpc {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_RPC_H_
+#endif  // SRC_TRACE_PROCESSOR_RPC_RPC_H_
