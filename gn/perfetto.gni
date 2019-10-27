@@ -233,6 +233,11 @@ declare_args() {
   # Enables Fuchsia trace format support in trace processor.
   enable_perfetto_trace_processor_fuchsia =
       enable_perfetto_trace_processor && !build_with_chromium
+
+  # Enables httpd RPC support in the trace processor.
+  # Further per-OS conditionals are applied in gn/BUILD.gn.
+  enable_perfetto_trace_processor_httpd =
+      enable_perfetto_trace_processor && perfetto_build_standalone
 }
 
 # +---------------------------------------------------------------------------+
