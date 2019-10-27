@@ -39,6 +39,10 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/proto_to_json.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+#include "src/trace_processor/rpc/httpd.h"
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
@@ -635,6 +639,7 @@ struct CommandLineOptions {
   std::string metric_extra;
   std::string trace_file_path;
   bool launch_shell = false;
+  bool enable_httpd = false;
   bool wide = false;
   bool force_full_sort = false;
 };
@@ -694,6 +699,7 @@ Options:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
+ -D, --httpd                          Enables the HTTP RPC server.
  -i, --interactive                    Starts interactive mode even after a query
                                       file is specified with -q or
                                       --run-metrics.
@@ -730,6 +736,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
       {"wide", no_argument, nullptr, 'W'},
+      {"httpd", no_argument, nullptr, 'D'},
       {"interactive", no_argument, nullptr, 'i'},
       {"debug", no_argument, nullptr, 'd'},
       {"perf-file", required_argument, nullptr, 'p'},
@@ -745,7 +752,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   int option_index = 0;
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvWidp:q:e:", long_options, &option_index);
+        getopt_long(argc, argv, "hvWiDdp:q:e:", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
@@ -757,6 +764,15 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'i') {
       explicit_interactive = true;
+      continue;
+    }
+
+    if (option == 'D') {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+      command_line_options.enable_httpd = true;
+#else
+      PERFETTO_FATAL("HTTP RPC module not supported in this build");
+#endif
       continue;
     }
 
@@ -872,6 +888,13 @@ util::Status RegisterExtraMetrics(const std::string& path,
 
 int TraceProcessorMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+  if (options.enable_httpd) {
+    RunHttpRPCServer();
+    return 0;
+  }
+#endif
 
   // Load the trace file into the trace processor.
   Config config;
