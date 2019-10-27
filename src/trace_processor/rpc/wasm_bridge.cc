@@ -20,7 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/rpc.h"
+#include "src/trace_processor/rpc/rpc.h"
 
 namespace perfetto {
 namespace trace_processor {

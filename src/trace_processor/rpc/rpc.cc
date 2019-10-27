@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/rpc.h"
+#include "src/trace_processor/rpc/rpc.h"
 
 #include <vector>
 
 #include "perfetto/base/time.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "protos/perfetto/trace_processor/raw_query.pbzero.h"
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
