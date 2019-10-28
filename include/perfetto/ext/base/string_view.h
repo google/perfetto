@@ -111,7 +111,7 @@ class StringView {
       return false;
     if (size() == 0)
       return true;
-#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     return _strnicmp(data(), other.data(), size()) == 0;
 #else
     return strncasecmp(data(), other.data(), size()) == 0;
