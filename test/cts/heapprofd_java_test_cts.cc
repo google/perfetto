@@ -92,21 +92,24 @@ void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
   }
 }
 
-TEST(HeapprofdJavaCtsTest, DebuggableAppRuntime) {
+// TODO(b/142919213): Re-enable once no longer flaky.
+TEST(DISABLED_HeapprofdJavaCtsTest, DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdJavaCtsTest, ProfileableAppRuntime) {
+// TODO(b/142919213): Re-enable once no longer flaky.
+TEST(DISABLED_HeapprofdJavaCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
+// TODO(b/142919213): Re-enable once no longer flaky.
+TEST(DISABLED_HeapprofdJavaCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
