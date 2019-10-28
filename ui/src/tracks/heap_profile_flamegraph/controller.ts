@@ -112,9 +112,14 @@ class HeapProfileFlameraphTrackController extends
         // TODO(tneda|lalitm): get names from symbols to exactly replicate
         // pprof.
         `create view if not exists ${tableNameCallsiteNameSize} as
-      select cs.id, parent_id, depth, name, SUM(IFNULL(size, 0)) as size
+      select cs.id, parent_id, depth, IFNULL(symbols.name, fr.name) as name,
+      SUM(IFNULL(size, 0)) as size
       from stack_profile_callsite cs
-      join stack_profile_frame on cs.frame_id = stack_profile_frame.id
+      join stack_profile_frame fr on cs.frame_id = fr.id
+      inner join (SELECT symbol_set_id, FIRST_VALUE(name) OVER(PARTITION BY
+        symbol_set_id) as name
+      FROM stack_profile_symbol GROUP BY symbol_set_id) as symbols
+        using(symbol_set_id)
       left join heap_profile_allocation alloc on alloc.callsite_id = cs.id and
       alloc.ts <= ${ts} and alloc.upid = ${upid} group by cs.id`);
 
