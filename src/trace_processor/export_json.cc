@@ -438,6 +438,7 @@ util::Status ExportSlices(const TraceStorage* storage,
       if (event["args"].isMember(kLegacyEventArgsKey)) {
         ConvertLegacyFlowEventArgs(event["args"][kLegacyEventArgsKey], &event);
 
+        event["args"].removeMember(kLegacyEventArgsKey);
         if (event["args"].empty())
           event.removeMember("args");
       }
