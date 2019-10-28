@@ -27,11 +27,11 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-class SystraceProtoParser {
+class SystemProbesParser {
  public:
   using ConstBytes = protozero::ConstBytes;
 
-  explicit SystraceProtoParser(TraceProcessorContext*);
+  explicit SystemProbesParser(TraceProcessorContext*);
 
   void ParseProcessTree(ConstBytes);
   void ParseProcessStats(int64_t timestamp, ConstBytes);
