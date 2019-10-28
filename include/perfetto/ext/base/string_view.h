@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <string>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
 
@@ -110,7 +111,11 @@ class StringView {
       return false;
     if (size() == 0)
       return true;
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
+    return _strnicmp(data(), other.data(), size()) == 0;
+#else
     return strncasecmp(data(), other.data(), size()) == 0;
+#endif
   }
 
   std::string ToStdString() const {
