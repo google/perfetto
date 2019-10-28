@@ -25,10 +25,10 @@
 namespace perfetto {
 namespace trace_processor {
 
-class SystraceProtoModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
-                                PERFETTO_TP_SYSTEM_PROBES)> {
+class SystemProbesModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
+                               PERFETTO_TP_SYSTEM_PROBES)> {
  public:
-  explicit SystraceProtoModule(TraceProcessorContext* context)
+  explicit SystemProbesModule(TraceProcessorContext* context)
       : ProtoImporterModuleBase(context), parser_(context) {}
 
   ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
@@ -57,7 +57,7 @@ class SystraceProtoModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
   }
 
  private:
-  SystraceProtoParser parser_;
+  SystemProbesParser parser_;
 };
 
 }  // namespace trace_processor

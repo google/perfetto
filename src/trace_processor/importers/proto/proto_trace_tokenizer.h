@@ -25,7 +25,6 @@
 #include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_processor_impl.h"
 
 namespace protozero {
 struct ConstBytes;
