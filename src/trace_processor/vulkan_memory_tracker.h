@@ -19,7 +19,6 @@
 
 #include <deque>
 
-#include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {

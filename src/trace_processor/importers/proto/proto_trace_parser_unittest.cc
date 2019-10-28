@@ -263,8 +263,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
     context_.ftrace_module.reset(
         new ProtoImporterModule<FtraceModule>(&context_));
-    context_.systrace_module.reset(
-        new ProtoImporterModule<SystraceProtoModule>(&context_));
+    context_.system_probes_module.reset(
+        new ProtoImporterModule<SystemProbesModule>(&context_));
     context_.android_probes_module.reset(
         new ProtoImporterModule<AndroidProbesModule>(&context_));
     context_.track_event_module.reset(
