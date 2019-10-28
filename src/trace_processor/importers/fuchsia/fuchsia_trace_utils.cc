@@ -98,12 +98,14 @@ void RecordCursor::SetWordIndex(size_t index) {
 }
 
 bool RecordCursor::ReadTimestamp(uint64_t ticks_per_second, int64_t* ts_out) {
-  const uint64_t* ts_data;
+  const uint8_t* ts_data;
   if (!ReadWords(1, &ts_data)) {
     return false;
   }
   if (ts_out != nullptr) {
-    *ts_out = TicksToNs(*ts_data, ticks_per_second);
+    uint64_t ticks;
+    memcpy(&ticks, ts_data, sizeof(uint64_t));
+    *ts_out = TicksToNs(ticks, ticks_per_second);
   }
   return true;
 }
@@ -113,7 +115,7 @@ bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
   // Note that this works correctly for the empty string, where string_ref is 0.
   size_t len = string_ref_or_len & kInlineStringLengthMask;
   size_t len_words = (len + 7) / 8;
-  const uint64_t* string_data;
+  const uint8_t* string_data;
   if (!ReadWords(len_words, &string_data)) {
     return false;
   }
@@ -125,35 +127,35 @@ bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
 }
 
 bool RecordCursor::ReadInlineThread(ThreadInfo* thread_out) {
-  const uint64_t* thread_data;
+  const uint8_t* thread_data;
   if (!ReadWords(2, &thread_data)) {
     return false;
   }
   if (thread_out != nullptr) {
-    thread_out->pid = thread_data[0];
-    thread_out->tid = thread_data[1];
+    memcpy(&thread_out->pid, thread_data, sizeof(uint64_t));
+    memcpy(&thread_out->tid, thread_data + sizeof(uint64_t), sizeof(uint64_t));
   }
   return true;
 }
 
 bool RecordCursor::ReadInt64(int64_t* out) {
-  const uint64_t* out_data;
+  const uint8_t* out_data;
   if (!ReadWords(1, &out_data)) {
     return false;
   }
   if (out != nullptr) {
-    *out = static_cast<int64_t>(*out_data);
+    memcpy(out, out_data, sizeof(int64_t));
   }
   return true;
 }
 
 bool RecordCursor::ReadUint64(uint64_t* out) {
-  const uint64_t* out_data;
+  const uint8_t* out_data;
   if (!ReadWords(1, &out_data)) {
     return false;
   }
   if (out != nullptr) {
-    *out = *out_data;
+    memcpy(out, out_data, sizeof(uint64_t));
   }
   return true;
 }
@@ -161,7 +163,7 @@ bool RecordCursor::ReadUint64(uint64_t* out) {
 bool RecordCursor::ReadDouble(double* out) {
   static_assert(sizeof(double) == sizeof(uint64_t), "double must be 64 bits");
 
-  const uint64_t* out_data;
+  const uint8_t* out_data;
   if (!ReadWords(1, &out_data)) {
     return false;
   }
@@ -171,16 +173,14 @@ bool RecordCursor::ReadDouble(double* out) {
   return true;
 }
 
-bool RecordCursor::ReadWords(size_t num_words, const uint64_t** data_out) {
-  const uint64_t* end =
-      reinterpret_cast<const uint64_t*>(tbv_.data() + tbv_.length());
-  const uint64_t* data =
-      reinterpret_cast<const uint64_t*>(tbv_.data()) + word_index_;
+bool RecordCursor::ReadWords(size_t num_words, const uint8_t** data_out) {
+  const uint8_t* end = tbv_.data() + tbv_.length();
+  const uint8_t* data = tbv_.data() + sizeof(uint64_t) * word_index_;
   // This addition is unconditional so that callers with data_out == nullptr do
   // not necessarily have to check the return value, as future calls will fail
   // due to attempting to read out of bounds.
   word_index_ += num_words;
-  if (data + num_words <= end) {
+  if (data + sizeof(uint64_t) * num_words <= end) {
     if (data_out != nullptr) {
       *data_out = data;
     }
