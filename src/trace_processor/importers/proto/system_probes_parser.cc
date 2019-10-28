@@ -39,7 +39,7 @@ const uint32_t kKthreaddPid = 2;
 const char kKthreaddName[] = "kthreadd";
 }  // namespace
 
-SystraceProtoParser::SystraceProtoParser(TraceProcessorContext* context)
+SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
     : context_(context),
       utid_name_id_(context->storage->InternString("utid")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
@@ -90,7 +90,7 @@ SystraceProtoParser::SystraceProtoParser(TraceProcessorContext* context)
       oom_score_adj_id_;
 }
 
-void SystraceProtoParser::ParseSysStats(int64_t ts, ConstBytes blob) {
+void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::Decoder sys_stats(blob.data, blob.size);
 
   for (auto it = sys_stats.meminfo(); it; ++it) {
@@ -177,7 +177,7 @@ void SystraceProtoParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 }
 
-void SystraceProtoParser::ParseProcessTree(ConstBytes blob) {
+void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
   protos::pbzero::ProcessTree::Decoder ps(blob.data, blob.size);
 
   for (auto it = ps.processes(); it; ++it) {
@@ -213,7 +213,7 @@ void SystraceProtoParser::ParseProcessTree(ConstBytes blob) {
   }
 }
 
-void SystraceProtoParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
+void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::ProcessStats::Decoder stats(blob.data, blob.size);
   const auto kOomScoreAdjFieldNumber =
       protos::pbzero::ProcessStats::Process::kOomScoreAdjFieldNumber;
@@ -260,7 +260,7 @@ void SystraceProtoParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
   }
 }
 
-void SystraceProtoParser::ParseSystemInfo(ConstBytes blob) {
+void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   protos::pbzero::SystemInfo::Decoder packet(blob.data, blob.size);
   if (packet.has_utsname()) {
     ConstBytes utsname_blob = packet.utsname();

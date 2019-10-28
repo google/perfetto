@@ -78,9 +78,6 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
-
-#include "protos/perfetto/metrics/android/mem_metric.pbzero.h"
-#include "protos/perfetto/metrics/metrics.pbzero.h"
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -344,8 +341,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
       new ProtoImporterModule<FtraceModule>(&context_));
   context_.track_event_module.reset(
       new ProtoImporterModule<TrackEventModule>(&context_));
-  context_.systrace_module.reset(
-      new ProtoImporterModule<SystraceProtoModule>(&context_));
+  context_.system_probes_module.reset(
+      new ProtoImporterModule<SystemProbesModule>(&context_));
   context_.android_probes_module.reset(
       new ProtoImporterModule<AndroidProbesModule>(&context_));
   context_.graphics_event_module.reset(

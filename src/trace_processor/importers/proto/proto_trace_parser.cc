@@ -38,7 +38,6 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -248,7 +247,7 @@ void ProtoTraceParser::ParseTracePacketImpl(
   if (!context_->track_event_module->ParsePacket(packet, ttp).ignored())
     return;
 
-  if (!context_->systrace_module->ParsePacket(packet, ttp).ignored())
+  if (!context_->system_probes_module->ParsePacket(packet, ttp).ignored())
     return;
 
   if (!context_->android_probes_module->ParsePacket(packet, ttp).ignored())
