@@ -476,6 +476,7 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
   EXPECT_EQ(event["flow_in"].asBool(), true);
   EXPECT_EQ(event["flow_out"].asBool(), true);
   EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
+  EXPECT_FALSE(event["args"].isMember("legacy_event"));
 }
 
 TEST_F(ExportJsonTest, StorageWithListArgs) {
