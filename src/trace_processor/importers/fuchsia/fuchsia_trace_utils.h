@@ -210,7 +210,7 @@ class RecordCursor {
   bool ReadDouble(double* out);
 
  private:
-  bool ReadWords(size_t num_words, const uint64_t** data_out);
+  bool ReadWords(size_t num_words, const uint8_t** data_out);
 
   const TraceBlobView& tbv_;
   size_t word_index_;
