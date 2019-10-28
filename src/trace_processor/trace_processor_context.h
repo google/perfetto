@@ -38,7 +38,7 @@ class ProcessTracker;
 class SchedEventTracker;
 class SliceTracker;
 class SyscallTracker;
-class SystraceProtoModule;
+class SystemProbesModule;
 class SystraceParser;
 class TraceParser;
 class TraceStorage;
@@ -73,7 +73,7 @@ class TraceProcessorContext {
 
   std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
   std::unique_ptr<ProtoImporterModule<TrackEventModule>> track_event_module;
-  std::unique_ptr<ProtoImporterModule<SystraceProtoModule>> systrace_module;
+  std::unique_ptr<ProtoImporterModule<SystemProbesModule>> system_probes_module;
   std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
       android_probes_module;
   std::unique_ptr<ProtoImporterModule<GraphicsEventModule>>
