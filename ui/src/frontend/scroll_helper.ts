@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Actions} from '../common/actions';
 import {getContainingTrackId} from '../common/state';
 import {fromNs, TimeSpan, toNs} from '../common/time';
 
@@ -52,32 +53,49 @@ export function horizontalScrollAndZoomToRange(startTs: number, endTs: number) {
 /**
  * Given a track id, find a track with that id and scroll it into view. If the
  * track is nested inside a track group, scroll to that track group instead.
+ * If |openGroup| then open the track group and scroll to the track.
  */
-export function verticalScrollToTrack(trackId: string|number) {
+export function verticalScrollToTrack(
+    trackId: string|number, openGroup = false) {
   const trackIdString = trackId.toString();
-  let track = document.querySelector('#track_' + trackIdString);
+  const track = document.querySelector('#track_' + trackIdString);
 
-  if (!track) {
-    const parentTrackId = getContainingTrackId(globals.state, trackIdString);
-    if (parentTrackId) {
-      track = document.querySelector('#track_' + parentTrackId);
-    }
+  if (track) {
+    // block: 'nearest' means that it will only scroll if the track is not
+    // currently in view.
+    track.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    return;
   }
 
-  if (!track) {
+  let trackGroup = null;
+  const trackGroupId = getContainingTrackId(globals.state, trackIdString);
+  if (trackGroupId) {
+    trackGroup = document.querySelector('#track_' + trackGroupId);
+  }
+
+  if (!trackGroupId || !trackGroup) {
     console.error(`Can't scroll, track (${trackIdString}) not found.`);
     return;
   }
 
-  // block: 'nearest' means that it will only scroll if the track is not
-  // currently in view.
-  track.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  // The requested track is inside a closed track group, either open the track
+  // group and scroll to the track or just scroll to the track group.
+  if (openGroup) {
+    // After the track exists in the dom, it will be scrolled to.
+    globals.frontendLocalState.scrollToTrackId = trackId;
+    globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    return;
+  } else {
+    trackGroup.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
 }
+
 
 /**
  * Scroll vertically and horizontally to reach track (|trackId|) at |ts|.
  */
-export function scrollToTrackAndTs(trackId: string|number, ts: number) {
-  verticalScrollToTrack(trackId);
+export function scrollToTrackAndTs(
+    trackId: string|number, ts: number, openGroup = false) {
+  verticalScrollToTrack(trackId, openGroup);
   horizontalScrollToTs(ts);
 }

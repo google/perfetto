@@ -78,8 +78,6 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
         {
           onclick: () => {
             if (globals.sliceDetails.id && globals.sliceDetails.ts) {
-              globals.makeSelection(
-                  Actions.selectSlice({id: globals.sliceDetails.id}));
               // TODO(taylori): Use trackId from TP.
               let trackId;
               for (const track of Object.values(globals.state.tracks)) {
@@ -89,6 +87,8 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
                 }
               }
               if (trackId) {
+                globals.makeSelection(Actions.selectSlice(
+                    {id: globals.sliceDetails.id, trackId}));
                 scrollToTrackAndTs(
                     trackId,
                     toNs(

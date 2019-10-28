@@ -376,21 +376,24 @@ export const StateActions = {
     }
   },
 
-  selectSlice(state: StateDraft, args: {id: number}): void {
+  selectSlice(state: StateDraft, args: {id: number, trackId: string}): void {
     state.currentSelection = {
       kind: 'SLICE',
       id: args.id,
+      trackId: args.trackId,
     };
   },
 
   selectCounter(
-      state: StateDraft, args: {leftTs: number, rightTs: number, id: number}):
+      state: StateDraft,
+      args: {leftTs: number, rightTs: number, id: number, trackId: string}):
       void {
         state.currentSelection = {
           kind: 'COUNTER',
           leftTs: args.leftTs,
           rightTs: args.rightTs,
-          id: args.id
+          id: args.id,
+          trackId: args.trackId,
         };
       },
 
@@ -410,24 +413,33 @@ export const StateActions = {
     };
   },
 
-  selectChromeSlice(state: StateDraft, args: {id: number}): void {
-    state.currentSelection = {kind: 'CHROME_SLICE', id: args.id};
-  },
-
-  selectThreadState(
-      state: StateDraft,
-      args:
-          {utid: number, ts: number, dur: number, state: string, cpu: number}):
+  selectChromeSlice(state: StateDraft, args: {id: number, trackId: string}):
       void {
         state.currentSelection = {
-          kind: 'THREAD_STATE',
-          utid: args.utid,
-          ts: args.ts,
-          dur: args.dur,
-          state: args.state,
-          cpu: args.cpu
+          kind: 'CHROME_SLICE',
+          id: args.id,
+          trackId: args.trackId
         };
       },
+
+  selectThreadState(state: StateDraft, args: {
+    utid: number,
+    ts: number,
+    dur: number,
+    state: string,
+    cpu: number,
+    trackId: string
+  }): void {
+    state.currentSelection = {
+      kind: 'THREAD_STATE',
+      utid: args.utid,
+      ts: args.ts,
+      dur: args.dur,
+      state: args.state,
+      cpu: args.cpu,
+      trackId: args.trackId,
+    };
+  },
 
   deselect(state: StateDraft, _: {}): void {
     state.currentSelection = null;
