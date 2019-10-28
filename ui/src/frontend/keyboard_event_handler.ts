@@ -16,7 +16,10 @@ import {Actions} from '../common/actions';
 
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {horizontalScrollAndZoomToRange} from './scroll_helper';
+import {
+  horizontalScrollAndZoomToRange,
+  verticalScrollToTrack
+} from './scroll_helper';
 import {executeSearch} from './search_handler';
 
 // Handles all key events than are not handled by the
@@ -25,6 +28,9 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   const key = e.key.toLowerCase();
   if (down && 'm' === key) {
     selectSliceSpan();
+  }
+  if (down && 'f' === key) {
+    findCurrentSelection();
   }
   if (down && 'v' === key) {
     globals.dispatch(Actions.toggleVideo({}));
@@ -49,26 +55,45 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   }
 }
 
-function selectSliceSpan() {
+function findTimeRangeOfSelection() {
   const selection = globals.state.currentSelection;
   let startTs = -1;
   let endTs = -1;
+  if (selection !== null) {
+    if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+      const slice = globals.sliceDetails;
+      if (slice.ts && slice.dur) {
+        startTs = slice.ts + globals.state.traceTime.startSec;
+        endTs = startTs + slice.dur;
+      }
+    } else if (selection.kind === 'THREAD_STATE') {
+      startTs = selection.ts;
+      endTs = startTs + selection.dur;
+    } else if (selection.kind === 'COUNTER') {
+      startTs = selection.leftTs;
+      endTs = selection.rightTs;
+    }
+  }
+  return {startTs, endTs};
+}
+
+function selectSliceSpan() {
+  const range = findTimeRangeOfSelection();
+  if (range.startTs !== -1 && range.endTs !== -1) {
+    globals.frontendLocalState.selectTimeRange(range.startTs, range.endTs);
+  }
+}
+
+function findCurrentSelection() {
+  const selection = globals.state.currentSelection;
   if (selection === null) return;
 
-  if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
-    const slice = globals.sliceDetails;
-    if (slice.ts && slice.dur) {
-      startTs = slice.ts + globals.state.traceTime.startSec;
-      endTs = startTs + slice.dur;
-    }
-  } else if (selection.kind === 'THREAD_STATE') {
-    startTs = selection.ts;
-    endTs = startTs + selection.dur;
+  const range = findTimeRangeOfSelection();
+  if (range.startTs !== -1 && range.endTs !== -1) {
+    horizontalScrollAndZoomToRange(range.startTs, range.endTs);
   }
 
-  if (startTs !== -1 && endTs !== -1) {
-    globals.frontendLocalState.selectTimeRange(startTs, endTs);
-    // Zoom into the highlighted time region.
-    horizontalScrollAndZoomToRange(startTs, endTs);
+  if (selection.trackId) {
+    verticalScrollToTrack(selection.trackId, true);
   }
 }
