@@ -49,11 +49,24 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   }
 
   view({attrs}: m.CVnode<TrackShellAttrs>) {
-    const dragClass = this.dragging ? `.drag` : '';
-    const dropClass = this.dropping ? `.drop-${this.dropping}` : '';
+    // The shell should be highlighted if the current search result is inside
+    // this track.
+    let highlightClass = '';
+    const searchIndex = globals.frontendLocalState.searchIndex;
+    if (searchIndex !== -1) {
+      const trackId = globals.currentSearchResults
+                          .trackIds[globals.frontendLocalState.searchIndex];
+      if (trackId === attrs.trackState.id) {
+        highlightClass = 'flash';
+      }
+    }
+
+    const dragClass = this.dragging ? `drag` : '';
+    const dropClass = this.dropping ? `drop-${this.dropping}` : '';
     return m(
-        `.track-shell${dragClass}${dropClass}[draggable=true]`,
+        `.track-shell[draggable=true]`,
         {
+          class: `${highlightClass} ${dragClass} ${dropClass}`,
           onmousedown: this.onmousedown.bind(this),
           ondragstart: this.ondragstart.bind(this),
           ondragend: this.ondragend.bind(this),
@@ -189,7 +202,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         ]);
   }
 
-  onupdate({attrs}: m.CVnode<TrackComponentAttrs>) {
+  oncreate({attrs}: m.CVnode<TrackComponentAttrs>) {
     if (globals.frontendLocalState.scrollToTrackId === attrs.trackState.id) {
       verticalScrollToTrack(attrs.trackState.id);
       globals.frontendLocalState.scrollToTrackId = undefined;
