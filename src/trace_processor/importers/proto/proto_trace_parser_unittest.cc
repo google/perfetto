@@ -83,6 +83,9 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::UnorderedElementsAreArray;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
+namespace {
 MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   // The IEEE standard says that any comparison operation involving
   // a NAN must return false.
@@ -92,6 +95,9 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
     return false;
   return fabs(d_arg - d_exp) < 1e-128;
 }
+}  // namespace
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE) ||
+        // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 class MockSchedEventTracker : public SchedEventTracker {
