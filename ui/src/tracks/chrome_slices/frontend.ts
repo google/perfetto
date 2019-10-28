@@ -159,7 +159,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     if (data === undefined) return false;
     const sliceId = data.sliceIds[sliceIndex];
     if (sliceId) {
-      globals.makeSelection(Actions.selectChromeSlice({id: sliceId}));
+      globals.makeSelection(Actions.selectChromeSlice(
+          {id: sliceId, trackId: this.trackState.id}));
       return true;
     }
     return false;

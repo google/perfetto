@@ -63,6 +63,9 @@ function showHelp() {
           m(
               'table',
               m('tr',
+                m('td', keycap('f'), ' (with event selected)'),
+                m('td', 'Scroll + zoom to current selection')),
+              m('tr',
                 m('td', keycap('m'), ' (with event selected)'),
                 m('td', 'Select time span of event')),
               m('tr', m('td', keycap('?')), m('td', 'Show help')),

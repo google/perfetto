@@ -241,7 +241,8 @@ class CounterTrack extends Track<Config, Data> {
       globals.makeSelection(Actions.selectCounter({
         leftTs: toNs(data.timestamps[left]),
         rightTs: right !== -1 ? toNs(data.timestamps[right]) : -1,
-        id: counterId
+        id: counterId,
+        trackId: this.trackState.id
       }));
       return true;
     }

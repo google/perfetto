@@ -17,10 +17,11 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 import {drawDoubleHeadedArrow} from '../common/canvas_utils';
 import {translateState} from '../common/thread_state';
-import {timeToCode} from '../common/time';
+import {timeToCode, toNs} from '../common/time';
 
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
+import {scrollToTrackAndTs} from './scroll_helper';
 
 export class SliceDetailsPanel extends Panel {
   view() {
@@ -82,27 +83,27 @@ export class SliceDetailsPanel extends Panel {
         threadInfo === undefined) {
       return;
     }
-    globals.makeSelection(Actions.selectThreadState({
-      utid: threadInfo.utid,
-      ts: sliceInfo.ts + globals.state.traceTime.startSec,
-      dur: sliceInfo.dur,
-      state: 'Running',
-      cpu: sliceInfo.cpu,
-    }));
+
     let trackId: string|number|undefined;
-    let trackGroupId;
     for (const track of Object.values(globals.state.tracks)) {
       if (track.kind === 'ThreadStateTrack' &&
           (track.config as {utid: number}).utid === threadInfo.utid) {
-        trackGroupId = track.trackGroup;
         trackId = track.id;
       }
     }
-    // After the track exists in the dom, it will be scrolled to.
-    globals.frontendLocalState.scrollToTrackId = trackId;
 
-    if (trackGroupId && globals.state.trackGroups[trackGroupId].collapsed) {
-      globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    if (trackId) {
+      globals.makeSelection(Actions.selectThreadState({
+        utid: threadInfo.utid,
+        ts: sliceInfo.ts + globals.state.traceTime.startSec,
+        dur: sliceInfo.dur,
+        state: 'Running',
+        cpu: sliceInfo.cpu,
+        trackId: trackId.toString(),
+      }));
+
+      scrollToTrackAndTs(
+          trackId, toNs(sliceInfo.ts + globals.state.traceTime.startSec), true);
     }
   }
 
