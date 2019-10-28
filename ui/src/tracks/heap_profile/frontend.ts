@@ -16,10 +16,15 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {fromNs, toNs} from '../../common/time';
+import {
+  HEAP_PROFILE_COLOR,
+  HEAP_PROFILE_HOVERED_COLOR
+} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
+
 import {Config, Data, HEAP_PROFILE_TRACK_KIND} from './common';
 
 // 0.5 Makes the horizontal lines sharp.
@@ -58,19 +63,18 @@ class HeapProfileTrack extends Track<Config, Data> {
       const isHovered = this.hoveredTs === centerX;
       const isSelected = selection !== null &&
           selection.kind === 'HEAP_PROFILE' && selection.ts === centerX;
-      const lightness = isHovered ? '65' : '85';
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
           timeScale.timeToPx(fromNs(centerX)),
           this.centerY,
-          lightness,
+          isHovered,
           strokeWidth);
     }
   }
 
   drawMarker(
-      ctx: CanvasRenderingContext2D, x: number, y: number, lightness: string,
+      ctx: CanvasRenderingContext2D, x: number, y: number, isHovered: boolean,
       strokeWidth: number): void {
     ctx.beginPath();
     ctx.moveTo(x, y - this.markerWidth);
@@ -79,10 +83,10 @@ class HeapProfileTrack extends Track<Config, Data> {
     ctx.lineTo(x + this.markerWidth, y);
     ctx.lineTo(x, y - this.markerWidth);
     ctx.closePath();
-    ctx.fillStyle = `hsl(270, 100%, ${lightness}%)`;
+    ctx.fillStyle = isHovered ? HEAP_PROFILE_HOVERED_COLOR : HEAP_PROFILE_COLOR;
     ctx.fill();
     if (strokeWidth > 0) {
-      ctx.strokeStyle = `hsl(270, 100%, 65%)`;
+      ctx.strokeStyle = HEAP_PROFILE_HOVERED_COLOR;
       ctx.lineWidth = strokeWidth;
       ctx.stroke();
     }
