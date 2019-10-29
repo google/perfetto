@@ -42,6 +42,9 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   StartAppActivity(app_name, "target.app.running", &task_runner,
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+  // TODO(b/143467832): Remove this workaround.
+  // If we try to dump too early in app initialization, we sometimes deadlock.
+  sleep(1);
 
   // set up tracing
   TestHelper helper(&task_runner);
@@ -92,24 +95,21 @@ void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
   }
 }
 
-// TODO(b/142919213): Re-enable once no longer flaky.
-TEST(DISABLED_HeapprofdJavaCtsTest, DebuggableAppRuntime) {
+TEST(HeapprofdJavaCtsTest, DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
   StopApp(app_name);
 }
 
-// TODO(b/142919213): Re-enable once no longer flaky.
-TEST(DISABLED_HeapprofdJavaCtsTest, ProfileableAppRuntime) {
+TEST(HeapprofdJavaCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
   StopApp(app_name);
 }
 
-// TODO(b/142919213): Re-enable once no longer flaky.
-TEST(DISABLED_HeapprofdJavaCtsTest, ReleaseAppRuntime) {
+TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
