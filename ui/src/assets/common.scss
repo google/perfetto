@@ -434,57 +434,46 @@ button.query-ctrl {
 }
 
 .perf-stats {
-  --perfetto-orange: hsl(45, 100%, 48%);
-  --perfetto-red: hsl(6, 70%, 53%);
   --stroke-color: hsl(217, 39%, 94%);
   position: fixed;
   bottom: 0;
+  left: 0;
+  width: 600px;
   color: var(--stroke-color);
   font-family: monospace;
-  padding: 2px 0px;
+  padding: 10px 24px;
   z-index: 100;
-  button:hover {
-    color: var(--perfetto-red);
-  }
-  &[expanded=true] {
-    width: 600px;
-    background-color: rgba(27, 28, 29, 0.95);
-    button {
-      color: var(--perfetto-orange);
-      &:hover {
-        color: var(--perfetto-red);
-      }
+  background-color: rgba(27, 28, 29, 0.90);
+  button {
+    text-decoration: underline;
+    color: hsl(45, 100%, 48%);
+    &:hover {
+      color: hsl(6, 70%, 53%);
     }
   }
-  &[expanded=false] {
-    width: var(--sidebar-width);
-    background-color: transparent;
+  .close-button {
+    position: absolute;
+    right: 20px;
+    top: 10px;
+    width: 20px;
+    height: 20px;
+    color: var(--stroke-color)
   }
-  i {
-    margin: 0px 24px;
-    font-size: 30px;
+  & > section {
+    padding: 5px;
+    border-bottom: 1px solid var(--stroke-color);
   }
-  .perf-stats-content {
-    margin: 10px 24px;
-    & > section {
-      padding: 5px;
-      border-bottom: 1px solid var(--stroke-color);
-    }
-    button {
-      text-decoration: underline;
-    }
-    div {
-      margin: 2px 0px;
-    }
-    table, td, th {
-      border: 1px solid var(--stroke-color);
-      text-align: center;
-      padding: 4px;
-      margin: 4px 0px;
-    }
-    table {
-      border-collapse: collapse;
-    }
+  div {
+    margin: 2px 0px;
+  }
+  table, td, th {
+    border: 1px solid var(--stroke-color);
+    text-align: center;
+    padding: 4px;
+    margin: 4px 0px;
+  }
+  table {
+    border-collapse: collapse;
   }
 }
 

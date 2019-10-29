@@ -13,36 +13,32 @@
 // limitations under the License.
 
 import {LoadingTracker} from '../common/engine';
-
 import {globals} from './globals';
 
 // Used to keep track of whether the engine is currently querying.
 export class LoadingManager implements LoadingTracker {
   private static _instance: LoadingManager;
-  private currentlyLoading = 0;
+  private numQueuedQueries = 0;
+  private numLastUpdate = 0;
 
   static get getInstance(): LoadingManager {
     return this._instance || (this._instance = new this());
   }
 
   beginLoading() {
-    this.setLoading(1);
+    this.update(1);
   }
 
   endLoading() {
-    this.setLoading(-1);
+    this.update(-1);
   }
 
-  private setLoading(numberToAdd: number) {
-    const previous = this.isLoading();
-    this.currentlyLoading += numberToAdd;
-
-    if (this.isLoading() !== previous) {
-      globals.publish('Loading', this.isLoading());
+  private update(change: number) {
+    this.numQueuedQueries += change;
+    if (this.numQueuedQueries === 0 ||
+        Math.abs(this.numLastUpdate - this.numQueuedQueries) > 2) {
+      this.numLastUpdate = this.numQueuedQueries;
+      globals.publish('Loading', this.numQueuedQueries);
     }
-  }
-
-  private isLoading() {
-    return this.currentlyLoading > 0;
   }
 }
