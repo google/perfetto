@@ -11,9 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {CallsiteInfo} from 'src/frontend/globals';
 
 import {TrackData} from '../../common/track_data';
+import {CallsiteInfo} from '../../frontend/globals';
 
 export const HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND = 'HeapProfileFlamegraphTrack';
 export const HeapProfileFlamegraphKey = 'heap-profile-flamegraph';
