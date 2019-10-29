@@ -220,7 +220,8 @@ class Progress implements m.ClassComponent {
     if (this.progressBar === undefined) return;
     const engine: EngineConfig = globals.state.engines['0'];
     if (globals.state.queries[QUERY_ID] !== undefined ||
-        (engine !== undefined && !engine.ready) || globals.isLoading) {
+        (engine !== undefined && !engine.ready) ||
+        globals.numQueuedQueries > 0) {
       this.progressBar.classList.add('progress-anim');
     } else {
       this.progressBar.classList.remove('progress-anim');

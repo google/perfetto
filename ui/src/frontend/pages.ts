@@ -39,46 +39,22 @@ class Alerts implements m.ClassComponent {
   }
 }
 
-const TogglePerfDebugButton = {
-  view() {
-    return m(
-        '.perf-monitor-button',
-        m('button',
-          {
-            onclick: () => globals.frontendLocalState.togglePerfDebug(),
-          },
-          m('i.material-icons',
-            {
-              title: 'Toggle Perf Debug Mode',
-            },
-            'assessment')));
-  }
-};
-
-const PerfStats: m.Component = {
-  view() {
-    const perfDebug = globals.frontendLocalState.perfDebug;
-    const children = [m(TogglePerfDebugButton)];
-    if (perfDebug) {
-      children.unshift(m('.perf-stats-content'));
-    }
-    return m(`.perf-stats[expanded=${perfDebug}]`, children);
-  }
-};
-
 /**
  * Wrap component with common UI elements (nav bar etc).
  */
 export function createPage(component: m.Component): m.Component {
   const pageComponent = {
     view() {
-      return [
+      const children = [
         m(Sidebar),
         m(Topbar),
         m(Alerts),
         m(component),
-        m(PerfStats),
       ];
+      if (globals.frontendLocalState.perfDebug) {
+        children.push(m('.perf-stats'));
+      }
+      return children;
     },
   };
 
