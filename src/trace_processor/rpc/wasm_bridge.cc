@@ -42,27 +42,35 @@ using ReplyFunction = void (*)(RequestID,
 namespace {
 Rpc* g_trace_processor_rpc;
 ReplyFunction g_reply;
+
+// The buffer used to pass the request arguments. The caller (JS) decides how
+// big this buffer should be in the Initialize() call.
+uint8_t* g_req_buf;
+
 }  // namespace
+
 // +---------------------------------------------------------------------------+
 // | Exported functions called by the JS/TS running in the worker.             |
 // +---------------------------------------------------------------------------+
 extern "C" {
 
-void EMSCRIPTEN_KEEPALIVE Initialize(ReplyFunction);
-void Initialize(ReplyFunction reply_function) {
-  PERFETTO_ILOG("Initializing WASM bridge");
+// Returns the address of the allocated request buffer.
+uint8_t* EMSCRIPTEN_KEEPALIVE Initialize(ReplyFunction, uint32_t);
+uint8_t* Initialize(ReplyFunction reply_function, uint32_t req_buffer_size) {
   g_trace_processor_rpc = new Rpc();
   g_reply = reply_function;
+  g_req_buf = new uint8_t[req_buffer_size];
+  return g_req_buf;
 }
 
-void EMSCRIPTEN_KEEPALIVE trace_processor_parse(RequestID,
-                                                const uint8_t*,
-                                                uint32_t);
-void trace_processor_parse(RequestID id, const uint8_t* data, size_t size) {
+// Ingests trace data.
+void EMSCRIPTEN_KEEPALIVE trace_processor_parse(RequestID, uint32_t);
+void trace_processor_parse(RequestID id, size_t size) {
   // TODO(primiano): LoadTrace() makes a copy of the data, which is unfortunate.
   // Ideally there should be a way to take the Blob coming from JS and move it.
   // See https://github.com/WebAssembly/design/issues/1162.
-  auto status = g_trace_processor_rpc->LoadTrace(data, size, /*eof=*/false);
+  auto status =
+      g_trace_processor_rpc->LoadTrace(g_req_buf, size, /*eof=*/false);
   if (status.ok()) {
     g_reply(id, true, "", 0);
   } else {
@@ -73,23 +81,16 @@ void trace_processor_parse(RequestID id, const uint8_t* data, size_t size) {
 
 // We keep the same signature as other methods even though we don't take input
 // arguments for simplicity.
-void EMSCRIPTEN_KEEPALIVE trace_processor_notifyEof(RequestID,
-                                                    const uint8_t*,
-                                                    uint32_t);
-void trace_processor_notifyEof(RequestID id, const uint8_t*, uint32_t size) {
+void EMSCRIPTEN_KEEPALIVE trace_processor_notifyEof(RequestID, uint32_t);
+void trace_processor_notifyEof(RequestID id, uint32_t size) {
   PERFETTO_DCHECK(!size);
   g_trace_processor_rpc->LoadTrace(nullptr, 0, /*eof=*/true);
   g_reply(id, true, "", 0);
 }
 
-void EMSCRIPTEN_KEEPALIVE trace_processor_rawQuery(RequestID,
-                                                   const uint8_t*,
-                                                   int);
-void trace_processor_rawQuery(RequestID id,
-                              const uint8_t* query_data,
-                              int len) {
-  std::vector<uint8_t> res =
-      g_trace_processor_rpc->RawQuery(query_data, static_cast<size_t>(len));
+void EMSCRIPTEN_KEEPALIVE trace_processor_rawQuery(RequestID, uint32_t);
+void trace_processor_rawQuery(RequestID id, uint32_t len) {
+  std::vector<uint8_t> res = g_trace_processor_rpc->RawQuery(g_req_buf, len);
 
   g_reply(id, true, reinterpret_cast<const char*>(res.data()),
           static_cast<uint32_t>(res.size()));
