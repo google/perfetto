@@ -444,7 +444,8 @@ void PrintShellUsage() {
       "Available commands:\n"
       ".quit, .q    Exit the shell.\n"
       ".help        This text.\n"
-      ".dump FILE   Export the trace as a sqlite database.\n");
+      ".dump FILE   Export the trace as a sqlite database.\n"
+      ".reset       Destroys all tables/view created by the user.\n");
 }
 
 int StartInteractiveShell(uint32_t column_width) {
@@ -467,6 +468,8 @@ int StartInteractiveShell(uint32_t column_width) {
       } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
         if (ExportTraceToDatabase(arg) != 0)
           PERFETTO_ELOG("Database export failed");
+      } else if (strcmp(command, "reset") == 0) {
+        g_tp->RestoreInitialTables();
       } else {
         PrintShellUsage();
       }

@@ -117,6 +117,11 @@ class PERFETTO_EXPORT TraceProcessor {
 
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;
+
+  // Deletes all tables and view that have been create (by the UI or user) after
+  // the trace was loaded. It preserves the built-in tables/view created by the
+  // loading process. Returns the number of table/views deleted.
+  virtual size_t RestoreInitialTables() = 0;
 };
 
 // When set, logs SQLite actions on the console.
