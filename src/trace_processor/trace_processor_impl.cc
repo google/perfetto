@@ -97,6 +97,10 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+const char kAllTablesQuery[] =
+    "SELECT tbl_name, type FROM (SELECT * FROM sqlite_master UNION ALL SELECT "
+    "* FROM sqlite_temp_master)";
+
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
   sqlite3_exec(db, "PRAGMA temp_store=2", 0, 0, &error);
@@ -440,6 +444,41 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+
+  // Create a snapshot of all tables and views created so far. This is so later
+  // we can drop all extra tables created by the UI and reset to the original
+  // state (see RestoreInitialTables).
+  initial_tables_.clear();
+  auto it = ExecuteQuery(kAllTablesQuery);
+  while (it.Next()) {
+    auto value = it.Get(0);
+    PERFETTO_CHECK(value.type == SqlValue::Type::kString);
+    initial_tables_.push_back(value.string_value);
+  }
+}
+
+size_t TraceProcessorImpl::RestoreInitialTables() {
+  std::vector<std::pair<std::string, std::string>> deletion_list;
+  std::string msg = "Resetting DB to initial state, deleting table/views:";
+  for (auto it = ExecuteQuery(kAllTablesQuery); it.Next();) {
+    std::string name(it.Get(0).string_value);
+    std::string type(it.Get(1).string_value);
+    if (std::find(initial_tables_.begin(), initial_tables_.end(), name) ==
+        initial_tables_.end()) {
+      msg += " " + name;
+      deletion_list.push_back(std::make_pair(type, name));
+    }
+  }
+
+  PERFETTO_LOG("%s", msg.c_str());
+  for (const auto& tn : deletion_list) {
+    std::string query = "DROP " + tn.first + " " + tn.second;
+    auto it = ExecuteQuery(query);
+    while (it.Next()) {
+    }
+    PERFETTO_CHECK(it.Status().ok());
+  }
+  return deletion_list.size();
 }
 
 TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
