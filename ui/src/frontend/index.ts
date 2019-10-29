@@ -144,9 +144,11 @@ class FrontendApi {
     URL.revokeObjectURL(url);
   }
 
-  publishLoading(loading: boolean) {
-    globals.loading = loading;
-    globals.rafScheduler.scheduleRedraw();
+  publishLoading(numQueuedQueries: number) {
+    globals.numQueuedQueries = numQueuedQueries;
+    // TODO(hjd): Clean up loadingAnimation given that this now causes a full
+    // redraw anyways. Also this should probably just go via the global state.
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   // For opening JSON/HTML traces with the legacy catapult viewer.
@@ -289,9 +291,14 @@ function main() {
 
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
+  const urlHash = Router.param('url');
   if (stateHash) {
     globals.dispatch(Actions.loadPermalink({
       hash: stateHash,
+    }));
+  } else if (urlHash) {
+    globals.dispatch(Actions.openTraceFromUrl({
+      url: urlHash,
     }));
   }
 
