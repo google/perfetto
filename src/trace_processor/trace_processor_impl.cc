@@ -29,6 +29,7 @@
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/binder_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/counter_definitions_table.h"
 #include "src/trace_processor/counter_values_table.h"
@@ -335,6 +336,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.sched_tracker.reset(new SchedEventTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
+  context_.binder_tracker.reset(new BinderTracker(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
   context_.ftrace_module.reset(

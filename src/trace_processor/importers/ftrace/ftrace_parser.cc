@@ -19,12 +19,14 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/binder_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_storage.h"
 
+#include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
@@ -292,6 +294,30 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case protos::pbzero::FtraceEvent::kTaskRenameFieldNumber: {
         ParseTaskRename(data);
+        break;
+      }
+      case protos::pbzero::FtraceEvent::kBinderTransactionFieldNumber: {
+        ParseBinderTransaction(ts, pid, data);
+        break;
+      }
+      case protos::pbzero::FtraceEvent::kBinderTransactionReceivedFieldNumber: {
+        ParseBinderTransactionReceived(ts, pid, data);
+        break;
+      }
+      case protos::pbzero::FtraceEvent::kBinderTransactionAllocBufFieldNumber: {
+        ParseBinderTransactionAllocBuf(ts, pid, data);
+        break;
+      }
+      case protos::pbzero::FtraceEvent::kBinderLockFieldNumber: {
+        ParseBinderLock(ts, pid, data);
+        break;
+      }
+      case protos::pbzero::FtraceEvent::kBinderUnlockFieldNumber: {
+        ParseBinderUnlock(ts, pid, data);
+        break;
+      }
+      case protos::pbzero::FtraceEvent::kBinderLockedFieldNumber: {
+        ParseBinderLocked(ts, pid, data);
         break;
       }
       default:
@@ -699,6 +725,51 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   StringId comm = context_->storage->InternString(evt.newcomm());
   context_->process_tracker->UpdateThreadName(tid, comm);
   context_->process_tracker->UpdateProcessNameFromThreadName(tid, comm);
+}
+
+void FtraceParser::ParseBinderTransaction(int64_t timestamp,
+                                          uint32_t pid,
+                                          ConstBytes blob) {
+  protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob.data,
+                                                            blob.size);
+  context_->binder_tracker->Transaction(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
+                                                  uint32_t pid,
+                                                  ConstBytes blob) {
+  protos::pbzero::BinderTransactionReceivedFtraceEvent::Decoder evt(blob.data,
+                                                                    blob.size);
+  context_->binder_tracker->TransactionReceived(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
+                                                  uint32_t pid,
+                                                  ConstBytes blob) {
+  protos::pbzero::BinderTransactionAllocBufFtraceEvent::Decoder evt(blob.data,
+                                                                    blob.size);
+  context_->binder_tracker->TransactionAllocBuf(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderLocked(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderLockedFtraceEvent::Decoder evt(blob.data, blob.size);
+  context_->binder_tracker->Locked(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderLock(int64_t timestamp,
+                                   uint32_t pid,
+                                   ConstBytes blob) {
+  protos::pbzero::BinderLockFtraceEvent::Decoder evt(blob.data, blob.size);
+  context_->binder_tracker->Lock(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderUnlock(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderUnlockFtraceEvent::Decoder evt(blob.data, blob.size);
+  context_->binder_tracker->Unlock(timestamp, pid);
 }
 
 }  // namespace trace_processor

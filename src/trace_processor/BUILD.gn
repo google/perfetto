@@ -50,6 +50,8 @@ source_set("lib") {
     "args_table.h",
     "args_tracker.cc",
     "args_tracker.h",
+    "binder_tracker.cc",
+    "binder_tracker.h",
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
