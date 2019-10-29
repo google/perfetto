@@ -181,7 +181,7 @@ export class NotesPanel extends Panel {
       globals.frontendLocalState.setVidTimestamp(timestamp);
     }
     const color = randomColor();
-    globals.dispatch(Actions.addNote({timestamp, color, isMovie}));
+    globals.makeSelection(Actions.addNote({timestamp, color, isMovie}));
   }
 }
 
