@@ -191,15 +191,6 @@ class Omnibox implements m.ClassComponent {
                   m('i.material-icons.right', 'keyboard_arrow_right')),
                 ) :
             '',
-        commandMode ? '' :
-                      m('.help',
-                        {
-                          title: 'Search is in beta. Improvements coming soon!',
-                          onclick: () => {
-                            window.open('http://b/111169965', '_blank');
-                          }
-                        },
-                        m('i.material-icons', 'help')),
         m('.omnibox-results', results));
   }
 }
