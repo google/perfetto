@@ -95,7 +95,7 @@ class Globals {
   private _sliceDetails?: SliceDetails = undefined;
   private _counterDetails?: CounterDetails = undefined;
   private _heapDumpDetails?: HeapProfileDetails = undefined;
-  private _isLoading = false;
+  private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
   private _currentSearchResults: CurrentSearchResults = {
@@ -190,12 +190,12 @@ class Globals {
     this._heapDumpDetails = assertExists(click);
   }
 
-  set loading(isLoading: boolean) {
-    this._isLoading = isLoading;
+  set numQueuedQueries(value: number) {
+    this._numQueriesQueued = value;
   }
 
-  get isLoading() {
-    return this._isLoading;
+  get numQueuedQueries() {
+    return this._numQueriesQueued;
   }
 
   get bufferUsage() {
@@ -251,7 +251,7 @@ class Globals {
     this._overviewStore = undefined;
     this._threadMap = undefined;
     this._sliceDetails = undefined;
-    this._isLoading = false;
+    this._numQueriesQueued = 0;
     this._currentSearchResults = {
       sliceIds: new Float64Array(0),
       tsStarts: new Float64Array(0),
