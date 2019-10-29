@@ -291,9 +291,14 @@ function main() {
 
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
+  const urlHash = Router.param('url');
   if (stateHash) {
     globals.dispatch(Actions.loadPermalink({
       hash: stateHash,
+    }));
+  } else if (urlHash) {
+    globals.dispatch(Actions.openTraceFromUrl({
+      url: urlHash,
     }));
   }
 
