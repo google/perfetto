@@ -456,6 +456,29 @@ function downloadTrace(e: Event) {
 }
 
 
+const SidebarFooter: m.Component = {
+  view() {
+    let cssClass = '';
+    let title = 'Number of pending SQL queries';
+    if (false /*globals.state.hasHttpRpcEngine*/) {
+      cssClass = '.accelerated';
+      title += '\nNative Query Accelerator ENABLED';
+    }
+    return m(
+        '.sidebar-footer',
+        m('button',
+          {
+            onclick: () => globals.frontendLocalState.togglePerfDebug(),
+          },
+          m('i.material-icons',
+            {title: 'Toggle Perf Debug Mode'},
+            'assessment')),
+        m(`.num-queued-queries${cssClass}`, {title}, globals.numQueuedQueries),
+    );
+  }
+};
+
+
 export class Sidebar implements m.ClassComponent {
   view() {
     const vdomSections = [];
@@ -542,6 +565,8 @@ export class Sidebar implements m.ClassComponent {
                 'menu')),
             ),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
-        m('.sidebar-content', ...vdomSections));
+        m('.sidebar-scroll',
+          m('.sidebar-scroll-container', ...vdomSections, m(SidebarFooter))),
+    );
   }
 }

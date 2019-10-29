@@ -91,6 +91,17 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
+  openTraceFromUrl(state: StateDraft, args: {url: string}): void {
+    clearTraceState(state);
+    const id = `${state.nextId++}`;
+    state.engines[id] = {
+      id,
+      ready: false,
+      source: args.url,
+    };
+    state.route = `/viewer`;
+  },
+
   openVideoFromFile(state: StateDraft, args: {file: File}): void {
     state.video = URL.createObjectURL(args.file);
     state.videoEnabled = true;
@@ -109,17 +120,6 @@ export const StateActions = {
     ts2?: number
   }): void {
     ConvertTraceToPprof(args.pid, args.src, args.ts1, args.ts2);
-  },
-
-  openTraceFromUrl(state: StateDraft, args: {url: string}): void {
-    clearTraceState(state);
-    const id = `${state.nextId++}`;
-    state.engines[id] = {
-      id,
-      ready: false,
-      source: args.url,
-    };
-    state.route = `/viewer`;
   },
 
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
