@@ -107,16 +107,17 @@ class PerfDisplay {
 
   renderPerfStats() {
     if (!perfDebug()) return;
-    const perfDisplayEl = this.getPerfDisplayEl();
+    const perfDisplayEl = document.querySelector('.perf-stats');
     if (!perfDisplayEl) return;
     m.render(perfDisplayEl, [
       m('section', globals.rafScheduler.renderPerfStats()),
+      m('button.close-button',
+        {
+          onclick: () => globals.frontendLocalState.togglePerfDebug(),
+        },
+        m('i.material-icons', 'close')),
       this.containers.map((c, i) => m('section', c.renderPerfStats(i)))
     ]);
-  }
-
-  getPerfDisplayEl() {
-    return document.querySelector('.perf-stats-content');
   }
 }
 
