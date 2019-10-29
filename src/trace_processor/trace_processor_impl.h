@@ -22,6 +22,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
@@ -67,6 +68,8 @@ class TraceProcessorImpl : public TraceProcessor {
 
   void InterruptQuery() override;
 
+  size_t RestoreInitialTables() override;
+
   TraceProcessorContext* context() { return &context_; }
 
  private:
@@ -87,6 +90,11 @@ class TraceProcessorImpl : public TraceProcessor {
   // This is atomic because it is set by the CTRL-C signal handler and we need
   // to prevent single-flow compiler optimizations in ExecuteQuery().
   std::atomic<bool> query_interrupted_{false};
+
+  // Keeps track of the tables created by the ingestion process. This is used
+  // by RestoreInitialTables() to delete all the tables/view that have been
+  // created after that point.
+  std::vector<std::string> initial_tables_;
 };
 
 // The pointer implementation of TraceProcessor::Iterator.
