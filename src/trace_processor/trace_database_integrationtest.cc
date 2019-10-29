@@ -56,6 +56,8 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
     return processor_->ExecuteQuery(query.c_str());
   }
 
+  size_t RestoreInitialTables() { return processor_->RestoreInitialTables(); }
+
  private:
   std::unique_ptr<TraceProcessor> processor_;
 };
@@ -177,6 +179,28 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz15252) {
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_17805", 4096).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+
+  for (int repeat = 0; repeat < 3; repeat++) {
+    ASSERT_EQ(RestoreInitialTables(), 0u);
+
+    auto it = Query("CREATE TABLE user1(unused text);");
+    it.Next();
+    ASSERT_TRUE(it.Status().ok());
+
+    it = Query("CREATE TEMPORARY TABLE user2(unused text);");
+    it.Next();
+    ASSERT_TRUE(it.Status().ok());
+
+    it = Query("CREATE VIEW user3 AS SELECT * FROM stats;");
+    it.Next();
+    ASSERT_TRUE(it.Status().ok());
+
+    ASSERT_EQ(RestoreInitialTables(), 3u);
+  }
 }
 
 }  // namespace
