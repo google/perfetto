@@ -296,6 +296,9 @@ fi
 if [[ -n "$SCRIPT" ]]; then
   tmux select-pane -t 3
   tmux send-keys "clear" C-m
+  if is_android "$OUT"; then
+    tmux send-keys "adb shell" C-m
+  fi
 fi
 
 sleep 2
@@ -339,7 +342,11 @@ if [[ -n "$SCRIPT" ]]; then
   tmux send-keys "PS1='[script]$ '" Enter
   tmux send-keys "cd $DIR" Enter
   tmux send-keys "clear" C-m
-  tmux send-keys "./$(basename "$SCRIPT")"
+  if [[ -f "$SCRIPT" ]]; then
+    tmux send-keys "./$(basename "$SCRIPT")"
+  else
+    tmux send-keys "$SCRIPT"
+  fi
 fi
 
 # Select consumer pane.
