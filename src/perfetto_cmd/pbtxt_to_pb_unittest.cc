@@ -73,6 +73,51 @@ TEST(PbtxtToPb, TwoFields) {
   EXPECT_EQ(config.file_write_period_ms(), 5678u);
 }
 
+TEST(PbtxtToPb, Enum) {
+  protos::TraceConfig config = ToProto(R"(
+compression_type: COMPRESSION_TYPE_DEFLATE
+)");
+  EXPECT_EQ(config.compression_type(), 1);
+}
+
+TEST(PbtxtToPb, LastCharacters) {
+  EXPECT_EQ(ToProto(R"(
+duration_ms: 123;)")
+                .duration_ms(),
+            123u);
+  EXPECT_EQ(ToProto(R"(
+  duration_ms: 123
+)")
+                .duration_ms(),
+            123u);
+  EXPECT_EQ(ToProto(R"(
+  duration_ms: 123#)")
+                .duration_ms(),
+            123u);
+  EXPECT_EQ(ToProto(R"(
+  duration_ms: 123 )")
+                .duration_ms(),
+            123u);
+
+  EXPECT_EQ(ToProto(R"(
+compression_type: COMPRESSION_TYPE_DEFLATE;)")
+                .compression_type(),
+            1);
+  EXPECT_EQ(ToProto(R"(
+compression_type: COMPRESSION_TYPE_DEFLATE
+)")
+                .compression_type(),
+            1);
+  EXPECT_EQ(ToProto(R"(
+  compression_type: COMPRESSION_TYPE_DEFLATE#)")
+                .compression_type(),
+            1);
+  EXPECT_EQ(ToProto(R"(
+  compression_type: COMPRESSION_TYPE_DEFLATE )")
+                .compression_type(),
+            1);
+}
+
 TEST(PbtxtToPb, Semicolons) {
   protos::TraceConfig config = ToProto(R"(
     duration_ms: 1234;
@@ -470,6 +515,14 @@ data_sources {
   }
 })",
            &reporter);
+}
+
+TEST(PbtxtToPb, BadEnumValue) {
+  MockErrorReporter reporter;
+  EXPECT_CALL(reporter, AddError(1, 18, 3,
+                                 "Unexpected value 'FOO' for enum field "
+                                 "compression_type in proto TraceConfig"));
+  ToErrors(R"(compression_type: FOO)", &reporter);
 }
 
 // TODO(hjd): Add these tests.

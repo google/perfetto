@@ -306,9 +306,18 @@ class ParserDelegate {
         enum_value_number = enum_value.number();
         break;
       }
-      PERFETTO_CHECK(found_value);
+      if (!found_value) {
+        AddError(value,
+                 "Unexpected value '$v' for enum field $k in "
+                 "proto $n",
+                 std::map<std::string, std::string>{
+                     {"$v", value.ToStdString()},
+                     {"$k", key.ToStdString()},
+                     {"$n", descriptor_name()},
+                 });
+        return;
+      }
       msg()->AppendVarInt<int32_t>(field_id, enum_value_number);
-    } else {
     }
   }
 
@@ -556,7 +565,8 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
 
       case kReadingNumericValue:
         if (isspace(c) || c == ';' || last_character) {
-          size_t size = i - value.offset + (last_character ? 1 : 0);
+          bool keep_last = last_character && !(isspace(c) || c == ';');
+          size_t size = i - value.offset + (keep_last ? 1 : 0);
           value.txt = base::StringView(input.data() + value.offset, size);
           saw_semicolon_for_this_value = c == ';';
           state = kWaitingForKey;
@@ -586,7 +596,9 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
 
       case kReadingIdentifierValue:
         if (isspace(c) || c == ';' || c == '#' || last_character) {
-          size_t size = i - value.offset + (last_character ? 1 : 0);
+          bool keep_last =
+              last_character && !(isspace(c) || c == ';' || c == '#');
+          size_t size = i - value.offset + (keep_last ? 1 : 0);
           value.txt = base::StringView(input.data() + value.offset, size);
           comment_till_eol = c == '#';
           saw_semicolon_for_this_value = c == ';';
