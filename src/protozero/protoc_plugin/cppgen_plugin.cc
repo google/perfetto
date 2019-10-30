@@ -72,13 +72,6 @@ std::string GetFullName(const T* msg, bool with_namespace = false) {
   return full_type;
 }
 
-template <typename Container, typename Value>
-bool Contains(const Container& container, const Value& value) {
-  using std::begin;
-  using std::end;
-  return std::find(begin(container), end(container), value) != end(container);
-}
-
 class CppObjGenerator : public ::google::protobuf::compiler::CodeGenerator {
  public:
   CppObjGenerator();
@@ -178,15 +171,21 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
 
   // Compute all nested types to generate forward declarations later.
 
+  std::set<const Descriptor*> all_types_seen;  // All deps
+  std::set<const EnumDescriptor*> all_enums_seen;
+
+  // We track the types additionally in vectors to guarantee a stable order in
+  // the generated output.
   std::vector<const Descriptor*> local_types;  // Cur .proto file only.
   std::vector<const Descriptor*> all_types;    // All deps
   std::vector<const EnumDescriptor*> local_enums;
   std::vector<const EnumDescriptor*> all_enums;
 
-  auto add_enum = [&local_enums, &all_enums,
+  auto add_enum = [&local_enums, &all_enums, &all_enums_seen,
                    &file](const EnumDescriptor* enum_desc) {
-    if (Contains(all_enums, enum_desc))
+    if (all_enums_seen.count(enum_desc))
       return;
+    all_enums_seen.insert(enum_desc);
     all_enums.push_back(enum_desc);
     if (enum_desc->file() == file)
       local_enums.push_back(enum_desc);
@@ -199,8 +198,9 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
   while (!recursion_stack.empty()) {
     const Descriptor* msg = recursion_stack.top();
     recursion_stack.pop();
-    if (Contains(all_types, msg))
+    if (all_types_seen.count(msg))
       continue;
+    all_types_seen.insert(msg);
     all_types.push_back(msg);
     if (msg->file() == file)
       local_types.push_back(msg);
