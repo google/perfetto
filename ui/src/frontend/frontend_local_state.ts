@@ -22,6 +22,7 @@ import {
 } from '../common/state';
 import {TimeSpan} from '../common/time';
 
+import {Tab} from './details_panel';
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
 
@@ -95,8 +96,9 @@ export class FrontendLocalState {
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
-  scrollToTrackId: undefined|string|number = undefined;
-  private scrollBarWidth: undefined|number = undefined;
+  currentTab?: Tab;
+  scrollToTrackId?: string|number;
+  private scrollBarWidth?: number;
 
   private _omniboxState: OmniboxState = {
     lastUpdate: 0,
@@ -208,7 +210,8 @@ export class FrontendLocalState {
   selectTimeRange(startSec: number, endSec: number) {
     this._selectedTimeRange = {startSec, endSec, lastUpdate: Date.now() / 1000};
     this.selectTimeRangeDebounced();
-    globals.rafScheduler.scheduleRedraw();
+    globals.frontendLocalState.currentTab = 'time_range';
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   removeTimeRange() {
@@ -218,7 +221,8 @@ export class FrontendLocalState {
       lastUpdate: Date.now() / 1000
     };
     this.selectTimeRangeDebounced();
-    globals.rafScheduler.scheduleRedraw();
+    globals.frontendLocalState.currentTab = undefined;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   get selectedTimeRange(): SelectedTimeRange {
