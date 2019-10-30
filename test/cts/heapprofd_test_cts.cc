@@ -70,6 +70,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   protos::HeapprofdConfig heapprofd_config;
   heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
   heapprofd_config.add_process_cmdline(app_name.c_str());
+  heapprofd_config.set_block_client(true);
   heapprofd_config.set_all(false);
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
@@ -106,6 +107,7 @@ std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
   protos::HeapprofdConfig heapprofd_config;
   heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
   heapprofd_config.add_process_cmdline(app_name.c_str());
+  heapprofd_config.set_block_client(true);
   heapprofd_config.set_all(false);
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
