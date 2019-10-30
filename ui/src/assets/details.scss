@@ -19,9 +19,43 @@
   .handle {
     background-color: hsl(215, 1%, 95%);
     border: 1px solid rgba(0,0,0,0.1);
+    border-bottom: none;
     cursor: row-resize;
     height: 28px;
     min-height: 28px;
+    display: grid;
+    grid-auto-columns: 1fr 30px;
+    grid-template-areas: "tabs button";
+
+    .tabs {
+      display: flex;
+
+      .tab {
+        font-family: 'Google Sans';
+        color: #3c4b5d;
+        padding: 3px 10px 10px 10px;
+        margin-top: 3px;
+        font-size: 13px;
+        border-radius: 5px 5px 0px 0px;
+        background-color: hsla(0, 0%, 75%, 1);
+        border-top: solid 1px hsla(0, 0%, 75%, 1);
+        border-left: solid 1px hsla(0, 0%, 75%, 1);
+        border-right: solid 1px hsla(0, 0%, 75%, 1);
+
+        &[active] {
+          background-color: white;
+          &:hover {
+            cursor: default;
+            background-color: white;
+          }
+        }
+
+        &:hover {
+          cursor: pointer;
+          background-color: hsla(0, 0%, 85%, 1);
+        }
+      }
+    }
 
     i.material-icons {
       font-size: 24px;

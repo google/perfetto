@@ -236,6 +236,8 @@ class Globals {
   makeSelection(action: DeferredAction<{}>) {
     // A new selection should cancel the current search selection.
     globals.frontendLocalState.searchIndex = -1;
+    globals.frontendLocalState.currentTab =
+        action.type === 'deselect' ? undefined : 'current_selection';
     globals.dispatch(action);
   }
 
