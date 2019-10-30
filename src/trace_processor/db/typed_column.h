@@ -32,8 +32,10 @@ template <typename T>
 struct TypedColumn : public Column {
   using StoredType = T;
 
-  T operator[](uint32_t row) const { return *GetTyped<T>(row); }
-  void Set(uint32_t row, T value) { SetTyped(row, value); }
+  T operator[](uint32_t row) const {
+    return *GetTypedAtIdx<T>(row_map().Get(row));
+  }
+  void Set(uint32_t row, T value) { SetTypedAtIdx(row_map().Get(row), value); }
   void Append(T value) { return mutable_sparse_vector<T>()->Append(value); }
 };
 
@@ -41,8 +43,10 @@ template <typename T>
 struct TypedColumn<base::Optional<T>> : public Column {
   using StoredType = T;
 
-  base::Optional<T> operator[](uint32_t row) const { return GetTyped<T>(row); }
-  void Set(uint32_t row, T value) { SetTyped(row, value); }
+  base::Optional<T> operator[](uint32_t row) const {
+    return GetTypedAtIdx<T>(row_map().Get(row));
+  }
+  void Set(uint32_t row, T value) { SetTypedAtIdx(row_map().Get(row), value); }
 
   void Append(base::Optional<T> value) {
     return mutable_sparse_vector<T>()->Append(value);
@@ -54,12 +58,14 @@ struct TypedColumn<StringPool::Id> : public Column {
   using StoredType = StringPool::Id;
 
   StringPool::Id operator[](uint32_t row) const {
-    return *GetTyped<StringPool::Id>(row);
+    return *GetTypedAtIdx<StringPool::Id>(row_map().Get(row));
   }
   NullTermStringView GetString(uint32_t row) const {
-    return GetStringPoolString(row);
+    return GetStringPoolStringAtIdx(row_map().Get(row));
   }
-  void Set(uint32_t row, StringPool::Id value) { SetTyped(row, value); }
+  void Set(uint32_t row, StringPool::Id value) {
+    SetTypedAtIdx(row_map().Get(row), value);
+  }
   void Append(StringPool::Id value) {
     return mutable_sparse_vector<StringPool::Id>()->Append(value);
   }

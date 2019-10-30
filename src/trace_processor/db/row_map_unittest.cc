@@ -251,35 +251,6 @@ TEST(RowMapUnittest, SelectIndexVectorWithIndexVector) {
   ASSERT_EQ(res.Get(5u), 7u);
 }
 
-TEST(RowMapUnittest, RemoveIfRange) {
-  RowMap rm(27u, 31u);
-  rm.RemoveIf([](uint32_t row) { return row == 27u || row == 29u; });
-
-  ASSERT_EQ(rm.size(), 2u);
-  ASSERT_EQ(rm.Get(0u), 28u);
-  ASSERT_EQ(rm.Get(1u), 30u);
-}
-
-TEST(RowMapUnittest, RemoveIfBitVector) {
-  RowMap rm(BitVector{true, false, true, true, false, true});
-  rm.RemoveIf([](uint32_t row) { return row == 2u || row == 5u; });
-
-  ASSERT_EQ(rm.size(), 2u);
-  ASSERT_EQ(rm.Get(0u), 0u);
-  ASSERT_EQ(rm.Get(1u), 3u);
-}
-
-TEST(RowMapUnittest, RemoveIfIndexVector) {
-  RowMap rm(std::vector<uint32_t>{3u, 2u, 0u, 1u, 1u, 3u});
-  rm.RemoveIf([](uint32_t row) { return row == 3u; });
-
-  ASSERT_EQ(rm.size(), 4u);
-  ASSERT_EQ(rm.Get(0u), 2u);
-  ASSERT_EQ(rm.Get(1u), 0u);
-  ASSERT_EQ(rm.Get(2u), 1u);
-  ASSERT_EQ(rm.Get(3u), 1u);
-}
-
 TEST(RowMapUnittest, IntersectNone) {
   RowMap rm(BitVector{true, false, true, true, false, true});
   rm.Intersect(RowMap());
@@ -310,6 +281,97 @@ TEST(RowMapUnittest, IntersectMany) {
   ASSERT_EQ(rm.Get(0u), 3u);
   ASSERT_EQ(rm.Get(1u), 2u);
   ASSERT_EQ(rm.Get(2u), 3u);
+}
+
+TEST(RowMapUnittest, FilterIntoRangeWithRange) {
+  RowMap rm(93, 157);
+  RowMap filter(4, 7);
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 97u || row == 98u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 4u);
+  ASSERT_EQ(filter.Get(1u), 5u);
+}
+
+TEST(RowMapUnittest, FilterIntoBitVectorWithRange) {
+  RowMap rm(
+      BitVector{true, false, false, true, false, true, false, true, true});
+  RowMap filter(1u, 5u);
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 3u || row == 7u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 1u);
+  ASSERT_EQ(filter.Get(1u), 3u);
+}
+
+TEST(RowMapUnittest, FilterIntoIndexVectorWithRange) {
+  RowMap rm(std::vector<uint32_t>{33, 2u, 45u, 7u, 8u, 9u});
+  RowMap filter(2, 5);
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 45u || row == 8u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 2u);
+  ASSERT_EQ(filter.Get(1u), 4u);
+}
+
+TEST(RowMapUnittest, FilterIntoRangeWithBitVector) {
+  RowMap rm(27, 31);
+  RowMap filter(BitVector{true, false, true, true});
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 29u || row == 30u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 2u);
+  ASSERT_EQ(filter.Get(1u), 3u);
+}
+
+TEST(RowMapUnittest, FilterIntoBitVectorWithBitVector) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+  RowMap filter(BitVector{true, true, false, true});
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 2u || row == 5u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 1u);
+  ASSERT_EQ(filter.Get(1u), 3u);
+}
+
+TEST(RowMapUnittest, FilterIntoIndexVectorWithBitVector) {
+  RowMap rm(std::vector<uint32_t>{0u, 2u, 3u, 5u});
+  RowMap filter(BitVector{true, true, false, true});
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 2u || row == 5u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 1u);
+  ASSERT_EQ(filter.Get(1u), 3u);
+}
+
+TEST(RowMapUnittest, FilterIntoRangeWithIndexVector) {
+  RowMap rm(27, 41);
+  RowMap filter(std::vector<uint32_t>{3u, 5u, 9u, 10u, 12u});
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 32u || row == 39u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 5u);
+  ASSERT_EQ(filter.Get(1u), 12u);
+}
+
+TEST(RowMapUnittest, FilterIntoBitVectorWithIndexVector) {
+  RowMap rm(BitVector{false, true, false, true, true, false, true});
+  RowMap filter(std::vector<uint32_t>{1u, 2u, 3u});
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 3u || row == 4u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 1u);
+  ASSERT_EQ(filter.Get(1u), 2u);
+}
+
+TEST(RowMapUnittest, FilterIntoIndexVectorWithIndexVector) {
+  RowMap rm(std::vector<uint32_t>{33u, 2u, 45u, 7u, 8u, 9u});
+  RowMap filter(std::vector<uint32_t>{1u, 2u, 3u});
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 2u || row == 7u; });
+
+  ASSERT_EQ(filter.size(), 2u);
+  ASSERT_EQ(filter.Get(0u), 1u);
+  ASSERT_EQ(filter.Get(1u), 3u);
 }
 
 }  // namespace

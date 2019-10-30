@@ -153,7 +153,7 @@ class SetBitsIterator : public BaseIterator {
 
   // Returns the index of the bit interms of set bits (i.e. how many times
   // Next() has been called).
-  uint32_t set_bit_index() const { return set_bit_index_; }
+  uint32_t ordinal() const { return set_bit_index_; }
 
  private:
   static constexpr uint32_t kBatchSize = 1024;
