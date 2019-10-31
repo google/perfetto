@@ -68,8 +68,9 @@ class ProcessTracker {
   // the thread_name_id.
   virtual UniqueTid UpdateThreadName(uint32_t tid, StringId thread_name_id);
 
-  // Assigns a new name to a thread uniquely identified by its utid.
-  virtual void SetThreadName(UniqueTid utid, StringId thread_name_id);
+  // Assigns the given name to the thread identified |utid| if it does not have
+  // a name yet.
+  virtual void SetThreadNameIfUnset(UniqueTid utid, StringId thread_name_id);
 
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.
@@ -89,6 +90,10 @@ class ProcessTracker {
   virtual UniquePid SetProcessMetadata(uint32_t pid,
                                        base::Optional<uint32_t> ppid,
                                        base::StringView name);
+
+  // Assigns the given name to the process identified by |upid| if it does not
+  // have a name yet.
+  void SetProcessNameIfUnset(UniquePid upid, StringId process_name_id);
 
   // Called on a task rename event to set the process name if the tid provided
   // is the main thread of the process.
