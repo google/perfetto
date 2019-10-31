@@ -70,14 +70,14 @@ void BenchRowMapGet(benchmark::State& state, RowMap rm) {
 }
 
 template <typename Factory>
-void BenchRowMapAddToEmpty(benchmark::State& state, Factory factory) {
+void BenchRowMapInsertIntoEmpty(benchmark::State& state, Factory factory) {
   auto pool_vec = CreateIndexVector(kPoolSize, kSize);
 
   uint32_t pool_idx = 0;
   for (auto _ : state) {
     RowMap rm = factory();
 
-    rm.Add(pool_vec[pool_idx]);
+    rm.Insert(pool_vec[pool_idx]);
     pool_idx = (pool_idx + 1) % kPoolSize;
 
     benchmark::ClobberMemory();
@@ -134,21 +134,21 @@ BENCHMARK(BM_RowMapIvGet);
 // TODO(lalitm): add benchmarks for IndexOf after BitVector is made faster.
 // We can't add them right now because they are just too slow to run.
 
-static void BM_RowMapRangeAddToEmpty(benchmark::State& state) {
-  BenchRowMapAddToEmpty(state, []() { return RowMap(0, 0); });
+static void BM_RowMapRangeInsertIntoEmpty(benchmark::State& state) {
+  BenchRowMapInsertIntoEmpty(state, []() { return RowMap(0, 0); });
 }
-BENCHMARK(BM_RowMapRangeAddToEmpty);
+BENCHMARK(BM_RowMapRangeInsertIntoEmpty);
 
-static void BM_RowMapBvAddToEmpty(benchmark::State& state) {
-  BenchRowMapAddToEmpty(state, []() { return RowMap(BitVector{}); });
+static void BM_RowMapBvInsertIntoEmpty(benchmark::State& state) {
+  BenchRowMapInsertIntoEmpty(state, []() { return RowMap(BitVector{}); });
 }
-BENCHMARK(BM_RowMapBvAddToEmpty);
+BENCHMARK(BM_RowMapBvInsertIntoEmpty);
 
-static void BM_RowMapIvAddToEmpty(benchmark::State& state) {
-  BenchRowMapAddToEmpty(state,
-                        []() { return RowMap(std::vector<uint32_t>{}); });
+static void BM_RowMapIvInsertIntoEmpty(benchmark::State& state) {
+  BenchRowMapInsertIntoEmpty(state,
+                             []() { return RowMap(std::vector<uint32_t>{}); });
 }
-BENCHMARK(BM_RowMapIvAddToEmpty);
+BENCHMARK(BM_RowMapIvInsertIntoEmpty);
 
 static void BM_RowMapSelectRangeWithRange(benchmark::State& state) {
   RowMap rm(CreateRange(kSize));

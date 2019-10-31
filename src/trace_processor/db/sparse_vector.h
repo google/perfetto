@@ -23,7 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/db/bit_vector.h"
+#include "src/trace_processor/db/row_map.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -43,19 +43,18 @@ class SparseVector {
 
   // Returns the optional value at |idx| or base::nullopt if the value is null.
   base::Optional<T> Get(uint32_t idx) const {
-    return valid_.IsSet(idx)
-               ? base::Optional<T>(data_[valid_.GetNumBitsSet(idx)])
-               : base::nullopt;
+    auto opt_idx = valid_.IndexOf(idx);
+    return opt_idx ? base::Optional<T>(data_[*opt_idx]) : base::nullopt;
   }
 
   // Adds the given value to the SparseVector.
   void Append(T val) {
     data_.emplace_back(val);
-    valid_.AppendTrue();
+    valid_.Insert(size_++);
   }
 
   // Adds a null value to the SparseVector.
-  void AppendNull() { valid_.AppendFalse(); }
+  void AppendNull() { size_++; }
 
   // Adds the given optional value to the SparseVector.
   void Append(base::Optional<T> val) {
@@ -68,20 +67,23 @@ class SparseVector {
 
   // Sets the value at |idx| to the given |val|.
   void Set(uint32_t idx, T val) {
-    uint32_t data_idx = valid_.GetNumBitsSet(idx);
+    auto opt_idx = valid_.IndexOf(idx);
 
     // Generally, we will be setting a null row to non-null so optimize for that
     // path.
-    if (PERFETTO_UNLIKELY(valid_.IsSet(idx))) {
-      data_[data_idx] = val;
+    if (PERFETTO_UNLIKELY(opt_idx)) {
+      data_[*opt_idx] = val;
     } else {
-      data_.insert(data_.begin() + static_cast<ptrdiff_t>(data_idx), val);
-      valid_.Set(idx);
+      valid_.Insert(idx);
+
+      opt_idx = valid_.IndexOf(idx);
+      PERFETTO_DCHECK(opt_idx);
+      data_.insert(data_.begin() + static_cast<ptrdiff_t>(*opt_idx), val);
     }
   }
 
   // Returns the size of the SparseVector; this includes any null values.
-  uint32_t size() const { return valid_.size(); }
+  uint32_t size() const { return size_; }
 
  private:
   explicit SparseVector(const SparseVector&) = delete;
@@ -91,7 +93,8 @@ class SparseVector {
   SparseVector& operator=(SparseVector&&) noexcept = delete;
 
   std::deque<T> data_;
-  BitVector valid_;
+  RowMap valid_;
+  uint32_t size_ = 0;
 };
 
 }  // namespace trace_processor

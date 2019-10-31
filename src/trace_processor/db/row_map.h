@@ -151,28 +151,48 @@ class RowMap {
     PERFETTO_FATAL("For GCC");
   }
 
-  // Adds the given |row| to the RowMap.
-  void Add(uint32_t row) {
+  // Performs an ordered insert the row into the current RowMap (precondition:
+  // this RowMap is ordered based on the rows it contains).
+  //
+  // Example:
+  // this = [1, 5, 10, 11, 20]
+  // Insert(10)  // this = [1, 5, 10, 11, 20]
+  // Insert(12)  // this = [1, 5, 10, 11, 12, 20]
+  // Insert(21)  // this = [1, 5, 10, 11, 12, 20, 21]
+  // Insert(2)   // this = [1, 2, 5, 10, 11, 12, 20, 21]
+  //
+  // Speecifically, this means that it is only valid to call Insert on a RowMap
+  // which is sorted by the rows it contains; this is automatically true when
+  // the RowMap is in range or BitVector mode but is a required condition for
+  // IndexVector mode.
+  void Insert(uint32_t row) {
     switch (mode_) {
       case Mode::kRange:
-        // TODO(lalitm): if row == end_index_, we can keep the RowMap in range
-        // mode and just bump the pointer instead of converting to a BitVector.
+        if (row == end_idx_) {
+          // Fast path: if we're just appending to the end of the range, we can
+          // stay in range mode and just bump the end index.
+          end_idx_++;
+        } else {
+          // Slow path: the insert is somewhere else other than the end. This
+          // means we need to switch to using a BitVector instead.
+          bit_vector_.Resize(start_idx_, false);
+          bit_vector_.Resize(end_idx_, true);
+          *this = RowMap(std::move(bit_vector_));
 
-        // TODO(lalitm): if row < end_index_, we need to switch to IndexVector
-        // mode instead of staying in BitVector mode.
-
-        bit_vector_.Resize(start_idx_, false);
-        bit_vector_.Resize(end_idx_, true);
-        *this = RowMap(std::move(bit_vector_));
-
-        AddToBitVector(row);
+          InsertIntoBitVector(row);
+        }
         break;
       case Mode::kBitVector:
-        AddToBitVector(row);
+        InsertIntoBitVector(row);
         break;
-      case Mode::kIndexVector:
-        index_vector_.emplace_back(row);
+      case Mode::kIndexVector: {
+        PERFETTO_DCHECK(
+            std::is_sorted(index_vector_.begin(), index_vector_.end()));
+        auto it =
+            std::upper_bound(index_vector_.begin(), index_vector_.end(), row);
+        index_vector_.insert(it, row);
         break;
+      }
     }
   }
 
@@ -372,13 +392,8 @@ class RowMap {
     }
   }
 
-  void AddToBitVector(uint32_t row) {
+  void InsertIntoBitVector(uint32_t row) {
     PERFETTO_DCHECK(mode_ == Mode::kBitVector);
-
-    // TODO(lalitm): RowMap should be an ordered container but we do not
-    // currently support this when in BitVector mode. Fix this by turning to
-    // IndexVector mode if we add a row before the end.
-    PERFETTO_CHECK(row >= bit_vector_.size());
 
     bit_vector_.Resize(row + 1, false);
     bit_vector_.Set(row);
