@@ -93,19 +93,21 @@ void BenchRowMapSelect(benchmark::State& state,
 }
 
 template <typename Factory>
-void BenchRowMapRemoveIf(benchmark::State& state, Factory factory) {
+void BenchRowMapFilterInto(benchmark::State& state,
+                           RowMap rm,
+                           Factory factory) {
   auto pool_vec = CreateIndexVector(kPoolSize, kSize);
 
   uint32_t pool_idx = 0;
   for (auto _ : state) {
     state.PauseTiming();
-    RowMap rm = factory();
+    RowMap out = factory();
     state.ResumeTiming();
 
     auto fn = [&pool_vec, pool_idx](uint32_t row) {
-      return (row % pool_vec[pool_idx]) != 0;
+      return pool_vec[pool_idx] != 0 && (row % pool_vec[pool_idx]) != 0;
     };
-    rm.RemoveIf(fn);
+    rm.FilterInto(&out, fn);
     pool_idx = (pool_idx + 1) % kPoolSize;
 
     benchmark::ClobberMemory();
@@ -211,12 +213,53 @@ static void BM_RowMapSelectIvWithIv(benchmark::State& state) {
 }
 BENCHMARK(BM_RowMapSelectIvWithIv);
 
-static void BM_RowMapRangeRemoveIf(benchmark::State& state) {
-  BenchRowMapRemoveIf(state, []() { return RowMap(CreateRange(kSize)); });
+static void BM_RowMapFilterIntoRangeWithRange(benchmark::State& state) {
+  RowMap rm(CreateRange(kSize));
+  uint32_t rm_size = rm.size();
+  BenchRowMapFilterInto(state, std::move(rm),
+                        [rm_size]() { return RowMap(CreateRange(rm_size)); });
 }
-BENCHMARK(BM_RowMapRangeRemoveIf);
+BENCHMARK(BM_RowMapFilterIntoRangeWithRange);
 
-static void BM_RowMapBvRemoveIf(benchmark::State& state) {
-  BenchRowMapRemoveIf(state, []() { return RowMap(CreateBitVector(kSize)); });
+static void BM_RowMapFilterIntoRangeWithBv(benchmark::State& state) {
+  RowMap rm(CreateRange(kSize));
+  uint32_t rm_size = rm.size();
+  BenchRowMapFilterInto(state, std::move(rm), [rm_size]() {
+    return RowMap(CreateBitVector(rm_size));
+  });
 }
-BENCHMARK(BM_RowMapBvRemoveIf);
+BENCHMARK(BM_RowMapFilterIntoRangeWithBv);
+
+static void BM_RowMapFilterIntoBvWithRange(benchmark::State& state) {
+  RowMap rm(CreateBitVector(kSize));
+  uint32_t rm_size = rm.size();
+  BenchRowMapFilterInto(state, std::move(rm),
+                        [rm_size]() { return RowMap(CreateRange(rm_size)); });
+}
+BENCHMARK(BM_RowMapFilterIntoBvWithRange);
+
+static void BM_RowMapFilterIntoBvWithBv(benchmark::State& state) {
+  RowMap rm(CreateBitVector(kSize));
+  uint32_t rm_size = rm.size();
+  BenchRowMapFilterInto(state, std::move(rm), [rm_size]() {
+    return RowMap(CreateBitVector(rm_size));
+  });
+}
+BENCHMARK(BM_RowMapFilterIntoBvWithBv);
+
+static void BM_RowMapFilterIntoIvWithRange(benchmark::State& state) {
+  RowMap rm(CreateIndexVector(kSize, kSize));
+  uint32_t rm_size = rm.size();
+  BenchRowMapFilterInto(state, std::move(rm),
+                        [rm_size]() { return RowMap(CreateRange(rm_size)); });
+}
+BENCHMARK(BM_RowMapFilterIntoIvWithRange);
+
+static void BM_RowMapFilterIntoIvWithBv(benchmark::State& state) {
+  RowMap rm(CreateIndexVector(kSize, kSize));
+  uint32_t rm_size = rm.size();
+  BenchRowMapFilterInto(state, std::move(rm), [rm_size]() {
+    return RowMap(CreateBitVector(rm_size));
+  });
+}
+BENCHMARK(BM_RowMapFilterIntoIvWithBv);
