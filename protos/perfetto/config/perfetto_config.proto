@@ -325,7 +325,7 @@ enum VmstatCounters {
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 10.
+// Next id: 11.
 message TraceStats {
   // From TraceBuffer::Stats.
   //
