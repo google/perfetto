@@ -32,11 +32,7 @@ using RequestID = uint32_t;
 // trace processor to return data for a RPC method call.
 // The function is generic and thankfully we need just one for all methods
 // because the output is always a protobuf buffer.
-// Args:
-//  RequestID: the ID passed by the embedder when invoking the RPC method.
-using ReplyFunction = void (*)(RequestID,
-                               bool success,
-                               const char* /*proto_reply_data*/,
+using ReplyFunction = void (*)(const char* /*proto_reply_data*/,
                                uint32_t /*len*/);
 
 namespace {
@@ -64,15 +60,15 @@ uint8_t* Initialize(ReplyFunction reply_function, uint32_t req_buffer_size) {
 }
 
 // Ingests trace data.
-void EMSCRIPTEN_KEEPALIVE trace_processor_parse(RequestID, uint32_t);
-void trace_processor_parse(RequestID id, size_t size) {
+void EMSCRIPTEN_KEEPALIVE trace_processor_parse(uint32_t);
+void trace_processor_parse(size_t size) {
   // TODO(primiano): LoadTrace() makes a copy of the data, which is unfortunate.
   // Ideally there should be a way to take the Blob coming from JS and move it.
   // See https://github.com/WebAssembly/design/issues/1162.
   auto status =
       g_trace_processor_rpc->LoadTrace(g_req_buf, size, /*eof=*/false);
   if (status.ok()) {
-    g_reply(id, true, "", 0);
+    g_reply("", 0);
   } else {
     PERFETTO_FATAL("Fatal failure while parsing the trace: %s",
                    status.c_message());
@@ -81,18 +77,16 @@ void trace_processor_parse(RequestID id, size_t size) {
 
 // We keep the same signature as other methods even though we don't take input
 // arguments for simplicity.
-void EMSCRIPTEN_KEEPALIVE trace_processor_notifyEof(RequestID, uint32_t);
-void trace_processor_notifyEof(RequestID id, uint32_t size) {
-  PERFETTO_DCHECK(!size);
+void EMSCRIPTEN_KEEPALIVE trace_processor_notify_eof(uint32_t);
+void trace_processor_notify_eof(uint32_t /* size, not used. */) {
   g_trace_processor_rpc->LoadTrace(nullptr, 0, /*eof=*/true);
-  g_reply(id, true, "", 0);
+  g_reply("", 0);
 }
 
-void EMSCRIPTEN_KEEPALIVE trace_processor_rawQuery(RequestID, uint32_t);
-void trace_processor_rawQuery(RequestID id, uint32_t len) {
-  std::vector<uint8_t> res = g_trace_processor_rpc->RawQuery(g_req_buf, len);
-
-  g_reply(id, true, reinterpret_cast<const char*>(res.data()),
+void EMSCRIPTEN_KEEPALIVE trace_processor_raw_query(uint32_t);
+void trace_processor_raw_query(uint32_t size) {
+  std::vector<uint8_t> res = g_trace_processor_rpc->RawQuery(g_req_buf, size);
+  g_reply(reinterpret_cast<const char*>(res.data()),
           static_cast<uint32_t>(res.size()));
 }
 

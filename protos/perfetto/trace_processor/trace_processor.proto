@@ -19,10 +19,6 @@ option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-service TraceProcessor {
-  rpc RawQuery(RawQueryArgs) returns (RawQueryResult) {}
-}
-
 message RawQueryArgs {
   optional string sql_query = 1;
 
