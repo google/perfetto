@@ -60,7 +60,7 @@ void BitVector::UpdateSetBits(const BitVector& other) {
   // For each set bit in this bitvector, we lookup whether |other| has the
   // bit set. If not, we clear the bit.
   for (auto it = IterateSetBits(); it; it.Next()) {
-    if (!other.IsSet(it.set_bit_index()))
+    if (!other.IsSet(it.ordinal()))
       it.Clear();
   }
 
