@@ -61,7 +61,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
+  trace_config.set_duration_ms(4000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
