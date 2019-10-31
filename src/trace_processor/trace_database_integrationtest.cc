@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <map>
 #include <random>
 #include <string>
@@ -29,19 +30,22 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+constexpr size_t kMaxChunkSize = 4 * 1024 * 1024;
+
 class TraceProcessorIntegrationTest : public ::testing::Test {
  public:
   TraceProcessorIntegrationTest()
       : processor_(TraceProcessor::CreateInstance(Config())) {}
 
  protected:
-  util::Status LoadTrace(const char* name, int min_chunk_size = 512) {
+  util::Status LoadTrace(const char* name, size_t min_chunk_size = 512) {
+    EXPECT_LE(min_chunk_size, kMaxChunkSize);
     base::ScopedFstream f(fopen(
         base::GetTestDataPath(std::string("test/data/") + name).c_str(), "rb"));
     std::minstd_rand0 rnd_engine(0);
-    std::uniform_int_distribution<> dist(min_chunk_size, 1024);
+    std::uniform_int_distribution<size_t> dist(min_chunk_size, kMaxChunkSize);
     while (!feof(*f)) {
-      size_t chunk_size = static_cast<size_t>(dist(rnd_engine));
+      size_t chunk_size = dist(rnd_engine);
       std::unique_ptr<uint8_t[]> buf(new uint8_t[chunk_size]);
       auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, chunk_size, *f);
       auto status = processor_->Parse(std::move(buf), rsize);
