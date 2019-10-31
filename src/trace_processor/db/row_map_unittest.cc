@@ -78,33 +78,27 @@ TEST(RowMapUnittest, SmokeIndexVector) {
   ASSERT_EQ(rm.IndexOf(1u), 5u);
 }
 
-// TODO(lalitm): add a test here for AddToRangeBefore when we fix the issue
-// in RowMap which has incorrect behaviour for this case.
-
-TEST(RowMapUnittest, AddToRangeAfter) {
+TEST(RowMapUnittest, InsertToRangeAfter) {
   RowMap rm(3u, 7u);
-  rm.Add(10u);
+  rm.Insert(10u);
 
   ASSERT_EQ(rm.size(), 5u);
   ASSERT_EQ(rm.Get(4u), 10u);
   ASSERT_EQ(rm.IndexOf(10u), 4u);
 }
 
-// TODO(lalitm): add a test here for AddToBitVectorBefore when we fix the issue
-// in RowMap which has incorrect behaviour for this case.
-
-TEST(RowMapUnittest, AddToBitVectorAfter) {
+TEST(RowMapUnittest, InsertToBitVectorAfter) {
   RowMap rm(BitVector{true, false, true, true, false, true});
-  rm.Add(10u);
+  rm.Insert(10u);
 
   ASSERT_EQ(rm.size(), 5u);
   ASSERT_EQ(rm.Get(4u), 10u);
   ASSERT_EQ(rm.IndexOf(10u), 4u);
 }
 
-TEST(RowMapUnittest, AddToIndexVectorAfter) {
+TEST(RowMapUnittest, InsertToIndexVectorAfter) {
   RowMap rm(std::vector<uint32_t>{0u, 2u, 3u, 5u});
-  rm.Add(10u);
+  rm.Insert(10u);
 
   ASSERT_EQ(rm.size(), 5u);
   ASSERT_EQ(rm.Get(4u), 10u);
