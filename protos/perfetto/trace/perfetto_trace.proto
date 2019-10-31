@@ -83,7 +83,7 @@ message GpuCounterDescriptor {
     oneof peak_value {
       int64 int_peak_value = 5;
       double double_peak_value = 6;
-    };
+    }
     repeated MeasureUnit numerator_units = 7;
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
@@ -172,7 +172,7 @@ message GpuCounterDescriptor {
     PERCENT = 37;
 
     INSTRUCTION = 40;
-  };
+  }
 }
 
 // End of protos/perfetto/common/gpu_counter_descriptor.proto
@@ -4924,7 +4924,7 @@ message TraceConfig {
   enum CompressionType {
     COMPRESSION_TYPE_UNSPECIFIED = 0;
     COMPRESSION_TYPE_DEFLATE = 1;
-  };
+  }
   optional CompressionType compression_type = 24;
 
   // Android-only. Debug builds only. Not for general use. If set, saves a
@@ -4957,7 +4957,7 @@ message HeapprofdConfig {
     optional uint32 dump_phase_ms = 5;
     // ms to wait between following dumps.
     optional uint32 dump_interval_ms = 6;
-  };
+  }
 
   // Set to 1 for perfect accuracy.
   // Otherwise, sample every sample_interval_bytes on average.
@@ -5055,7 +5055,7 @@ message JavaHprofConfig {
     optional uint32 dump_phase_ms = 1;
     // ms to wait between following dumps.
     optional uint32 dump_interval_ms = 2;
-  };
+  }
 
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
