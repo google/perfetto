@@ -113,29 +113,7 @@ class Column {
   static Column IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx);
 
   // Gets the value of the Column at the given |row|.
-  SqlValue Get(uint32_t row) const {
-    switch (type_) {
-      case ColumnType::kInt32: {
-        auto opt_value = GetTyped<int32_t>(row);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kUint32: {
-        auto opt_value = GetTyped<uint32_t>(row);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kInt64: {
-        auto opt_value = GetTyped<int64_t>(row);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kString: {
-        auto str = GetStringPoolString(row).c_str();
-        return str == nullptr ? SqlValue() : SqlValue::String(str);
-      }
-      case ColumnType::kId:
-        return SqlValue::Long(row_map().Get(row));
-    }
-    PERFETTO_FATAL("For GCC");
-  }
+  SqlValue Get(uint32_t row) const { return GetAtIdx(row_map().Get(row)); }
 
   // Returns the row containing the given value in the Column.
   base::Optional<uint32_t> IndexOf(SqlValue value) const {
@@ -242,21 +220,19 @@ class Column {
   };
 
   template <typename T>
-  base::Optional<T> GetTyped(uint32_t row) const {
+  base::Optional<T> GetTypedAtIdx(uint32_t idx) const {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
-    auto idx = row_map().Get(row);
     return sparse_vector<T>().Get(idx);
   }
 
   template <typename T>
-  void SetTyped(uint32_t row, T value) {
+  void SetTypedAtIdx(uint32_t idx, T value) {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
-    auto idx = row_map().Get(row);
     return mutable_sparse_vector<T>()->Set(idx, value);
   }
 
-  NullTermStringView GetStringPoolString(uint32_t row) const {
-    return string_pool_->Get(*GetTyped<StringPool::Id>(row));
+  NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
+    return string_pool_->Get(*GetTypedAtIdx<StringPool::Id>(idx));
   }
 
   template <typename T>
@@ -286,6 +262,31 @@ class Column {
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
+
+  // Gets the value of the Column at the given |row|.
+  SqlValue GetAtIdx(uint32_t idx) const {
+    switch (type_) {
+      case ColumnType::kInt32: {
+        auto opt_value = GetTypedAtIdx<int32_t>(idx);
+        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
+      case ColumnType::kUint32: {
+        auto opt_value = GetTypedAtIdx<uint32_t>(idx);
+        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
+      case ColumnType::kInt64: {
+        auto opt_value = GetTypedAtIdx<int64_t>(idx);
+        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
+      case ColumnType::kString: {
+        auto str = GetStringPoolStringAtIdx(idx).c_str();
+        return str == nullptr ? SqlValue() : SqlValue::String(str);
+      }
+      case ColumnType::kId:
+        return SqlValue::Long(idx);
+    }
+    PERFETTO_FATAL("For GCC");
+  }
 
   void FilterIntoSlow(FilterOp, SqlValue value, RowMap*) const;
 
