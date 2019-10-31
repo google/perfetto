@@ -116,15 +116,17 @@ class StackProfileTracker {
   ~StackProfileTracker();
 
   void AddString(SourceStringId, base::StringView);
-  int64_t AddMapping(SourceMappingId,
-                     const SourceMapping&,
-                     const InternLookup* intern_lookup = nullptr);
-  int64_t AddFrame(SourceFrameId,
-                   const SourceFrame&,
-                   const InternLookup* intern_lookup = nullptr);
-  int64_t AddCallstack(SourceCallstackId,
-                       const SourceCallstack&,
-                       const InternLookup* intern_lookup = nullptr);
+  base::Optional<int64_t> AddMapping(
+      SourceMappingId,
+      const SourceMapping&,
+      const InternLookup* intern_lookup = nullptr);
+  base::Optional<int64_t> AddFrame(SourceFrameId,
+                                   const SourceFrame&,
+                                   const InternLookup* intern_lookup = nullptr);
+  base::Optional<int64_t> AddCallstack(
+      SourceCallstackId,
+      const SourceCallstack&,
+      const InternLookup* intern_lookup = nullptr);
 
   int64_t GetDatabaseFrameIdForTesting(SourceFrameId);
 
