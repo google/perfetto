@@ -164,7 +164,8 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD2(UpdateThreadName,
                UniqueTid(uint32_t tid, StringId thread_name_id));
-  MOCK_METHOD2(SetThreadName, void(UniqueTid utid, StringId thread_name_id));
+  MOCK_METHOD2(SetThreadNameIfUnset,
+               void(UniqueTid utid, StringId thread_name_id));
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 
   MOCK_METHOD1(GetOrCreateProcess, UniquePid(uint32_t pid));
@@ -728,14 +729,14 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
 
   EXPECT_CALL(*storage_, InternString(base::StringView("OldThreadName")))
       .WillOnce(Return(1));
-  EXPECT_CALL(*process_, SetThreadName(1u, StringId(1)));
+  EXPECT_CALL(*process_, SetThreadNameIfUnset(1u, StringId(1)));
   // Packet with same thread, but different name should update the name.
   EXPECT_CALL(*storage_, InternString(base::StringView("NewThreadName")))
       .WillOnce(Return(2));
-  EXPECT_CALL(*process_, SetThreadName(1u, StringId(2)));
+  EXPECT_CALL(*process_, SetThreadNameIfUnset(1u, StringId(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("DifferentThreadName")))
       .WillOnce(Return(3));
-  EXPECT_CALL(*process_, SetThreadName(2u, StringId(3)));
+  EXPECT_CALL(*process_, SetThreadNameIfUnset(2u, StringId(3)));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
