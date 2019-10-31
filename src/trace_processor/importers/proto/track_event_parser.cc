@@ -562,7 +562,8 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
         if (!thread_name.size)
           break;
         auto thread_name_id = storage->InternString(thread_name);
-        procs->SetThreadName(*utid, thread_name_id);
+        // Don't override system-provided names.
+        procs->SetThreadNameIfUnset(*utid, thread_name_id);
         break;
       }
       if (strcmp(event_name.c_str(), "process_name") == 0) {
@@ -580,8 +581,9 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
         auto process_name = annotation.string_value();
         if (!process_name.size)
           break;
-        procs->SetProcessMetadata(storage->GetProcess(*upid).pid, base::nullopt,
-                                  process_name);
+        auto process_name_id = storage->InternString(process_name);
+        // Don't override system-provided names.
+        procs->SetProcessNameIfUnset(*upid, process_name_id);
         break;
       }
       // Other metadata events are proxied via the raw table for JSON export.
