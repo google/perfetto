@@ -37,6 +37,18 @@
 namespace perfetto {
 namespace trace_processor {
 
+TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context)
+    : context_(context),
+      process_name_ids_{{context_->storage->InternString("Unknown"),
+                         context_->storage->InternString("Browser"),
+                         context_->storage->InternString("Renderer"),
+                         context_->storage->InternString("Utility"),
+                         context_->storage->InternString("Zygote"),
+                         context_->storage->InternString("SandboxHelper"),
+                         context_->storage->InternString("Gpu"),
+                         context_->storage->InternString("PpapiPlugin"),
+                         context_->storage->InternString("PpapiBroker")}} {}
+
 void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     const protos::pbzero::TracePacket::Decoder& packet_decoder) {
   auto track_descriptor_field = packet_decoder.track_descriptor();
@@ -88,35 +100,18 @@ void TrackEventTokenizer::TokenizeProcessDescriptorPacket(
       packet_decoder.process_descriptor());
   if (!process_descriptor_decoder.has_chrome_process_type())
     return;
-  base::StringView name = "Unknown";
-  switch (process_descriptor_decoder.chrome_process_type()) {
-    case protos::pbzero::ProcessDescriptor::PROCESS_BROWSER:
-      name = "Browser";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_RENDERER:
-      name = "Renderer";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_UTILITY:
-      name = "Utility";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_ZYGOTE:
-      name = "Zygote";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_SANDBOX_HELPER:
-      name = "SandboxHelper";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_GPU:
-      name = "Gpu";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_PPAPI_PLUGIN:
-      name = "PpapiPlugin";
-      break;
-    case protos::pbzero::ProcessDescriptor::PROCESS_PPAPI_BROKER:
-      name = "PpapiBroker";
-      break;
-  }
-  context_->process_tracker->SetProcessMetadata(
-      static_cast<uint32_t>(process_descriptor_decoder.pid()), base::nullopt,
+
+  auto process_type = process_descriptor_decoder.chrome_process_type();
+  size_t name_index =
+      static_cast<size_t>(process_type) < process_name_ids_.size()
+          ? static_cast<size_t>(process_type)
+          : 0u;
+  StringId name = process_name_ids_[name_index];
+
+  // Don't override system-provided names.
+  context_->process_tracker->SetProcessNameIfUnset(
+      context_->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(process_descriptor_decoder.pid())),
       name);
 }
 
@@ -209,7 +204,8 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
   if (!name.empty()) {
     auto thread_name_id = context_->storage->InternString(name);
     ProcessTracker* procs = context_->process_tracker.get();
-    procs->SetThreadName(
+    // Don't override system-provided names.
+    procs->SetThreadNameIfUnset(
         procs->UpdateThread(
             static_cast<uint32_t>(thread_descriptor_decoder.tid()),
             static_cast<uint32_t>(thread_descriptor_decoder.pid())),
