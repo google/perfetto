@@ -19,6 +19,7 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -29,8 +30,7 @@ class TraceBlobView;
 
 class TrackEventTokenizer {
  public:
-  explicit TrackEventTokenizer(TraceProcessorContext* context)
-      : context_(context) {}
+  explicit TrackEventTokenizer(TraceProcessorContext* context);
 
   void TokenizeTrackDescriptorPacket(
       const protos::pbzero::TracePacket::Decoder&);
@@ -48,6 +48,8 @@ class TrackEventTokenizer {
 
  private:
   TraceProcessorContext* context_;
+
+  std::array<StringId, 9> process_name_ids_;
 };
 
 }  // namespace trace_processor
