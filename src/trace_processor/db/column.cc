@@ -54,34 +54,40 @@ Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
                 col_idx, row_map_idx, nullptr);
 }
 
-void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* iv) const {
+void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* rm) const {
   switch (op) {
     case FilterOp::kLt:
-      iv->RemoveIf([this, value](uint32_t row) { return Get(row) >= value; });
+      row_map().FilterInto(
+          rm, [this, value](uint32_t row) { return GetAtIdx(row) < value; });
       break;
     case FilterOp::kEq:
-      iv->RemoveIf([this, value](uint32_t row) { return Get(row) != value; });
+      row_map().FilterInto(
+          rm, [this, value](uint32_t row) { return GetAtIdx(row) == value; });
       break;
     case FilterOp::kGt:
-      iv->RemoveIf([this, value](uint32_t row) { return Get(row) <= value; });
+      row_map().FilterInto(
+          rm, [this, value](uint32_t row) { return GetAtIdx(row) > value; });
       break;
     case FilterOp::kNe:
-      iv->RemoveIf([this, value](uint32_t row) { return Get(row) == value; });
+      row_map().FilterInto(
+          rm, [this, value](uint32_t row) { return GetAtIdx(row) != value; });
       break;
     case FilterOp::kLe:
-      iv->RemoveIf([this, value](uint32_t row) { return Get(row) > value; });
+      row_map().FilterInto(
+          rm, [this, value](uint32_t row) { return GetAtIdx(row) <= value; });
       break;
     case FilterOp::kGe:
-      iv->RemoveIf([this, value](uint32_t row) { return Get(row) < value; });
+      row_map().FilterInto(
+          rm, [this, value](uint32_t row) { return GetAtIdx(row) >= value; });
       break;
     case FilterOp::kIsNull:
-      iv->RemoveIf([this](uint32_t row) {
-        return Get(row).type != SqlValue::Type::kNull;
+      row_map().FilterInto(rm, [this](uint32_t row) {
+        return GetAtIdx(row).type == SqlValue::Type::kNull;
       });
       break;
     case FilterOp::kIsNotNull:
-      iv->RemoveIf([this](uint32_t row) {
-        return Get(row).type == SqlValue::Type::kNull;
+      row_map().FilterInto(rm, [this](uint32_t row) {
+        return GetAtIdx(row).type != SqlValue::Type::kNull;
       });
       break;
   }
