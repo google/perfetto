@@ -50,7 +50,7 @@ class MacroTable : public Table {
  public:
   MacroTable(const char* name, StringPool* pool, Table* parent)
       : Table(pool, parent), name_(name), parent_(parent) {
-    row_maps_.emplace_back(BitVector());
+    row_maps_.emplace_back();
     if (!parent) {
       columns_.emplace_back(
           Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
