@@ -31,7 +31,7 @@ message GpuCounterDescriptor {
     oneof peak_value {
       int64 int_peak_value = 5;
       double double_peak_value = 6;
-    };
+    }
     repeated MeasureUnit numerator_units = 7;
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
@@ -120,5 +120,5 @@ message GpuCounterDescriptor {
     PERCENT = 37;
 
     INSTRUCTION = 40;
-  };
+  }
 }
