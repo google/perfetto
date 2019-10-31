@@ -54,45 +54,6 @@ Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
                 col_idx, row_map_idx, nullptr);
 }
 
-void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* rm) const {
-  switch (op) {
-    case FilterOp::kLt:
-      row_map().FilterInto(
-          rm, [this, value](uint32_t row) { return GetAtIdx(row) < value; });
-      break;
-    case FilterOp::kEq:
-      row_map().FilterInto(
-          rm, [this, value](uint32_t row) { return GetAtIdx(row) == value; });
-      break;
-    case FilterOp::kGt:
-      row_map().FilterInto(
-          rm, [this, value](uint32_t row) { return GetAtIdx(row) > value; });
-      break;
-    case FilterOp::kNe:
-      row_map().FilterInto(
-          rm, [this, value](uint32_t row) { return GetAtIdx(row) != value; });
-      break;
-    case FilterOp::kLe:
-      row_map().FilterInto(
-          rm, [this, value](uint32_t row) { return GetAtIdx(row) <= value; });
-      break;
-    case FilterOp::kGe:
-      row_map().FilterInto(
-          rm, [this, value](uint32_t row) { return GetAtIdx(row) >= value; });
-      break;
-    case FilterOp::kIsNull:
-      row_map().FilterInto(rm, [this](uint32_t row) {
-        return GetAtIdx(row).type == SqlValue::Type::kNull;
-      });
-      break;
-    case FilterOp::kIsNotNull:
-      row_map().FilterInto(rm, [this](uint32_t row) {
-        return GetAtIdx(row).type != SqlValue::Type::kNull;
-      });
-      break;
-  }
-}
-
 const RowMap& Column::row_map() const {
   return table_->row_maps_[row_map_idx_];
 }
