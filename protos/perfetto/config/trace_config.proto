@@ -284,7 +284,7 @@ message TraceConfig {
   enum CompressionType {
     COMPRESSION_TYPE_UNSPECIFIED = 0;
     COMPRESSION_TYPE_DEFLATE = 1;
-  };
+  }
   optional CompressionType compression_type = 24;
 
   // Android-only. Debug builds only. Not for general use. If set, saves a
