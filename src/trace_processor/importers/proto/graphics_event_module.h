@@ -56,7 +56,9 @@ class GraphicsEventModule
     }
 
     if (decoder.has_vulkan_memory_event()) {
-      parser_.ParseVulkanMemoryEvent(decoder.vulkan_memory_event());
+      parser_.ParseVulkanMemoryEvent(ttp.packet_sequence_state,
+                                     ttp.packet_sequence_state_generation,
+                                     decoder.vulkan_memory_event());
       return ModuleResult::Handled();
     }
 
