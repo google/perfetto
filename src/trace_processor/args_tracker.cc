@@ -90,8 +90,9 @@ void ArgsTracker::Flush() {
             row, set_id);
         break;
       case TableId::kVulkanMemoryAllocation:
-        storage->mutable_vulkan_memory_allocations_table()->arg_set_id()[row] =
-            set_id;
+        storage->mutable_vulkan_memory_allocations_table()
+            ->mutable_arg_set_id()
+            ->Set(row, set_id);
         break;
       default:
         PERFETTO_FATAL("Unsupported table to insert args into");

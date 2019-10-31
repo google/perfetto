@@ -19,7 +19,10 @@
 
 #include <deque>
 
+#include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_storage.h"
+
+#include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -33,17 +36,26 @@ class VulkanMemoryTracker {
   explicit VulkanMemoryTracker(TraceProcessorContext* context);
   ~VulkanMemoryTracker() = default;
 
-  void AddString(SourceStringId, StringId);
+  template <int32_t FieldId>
+  StringId GetInternedString(PacketSequenceState* state,
+                             size_t generation,
+                             uint64_t iid) {
+    auto* decoder =
+        state->LookupInternedMessage<FieldId, protos::pbzero::InternedString>(
+            generation, iid);
+    if (!decoder)
+      return kNullStringId;
+    return context_->storage->InternString(
+        base::StringView(reinterpret_cast<const char*>(decoder->str().data),
+                         decoder->str().size));
+  }
 
-  base::Optional<StringId> FindString(SourceStringId);
-  base::Optional<StringId> FindSourceString(SourceStringId source);
-  base::Optional<StringId> FindTypeString(SourceStringId type);
+  StringId FindSourceString(SourceStringId);
+  StringId FindTypeString(SourceStringId);
 
  private:
   TraceProcessorContext* const context_;
-  const StringId empty_;
 
-  std::unordered_map<SourceStringId, StringId> string_map_;
   std::unordered_map<SourceStringId, StringId> source_string_map_;
   std::unordered_map<SourceStringId, StringId> type_string_map_;
 

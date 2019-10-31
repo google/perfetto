@@ -68,14 +68,14 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);
 #define PERFETTO_TP_VULKAN_MEMORY_ALLOCATIONS_DEF(NAME, PARENT, C) \
   NAME(VulkanMemoryAllocationsTable, "vulkan_memory_allocations")  \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                \
-  C(StringPool::Id, source_iid)                                    \
-  C(StringPool::Id, type_iid)                                      \
+  C(StringPool::Id, source)                                        \
+  C(StringPool::Id, operation)                                     \
   C(int64_t, timestamp)                                            \
   C(base::Optional<uint32_t>, upid)                                \
   C(base::Optional<int64_t>, device)                               \
   C(base::Optional<int64_t>, device_memory)                        \
   C(base::Optional<uint32_t>, heap)                                \
-  C(base::Optional<StringPool::Id>, caller_iid)                    \
+  C(base::Optional<StringPool::Id>, function_name)                 \
   C(base::Optional<int64_t>, object_handle)                        \
   C(base::Optional<int64_t>, memory_address)                       \
   C(base::Optional<int64_t>, memory_size)                          \
