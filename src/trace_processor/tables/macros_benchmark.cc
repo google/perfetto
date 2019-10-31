@@ -22,69 +22,158 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-#define PERFETTO_TP_TEST_TABLE(NAME, PARENT, C) \
-  NAME(TestTable, "test_table")                 \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)             \
-  C(uint32_t, a)
+#define PERFETTO_TP_ROOT_TEST_TABLE(NAME, PARENT, C) \
+  NAME(RootTestTable, "root_table")                  \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
+  C(uint32_t, root_non_null)                         \
+  C(base::Optional<uint32_t>, root_nullable)
 
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_TABLE);
+PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
+
+#define PERFETTO_TP_CHILD_TABLE(NAME, PARENT, C) \
+  NAME(ChildTestTable, "child_table")            \
+  PARENT(PERFETTO_TP_ROOT_TEST_TABLE, C)         \
+  C(uint32_t, child_non_null)                    \
+  C(base::Optional<uint32_t>, child_nullable)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CHILD_TABLE);
 
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
 
+using perfetto::trace_processor::ChildTestTable;
+using perfetto::trace_processor::RootTestTable;
 using perfetto::trace_processor::SqlValue;
 using perfetto::trace_processor::StringPool;
-using perfetto::trace_processor::TestTable;
 
 static void BM_TableInsert(benchmark::State& state) {
   StringPool pool;
-  TestTable table(&pool, nullptr);
+  RootTestTable root(&pool, nullptr);
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.Insert({}));
+    benchmark::DoNotOptimize(root.Insert({}));
   }
 }
 BENCHMARK(BM_TableInsert);
 
 static void BM_TableFilterIdColumn(benchmark::State& state) {
   StringPool pool;
-  TestTable table(&pool, nullptr);
+  RootTestTable root(&pool, nullptr);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   for (uint32_t i = 0; i < size; ++i)
-    table.Insert({});
+    root.Insert({});
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.Filter({table.id().eq(SqlValue::Long(30))}));
+    benchmark::DoNotOptimize(root.Filter({root.id().eq(SqlValue::Long(30))}));
   }
 }
 BENCHMARK(BM_TableFilterIdColumn)
     ->RangeMultiplier(8)
     ->Range(1024, 2 * 1024 * 1024);
 
-static void BM_TableFilterEqMatchMany(benchmark::State& state) {
+static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   StringPool pool;
-  TestTable table(&pool, nullptr);
+  RootTestTable root(&pool, nullptr);
 
-  // We want the number of partitions to be significantly less than the size of
-  // the RowMap. This matches the setup of columns like track_id in the event
-  // table where there are a large number of events but a much smaller number of
-  // tracks all those events are associated with.
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 1024;
 
   constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
   for (uint32_t i = 0; i < size; ++i) {
-    TestTable::Row row(static_cast<uint32_t>(rnd_engine() % partitions));
-    table.Insert(row);
+    RootTestTable::Row row(static_cast<uint32_t>(rnd_engine() % partitions));
+    root.Insert(row);
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.Filter({table.a().eq(SqlValue::Long(0))}));
+    benchmark::DoNotOptimize(
+        root.Filter({root.root_non_null().eq(SqlValue::Long(0))}));
   }
 }
-BENCHMARK(BM_TableFilterEqMatchMany)
+BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)
+    ->RangeMultiplier(8)
+    ->Range(1024, 2 * 1024 * 1024);
+
+static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 512;
+
+  constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (uint32_t i = 0; i < size; ++i) {
+    uint32_t value = rnd_engine() % partitions;
+
+    RootTestTable::Row row;
+    row.root_nullable = value % 2 == 0 ? perfetto::base::nullopt
+                                       : perfetto::base::make_optional(value);
+    root.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(
+        root.Filter({root.root_nullable().eq(SqlValue::Long(1))}));
+  }
+}
+BENCHMARK(BM_TableFilterRootNullableEqMatchMany)
+    ->RangeMultiplier(8)
+    ->Range(1024, 2 * 1024 * 1024);
+
+static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 1024;
+
+  constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (uint32_t i = 0; i < size; ++i) {
+    ChildTestTable::Row row;
+    row.child_non_null = static_cast<uint32_t>(rnd_engine() % partitions);
+    root.Insert({});
+    child.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(
+        child.Filter({child.child_non_null().eq(SqlValue::Long(0))}));
+  }
+}
+BENCHMARK(BM_TableFilterChildNonNullEqMatchMany)
+    ->RangeMultiplier(8)
+    ->Range(1024, 2 * 1024 * 1024);
+
+static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 512;
+
+  constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (uint32_t i = 0; i < size; ++i) {
+    uint32_t value = rnd_engine() % partitions;
+
+    ChildTestTable::Row row;
+    row.child_nullable = value % 2 == 0 ? perfetto::base::nullopt
+                                        : perfetto::base::make_optional(value);
+    root.Insert({});
+    child.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(
+        child.Filter({child.child_nullable().eq(SqlValue::Long(1))}));
+  }
+}
+BENCHMARK(BM_TableFilterChildNullableEqMatchMany)
     ->RangeMultiplier(8)
     ->Range(1024, 2 * 1024 * 1024);
