@@ -169,10 +169,7 @@ class QueryController {
     if (this.engine) {
       destroyWasmEngine(kEngineId);
     }
-    this.engine = new WasmEngineProxy({
-      id: 'engine',
-      worker: createWasmEngine(kEngineId),
-    });
+    this.engine = new WasmEngineProxy('engine', createWasmEngine(kEngineId));
 
     this.file = input.file;
     this.readNextSlice(0);
@@ -297,7 +294,7 @@ function render(root: Element, controller: QueryController) {
                   isResult(q) ? `${q.executionTimeNs / 1000000}ms` : ''),
                 isResult(q) ? m('.query-content', renderTable(q.result)) : null,
                 isError(q) ? m('.query-content', q.error) : null,
-                isPending(q) ? m('.query-content') : null, ))),
+                isPending(q) ? m('.query-content') : null))),
   ]);
 }
 
@@ -307,7 +304,7 @@ function renderTable(result: RawQueryResult) {
       m('tr', columns(result).map(c => m('th', c))),
       rows(result, 0, 1000).map(r => {
         return m('tr', Object.values(r).map(d => m('td', d)));
-      }), );
+      }));
 }
 
 function main() {

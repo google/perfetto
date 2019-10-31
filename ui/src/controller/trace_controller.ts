@@ -27,6 +27,11 @@ import {NUM, NUM_NULL, rawQueryToRows, STR_NULL} from '../common/protos';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
 import {toNs, toNsCeil, toNsFloor} from '../common/time';
 import {TimeSpan} from '../common/time';
+import {
+  createWasmEngine,
+  destroyWasmEngine,
+  WasmEngineProxy
+} from '../common/wasm_engine_proxy';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
@@ -45,6 +50,7 @@ import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 import {Child, Children, Controller} from './controller';
 import {globals} from './globals';
+import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
@@ -52,14 +58,15 @@ import {
   SelectionController,
   SelectionControllerArgs
 } from './selection_controller';
+import {
+  TraceBufferStream,
+  TraceFileStream,
+  TraceHttpStream,
+  TraceStream
+} from './trace_stream';
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 
 type States = 'init'|'loading_trace'|'ready';
-
-declare interface FileReaderSync { readAsArrayBuffer(blob: Blob): ArrayBuffer; }
-
-declare var FileReaderSync:
-    {prototype: FileReaderSync; new (): FileReaderSync;};
 
 interface ThreadSliceTrack {
   maxDepth: number;
@@ -80,7 +87,9 @@ export class TraceController extends Controller<States> {
   }
 
   onDestroy() {
-    if (this.engine !== undefined) globals.destroyEngine(this.engine.id);
+    if (this.engine instanceof WasmEngineProxy) {
+      destroyWasmEngine(this.engine.id);
+    }
   }
 
   run() {
@@ -91,12 +100,19 @@ export class TraceController extends Controller<States> {
           engineId: this.engineId,
           ready: false,
         }));
-        this.loadTrace().then(() => {
-          globals.dispatch(Actions.setEngineReady({
-            engineId: this.engineId,
-            ready: true,
-          }));
-        });
+        this.loadTrace()
+            .then(() => {
+              globals.dispatch(Actions.setEngineReady({
+                engineId: this.engineId,
+                ready: true,
+              }));
+            })
+            .catch(err => {
+              this.updateStatus(`${err}`);
+              this.setState('init');
+              console.error(err);
+              return;
+            });
         this.updateStatus('Opening trace');
         this.setState('loading_trace');
         break;
@@ -155,63 +171,37 @@ export class TraceController extends Controller<States> {
   private async loadTrace() {
     this.updateStatus('Creating trace processor');
     const engineCfg = assertExists(globals.state.engines[this.engineId]);
-    this.engine = globals.createEngine();
 
-    const statusHeader = 'Opening trace';
+    console.log('Opening trace using built-in WASM engine');
+    this.engine = new WasmEngineProxy(
+        this.engineId,
+        createWasmEngine(this.engineId),
+        LoadingManager.getInstance);
+    let traceStream: TraceStream;
     if (engineCfg.source instanceof File) {
-      const blob = engineCfg.source as Blob;
-      const reader = new FileReaderSync();
-      const SLICE_SIZE = 1024 * 1024;
-      for (let off = 0; off < blob.size; off += SLICE_SIZE) {
-        const slice = blob.slice(off, off + SLICE_SIZE);
-        const arrBuf = reader.readAsArrayBuffer(slice);
-        await this.engine.parse(new Uint8Array(arrBuf));
-        const progress = Math.round((off + slice.size) / blob.size * 100);
-        this.updateStatus(`${statusHeader} ${progress} %`);
-      }
+      traceStream = new TraceFileStream(engineCfg.source);
     } else if (engineCfg.source instanceof ArrayBuffer) {
-      this.updateStatus(`${statusHeader} 0 %`);
-      const buffer = new Uint8Array(engineCfg.source);
-      const SLICE_SIZE = 1024 * 1024;
-      for (let off = 0; off < buffer.byteLength; off += SLICE_SIZE) {
-        const slice = buffer.subarray(off, off + SLICE_SIZE);
-        await this.engine.parse(slice);
-        const progress =
-            Math.round((off + slice.byteLength) / buffer.byteLength * 100);
-        this.updateStatus(`${statusHeader} ${progress} %`);
-      }
+      traceStream = new TraceBufferStream(engineCfg.source);
     } else {
-      const resp = await fetch(engineCfg.source);
-      if (resp.status !== 200) {
-        this.updateStatus(`HTTP error ${resp.status}`);
-        throw new Error(`fetch() failed with HTTP error ${resp.status}`);
-      }
-      // tslint:disable-next-line no-any
-      const rd = (resp.body as any).getReader() as ReadableStreamReader;
-      const tStartMs = performance.now();
-      let tLastUpdateMs = 0;
-      for (let off = 0;;) {
-        const readRes = await rd.read() as {value: Uint8Array, done: boolean};
-        if (readRes.value !== undefined) {
-          off += readRes.value.length;
-          await this.engine.parse(readRes.value);
-        }
-        // For traces loaded from the network there doesn't seem to be a
-        // reliable way to compute the %. The content-length exposed by GCS is
-        // before compression (which is handled transparently by the browser).
-        const nowMs = performance.now();
-        if (nowMs - tLastUpdateMs > 100) {
-          tLastUpdateMs = nowMs;
-          const mb = off / 1e6;
-          const tElapsed = (nowMs - tStartMs) / 1e3;
-          let status = `${statusHeader} ${mb.toFixed(1)} MB `;
-          status += `(${(mb / tElapsed).toFixed(1)} MB/s)`;
-          this.updateStatus(status);
-        }
-        if (readRes.done) break;
-      }
+      traceStream = new TraceHttpStream(engineCfg.source);
     }
 
+    const tStart = performance.now();
+    for (;;) {
+      const res = await traceStream.readChunk();
+      await this.engine.parse(res.data);
+      const elapsed = (performance.now() - tStart) / 1000;
+      let status = 'Loading trace ';
+      if (res.bytesTotal > 0) {
+        const progress = Math.round(res.bytesRead / res.bytesTotal * 100);
+        status += `${progress}%`;
+      } else {
+        status += `${Math.round(res.bytesRead / 1e6)} MB`;
+      }
+      status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
+      this.updateStatus(status);
+      if (res.eof) break;
+    }
     await this.engine.notifyEof();
 
     const traceTime = await this.engine.getTraceTimeBounds();
