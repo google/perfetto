@@ -43,7 +43,6 @@ import RawQueryResult = protos.perfetto.protos.RawQueryResult;
 import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
 import SysStatsConfig = protos.perfetto.protos.SysStatsConfig;
 import TraceConfig = protos.perfetto.protos.TraceConfig;
-import TraceProcessor = protos.perfetto.protos.TraceProcessor;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 
 // TODO(hjd): Maybe these should go in their own file.
@@ -222,6 +221,5 @@ export {
   StatCounters,
   SysStatsConfig,
   TraceConfig,
-  TraceProcessor,
   VmstatCounters,
 };

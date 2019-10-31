@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RawQueryResult, TraceProcessor} from './protos';
+import {RawQueryArgs, RawQueryResult} from './protos';
 import {TimeSpan} from './time';
 
 export interface LoadingTracker {
@@ -27,11 +27,7 @@ export class NullLoadingTracker implements LoadingTracker {
 
 /**
  * Abstract interface of a trace proccessor.
- * This class is wrapper for multiple proto services defined in:
- * //protos/perfetto/trace_processor/*
- * For each service ("FooService") Engine will have abstract getter
- * ("fooService") which returns a protobufjs rpc.Service object for
- * the given service.
+ * This is the TypeScript equivalent of src/trace_processor/rpc.h.
  *
  * Engine also defines helpers for the most common service methods
  * (e.g. query).
@@ -58,20 +54,26 @@ export abstract class Engine {
   abstract notifyEof(): void;
 
   /*
-   * The RCP interface to call service methods defined in trace_processor.proto.
+   * Performs a SQL query and retruns a proto-encoded RawQueryResult object.
    */
-  abstract get rpc(): TraceProcessor;
+  abstract rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array>;
 
   /**
    * Shorthand for sending a SQL query to the engine.
-   * Exactly the same as engine.rpc.rawQuery({rawQuery});
+   * Deals with {,un}marshalling of request/response args.
    */
-  query(sqlQuery: string): Promise<RawQueryResult> {
-    const timeQueuedNs = Math.floor(performance.now() * 1e6);
+  async query(sqlQuery: string): Promise<RawQueryResult> {
     this.loadingTracker.beginLoading();
-    return this.rpc.rawQuery({sqlQuery, timeQueuedNs}).finally(() => {
+    try {
+      const args = new RawQueryArgs();
+      args.sqlQuery = sqlQuery;
+      args.timeQueuedNs = Math.floor(performance.now() * 1e6);
+      const argsEncoded = RawQueryArgs.encode(args).finish();
+      const respEncoded = await this.rawQuery(argsEncoded);
+      return RawQueryResult.decode(respEncoded);
+    } finally {
       this.loadingTracker.endLoading();
-    });
+    }
   }
 
   async queryOneRow(query: string): Promise<number[]> {
