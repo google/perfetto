@@ -17,16 +17,8 @@ import {Patch, produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {Remote} from '../base/remote';
 import {DeferredAction, StateActions} from '../common/actions';
-import {Engine} from '../common/engine';
 import {createEmptyState, State} from '../common/state';
-import {
-  createWasmEngine,
-  destroyWasmEngine,
-  WasmEngineProxy
-} from '../common/wasm_engine_proxy';
-
 import {ControllerAny} from './controller';
-import {LoadingManager} from './loading_manager';
 
 type PublishKinds =
     'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
@@ -91,19 +83,6 @@ class Globals implements App {
       }
     }
     assertExists(this._frontend).send<void>('patchState', [patches]);
-  }
-
-  createEngine(): Engine {
-    const id = new Date().toUTCString();
-    return new WasmEngineProxy({
-      id,
-      worker: createWasmEngine(id),
-      loadingTracker: LoadingManager.getInstance,
-    });
-  }
-
-  destroyEngine(id: string): void {
-    destroyWasmEngine(id);
   }
 
   // TODO: this needs to be cleaned up.
