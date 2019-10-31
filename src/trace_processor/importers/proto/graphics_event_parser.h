@@ -20,7 +20,10 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_storage.h"
+
+#include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -31,6 +34,8 @@ class TraceProcessorContext;
 class GraphicsEventParser {
  public:
   using ConstBytes = protozero::ConstBytes;
+  using VulkanMemoryEventSource = protos::pbzero::VulkanMemoryEvent::Source;
+  using VulkanMemoryEventType = protos::pbzero::VulkanMemoryEvent::Type;
   explicit GraphicsEventParser(TraceProcessorContext*);
 
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
@@ -38,9 +43,14 @@ class GraphicsEventParser {
   void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
   void ParseGpuLog(int64_t ts, ConstBytes);
 
-  void ParseVulkanMemoryEvent(ConstBytes);
-  void UpdateVulkanMemoryAllocationCounters(
-      const tables::VulkanMemoryAllocationsTable::Row*);
+  void ParseVulkanMemoryEvent(PacketSequenceState*,
+                              size_t sequence_state_generation,
+                              ConstBytes);
+  void UpdateVulkanMemoryAllocationCounters(int64_t ts,
+                                            UniquePid,
+                                            VulkanMemoryEventSource,
+                                            VulkanMemoryEventType,
+                                            size_t allocation_size);
 
  private:
   TraceProcessorContext* const context_;
