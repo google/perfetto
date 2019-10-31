@@ -22,7 +22,6 @@ export interface LoadingTracker {
 
 export class NullLoadingTracker implements LoadingTracker {
   beginLoading(): void {}
-
   endLoading(): void {}
 }
 
@@ -51,7 +50,7 @@ export abstract class Engine {
    * Push trace data into the engine. The engine is supposed to automatically
    * figure out the type of the trace (JSON vs Protobuf).
    */
-  abstract parse(data: Uint8Array): void;
+  abstract parse(data: Uint8Array): Promise<void>;
 
   /**
    * Notify the engine no more data is coming.
