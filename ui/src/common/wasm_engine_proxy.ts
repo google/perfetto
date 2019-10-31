@@ -71,19 +71,18 @@ export function warmupWasmEngine(): void {
  * worker thread.
  */
 export class WasmEngineProxy extends Engine {
+  readonly id: string;
   private readonly worker: Worker;
   private readonly traceProcessor_: TraceProcessor;
   private pendingCallbacks: Map<number, protobufjs.RPCImplCallback>;
   private nextRequestId: number;
-  readonly id: string;
 
-  constructor(
-      args: {id: string, loadingTracker?: LoadingTracker, worker: Worker}) {
-    super(args.loadingTracker);
+  constructor(id: string, worker: Worker, loadingTracker?: LoadingTracker) {
+    super(loadingTracker);
     this.nextRequestId = 0;
     this.pendingCallbacks = new Map();
-    this.id = args.id;
-    this.worker = args.worker;
+    this.id = id;
+    this.worker = worker;
     this.worker.onmessage = this.onMessage.bind(this);
     this.traceProcessor_ =
         TraceProcessor.create(this.rpcImpl.bind(this, 'trace_processor'));
