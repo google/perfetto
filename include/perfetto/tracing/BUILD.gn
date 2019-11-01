@@ -15,6 +15,7 @@
 source_set("tracing") {
   public_deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/common:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/track_event:zero",
     "../base",
@@ -38,5 +39,6 @@ source_set("tracing") {
     "tracing_backend.h",
     "track_event.h",
     "track_event_category_registry.h",
+    "track_event_context.h",
   ]
 }
