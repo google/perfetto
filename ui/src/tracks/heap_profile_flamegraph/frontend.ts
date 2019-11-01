@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
+
+import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {Flamegraph} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
+import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {
@@ -39,6 +43,7 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
   constructor(trackState: TrackState) {
     super(trackState);
     this.flamegraph = new Flamegraph(new Array());
+    this.flamegraph.enableThumbnail(this.config.isMinimized);
   }
 
   data() {
@@ -58,6 +63,9 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
     const data = this.data();
     if (data === undefined) {
       return 0;
+    }
+    if (this.config.isMinimized) {
+      return super.getHeight();
     }
     this.changeFlamegraphData();
     const height = this.flamegraph.getHeight();
@@ -100,6 +108,24 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
 
   onMouseOut() {
     this.flamegraph.onMouseOut();
+  }
+
+  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+    const buttons: Array<m.Vnode<TrackButtonAttrs>> = [];
+    buttons.push(m(TrackButton, {
+      action: () => {
+        const newIsMinimized = !this.config.isMinimized;
+        this.config.isMinimized = newIsMinimized;
+        Actions.updateTrackConfig(
+            {id: this.trackState.id, config: this.config});
+        this.flamegraph.enableThumbnail(newIsMinimized);
+        globals.rafScheduler.scheduleFullRedraw();
+      },
+      i: this.config.isMinimized ? 'expand_more' : 'expand_less',
+      tooltip: this.config.isMinimized ? 'Maximize' : 'Minimize',
+      selected: this.config.isMinimized,
+    }));
+    return buttons;
   }
 }
 
