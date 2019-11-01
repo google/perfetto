@@ -24,4 +24,5 @@ export interface Data extends TrackData {
 
 export interface Config {
   upid: number;
+  isMinimized: boolean;
 }
