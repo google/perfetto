@@ -25,14 +25,14 @@
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 #include <json/value.h>
-#else
-// Json traces are only supported in standalone and Chromium builds.
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+// Json traces are only supported in some build configurations (standalone, UI).
 namespace Json {
 class Value {};
 }  // namespace Json
-#endif
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 
 namespace perfetto {
 namespace trace_processor {

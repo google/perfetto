@@ -225,7 +225,9 @@ declare_args() {
   enable_perfetto_trace_processor_graphics =
       enable_perfetto_trace_processor && !build_with_chromium
 
-  # Enables JSON support in the trace processor.
+  # Enables JSON support in the trace processor. Required for JSON trace import
+  # and export. Importer support can also be disabled using
+  # |enable_perfetto_trace_processor_json_import|.
   enable_perfetto_trace_processor_json =
       enable_perfetto_trace_processor && !perfetto_build_with_android
 
@@ -240,6 +242,10 @@ declare_args() {
 }
 
 declare_args() {
+  # Enables importer support for JSON traces in the trace processor.
+  enable_perfetto_trace_processor_json_import =
+      enable_perfetto_trace_processor_json && !build_with_chromium
+
   # Enables the trace_to_text tool.
   enable_perfetto_tools_trace_to_text =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
