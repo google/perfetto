@@ -17,12 +17,18 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_storage.h"
 
-#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class TrackEvent_LegacyEvent_Decoder;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 class PacketSequenceState;
@@ -45,7 +51,7 @@ class TrackEventParser {
       base::Optional<UniqueTid> utid,
       StringId category_id,
       StringId name_id,
-      const protos::pbzero::TrackEvent::LegacyEvent::Decoder& legacy_event,
+      const protos::pbzero::TrackEvent_LegacyEvent_Decoder& legacy_event,
       SliceTracker::SetArgsCallback args_callback);
   void ParseDebugAnnotationArgs(protozero::ConstBytes debug_annotation,
                                 PacketSequenceState*,
