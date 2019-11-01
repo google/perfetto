@@ -163,9 +163,6 @@ declare_args() {
   enable_perfetto_tools =
       perfetto_build_standalone || perfetto_build_with_android
 
-  # Allows to build the UI (TypeScript/ HTML / WASM)
-  enable_perfetto_ui = perfetto_build_standalone
-
   enable_perfetto_unittests = perfetto_build_standalone ||
                               build_with_chromium || perfetto_build_with_android
 
@@ -195,7 +192,9 @@ declare_args() {
 }
 
 declare_args() {
-  enable_perfetto_trace_processor_sqlite = enable_perfetto_trace_processor
+  # Enables the SQL query layer of trace processor.
+  enable_perfetto_trace_processor_sqlite =
+      enable_perfetto_trace_processor && !build_with_chromium
 
   # Enables the optional SQLite percentile module.
   enable_perfetto_trace_processor_percentile =
@@ -240,6 +239,16 @@ declare_args() {
       enable_perfetto_trace_processor && perfetto_build_standalone
 }
 
+declare_args() {
+  # Enables the trace_to_text tool.
+  enable_perfetto_tools_trace_to_text =
+      enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
+
+  # Allows to build the UI (TypeScript/ HTML / WASM)
+  enable_perfetto_ui =
+      perfetto_build_standalone && enable_perfetto_trace_processor_sqlite
+}
+
 # +---------------------------------------------------------------------------+
 # | Cross-checks                                                              |
 # +---------------------------------------------------------------------------+
@@ -275,3 +284,6 @@ assert(enable_perfetto_watchdog || !perfetto_build_with_android)
 
 assert(perfetto_force_dlog == "" || perfetto_force_dlog == "on" ||
        perfetto_force_dlog == "off")
+
+# The UI requires SQLite support in trace processor.
+assert(!enable_perfetto_ui || enable_perfetto_trace_processor_sqlite)

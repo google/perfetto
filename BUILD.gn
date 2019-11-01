@@ -225,16 +225,30 @@ if (build_with_chromium) {
       "protos/perfetto/trace/track_event:zero",
     ]
   }
-  component("libtrace_processor") {
+  if (enable_perfetto_trace_processor_sqlite) {
+    component("libtrace_processor") {
+      public_configs = [ "gn:public_config" ]
+      deps = [
+        "src/trace_processor:lib",
+      ]
+      configs -= [ "//build/config/compiler:chromium_code" ]
+      configs += [ "//build/config/compiler:no_chromium_code" ]
+      public_deps = [
+        "include/perfetto/trace_processor",
+      ]
+    }
+  }
+  component("libproto_to_json") {
     public_configs = [ "gn:public_config" ]
     deps = [
-      "src/trace_processor:lib",
+      "src/trace_processor:export_json",
+      "src/trace_processor:storage",
     ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [
       "include/perfetto/ext/trace_processor:export_json",
-      "include/perfetto/trace_processor",
+      "include/perfetto/trace_processor:storage",
     ]
   }
 }

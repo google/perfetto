@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/trace_processor_impl.h"
+#include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -980,13 +980,14 @@ util::Status ExportJson(const TraceStorage* storage,
   return util::OkStatus();
 }
 
-util::Status ExportJson(TraceProcessor* tp,
+util::Status ExportJson(TraceProcessorStorage* tp,
                         OutputWriter* output,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-  const TraceStorage* storage =
-      reinterpret_cast<TraceProcessorImpl*>(tp)->context()->storage.get();
+  const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
+                                    ->context()
+                                    ->storage.get();
   return ExportJson(storage, output, argument_filter, metadata_filter,
                     label_filter);
 }

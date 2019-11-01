@@ -27,7 +27,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessor;
+class TraceProcessorStorage;
 
 namespace json {
 
@@ -47,9 +47,9 @@ class PERFETTO_EXPORT OutputWriter {
   virtual util::Status AppendString(const std::string&) = 0;
 };
 
-// Public for Chrome. Exports the trace loaded in TraceProcessor to json,
+// Public for Chrome. Exports the trace loaded in TraceProcessorStorage to json,
 // applying argument, metadata and label filtering using the callbacks.
-util::Status PERFETTO_EXPORT ExportJson(TraceProcessor*,
+util::Status PERFETTO_EXPORT ExportJson(TraceProcessorStorage*,
                                         OutputWriter*,
                                         ArgumentFilterPredicate = nullptr,
                                         MetadataFilterPredicate = nullptr,
