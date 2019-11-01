@@ -39,7 +39,8 @@ namespace metadata {
   F(benchmark_story_run_time_us,         kSingle,  Variadic::kInt),    \
   F(benchmark_story_tags,                kMulti,   Variadic::kString), \
   F(android_packages_list,               kMulti,   Variadic::kInt),    \
-  F(statsd_triggering_subscription_id,   kSingle,  Variadic::kInt)
+  F(statsd_triggering_subscription_id,   kSingle,  Variadic::kInt),    \
+  F(trace_uuid,                          kSingle,   Variadic::kString)
 // clang-format on
 
 enum KeyType {

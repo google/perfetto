@@ -22,6 +22,11 @@
 
 namespace perfetto {
 namespace base {
+namespace {
+
+constexpr char kHexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                            '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+}  // namespace
 
 // See https://www.ietf.org/rfc/rfc4122.txt
 Uuid Uuidv4() {
@@ -42,11 +47,34 @@ std::string UuidToString(const Uuid& uuid) {
   return std::string(reinterpret_cast<const char*>(uuid.data()), uuid.size());
 }
 
+std::string UuidToPrettyString(const Uuid& uuid) {
+  std::string s(uuid.size() * 2 + 4, '-');
+  // Format is 123e4567-e89b-12d3-a456-426655443322.
+  size_t j = 0;
+  for (size_t i = 0; i < uuid.size(); ++i) {
+    if (i == 4 || i == 6 || i == 8 || i == 10)
+      j++;
+    s[2 * i + j] = kHexmap[(uuid[i] & 0xf0) >> 4];
+    s[2 * i + 1 + j] = kHexmap[(uuid[i] & 0x0f)];
+  }
+  return s;
+}
+
 Uuid StringToUuid(const std::string& s) {
   Uuid uuid;
   PERFETTO_CHECK(s.size() == uuid.size());
   for (size_t i = 0; i < uuid.size(); ++i) {
     uuid[i] = static_cast<uint8_t>(s[i]);
+  }
+  return uuid;
+}
+
+Optional<Uuid> BytesToUuid(const uint8_t* data, size_t size) {
+  Uuid uuid;
+  if (size != uuid.size())
+    return nullopt;
+  for (size_t i = 0; i < uuid.size(); ++i) {
+    uuid[i] = data[i];
   }
   return uuid;
 }
