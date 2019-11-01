@@ -31,10 +31,10 @@
 
 // JSON parsing and exporting is only supported in the standalone and
 // Chromium builds.
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
-#endif
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 
 namespace perfetto {
 namespace trace_processor {
@@ -72,15 +72,15 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
     switch (trace_type) {
       case kJsonTraceType: {
         PERFETTO_DLOG("JSON trace detected");
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
         reader_.reset(new JsonTraceTokenizer(context_));
         // JSON traces have no guarantees about the order of events in them.
         int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         context_->sorter.reset(new TraceSorter(context_, window_size_ns));
         context_->parser.reset(new JsonTraceParser(context_));
-#else
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
         PERFETTO_FATAL("JSON traces not supported.");
-#endif
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
         break;
       }
       case kProtoTraceType: {
