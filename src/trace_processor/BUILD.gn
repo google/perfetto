@@ -98,12 +98,7 @@ source_set("storage") {
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
     "stats.h",
-    "syscall_tracker.cc",
     "syscall_tracker.h",
-    "syscalls_aarch32.h",
-    "syscalls_aarch64.h",
-    "syscalls_armeabi.h",
-    "syscalls_x86_64.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
     "trace_parser.h",
@@ -193,6 +188,15 @@ source_set("storage") {
       "importers/fuchsia/fuchsia_trace_tokenizer.h",
       "importers/fuchsia/fuchsia_trace_utils.cc",
       "importers/fuchsia/fuchsia_trace_utils.h",
+    ]
+  }
+  if (enable_perfetto_trace_processor_syscalls) {
+    sources += [
+      "syscall_tracker.cc",
+      "syscalls_aarch32.h",
+      "syscalls_aarch64.h",
+      "syscalls_armeabi.h",
+      "syscalls_x86_64.h",
     ]
   }
 }
@@ -355,7 +359,6 @@ perfetto_unittest_source_set("unittests") {
     "process_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
     "string_pool_unittest.cc",
-    "syscall_tracker_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
@@ -423,6 +426,9 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [ "importers/fuchsia/fuchsia_trace_utils_unittest.cc" ]
+  }
+  if (enable_perfetto_trace_processor_syscalls) {
+    sources += [ "syscall_tracker_unittest.cc" ]
   }
 }
 
