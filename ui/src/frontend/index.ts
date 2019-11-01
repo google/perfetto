@@ -46,6 +46,7 @@ import {postMessageHandler} from './post_message_handler';
 import {RecordPage} from './record_page';
 import {updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
+import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {ViewerPage} from './viewer_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
@@ -310,6 +311,11 @@ function main() {
   router.navigateToCurrentHash();
 
   MicroModal.init();
+
+  // Will update the chip on the sidebar footer that notifies that the RPC is
+  // connected. Has no effect on the controller (which will repeat this check
+  // before creating a new engine).
+  CheckHttpRpcConnection();
 }
 
 main();

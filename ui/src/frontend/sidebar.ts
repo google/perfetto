@@ -14,8 +14,10 @@
 
 import * as m from 'mithril';
 
+import {assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
+import {EngineMode} from '../common/state';
 
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -413,6 +415,8 @@ function navigateViewer(e: Event) {
 
 function isDownloadAndShareDisabled(): boolean {
   if (globals.frontendLocalState.localOnlyMode) return true;
+  const engine = Object.values(globals.state.engines)[0];
+  if (engine && engine.source.type === 'HTTP_RPC') return true;
   return false;
 }
 
@@ -463,10 +467,45 @@ const SidebarFooter: m.Component = {
   view() {
     let cssClass = '';
     let title = 'Number of pending SQL queries';
-    if (false /*globals.state.hasHttpRpcEngine*/) {
-      cssClass = '.accelerated';
-      title += '\nNative Query Accelerator ENABLED';
+    let label: string;
+    let failed = false;
+    let mode: EngineMode|undefined;
+
+    // We are assuming we have at most one engine here.
+    const engines = Object.values(globals.state.engines);
+    assertTrue(engines.length <= 1);
+    for (const engine of engines) {
+      mode = engine.mode;
+      if (engine.failed !== undefined) {
+        cssClass += '.failed';
+        title = 'Query engine crashed\n' + engine.failed;
+        failed = true;
+      }
     }
+
+    // If we don't have an engine yet, guess what will be the mode that will
+    // be used next time we'll create one. Even if we guess it wrong (somehow
+    // trace_controller.ts takes a different decision later, e.g. because the
+    // RPC server is shut down after we load the UI and cached httpRpcState)
+    // this will eventually become  consistent once the engine is created.
+    if (mode === undefined) {
+      if (globals.frontendLocalState.httpRpcState.connected &&
+          globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
+        mode = 'HTTP_RPC';
+      } else {
+        mode = 'WASM';
+      }
+    }
+
+    if (mode === 'HTTP_RPC') {
+      cssClass += '.rpc';
+      label = 'RPC';
+      title += '\n(Query engine: native accelerator over HTTP+RPC)';
+    } else {
+      label = 'WSM';
+      title += '\n(Query engine: built-in WASM)';
+    }
+
     return m(
         '.sidebar-footer',
         m('button',
@@ -476,7 +515,10 @@ const SidebarFooter: m.Component = {
           m('i.material-icons',
             {title: 'Toggle Perf Debug Mode'},
             'assessment')),
-        m(`.num-queued-queries${cssClass}`, {title}, globals.numQueuedQueries),
+        m(`.num-queued-queries${cssClass}`,
+          {title},
+          m('div', label),
+          m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`)),
     );
   }
 };
@@ -569,7 +611,11 @@ export class Sidebar implements m.ClassComponent {
             ),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
         m('.sidebar-scroll',
-          m('.sidebar-scroll-container', ...vdomSections, m(SidebarFooter))),
+          m(
+              '.sidebar-scroll-container',
+              ...vdomSections,
+              m(SidebarFooter),
+              )),
     );
   }
 }

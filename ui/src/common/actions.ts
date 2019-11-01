@@ -20,7 +20,9 @@ import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 import {
   AdbRecordingTarget,
   createEmptyState,
+  EngineMode,
   LogsPagination,
+  NewEngineMode,
   OmniboxState,
   RecordConfig,
   SCROLLING_TRACK_GROUP,
@@ -53,6 +55,7 @@ function clearTraceState(state: StateDraft) {
   const extensionInstalled = state.extensionInstalled;
   const availableDevices = state.availableDevices;
   const chromeCategories = state.chromeCategories;
+  const newEngineMode = state.newEngineMode;
 
   Object.assign(state, createEmptyState());
   state.nextId = nextId;
@@ -62,6 +65,7 @@ function clearTraceState(state: StateDraft) {
   state.extensionInstalled = extensionInstalled;
   state.availableDevices = availableDevices;
   state.chromeCategories = chromeCategories;
+  state.newEngineMode = newEngineMode;
 }
 
 export const StateActions = {
@@ -99,6 +103,17 @@ export const StateActions = {
       id,
       ready: false,
       source: {type: 'URL', url: args.url},
+    };
+    state.route = `/viewer`;
+  },
+
+  openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
+    clearTraceState(state);
+    const id = `${state.nextId++}`;
+    state.engines[id] = {
+      id,
+      ready: false,
+      source: {type: 'HTTP_RPC'},
     };
     state.route = `/viewer`;
   },
@@ -242,9 +257,23 @@ export const StateActions = {
         trackGroup.collapsed = !trackGroup.collapsed;
       },
 
-  setEngineReady(state: StateDraft, args: {engineId: string; ready: boolean}):
+  setEngineReady(
+      state: StateDraft,
+      args: {engineId: string; ready: boolean, mode: EngineMode}): void {
+    state.engines[args.engineId].ready = args.ready;
+    state.engines[args.engineId].mode = args.mode;
+  },
+
+  setNewEngineMode(state: StateDraft, args: {mode: NewEngineMode}): void {
+    state.newEngineMode = args.mode;
+  },
+
+  // Marks all engines matching the given |mode| as failed.
+  setEngineFailed(state: StateDraft, args: {mode: EngineMode; failure: string}):
       void {
-        state.engines[args.engineId].ready = args.ready;
+        for (const engine of Object.values(state.engines)) {
+          if (engine.mode === args.mode) engine.failed = args.failure;
+        }
       },
 
   createPermalink(state: StateDraft, _: {}): void {
