@@ -36,6 +36,23 @@ export const MAX_TIME = 180;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
+export interface TraceFileSource {
+  type: 'FILE';
+  file: File;
+}
+
+export interface TraceArrayBufferSource {
+  type: 'ARRAY_BUFFER';
+  buffer: ArrayBuffer;
+}
+
+export interface TraceUrlSource {
+  type: 'URL';
+  url: string;
+}
+
+export type TraceSource = TraceFileSource|TraceArrayBufferSource|TraceUrlSource;
+
 export interface TrackState {
   id: string;
   engineId: string;
@@ -57,7 +74,7 @@ export interface TrackGroupState {
 export interface EngineConfig {
   id: string;
   ready: boolean;
-  source: string|File|ArrayBuffer;
+  source: TraceSource;
 }
 
 export interface QueryConfig {

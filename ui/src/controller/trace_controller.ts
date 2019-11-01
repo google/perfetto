@@ -178,14 +178,15 @@ export class TraceController extends Controller<States> {
         createWasmEngine(this.engineId),
         LoadingManager.getInstance);
     let traceStream: TraceStream;
-    if (engineCfg.source instanceof File) {
-      traceStream = new TraceFileStream(engineCfg.source);
-    } else if (engineCfg.source instanceof ArrayBuffer) {
-      traceStream = new TraceBufferStream(engineCfg.source);
+    if (engineCfg.source.type === 'FILE') {
+      traceStream = new TraceFileStream(engineCfg.source.file);
+    } else if (engineCfg.source.type === 'ARRAY_BUFFER') {
+      traceStream = new TraceBufferStream(engineCfg.source.buffer);
+    } else if (engineCfg.source.type === 'URL') {
+      traceStream = new TraceHttpStream(engineCfg.source.url);
     } else {
-      traceStream = new TraceHttpStream(engineCfg.source);
+      throw new Error(`Unknown source: ${JSON.stringify(engineCfg.source)}`);
     }
-
     const tStart = performance.now();
     for (;;) {
       const res = await traceStream.readChunk();

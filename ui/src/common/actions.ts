@@ -28,6 +28,7 @@ import {
   State,
   Status,
   TargetOs,
+  TraceSource,
   TraceTime,
   TrackState,
   VisibleState,
@@ -75,7 +76,7 @@ export const StateActions = {
     state.engines[id] = {
       id,
       ready: false,
-      source: args.file,
+      source: {type: 'FILE', file: args.file},
     };
     state.route = `/viewer`;
   },
@@ -86,7 +87,7 @@ export const StateActions = {
     state.engines[id] = {
       id,
       ready: false,
-      source: args.buffer,
+      source: {type: 'ARRAY_BUFFER', buffer: args.buffer},
     };
     state.route = `/viewer`;
   },
@@ -97,7 +98,7 @@ export const StateActions = {
     state.engines[id] = {
       id,
       ready: false,
-      source: args.url,
+      source: {type: 'URL', url: args.url},
     };
     state.route = `/viewer`;
   },
@@ -113,12 +114,9 @@ export const StateActions = {
     ConvertTrace(args.file, args.truncate);
   },
 
-  convertTraceToPprof(_: StateDraft, args: {
-    pid: number,
-    src: string|File|ArrayBuffer,
-    ts1: number,
-    ts2?: number
-  }): void {
+  convertTraceToPprof(
+      _: StateDraft,
+      args: {pid: number, src: TraceSource, ts1: number, ts2?: number}): void {
     ConvertTraceToPprof(args.pid, args.src, args.ts1, args.ts2);
   },
 
