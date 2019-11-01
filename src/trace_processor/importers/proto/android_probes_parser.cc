@@ -26,6 +26,7 @@
 #include "src/trace_processor/trace_processor_context.h"
 
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
