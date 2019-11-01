@@ -364,10 +364,25 @@ TraceProcessorImpl::~TraceProcessorImpl() {
 
 util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
                                        size_t size) {
+  bytes_parsed_ += size;
   return TraceProcessorStorageImpl::Parse(std::move(data), size);
 }
 
+std::string TraceProcessorImpl::GetCurrentTraceName() {
+  if (current_trace_name_.empty())
+    return "";
+  auto size = " (" + std::to_string(bytes_parsed_ / 1024 / 1024) + " MB)";
+  return current_trace_name_ + size;
+}
+
+void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
+  current_trace_name_ = name;
+}
+
 void TraceProcessorImpl::NotifyEndOfFile() {
+  if (current_trace_name_.empty())
+    current_trace_name_ = "Unnamed trace";
+
   TraceProcessorStorageImpl::NotifyEndOfFile();
 
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
