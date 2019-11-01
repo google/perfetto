@@ -81,6 +81,34 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  auto it = Query("select start_ts, end_ts from trace_bounds");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 81473009948313);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 81492700784311);
+  ASSERT_FALSE(it.Next());
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+
+TEST_F(TraceProcessorIntegrationTest, Hash) {
+  auto it = Query("select HASH()");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xcbf29ce484222325));
+
+  it = Query("select HASH('test')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xf9e6e6ef197c2b25));
+
+  it = Query("select HASH('test', 1)");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xa9cb070fdc15f7a4));
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
   auto it =
@@ -110,43 +138,15 @@ TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
   ASSERT_FALSE(it.Next());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
-  auto it = Query("select start_ts, end_ts from trace_bounds");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(0).long_value, 81473009948313);
-  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(1).long_value, 81492700784311);
-  ASSERT_FALSE(it.Next());
-}
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-
-TEST_F(TraceProcessorIntegrationTest, Hash) {
-  auto it = Query("select HASH()");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xcbf29ce484222325));
-
-  it = Query("select HASH('test')");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xf9e6e6ef197c2b25));
-
-  it = Query("select HASH('test', 1)");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xa9cb070fdc15f7a4));
-}
-
 // TODO(hjd): Add trace to test_data.
 TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
   ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")).ok());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14357) {
   ASSERT_FALSE(LoadTrace("clusterfuzz_14357", 4096).ok());
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14730) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14730", 4096).ok());
