@@ -26,8 +26,6 @@ group("tools") {
     "compact_reencode",
     "ftrace_proto_gen",
     "protoprofile",
-    "trace_to_text",
-    "trace_to_text:trace_to_text_lite",
   ]
   if (is_linux || is_android) {
     deps += [
@@ -35,6 +33,12 @@ group("tools") {
       "cpu_utilization",
       "dump_ftrace_stats",
       "skippy",
+    ]
+  }
+  if (enable_perfetto_tools_trace_to_text) {
+    deps += [
+      "trace_to_text",
+      "trace_to_text:trace_to_text_lite",
     ]
   }
 }

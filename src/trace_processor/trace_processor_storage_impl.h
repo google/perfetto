@@ -14,31 +14,35 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/logging.h"
+#ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_IMPL_H_
+#define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_IMPL_H_
+
+#include <memory>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
+#include "src/trace_processor/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-void FuzzTraceProcessor(const uint8_t* data, size_t size);
+class TraceProcessorStorageImpl : public TraceProcessorStorage {
+ public:
+  explicit TraceProcessorStorageImpl(const Config&);
+  ~TraceProcessorStorageImpl() override;
 
-void FuzzTraceProcessor(const uint8_t* data, size_t size) {
-  std::unique_ptr<TraceProcessorStorage> processor =
-      TraceProcessorStorage::CreateInstance(Config());
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[size]);
-  memcpy(buf.get(), data, size);
-  util::Status status = processor->Parse(std::move(buf), size);
-  if (!status.ok())
-    return;
-  processor->NotifyEndOfFile();
-}
+  util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  void NotifyEndOfFile() override;
+
+  TraceProcessorContext* context() { return &context_; }
+
+ protected:
+  TraceProcessorContext context_;
+  bool unrecoverable_parse_error_ = false;
+};
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
-
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  perfetto::trace_processor::FuzzTraceProcessor(data, size);
-  return 0;
-}
+#endif  // SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_IMPL_H_
