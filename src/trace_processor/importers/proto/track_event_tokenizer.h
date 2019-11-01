@@ -17,11 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TOKENIZER_H_
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include <stdint.h>
+
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class ThreadDescriptor_Decoder;
+class TracePacket_Decoder;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 class PacketSequenceState;
@@ -33,16 +41,16 @@ class TrackEventTokenizer {
   explicit TrackEventTokenizer(TraceProcessorContext* context);
 
   void TokenizeTrackDescriptorPacket(
-      const protos::pbzero::TracePacket::Decoder&);
+      const protos::pbzero::TracePacket_Decoder&);
   void TokenizeProcessDescriptorPacket(
-      const protos::pbzero::TracePacket::Decoder&);
+      const protos::pbzero::TracePacket_Decoder&);
   void TokenizeThreadDescriptorPacket(
       PacketSequenceState* state,
-      const protos::pbzero::TracePacket::Decoder&);
+      const protos::pbzero::TracePacket_Decoder&);
   void TokenizeThreadDescriptor(
-      const protos::pbzero::ThreadDescriptor::Decoder&);
+      const protos::pbzero::ThreadDescriptor_Decoder&);
   void TokenizeTrackEventPacket(PacketSequenceState* state,
-                                const protos::pbzero::TracePacket::Decoder&,
+                                const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView* packet,
                                 int64_t packet_timestamp);
 

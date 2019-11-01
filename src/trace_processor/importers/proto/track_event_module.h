@@ -23,6 +23,9 @@
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 
+#include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
 namespace perfetto {
 namespace trace_processor {
 

@@ -31,6 +31,13 @@ struct ConstBytes;
 }
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class TracePacket_Decoder;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 class PacketSequenceState;
@@ -58,9 +65,9 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   util::Status ParsePacket(TraceBlobView);
   util::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   void HandleIncrementalStateCleared(
-      const protos::pbzero::TracePacket::Decoder&);
-  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket::Decoder&);
-  void ParseInternedData(const protos::pbzero::TracePacket::Decoder&,
+      const protos::pbzero::TracePacket_Decoder&);
+  void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&);
+  void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
   PacketSequenceState* GetIncrementalStateForPacketSequence(
       uint32_t sequence_id) {

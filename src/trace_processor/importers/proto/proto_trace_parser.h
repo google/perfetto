@@ -30,9 +30,14 @@
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/trace_storage.h"
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class TracePacket_Decoder;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 class ArgsTracker;
@@ -53,7 +58,7 @@ class ProtoTraceParser : public TraceParser {
 
   void ParseTracePacketImpl(int64_t ts,
                             TimestampedTracePiece,
-                            const protos::pbzero::TracePacket::Decoder&);
+                            const protos::pbzero::TracePacket_Decoder&);
 
   void ParseTraceStats(ConstBytes);
   void ParseProfilePacket(int64_t ts,
