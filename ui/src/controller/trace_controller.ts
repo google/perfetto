@@ -110,8 +110,7 @@ export class TraceController extends Controller<States> {
             })
             .catch(err => {
               this.updateStatus(`${err}`);
-              console.error(err);
-              return;
+              throw err;
             });
         this.updateStatus('Opening trace');
         this.setState('loading_trace');
@@ -185,7 +184,7 @@ export class TraceController extends Controller<States> {
       engine.errorHandler = (err) => {
         globals.dispatch(
             Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
-        console.error(err);
+        throw err;
       };
       this.engine = engine;
     } else {
