@@ -20,7 +20,9 @@
 #include "perfetto/ext/base/proc_utils.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/track_event.h"
 #include "perfetto/tracing/track_event_category_registry.h"
+#include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
@@ -45,9 +47,10 @@ uint64_t GetNameIidOrZero(std::unordered_map<const char*, uint64_t>& name_map,
 }
 
 // static
-void WriteSequenceDescriptors(TrackEventTraceContext* ctx, uint64_t timestamp) {
+void WriteSequenceDescriptors(TraceWriterBase* trace_writer,
+                              uint64_t timestamp) {
   if (perfetto::base::GetThreadId() == g_main_thread) {
-    auto packet = ctx->NewTracePacket();
+    auto packet = trace_writer->NewTracePacket();
     packet->set_timestamp(timestamp);
     packet->set_incremental_state_cleared(true);
     auto pd = packet->set_process_descriptor();
@@ -55,7 +58,7 @@ void WriteSequenceDescriptors(TrackEventTraceContext* ctx, uint64_t timestamp) {
     // TODO(skyostil): Record command line.
   }
   {
-    auto packet = ctx->NewTracePacket();
+    auto packet = trace_writer->NewTracePacket();
     packet->set_timestamp(timestamp);
     auto td = packet->set_thread_descriptor();
     td->set_pid(static_cast<int32_t>(base::GetProcessId()));
@@ -65,21 +68,16 @@ void WriteSequenceDescriptors(TrackEventTraceContext* ctx, uint64_t timestamp) {
 
 }  // namespace
 
-TrackEventTraceContext::TrackEventTraceContext(
-    TrackEventIncrementalState* incremental_state,
-    TracePacketCreator new_trace_packet)
-    : incremental_state_(incremental_state),
-      new_trace_packet_(std::move(new_trace_packet)) {}
-
-TrackEventTraceContext::TracePacketHandle
-TrackEventTraceContext::NewTracePacket() {
-  return new_trace_packet_();
-}
-
 // static
-void TrackEventInternal::Initialize() {
+bool TrackEventInternal::Initialize(
+    bool (*register_data_source)(const DataSourceDescriptor&)) {
   if (!g_main_thread)
     g_main_thread = perfetto::base::GetThreadId();
+
+  perfetto::DataSourceDescriptor dsd;
+  // TODO(skyostil): Advertise the known categories.
+  dsd.set_name("track_event");
+  return register_data_source(dsd);
 }
 
 // static
@@ -107,8 +105,9 @@ void TrackEventInternal::DisableTracing(
 }
 
 // static
-void TrackEventInternal::WriteEvent(
-    TrackEventTraceContext* ctx,
+TrackEventContext TrackEventInternal::WriteEvent(
+    TraceWriterBase* trace_writer,
+    TrackEventIncrementalState* incr_state,
     const char* category,
     const char* name,
     perfetto::protos::pbzero::TrackEvent::Type type) {
@@ -116,12 +115,11 @@ void TrackEventInternal::WriteEvent(
   PERFETTO_DCHECK(g_main_thread);
   auto timestamp = GetTimeNs();
 
-  auto* incr_state = ctx->incremental_state();
   if (incr_state->was_cleared) {
     incr_state->was_cleared = false;
-    WriteSequenceDescriptors(ctx, timestamp);
+    WriteSequenceDescriptors(trace_writer, timestamp);
   }
-  auto packet = ctx->NewTracePacket();
+  auto packet = trace_writer->NewTracePacket();
   packet->set_timestamp(timestamp);
 
   // We assume that |category| and |name| point to strings with static lifetime.
@@ -145,8 +143,9 @@ void TrackEventInternal::WriteEvent(
       incr_state->categories[category] = category_iid;
     }
   }
+  TrackEventContext ctx(std::move(packet));
 
-  auto track_event = packet->set_track_event();
+  auto track_event = ctx.track_event();
   track_event->set_type(type);
   // TODO(skyostil): Handle multiple categories.
   track_event->add_category_iids(category_iid);
@@ -154,6 +153,7 @@ void TrackEventInternal::WriteEvent(
     auto legacy_event = track_event->set_legacy_event();
     legacy_event->set_name_iid(name_iid);
   }
+  return ctx;
 }
 
 }  // namespace internal

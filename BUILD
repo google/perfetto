@@ -409,6 +409,7 @@ filegroup(
         "include/perfetto/tracing/tracing_backend.h",
         "include/perfetto/tracing/track_event.h",
         "include/perfetto/tracing/track_event_category_registry.h",
+        "include/perfetto/tracing/track_event_context.h",
     ],
 )
 
@@ -971,6 +972,7 @@ filegroup(
         "src/tracing/platform.cc",
         "src/tracing/tracing.cc",
         "src/tracing/track_event_category_registry.cc",
+        "src/tracing/track_event_context.cc",
         "src/tracing/virtual_destructors.cc",
     ],
 )
