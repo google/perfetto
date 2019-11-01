@@ -19,6 +19,7 @@
 
 #include "perfetto/base/time.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
+#include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/internal/track_event_macros.h"
 #include "perfetto/tracing/track_event_category_registry.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
@@ -95,16 +96,16 @@
 // Begin a thread-scoped slice under |category| with the title |name|. Both
 // strings must be static constants. The track event is only recorded if
 // |category| is enabled for a tracing session.
-#define TRACE_EVENT_BEGIN(category, name) \
-  PERFETTO_INTERNAL_TRACK_EVENT(          \
-      category, name,                     \
-      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN)
+#define TRACE_EVENT_BEGIN(category, name, ...) \
+  PERFETTO_INTERNAL_TRACK_EVENT(               \
+      category, name,                          \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN, ##__VA_ARGS__)
 
 // End a thread-scoped slice under |category|.
-#define TRACE_EVENT_END(category) \
-  PERFETTO_INTERNAL_TRACK_EVENT(  \
-      category, nullptr,          \
-      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END)
+#define TRACE_EVENT_END(category, ...) \
+  PERFETTO_INTERNAL_TRACK_EVENT(       \
+      category, nullptr,               \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END, ##__VA_ARGS__)
 
 // TODO(skyostil): Add arguments.
 // TODO(skyostil): Add scoped events.

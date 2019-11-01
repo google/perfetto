@@ -27,6 +27,8 @@
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.pb.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
@@ -615,6 +617,61 @@ TEST_F(PerfettoApiTest, TrackEventConcurrentSessions) {
   EXPECT_THAT(trace2, HasSubstr("Session2_First"));
   EXPECT_THAT(trace2, HasSubstr("Session2_Second"));
   EXPECT_THAT(trace2, Not(HasSubstr("Session2_Third")));
+}
+
+TEST_F(PerfettoApiTest, TrackEventTypedArgs) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  auto random_value = random();
+  TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
+                    [random_value](perfetto::TrackEventContext ctx) {
+                      auto* log = ctx.track_event()->set_log_message();
+                      log->set_source_location_iid(1);
+                      log->set_body_iid(2);
+                      auto* dbg = ctx.track_event()->add_debug_annotations();
+                      dbg->set_name("random");
+                      dbg->set_int_value(random_value);
+                    });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+
+  perfetto::protos::Trace parsed_trace;
+  ASSERT_TRUE(
+      parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+
+  bool found_args = false;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    const auto& track_event = packet.track_event();
+    if (track_event.type() != perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN)
+      continue;
+
+    EXPECT_TRUE(track_event.has_log_message());
+    const auto& log = track_event.log_message();
+    EXPECT_EQ(1u, log.source_location_iid());
+    EXPECT_EQ(2u, log.body_iid());
+
+    const auto& dbg = track_event.debug_annotations().Get(0);
+    EXPECT_EQ("random", dbg.name());
+    EXPECT_EQ(random_value, dbg.int_value());
+
+    found_args = true;
+  }
+  EXPECT_TRUE(found_args);
 }
 
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {

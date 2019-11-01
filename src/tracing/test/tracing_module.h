@@ -32,9 +32,9 @@ void EmitTrackEvents();
 void EmitTrackEvents2();
 perfetto::internal::TrackEventIncrementalState* GetIncrementalState();
 
-// This function is used to check the instruction size overhead of a single
-// track event.
+// These functions are used to check the instruction size overhead track events.
 void FunctionWithOneTrackEvent();
+void FunctionWithOneTrackEventWithTypedArgument();
 
 }  // namespace tracing_module
 

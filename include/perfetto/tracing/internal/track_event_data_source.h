@@ -22,6 +22,7 @@
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track_event_category_registry.h"
+#include "perfetto/tracing/track_event_context.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 #include <unordered_map>
@@ -79,29 +80,28 @@ class TrackEventDataSource
   // point.
   // TODO(skyostil): Investigate whether this should be fully outlined to reduce
   // binary size.
-  template <size_t CategoryIndex>
-  static void TraceForCategory(uint32_t instances,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type)
-      PERFETTO_NO_INLINE {
+  template <size_t CategoryIndex,
+            typename ArgumentFunction = void (*)(TrackEventContext)>
+  static void TraceForCategory(
+      uint32_t instances,
+      const char* event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      ArgumentFunction arg_function = [](TrackEventContext) {
+      }) PERFETTO_NO_INLINE {
     Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
         instances, [&](typename Base::TraceContext ctx) {
-          TrackEventTraceContext track_event_ctx(
-              ctx.GetIncrementalState(),
-              [&ctx]() { return ctx.NewTracePacket(); });
           // TODO(skyostil): Intern categories at compile time.
-          TrackEventInternal::WriteEvent(
-              &track_event_ctx, Registry->GetCategory(CategoryIndex)->name,
-              event_name, type);
+          arg_function(TrackEventInternal::WriteEvent(
+              ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+              Registry->GetCategory(CategoryIndex)->name, event_name, type));
         });
   }
 
   static bool Register() {
-    TrackEventInternal::Initialize();
-    perfetto::DataSourceDescriptor dsd;
-    // TODO(skyostil): Advertise the known categories.
-    dsd.set_name("track_event");
-    return Base::Register(dsd);
+    // Registration is performed out-of-line so users don't need to depend on
+    // DataSourceDescriptor C++ bindings.
+    return TrackEventInternal::Initialize(
+        [](const DataSourceDescriptor& dsd) { return Base::Register(dsd); });
   }
 
  private:
