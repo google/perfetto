@@ -14,31 +14,21 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
+
+#include "src/trace_processor/trace_processor_storage_impl.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-void FuzzTraceProcessor(const uint8_t* data, size_t size);
-
-void FuzzTraceProcessor(const uint8_t* data, size_t size) {
-  std::unique_ptr<TraceProcessorStorage> processor =
-      TraceProcessorStorage::CreateInstance(Config());
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[size]);
-  memcpy(buf.get(), data, size);
-  util::Status status = processor->Parse(std::move(buf), size);
-  if (!status.ok())
-    return;
-  processor->NotifyEndOfFile();
+// static
+std::unique_ptr<TraceProcessorStorage> TraceProcessorStorage::CreateInstance(
+    const Config& config) {
+  return std::unique_ptr<TraceProcessorStorage>(
+      new TraceProcessorStorageImpl(config));
 }
+
+TraceProcessorStorage::~TraceProcessorStorage() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto
-
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
-
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  perfetto::trace_processor::FuzzTraceProcessor(data, size);
-  return 0;
-}

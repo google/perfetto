@@ -18,45 +18,23 @@
 
 #include <inttypes.h>
 #include <algorithm>
-#include <fstream>
-#include <functional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
-#include "src/trace_processor/args_tracker.h"
-#include "src/trace_processor/binder_tracker.h"
-#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/counter_definitions_table.h"
 #include "src/trace_processor/counter_values_table.h"
 #include "src/trace_processor/cpu_profile_stack_sample_table.h"
-#include "src/trace_processor/event_tracker.h"
-#include "src/trace_processor/forwarding_trace_parser.h"
-#include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
-#include "src/trace_processor/heap_profile_tracker.h"
-#include "src/trace_processor/importers/ftrace/ftrace_module.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/android_probes_module.h"
-#include "src/trace_processor/importers/proto/graphics_event_module.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/importers/systrace/systrace_parser.h"
-#include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/metadata_table.h"
 #include "src/trace_processor/process_table.h"
-#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/raw_table.h"
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/slice_table.h"
-#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/span_join_operator_table.h"
 #include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
@@ -64,14 +42,8 @@
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/stack_profile_frame_table.h"
 #include "src/trace_processor/stack_profile_mapping_table.h"
-#include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/stats_table.h"
-#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/thread_table.h"
-#include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/track_tracker.h"
-#include "src/trace_processor/vulkan_memory_tracker.h"
 #include "src/trace_processor/window_operator_table.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
@@ -92,7 +64,7 @@
 extern "C" int sqlite3_percentile_init(sqlite3* db,
                                        char** error,
                                        const sqlite3_api_routines* api);
-#endif
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
 
 namespace perfetto {
 namespace trace_processor {
@@ -317,7 +289,8 @@ void SetupMetrics(TraceProcessor* tp,
 
 }  // namespace
 
-TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
+TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
+    : TraceProcessorStorageImpl(cfg) {
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
@@ -325,34 +298,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg) {
   CreateBuiltinTables(db);
   CreateBuiltinViews(db);
   db_.reset(std::move(db));
-
-  context_.config = cfg;
-  context_.storage.reset(new TraceStorage());
-  context_.track_tracker.reset(new TrackTracker(&context_));
-  context_.args_tracker.reset(new ArgsTracker(&context_));
-  context_.slice_tracker.reset(new SliceTracker(&context_));
-  context_.event_tracker.reset(new EventTracker(&context_));
-  context_.process_tracker.reset(new ProcessTracker(&context_));
-  context_.syscall_tracker.reset(new SyscallTracker(&context_));
-  context_.clock_tracker.reset(new ClockTracker(&context_));
-  context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
-  context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.sched_tracker.reset(new SchedEventTracker(&context_));
-  context_.systrace_parser.reset(new SystraceParser(&context_));
-  context_.binder_tracker.reset(new BinderTracker(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
-  context_.ftrace_module.reset(
-      new ProtoImporterModule<FtraceModule>(&context_));
-  context_.track_event_module.reset(
-      new ProtoImporterModule<TrackEventModule>(&context_));
-  context_.system_probes_module.reset(
-      new ProtoImporterModule<SystemProbesModule>(&context_));
-  context_.android_probes_module.reset(
-      new ProtoImporterModule<AndroidProbesModule>(&context_));
-  context_.graphics_event_module.reset(
-      new ProtoImporterModule<GraphicsEventModule>(&context_));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   CreateJsonExportFunction(this->context_.storage.get(), db);
@@ -419,32 +364,12 @@ TraceProcessorImpl::~TraceProcessorImpl() {
 
 util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
                                        size_t size) {
-  if (size == 0)
-    return util::OkStatus();
-  if (unrecoverable_parse_error_)
-    return util::ErrStatus(
-        "Failed unrecoverably while parsing in a previous Parse call");
-  if (!context_.chunk_reader)
-    context_.chunk_reader.reset(new ForwardingTraceParser(&context_));
-
-  auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
-      stats::parse_trace_duration_ns);
-  util::Status status = context_.chunk_reader->Parse(std::move(data), size);
-  unrecoverable_parse_error_ |= !status.ok();
-  return status;
+  return TraceProcessorStorageImpl::Parse(std::move(data), size);
 }
 
 void TraceProcessorImpl::NotifyEndOfFile() {
-  if (unrecoverable_parse_error_ || !context_.chunk_reader)
-    return;
+  TraceProcessorStorageImpl::NotifyEndOfFile();
 
-  if (context_.sorter)
-    context_.sorter->ExtractEventsForced();
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.sched_tracker->FlushPendingEvents();
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.event_tracker->FlushPendingEvents();
-  context_.slice_tracker->FlushPendingSlices();
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 
   // Create a snapshot of all tables and views created so far. This is so later

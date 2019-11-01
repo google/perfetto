@@ -14,9 +14,27 @@
 
 source_set("trace_processor") {
   sources = [
-    "basic_types.h",
     "read_trace.h",
-    "status.h",
     "trace_processor.h",
+  ]
+  public_deps = [
+    ":basic_types",
+    ":storage",
+  ]
+}
+
+source_set("storage") {
+  sources = [
+    "trace_processor_storage.h",
+  ]
+  public_deps = [
+    ":basic_types",
+  ]
+}
+
+source_set("basic_types") {
+  sources = [
+    "basic_types.h",
+    "status.h",
   ]
 }
