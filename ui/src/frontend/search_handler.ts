@@ -60,19 +60,19 @@ export function executeSearch(reverse = false) {
 }
 
 function moveViewportToCurrentSearch() {
-  const currentTs = globals.currentSearchResults
-                        .tsStarts[globals.frontendLocalState.searchIndex];
-  const trackId = globals.currentSearchResults
-                      .trackIds[globals.frontendLocalState.searchIndex];
+  const searchIndex = globals.frontendLocalState.searchIndex;
+  if (searchIndex === -1) return;
+  const currentTs = globals.currentSearchResults.tsStarts[searchIndex];
+  const trackId = globals.currentSearchResults.trackIds[searchIndex];
   scrollToTrackAndTs(trackId, currentTs);
 }
 
 function selectCurrentSearchResult() {
   const state = globals.frontendLocalState;
-  const index = state.searchIndex;
-  const refType = globals.currentSearchResults.refTypes[index];
-  const currentId = globals.currentSearchResults.sliceIds[index];
-  const trackId = globals.currentSearchResults.trackIds[index];
+  const searchIndex = state.searchIndex;
+  const refType = globals.currentSearchResults.refTypes[searchIndex];
+  const currentId = globals.currentSearchResults.sliceIds[searchIndex];
+  const trackId = globals.currentSearchResults.trackIds[searchIndex];
 
   if (currentId === undefined) return;
 
