@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-
 #include "src/trace_processor/importers/json/json_trace_utils.h"
 
 #include <json/value.h>
@@ -80,5 +77,3 @@ base::Optional<uint32_t> CoerceToUint32(const Json::Value& value) {
 }  // namespace json_trace_utils
 }  // namespace trace_processor
 }  // namespace perfetto
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
