@@ -57,7 +57,7 @@ export function horizontalScrollAndZoomToRange(startTs: number, endTs: number) {
  */
 export function verticalScrollToTrack(
     trackId: string|number, openGroup = false) {
-  const trackIdString = trackId.toString();
+  const trackIdString = `${trackId}`;
   const track = document.querySelector('#track_' + trackIdString);
 
   if (track) {
@@ -95,7 +95,9 @@ export function verticalScrollToTrack(
  * Scroll vertically and horizontally to reach track (|trackId|) at |ts|.
  */
 export function scrollToTrackAndTs(
-    trackId: string|number, ts: number, openGroup = false) {
-  verticalScrollToTrack(trackId, openGroup);
+    trackId: string|number|undefined, ts: number, openGroup = false) {
+  if (trackId !== undefined) {
+    verticalScrollToTrack(trackId, openGroup);
+  }
   horizontalScrollToTs(ts);
 }
