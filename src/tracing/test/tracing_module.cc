@@ -16,6 +16,7 @@
 
 #include "src/tracing/test/tracing_module.h"
 
+#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "src/tracing/test/tracing_module_categories.h"
 
 #include <stdio.h>
@@ -52,6 +53,17 @@ perfetto::internal::TrackEventIncrementalState* GetIncrementalState() {
 
 void FunctionWithOneTrackEvent() {
   TRACE_EVENT_BEGIN("cat1", "DisabledEventFromModule");
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
+void FunctionWithOneTrackEventWithTypedArgument() {
+  TRACE_EVENT_BEGIN("cat1", "EventWithArg",
+                    [](perfetto::TrackEventContext ctx) {
+                      auto log = ctx.track_event()->set_log_message();
+                      log->set_body_iid(0x42);
+                    });
   // Simulates the non-tracing work of this function, which should take priority
   // over the above trace event in terms of instruction scheduling.
   puts("Hello");

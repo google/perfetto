@@ -46,6 +46,9 @@
 namespace perfetto {
 namespace internal {
 class TracingMuxerImpl;
+class TrackEventCategoryRegistry;
+template <typename, const internal::TrackEventCategoryRegistry*>
+class TrackEventDataSource;
 }  // namespace internal
 
 class DataSourceConfig;
@@ -206,10 +209,10 @@ class DataSource : public DataSourceBase {
           tls_inst_->incremental_state.get());
     }
 
-    uint32_t internal_instance_index() const { return instance_index_; }
-
    private:
     friend class DataSource;
+    template <typename, const internal::TrackEventCategoryRegistry*>
+    friend class internal::TrackEventDataSource;
     TraceContext(internal::DataSourceInstanceThreadLocalState* tls_inst,
                  uint32_t instance_index)
         : tls_inst_(tls_inst), instance_index_(instance_index) {}
