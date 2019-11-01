@@ -65,5 +65,6 @@ void EnableSQLiteVtableDebugging() {
   // which in turn requires sqlite headers.
   SqliteTable::debug = true;
 }
+
 }  // namespace trace_processor
 }  // namespace perfetto

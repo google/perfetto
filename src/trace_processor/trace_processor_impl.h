@@ -21,7 +21,6 @@
 
 #include <atomic>
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -30,7 +29,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/trace_processor_storage_impl.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 #include "src/trace_processor/metrics/descriptors.h"
@@ -38,21 +37,22 @@
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
 namespace perfetto {
-
 namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
-class TraceProcessorImpl : public TraceProcessor {
+class TraceProcessorImpl : public TraceProcessor,
+                           public TraceProcessorStorageImpl {
  public:
   explicit TraceProcessorImpl(const Config&);
 
   ~TraceProcessorImpl() override;
 
+  // TraceProcessorStorage implementation:
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
-
   void NotifyEndOfFile() override;
 
+  // TraceProcessor implementation:
   Iterator ExecuteQuery(const std::string& sql,
                         int64_t time_queued = 0) override;
 
@@ -70,15 +70,11 @@ class TraceProcessorImpl : public TraceProcessor {
 
   size_t RestoreInitialTables() override;
 
-  TraceProcessorContext* context() { return &context_; }
-
  private:
   // Needed for iterators to be able to delete themselves from the vector.
   friend class IteratorImpl;
 
-  ScopedDb db_;  // Keep first.
-  TraceProcessorContext context_;
-  bool unrecoverable_parse_error_ = false;
+  ScopedDb db_;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
   metrics::DescriptorPool pool_;
