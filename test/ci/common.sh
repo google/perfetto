@@ -28,4 +28,4 @@ tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
 # Performs checks on generated protos and build files.
 tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
 tools/gen_all --check-only out/tmp.protoc
-rm -f out/tmp.protoc &
+rm -rf out/tmp.protoc
