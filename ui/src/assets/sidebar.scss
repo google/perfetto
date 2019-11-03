@@ -194,9 +194,17 @@
         border-radius: 5px;
         font-size: 12px;
         text-align: center;
-        &.accelerated {
+        &.rpc {
           background: #7aca75;
           color: #12161b;
+        }
+        &.failed {
+          background: #d32f2f;
+          color: #fff;
+        }
+        > div {
+          font-size: 10px;
+          line-height: 11px;
         }
       }
     }
