@@ -113,6 +113,7 @@ util::Status ReadTrace(
 #endif  // PERFETTO_HAS_AIO_H()
 
   tp->NotifyEndOfFile();
+  tp->SetCurrentTraceName(filename);
 
   if (progress_callback)
     progress_callback(file_size);

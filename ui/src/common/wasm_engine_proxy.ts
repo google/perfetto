@@ -99,6 +99,12 @@ export class WasmEngineProxy extends Engine {
     await this.queueRequest('trace_processor_notify_eof', new Uint8Array());
   }
 
+  restoreInitialTables(): Promise<void> {
+    // We should never get here, restoreInitialTables() should be called only
+    // when using the HttpRpcEngine.
+    throw new Error('restoreInitialTables() not supported by the WASM engine');
+  }
+
   rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array> {
     return this.queueRequest('trace_processor_raw_query', rawQueryArgs);
   }

@@ -33,17 +33,20 @@ import HeapprofdConfig = protos.perfetto.protos.HeapprofdConfig;
 import IAndroidPowerConfig = protos.perfetto.protos.IAndroidPowerConfig;
 import IBufferConfig = protos.perfetto.protos.TraceConfig.IBufferConfig;
 import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
-import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
 import ISysStatsConfig = protos.perfetto.protos.ISysStatsConfig;
 import ITraceConfig = protos.perfetto.protos.ITraceConfig;
 import MeminfoCounters = protos.perfetto.protos.MeminfoCounters;
 import ProcessStatsConfig = protos.perfetto.protos.ProcessStatsConfig;
-import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
-import RawQueryResult = protos.perfetto.protos.RawQueryResult;
 import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
 import SysStatsConfig = protos.perfetto.protos.SysStatsConfig;
 import TraceConfig = protos.perfetto.protos.TraceConfig;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
+
+// Trace Processor protos.
+import IRawQueryArgs = protos.perfetto.trace_processor.protos.IRawQueryArgs;
+import RawQueryArgs = protos.perfetto.trace_processor.protos.RawQueryArgs;
+import RawQueryResult = protos.perfetto.trace_processor.protos.RawQueryResult;
+import StatusResult = protos.perfetto.trace_processor.protos.StatusResult;
 
 // TODO(hjd): Maybe these should go in their own file.
 export interface Row { [key: string]: number|string; }
@@ -218,6 +221,7 @@ export {
   ProcessStatsConfig,
   RawQueryArgs,
   RawQueryResult,
+  StatusResult,
   StatCounters,
   SysStatsConfig,
   TraceConfig,

@@ -14,6 +14,7 @@
 
 import '../tracks/all_controller';
 
+import {reportError, setErrorHandler} from '../base/logging';
 import {Remote} from '../base/remote';
 import {warmupWasmEngine} from '../common/wasm_engine_proxy';
 
@@ -21,6 +22,8 @@ import {AppController} from './app_controller';
 import {globals} from './globals';
 
 function main() {
+  self.addEventListener('error', e => reportError(e));
+  self.addEventListener('unhandledrejection', e => reportError(e));
   warmupWasmEngine();
   let initialized = false;
   self.onmessage = ({data}) => {
@@ -32,7 +35,8 @@ function main() {
     const frontendPort = data.frontendPort as MessagePort;
     const controllerPort = data.controllerPort as MessagePort;
     const extensionPort = data.extensionPort as MessagePort;
-
+    const errorReportingPort = data.errorReportingPort as MessagePort;
+    setErrorHandler((err: string) => errorReportingPort.postMessage(err));
     const frontend = new Remote(frontendPort);
     controllerPort.onmessage = ({data}) => globals.dispatch(data);
 
