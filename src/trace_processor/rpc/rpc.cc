@@ -32,9 +32,12 @@ using ColumnDesc = protos::pbzero::RawQueryResult::ColumnDesc;
 // Writes a "Loading trace ..." update every N bytes.
 constexpr size_t kProgressUpdateBytes = 50 * 1000 * 1000;
 
+Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
+    : trace_processor_(std::move(preloaded_instance)) {}
+
 Rpc::~Rpc() = default;
 
-util::Status Rpc::LoadTrace(const uint8_t* data, size_t len, bool eof) {
+util::Status Rpc::Parse(const uint8_t* data, size_t len) {
   if (eof_) {
     // Reset the trace processor state if this is either the first call ever or
     // if another trace has been previously fully loaded.
@@ -42,26 +45,37 @@ util::Status Rpc::LoadTrace(const uint8_t* data, size_t len, bool eof) {
     bytes_parsed_ = bytes_last_progress_ = 0;
     t_parse_started_ = base::GetWallTimeNs().count();
   }
-  eof_ = eof;
+
+  eof_ = false;
   bytes_parsed_ += len;
-  if (eof || bytes_parsed_ - bytes_last_progress_ > kProgressUpdateBytes) {
+  MaybePrintProgress();
+
+  if (len == 0)
+    return util::OkStatus();
+
+  // TraceProcessor needs take ownership of the memory chunk.
+  std::unique_ptr<uint8_t[]> data_copy(new uint8_t[len]);
+  memcpy(data_copy.get(), data, len);
+  return trace_processor_->Parse(std::move(data_copy), len);
+}
+
+void Rpc::NotifyEndOfFile() {
+  if (!trace_processor_)
+    return;
+  trace_processor_->NotifyEndOfFile();
+  eof_ = true;
+  MaybePrintProgress();
+}
+
+void Rpc::MaybePrintProgress() {
+  if (eof_ || bytes_parsed_ - bytes_last_progress_ > kProgressUpdateBytes) {
     bytes_last_progress_ = bytes_parsed_;
     auto t_load_s = (base::GetWallTimeNs().count() - t_parse_started_) / 1e9;
     fprintf(stderr, "\rLoading trace %.2f MB (%.1f MB/s)%s",
             bytes_parsed_ / 1e6, bytes_parsed_ / 1e6 / t_load_s,
-            (eof ? "\n" : ""));
+            (eof_ ? "\n" : ""));
     fflush(stderr);
   }
-  util::Status res;
-  if (len) {
-    // TraceProcessor needs take ownership of the memory chunk.
-    std::unique_ptr<uint8_t[]> data_copy(new uint8_t[len]);
-    memcpy(data_copy.get(), data, len);
-    res = trace_processor_->Parse(std::move(data_copy), len);
-  }
-  if (eof)
-    trace_processor_->NotifyEndOfFile();
-  return res;
 }
 
 std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
@@ -69,6 +83,14 @@ std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
   protos::pbzero::RawQueryArgs::Decoder query(args, len);
   std::string sql_query = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] RawQuery < %s", sql_query.c_str());
+
+  if (!trace_processor_) {
+    static const char kErr[] = "RawQuery() called before Parse()";
+    PERFETTO_ELOG("[RPC] %s", kErr);
+    result->set_error(kErr);
+    return result.SerializeAsArray();
+  }
+
   auto it = trace_processor_->ExecuteQuery(sql_query.c_str());
 
   // This vector contains a standalone protozero message per column. The problem
@@ -185,6 +207,17 @@ std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
   PERFETTO_DLOG("[RPC] RawQuery > %d rows (err: %d)", rows, !status.ok());
 
   return result.SerializeAsArray();
+}
+
+std::string Rpc::GetCurrentTraceName() {
+  if (!trace_processor_)
+    return "";
+  return trace_processor_->GetCurrentTraceName();
+}
+
+void Rpc::RestoreInitialTables() {
+  if (trace_processor_)
+    trace_processor_->RestoreInitialTables();
 }
 
 }  // namespace trace_processor

@@ -62,11 +62,10 @@ uint8_t* Initialize(ReplyFunction reply_function, uint32_t req_buffer_size) {
 // Ingests trace data.
 void EMSCRIPTEN_KEEPALIVE trace_processor_parse(uint32_t);
 void trace_processor_parse(size_t size) {
-  // TODO(primiano): LoadTrace() makes a copy of the data, which is unfortunate.
+  // TODO(primiano): Parse() makes a copy of the data, which is unfortunate.
   // Ideally there should be a way to take the Blob coming from JS and move it.
   // See https://github.com/WebAssembly/design/issues/1162.
-  auto status =
-      g_trace_processor_rpc->LoadTrace(g_req_buf, size, /*eof=*/false);
+  auto status = g_trace_processor_rpc->Parse(g_req_buf, size);
   if (status.ok()) {
     g_reply("", 0);
   } else {
@@ -79,7 +78,7 @@ void trace_processor_parse(size_t size) {
 // arguments for simplicity.
 void EMSCRIPTEN_KEEPALIVE trace_processor_notify_eof(uint32_t);
 void trace_processor_notify_eof(uint32_t /* size, not used. */) {
-  g_trace_processor_rpc->LoadTrace(nullptr, 0, /*eof=*/true);
+  g_trace_processor_rpc->NotifyEndOfFile();
   g_reply("", 0);
 }
 

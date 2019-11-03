@@ -70,6 +70,9 @@ class TraceProcessorImpl : public TraceProcessor,
 
   size_t RestoreInitialTables() override;
 
+  std::string GetCurrentTraceName() override;
+  void SetCurrentTraceName(const std::string&) override;
+
  private:
   // Needed for iterators to be able to delete themselves from the vector.
   friend class IteratorImpl;
@@ -91,6 +94,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // by RestoreInitialTables() to delete all the tables/view that have been
   // created after that point.
   std::vector<std::string> initial_tables_;
+
+  std::string current_trace_name_;
+  uint64_t bytes_parsed_ = 0;
 };
 
 // The pointer implementation of TraceProcessor::Iterator.

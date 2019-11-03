@@ -17,12 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_HTTPD_H_
 #define SRC_TRACE_PROCESSOR_RPC_HTTPD_H_
 
+#include <memory>
+
 namespace perfetto {
 namespace trace_processor {
 
+class TraceProcessor;
+
 // Starts a RPC server that handles requests using protobuf-over-HTTP.
 // It takes control of the calling thread and does not return.
-void RunHttpRPCServer();
+// The unique_ptr argument is optional. If non-null, the HTTP server will adopt
+// an existing instance with a pre-loaded trace. If null, it will create a new
+// instance when pushing data into the /parse endpoint.
+void RunHttpRPCServer(std::unique_ptr<TraceProcessor>);
 
 }  // namespace trace_processor
 }  // namespace perfetto

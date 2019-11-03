@@ -53,6 +53,12 @@ export abstract class Engine {
    */
   abstract notifyEof(): void;
 
+  /**
+   * Resets the trace processor state by destroying any table/views created by
+   * the UI after loading.
+   */
+  abstract restoreInitialTables(): void;
+
   /*
    * Performs a SQL query and retruns a proto-encoded RawQueryResult object.
    */
