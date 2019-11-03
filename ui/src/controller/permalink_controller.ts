@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Draft, produce} from 'immer';
+import {produce} from 'immer';
 import * as uuidv4 from 'uuid/v4';
 
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
-import {EngineConfig, State} from '../common/state';
+import {State} from '../common/state';
 
 import {Controller} from './controller';
 import {globals} from './globals';
 
 export const BUCKET_NAME = 'perfetto-ui-data';
-
-function needsToBeUploaded(obj: {}): obj is ArrayBuffer|File {
-  return obj instanceof ArrayBuffer || obj instanceof File;
-}
 
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
@@ -58,29 +54,30 @@ export class PermalinkController extends Controller<'main'> {
   }
 
   private static async createPermalink() {
-    const state = globals.state;
-
-    // Upload each loaded trace.
-    const fileToUrl = new Map<File|ArrayBuffer, string>();
-    for (const engine of Object.values<EngineConfig>(state.engines)) {
-      if (!needsToBeUploaded(engine.source)) continue;
-      const name = engine.source instanceof File ? engine.source.name :
-                                                   `trace ${engine.id}`;
-      PermalinkController.updateStatus(`Uploading ${name}`);
-      const url = await this.saveTrace(engine.source);
-      fileToUrl.set(engine.source, url);
+    const engines = Object.values(globals.state.engines);
+    assertTrue(engines.length === 1);
+    const engine = engines[0];
+    let dataToUpload: File|ArrayBuffer|undefined = undefined;
+    let traceName = `trace ${engine.id}`;
+    if (engine.source.type === 'FILE') {
+      dataToUpload = engine.source.file;
+      traceName = dataToUpload.name;
+    } else if (engine.source.type === 'ARRAY_BUFFER') {
+      dataToUpload = engine.source.buffer;
+    } else if (engine.source.type !== 'URL') {
+      throw new Error(`Cannot share trace ${JSON.stringify(engine.source)}`);
     }
 
-    // Convert state to use URLs and remove permalink.
-    const uploadState = produce(state, draft => {
-      for (const engine of Object.values<Draft<EngineConfig>>(
-               draft.engines)) {
-        if (!needsToBeUploaded(engine.source)) continue;
-        const newSource = fileToUrl.get(engine.source);
-        if (newSource) engine.source = newSource;
-      }
-      draft.permalink = {};
-    });
+    let uploadState = globals.state;
+    if (dataToUpload !== undefined) {
+      PermalinkController.updateStatus(`Uploading ${traceName}`);
+      const url = await this.saveTrace(dataToUpload);
+      // Convert state to use URLs and remove permalink.
+      uploadState = produce(globals.state, draft => {
+        draft.engines[engine.id].source = {type: 'URL', url};
+        draft.permalink = {};
+      });
+    }
 
     // Upload state.
     PermalinkController.updateStatus(`Creating permalink...`);

@@ -47,6 +47,7 @@ if (enable_perfetto_trace_processor_httpd) {
       "../../../protos/perfetto/trace_processor:zero",
       "../../base",
       "../../base:unix_socket",
+      "../../protozero",
     ]
   }
 }

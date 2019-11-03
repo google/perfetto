@@ -17,8 +17,24 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-package perfetto.protos;
+package perfetto.trace_processor.protos;
 
+// This file defines the schema for {,un}marshalling arguments and return values
+// when interfacing to the trace processor binary interface.
+
+// The Trace Processor can be used in three modes:
+// 1. Fully native from C++ or directly using trace_processor_shell.
+//    In this case, this file isn't really relevant because no binary
+//    marshalling is involved. Look at include/trace_processor/trace_processor.h
+//    for the public C++ API definition.
+// 2. Using WASM within the HTML ui. In this case these messages are used to
+//    {,un}marshall calls made through the JS<>WASM interop in
+//    src/trace_processor/rpc/wasm_bridge.cc .
+// 3. Using the HTTP+RPC interface, by running trace_processor_shell -D.
+//    In this case these messages are used to {,un}marshall HTTP requests and
+//    response made through src/trace_processor/rpc/httpd.cc .
+
+// Input for the /raw_query endpoint.
 message RawQueryArgs {
   optional string sql_query = 1;
 
@@ -26,6 +42,7 @@ message RawQueryArgs {
   optional uint64 time_queued_ns = 2;
 }
 
+// Output for the /raw_query endpoint.
 message RawQueryResult {
   message ColumnDesc {
     optional string name = 1;
@@ -54,4 +71,15 @@ message RawQueryResult {
   repeated ColumnValues columns = 3;
   optional string error = 4;
   optional uint64 execution_time_ns = 5;
+}
+
+// Input for the /status endpoint.
+message StatusArgs {}
+
+// Output for the /status endpoint.
+message StatusResult {
+  // If present and not empty, a trace is already loaded already. This happens
+  // when using the HTTP+RPC mode nad passing a trace file to the shell, via
+  // trace_processor_shell -D trace_file.pftrace .
+  optional string loaded_trace_name = 1;
 }

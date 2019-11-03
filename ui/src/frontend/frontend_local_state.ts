@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
+import {HttpRpcState} from '../common/http_rpc_engine';
 import {
   FrontendLocalState as FrontendState,
   OmniboxState,
@@ -98,6 +99,7 @@ export class FrontendLocalState {
   searchIndex = -1;
   currentTab?: Tab;
   scrollToTrackId?: string|number;
+  httpRpcState: HttpRpcState = {connected: false};
   private scrollBarWidth?: number;
 
   private _omniboxState: OmniboxState = {
@@ -173,6 +175,11 @@ export class FrontendLocalState {
 
   toggleSidebar() {
     this.sidebarVisible = !this.sidebarVisible;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  setHttpRpcState(httpRpcState: HttpRpcState) {
+    this.httpRpcState = httpRpcState;
     globals.rafScheduler.scheduleFullRedraw();
   }
 

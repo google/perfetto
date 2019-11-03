@@ -46,32 +46,27 @@ class TraceProcessor;
 // lifetime is tied to the lifetime of the Rpc instance.
 class Rpc {
  public:
+  // The unique_ptr argument is optional. If non-null it will adopt the passed
+  // instance and allow to directly query that. If null, a new instanace will be
+  // created internally by calling Parse().
+  explicit Rpc(std::unique_ptr<TraceProcessor>);
+  Rpc() : Rpc(nullptr) {}
   ~Rpc();
 
-  // Loads a trace into the trace processor. Chunked loading is supported for
-  // avoid buffering multi-GB traces in memory.
-  // Args:
-  // (data, len): a protobuf-encoded buffer for of a Trace, or just a portion
-  //   of it (if eof=false). In the case of eof=false, the passed buffer does
-  //   NOT need to be chunked on TracePacket boundaries. The internals deal
-  //   with stitching packets together. This is to allow clients to easily chunk
-  //   large trace files with fixed arbitrary chunk sizes.
-  // eof: if true, this is the last chunk of the trace. The TraceProcessor
-  //   will flush its internal state and reflect all the data ingested until now
-  //   into the SQL tables. A further call to LoadTrace() after eof=true will
-  //   completely reset the TraceProcessor state and restart from scratch.
-  util::Status LoadTrace(const uint8_t* data, size_t len, bool eof = true);
+  // The methods of this class are mirrors (modulo {un,}marshalling of args) of
+  // the corresponding names in trace_processor.h . See that header for docs.
 
-  // Executes a SQL query and returns the results.
-  // Args: RawQueryArgs proto-encoded bytes.
-  // Returns: RawQueryResult proto-encoded bytes.
-  // See trace_processor.proto for the proto schema.
-  // If the query fails the |error| RawQueryResult.field is set accordingly
+  util::Status Parse(const uint8_t* data, size_t len);
+  void NotifyEndOfFile();
   std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
+  void RestoreInitialTables();
+  std::string GetCurrentTraceName();
 
  private:
+  void MaybePrintProgress();
+
   std::unique_ptr<TraceProcessor> trace_processor_;
-  bool eof_ = true;  // Reset when calling LoadTrace(..., eof).
+  bool eof_ = true;  // Reset when calling Parse().
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;

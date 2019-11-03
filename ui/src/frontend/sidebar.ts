@@ -14,8 +14,10 @@
 
 import * as m from 'mithril';
 
+import {assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
+import {EngineMode} from '../common/state';
 
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -137,13 +139,13 @@ const SECTIONS = [
         t: 'Share',
         a: dispatchCreatePermalink,
         i: 'share',
-        disableInLocalOnlyMode: true,
+        checkDownloadDisabled: true,
       },
       {
         t: 'Download',
         a: downloadTrace,
         i: 'file_download',
-        disableInLocalOnlyMode: true,
+        checkDownloadDisabled: true,
       },
       {t: 'Legacy UI', a: openCurrentTraceWithOldUI, i: 'filter_none'},
     ],
@@ -262,15 +264,14 @@ function openCurrentTraceWithOldUI() {
   if (!isTraceLoaded) return;
   const engine = Object.values(globals.state.engines)[0];
   const src = engine.source;
-  if (src instanceof ArrayBuffer) {
-    openInOldUIWithSizeCheck(new Blob([src]));
-  } else if (src instanceof File) {
-    openInOldUIWithSizeCheck(src);
+  if (src.type === 'ARRAY_BUFFER') {
+    openInOldUIWithSizeCheck(new Blob([src.buffer]));
+  } else if (src.type === 'FILE') {
+    openInOldUIWithSizeCheck(src.file);
   } else {
-    console.assert(typeof src === 'string');
-    console.error('Loading from an URL to catapult is not yet supported');
+    throw new Error('Loading from a URL to catapult is not yet supported');
     // TODO(nicomazz): Find how to get the data of the current trace if it is
-    // from an URL. It seems that the trace downloaded is given to the trace
+    // from a URL. It seems that the trace downloaded is given to the trace
     // processor, but not kept somewhere accessible. Maybe the only way is to
     // download the trace (again), and then open it. An alternative can be to
     // save a copy.
@@ -412,13 +413,16 @@ function navigateViewer(e: Event) {
   globals.dispatch(Actions.navigate({route: '/viewer'}));
 }
 
-function localOnlyMode(): boolean {
-  return globals.frontendLocalState.localOnlyMode;
+function isDownloadAndShareDisabled(): boolean {
+  if (globals.frontendLocalState.localOnlyMode) return true;
+  const engine = Object.values(globals.state.engines)[0];
+  if (engine && engine.source.type === 'HTTP_RPC') return true;
+  return false;
 }
 
 function dispatchCreatePermalink(e: Event) {
   e.preventDefault();
-  if (localOnlyMode() || !isTraceLoaded()) return;
+  if (isDownloadAndShareDisabled() || !isTraceLoaded()) return;
 
   const result = confirm(
       `Upload the trace and generate a permalink. ` +
@@ -428,27 +432,30 @@ function dispatchCreatePermalink(e: Event) {
 
 function downloadTrace(e: Event) {
   e.preventDefault();
-  if (!isTraceLoaded() || localOnlyMode()) return;
+  if (!isTraceLoaded() || isDownloadAndShareDisabled()) return;
 
   const engine = Object.values(globals.state.engines)[0];
   if (!engine) return;
-  const src = engine.source;
-  if (typeof src === 'string') {
-    window.open(src);
-    return;
-  }
-
   let url = '';
-  if (src instanceof ArrayBuffer) {
-    const blob = new Blob([src], {type: 'application/octet-stream'});
+  let fileName = 'trace.pftrace';
+  const src = engine.source;
+  if (src.type === 'URL') {
+    url = src.url;
+    fileName = url.split('/').slice(-1)[0];
+  } else if (src.type === 'ARRAY_BUFFER') {
+    const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
     url = URL.createObjectURL(blob);
+  } else if (src.type === 'FILE') {
+    const file = src.file;
+    url = URL.createObjectURL(file);
+    fileName = file.name;
   } else {
-    console.assert(src instanceof File);
-    url = URL.createObjectURL(src);
+    throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
 
   const a = document.createElement('a');
   a.href = url;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -460,10 +467,45 @@ const SidebarFooter: m.Component = {
   view() {
     let cssClass = '';
     let title = 'Number of pending SQL queries';
-    if (false /*globals.state.hasHttpRpcEngine*/) {
-      cssClass = '.accelerated';
-      title += '\nNative Query Accelerator ENABLED';
+    let label: string;
+    let failed = false;
+    let mode: EngineMode|undefined;
+
+    // We are assuming we have at most one engine here.
+    const engines = Object.values(globals.state.engines);
+    assertTrue(engines.length <= 1);
+    for (const engine of engines) {
+      mode = engine.mode;
+      if (engine.failed !== undefined) {
+        cssClass += '.failed';
+        title = 'Query engine crashed\n' + engine.failed;
+        failed = true;
+      }
     }
+
+    // If we don't have an engine yet, guess what will be the mode that will
+    // be used next time we'll create one. Even if we guess it wrong (somehow
+    // trace_controller.ts takes a different decision later, e.g. because the
+    // RPC server is shut down after we load the UI and cached httpRpcState)
+    // this will eventually become  consistent once the engine is created.
+    if (mode === undefined) {
+      if (globals.frontendLocalState.httpRpcState.connected &&
+          globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
+        mode = 'HTTP_RPC';
+      } else {
+        mode = 'WASM';
+      }
+    }
+
+    if (mode === 'HTTP_RPC') {
+      cssClass += '.rpc';
+      label = 'RPC';
+      title += '\n(Query engine: native accelerator over HTTP+RPC)';
+    } else {
+      label = 'WSM';
+      title += '\n(Query engine: built-in WASM)';
+    }
+
     return m(
         '.sidebar-footer',
         m('button',
@@ -473,7 +515,10 @@ const SidebarFooter: m.Component = {
           m('i.material-icons',
             {title: 'Toggle Perf Debug Mode'},
             'assessment')),
-        m(`.num-queued-queries${cssClass}`, {title}, globals.numQueuedQueries),
+        m(`.num-queued-queries${cssClass}`,
+          {title},
+          m('div', label),
+          m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`)),
     );
   }
 };
@@ -491,8 +536,8 @@ export class Sidebar implements m.ClassComponent {
           href: typeof item.a === 'string' ? item.a : '#',
           disabled: false,
         };
-        if (globals.frontendLocalState.localOnlyMode &&
-            item.hasOwnProperty('disableInLocalOnlyMode')) {
+        if (isDownloadAndShareDisabled() &&
+            item.hasOwnProperty('checkDownloadDisabled')) {
           attrs = {
             onclick: () => alert('Can not download or share external trace.'),
             href: '#',
@@ -566,7 +611,11 @@ export class Sidebar implements m.ClassComponent {
             ),
         m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
         m('.sidebar-scroll',
-          m('.sidebar-scroll-container', ...vdomSections, m(SidebarFooter))),
+          m(
+              '.sidebar-scroll-container',
+              ...vdomSections,
+              m(SidebarFooter),
+              )),
     );
   }
 }

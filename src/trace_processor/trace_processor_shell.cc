@@ -839,14 +839,15 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     exit(1);
   }
 
-  // Ensure that we have the tracefile argument only at the end.
-  if (optind != argc - 1 || argv[optind] == nullptr) {
+  // The only case where we allow omitting the trace file path is when running
+  // in --http mode. In all other cases, the last argument must be the trace
+  // file.
+  if (optind == argc - 1 && argv[optind]) {
+    command_line_options.trace_file_path = argv[optind];
+  } else if (!command_line_options.enable_httpd) {
     PrintUsage(argv);
     exit(1);
   }
-
-  command_line_options.trace_file_path = argv[optind];
-
   return command_line_options;
 }
 
@@ -892,37 +893,40 @@ util::Status RegisterExtraMetrics(const std::string& path,
 int TraceProcessorMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-  if (options.enable_httpd) {
-    RunHttpRPCServer();
-    return 0;
-  }
-#endif
-
   // Load the trace file into the trace processor.
   Config config;
   config.force_full_sort = options.force_full_sort;
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
-
-  auto t_load_start = base::GetWallTimeNs();
-  double size_mb = 0;
-  util::Status read_status =
-      ReadTrace(tp.get(), options.trace_file_path.c_str(),
-                [&size_mb](size_t parsed_size) {
-                  size_mb = parsed_size / 1E6;
-                  fprintf(stderr, "\rLoading trace: %.2f MB\r", size_mb);
-                });
-  if (!read_status.ok()) {
-    PERFETTO_ELOG("Could not read trace file (path: %s): %s",
-                  options.trace_file_path.c_str(), read_status.c_message());
-    return 1;
-  }
-  auto t_load = base::GetWallTimeNs() - t_load_start;
-  double t_load_s = t_load.count() / 1E9;
-  PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,
-                size_mb / t_load_s);
   g_tp = tp.get();
+
+  base::TimeNanos t_load{};
+  if (!options.trace_file_path.empty()) {
+    auto t_load_start = base::GetWallTimeNs();
+    double size_mb = 0;
+    util::Status read_status =
+        ReadTrace(tp.get(), options.trace_file_path.c_str(),
+                  [&size_mb](size_t parsed_size) {
+                    size_mb = parsed_size / 1E6;
+                    fprintf(stderr, "\rLoading trace: %.2f MB\r", size_mb);
+                  });
+    if (!read_status.ok()) {
+      PERFETTO_ELOG("Could not read trace file (path: %s): %s",
+                    options.trace_file_path.c_str(), read_status.c_message());
+      return 1;
+    }
+    t_load = base::GetWallTimeNs() - t_load_start;
+    double t_load_s = t_load.count() / 1E9;
+    PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,
+                  size_mb / t_load_s);
+  }  // if (!trace_file_path.empty())
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+  if (options.enable_httpd) {
+    RunHttpRPCServer(std::move(tp));
+    return 0;
+  }
+#endif
 
 #if PERFETTO_HAS_SIGNAL_H()
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });

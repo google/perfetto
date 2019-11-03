@@ -29,7 +29,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 4;
+  z-index: 999;
 }
 
 .modal-container {
@@ -182,4 +182,21 @@
     font: inherit;
     font-weight: bold;
   }
+}
+
+.modal-pre {
+  white-space: pre-line;
+}
+
+.modal-logs {
+  white-space: pre-wrap;
+  border: 1px solid #999;
+  background: #eee;
+  font-size: 10px;
+  font-family: monospace;
+  -webkit-user-select: text;
+  margin-top: 10px;
+  min-height: 50px;
+  max-height: 40vh;
+  overflow: scroll;
 }

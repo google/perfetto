@@ -23,8 +23,12 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {Engine} from '../common/engine';
+import {HttpRpcEngine} from '../common/http_rpc_engine';
 import {NUM, NUM_NULL, rawQueryToRows, STR_NULL} from '../common/protos';
-import {SCROLLING_TRACK_GROUP} from '../common/state';
+import {
+  EngineMode,
+  SCROLLING_TRACK_GROUP,
+} from '../common/state';
 import {toNs, toNsCeil, toNsFloor} from '../common/time';
 import {TimeSpan} from '../common/time';
 import {
@@ -96,22 +100,17 @@ export class TraceController extends Controller<States> {
     const engineCfg = assertExists(globals.state.engines[this.engineId]);
     switch (this.state) {
       case 'init':
-        globals.dispatch(Actions.setEngineReady({
-          engineId: this.engineId,
-          ready: false,
-        }));
         this.loadTrace()
-            .then(() => {
+            .then(mode => {
               globals.dispatch(Actions.setEngineReady({
                 engineId: this.engineId,
                 ready: true,
+                mode,
               }));
             })
             .catch(err => {
               this.updateStatus(`${err}`);
-              this.setState('init');
-              console.error(err);
-              return;
+              throw err;
             });
         this.updateStatus('Opening trace');
         this.setState('loading_trace');
@@ -168,41 +167,81 @@ export class TraceController extends Controller<States> {
     return;
   }
 
-  private async loadTrace() {
+  private async loadTrace(): Promise<EngineMode> {
     this.updateStatus('Creating trace processor');
-    const engineCfg = assertExists(globals.state.engines[this.engineId]);
-
-    console.log('Opening trace using built-in WASM engine');
-    this.engine = new WasmEngineProxy(
-        this.engineId,
-        createWasmEngine(this.engineId),
-        LoadingManager.getInstance);
-    let traceStream: TraceStream;
-    if (engineCfg.source instanceof File) {
-      traceStream = new TraceFileStream(engineCfg.source);
-    } else if (engineCfg.source instanceof ArrayBuffer) {
-      traceStream = new TraceBufferStream(engineCfg.source);
+    // Check if there is any instance of the trace_processor_shell running in
+    // HTTP RPC mode (i.e. trace_processor_shell -D).
+    let engineMode: EngineMode;
+    let useRpc = false;
+    if (globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
+      useRpc = (await HttpRpcEngine.checkConnection()).connected;
+    }
+    if (useRpc) {
+      console.log('Opening trace using native accelerator over HTTP+RPC');
+      engineMode = 'HTTP_RPC';
+      const engine =
+          new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
+      engine.errorHandler = (err) => {
+        globals.dispatch(
+            Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
+        throw err;
+      };
+      this.engine = engine;
     } else {
-      traceStream = new TraceHttpStream(engineCfg.source);
+      console.log('Opening trace using built-in WASM engine');
+      engineMode = 'WASM';
+      this.engine = new WasmEngineProxy(
+          this.engineId,
+          createWasmEngine(this.engineId),
+          LoadingManager.getInstance);
     }
 
-    const tStart = performance.now();
-    for (;;) {
-      const res = await traceStream.readChunk();
-      await this.engine.parse(res.data);
-      const elapsed = (performance.now() - tStart) / 1000;
-      let status = 'Loading trace ';
-      if (res.bytesTotal > 0) {
-        const progress = Math.round(res.bytesRead / res.bytesTotal * 100);
-        status += `${progress}%`;
-      } else {
-        status += `${Math.round(res.bytesRead / 1e6)} MB`;
-      }
-      status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
-      this.updateStatus(status);
-      if (res.eof) break;
+    globals.dispatch(Actions.setEngineReady({
+      engineId: this.engineId,
+      ready: false,
+      mode: engineMode,
+    }));
+    const engineCfg = assertExists(globals.state.engines[this.engineId]);
+    let traceStream: TraceStream|undefined;
+    if (engineCfg.source.type === 'FILE') {
+      traceStream = new TraceFileStream(engineCfg.source.file);
+    } else if (engineCfg.source.type === 'ARRAY_BUFFER') {
+      traceStream = new TraceBufferStream(engineCfg.source.buffer);
+    } else if (engineCfg.source.type === 'URL') {
+      traceStream = new TraceHttpStream(engineCfg.source.url);
+    } else if (engineCfg.source.type === 'HTTP_RPC') {
+      traceStream = undefined;
+    } else {
+      throw new Error(`Unknown source: ${JSON.stringify(engineCfg.source)}`);
     }
-    await this.engine.notifyEof();
+
+    // |traceStream| can be undefined in the case when we are using the external
+    // HTTP+RPC endpoint and the trace processor instance has already loaded
+    // a trace (because it was passed as a cmdline argument to
+    // trace_processor_shell). In this case we don't want the UI to load any
+    // file/stream and we just want to jump to the loading phase.
+    if (traceStream !== undefined) {
+      const tStart = performance.now();
+      for (;;) {
+        const res = await traceStream.readChunk();
+        await this.engine.parse(res.data);
+        const elapsed = (performance.now() - tStart) / 1000;
+        let status = 'Loading trace ';
+        if (res.bytesTotal > 0) {
+          const progress = Math.round(res.bytesRead / res.bytesTotal * 100);
+          status += `${progress}%`;
+        } else {
+          status += `${Math.round(res.bytesRead / 1e6)} MB`;
+        }
+        status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
+        this.updateStatus(status);
+        if (res.eof) break;
+      }
+      await this.engine.notifyEof();
+    } else {
+      assertTrue(this.engine instanceof HttpRpcEngine);
+      await this.engine.restoreInitialTables();
+    }
 
     const traceTime = await this.engine.getTraceTimeBounds();
     const traceTimeState = {
@@ -232,6 +271,7 @@ export class TraceController extends Controller<States> {
 
     await this.listThreads();
     await this.loadTimelineOverview(traceTime);
+    return engineMode;
   }
 
   private async listTracks() {

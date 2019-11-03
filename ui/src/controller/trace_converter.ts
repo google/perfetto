@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
+import {TraceSource} from '../common/state';
 import * as trace_to_text from '../gen/trace_to_text';
 
 import {globals} from './globals';
@@ -54,7 +55,7 @@ export function ConvertTrace(trace: Blob, truncate?: 'start'|'end') {
 }
 
 export async function ConvertTraceToPprof(
-    pid: number, src: string|File|ArrayBuffer, ts1: number, ts2?: number) {
+    pid: number, src: TraceSource, ts1: number, ts2?: number) {
   generateBlob(src).then(result => {
     const mod = trace_to_text({
       noInitialRun: true,
@@ -101,18 +102,20 @@ export async function ConvertTraceToPprof(
   });
 }
 
-async function generateBlob(src: string|ArrayBuffer|File) {
+async function generateBlob(src: TraceSource) {
   let blob: Blob = new Blob();
-  if (typeof src === 'string') {
-    const resp = await fetch(src);
+  if (src.type === 'URL') {
+    const resp = await fetch(src.url);
     if (resp.status !== 200) {
       throw new Error(`fetch() failed with HTTP error ${resp.status}`);
     }
     blob = await resp.blob();
-  } else if (src instanceof ArrayBuffer) {
-    blob = new Blob([new Uint8Array(src, 0, src.byteLength)]);
+  } else if (src.type === 'ARRAY_BUFFER') {
+    blob = new Blob([new Uint8Array(src.buffer, 0, src.buffer.byteLength)]);
+  } else if (src.type === 'FILE') {
+    blob = src.file;
   } else {
-    blob = src;
+    throw new Error(`Conversion not supported for ${JSON.stringify(src)}`);
   }
   return blob;
 }

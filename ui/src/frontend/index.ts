@@ -18,7 +18,7 @@ import {applyPatches, Patch} from 'immer';
 import * as MicroModal from 'micromodal';
 import * as m from 'mithril';
 
-import {assertExists} from '../base/logging';
+import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {
@@ -32,6 +32,7 @@ import {
   HeapProfileFlamegraphKey
 } from '../tracks/heap_profile_flamegraph/common';
 
+import {maybeShowErrorDialog} from './error_dialog';
 import {
   CounterDetails,
   globals,
@@ -46,6 +47,7 @@ import {postMessageHandler} from './post_message_handler';
 import {RecordPage} from './record_page';
 import {updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
+import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {ViewerPage} from './viewer_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
@@ -209,25 +211,32 @@ function onExtensionMessage(message: object) {
 }
 
 function main() {
+  // Add Error handlers for JS error and for uncaught exceptions in promises.
+  setErrorHandler((err: string) => maybeShowErrorDialog(err));
+  window.addEventListener('error', e => reportError(e));
+  window.addEventListener('unhandledrejection', e => reportError(e));
+
   const controller = new Worker('controller_bundle.js');
-  controller.onerror = e => {
-    console.error(e);
-  };
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
+  const errorReportingChannel = new MessageChannel();
 
+  errorReportingChannel.port2.onmessage = (e) =>
+      maybeShowErrorDialog(`${e.data}`);
 
   controller.postMessage(
       {
         frontendPort: frontendChannel.port1,
         controllerPort: controllerChannel.port1,
-        extensionPort: extensionLocalChannel.port1
+        extensionPort: extensionLocalChannel.port1,
+        errorReportingPort: errorReportingChannel.port1,
       },
       [
         frontendChannel.port1,
         controllerChannel.port1,
-        extensionLocalChannel.port1
+        extensionLocalChannel.port1,
+        errorReportingChannel.port1,
       ]);
 
   const dispatch =
@@ -310,6 +319,11 @@ function main() {
   router.navigateToCurrentHash();
 
   MicroModal.init();
+
+  // Will update the chip on the sidebar footer that notifies that the RPC is
+  // connected. Has no effect on the controller (which will repeat this check
+  // before creating a new engine).
+  CheckHttpRpcConnection();
 }
 
 main();

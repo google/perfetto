@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
 
@@ -65,6 +66,7 @@ struct HttpRequest {
 
 class HttpServer : public base::UnixSocket::EventListener {
  public:
+  explicit HttpServer(std::unique_ptr<TraceProcessor>);
   ~HttpServer() override;
   void Run();
 
@@ -120,6 +122,8 @@ void ShutdownBadRequest(base::UnixSocket* sock, const char* reason) {
   sock->Shutdown(/*notify=*/true);
 }
 
+HttpServer::HttpServer(std::unique_ptr<TraceProcessor> preloaded_instance)
+    : trace_processor_rpc_(std::move(preloaded_instance)) {}
 HttpServer::~HttpServer() = default;
 
 void HttpServer::Run() {
@@ -262,18 +266,22 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
   }
 
   if (req.uri == "/parse") {
-    trace_processor_rpc_.LoadTrace(
-        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size(),
-        /*eof=*/false);
+    trace_processor_rpc_.Parse(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
     return HttpReply(client->sock.get(), "200 OK", headers);
   }
 
-  if (req.uri == "/notifyeof") {
-    trace_processor_rpc_.LoadTrace(nullptr, 0, /*eof=*/true);
+  if (req.uri == "/notify_eof") {
+    trace_processor_rpc_.NotifyEndOfFile();
     return HttpReply(client->sock.get(), "200 OK", headers);
   }
 
-  if (req.uri == "/rawquery") {
+  if (req.uri == "/restore_initial_tables") {
+    trace_processor_rpc_.RestoreInitialTables();
+    return HttpReply(client->sock.get(), "200 OK", headers);
+  }
+
+  if (req.uri == "/raw_query") {
     PERFETTO_CHECK(req.body.size() > 0u);
     std::vector<uint8_t> response = trace_processor_rpc_.RawQuery(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
@@ -282,7 +290,12 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
   }
 
   if (req.uri == "/status") {
-    return HttpReply(client->sock.get(), "200 OK", headers, nullptr, 0);
+    protozero::HeapBuffered<protos::pbzero::StatusResult> res;
+    res->set_loaded_trace_name(
+        trace_processor_rpc_.GetCurrentTraceName().c_str());
+    std::vector<uint8_t> buf = res.SerializeAsArray();
+    return HttpReply(client->sock.get(), "200 OK", headers, buf.data(),
+                     buf.size());
   }
 
   return HttpReply(client->sock.get(), "404 Not Found", headers);
@@ -290,8 +303,8 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
 
 }  // namespace
 
-void RunHttpRPCServer() {
-  HttpServer srv;
+void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance) {
+  HttpServer srv(std::move(preloaded_instance));
   srv.Run();
 }
 

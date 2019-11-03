@@ -36,6 +36,33 @@ export const MAX_TIME = 180;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
+
+export type EngineMode = 'WASM'|'HTTP_RPC';
+
+export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
+
+export interface TraceFileSource {
+  type: 'FILE';
+  file: File;
+}
+
+export interface TraceArrayBufferSource {
+  type: 'ARRAY_BUFFER';
+  buffer: ArrayBuffer;
+}
+
+export interface TraceUrlSource {
+  type: 'URL';
+  url: string;
+}
+
+export interface TraceHttpRpcSource {
+  type: 'HTTP_RPC';
+}
+
+export type TraceSource =
+    TraceFileSource|TraceArrayBufferSource|TraceUrlSource|TraceHttpRpcSource;
+
 export interface TrackState {
   id: string;
   engineId: string;
@@ -56,8 +83,10 @@ export interface TrackGroupState {
 
 export interface EngineConfig {
   id: string;
+  mode?: EngineMode;  // Is undefined until |ready| is true.
   ready: boolean;
-  source: string|File|ArrayBuffer;
+  failed?: string;  // If defined the engine has crashed with the given message.
+  source: TraceSource;
 }
 
 export interface QueryConfig {
@@ -170,6 +199,7 @@ export interface State {
   /**
    * Open traces.
    */
+  newEngineMode: NewEngineMode;
   engines: ObjectById<EngineConfig>;
   traceTime: TraceTime;
   trackGroups: ObjectById<TrackGroupState>;
@@ -363,6 +393,7 @@ export function createEmptyState(): State {
   return {
     route: null,
     nextId: 0,
+    newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
