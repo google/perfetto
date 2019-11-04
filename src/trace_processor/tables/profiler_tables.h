@@ -49,7 +49,10 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
   C(int64_t, graph_sample_ts)                              \
   C(int64_t, object_id)                                    \
   C(int64_t, self_size)                                    \
+  C(int64_t, retained_size)                                \
+  C(int64_t, unique_retained_size)                         \
   C(int64_t, reference_set_id)                             \
+  C(int32_t, reachable)                                    \
   C(StringPool::Id, type_name)                             \
   C(base::Optional<StringPool::Id>, root_type)
 

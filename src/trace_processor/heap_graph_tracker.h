@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/optional.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "src/trace_processor/heap_graph_walker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -31,7 +32,7 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-class HeapGraphTracker {
+class HeapGraphTracker : public HeapGraphWalker::Delegate {
  public:
   struct SourceObject {
     // All ids in this are in the trace iid space, not in the trace processor
@@ -60,6 +61,13 @@ class HeapGraphTracker {
   void FinalizeProfile();
   void SetPacketIndex(uint64_t index);
 
+  ~HeapGraphTracker() override = default;
+  // HeapGraphTracker::Delegate
+  void MarkReachable(int64_t row) override;
+  void SetRetained(int64_t row,
+                   int64_t retained,
+                   int64_t unique_retained) override;
+
  private:
   bool SetPidAndTimestamp(UniquePid upid, int64_t ts);
   TraceProcessorContext* const context_;
@@ -72,6 +80,8 @@ class HeapGraphTracker {
   std::map<uint64_t, StringPool::Id> interned_field_names_;
   std::map<uint64_t, int64_t> object_id_to_row_;
   uint64_t prev_index_ = 0;
+
+  HeapGraphWalker walker_{this};
 };
 
 }  // namespace trace_processor
