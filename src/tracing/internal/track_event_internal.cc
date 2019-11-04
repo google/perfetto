@@ -150,8 +150,7 @@ TrackEventContext TrackEventInternal::WriteEvent(
   // TODO(skyostil): Handle multiple categories.
   track_event->add_category_iids(category_iid);
   if (name) {
-    auto legacy_event = track_event->set_legacy_event();
-    legacy_event->set_name_iid(name_iid);
+    track_event->set_name_iid(name_iid);
   }
   return ctx;
 }
