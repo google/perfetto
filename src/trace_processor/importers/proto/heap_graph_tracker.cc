@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/heap_graph_tracker.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {

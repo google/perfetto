@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/heap_graph_walker.h"
+#include "src/trace_processor/importers/proto/heap_graph_walker.h"
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
