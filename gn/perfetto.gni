@@ -246,6 +246,13 @@ declare_args() {
   enable_perfetto_trace_processor_json_import =
       enable_perfetto_trace_processor_json && !build_with_chromium
 
+  # Enables syscall support in trace processor. Required for ftrace, system
+  # probes, and android probes support.
+  enable_perfetto_trace_processor_syscalls =
+      enable_perfetto_trace_processor_ftrace ||
+      enable_perfetto_trace_processor_system_probes ||
+      enable_perfetto_trace_processor_android_probes
+
   # Enables the trace_to_text tool.
   enable_perfetto_tools_trace_to_text =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
