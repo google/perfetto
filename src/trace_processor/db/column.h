@@ -39,6 +39,7 @@ enum class FilterOp {
   kLe,
   kIsNull,
   kIsNotNull,
+  kLike,
 };
 
 // Represents a constraint on a column.
@@ -348,6 +349,9 @@ class Column {
           return GetTypedAtIdx<T>(idx) >= long_value;
         });
         break;
+      case FilterOp::kLike:
+        rm->Intersect(RowMap());
+        break;
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
         PERFETTO_FATAL("Should be handled above");
@@ -401,6 +405,11 @@ class Column {
           return GetStringPoolStringAtIdx(idx) >= str_value;
         });
         break;
+      case FilterOp::kLike:
+        // TODO(lalitm): either call through to SQLite or reimplement
+        // like ourselves.
+        PERFETTO_DLOG("Ignoring like constraint on string column");
+        break;
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
         PERFETTO_FATAL("Should be handled above");
@@ -443,6 +452,9 @@ class Column {
       case FilterOp::kGe:
         row_map().FilterInto(
             rm, [id_value](uint32_t idx) { return idx >= id_value; });
+        break;
+      case FilterOp::kLike:
+        rm->Intersect(RowMap());
         break;
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
