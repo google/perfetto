@@ -428,17 +428,13 @@ util::Status ExportSlices(const TraceStorage* storage,
     event["cat"] = GetNonNullString(storage, slices.categories()[i]);
     event["name"] = GetNonNullString(storage, slices.names()[i]);
     event["pid"] = 0;
-    const Json::Value& args = args_builder.GetArgs(slices.arg_set_ids()[i]);
-    if (!args.empty()) {
-      event["args"] = args;  // Makes a copy of |args|.
 
-      if (event["args"].isMember(kLegacyEventArgsKey)) {
-        ConvertLegacyFlowEventArgs(event["args"][kLegacyEventArgsKey], &event);
+    event["args"] =
+        args_builder.GetArgs(slices.arg_set_ids()[i]);  // Makes a copy.
+    if (event["args"].isMember(kLegacyEventArgsKey)) {
+      ConvertLegacyFlowEventArgs(event["args"][kLegacyEventArgsKey], &event);
 
-        event["args"].removeMember(kLegacyEventArgsKey);
-        if (event["args"].empty())
-          event.removeMember("args");
-      }
+      event["args"].removeMember(kLegacyEventArgsKey);
     }
 
     // To prevent duplicate export of slices, only export slices on descriptor
@@ -546,12 +542,35 @@ util::Status ExportSlices(const TraceStorage* storage,
       // Async event slice.
       auto opt_process_row =
           process_track.id().IndexOf(SqlValue::Long(track_id));
-      if (opt_process_row) {
+      if (legacy_chrome_track) {
+        // Legacy async tracks are always process-associated.
+        PERFETTO_DCHECK(opt_process_row);
         uint32_t upid = process_track.upid()[*opt_process_row];
-        event["id2"]["local"] = PrintUint64(track_id);
         event["pid"] = storage->GetProcess(upid).pid;
+
+        // Preserve original event IDs for legacy tracks. This is so that e.g.
+        // memory dump IDs show up correctly in the JSON trace.
+        PERFETTO_DCHECK(track_args.isMember("source_id"));
+        PERFETTO_DCHECK(track_args.isMember("source_id_is_process_scoped"));
+        PERFETTO_DCHECK(track_args.isMember("source_scope"));
+        uint64_t source_id =
+            static_cast<uint64_t>(track_args["source_id"].asInt64());
+        std::string source_scope = track_args["source_scope"].asString();
+        bool source_id_is_process_scoped =
+            track_args["source_id_is_process_scoped"].asBool();
+        if (source_id_is_process_scoped) {
+          event["id2"]["local"] = PrintUint64(source_id);
+        } else {
+          event["id2"]["global"] = PrintUint64(source_id);
+        }
       } else {
-        event["id2"]["global"] = PrintUint64(track_id);
+        if (opt_process_row) {
+          uint32_t upid = process_track.upid()[*opt_process_row];
+          event["id2"]["local"] = PrintUint64(track_id);
+          event["pid"] = storage->GetProcess(upid).pid;
+        } else {
+          event["id2"]["global"] = PrintUint64(track_id);
+        }
       }
 
       if (thread_ts_ns > 0) {
@@ -676,8 +695,6 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
   ConvertLegacyFlowEventArgs(legacy_args, &event);
 
   event["args"].removeMember(kLegacyEventArgsKey);
-  if (event["args"].empty())
-    event.removeMember("args");
 
   return event;
 }

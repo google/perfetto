@@ -27,6 +27,8 @@ constexpr TrackId TrackTracker::kDefaultDescriptorTrackUuid;
 TrackTracker::TrackTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
       source_id_key_(context->storage->InternString("source_id")),
+      source_id_is_process_scoped_key_(
+          context->storage->InternString("source_id_is_process_scoped")),
       source_scope_key_(context->storage->InternString("source_scope")),
       fuchsia_source_(context->storage->InternString("fuchsia")),
       chrome_source_(context->storage->InternString("chrome")),
@@ -106,6 +108,10 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
                                  Variadic::String(chrome_source_));
   context_->args_tracker->AddArg(row_id, source_id_key_, source_id_key_,
                                  Variadic::Integer(source_id));
+  context_->args_tracker->AddArg(
+      row_id, source_id_is_process_scoped_key_,
+      source_id_is_process_scoped_key_,
+      Variadic::Boolean(source_id_is_process_scoped));
   context_->args_tracker->AddArg(row_id, source_scope_key_, source_scope_key_,
                                  Variadic::String(source_scope));
   return id;
