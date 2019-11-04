@@ -293,6 +293,7 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
   if (uiCfg.ipcFlows) {
     chromeCategories.add('toplevel');
     chromeCategories.add('disabled-by-default-ipc.flow');
+    chromeCategories.add('mojom');
   }
 
   if (uiCfg.jsExecution) {
@@ -328,6 +329,8 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     chromeCategories.add('loading');
     chromeCategories.add('net');
     chromeCategories.add('netlog');
+    chromeCategories.add('navigation');
+    chromeCategories.add('browser');
   }
 
   if (chromeCategories.size !== 0) {
