@@ -54,7 +54,9 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSCALLS)
   context_.syscall_tracker.reset(new SyscallTracker(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSCALLS)
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
