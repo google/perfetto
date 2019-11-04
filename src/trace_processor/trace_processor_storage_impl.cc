@@ -22,12 +22,13 @@
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
-#include "src/trace_processor/heap_graph_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
+#include "src/trace_processor/importers/proto/heap_graph_module.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
@@ -59,7 +60,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSCALLS)
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
-  context_.heap_graph_tracker.reset(new HeapGraphTracker(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.sched_tracker.reset(new SchedEventTracker(&context_));
   context_.systrace_parser.reset(new SystraceParser(&context_));
@@ -76,6 +76,8 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
       new ProtoImporterModule<SystemProbesModule>(&context_));
   context_.android_probes_module.reset(
       new ProtoImporterModule<AndroidProbesModule>(&context_));
+  context_.heap_graph_module.reset(
+      new ProtoImporterModule<HeapGraphModule>(&context_));
   context_.graphics_event_module.reset(
       new ProtoImporterModule<GraphicsEventModule>(&context_));
 }
