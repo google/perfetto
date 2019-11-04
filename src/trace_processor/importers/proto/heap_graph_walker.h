@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_HEAP_GRAPH_WALKER_H_
-#define SRC_TRACE_PROCESSOR_HEAP_GRAPH_WALKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_WALKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_WALKER_H_
 
 #include <inttypes.h>
 #include <map>
@@ -187,4 +187,4 @@ class HeapGraphWalker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_HEAP_GRAPH_WALKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_WALKER_H_
