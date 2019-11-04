@@ -20,6 +20,8 @@
 #include <array>
 #include <string>
 
+#include "perfetto/ext/base/optional.h"
+
 namespace perfetto {
 namespace base {
 
@@ -28,6 +30,11 @@ Uuid Uuidv4();
 
 Uuid StringToUuid(const std::string&);
 std::string UuidToString(const Uuid&);
+std::string UuidToPrettyString(const Uuid&);
+Optional<Uuid> BytesToUuid(const uint8_t* data, size_t size);
+inline Optional<Uuid> BytesToUuid(const char* data, size_t size) {
+  return BytesToUuid(reinterpret_cast<const uint8_t*>(data), size);
+}
 
 }  // namespace base
 }  // namespace perfetto

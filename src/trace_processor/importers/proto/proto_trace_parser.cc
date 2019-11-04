@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
@@ -639,6 +640,17 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
 
   // TODO(eseckler): Propagate statuses from modules.
   context_->android_probes_module->ParseTraceConfig(trace_config);
+
+  if (trace_config.trace_uuid().size != 0) {
+    ConstBytes bytes = trace_config.trace_uuid();
+    base::Optional<base::Uuid> uuid = base::BytesToUuid(bytes.data, bytes.size);
+    if (uuid.has_value()) {
+      std::string str = base::UuidToPrettyString(uuid.value());
+      StringId id = context_->storage->InternString(base::StringView(str));
+      context_->storage->SetMetadata(metadata::trace_uuid,
+                                     Variadic::String(id));
+    }
+  }
 }
 
 void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
