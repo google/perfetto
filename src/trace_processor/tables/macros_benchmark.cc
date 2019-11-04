@@ -177,3 +177,57 @@ static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
 BENCHMARK(BM_TableFilterChildNullableEqMatchMany)
     ->RangeMultiplier(8)
     ->Range(1024, 2 * 1024 * 1024);
+
+static void BM_TableFilterChildNonNullEqMatchManyInParent(
+    benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 1024;
+
+  constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (uint32_t i = 0; i < size; ++i) {
+    ChildTestTable::Row row;
+    row.root_non_null = static_cast<uint32_t>(rnd_engine() % partitions);
+    root.Insert({});
+    child.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(
+        child.Filter({child.root_non_null().eq(SqlValue::Long(0))}));
+  }
+}
+BENCHMARK(BM_TableFilterChildNonNullEqMatchManyInParent)
+    ->RangeMultiplier(8)
+    ->Range(1024, 2 * 1024 * 1024);
+
+static void BM_TableFilterChildNullableEqMatchManyInParent(
+    benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 512;
+
+  constexpr uint32_t kRandomSeed = 42;
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  for (uint32_t i = 0; i < size; ++i) {
+    ChildTestTable::Row row;
+    row.root_nullable = static_cast<uint32_t>(rnd_engine() % partitions);
+    root.Insert({});
+    child.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(
+        child.Filter({child.root_nullable().eq(SqlValue::Long(1))}));
+  }
+}
+BENCHMARK(BM_TableFilterChildNullableEqMatchManyInParent)
+    ->RangeMultiplier(8)
+    ->Range(1024, 2 * 1024 * 1024);
