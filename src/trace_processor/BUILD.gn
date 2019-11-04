@@ -115,7 +115,6 @@ source_set("storage") {
     "track_tracker.h",
     "variadic.h",
     "virtual_destructors.cc",
-    "vulkan_memory_tracker.cc",
     "vulkan_memory_tracker.h",
   ]
 
@@ -177,7 +176,10 @@ source_set("storage") {
     sources += [ "importers/proto/android_probes_parser.cc" ]
   }
   if (enable_perfetto_trace_processor_graphics) {
-    sources += [ "importers/proto/graphics_event_parser.cc" ]
+    sources += [
+      "importers/proto/graphics_event_parser.cc",
+      "vulkan_memory_tracker.cc",
+    ]
   }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [
