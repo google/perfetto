@@ -33,6 +33,7 @@ class ClockTracker;
 class EventTracker;
 class FtraceModule;
 class GraphicsEventModule;
+class HeapGraphModule;
 class HeapGraphTracker;
 class HeapProfileTracker;
 class ProcessTracker;
@@ -78,6 +79,7 @@ class TraceProcessorContext {
   std::unique_ptr<ProtoImporterModule<SystemProbesModule>> system_probes_module;
   std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
       android_probes_module;
+  std::unique_ptr<ProtoImporterModule<HeapGraphModule>> heap_graph_module;
   std::unique_ptr<ProtoImporterModule<GraphicsEventModule>>
       graphics_event_module;
 };

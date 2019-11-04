@@ -60,10 +60,6 @@ source_set("storage") {
     "ftrace_utils.h",
     "gzip_trace_parser.cc",
     "gzip_trace_parser.h",
-    "heap_graph_tracker.cc",
-    "heap_graph_tracker.h",
-    "heap_graph_walker.cc",
-    "heap_graph_walker.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
     "importers/ftrace/ftrace_descriptors.h",
@@ -76,6 +72,9 @@ source_set("storage") {
     "importers/proto/android_probes_parser.h",
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.h",
+    "importers/proto/heap_graph_module.h",
+    "importers/proto/heap_graph_tracker.h",
+    "importers/proto/heap_graph_walker.h",
     "importers/proto/packet_sequence_state.h",
     "importers/proto/proto_importer_module.h",
     "importers/proto/proto_incremental_state.h",
@@ -176,6 +175,13 @@ source_set("storage") {
   }
   if (enable_perfetto_trace_processor_android_probes) {
     sources += [ "importers/proto/android_probes_parser.cc" ]
+  }
+  if (enable_perfetto_trace_processor_heap_graphs) {
+    sources += [
+      "importers/proto/heap_graph_module.cc",
+      "importers/proto/heap_graph_tracker.cc",
+      "importers/proto/heap_graph_walker.cc",
+    ]
   }
   if (enable_perfetto_trace_processor_graphics) {
     sources += [
@@ -356,7 +362,6 @@ perfetto_unittest_source_set("unittests") {
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
-    "heap_graph_walker_unittest.cc",
     "heap_profile_tracker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
@@ -428,6 +433,9 @@ perfetto_unittest_source_set("unittests") {
       "sched_slice_table_unittest.cc",
       "thread_table_unittest.cc",
     ]
+  }
+  if (enable_perfetto_trace_processor_heap_graphs) {
+    sources += [ "importers/proto/heap_graph_walker_unittest.cc" ]
   }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [ "importers/fuchsia/fuchsia_trace_utils_unittest.cc" ]
