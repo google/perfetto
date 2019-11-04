@@ -32,8 +32,8 @@ import {
   SummaryData
 } from './common';
 
-const MARGIN_TOP = 5;
-const RECT_HEIGHT = 30;
+const MARGIN_TOP = 3;
+const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
@@ -172,10 +172,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       const rectXCenter = rectStart + rectWidth / 2;
       ctx.fillStyle = '#fff';
       ctx.font = '12px Google Sans';
-      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 3);
+      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
       ctx.font = '10px Google Sans';
-      ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 11);
+      ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
     const selection = globals.state.currentSelection;
@@ -260,8 +260,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       ctx.fillRect(this.mouseXpos!, MARGIN_TOP, width + 16, RECT_HEIGHT);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
       ctx.textAlign = 'left';
-      ctx.fillText(line1, this.mouseXpos! + 8, 18);
-      ctx.fillText(line2, this.mouseXpos! + 8, 28);
+      ctx.fillText(
+          line1, this.mouseXpos! + 8, MARGIN_TOP + RECT_HEIGHT / 2 - 2);
+      ctx.fillText(
+          line2, this.mouseXpos! + 8, MARGIN_TOP + RECT_HEIGHT / 2 + 10);
     }
   }
 

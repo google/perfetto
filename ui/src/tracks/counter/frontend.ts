@@ -32,8 +32,8 @@ import {
 } from './common';
 
 // 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 4.5;
-const RECT_HEIGHT = 30;
+const MARGIN_TOP = 3.5;
+const RECT_HEIGHT = 24.5;
 
 class CounterTrack extends Track<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
@@ -48,6 +48,10 @@ class CounterTrack extends Track<Config, Data> {
 
   constructor(trackState: TrackState) {
     super(trackState);
+  }
+
+  getHeight() {
+    return MARGIN_TOP + RECT_HEIGHT;
   }
 
   getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
@@ -193,7 +197,7 @@ class CounterTrack extends Track<Config, Data> {
 
     // Write the Y scale on the top left corner.
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillRect(0, 0, 40, 16);
+    ctx.fillRect(0, 0, 42, 16);
     ctx.fillStyle = '#666';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
