@@ -57,6 +57,32 @@ static void BM_TableInsert(benchmark::State& state) {
 }
 BENCHMARK(BM_TableInsert);
 
+static void BM_TableIteratorChild(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  for (uint32_t i = 0; i < size; ++i) {
+    child.Insert({});
+    root.Insert({});
+  }
+
+  auto it = child.IterateRows();
+  for (auto _ : state) {
+    if (!it.Next()) {
+      it = child.IterateRows();
+      it.Next();
+    }
+    for (uint32_t i = 0; i < child.GetColumnCount(); ++i) {
+      benchmark::DoNotOptimize(it.Get(i));
+    }
+  }
+}
+BENCHMARK(BM_TableIteratorChild)
+    ->RangeMultiplier(8)
+    ->Range(1024, 2 * 1024 * 1024);
+
 static void BM_TableFilterIdColumn(benchmark::State& state) {
   StringPool pool;
   RootTestTable root(&pool, nullptr);
