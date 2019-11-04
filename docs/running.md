@@ -79,5 +79,23 @@ Trace config
 an arbitrary trace config. See instructions in the
 [trace config](trace-config.md) page.
 
+Trace UI
+--------
+For building the trace UI see the [build instructions](build-instructions.md)
+page. To run the UI using your local build:
+
+```
+$ ui/run-dev-server out/[your_build_dir]
+```
+
+Documentation
+-------------
+To run the documentation server using your local build:
+
+```
+$ make -C docs test
+```
+You might need to install `docsify` and `docsify-cli`
+(`$ npm i -g docsify docsify-cli`) before running the documentation server.
 
 [dropbox]: https://developer.android.com/reference/android/os/DropBoxManager.html
