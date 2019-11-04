@@ -70,13 +70,12 @@ static void BM_TableIteratorChild(benchmark::State& state) {
 
   auto it = child.IterateRows();
   for (auto _ : state) {
-    if (!it.Next()) {
-      it = child.IterateRows();
-      it.Next();
-    }
     for (uint32_t i = 0; i < child.GetColumnCount(); ++i) {
       benchmark::DoNotOptimize(it.Get(i));
     }
+    it.Next();
+    if (!it)
+      it = child.IterateRows();
   }
 }
 BENCHMARK(BM_TableIteratorChild)

@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -58,7 +59,146 @@ namespace trace_processor {
 // more efficient than a BitVector; in this case, we will make a best effort
 // switch to it but the cases where this happens is not precisely defined.
 class RowMap {
+ private:
+  // We need to declare these iterator classes before RowMap::Iterator as it
+  // depends on them. However, we don't want to make these public so keep them
+  // under a special private section.
+
+  // Iterator for ranged mode of RowMap.
+  // This class should act as a drop-in replacement for
+  // BitVector::SetBitsIterator.
+  class RangeIterator {
+   public:
+    RangeIterator(const RowMap* rm) : rm_(rm), index_(rm->start_idx_) {}
+
+    void Next() { ++index_; }
+
+    operator bool() const { return index_ < rm_->end_idx_; }
+
+    uint32_t index() const { return index_; }
+
+    uint32_t ordinal() const { return index_ - rm_->start_idx_; }
+
+   private:
+    const RowMap* rm_ = nullptr;
+    uint32_t index_ = 0;
+  };
+
+  // Iterator for index vector mode of RowMap.
+  // This class should act as a drop-in replacement for
+  // BitVector::SetBitsIterator.
+  class IndexVectorIterator {
+   public:
+    IndexVectorIterator(const RowMap* rm) : rm_(rm) {}
+
+    void Next() { ++ordinal_; }
+
+    operator bool() const { return ordinal_ < rm_->index_vector_.size(); }
+
+    uint32_t index() const { return rm_->index_vector_[ordinal_]; }
+
+    uint32_t ordinal() const { return ordinal_; }
+
+   private:
+    const RowMap* rm_ = nullptr;
+    uint32_t ordinal_ = 0;
+  };
+
  public:
+  // Allows efficient iteration over the rows of a RowMap.
+  //
+  // Note: you should usually prefer to use the methods on RowMap directly (if
+  // they exist for the task being attempted) to avoid the lookup for the mode
+  // of the RowMap on every method call.
+  class Iterator {
+   public:
+    Iterator(const RowMap* rm) : rm_(rm) {
+      switch (rm->mode_) {
+        case Mode::kRange:
+          range_it_.reset(new RangeIterator(rm));
+          break;
+        case Mode::kBitVector:
+          set_bits_it_.reset(
+              new BitVector::SetBitsIterator(rm->bit_vector_.IterateSetBits()));
+          break;
+        case Mode::kIndexVector:
+          iv_it_.reset(new IndexVectorIterator(rm));
+          break;
+      }
+    }
+
+    // Forwards the iterator to the next row of the RowMap.
+    void Next() {
+      switch (rm_->mode_) {
+        case Mode::kRange:
+          range_it_->Next();
+          break;
+        case Mode::kBitVector:
+          set_bits_it_->Next();
+          break;
+        case Mode::kIndexVector:
+          iv_it_->Next();
+          break;
+      }
+    }
+
+    // Returns if the iterator is still valid.
+    operator bool() const {
+      switch (rm_->mode_) {
+        case Mode::kRange:
+          return *range_it_;
+        case Mode::kBitVector:
+          return *set_bits_it_;
+        case Mode::kIndexVector:
+          return *iv_it_;
+      }
+      PERFETTO_FATAL("For GCC");
+    }
+
+    // Returns the row pointed to by this iterator.
+    uint32_t row() const {
+      // RowMap uses the row/index nomenclature for referring to the mapping
+      // from index to a row (as the name suggests). However, the data
+      // structures used by RowMap use the index/ordinal naming (because they
+      // don't have the concept of a "row"). Switch the naming here.
+      switch (rm_->mode_) {
+        case Mode::kRange:
+          return range_it_->index();
+        case Mode::kBitVector:
+          return set_bits_it_->index();
+        case Mode::kIndexVector:
+          return iv_it_->index();
+      }
+      PERFETTO_FATAL("For GCC");
+    }
+
+    // Returns the index of the row the iterator points to.
+    uint32_t index() const {
+      // RowMap uses the row/index nomenclature for referring to the mapping
+      // from index to a row (as the name suggests). However, the data
+      // structures used by RowMap use the index/ordinal naming (because they
+      // don't have the concept of a "row"). Switch the naming here.
+      switch (rm_->mode_) {
+        case Mode::kRange:
+          return range_it_->ordinal();
+        case Mode::kBitVector:
+          return set_bits_it_->ordinal();
+        case Mode::kIndexVector:
+          return iv_it_->ordinal();
+      }
+      PERFETTO_FATAL("For GCC");
+    }
+
+   private:
+    // Only one of the below will be non-null depending on the mode of the
+    // RowMap.
+    std::unique_ptr<RangeIterator> range_it_;
+    std::unique_ptr<BitVector::SetBitsIterator> set_bits_it_;
+    std::unique_ptr<IndexVectorIterator> iv_it_;
+
+    const RowMap* rm_ = nullptr;
+  };
+
   // Creates an empty RowMap.
   // By default this will be implemented using a range.
   RowMap();
@@ -294,51 +434,14 @@ class RowMap {
     }
   }
 
+  // Returns the iterator over the rows in this RowMap.
+  Iterator IterateRows() const { return Iterator(this); }
+
  private:
   enum class Mode {
     kRange,
     kBitVector,
     kIndexVector,
-  };
-
-  // Iterator for ranged mode of RowMap.
-  // This class should act as a drop-in replacement for
-  // BitVector::SetBitsIterator.
-  class RangeIterator {
-   public:
-    RangeIterator(const RowMap* rm) : rm_(rm), index_(rm->start_idx_) {}
-
-    void Next() { ++index_; }
-
-    operator bool() { return index_ < rm_->end_idx_; }
-
-    uint32_t index() const { return index_; }
-
-    uint32_t ordinal() const { return index_ - rm_->start_idx_; }
-
-   private:
-    const RowMap* rm_ = nullptr;
-    uint32_t index_ = 0;
-  };
-
-  // Iterator for index vector mode of RowMap.
-  // This class should act as a drop-in replacement for
-  // BitVector::SetBitsIterator.
-  class IndexVectorIterator {
-   public:
-    IndexVectorIterator(const RowMap* rm) : rm_(rm) {}
-
-    void Next() { ++ordinal_; }
-
-    operator bool() { return ordinal_ < rm_->index_vector_.size(); }
-
-    uint32_t index() const { return rm_->index_vector_[ordinal_]; }
-
-    uint32_t ordinal() const { return ordinal_; }
-
-   private:
-    const RowMap* rm_ = nullptr;
-    uint32_t ordinal_ = 0;
   };
 
   template <typename Iterator, typename Predicate>

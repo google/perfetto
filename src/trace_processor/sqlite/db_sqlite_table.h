@@ -44,8 +44,6 @@ class DbSqliteTable : public SqliteTable {
 
     std::vector<Constraint> constraints_;
     std::vector<Order> orders_;
-
-    bool eof_ = true;
   };
 
   static void RegisterTable(sqlite3* db,
