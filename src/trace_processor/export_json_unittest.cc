@@ -146,7 +146,8 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_FALSE(event.isMember("args"));
+  EXPECT_TRUE(event["args"].isObject());
+  EXPECT_EQ(event["args"].size(), 0u);
 }
 
 TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
@@ -193,7 +194,8 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
-  EXPECT_FALSE(event.isMember("args"));
+  EXPECT_TRUE(event["args"].isObject());
+  EXPECT_EQ(event["args"].size(), 0u);
 }
 
 TEST_F(ExportJsonTest, StorageWithThreadName) {
@@ -819,7 +821,7 @@ TEST_F(ExportJsonTest, AsyncEvent) {
   EXPECT_EQ(begin_event["ph"].asString(), "b");
   EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
   EXPECT_EQ(begin_event["args"][kArgName].asInt(), kArgValue);
@@ -830,7 +832,7 @@ TEST_F(ExportJsonTest, AsyncEvent) {
   EXPECT_EQ(end_event["ph"].asString(), "e");
   EXPECT_EQ(end_event["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
   EXPECT_EQ(end_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(end_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event["cat"].asString(), kCategory);
   EXPECT_EQ(end_event["name"].asString(), kName);
   EXPECT_FALSE(end_event.isMember("args"));
@@ -878,7 +880,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
   EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
   EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
 
@@ -889,7 +891,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
             (kThreadTimestamp + kThreadDuration) / 1000);
   EXPECT_EQ(end_event["use_async_tts"].asInt(), 1);
   EXPECT_EQ(end_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(end_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event["cat"].asString(), kCategory);
   EXPECT_EQ(end_event["name"].asString(), kName);
 }
@@ -934,7 +936,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
   EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
   EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
 }
@@ -982,7 +984,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   EXPECT_EQ(event["ph"].asString(), "n");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(event["id2"]["local"].asString(), "0x0");
+  EXPECT_EQ(event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_EQ(event["args"][kArgName].asInt(), kArgValue);
