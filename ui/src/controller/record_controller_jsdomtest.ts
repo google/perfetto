@@ -122,7 +122,8 @@ test('ChromeConfig', () => {
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
 
   const expectedTraceConfig = '{"record_mode":"record-until-full",' +
-      '"included_categories":["toplevel","disabled-by-default-ipc.flow","v8"]}';
+      '"included_categories":' +
+      '["toplevel","disabled-by-default-ipc.flow","mojom","v8"]}';
   expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfig).toEqual(expectedTraceConfig);
 });
@@ -146,7 +147,8 @@ test('ChromeConfigRingBuffer', () => {
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
 
   const expectedTraceConfig = '{"record_mode":"record-continuously",' +
-      '"included_categories":["toplevel","disabled-by-default-ipc.flow","v8"]}';
+      '"included_categories":' +
+      '["toplevel","disabled-by-default-ipc.flow","mojom","v8"]}';
   expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfig).toEqual(expectedTraceConfig);
 });
@@ -171,7 +173,8 @@ test('ChromeConfigLongTrace', () => {
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
 
   const expectedTraceConfig = '{"record_mode":"record-continuously",' +
-      '"included_categories":["toplevel","disabled-by-default-ipc.flow","v8"]}';
+      '"included_categories":' +
+      '["toplevel","disabled-by-default-ipc.flow","mojom","v8"]}';
   expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfig).toEqual(expectedTraceConfig);
 });
