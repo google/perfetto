@@ -80,9 +80,11 @@ void HeapGraphTracker::FinalizeProfile() {
     }
     context_->storage->mutable_heap_graph_object_table()->Insert(
         {current_upid_, current_ts_, static_cast<int64_t>(obj.object_id),
-         static_cast<int64_t>(obj.self_size), -1, it->second, base::nullopt});
-    object_id_to_row_.emplace(
-        obj.object_id, context_->storage->heap_graph_object_table().size() - 1);
+         static_cast<int64_t>(obj.self_size), -1, 0, -1, 0, it->second,
+         base::nullopt});
+    int64_t row = context_->storage->heap_graph_object_table().size() - 1;
+    object_id_to_row_.emplace(obj.object_id, row);
+    walker_.AddNode(row, obj.self_size);
   }
 
   for (const SourceObject& obj : current_objects_) {
@@ -105,6 +107,8 @@ void HeapGraphTracker::FinalizeProfile() {
         continue;
 
       int64_t owned_row = it->second;
+      walker_.AddEdge(owner_row, owned_row);
+
       auto field_name_it = interned_field_names_.find(ref.field_name_id);
       if (field_name_it == interned_field_names_.end()) {
         context_->storage->IncrementIndexedStats(
@@ -130,18 +134,35 @@ void HeapGraphTracker::FinalizeProfile() {
         continue;
 
       int64_t obj_row = it->second;
+      walker_.MarkRoot(obj_row);
       context_->storage->mutable_heap_graph_object_table()
           ->mutable_root_type()
           ->Set(static_cast<uint32_t>(obj_row), root.root_type);
     }
   }
-  interned_field_names_.clear();
-  object_id_to_row_.clear();
-  interned_type_names_.clear();
-  current_objects_.clear();
-  current_roots_.clear();
-  current_upid_ = 0;
-  current_ts_ = 0;
+
+  walker_.CalculateRetained();
+
+  auto context = context_;
+  this->~HeapGraphTracker();
+  new (this) HeapGraphTracker(context);
+}
+
+void HeapGraphTracker::MarkReachable(int64_t row) {
+  context_->storage->mutable_heap_graph_object_table()
+      ->mutable_reachable()
+      ->Set(static_cast<uint32_t>(row), 1);
+}
+
+void HeapGraphTracker::SetRetained(int64_t row,
+                                   int64_t retained,
+                                   int64_t unique_retained) {
+  context_->storage->mutable_heap_graph_object_table()
+      ->mutable_retained_size()
+      ->Set(static_cast<uint32_t>(row), retained);
+  context_->storage->mutable_heap_graph_object_table()
+      ->mutable_unique_retained_size()
+      ->Set(static_cast<uint32_t>(row), unique_retained);
 }
 
 }  // namespace trace_processor

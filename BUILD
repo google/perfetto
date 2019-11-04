@@ -748,6 +748,8 @@ filegroup(
         "src/trace_processor/gzip_trace_parser.h",
         "src/trace_processor/heap_graph_tracker.cc",
         "src/trace_processor/heap_graph_tracker.h",
+        "src/trace_processor/heap_graph_walker.cc",
+        "src/trace_processor/heap_graph_walker.h",
         "src/trace_processor/heap_profile_tracker.cc",
         "src/trace_processor/heap_profile_tracker.h",
         "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
