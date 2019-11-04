@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_HEAP_GRAPH_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_HEAP_GRAPH_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
 
 #include <map>
 #include <vector>
@@ -23,7 +23,7 @@
 #include "perfetto/ext/base/optional.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
-#include "src/trace_processor/heap_graph_walker.h"
+#include "src/trace_processor/importers/proto/heap_graph_walker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -87,4 +87,4 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_HEAP_GRAPH_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
