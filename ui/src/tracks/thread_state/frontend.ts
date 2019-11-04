@@ -30,7 +30,7 @@ import {
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
-const MARGIN_TOP = 5;
+const MARGIN_TOP = 4;
 const RECT_HEIGHT = 12;
 
 class ThreadStateTrack extends Track<Config, Data> {
@@ -44,7 +44,7 @@ class ThreadStateTrack extends Track<Config, Data> {
   }
 
   getHeight(): number {
-    return 22;
+    return 2 * MARGIN_TOP + RECT_HEIGHT;
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
