@@ -261,7 +261,9 @@ class ProtoTraceParserTest : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.systrace_parser.reset(new SystraceParser(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.ftrace_module.reset(
         new ProtoImporterModule<FtraceModule>(&context_));
     context_.system_probes_module.reset(

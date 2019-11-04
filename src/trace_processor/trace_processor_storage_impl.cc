@@ -65,7 +65,9 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.systrace_parser.reset(new SystraceParser(&context_));
   context_.binder_tracker.reset(new BinderTracker(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
   context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
   context_.ftrace_module.reset(
       new ProtoImporterModule<FtraceModule>(&context_));
   context_.track_event_module.reset(
