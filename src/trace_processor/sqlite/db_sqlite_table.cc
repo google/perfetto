@@ -159,6 +159,10 @@ DbSqliteTable::Cursor::Cursor(DbSqliteTable* table)
 
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   sqlite3_value** argv) {
+  // Clear out the iterator before filtering to ensure the destructor is run
+  // before the table's destructor.
+  iterator_ = base::nullopt;
+
   // We reuse this vector to reduce memory allocations on nested subqueries.
   constraints_.resize(qc.constraints().size());
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
@@ -182,16 +186,16 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   db_table_ = initial_db_table_->Filter(constraints_).Sort(orders_);
   iterator_ = db_table_->IterateRows();
 
-  return Next();
+  return SQLITE_OK;
 }
 
 int DbSqliteTable::Cursor::Next() {
-  eof_ = !iterator_->Next();
+  iterator_->Next();
   return SQLITE_OK;
 }
 
 int DbSqliteTable::Cursor::Eof() {
-  return eof_;
+  return !*iterator_;
 }
 
 int DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
