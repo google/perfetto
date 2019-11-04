@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// For bazel build.
+#include "perfetto/base/build_config.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
 #include <inttypes.h>
@@ -124,3 +128,5 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
