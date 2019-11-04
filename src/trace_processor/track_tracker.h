@@ -123,6 +123,7 @@ class TrackTracker {
 
   const StringId source_key_ = 0;
   const StringId source_id_key_ = 0;
+  const StringId source_id_is_process_scoped_key_ = 0;
   const StringId source_scope_key_ = 0;
 
   const StringId fuchsia_source_ = 0;
