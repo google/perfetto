@@ -411,15 +411,13 @@ TEST_F(PerfettoApiTest, TrackEvent) {
 
     if (track_event.type() == perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN) {
       EXPECT_FALSE(begin_found);
-      EXPECT_TRUE(track_event.has_legacy_event());
       EXPECT_EQ("test", categories[track_event.category_iids().Get(0)]);
-      EXPECT_EQ("TestEvent",
-                event_names[track_event.legacy_event().name_iid()]);
+      EXPECT_EQ("TestEvent", event_names[track_event.name_iid()]);
       begin_found = true;
     } else if (track_event.type() ==
                perfetto::protos::TrackEvent::TYPE_SLICE_END) {
       EXPECT_FALSE(end_found);
-      EXPECT_FALSE(track_event.has_legacy_event());
+      EXPECT_EQ(0u, track_event.name_iid());
       EXPECT_EQ("test", categories[track_event.category_iids().Get(0)]);
       end_found = true;
     }
