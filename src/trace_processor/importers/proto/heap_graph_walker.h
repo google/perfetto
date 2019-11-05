@@ -60,20 +60,17 @@
 //    \ /     |
 //     d      |
 //
-// The basic idea of the algorithm is to assign every node a fractional
-// retention of other nodes. In the same graph:
-// a retains nothing
-// a uniquely retains nothing
+// The basic idea of the algorithm is to keep track of the number of unvisited
+// nodes that retain the node. Nodes that have multiple parents get double
+// counted; this is so we can always reduce the number of unvisited nodes by
+// the number of edges from a node that retain a node.
 //
-// b retains a
-// b 1/2 uniquely retains a
+// In the same graph:
+// visiting a: 2 unvisited nodes retain a {b, c}
+// visiting b: 2 unvisited nodes retain a {d, c}
+// visiting c: 2 unvisited nodes retain a {d, d}
+// visiting d: 0 unvisited nodes retain a
 //
-// c retains a
-// c 1/2 uniquely retains a
-//
-// d retains a, b, c
-// d 1/2 + 1/2 = 1 uniquely retains a
-// d 1 uniquely retains b and c
 //
 // A more complete example
 //
@@ -88,35 +85,15 @@
 //     \  /    |
 //      f      |
 //
-// b: 1/2 retains a
-// c: 1/2 retains a
-// d: 3/4 retains a (all of b's share, half of c's)
-// e: 1/4 retains a (half of c's share)
-// f: 4/4 = 1 retains a
+// visiting a: 2 unvisited nodes retain a ({b, c})
+// visiting b: 2 unvisited nodes retain a ({d, c})
+// visiting c: 3 unvisited nodes retain a ({d, d, e})
+// visiting d: 2 unvisited nodes retain a ({f, e})
+// visiting e: 2 unvisited nodes retain a ({f, f})
+// visiting f: 0 unvisited nodes retain a
 
 namespace perfetto {
 namespace trace_processor {
-
-class Fraction {
- public:
-  Fraction() : Fraction(0, 1) {}
-
-  Fraction(const Fraction&) = default;
-  Fraction(uint64_t numerator, uint64_t denominator);
-  Fraction& operator+=(const Fraction& other);
-  bool operator==(uint64_t other) const;
-  Fraction operator*(const Fraction& other);
-
-  uint64_t numerator() const { return numerator_; }
-  uint64_t denominator() const { return denominator_; }
-
- private:
-  // Reduce fraction. E.g., turn 2 / 4 into 1 / 2.
-  void Reduce();
-
-  uint64_t numerator_;
-  uint64_t denominator_;
-};
 
 class HeapGraphWalker {
  public:
@@ -148,8 +125,6 @@ class HeapGraphWalker {
     // or only one.
     std::set<Node*> children;
     std::set<Node*> parents;
-    bool reachable = false;
-    bool on_stack = false;
     uint64_t self_size = 0;
     uint64_t retained_size = 0;
 
@@ -157,13 +132,17 @@ class HeapGraphWalker {
     uint64_t node_index = 0;
     uint64_t lowlink = 0;
     int64_t component = -1;
+
+    bool reachable = false;
+    bool on_stack = false;
   };
 
   struct Component {
     uint64_t unique_retained_size = 0;
     size_t incoming_edges = 0;
     size_t orig_incoming_edges = 0;
-    std::map<int64_t, Fraction> children_components;
+    size_t pending_nodes = 0;
+    std::set<int64_t> children_components;
     uint64_t lowlink = 0;
   };
 

@@ -62,33 +62,6 @@ class HeapGraphWalkerTestDelegate : public HeapGraphWalker::Delegate {
   std::set<int64_t> reachable_;
 };
 
-TEST(FractionTest, BasicAdd) {
-  Fraction frac(1, 2);
-  frac += Fraction(1, 2);
-  EXPECT_EQ(frac, 1u);
-}
-
-TEST(FractionTest, NullAdd) {
-  Fraction frac;
-  frac += Fraction(1, 2);
-  EXPECT_EQ(frac.numerator(), 1u);
-  EXPECT_EQ(frac.denominator(), 2u);
-}
-
-TEST(FractionTest, ReduceAdd) {
-  Fraction frac(1, 6);
-  frac += Fraction(1, 6);
-  EXPECT_EQ(frac.numerator(), 1u);
-  EXPECT_EQ(frac.denominator(), 3u);
-}
-
-TEST(FractionTest, BasicMul) {
-  Fraction frac(1, 2);
-  auto result = frac * frac;
-  EXPECT_EQ(result.numerator(), 1u);
-  EXPECT_EQ(result.denominator(), 4u);
-}
-
 //     1     |
 //    ^^     |
 //   /  \    |
@@ -328,6 +301,31 @@ TEST(HeapGraphWalkerTest, TwoPaths) {
   EXPECT_EQ(delegate.UniqueRetained(2), 2);
   EXPECT_EQ(delegate.UniqueRetained(3), 3);
   EXPECT_EQ(delegate.UniqueRetained(4), 6);
+}
+
+//    1     |
+//   ^^     |
+//  /  \    |
+// 2    3   |
+TEST(HeapGraphWalkerTest, Diverge) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1);
+  walker.AddNode(2, 2);
+  walker.AddNode(3, 3);
+
+  walker.AddEdge(2, 1);
+  walker.AddEdge(3, 1);
+
+  walker.CalculateRetained();
+
+  EXPECT_EQ(delegate.Retained(1), 1);
+  EXPECT_EQ(delegate.Retained(2), 3);
+  EXPECT_EQ(delegate.Retained(3), 4);
+
+  EXPECT_EQ(delegate.UniqueRetained(1), 1);
+  EXPECT_EQ(delegate.UniqueRetained(2), 2);
+  EXPECT_EQ(delegate.UniqueRetained(3), 3);
 }
 
 }  // namespace
