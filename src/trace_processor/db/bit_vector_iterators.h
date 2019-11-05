@@ -36,6 +36,16 @@ class BaseIterator {
   BaseIterator(BaseIterator&&) noexcept = default;
   BaseIterator& operator=(BaseIterator&&) = default;
 
+  // Sets the current bit the iterator points to.
+  void Set() {
+    if (!IsSet()) {
+      block_.Set(block_offset());
+
+      is_block_changed_ = true;
+      ++set_bit_count_diff_;
+    }
+  }
+
   // Clears the current bit the iterator points to.
   void Clear() {
     if (IsSet()) {
