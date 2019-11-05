@@ -147,6 +147,7 @@ export class LogsController extends Controller<'main'> {
   private engine: Engine;
   private span: TimeSpan;
   private pagination: Pagination;
+  private hasLogs = false;
 
   constructor(args: LogsControllerArgs) {
     super('main');
@@ -154,23 +155,27 @@ export class LogsController extends Controller<'main'> {
     this.engine = args.engine;
     this.span = new TimeSpan(0, 10);
     this.pagination = new Pagination(0, 0);
-    this.publishHasAnyLogs();
-  }
-
-  async publishHasAnyLogs() {
-    const result = await this.engine.queryOneRow(`
-      select count(*) from android_logs
-    `);
-    const exists = result[0] > 0;
-    this.app.publish('TrackData', {
-      id: LogExistsKey,
-      data: {
-        exists,
-      },
+    this.hasAnyLogs().then(exists => {
+      this.hasLogs = exists;
+      this.app.publish('TrackData', {
+        id: LogExistsKey,
+        data: {
+          exists,
+        },
+      });
     });
   }
 
+  async hasAnyLogs() {
+    const result = await this.engine.queryOneRow(`
+      select count(*) from android_logs
+    `);
+    return result[0] > 0;
+  }
+
   run() {
+    if (!this.hasLogs) return;
+
     const traceTime = this.app.state.frontendLocalState.visibleState;
     const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
     const oldSpan = this.span;
