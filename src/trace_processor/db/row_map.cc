@@ -36,6 +36,18 @@ RowMap SelectRangeWithBv(uint32_t start,
                          uint32_t end,
                          const BitVector& selector) {
   PERFETTO_DCHECK(start <= end);
+  PERFETTO_DCHECK(end - start == selector.size());
+
+  // If |start| == 0 and |end - start| == |selector.size()| (which is a
+  // precondition for this function), the BitVector we generate is going to be
+  // exactly |selector|.
+  //
+  // This is a fast path for the common situation where, post-filtering,
+  // SelectRows is called on all the table RowMaps with a BitVector. The self
+  // RowMap will always be a range so we expect this case to be hit at least
+  // once every filter operation.
+  if (start == 0u)
+    return RowMap(selector.Copy());
 
   BitVector bv(start, false);
   bv.Resize(end, true);
