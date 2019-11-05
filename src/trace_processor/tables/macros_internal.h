@@ -169,14 +169,16 @@ class MacroTable : public Table {
   SparseVector<TypedColumn<type>::StoredType> name##_;
 
 // Constructs the column in the Table constructor when flags are specified.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS(type, name, flags)        \
-  columns_.emplace_back(#name, &name##_, static_cast<uint32_t>(flags), this, \
-                        columns_.size(), row_maps_.size() - 1);
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS(type, name, flags)          \
+  columns_.emplace_back(                                                       \
+      #name, &name##_,                                                         \
+      static_cast<uint32_t>(flags) | TypedColumn<type>::default_flags(), this, \
+      columns_.size(), row_maps_.size() - 1);
 
 // Constructs the column in the Table constructor when no flags are specified.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_NO_FLAGS(type, name) \
-  columns_.emplace_back(#name, &name##_, Column::kNoFlag, this,   \
-                        columns_.size(), row_maps_.size() - 1);
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_NO_FLAGS(type, name)            \
+  columns_.emplace_back(#name, &name##_, TypedColumn<type>::default_flags(), \
+                        this, columns_.size(), row_maps_.size() - 1);
 
 // Chooses between the flag and no-flag variant based on the whether there
 // are two or three arguments.
