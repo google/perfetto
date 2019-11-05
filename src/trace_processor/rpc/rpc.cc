@@ -35,6 +35,8 @@ constexpr size_t kProgressUpdateBytes = 50 * 1000 * 1000;
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
     : trace_processor_(std::move(preloaded_instance)) {}
 
+Rpc::Rpc() : Rpc(nullptr) {}
+
 Rpc::~Rpc() = default;
 
 util::Status Rpc::Parse(const uint8_t* data, size_t len) {

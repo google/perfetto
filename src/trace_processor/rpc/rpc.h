@@ -50,7 +50,7 @@ class Rpc {
   // instance and allow to directly query that. If null, a new instanace will be
   // created internally by calling Parse().
   explicit Rpc(std::unique_ptr<TraceProcessor>);
-  Rpc() : Rpc(nullptr) {}
+  Rpc();
   ~Rpc();
 
   // The methods of this class are mirrors (modulo {un,}marshalling of args) of
