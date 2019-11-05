@@ -21,26 +21,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-uint64_t Gcd(uint64_t one, uint64_t other) {
-  if (one == 1)
-    return 1;
-  if (other == 1)
-    return 1;
-
-  while (other != 0) {
-    uint64_t tmp = other;
-    other = one % other;
-    one = tmp;
-  }
-  return one;
-}
-
-uint64_t Lcm(uint64_t one, uint64_t other) {
-  if (one > other)
-    return other * (one / Gcd(one, other));
-  return one * (other / Gcd(one, other));
-}
-
 void AddChild(std::map<int64_t, int64_t>* component_to_node,
               uint64_t count,
               int64_t child_component_id,
@@ -74,47 +54,6 @@ bool IsUniqueOwner(const std::map<int64_t, int64_t>& component_to_node,
 }
 
 }  // namespace
-
-Fraction::Fraction(uint64_t numerator, uint64_t denominator)
-    : numerator_(numerator), denominator_(denominator) {
-  PERFETTO_CHECK(denominator_ > 0);
-  Reduce();
-}
-
-void Fraction::Reduce() {
-  if (numerator_ == 0) {
-    denominator_ = 1;
-    return;
-  }
-
-  if (numerator_ == 1)
-    return;
-
-  uint64_t new_gcd = Gcd(numerator_, denominator_);
-  numerator_ /= new_gcd;
-  denominator_ /= new_gcd;
-  PERFETTO_CHECK(denominator_ > 0);
-}
-
-Fraction& Fraction::operator+=(const Fraction& other) {
-  uint64_t new_denominator = Lcm(denominator_, other.denominator_);
-  uint64_t new_numerator =
-      numerator_ * (new_denominator / denominator_) +
-      other.numerator_ * (new_denominator / other.denominator_);
-  numerator_ = new_numerator;
-  denominator_ = new_denominator;
-  Reduce();
-  return *this;
-}
-
-Fraction Fraction::operator*(const Fraction& other) {
-  return Fraction(numerator_ * other.numerator_,
-                  denominator_ * other.denominator_);
-}
-
-bool Fraction::operator==(uint64_t other) const {
-  return numerator_ == denominator_ * other;
-}
 
 HeapGraphWalker::Delegate::~Delegate() = default;
 
@@ -160,8 +99,7 @@ void HeapGraphWalker::ReachableNode(Node* node) {
 
 int64_t HeapGraphWalker::RetainedSize(const Component& component) {
   int64_t retained_size = static_cast<int64_t>(component.unique_retained_size);
-  for (const auto& p : component.children_components) {
-    int64_t child_component_id = p.first;
+  for (const int64_t child_component_id : component.children_components) {
     const Component& child_component =
         components_[static_cast<size_t>(child_component_id)];
     retained_size += child_component.unique_retained_size;
@@ -224,6 +162,7 @@ void HeapGraphWalker::FoundSCC(Node* node) {
         component.incoming_edges++;
     }
     component.orig_incoming_edges = component.incoming_edges;
+    component.pending_nodes = component.orig_incoming_edges;
   }
 
   std::map<int64_t, int64_t> unique_retained_by_node;
@@ -241,53 +180,64 @@ void HeapGraphWalker::FoundSCC(Node* node) {
     Component& child_component =
         components_[static_cast<size_t>(child_component_id)];
 
-    child_component.incoming_edges -= count;
-    for (auto& comp_p : child_component.children_components) {
-      int64_t grand_component_id = comp_p.first;
-      const Fraction& child_ownership_fraction = comp_p.second;
-      const Component& grand_component =
+    for (int64_t grand_component_id : child_component.children_components) {
+      AddChild(&component_to_node, count, grand_component_id, dc.last_node_row);
+      Component& grand_component =
           components_[static_cast<size_t>(grand_component_id)];
-      AddChild(&component_to_node, count, child_component_id, dc.last_node_row);
-
-      Fraction multiplier(count, child_component.orig_incoming_edges);
-      component.children_components[grand_component_id] +=
-          multiplier * child_ownership_fraction;
-      if (component.children_components[grand_component_id] == 1) {
+      grand_component.pending_nodes -= count;
+      if (grand_component.pending_nodes == 0) {
         component.unique_retained_size += grand_component.unique_retained_size;
         if (IsUniqueOwner(component_to_node, count, grand_component_id,
                           dc.last_node_row)) {
           unique_retained_by_node[dc.last_node_row] +=
               grand_component.unique_retained_size;
         }
+        grand_component.children_components.clear();
         component.children_components.erase(grand_component_id);
+      } else {
+        component.children_components.emplace(grand_component_id);
       }
     }
 
+    child_component.incoming_edges -= count;
+    child_component.pending_nodes -= count;
+
     if (child_component.orig_incoming_edges == count) {
-      // Has already been decremented above.
       PERFETTO_CHECK(child_component.incoming_edges == 0);
+      PERFETTO_CHECK(child_component.pending_nodes == 0);
+
       component.unique_retained_size += child_component.unique_retained_size;
       if (count == 1) {
         unique_retained_by_node[dc.last_node_row] +=
             child_component.unique_retained_size;
       }
-    } else {
-      component.children_components[child_component_id] +=
-          Fraction(count, child_component.orig_incoming_edges);
-
-      if (component.children_components[child_component_id] == 1) {
-        component.unique_retained_size += child_component.unique_retained_size;
-        if (IsUniqueOwner(component_to_node, count, dc.last_node_row,
-                          child_component_id)) {
-          unique_retained_by_node[dc.last_node_row] +=
-              child_component.unique_retained_size;
-        }
-        component.children_components.erase(child_component_id);
+    } else if (child_component.pending_nodes == 0) {
+      PERFETTO_CHECK(child_component.incoming_edges == 0);
+      component.unique_retained_size += child_component.unique_retained_size;
+      if (IsUniqueOwner(component_to_node, count, child_component_id,
+                        dc.last_node_row)) {
+        unique_retained_by_node[dc.last_node_row] +=
+            child_component.unique_retained_size;
       }
+      component.children_components.erase(child_component_id);
+    } else {
+      component.children_components.emplace(child_component_id);
     }
 
     if (child_component.incoming_edges == 0)
       child_component.children_components.clear();
+  }
+
+  size_t parents = component.orig_incoming_edges;
+  // If this has no parents, but does not retain a node, we know that no other
+  // node can retain this node. Add 1 to poison that node.
+  if (parents == 0)
+    parents = 1;
+  for (const int64_t child_component_id : component.children_components) {
+    Component& child_component =
+        components_[static_cast<size_t>(child_component_id)];
+    PERFETTO_CHECK(child_component.pending_nodes > 0);
+    child_component.pending_nodes += parents;
   }
 
   int64_t retained_size = RetainedSize(component);
