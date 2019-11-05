@@ -72,8 +72,8 @@ BUILD_DEPS_HOST = [
 
     # Keep in sync with Android's //external/googletest/README.version.
     ('buildtools/googletest.zip',
-     'https://github.com/google/googletest/archive/ff07a5de0e81580547f1685e101194ed1a4fcd56.zip',
-     'c7edec7d7e6db1fc37a20710de9c4d89e3a3893b', 'all'),
+     'https://github.com/google/googletest/archive/3f05f651ae3621db58468153e32016bc1397800b.zip',
+     '86384688f7c533ad325a505efc917e0cdf39a0ce', 'all'),
 
     # Keep in sync with Android's //external/protobuf/README.version.
     ('buildtools/protobuf.zip',
