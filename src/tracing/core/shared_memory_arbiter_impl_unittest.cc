@@ -16,6 +16,7 @@
 
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
+#include <bitset>
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
@@ -25,6 +26,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/test/aligned_buffer_test.h"
+#include "src/tracing/test/fake_producer_endpoint.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -135,23 +137,53 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
   task_runner_->RunUntilCheckpoint("on_commit_2");
 }
 
+// Helper for verifying trace writer id allocations.
+class TraceWriterIdChecker : public FakeProducerEndpoint {
+ public:
+  TraceWriterIdChecker(std::function<void()> checkpoint)
+      : checkpoint_(std::move(checkpoint)) {}
+
+  void RegisterTraceWriter(uint32_t id, uint32_t) override {
+    EXPECT_GT(id, 0u);
+    EXPECT_LE(id, kMaxWriterID);
+    if (id > 0 && id <= kMaxWriterID) {
+      registered_ids_.set(id - 1);
+    }
+  }
+
+  void UnregisterTraceWriter(uint32_t id) override {
+    if (++unregister_calls_ == kMaxWriterID)
+      checkpoint_();
+
+    EXPECT_GT(id, 0u);
+    EXPECT_LE(id, kMaxWriterID);
+    if (id > 0 && id <= kMaxWriterID) {
+      unregistered_ids_.set(id - 1);
+    }
+  }
+
+  // bit N corresponds to id N+1
+  std::bitset<kMaxWriterID> registered_ids_;
+  std::bitset<kMaxWriterID> unregistered_ids_;
+
+  int unregister_calls_ = 0;
+
+ private:
+  std::function<void()> checkpoint_;
+};
+
 // Check that we can actually create up to kMaxWriterID TraceWriter(s).
 TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   auto checkpoint = task_runner_->CreateCheckpoint("last_unregistered");
-  int num_unregistered = 0;
+
+  TraceWriterIdChecker id_checking_endpoint(checkpoint);
+  arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
+                                             &id_checking_endpoint,
+                                             task_runner_.get()));
   {
     std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
-    for (size_t i = 0; i < kMaxWriterID; i++) {
-      EXPECT_CALL(mock_producer_endpoint_,
-                  RegisterTraceWriter(static_cast<uint32_t>(i + 1), 0));
-      EXPECT_CALL(mock_producer_endpoint_,
-                  UnregisterTraceWriter(static_cast<uint32_t>(i + 1)))
-          .WillOnce(Invoke([checkpoint, &num_unregistered](uint32_t) {
-            num_unregistered++;
-            if (num_unregistered == kMaxWriterID)
-              checkpoint();
-          }));
 
+    for (size_t i = 0; i < kMaxWriterID; i++) {
       std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(0);
       ASSERT_TRUE(writer);
       WriterID writer_id = writer->writer_id();
@@ -163,8 +195,12 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
     ASSERT_EQ(arbiter_->CreateTraceWriter(0)->writer_id(), 0);
   }
 
-  // This should run the Register/UnregisterTraceWriter calls expected above.
+  // This should run the Register/UnregisterTraceWriter tasks enqueued by the
+  // memory arbiter.
   task_runner_->RunUntilCheckpoint("last_unregistered", 15000);
+
+  EXPECT_TRUE(id_checking_endpoint.registered_ids_.all());
+  EXPECT_TRUE(id_checking_endpoint.unregistered_ids_.all());
 }
 
 // Verify that getting a new chunk doesn't stall when kDrop policy is chosen.
