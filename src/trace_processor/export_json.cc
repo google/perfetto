@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// For bazel build.
+#include "perfetto/base/build_config.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "src/trace_processor/export_json.h"
 
@@ -1014,3 +1018,5 @@ util::Status ExportJson(const TraceStorage* storage, FILE* output) {
 }  // namespace json
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
