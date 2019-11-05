@@ -33,9 +33,8 @@ namespace perfetto {
 namespace trace_processor {
 
 namespace {
-
-std::string SubstrTrim(const std::string& input, size_t start, size_t end) {
-  std::string s = input.substr(start, end - start);
+std::string SubstrTrim(const std::string& input) {
+  std::string s = input;
   s.erase(s.begin(), std::find_if(s.begin(), s.end(),
                                   [](int ch) { return !std::isspace(ch); }));
   s.erase(std::find_if(s.rbegin(), s.rend(),
@@ -44,24 +43,15 @@ std::string SubstrTrim(const std::string& input, size_t start, size_t end) {
           s.end());
   return s;
 }
-
-std::pair<size_t, size_t> FindTask(const std::string& line) {
-  size_t start;
-  for (start = 0; start < line.size() && isspace(line[start]); ++start)
-    ;
-  size_t length;
-  for (length = 0; start + length < line.size() && line[start + length] != '-';
-       ++length)
-    ;
-  return std::pair<size_t, size_t>(start, length);
-}
-
 }  // namespace
 
 SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
     : context_(ctx),
       sched_wakeup_name_id_(ctx->storage->InternString("sched_wakeup")),
-      cpu_idle_name_id_(ctx->storage->InternString("cpuidle")) {}
+      cpu_idle_name_id_(ctx->storage->InternString("cpuidle")),
+      line_matcher_(std::regex(R"(-(\d+)\s+\(?\s*(\d+|-+)?\)?\s?\[(\d+)\]\s*)"
+                               R"([a-zA-Z0-9.]{0,4}\s+(\d+\.\d+):\s+(\S+):)")) {
+}
 SystraceTraceParser::~SystraceTraceParser() = default;
 
 util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
@@ -121,30 +111,33 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
 util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     const std::string& buffer) {
   // An example line from buffer looks something like the following:
-  // <idle>-0     (-----) [000] d..1 16500.715638: cpu_idle: state=0 cpu_id=0
+  // kworker/u16:1-77    (   77) [004] ....   316.196720: 0:
+  // B|77|__scm_call_armv8_64|0
   //
   // However, sometimes the tgid can be missing and buffer looks like this:
   // <idle>-0     [000] ...2     0.002188: task_newtask: pid=1 ...
-  size_t task_start;
-  size_t task_length;
-  std::tie<size_t, size_t>(task_start, task_length) = FindTask(buffer);
+  //
+  // Also the irq fields can be missing (we don't parse these anyway)
+  // <idle>-0     [000]  0.002188: task_newtask: pid=1 ...
+  //
+  // The task name can contain any characters e.g -:[(/ and for this reason
+  // it is much easier to use a regex (even though it is slower than parsing
+  // manually)
 
-  size_t task_idx = task_start + task_length;
-  std::string task = buffer.substr(task_start, task_length);
-
-  // Try and figure out whether tgid is present by searching for '(' but only
-  // if it occurs before the start of cpu (indiciated by '[') - this is because
-  // '(' can also occur in the args of an event.
-  auto tgid_idx = buffer.find('(', task_idx + 1);
-  auto cpu_idx = buffer.find('[', task_idx + 1);
-  bool has_tgid = tgid_idx != std::string::npos && tgid_idx < cpu_idx;
-
-  if (cpu_idx == std::string::npos) {
-    return util::Status("Could not find [ in " + buffer);
+  std::smatch matches;
+  bool matched = std::regex_search(buffer, matches, line_matcher_);
+  if (!matched) {
+    return util::Status("Not a known systrace event format");
   }
 
-  auto pid_end = has_tgid ? tgid_idx : cpu_idx;
-  std::string pid_str = SubstrTrim(buffer, task_idx + 1, pid_end);
+  std::string task = SubstrTrim(matches.prefix());
+  std::string pid_str = matches[1].str();
+  std::string tgid_str = matches[2].str();
+  std::string cpu_str = matches[3].str();
+  std::string ts_str = matches[4].str();
+  std::string event_name = matches[5].str();
+  std::string args_str = SubstrTrim(matches.suffix());
+
   base::Optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
   if (!maybe_pid.has_value()) {
     return util::Status("Could not convert pid " + pid_str);
@@ -152,36 +145,24 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   uint32_t pid = maybe_pid.value();
   context_->process_tracker->GetOrCreateThread(pid);
 
-  if (has_tgid) {
-    auto tgid_end = buffer.find(')', tgid_idx + 1);
-    std::string tgid_str = SubstrTrim(buffer, tgid_idx + 1, tgid_end);
+  if (tgid_str != "" && tgid_str != "-----") {
     base::Optional<uint32_t> tgid = base::StringToUInt32(tgid_str);
     if (tgid) {
       context_->process_tracker->UpdateThread(pid, tgid.value());
     }
   }
 
-  auto cpu_end = buffer.find(']', cpu_idx + 1);
-  std::string cpu_str = SubstrTrim(buffer, cpu_idx + 1, cpu_end);
   base::Optional<uint32_t> maybe_cpu = base::StringToUInt32(cpu_str);
   if (!maybe_cpu.has_value()) {
     return util::Status("Could not convert cpu " + cpu_str);
   }
   uint32_t cpu = maybe_cpu.value();
 
-  auto ts_idx = buffer.find(' ', cpu_end + 2);
-  auto ts_end = buffer.find(':', ts_idx + 1);
-  std::string ts_str = SubstrTrim(buffer, ts_idx + 1, ts_end);
   base::Optional<double> maybe_ts = base::StringToDouble(ts_str);
   if (!maybe_ts.has_value()) {
     return util::Status("Could not convert ts");
   }
   int64_t ts = static_cast<int64_t>(maybe_ts.value() * 1e9);
-
-  auto fn_idx = buffer.find(':', ts_end + 2);
-  std::string fn = SubstrTrim(buffer, ts_end + 2, fn_idx);
-
-  std::string args_str = SubstrTrim(buffer, fn_idx + 2, buffer.size());
 
   std::unordered_map<std::string, std::string> args;
   for (base::StringSplitter ss(args_str.c_str(), ' '); ss.Next();) {
@@ -196,7 +177,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     }
     args.emplace(std::move(key), std::move(value));
   }
-  if (fn == "sched_switch") {
+  if (event_name == "sched_switch") {
     auto prev_state_str = args["prev_state"];
     int64_t prev_state =
         ftrace_utils::TaskState(prev_state_str.c_str()).raw_state();
@@ -216,9 +197,10 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     context_->sched_tracker->PushSchedSwitch(
         cpu, ts, prev_pid.value(), prev_comm, prev_prio.value(), prev_state,
         next_pid.value(), next_comm, next_prio.value());
-  } else if (fn == "tracing_mark_write" || fn == "0" || fn == "print") {
+  } else if (event_name == "tracing_mark_write" || event_name == "0" ||
+             event_name == "print") {
     context_->systrace_parser->ParsePrintEvent(ts, pid, args_str.c_str());
-  } else if (fn == "sched_wakeup") {
+  } else if (event_name == "sched_wakeup") {
     auto comm = args["comm"];
     base::Optional<uint32_t> wakee_pid = base::StringToUInt32(args["pid"]);
     if (!wakee_pid.has_value()) {
@@ -231,7 +213,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_,
                                          0 /* value */, wakee_utid,
                                          RefType::kRefUtid);
-  } else if (fn == "cpu_idle") {
+  } else if (event_name == "cpu_idle") {
     base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
     base::Optional<double> new_state = base::StringToDouble(args["state"]);
     if (!event_cpu.has_value()) {
