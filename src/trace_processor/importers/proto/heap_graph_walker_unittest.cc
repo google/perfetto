@@ -82,6 +82,7 @@ TEST(HeapGraphWalkerTest, Diamond) {
   walker.AddEdge(4, 2);
   walker.AddEdge(4, 3);
 
+  walker.MarkRoot(4);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 1);
@@ -112,6 +113,7 @@ TEST(HeapGraphWalkerTest, Loop) {
   walker.AddEdge(4, 2);
   walker.AddEdge(4, 3);
 
+  walker.MarkRoot(3);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 1);
@@ -140,6 +142,7 @@ TEST(HeapGraphWalkerTest, Triangle) {
   walker.AddEdge(2, 3);
   walker.AddEdge(3, 1);
 
+  walker.MarkRoot(1);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 6);
@@ -177,14 +180,10 @@ TEST(HeapGraphWalkerTest, Disconnected) {
   EXPECT_EQ(delegate.Retained(1), 1);
   EXPECT_EQ(delegate.Retained(2), 3);
   EXPECT_EQ(delegate.Retained(3), 6);
-  EXPECT_EQ(delegate.Retained(4), 4);
-  EXPECT_EQ(delegate.Retained(5), 9);
 
   EXPECT_EQ(delegate.UniqueRetained(1), 1);
   EXPECT_EQ(delegate.UniqueRetained(2), 3);
   EXPECT_EQ(delegate.UniqueRetained(3), 6);
-  EXPECT_EQ(delegate.UniqueRetained(4), 4);
-  EXPECT_EQ(delegate.UniqueRetained(5), 9);
 
   EXPECT_TRUE(delegate.Reachable(1));
   EXPECT_TRUE(delegate.Reachable(2));
@@ -221,6 +220,7 @@ TEST(HeapGraphWalkerTest, Complex) {
   walker.AddEdge(6, 4);
   walker.AddEdge(6, 5);
 
+  walker.MarkRoot(6);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 1);
@@ -259,6 +259,7 @@ TEST(HeapGraphWalkerTest, SharedInComponent) {
   walker.AddEdge(3, 2);
   walker.AddEdge(4, 2);
 
+  walker.MarkRoot(4);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 1);
@@ -290,6 +291,7 @@ TEST(HeapGraphWalkerTest, TwoPaths) {
   walker.AddEdge(4, 2);
   walker.AddEdge(4, 3);
 
+  walker.MarkRoot(4);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 1);
@@ -317,6 +319,8 @@ TEST(HeapGraphWalkerTest, Diverge) {
   walker.AddEdge(2, 1);
   walker.AddEdge(3, 1);
 
+  walker.MarkRoot(2);
+  walker.MarkRoot(3);
   walker.CalculateRetained();
 
   EXPECT_EQ(delegate.Retained(1), 1);
@@ -326,6 +330,30 @@ TEST(HeapGraphWalkerTest, Diverge) {
   EXPECT_EQ(delegate.UniqueRetained(1), 1);
   EXPECT_EQ(delegate.UniqueRetained(2), 2);
   EXPECT_EQ(delegate.UniqueRetained(3), 3);
+}
+
+//    1            |
+//   ^^            |
+//  /  \           |
+// 2    3 (dead)   |
+TEST(HeapGraphWalkerTest, Dead) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1);
+  walker.AddNode(2, 2);
+  walker.AddNode(3, 3);
+
+  walker.AddEdge(2, 1);
+  walker.AddEdge(3, 1);
+
+  walker.MarkRoot(2);
+  walker.CalculateRetained();
+
+  EXPECT_EQ(delegate.Retained(1), 1);
+  EXPECT_EQ(delegate.Retained(2), 3);
+
+  EXPECT_EQ(delegate.UniqueRetained(1), 1);
+  EXPECT_EQ(delegate.UniqueRetained(2), 3);
 }
 
 }  // namespace
