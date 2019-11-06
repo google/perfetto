@@ -1045,7 +1045,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   TraceStorage::Thread thread(16);
   thread.upid = 2u;
   EXPECT_CALL(*storage_, GetThread(1))
-      .Times(5)
       .WillRepeatedly(testing::ReturnRef(thread));
 
   MockArgsTracker args(&context_);
@@ -1065,12 +1064,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   RowId first_slice_row_id =
-      TraceStorage::CreateRowId(TableId::kNestableSlices, 3u);
+      TraceStorage::CreateRowId(TableId::kNestableSlices, 0u);
   EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, 1, RefType::kRefUtid,
                               StringId(1), StringId(2), 23000, _))
       .WillOnce(
           DoAll(InvokeArgument<7>(&args, first_slice_row_id), Return(0u)));
-
   EXPECT_CALL(
       args, AddArg(first_slice_row_id, _, _, Variadic::UnsignedInteger(9999u)));
   EXPECT_CALL(args, AddArg(first_slice_row_id, _, _, Variadic::Boolean(true)));
@@ -1097,12 +1095,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
               &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 2u)),
           Return(2u)));
 
+  RowId last_slice_row_id =
+      TraceStorage::CreateRowId(TableId::kNestableSlices, 3u);
   EXPECT_CALL(*slice_, Scoped(1050000, process_2_track, 2, RefType::kRefUpid,
                               StringId(3), StringId(4), 0, _))
-      .WillOnce(DoAll(
-          InvokeArgument<7>(
-              &args, TraceStorage::CreateRowId(TableId::kNestableSlices, 3u)),
-          Return(3u)));
+      .WillOnce(DoAll(InvokeArgument<7>(&args, last_slice_row_id), Return(3u)));
+  // Second slice should have a legacy_event.original_tid arg.
+  EXPECT_CALL(args, AddArg(last_slice_row_id, _, _, Variadic::Integer(16)));
 
   context_.sorter->ExtractEventsForced();
 
