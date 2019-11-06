@@ -450,8 +450,8 @@ class RowMap {
       case Mode::kRange: {
         // TODO(lalitm): investigate whether we can reuse the data inside
         // out->bit_vector_ at some point.
-        BitVector bv(out->start_idx_, false);
-        for (; it; it.Next()) {
+        BitVector bv(out->end_idx_, false);
+        for (auto out_it = bv.IterateAllBits(); it; it.Next(), out_it.Next()) {
           uint32_t ordinal = it.ordinal();
           if (ordinal < out->start_idx_)
             continue;
@@ -459,9 +459,7 @@ class RowMap {
             break;
 
           if (p(it.index())) {
-            bv.AppendTrue();
-          } else {
-            bv.AppendFalse();
+            out_it.Set();
           }
         }
         *out = RowMap(std::move(bv));

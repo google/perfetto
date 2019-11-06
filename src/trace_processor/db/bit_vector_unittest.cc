@@ -254,6 +254,38 @@ TEST(BitVectorUnittest, IterateAllBitsConst) {
   }
 }
 
+TEST(BitVectorUnittest, IterateAllBitsSet) {
+  BitVector bv;
+  for (uint32_t i = 0; i < 12345; ++i) {
+    if (i % 7 == 0 || i % 13 == 0) {
+      bv.AppendTrue();
+    } else {
+      bv.AppendFalse();
+    }
+  }
+
+  // Unset every 15th bit.
+  for (auto it = bv.IterateAllBits(); it; it.Next()) {
+    if (it.index() % 15 == 0) {
+      it.Set();
+    }
+  }
+
+  // Go through the iterator manually and check it has updated
+  // to not have every 15th bit set.
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < 12345; ++i) {
+    bool is_set = i % 15 == 0 || i % 7 == 0 || i % 13 == 0;
+
+    ASSERT_EQ(bv.IsSet(i), is_set);
+    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+
+    if (is_set) {
+      ASSERT_EQ(bv.IndexOfNthSet(count++), i);
+    }
+  }
+}
+
 TEST(BitVectorUnittest, IterateAllBitsClear) {
   BitVector bv;
   for (uint32_t i = 0; i < 12345; ++i) {
@@ -306,7 +338,7 @@ TEST(BitVectorUnittest, IterateSetBitsConst) {
   ASSERT_EQ(i, set_indices.size());
 }
 
-TEST(BitVectorUnittest, IterateSetBitslear) {
+TEST(BitVectorUnittest, IterateSetBitsClear) {
   BitVector bv;
   for (uint32_t i = 0; i < 12345; ++i) {
     if (i % 7 == 0 || i % 13 == 0) {
