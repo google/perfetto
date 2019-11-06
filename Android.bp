@@ -4396,6 +4396,7 @@ filegroup {
   srcs: [
     "src/protozero/message.cc",
     "src/protozero/message_handle.cc",
+    "src/protozero/packed_repeated_fields.cc",
     "src/protozero/proto_decoder.cc",
     "src/protozero/scattered_heap_buffer.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
