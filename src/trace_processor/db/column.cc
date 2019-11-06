@@ -50,8 +50,9 @@ Column::Column(const char* name,
       string_pool_(table->string_pool_) {}
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
-  return Column("id", ColumnType::kId, Flag::kId | Flag::kSorted, table,
-                col_idx, row_map_idx, nullptr);
+  return Column("id", ColumnType::kId,
+                Flag::kId | Flag::kSorted | Flag::kNonNull, table, col_idx,
+                row_map_idx, nullptr);
 }
 
 const RowMap& Column::row_map() const {

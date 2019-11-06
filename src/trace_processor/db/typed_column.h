@@ -33,10 +33,14 @@ struct TypedColumn : public Column {
   using StoredType = T;
 
   T operator[](uint32_t row) const {
-    return *GetTypedAtIdx<T>(row_map().Get(row));
+    return sparse_vector<T>().GetNonNull(row_map().Get(row));
   }
-  void Set(uint32_t row, T value) { SetTypedAtIdx(row_map().Get(row), value); }
-  void Append(T value) { return mutable_sparse_vector<T>()->Append(value); }
+  void Set(uint32_t row, T value) {
+    mutable_sparse_vector<T>()->Set(row_map().Get(row), value);
+  }
+  void Append(T value) { mutable_sparse_vector<T>()->Append(value); }
+
+  static constexpr uint32_t default_flags() { return Flag::kNonNull; }
 };
 
 template <typename T>
@@ -44,13 +48,17 @@ struct TypedColumn<base::Optional<T>> : public Column {
   using StoredType = T;
 
   base::Optional<T> operator[](uint32_t row) const {
-    return GetTypedAtIdx<T>(row_map().Get(row));
+    return sparse_vector<T>().Get(row_map().Get(row));
   }
-  void Set(uint32_t row, T value) { SetTypedAtIdx(row_map().Get(row), value); }
+  void Set(uint32_t row, T value) {
+    mutable_sparse_vector<T>()->Set(row_map().Get(row), value);
+  }
 
   void Append(base::Optional<T> value) {
-    return mutable_sparse_vector<T>()->Append(value);
+    mutable_sparse_vector<T>()->Append(value);
   }
+
+  static constexpr uint32_t default_flags() { return Flag::kNoFlag; }
 };
 
 template <>
@@ -58,17 +66,19 @@ struct TypedColumn<StringPool::Id> : public Column {
   using StoredType = StringPool::Id;
 
   StringPool::Id operator[](uint32_t row) const {
-    return *GetTypedAtIdx<StringPool::Id>(row_map().Get(row));
+    return sparse_vector<StringPool::Id>().GetNonNull(row_map().Get(row));
   }
   NullTermStringView GetString(uint32_t row) const {
     return GetStringPoolStringAtIdx(row_map().Get(row));
   }
   void Set(uint32_t row, StringPool::Id value) {
-    SetTypedAtIdx(row_map().Get(row), value);
+    mutable_sparse_vector<StringPool::Id>()->Set(row_map().Get(row), value);
   }
   void Append(StringPool::Id value) {
-    return mutable_sparse_vector<StringPool::Id>()->Append(value);
+    mutable_sparse_vector<StringPool::Id>()->Append(value);
   }
+
+  static constexpr uint32_t default_flags() { return Flag::kNonNull; }
 };
 
 template <>
@@ -86,6 +96,8 @@ struct TypedColumn<base::Optional<StringPool::Id>>
     return TypedColumn<StringPool::Id>::Append(value ? *value
                                                      : StringPool::Id(0u));
   }
+
+  static constexpr uint32_t default_flags() { return Flag::kNonNull; }
 };
 
 }  // namespace trace_processor

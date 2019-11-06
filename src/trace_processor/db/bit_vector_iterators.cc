@@ -29,8 +29,15 @@ BaseIterator::BaseIterator(BitVector* bv) : bv_(bv) {
 }
 
 BaseIterator::~BaseIterator() {
-  uint32_t block = index_ / BitVector::Block::kBits;
-  OnBlockChange(block, static_cast<uint32_t>(bv_->blocks_.size()) - 1);
+  if (size_ > 0) {
+    uint32_t block_idx = index_ / BitVector::Block::kBits;
+    uint32_t last_block_idx = static_cast<uint32_t>(bv_->blocks_.size()) - 1;
+
+    // If |index_| == |size_| and the last index was on a block boundary, we
+    // can end up one block past the end of the bitvector. Take the
+    // min of the block index and the last block
+    OnBlockChange(std::min(block_idx, last_block_idx), last_block_idx);
+  }
 }
 
 void BaseIterator::OnBlockChange(uint32_t old_block, uint32_t new_block) {
