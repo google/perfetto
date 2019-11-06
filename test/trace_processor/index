@@ -135,6 +135,8 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 ../data/sched_switch_original.pb sched_slices.sql sched_slices_sched_switch_original.out
 ../data/sched_switch_compact.pb sched_slices.sql sched_slices_sched_switch_compact.out
 
+heap_profile_jit.textproto heap_profile_frames.sql heap_profile_jit.out
+
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
 
