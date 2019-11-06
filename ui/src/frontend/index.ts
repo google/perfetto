@@ -254,8 +254,9 @@ function main() {
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
-  const extensionPort =
-      chrome.runtime ? chrome.runtime.connect(EXTENSION_ID) : undefined;
+  const extensionPort = window.chrome && chrome.runtime ?
+      chrome.runtime.connect(EXTENSION_ID) :
+      undefined;
 
   setExtensionAvailability(extensionPort !== undefined);
 
