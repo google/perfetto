@@ -44,6 +44,7 @@ namespace {
 using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
+const char kLegacyEventOriginalTidKey[] = "original_tid";
 const char kLegacyEventCategoryKey[] = "category";
 const char kLegacyEventNameKey[] = "name";
 const char kLegacyEventPhaseKey[] = "phase";
@@ -106,10 +107,11 @@ class TraceFormatWriter {
     if (label_filter_ && !label_filter_("traceEvents"))
       return;
 
-    if (!first_event_) {
-      output_->AppendString(",");
-    }
+    if (!first_event_)
+      output_->AppendString(",\n");
+
     Json::FastWriter writer;
+    writer.omitEndingLineFeed();
 
     ArgumentNameFilterPredicate argument_name_filter;
     bool strip_args =
@@ -141,17 +143,18 @@ class TraceFormatWriter {
     if (label_filter_ && !label_filter_("traceEvents"))
       return;
 
-    if (!first_event_) {
-      output_->AppendString(",");
-    }
+    if (!first_event_)
+      output_->AppendString(",\n");
+
     Json::FastWriter writer;
+    writer.omitEndingLineFeed();
     Json::Value value;
     value["ph"] = "M";
     value["cat"] = "__metadata";
     value["ts"] = 0;
     value["name"] = metadata_type;
-    value["tid"] = Json::UInt(tid);
-    value["pid"] = Json::UInt(pid);
+    value["tid"] = static_cast<int32_t>(tid);
+    value["pid"] = static_cast<int32_t>(pid);
 
     Json::Value args;
     args["name"] = metadata_value;
@@ -220,6 +223,7 @@ class TraceFormatWriter {
     }
 
     Json::FastWriter writer;
+    writer.omitEndingLineFeed();
     if ((!label_filter_ || label_filter_("traceEvents")) &&
         !user_trace_data_.empty()) {
       user_trace_data_ += "]";
@@ -269,14 +273,14 @@ std::string PrintUint64(uint64_t x) {
 
 class ArgsBuilder {
  public:
-  explicit ArgsBuilder(const TraceStorage* storage) : storage_(storage) {
+  explicit ArgsBuilder(const TraceStorage* storage)
+      : storage_(storage), empty_value_(Json::objectValue) {
     const TraceStorage::Args& args = storage->args();
-    Json::Value empty_value(Json::objectValue);
     if (args.args_count() == 0) {
-      args_sets_.resize(1, empty_value);
+      args_sets_.resize(1, empty_value_);
       return;
     }
-    args_sets_.resize(args.set_ids().back() + 1, empty_value);
+    args_sets_.resize(args.set_ids().back() + 1, empty_value_);
     for (size_t i = 0; i < args.args_count(); ++i) {
       ArgSetId set_id = args.set_ids()[i];
       const char* key = GetNonNullString(storage_, args.keys()[i]);
@@ -287,6 +291,10 @@ class ArgsBuilder {
   }
 
   const Json::Value& GetArgs(ArgSetId set_id) const {
+    // If |set_id| was empty and added to the storage last, it may not be in
+    // args_sets_.
+    if (set_id > args_sets_.size())
+      return empty_value_;
     return args_sets_[set_id];
   }
 
@@ -359,22 +367,19 @@ class ArgsBuilder {
             args["src"] = posted_from["file_name"];
           }
         }
-        if (args["task"].empty()) {
+        if (args["task"].empty())
           args.removeMember("task");
-        }
       }
     }
   }
 
   const TraceStorage* storage_;
   std::vector<Json::Value> args_sets_;
+  Json::Value empty_value_;
 };
 
 void ConvertLegacyFlowEventArgs(const Json::Value& legacy_args,
                                 Json::Value* event) {
-  if (legacy_args.isMember(kLegacyEventIdScopeKey))
-    (*event)["scope"] = legacy_args[kLegacyEventIdScopeKey];
-
   if (legacy_args.isMember(kLegacyEventBindIdKey)) {
     (*event)["bind_id"] =
         PrintUint64(legacy_args[kLegacyEventBindIdKey].asUInt64());
@@ -432,11 +437,21 @@ util::Status ExportSlices(const TraceStorage* storage,
     event["cat"] = GetNonNullString(storage, slices.categories()[i]);
     event["name"] = GetNonNullString(storage, slices.names()[i]);
     event["pid"] = 0;
+    event["tid"] = 0;
+
+    int32_t legacy_tid = 0;
 
     event["args"] =
         args_builder.GetArgs(slices.arg_set_ids()[i]);  // Makes a copy.
     if (event["args"].isMember(kLegacyEventArgsKey)) {
       ConvertLegacyFlowEventArgs(event["args"][kLegacyEventArgsKey], &event);
+
+      if (event["args"][kLegacyEventArgsKey].isMember(
+              kLegacyEventOriginalTidKey)) {
+        legacy_tid = static_cast<int32_t>(
+            event["args"][kLegacyEventArgsKey][kLegacyEventOriginalTidKey]
+                .asInt());
+      }
 
       event["args"].removeMember(kLegacyEventArgsKey);
     }
@@ -500,19 +515,21 @@ util::Status ExportSlices(const TraceStorage* storage,
       // Synchronous (thread) slice or instant event.
       UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
       auto thread = storage->GetThread(utid);
+      event["tid"] = static_cast<int32_t>(thread.tid);
+      if (thread.upid) {
+        event["pid"] =
+            static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
+      }
 
       if (duration_ns == 0) {
-        event["ph"] = "i";
-        if (thread.upid) {
-          event["pid"] = storage->GetProcess(*thread.upid).pid;
-        }
+        // Use "I" instead of "i" phase for backwards-compat with old consumers.
+        event["ph"] = "I";
         if (thread_ts_ns > 0) {
           event["tts"] = Json::Int64(thread_ts_ns / 1000);
         }
         if (thread_instruction_count > 0) {
           event["ticount"] = Json::Int64(thread_instruction_count);
         }
-        event["tid"] = thread.tid;
         event["s"] = "t";
       } else {
         if (duration_ns > 0) {
@@ -522,10 +539,6 @@ util::Status ExportSlices(const TraceStorage* storage,
           // If the slice didn't finish, the duration may be negative. Only
           // write a begin event without end event in this case.
           event["ph"] = "B";
-        }
-        event["tid"] = thread.tid;
-        if (thread.upid) {
-          event["pid"] = storage->GetProcess(*thread.upid).pid;
         }
         if (thread_ts_ns > 0) {
           event["tts"] = Json::Int64(thread_ts_ns / 1000);
@@ -550,7 +563,10 @@ util::Status ExportSlices(const TraceStorage* storage,
         // Legacy async tracks are always process-associated.
         PERFETTO_DCHECK(opt_process_row);
         uint32_t upid = process_track.upid()[*opt_process_row];
-        event["pid"] = storage->GetProcess(upid).pid;
+        event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);
+        event["tid"] =
+            legacy_tid ? legacy_tid
+                       : static_cast<int32_t>(storage->GetProcess(upid).pid);
 
         // Preserve original event IDs for legacy tracks. This is so that e.g.
         // memory dump IDs show up correctly in the JSON trace.
@@ -560,20 +576,33 @@ util::Status ExportSlices(const TraceStorage* storage,
         uint64_t source_id =
             static_cast<uint64_t>(track_args["source_id"].asInt64());
         std::string source_scope = track_args["source_scope"].asString();
+        if (!source_scope.empty())
+          event["scope"] = source_scope;
         bool source_id_is_process_scoped =
             track_args["source_id_is_process_scoped"].asBool();
         if (source_id_is_process_scoped) {
           event["id2"]["local"] = PrintUint64(source_id);
         } else {
-          event["id2"]["global"] = PrintUint64(source_id);
+          // Some legacy importers don't understand "id2" fields, so we use the
+          // "usually" global "id" field instead. This works as long as the
+          // event phase is not in {'N', 'D', 'O', '(', ')'}, see
+          // "LOCAL_ID_PHASES" in catapult.
+          event["id"] = PrintUint64(source_id);
         }
       } else {
         if (opt_process_row) {
           uint32_t upid = process_track.upid()[*opt_process_row];
           event["id2"]["local"] = PrintUint64(track_id);
-          event["pid"] = storage->GetProcess(upid).pid;
+          event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);
+          event["tid"] =
+              legacy_tid ? legacy_tid
+                         : static_cast<int32_t>(storage->GetProcess(upid).pid);
         } else {
-          event["id2"]["global"] = PrintUint64(track_id);
+          // Some legacy importers don't understand "id2" fields, so we use the
+          // "usually" global "id" field instead. This works as long as the
+          // event phase is not in {'N', 'D', 'O', '(', ')'}, see
+          // "LOCAL_ID_PHASES" in catapult.
+          event["id"] = PrintUint64(track_id);
         }
       }
 
@@ -606,20 +635,24 @@ util::Status ExportSlices(const TraceStorage* storage,
             event["ticount"] = Json::Int64(
                 (thread_instruction_count + thread_instruction_delta));
           }
-          event.removeMember("args");
+          event["args"].clear();
           writer->WriteCommonEvent(event);
         }
       }
     } else {
       // Global or process-scoped instant event.
       PERFETTO_DCHECK(duration_ns == 0);
-      event["ph"] = "i";
+      // Use "I" instead of "i" phase for backwards-compat with old consumers.
+      event["ph"] = "I";
 
       auto opt_process_row =
           process_track.id().IndexOf(SqlValue::Long(track_id));
       if (opt_process_row.has_value()) {
         uint32_t upid = process_track.upid()[*opt_process_row];
-        event["pid"] = storage->GetProcess(upid).pid;
+        event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);
+        event["tid"] =
+            legacy_tid ? legacy_tid
+                       : static_cast<int32_t>(storage->GetProcess(upid).pid);
         event["s"] = "p";
       } else {
         event["s"] = "g";
@@ -640,10 +673,10 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
 
   UniqueTid utid = static_cast<UniqueTid>(events.utids()[index]);
   auto thread = storage->GetThread(utid);
-  event["tid"] = thread.tid;
-  if (thread.upid) {
-    event["pid"] = storage->GetProcess(*thread.upid).pid;
-  }
+  event["tid"] = static_cast<int32_t>(thread.tid);
+  event["pid"] = 0;
+  if (thread.upid)
+    event["pid"] = static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
 
   // Raw legacy events store all other params in the arg set. Make a copy of
   // the converted args here, parse, and then remove the legacy params.
@@ -658,6 +691,13 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
 
   PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventPhaseKey));
   event["ph"] = legacy_args[kLegacyEventPhaseKey];
+
+  // Object snapshot events are supposed to have a mandatory "snapshot" arg,
+  // which may be removed in trace processor if it is empty.
+  if (legacy_args[kLegacyEventPhaseKey] == "O" &&
+      !event["args"].isMember("snapshot")) {
+    event["args"]["snapshot"] = Json::Value(Json::objectValue);
+  }
 
   if (legacy_args.isMember(kLegacyEventDurationNsKey))
     event["dur"] = legacy_args[kLegacyEventDurationNsKey].asInt64() / 1000;
@@ -695,6 +735,9 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
     event["id2"]["local"] =
         PrintUint64(legacy_args[kLegacyEventLocalIdKey].asUInt64());
   }
+
+  if (legacy_args.isMember(kLegacyEventIdScopeKey))
+    event["scope"] = legacy_args[kLegacyEventIdScopeKey];
 
   ConvertLegacyFlowEventArgs(legacy_args, &event);
 
@@ -750,14 +793,17 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
 
     UniqueTid utid = static_cast<UniqueTid>(samples.utids()[i]);
     auto thread = storage->GetThread(utid);
-    event["tid"] = thread.tid;
-    if (thread.upid)
-      event["pid"] = storage->GetProcess(*thread.upid).pid;
+    event["tid"] = static_cast<int32_t>(thread.tid);
+    if (thread.upid) {
+      event["pid"] =
+          static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
+    }
 
+    // Use "I" instead of "i" phase for backwards-compat with old consumers.
     event["ph"] = "I";
     event["cat"] = "disabled_by_default-cpu_profiler";
     event["name"] = "StackCpuSampling";
-    event["scope"] = "t";
+    event["s"] = "t";
 
     std::vector<std::string> callstack;
     const auto& callsites = storage->stack_profile_callsite_table();
