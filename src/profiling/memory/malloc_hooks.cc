@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include <android/fdsan.h>
+#include <bionic/malloc.h>
 #include <inttypes.h>
 #include <malloc.h>
-#include <bionic/malloc.h>
 #include <private/bionic_malloc_dispatch.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -145,11 +146,17 @@ const MallocDispatch* GetDispatch() {
 }
 
 int CloneWithoutSigchld() {
-  return clone(nullptr, nullptr, 0, nullptr);
+  auto ret = clone(nullptr, nullptr, 0, nullptr);
+  if (ret == 0)
+    android_fdsan_set_error_level(ANDROID_FDSAN_ERROR_LEVEL_DISABLED);
+  return ret;
 }
 
 int ForklikeClone() {
-  return clone(nullptr, nullptr, SIGCHLD, nullptr);
+  auto ret = clone(nullptr, nullptr, SIGCHLD, nullptr);
+  if (ret == 0)
+    android_fdsan_set_error_level(ANDROID_FDSAN_ERROR_LEVEL_DISABLED);
+  return ret;
 }
 
 // Like daemon(), but using clone to avoid invoking pthread_atfork(3) handlers.
