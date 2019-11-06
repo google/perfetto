@@ -47,6 +47,21 @@ class SparseVector {
     return opt_idx ? base::Optional<T>(data_[*opt_idx]) : base::nullopt;
   }
 
+  // Returns the non-null value at |ordinal| where |ordinal| gives the index
+  // of the entry in-terms of non-null entries only.
+  //
+  // For example:
+  // this = [0, null, 2, null, 4]
+  //
+  // GetNonNull(0) = 0
+  // GetNonNull(1) = 2
+  // GetNoNull(2) = 4
+  // ...
+  T GetNonNull(uint32_t ordinal) const {
+    PERFETTO_DCHECK(ordinal < data_.size());
+    return data_[ordinal];
+  }
+
   // Adds the given value to the SparseVector.
   void Append(T val) {
     data_.emplace_back(val);
