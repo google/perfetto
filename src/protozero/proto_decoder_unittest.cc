@@ -442,7 +442,7 @@ TEST(ProtoDecoderTest, PackedRepeatedFixed64) {
 
 TEST(ProtoDecoderTest, ZeroLengthPackedRepeatedField) {
   HeapBuffered<pbtest::PackedRepeatedFields> msg;
-  StackAllocated<PackedVarIntBuffer, 8> buf;
+  PackedVarInt buf;
   msg->set_field_int32(buf);
   std::string serialized = msg.SerializeAsString();
 
@@ -461,7 +461,7 @@ TEST(ProtoDecoderTest, ZeroLengthPackedRepeatedField) {
 TEST(ProtoDecoderTest, MalformedPackedFixedBuffer) {
   // Encode a fixed32 field where the length is not a multiple of 4 bytes.
   HeapBuffered<pbtest::PackedRepeatedFields> msg;
-  StackAllocated<PackedFixedSizeBuffer<uint32_t>, 8> buf;
+  PackedFixedSizeInt<uint32_t> buf;
   buf.Append(1);
   buf.Append(2);
   buf.Append(3);
@@ -486,7 +486,7 @@ TEST(ProtoDecoderTest, MalformedPackedFixedBuffer) {
 TEST(ProtoDecoderTest, MalformedPackedVarIntBuffer) {
   // Encode a varint field with the last varint chopped off partway.
   HeapBuffered<pbtest::PackedRepeatedFields> msg;
-  StackAllocated<PackedVarIntBuffer, 8> buf;
+  PackedVarInt buf;
   buf.Append(1024);
   buf.Append(2048);
   buf.Append(4096);

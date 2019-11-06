@@ -30,6 +30,7 @@ source_set("protozero") {
   sources = [
     "message.cc",
     "message_handle.cc",
+    "packed_repeated_fields.cc",
     "proto_decoder.cc",
     "scattered_heap_buffer.cc",
     "scattered_stream_null_delegate.cc",

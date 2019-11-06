@@ -135,7 +135,7 @@ TEST(ProtoZeroConformanceTest, PackedRepeatedVarint) {
   int values[] = {42, 255, -1};
 
   HeapBuffered<pbtest::PackedRepeatedFields> msg{kChunkSize, kChunkSize};
-  StackAllocated<PackedVarIntBuffer, 8> buf;
+  PackedVarInt buf;
   for (auto v : values)
     buf.Append(v);
   msg->set_field_int32(buf);
@@ -170,7 +170,7 @@ TEST(ProtoZeroConformanceTest, PackedRepeatedFixed32) {
   uint32_t values[] = {1, 2, 4, 8};
 
   HeapBuffered<pbtest::PackedRepeatedFields> msg{kChunkSize, kChunkSize};
-  StackAllocated<PackedFixedSizeBuffer<uint32_t>, 8> buf;
+  PackedFixedSizeInt<uint32_t> buf;
   for (auto v : values)
     buf.Append(v);
   msg->set_field_fixed32(buf);
@@ -199,7 +199,7 @@ TEST(ProtoZeroConformanceTest, PackedRepeatedFixed64) {
   int64_t values[] = {1, -2, 4, -8};
 
   HeapBuffered<pbtest::PackedRepeatedFields> msg{kChunkSize, kChunkSize};
-  StackAllocated<PackedFixedSizeBuffer<int64_t>, 8> buf;
+  PackedFixedSizeInt<int64_t> buf;
   for (auto v : values)
     buf.Append(v);
   msg->set_field_sfixed64(buf);
@@ -226,7 +226,7 @@ TEST(ProtoZeroConformanceTest, PackedRepeatedFixed64) {
 
 TEST(ProtoZeroConformanceTest, EmptyPackedRepeatedField) {
   HeapBuffered<pbtest::PackedRepeatedFields> msg;
-  StackAllocated<PackedVarIntBuffer, 8> buf;
+  PackedVarInt buf;
   msg->set_field_int32(buf);
   std::string serialized = msg.SerializeAsString();
 
@@ -241,6 +241,26 @@ TEST(ProtoZeroConformanceTest, EmptyPackedRepeatedField) {
   pbgold::PackedRepeatedFields parsed_gold_msg;
   parsed_gold_msg.ParseFromString(serialized);
   EXPECT_EQ(0, parsed_gold_msg.field_int32_size());
+}
+
+// Tests that the stack -> heap expansion dosn't lose data.
+TEST(ProtoZeroConformanceTest, PackedRepeatedResize) {
+  const int kNumValues = 32768;
+  const int64_t kMultiplier = 10000000;
+  HeapBuffered<pbtest::PackedRepeatedFields> msg{kChunkSize, kChunkSize};
+  PackedFixedSizeInt<int64_t> buf;
+  for (int i = 0; i < kNumValues; i++)
+    buf.Append(i * kMultiplier);
+  msg->set_field_sfixed64(buf);
+  std::string serialized = msg.SerializeAsString();
+
+  // Correctly parsed by the protobuf library.
+  pbgold::PackedRepeatedFields parsed_gold_msg;
+  parsed_gold_msg.ParseFromString(serialized);
+  ASSERT_EQ(parsed_gold_msg.field_sfixed64().size(), kNumValues);
+  for (int i = 0; i < kNumValues; i++) {
+    ASSERT_EQ(parsed_gold_msg.field_sfixed64(i), i * kMultiplier);
+  }
 }
 
 }  // namespace
