@@ -737,7 +737,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "i");
+  EXPECT_EQ(event["ph"].asString(), "I");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["s"].asString(), "g");
   EXPECT_EQ(event["cat"].asString(), kCategory);
@@ -770,7 +770,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
-  EXPECT_EQ(event["ph"].asString(), "i");
+  EXPECT_EQ(event["ph"].asString(), "I");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["s"].asString(), "t");
   EXPECT_EQ(event["cat"].asString(), kCategory);
@@ -835,7 +835,8 @@ TEST_F(ExportJsonTest, AsyncEvent) {
   EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event["cat"].asString(), kCategory);
   EXPECT_EQ(end_event["name"].asString(), kName);
-  EXPECT_FALSE(end_event.isMember("args"));
+  EXPECT_TRUE(end_event["args"].isObject());
+  EXPECT_EQ(end_event["args"].size(), 0u);
   EXPECT_FALSE(end_event.isMember("tts"));
   EXPECT_FALSE(end_event.isMember("use_async_tts"));
 }
@@ -1193,7 +1194,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
   EXPECT_EQ(event["cat"].asString(), "disabled_by_default-cpu_profiler");
   EXPECT_EQ(event["name"].asString(), "StackCpuSampling");
-  EXPECT_EQ(event["scope"].asString(), "t");
+  EXPECT_EQ(event["s"].asString(), "t");
   EXPECT_EQ(event["args"]["frames"].asString(),
             "foo_func - foo_module_name [foo_module_id]\nbar_func - "
             "bar_module_name [bar_module_id]\n");
