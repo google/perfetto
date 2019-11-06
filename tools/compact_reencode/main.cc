@@ -72,17 +72,11 @@ void ReEncodeBundle(protos::pbzero::TracePacket* packet_out,
   if (bundle.has_cpu())
     bundle_out->set_cpu(bundle.cpu());
 
-  static constexpr size_t kMaxElements = 2560;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_timestamp;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_prev_state;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_next_pid;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_next_prio;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_next_comm_index;
+  protozero::PackedVarInt switch_timestamp;
+  protozero::PackedVarInt switch_prev_state;
+  protozero::PackedVarInt switch_next_pid;
+  protozero::PackedVarInt switch_next_prio;
+  protozero::PackedVarInt switch_next_comm_index;
 
   uint64_t last_switch_timestamp = 0;
 

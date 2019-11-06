@@ -93,25 +93,13 @@ class CompactSchedBundleState {
   static constexpr size_t kMinSupportedSchedSwitchSize = 56;
   static constexpr size_t kExpectedCommLength = 16;
 
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>*
-  switch_timestamp() {
-    return &switch_timestamp_;
-  }
+  protozero::PackedVarInt* switch_timestamp() { return &switch_timestamp_; }
 
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>*
-  switch_prev_state() {
-    return &switch_prev_state_;
-  }
+  protozero::PackedVarInt* switch_prev_state() { return &switch_prev_state_; }
 
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>*
-  switch_next_pid() {
-    return &switch_next_pid_;
-  }
+  protozero::PackedVarInt* switch_next_pid() { return &switch_next_pid_; }
 
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>*
-  switch_next_prio() {
-    return &switch_next_prio_;
-  }
+  protozero::PackedVarInt* switch_next_prio() { return &switch_next_prio_; }
 
   size_t interned_switch_comms_size() const {
     return interned_switch_comms_size_;
@@ -157,14 +145,10 @@ class CompactSchedBundleState {
   // each relative to the preceding sched_switch timestamp.
   uint64_t last_switch_timestamp_ = 0;
 
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_timestamp_;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_prev_state_;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_next_pid_;
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_next_prio_;
+  protozero::PackedVarInt switch_timestamp_;
+  protozero::PackedVarInt switch_prev_state_;
+  protozero::PackedVarInt switch_next_pid_;
+  protozero::PackedVarInt switch_next_prio_;
 
   // Storage for interned strings (without null bytes).
   char intern_buf_[kMaxElements * (kExpectedCommLength - 1)];
@@ -180,8 +164,7 @@ class CompactSchedBundleState {
 
   // One entry per sched_switch event, contains the index of the interned
   // next_comm string view (i.e. array index into |interned_switch_comms|).
-  protozero::StackAllocated<protozero::PackedVarIntBuffer, kMaxElements>
-      switch_next_comm_index_;
+  protozero::PackedVarInt switch_next_comm_index_;
 };
 
 }  // namespace perfetto
