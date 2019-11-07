@@ -18,11 +18,14 @@ import {ChromeTracingController} from './chrome_tracing_controller';
 let chromeTraceController: ChromeTracingController|undefined = undefined;
 
 enableOnlyOnPerfettoHost();
+
 // Listen for messages from the perfetto ui.
-chrome.runtime.onConnectExternal.addListener(port => {
-  chromeTraceController = new ChromeTracingController(port);
-  port.onMessage.addListener(onUIMessage);
-});
+if (window.chrome) {
+  chrome.runtime.onConnectExternal.addListener(port => {
+    chromeTraceController = new ChromeTracingController(port);
+    port.onMessage.addListener(onUIMessage);
+  });
+}
 
 function onUIMessage(
     message: {method: string, requestData: string}, port: chrome.runtime.Port) {
