@@ -356,6 +356,37 @@ TEST(HeapGraphWalkerTest, Dead) {
   EXPECT_EQ(delegate.UniqueRetained(2), 3);
 }
 
+// We defined unique_retained as follows:
+//       the number of bytes that are only retained through this object.
+//       if this object were destroyed, this many bytes would be freed up.
+// The following test-case is a counter-example for the current
+// implementation.
+//    2<->3  |
+//    ^      |
+//    |      |
+//    1      |
+TEST(HeapGraphWalkerTest, DISABLED_UnreachableComponent) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1);
+  walker.AddNode(2, 2);
+  walker.AddNode(3, 3);
+
+  walker.AddEdge(1, 2);
+  walker.AddEdge(2, 3);
+  walker.AddEdge(3, 2);
+
+  walker.MarkRoot(1);
+  walker.CalculateRetained();
+
+  EXPECT_EQ(delegate.Retained(1), 6);
+  EXPECT_EQ(delegate.Retained(2), 5);
+  EXPECT_EQ(delegate.Retained(3), 5);
+
+  EXPECT_EQ(delegate.UniqueRetained(1), 6);
+  EXPECT_EQ(delegate.UniqueRetained(2), 5);
+  EXPECT_EQ(delegate.UniqueRetained(3), 3);
+}
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
