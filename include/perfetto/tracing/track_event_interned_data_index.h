@@ -19,6 +19,8 @@
 
 #include "perfetto/tracing/internal/track_event_internal.h"
 
+#include "perfetto/base/compiler.h"
+
 #include <map>
 #include <type_traits>
 #include <unordered_map>
@@ -194,11 +196,12 @@ class TrackEventInternedDataIndex
     for (const auto& entry : incremental_state->interned_data_indices) {
       if (entry.first == FieldNumber) {
 #if PERFETTO_DCHECK_IS_ON()
-        if (strcmp(PERFETTO_INTERNAL_TYPE_IDENTIFIER, entry.second->type_id_)) {
+        if (strcmp(PERFETTO_DEBUG_FUNCTION_IDENTIFIER(),
+                   entry.second->type_id_)) {
           PERFETTO_FATAL(
               "Interned data accessed under different types! Previous type: "
               "%s. New type: %s.",
-              entry.second->type_id_, PERFETTO_INTERNAL_TYPE_IDENTIFIER);
+              entry.second->type_id_, PERFETTO_DEBUG_FUNCTION_IDENTIFIER());
         }
 #endif  // PERFETTO_DCHECK_IS_ON()
         return reinterpret_cast<InternedDataType*>(entry.second.get());
@@ -210,7 +213,7 @@ class TrackEventInternedDataIndex
         entry.first = FieldNumber;
         entry.second.reset(new InternedDataType());
 #if PERFETTO_DCHECK_IS_ON()
-        entry.second->type_id_ = PERFETTO_INTERNAL_TYPE_IDENTIFIER;
+        entry.second->type_id_ = PERFETTO_DEBUG_FUNCTION_IDENTIFIER();
 #endif  // PERFETTO_DCHECK_IS_ON()
         return reinterpret_cast<InternedDataType*>(entry.second.get());
       }
