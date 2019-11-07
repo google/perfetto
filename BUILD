@@ -678,8 +678,6 @@ filegroup(
         "src/trace_processor/android_logs_table.h",
         "src/trace_processor/args_table.cc",
         "src/trace_processor/args_table.h",
-        "src/trace_processor/counter_definitions_table.cc",
-        "src/trace_processor/counter_definitions_table.h",
         "src/trace_processor/counter_values_table.cc",
         "src/trace_processor/counter_values_table.h",
         "src/trace_processor/cpu_profile_stack_sample_table.cc",

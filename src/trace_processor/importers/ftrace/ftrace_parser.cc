@@ -474,24 +474,27 @@ void FtraceParser::ParseCpuFreq(int64_t ts, ConstBytes blob) {
   protos::pbzero::CpuFrequencyFtraceEvent::Decoder freq(blob.data, blob.size);
   uint32_t cpu = freq.cpu_id();
   uint32_t new_freq = freq.state();
-  context_->event_tracker->PushCounter(ts, new_freq, cpu_freq_name_id_, cpu,
-                                       RefType::kRefCpuId);
+  TrackId track =
+      context_->track_tracker->InternCpuCounterTrack(cpu_freq_name_id_, cpu);
+  context_->event_tracker->PushCounter(ts, new_freq, track);
 }
 
 void FtraceParser::ParseGpuFreq(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob.data, blob.size);
   uint32_t gpu = freq.gpu_id();
   uint32_t new_freq = freq.state();
-  context_->event_tracker->PushCounter(ts, new_freq, gpu_freq_name_id_, gpu,
-                                       RefType::kRefGpuId);
+  TrackId track =
+      context_->track_tracker->InternGpuCounterTrack(gpu_freq_name_id_, gpu);
+  context_->event_tracker->PushCounter(ts, new_freq, track);
 }
 
 void FtraceParser::ParseCpuIdle(int64_t ts, ConstBytes blob) {
   protos::pbzero::CpuIdleFtraceEvent::Decoder idle(blob.data, blob.size);
   uint32_t cpu = idle.cpu_id();
   uint32_t new_state = idle.state();
-  context_->event_tracker->PushCounter(ts, new_state, cpu_idle_name_id_, cpu,
-                                       RefType::kRefCpuId);
+  TrackId track =
+      context_->track_tracker->InternCpuCounterTrack(cpu_idle_name_id_, cpu);
+  context_->event_tracker->PushCounter(ts, new_state, track);
 }
 
 void FtraceParser::ParsePrint(uint32_t,
@@ -524,8 +527,8 @@ void FtraceParser::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
 
   if (size >= 0) {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-    context_->event_tracker->PushCounter(ts, size, rss_members_[member], utid,
-                                         RefType::kRefUtid, true);
+    context_->event_tracker->PushProcessCounterForThread(
+        ts, size, rss_members_[member], utid);
   } else {
     context_->storage->IncrementStats(stats::rss_stat_negative_size);
   }
@@ -555,17 +558,18 @@ void FtraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
   }
 
   // Push the global counter.
-  context_->event_tracker->PushCounter(ts, total_bytes, global_name_id, 0,
-                                       RefType::kRefNoRef);
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(global_name_id);
+  context_->event_tracker->PushCounter(ts, total_bytes, track);
 
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events. For now we
   // manually reset them to 0 after 1ns.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  context_->event_tracker->PushCounter(ts, change_bytes, change_name_id, utid,
-                                       RefType::kRefUtid);
-  context_->event_tracker->PushCounter(ts + 1, 0, change_name_id, utid,
-                                       RefType::kRefUtid);
+  track =
+      context_->track_tracker->InternThreadCounterTrack(change_name_id, utid);
+  context_->event_tracker->PushCounter(ts, change_bytes, track);
+  context_->event_tracker->PushCounter(ts + 1, 0, track);
 
   // We are reusing the same function for ion_heap_grow and ion_heap_shrink.
   // It is fine as the arguments are the same, but we need to be sure that the
@@ -638,8 +642,8 @@ void FtraceParser::ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes blob) {
   int16_t oom_adj = static_cast<int16_t>(evt.oom_score_adj());
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  context_->event_tracker->PushCounter(ts, oom_adj, oom_score_adj_id_, utid,
-                                       RefType::kRefUtid, true);
+  context_->event_tracker->PushProcessCounterForThread(ts, oom_adj,
+                                                       oom_score_adj_id_, utid);
 }
 
 void FtraceParser::ParseMmEventRecord(int64_t ts,
@@ -655,12 +659,12 @@ void FtraceParser::ParseMmEventRecord(int64_t ts,
   }
 
   const auto& counter_names = mm_event_counter_names_[type];
-  context_->event_tracker->PushCounter(ts, evt.count(), counter_names.count,
-                                       utid, RefType::kRefUtid, true);
-  context_->event_tracker->PushCounter(ts, evt.max_lat(), counter_names.max_lat,
-                                       utid, RefType::kRefUtid, true);
-  context_->event_tracker->PushCounter(ts, evt.avg_lat(), counter_names.avg_lat,
-                                       utid, RefType::kRefUtid, true);
+  context_->event_tracker->PushProcessCounterForThread(
+      ts, evt.count(), counter_names.count, utid);
+  context_->event_tracker->PushProcessCounterForThread(
+      ts, evt.max_lat(), counter_names.max_lat, utid);
+  context_->event_tracker->PushProcessCounterForThread(
+      ts, evt.avg_lat(), counter_names.avg_lat, utid);
 }
 
 void FtraceParser::ParseSysEvent(int64_t ts,
