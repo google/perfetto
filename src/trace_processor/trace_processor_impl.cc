@@ -138,7 +138,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "CREATE VIEW counter_definitions AS "
                "SELECT "
                "  *, "
-               "  id as counter_id "
+               "  id AS counter_id "
                "FROM counter_track",
                0, 0, &error);
   if (error) {
@@ -147,9 +147,23 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 
   sqlite3_exec(db,
+               "CREATE VIEW counter AS "
+               "SELECT * "
+               "FROM counter_values",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+
+  sqlite3_exec(db,
                "CREATE VIEW counters AS "
-               "SELECT * FROM counter_values "
-               "INNER JOIN counter_definitions USING(counter_id) "
+               "SELECT "
+               "  *, "
+               "  track_id AS counter_id "
+               "FROM counter_values v "
+               "INNER JOIN counter_track t "
+               "ON v.track_id = t.id "
                "ORDER BY ts;",
                0, 0, &error);
   if (error) {
@@ -161,7 +175,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "CREATE VIEW slice AS "
                "SELECT "
                "  *, "
-               "  category as cat, "
+               "  category AS cat, "
                "  CASE ref_type "
                "    WHEN 'utid' THEN ref "
                "    ELSE NULL "
