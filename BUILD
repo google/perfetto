@@ -208,7 +208,6 @@ filegroup(
     srcs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
-        "include/perfetto/base/copyable_ptr.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/logging.h",
         "include/perfetto/base/task_runner.h",
@@ -346,6 +345,7 @@ filegroup(
     name = "include_perfetto_protozero_protozero",
     srcs = [
         "include/perfetto/protozero/contiguous_memory_range.h",
+        "include/perfetto/protozero/copyable_ptr.h",
         "include/perfetto/protozero/field.h",
         "include/perfetto/protozero/message.h",
         "include/perfetto/protozero/message_handle.h",
