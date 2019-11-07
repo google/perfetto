@@ -16,6 +16,7 @@
 from __future__ import print_function
 import argparse
 import distutils
+import errno
 import grp
 import os
 import readline
@@ -23,6 +24,7 @@ import sys
 import shutil
 import subprocess
 from pipes import quote
+from subprocess import check_call
 
 try:
   from shutil import which as find_executable
@@ -77,7 +79,9 @@ def main():
       choices=('podman', 'docker'),
       default='podman' if find_executable('podman') else 'docker')
   parser.add_argument(
-      '--image', default=SANDBOX_IMG, help='The image to use to run the tests')
+      '--build',
+      action='store_true',
+      help='Will perform a build of sandbox image')
   group = parser.add_mutually_exclusive_group()
   group.add_argument(
       '--confirm',
@@ -102,6 +106,14 @@ def main():
     print('Modified files:\n' + modified_files)
     decision('Do you know what you are doing', confirm=args.confirm)
 
+  if args.build:
+    print('')
+    print('About to build %r locally with %r' % (args.image, args.runner))
+    decision(confirm=args.confirm)
+    check_call(('make', '-C', os.path.join(REPO_ROOT, 'infra',
+                                           'ci'),
+                'BUILDER=%s' % args.runner, 'build-sandbox'))
+
   env = {
       'PERFETTO_TEST_GIT_REF': 'file:///ci/source',
   }
@@ -119,7 +131,7 @@ def main():
   ]
   for kv in env.items():
     cmd += ['--env', '%s=%s' % kv]
-  cmd += [args.image]
+  cmd += [SANDBOX_IMG]
   cmd += [
       'bash', '-c',
       'cd /ci/ramdisk; bash /ci/init.sh || sudo -u perfetto -EH bash -i'
@@ -136,7 +148,18 @@ def main():
   print('The contents of %s will be deleted before starting the VM' % workdir)
   decision(confirm=args.confirm)
 
-  shutil.rmtree(workdir, ignore_errors=True)
+  try:
+    shutil.rmtree(workdir)
+  except EnvironmentError as e:
+    if e.errno == errno.ENOENT:
+      pass
+    elif e.errno == errno.EACCES:
+      print('')
+      print('Removing previous volume %r' % workdir)
+      check_call(('sudo', 'rm', '-r', quote(workdir)))
+    else:
+      raise
+
   os.makedirs(workdir)
   os.execvp(cmd[0], cmd)
 
