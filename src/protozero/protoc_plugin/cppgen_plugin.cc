@@ -121,7 +121,7 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
   h_printer.Print("#include <vector>\n");
   h_printer.Print("#include <string>\n");
   h_printer.Print("#include <type_traits>\n\n");
-  h_printer.Print("#include \"perfetto/base/copyable_ptr.h\"\n");
+  h_printer.Print("#include \"perfetto/protozero/copyable_ptr.h\"\n");
   h_printer.Print("#include \"perfetto/base/export.h\"\n\n");
 
   cc_printer.Print(kHeader);
@@ -426,7 +426,7 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
     } else if (!field->is_repeated()) {
       std::string type = GetCppType(field, false);
       if (field->type() == TYPE_MESSAGE) {
-        type = "::perfetto::base::CopyablePtr<" + type + ">";
+        type = "::protozero::CopyablePtr<" + type + ">";
         p->Print("$t$ $n$_;\n", "t", type, "n", field->lowercase_name());
       } else {
         p->Print("$t$ $n$_{};\n", "t", type, "n", field->lowercase_name());
