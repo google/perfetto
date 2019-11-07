@@ -50,10 +50,10 @@ class ProcessTable : public SqliteTable {
 
    private:
     const TraceStorage* const storage_;
-    UniquePid min;
-    UniquePid max;
-    UniquePid current;
-    bool desc;
+    UniquePid min_ = 0;
+    UniquePid max_ = 0;
+    uint32_t index_ = 0;
+    bool desc_ = false;
   };
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
