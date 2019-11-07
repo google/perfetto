@@ -275,6 +275,7 @@ if (enable_perfetto_integration_tests) {
       "../../include/perfetto/tracing/core",
       "../../protos/perfetto/trace:lite",
       "../../protos/perfetto/trace:zero",
+      "../../protos/perfetto/trace/interned_data:zero",
       "../base",
       "test:api_test_support",
     ]

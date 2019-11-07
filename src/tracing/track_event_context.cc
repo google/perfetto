@@ -16,15 +16,35 @@
 
 #include "perfetto/tracing/track_event_context.h"
 
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 
 TrackEventContext::TrackEventContext(
-    TrackEventContext::TracePacketHandle trace_packet)
+    TrackEventContext::TracePacketHandle trace_packet,
+    internal::TrackEventIncrementalState* incremental_state)
     : trace_packet_(std::move(trace_packet)),
-      track_event_(trace_packet_->set_track_event()) {}
+      track_event_(trace_packet_->set_track_event()),
+      incremental_state_(incremental_state) {}
 
-TrackEventContext::~TrackEventContext() = default;
+TrackEventContext::~TrackEventContext() {
+  // When the track event is finalized (i.e., the context is destroyed), we
+  // should flush any newly seen interned data to the trace. The data has
+  // earlier been written to a heap allocated protobuf message
+  // (|serialized_interned_data|). Here we just need to flush it to the main
+  // trace.
+  auto& serialized_interned_data = incremental_state_->serialized_interned_data;
+  if (PERFETTO_LIKELY(serialized_interned_data.empty()))
+    return;
+
+  auto ranges = serialized_interned_data.GetRanges();
+  trace_packet_->AppendScatteredBytes(
+      perfetto::protos::pbzero::TracePacket::kInternedDataFieldNumber,
+      &ranges[0], ranges.size());
+
+  // Reset the message but keep one buffer allocated for future use.
+  serialized_interned_data.Reset();
+}
 
 }  // namespace perfetto
