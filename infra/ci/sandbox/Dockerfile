@@ -35,6 +35,7 @@ RUN set -ex; \
     rm bazel-*-installer-linux-x86_64.sh; \
     bazel version; \
     useradd -d /ci/ramdisk perfetto; \
+    apt-get -y autoremove; \
     rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*;
 
 COPY testrunner.sh /ci/testrunner.sh
