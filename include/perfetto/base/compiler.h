@@ -57,6 +57,15 @@
 #define PERFETTO_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
+#elif defined(_MSC_VER)
+#define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __FUNCSIG__
+#else
+#define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() \
+  static_assert(false, "Not implemented for this compiler")
+#endif
+
 namespace perfetto {
 namespace base {
 
