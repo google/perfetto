@@ -147,9 +147,11 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 
   sqlite3_exec(db,
-               "CREATE VIEW counter AS "
-               "SELECT * "
-               "FROM counter_values",
+               "CREATE VIEW counter_values AS "
+               "SELECT "
+               "  *, "
+               "  track_id as counter_id "
+               "FROM counter",
                0, 0, &error);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
@@ -158,9 +160,7 @@ void CreateBuiltinViews(sqlite3* db) {
 
   sqlite3_exec(db,
                "CREATE VIEW counters AS "
-               "SELECT "
-               "  *, "
-               "  track_id AS counter_id "
+               "SELECT * "
                "FROM counter_values v "
                "INNER JOIN counter_track t "
                "ON v.track_id = t.id "
