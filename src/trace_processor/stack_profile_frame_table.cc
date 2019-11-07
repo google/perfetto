@@ -46,7 +46,7 @@ uint32_t StackProfileFrameTable::RowCount() {
 
 int StackProfileFrameTable::BestIndex(const QueryConstraints& qc,
                                       BestIndexInfo* info) {
-  info->order_by_consumed = true;
+  info->sqlite_omit_order_by = true;
   info->estimated_cost = HasEqConstraint(qc, "id") ? 1 : RowCount();
   return SQLITE_OK;
 }

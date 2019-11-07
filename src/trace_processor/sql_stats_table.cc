@@ -57,7 +57,7 @@ std::unique_ptr<SqliteTable::Cursor> SqlStatsTable::CreateCursor() {
 }
 
 int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo* info) {
-  info->order_by_consumed = false;  // Delegate sorting to SQLite.
+  info->sqlite_omit_order_by = true;
   return SQLITE_OK;
 }
 

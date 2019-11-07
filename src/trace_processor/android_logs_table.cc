@@ -47,14 +47,13 @@ uint32_t AndroidLogsTable::RowCount() {
 int AndroidLogsTable::BestIndex(const QueryConstraints& qc,
                                 BestIndexInfo* info) {
   info->estimated_cost = static_cast<uint32_t>(storage_->android_logs().size());
-
-  info->order_by_consumed = true;
+  info->sqlite_omit_order_by = true;
 
   // Only the string columns are handled by SQLite.
   size_t tag_index = schema().ColumnIndexFromName("tag");
   size_t msg_index = schema().ColumnIndexFromName("msg");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->omit[i] =
+    info->constraint_info[i].sqlite_omit =
         qc.constraints()[i].iColumn != static_cast<int>(tag_index) &&
         qc.constraints()[i].iColumn != static_cast<int>(msg_index);
   }
