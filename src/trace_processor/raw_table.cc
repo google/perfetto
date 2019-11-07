@@ -70,12 +70,13 @@ uint32_t RawTable::RowCount() {
 
 int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   info->estimated_cost = RowCount();
+  info->sqlite_omit_order_by = true;
 
   // Only the string columns are handled by SQLite
-  info->order_by_consumed = true;
   size_t name_index = schema().ColumnIndexFromName("name");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->omit[i] = qc.constraints()[i].iColumn != static_cast<int>(name_index);
+    info->constraint_info[i].sqlite_omit =
+        qc.constraints()[i].iColumn != static_cast<int>(name_index);
   }
 
   return SQLITE_OK;
