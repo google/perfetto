@@ -152,9 +152,6 @@ base::Optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
 // TODO(rsavitski): could avoid looping over all events if the caller did the
 // work to remember the relevant events (translation table construction already
 // loops over them).
-// TODO(rsavitski): consider tracking the validity of the formats individually,
-// so that we can e.g. still use compact_sched on a device without
-// compact_waking.
 CompactSchedEventFormat ValidateFormatForCompactSched(
     const std::vector<Event>& events) {
   using protos::pbzero::FtraceEvent;
