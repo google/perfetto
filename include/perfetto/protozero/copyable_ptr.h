@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_BASE_COPYABLE_PTR_H_
-#define INCLUDE_PERFETTO_BASE_COPYABLE_PTR_H_
+#ifndef INCLUDE_PERFETTO_PROTOZERO_COPYABLE_PTR_H_
+#define INCLUDE_PERFETTO_PROTOZERO_COPYABLE_PTR_H_
 
 #include <memory>
 
-namespace perfetto {
-namespace base {
+namespace protozero {
 
 // This class is essentially a std::vector<T> of fixed size = 1.
 // It's a pointer wrapper with deep copying and deep equality comparison.
@@ -83,7 +82,6 @@ class CopyablePtr {
   std::unique_ptr<T> ptr_;
 };
 
-}  // namespace base
-}  // namespace perfetto
+}  // namespace protozero
 
-#endif  // INCLUDE_PERFETTO_BASE_COPYABLE_PTR_H_
+#endif  // INCLUDE_PERFETTO_PROTOZERO_COPYABLE_PTR_H_
