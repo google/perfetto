@@ -58,6 +58,42 @@
 //         TRACK_EVENT_END("category");
 //         ...
 //       }
+//
+// ====================
+// Implementation notes
+// ====================
+//
+// The track event library consists of the following layers and components. The
+// classes the internal namespace shouldn't be considered part of the public
+// API.
+//                    .--------------------------------.
+//               .----|  TRACE_EVENT                   |----.
+//      write   |     |   - App instrumentation point  |     |  write
+//      event   |     '--------------------------------'     |  arguments
+//              V                                            V
+//  .----------------------------------.    .-----------------------------.
+//  | TrackEvent                       |    | TrackEventContext           |
+//  |  - Registry of event categories  |    |  - One track event instance |
+//  '----------------------------------'    '-----------------------------'
+//              |                                            |
+//              |                                            | look up
+//              | is                                         | interning ids
+//              V                                            V
+//  .----------------------------------.    .-----------------------------.
+//  | internal::TrackEventDataSource   |    | TrackEventInternedDataIndex |
+//  | - Perfetto data source           |    | - Corresponds to a field in |
+//  | - Has TrackEventIncrementalState |    |   in interned_data.proto    |
+//  '----------------------------------'    '-----------------------------'
+//              |                  |                         ^
+//              |                  |       owns (1:many)     |
+//              | write event      '-------------------------'
+//              V
+//  .----------------------------------.
+//  | internal::TrackEventInternal     |
+//  | - Outlined code to serialize     |
+//  |   one track event                |
+//  '----------------------------------'
+//
 
 // Each compilation unit can be in exactly one track event namespace,
 // allowing the overall program to use multiple track event data sources and

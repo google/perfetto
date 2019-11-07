@@ -22,6 +22,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/track_event.h"
 #include "perfetto/tracing/track_event_category_registry.h"
+#include "perfetto/tracing/track_event_interned_data_index.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -29,21 +30,46 @@
 
 namespace perfetto {
 namespace internal {
+
+BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
+
 namespace {
 
 std::atomic<perfetto::base::PlatformThreadID> g_main_thread;
 
+struct InternedEventCategory
+    : public TrackEventInternedDataIndex<
+          InternedEventCategory,
+          perfetto::protos::pbzero::InternedData::kEventCategoriesFieldNumber,
+          const char*,
+          SmallInternedDataTraits> {
+  static void Add(protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const char* value) {
+    auto category = interned_data->add_event_categories();
+    category->set_iid(iid);
+    category->set_name(value);
+  }
+};
+
+struct InternedEventName
+    : public TrackEventInternedDataIndex<
+          InternedEventName,
+          perfetto::protos::pbzero::InternedData::kEventNamesFieldNumber,
+          const char*,
+          SmallInternedDataTraits> {
+  static void Add(protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const char* value) {
+    auto name = interned_data->add_event_names();
+    name->set_iid(iid);
+    name->set_name(value);
+  }
+};
+
 uint64_t GetTimeNs() {
   // TODO(skyostil): Consider using boot time where available.
   return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
-}
-
-uint64_t GetNameIidOrZero(std::unordered_map<const char*, uint64_t>& name_map,
-                          const char* name) {
-  auto it = name_map.find(name);
-  if (it == name_map.end())
-    return 0;
-  return it->second;
 }
 
 // static
@@ -124,32 +150,15 @@ TrackEventContext TrackEventInternal::WriteEvent(
 
   // We assume that |category| and |name| point to strings with static lifetime.
   // This means we can use their addresses as interning keys.
-  uint64_t name_iid = GetNameIidOrZero(incr_state->event_names, name);
-  uint64_t category_iid = GetNameIidOrZero(incr_state->categories, category);
-  if (PERFETTO_UNLIKELY((name && !name_iid) || !category_iid)) {
-    auto id = packet->set_interned_data();
-    if (name && !name_iid) {
-      auto event_name = id->add_event_names();
-      name_iid = incr_state->event_names.size() + 1;
-      event_name->set_name(name, strlen(name));
-      event_name->set_iid(name_iid);
-      incr_state->event_names[name] = name_iid;
-    }
-    if (!category_iid) {
-      auto category_name = id->add_event_categories();
-      category_iid = incr_state->categories.size() + 1;
-      category_name->set_name(category, strlen(category));
-      category_name->set_iid(category_iid);
-      incr_state->categories[category] = category_iid;
-    }
-  }
-  TrackEventContext ctx(std::move(packet));
+  TrackEventContext ctx(std::move(packet), incr_state);
+  size_t category_iid = InternedEventCategory::Get(&ctx, category);
 
   auto track_event = ctx.track_event();
   track_event->set_type(type);
   // TODO(skyostil): Handle multiple categories.
   track_event->add_category_iids(category_iid);
   if (name) {
+    size_t name_iid = InternedEventName::Get(&ctx, name);
     track_event->set_name_iid(name_iid);
   }
   return ctx;
