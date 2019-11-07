@@ -305,11 +305,11 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
                 break;
             }
             if (is_valid_value) {
-              context_->event_tracker->PushCounter(
-                  ts, counter_value,
-                  context_->storage->InternString(
-                      base::StringView(counter_name_str)),
-                  utid, RefType::kRefUtid);
+              StringId counter_name_id = context_->storage->InternString(
+                  base::StringView(counter_name_str));
+              TrackId track = context_->track_tracker->InternThreadCounterTrack(
+                  counter_name_id, utid);
+              context_->event_tracker->PushCounter(ts, counter_value, track);
             }
           }
           break;

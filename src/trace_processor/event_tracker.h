@@ -37,18 +37,20 @@ class EventTracker {
   EventTracker& operator=(const EventTracker&) = delete;
   virtual ~EventTracker();
 
-  // This method is called when a counter event is seen in the trace.
-  virtual RowId PushCounter(int64_t timestamp,
-                            double value,
-                            StringId name_id,
-                            int64_t ref,
-                            RefType ref_type,
-                            bool resolve_utid_to_upid = false);
+  // Adds a counter event to the counters table returning the RowId of the
+  // newly added row.
+  virtual RowId PushCounter(int64_t timestamp, double value, TrackId track_id);
 
-  // This method is called when a counter event is seen in the trace.
-  virtual RowId PushCounter(int64_t timestamp,
-                            double value,
-                            TraceStorage::CounterDefinitions::Id defn_id);
+  // Adds a counter event to the counters table for counter events which
+  // should be associated with a process but only have a thread context
+  // (e.g. rss_stat events).
+  //
+  // This function will resolve the utid to a upid when the events are
+  // flushed (see |FlushPendingEvents()|).
+  virtual RowId PushProcessCounterForThread(int64_t timestamp,
+                                            double value,
+                                            StringId name_id,
+                                            UniqueTid utid);
 
   // This method is called when a instant event is seen in the trace.
   virtual RowId PushInstant(int64_t timestamp,

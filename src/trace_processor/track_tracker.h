@@ -75,6 +75,33 @@ class TrackTracker {
   // Returns the ID of the implicit trace-global default TrackDescriptor track.
   TrackId GetOrCreateDefaultDescriptorTrack();
 
+  // Interns a global counter track into the storage.
+  TrackId InternGlobalCounterTrack(StringId name);
+
+  // Interns a counter track associated with a cpu into the storage.
+  TrackId InternCpuCounterTrack(StringId name, uint32_t cpu);
+
+  // Interns a counter track associated with a thread into the storage.
+  TrackId InternThreadCounterTrack(StringId name, UniqueTid utid);
+
+  // Interns a counter track associated with a process into the storage.
+  TrackId InternProcessCounterTrack(StringId name, UniquePid upid);
+
+  // Interns a counter track associated with an irq into the storage.
+  TrackId InternIrqCounterTrack(StringId name, int32_t irq);
+
+  // Interns a counter track associated with an softirq into the storage.
+  TrackId InternSoftirqCounterTrack(StringId name, int32_t softirq);
+
+  // Interns a counter track associated with a GPU into the storage.
+  TrackId InternGpuCounterTrack(StringId name, uint32_t gpu_id);
+
+  // Creates a counter track associated with a GPU into the storage.
+  TrackId CreateGpuCounterTrack(StringId name,
+                                uint32_t gpu_id,
+                                StringId description = 0,
+                                StringId unit = 0);
+
  private:
   struct GpuTrackTuple {
     StringId track_name;
@@ -120,6 +147,14 @@ class TrackTracker {
   base::Optional<TrackId> chrome_global_instant_track_id_;
   std::map<uint64_t /* uuid */, TrackId> descriptor_tracks_;
   std::map<UniqueTid, TrackId> descriptor_tracks_by_utid_;
+
+  std::map<StringId, TrackId> global_counter_tracks_by_name_;
+  std::map<std::pair<StringId, uint32_t>, TrackId> cpu_counter_tracks_;
+  std::map<std::pair<StringId, UniqueTid>, TrackId> utid_counter_tracks_;
+  std::map<std::pair<StringId, UniquePid>, TrackId> upid_counter_tracks_;
+  std::map<std::pair<StringId, int32_t>, TrackId> irq_counter_tracks_;
+  std::map<std::pair<StringId, int32_t>, TrackId> softirq_counter_tracks_;
+  std::map<std::pair<StringId, uint32_t>, TrackId> gpu_counter_tracks_;
 
   const StringId source_key_ = 0;
   const StringId source_id_key_ = 0;

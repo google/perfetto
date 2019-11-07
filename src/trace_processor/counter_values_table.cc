@@ -31,8 +31,7 @@ StorageSchema CounterValuesTable::CreateStorageSchema() {
   const auto& cs = storage_->counter_values();
   return StorageSchema::Builder()
       .AddGenericNumericColumn("id", RowIdAccessor(TableId::kCounterValues))
-      .AddNumericColumn("counter_id", &cs.counter_ids(),
-                        &cs.rows_for_counter_id())
+      .AddNumericColumn("counter_id", &cs.track_ids(), &cs.rows_for_track_id())
       .AddOrderedNumericColumn("ts", &cs.timestamps())
       .AddNumericColumn("value", &cs.values())
       .AddNumericColumn("arg_set_id", &cs.arg_set_ids())
