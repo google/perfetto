@@ -24,11 +24,13 @@
 #include <vector>
 
 #include "perfetto/tracing.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.pb.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
+#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
@@ -48,9 +50,27 @@ PERFETTO_DEFINE_CATEGORIES(PERFETTO_CATEGORY(test),
                            PERFETTO_CATEGORY(bar));
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 
+// For testing interning of complex objects.
+using SourceLocation = std::tuple<const char* /* file_name */,
+                                  const char* /* function_name */,
+                                  uint32_t /* line_number */>;
+
+namespace std {
+template <>
+struct hash<SourceLocation> {
+  size_t operator()(const SourceLocation& value) const {
+    auto hasher = hash<size_t>();
+    return hasher(reinterpret_cast<size_t>(get<0>(value))) ^
+           hasher(reinterpret_cast<size_t>(get<1>(value))) ^
+           hasher(get<2>(value));
+  }
+};
+}  // namespace std
+
 namespace {
 
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
@@ -238,6 +258,59 @@ class PerfettoApiTest : public ::testing::Test {
     return handle;
   }
 
+  std::vector<std::string> ReadLogMessagesFromTrace(
+      perfetto::TracingSession* tracing_session) {
+    std::vector<char> raw_trace = tracing_session->ReadTraceBlocking();
+    EXPECT_GE(raw_trace.size(), 0u);
+
+    // Read back the trace, maintaining interning tables as we go.
+    std::vector<std::string> log_messages;
+    std::map<uint64_t, std::string> log_message_bodies;
+    std::map<uint64_t, perfetto::protos::SourceLocation> source_locations;
+    perfetto::protos::Trace parsed_trace;
+    EXPECT_TRUE(
+        parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+
+    for (const auto& packet : parsed_trace.packet()) {
+      if (!packet.has_track_event())
+        continue;
+
+      if (packet.has_interned_data()) {
+        const auto& interned_data = packet.interned_data();
+        for (const auto& it : interned_data.log_message_body()) {
+          EXPECT_GE(it.iid(), 1u);
+          EXPECT_EQ(log_message_bodies.find(it.iid()),
+                    log_message_bodies.end());
+          log_message_bodies[it.iid()] = it.body();
+        }
+        for (const auto& it : interned_data.source_locations()) {
+          EXPECT_GE(it.iid(), 1u);
+          EXPECT_EQ(source_locations.find(it.iid()), source_locations.end());
+          source_locations[it.iid()] = it;
+        }
+      }
+      const auto& track_event = packet.track_event();
+      if (track_event.type() != perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN)
+        continue;
+
+      EXPECT_TRUE(track_event.has_log_message());
+      const auto& log = track_event.log_message();
+      if (log.source_location_iid()) {
+        std::stringstream msg;
+        const auto& source_location =
+            source_locations[log.source_location_iid()];
+        msg << source_location.function_name() << "("
+            << source_location.file_name() << ":"
+            << source_location.line_number()
+            << "): " << log_message_bodies[log.body_iid()];
+        log_messages.emplace_back(msg.str());
+      } else {
+        log_messages.emplace_back(log_message_bodies[log.body_iid()]);
+      }
+    }
+    return log_messages;
+  }
+
   std::map<std::string, TestDataSourceHandle> data_sources_;
   std::list<TestTracingSessionHandle> sessions_;  // Needs stable pointers.
 };
@@ -398,10 +471,14 @@ TEST_F(PerfettoApiTest, TrackEvent) {
     // Update incremental state.
     if (packet.has_interned_data()) {
       const auto& interned_data = packet.interned_data();
-      for (const auto& it : interned_data.event_categories())
+      for (const auto& it : interned_data.event_categories()) {
+        EXPECT_EQ(categories.find(it.iid()), categories.end());
         categories[it.iid()] = it.name();
-      for (const auto& it : interned_data.event_names())
+      }
+      for (const auto& it : interned_data.event_names()) {
+        EXPECT_EQ(event_names.find(it.iid()), event_names.end());
         event_names[it.iid()] = it.name();
+      }
     }
 
     EXPECT_GT(packet.timestamp(), 0u);
@@ -670,6 +747,251 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgs) {
     found_args = true;
   }
   EXPECT_TRUE(found_args);
+}
+
+struct InternedLogMessageBody
+    : public perfetto::TrackEventInternedDataIndex<
+          InternedLogMessageBody,
+          perfetto::protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
+          std::string> {
+  static void Add(perfetto::protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const std::string& value) {
+    auto l = interned_data->add_log_message_body();
+    l->set_iid(iid);
+    l->set_body(value.data(), value.size());
+    commit_count++;
+  }
+
+  static int commit_count;
+};
+
+int InternedLogMessageBody::commit_count = 0;
+
+TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterning) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  std::stringstream large_message;
+  for (size_t i = 0; i < 512; i++)
+    large_message << i << ". Something wicked this way comes. ";
+
+  size_t body_iid;
+  InternedLogMessageBody::commit_count = 0;
+  TRACE_EVENT_BEGIN(
+      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+        EXPECT_EQ(0, InternedLogMessageBody::commit_count);
+        body_iid = InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
+        auto log = ctx.track_event()->set_log_message();
+        log->set_body_iid(body_iid);
+        EXPECT_EQ(1, InternedLogMessageBody::commit_count);
+
+        auto body_iid2 =
+            InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
+        EXPECT_EQ(body_iid, body_iid2);
+        EXPECT_EQ(1, InternedLogMessageBody::commit_count);
+      });
+  TRACE_EVENT_END("foo");
+
+  TRACE_EVENT_BEGIN(
+      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+        // Check that very large amounts of interned data works.
+        auto log = ctx.track_event()->set_log_message();
+        log->set_body_iid(
+            InternedLogMessageBody::Get(&ctx, large_message.str()));
+        EXPECT_EQ(2, InternedLogMessageBody::commit_count);
+      });
+  TRACE_EVENT_END("foo");
+
+  // Make sure interned data persists across trace points.
+  TRACE_EVENT_BEGIN(
+      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+        auto body_iid2 =
+            InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
+        EXPECT_EQ(body_iid, body_iid2);
+
+        auto body_iid3 =
+            InternedLogMessageBody::Get(&ctx, "I knew him, Horatio");
+        EXPECT_NE(body_iid, body_iid3);
+        auto log = ctx.track_event()->set_log_message();
+        log->set_body_iid(body_iid3);
+        EXPECT_EQ(3, InternedLogMessageBody::commit_count);
+      });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  auto log_messages = ReadLogMessagesFromTrace(tracing_session->get());
+  EXPECT_THAT(log_messages,
+              ElementsAre("Alas, poor Yorick!", large_message.str(),
+                          "I knew him, Horatio"));
+}
+
+struct InternedLogMessageBodySmall
+    : public perfetto::TrackEventInternedDataIndex<
+          InternedLogMessageBodySmall,
+          perfetto::protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
+          const char*,
+          perfetto::SmallInternedDataTraits> {
+  static void Add(perfetto::protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const char* value) {
+    auto l = interned_data->add_log_message_body();
+    l->set_iid(iid);
+    l->set_body(value);
+  }
+};
+
+TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByValue) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  size_t body_iid;
+  TRACE_EVENT_BEGIN(
+      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+        body_iid = InternedLogMessageBodySmall::Get(&ctx, "This above all:");
+        auto log = ctx.track_event()->set_log_message();
+        log->set_body_iid(body_iid);
+
+        auto body_iid2 =
+            InternedLogMessageBodySmall::Get(&ctx, "This above all:");
+        EXPECT_EQ(body_iid, body_iid2);
+
+        auto body_iid3 =
+            InternedLogMessageBodySmall::Get(&ctx, "to thine own self be true");
+        EXPECT_NE(body_iid, body_iid3);
+      });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  auto log_messages = ReadLogMessagesFromTrace(tracing_session->get());
+  EXPECT_THAT(log_messages, ElementsAre("This above all:"));
+}
+
+struct InternedLogMessageBodyHashed
+    : public perfetto::TrackEventInternedDataIndex<
+          InternedLogMessageBodyHashed,
+          perfetto::protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
+          std::string,
+          perfetto::HashedInternedDataTraits> {
+  static void Add(perfetto::protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const std::string& value) {
+    auto l = interned_data->add_log_message_body();
+    l->set_iid(iid);
+    l->set_body(value.data(), value.size());
+  }
+};
+
+TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByHashing) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  size_t body_iid;
+  TRACE_EVENT_BEGIN(
+      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+        // Test using a dynamically created interned value.
+        body_iid = InternedLogMessageBodyHashed::Get(
+            &ctx, std::string("Though this ") + "be madness,");
+        auto log = ctx.track_event()->set_log_message();
+        log->set_body_iid(body_iid);
+
+        auto body_iid2 =
+            InternedLogMessageBodyHashed::Get(&ctx, "Though this be madness,");
+        EXPECT_EQ(body_iid, body_iid2);
+
+        auto body_iid3 =
+            InternedLogMessageBodyHashed::Get(&ctx, "yet there is method in’t");
+        EXPECT_NE(body_iid, body_iid3);
+      });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  auto log_messages = ReadLogMessagesFromTrace(tracing_session->get());
+  EXPECT_THAT(log_messages, ElementsAre("Though this be madness,"));
+}
+
+struct InternedSourceLocation
+    : public perfetto::TrackEventInternedDataIndex<
+          InternedSourceLocation,
+          perfetto::protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+          SourceLocation> {
+  static void Add(perfetto::protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const SourceLocation& value) {
+    auto l = interned_data->add_source_locations();
+    auto file_name = std::get<0>(value);
+    auto function_name = std::get<1>(value);
+    auto line_number = std::get<2>(value);
+    l->set_iid(iid);
+    l->set_file_name(file_name);
+    l->set_function_name(function_name);
+    l->set_line_number(line_number);
+  }
+};
+
+TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningComplexValue) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN(
+      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+        const SourceLocation location{"file.cc", "SomeFunction", 123};
+        auto location_iid = InternedSourceLocation::Get(&ctx, location);
+        auto body_iid =
+            InternedLogMessageBody::Get(&ctx, "To be, or not to be");
+        auto log = ctx.track_event()->set_log_message();
+        log->set_source_location_iid(location_iid);
+        log->set_body_iid(body_iid);
+
+        auto location_iid2 = InternedSourceLocation::Get(&ctx, location);
+        EXPECT_EQ(location_iid, location_iid2);
+
+        const SourceLocation location2{"file.cc", "SomeFunction", 456};
+        auto location_iid3 = InternedSourceLocation::Get(&ctx, location2);
+        EXPECT_NE(location_iid, location_iid3);
+      });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  auto log_messages = ReadLogMessagesFromTrace(tracing_session->get());
+  EXPECT_THAT(log_messages,
+              ElementsAre("SomeFunction(file.cc:123): To be, or not to be"));
 }
 
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
