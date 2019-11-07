@@ -45,11 +45,9 @@ uint32_t CounterValuesTable::RowCount() {
 int CounterValuesTable::BestIndex(const QueryConstraints& qc,
                                   BestIndexInfo* info) {
   info->estimated_cost = EstimateCost(qc);
-
-  info->order_by_consumed = true;
-  for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->omit[i] = true;
-  }
+  info->sqlite_omit_order_by = true;
+  for (auto& c_info : info->constraint_info)
+    c_info.sqlite_omit = true;
 
   return SQLITE_OK;
 }

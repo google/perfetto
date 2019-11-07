@@ -65,10 +65,9 @@ int WindowOperatorTable::BestIndex(const QueryConstraints& qc,
                                    BestIndexInfo* info) {
   // Remove ordering on timestamp if it is the only ordering as we are already
   // sorted on TS. This makes span joining significantly faster.
-  if (qc.order_by().size() == 1 && qc.order_by()[0].iColumn == Column::kTs &&
-      !qc.order_by()[0].desc) {
-    info->order_by_consumed = true;
-  }
+  const auto& ob = qc.order_by();
+  info->prune_order_by =
+      ob.size() == 1 && ob[0].iColumn == Column::kTs && !ob[0].desc;
   return SQLITE_OK;
 }
 

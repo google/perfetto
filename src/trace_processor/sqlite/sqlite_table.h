@@ -136,9 +136,41 @@ class SqliteTable : public sqlite3_vtab {
   // Populated by a BestIndex call to allow subclasses to tweak SQLite's
   // handling of sets of constraints.
   struct BestIndexInfo {
-    bool order_by_consumed = false;
+    // Contains info about a single constraint.
+    struct ConstraintInfo {
+      // Gives the index of this constraint in the QueryConstraints class.
+      uint32_t qc_idx = 0;
+
+      // Indicates whether this constraint should be removed from the
+      // QueryConstraint class when passed to SqliteTable::Filter.
+      bool prune = false;
+
+      // Indiciates whether SQLite should omit double checking this constraint.
+      //
+      // If |prune| is set to true, this value will be ignored and SQLite will
+      // be told that it can omit double checking (i.e. this value will
+      // implicitly be taken to be true).
+      bool sqlite_omit = false;
+    };
+
+    // Stores the estimated cost of this query.
     uint32_t estimated_cost = 0;
-    std::vector<bool> omit;
+
+    // Stores the information about each constraint.
+    std::vector<ConstraintInfo> constraint_info;
+
+    // Indicates that all the order by constraints should be pruned. This should
+    // be set to true if the table is exactly ordered by the order by terms in
+    // QueryConstraints.
+    bool prune_order_by = false;
+
+    // Indicates that SQLite should not double check the result of the order by
+    // clause.
+    //
+    // If |prune_order_by| is set to true, this value will be ignored and SQLite
+    // will be told that it can omit double checking (i.e. this value will
+    // implicitly be taken to be true).
+    bool sqlite_omit_order_by = false;
   };
 
   template <typename Context>
