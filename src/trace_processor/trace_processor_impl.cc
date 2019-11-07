@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
-#include "src/trace_processor/counter_definitions_table.h"
 #include "src/trace_processor/counter_values_table.h"
 #include "src/trace_processor/cpu_profile_stack_sample_table.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
@@ -135,6 +134,18 @@ void CreateBuiltinTables(sqlite3* db) {
 
 void CreateBuiltinViews(sqlite3* db) {
   char* error = nullptr;
+  sqlite3_exec(db,
+               "CREATE VIEW counter_definitions AS "
+               "SELECT "
+               "  *, "
+               "  id as counter_id "
+               "FROM counter_track",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+
   sqlite3_exec(db,
                "CREATE VIEW counters AS "
                "SELECT * FROM counter_values "
@@ -316,7 +327,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   SliceTable::RegisterTable(*db_, context_.storage.get());
   SqlStatsTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
-  CounterDefinitionsTable::RegisterTable(*db_, context_.storage.get());
   CounterValuesTable::RegisterTable(*db_, context_.storage.get());
   SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
@@ -332,6 +342,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   // New style db-backed tables.
   const TraceStorage* storage = context_.storage.get();
+
   DbSqliteTable::RegisterTable(*db_, &storage->track_table(),
                                storage->track_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->thread_track_table(),
@@ -342,16 +353,37 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                storage->gpu_slice_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->gpu_track_table(),
                                storage->gpu_track_table().table_name());
-  DbSqliteTable::RegisterTable(*db_, &storage->symbol_table(),
-                               storage->symbol_table().table_name());
+
+  DbSqliteTable::RegisterTable(*db_, &storage->counter_track_table(),
+                               storage->counter_track_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->process_counter_track_table(),
+      storage->process_counter_track_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->thread_counter_track_table(),
+      storage->thread_counter_track_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->cpu_counter_track_table(),
+                               storage->cpu_counter_track_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->irq_counter_track_table(),
+                               storage->irq_counter_track_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->softirq_counter_track_table(),
+      storage->softirq_counter_track_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->gpu_counter_track_table(),
+                               storage->gpu_counter_track_table().table_name());
+
   DbSqliteTable::RegisterTable(*db_, &storage->heap_graph_object_table(),
                                storage->heap_graph_object_table().table_name());
   DbSqliteTable::RegisterTable(
-      *db_, &storage->stack_profile_callsite_table(),
-      storage->stack_profile_callsite_table().table_name());
-  DbSqliteTable::RegisterTable(
       *db_, &storage->heap_graph_reference_table(),
       storage->heap_graph_reference_table().table_name());
+
+  DbSqliteTable::RegisterTable(*db_, &storage->symbol_table(),
+                               storage->symbol_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->stack_profile_callsite_table(),
+      storage->stack_profile_callsite_table().table_name());
+
   DbSqliteTable::RegisterTable(
       *db_, &storage->vulkan_memory_allocations_table(),
       storage->vulkan_memory_allocations_table().table_name());

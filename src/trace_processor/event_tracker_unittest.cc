@@ -20,6 +20,7 @@
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/track_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -37,6 +38,7 @@ class EventTrackerTest : public ::testing::Test {
     context.args_tracker.reset(new ArgsTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
+    context.track_tracker.reset(new TrackTracker(&context));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context.sched_tracker.reset(new SchedEventTracker(&context));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
@@ -116,16 +118,14 @@ TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
   StringId name_id = 0;
-  context.event_tracker->PushCounter(timestamp, 1000, name_id, cpu,
-                                     RefType::kRefCpuId);
-  context.event_tracker->PushCounter(timestamp + 1, 4000, name_id, cpu,
-                                     RefType::kRefCpuId);
-  context.event_tracker->PushCounter(timestamp + 3, 5000, name_id, cpu,
-                                     RefType::kRefCpuId);
-  context.event_tracker->PushCounter(timestamp + 9, 1000, name_id, cpu,
-                                     RefType::kRefCpuId);
 
-  ASSERT_EQ(context.storage->counter_definitions().size(), 1ul);
+  TrackId track = context.track_tracker->InternCpuCounterTrack(name_id, cpu);
+  context.event_tracker->PushCounter(timestamp, 1000, track);
+  context.event_tracker->PushCounter(timestamp + 1, 4000, track);
+  context.event_tracker->PushCounter(timestamp + 3, 5000, track);
+  context.event_tracker->PushCounter(timestamp + 9, 1000, track);
+
+  ASSERT_EQ(context.storage->counter_track_table().size(), 1ul);
 
   ASSERT_EQ(context.storage->counter_values().size(), 4ul);
   ASSERT_EQ(context.storage->counter_values().timestamps().at(0), timestamp);

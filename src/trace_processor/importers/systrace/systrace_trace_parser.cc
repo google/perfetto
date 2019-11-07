@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/track_tracker.h"
 
 #include <inttypes.h>
 #include <string>
@@ -222,9 +223,10 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     if (!event_cpu.has_value()) {
       return util::Status("Could not convert state");
     }
-    context_->event_tracker->PushCounter(ts, new_state.value(),
-                                         cpu_idle_name_id_, event_cpu.value(),
-                                         RefType::kRefCpuId);
+
+    TrackId track = context_->track_tracker->InternCpuCounterTrack(
+        cpu_idle_name_id_, event_cpu.value());
+    context_->event_tracker->PushCounter(ts, new_state.value(), track);
   }
 
   return util::OkStatus();

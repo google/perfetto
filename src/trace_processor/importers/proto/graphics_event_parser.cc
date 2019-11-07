@@ -116,7 +116,8 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
     auto counter_id = spec.counter_id();
     auto name = spec.name();
-    if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
+    if (gpu_counter_track_ids_.find(counter_id) ==
+        gpu_counter_track_ids_.end()) {
       auto desc = spec.description();
 
       StringId unit_id = 0;
@@ -140,10 +141,9 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
       auto name_id = context_->storage->InternString(name);
       auto desc_id = context_->storage->InternString(desc);
-      auto* definitions = context_->storage->mutable_counter_definitions();
-      auto defn_id = definitions->AddCounterDefinition(
-          name_id, 0, RefType::kRefGpuId, desc_id, unit_id);
-      gpu_counter_ids_.emplace(counter_id, defn_id);
+      auto track_id = context_->track_tracker->CreateGpuCounterTrack(
+          name_id, 0 /* gpu_id */, desc_id, unit_id);
+      gpu_counter_track_ids_.emplace(counter_id, track_id);
     } else {
       // Either counter spec was repeated or it came after counter data.
       PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
@@ -158,25 +158,26 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
         (counter.has_int_value() || counter.has_double_value())) {
       auto counter_id = counter.counter_id();
       // Check missing counter_id
-      if (gpu_counter_ids_.find(counter_id) == gpu_counter_ids_.end()) {
+      if (gpu_counter_track_ids_.find(counter_id) ==
+          gpu_counter_track_ids_.end()) {
         char buffer[64];
         base::StringWriter writer(buffer, sizeof(buffer));
         writer.AppendString("gpu_counter(");
         writer.AppendUnsignedInt(counter_id);
         writer.AppendString(")");
         auto name_id = context_->storage->InternString(writer.GetStringView());
-        auto* definitions = context_->storage->mutable_counter_definitions();
-        auto defn_id =
-            definitions->AddCounterDefinition(name_id, 0, RefType::kRefGpuId);
-        gpu_counter_ids_.emplace(counter_id, defn_id);
+
+        TrackId track = context_->track_tracker->CreateGpuCounterTrack(
+            name_id, 0 /* gpu_id */);
+        gpu_counter_track_ids_.emplace(counter_id, track);
         context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
       }
       if (counter.has_int_value()) {
-        context_->event_tracker->PushCounter(ts, counter.int_value(),
-                                             gpu_counter_ids_[counter_id]);
+        context_->event_tracker->PushCounter(
+            ts, counter.int_value(), gpu_counter_track_ids_[counter_id]);
       } else {
-        context_->event_tracker->PushCounter(ts, counter.double_value(),
-                                             gpu_counter_ids_[counter_id]);
+        context_->event_tracker->PushCounter(
+            ts, counter.double_value(), gpu_counter_track_ids_[counter_id]);
       }
     }
   }
@@ -337,61 +338,71 @@ void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(int64_t ts,
     } else if (type == VulkanMemoryEvent::DESTROY) {
       vulkan_allocated_host_memory_ -= allocation_size;
     }
+    TrackId track = context_->track_tracker->InternProcessCounterTrack(
+        vulkan_allocated_host_memory_id_, upid);
     context_->event_tracker->PushCounter(ts, vulkan_allocated_host_memory_,
-                                         vulkan_allocated_host_memory_id_, upid,
-                                         RefType::kRefUpid);
+                                         track);
   } else if (source == VulkanMemoryEvent::GPU_DEVICE_MEMORY) {
     if (type == VulkanMemoryEvent::CREATE) {
       vulkan_allocated_gpu_memory_ += allocation_size;
     } else if (type == VulkanMemoryEvent::DESTROY) {
       vulkan_allocated_gpu_memory_ -= allocation_size;
     }
+    TrackId track = context_->track_tracker->InternProcessCounterTrack(
+        vulkan_allocated_gpu_memory_id_, upid);
     context_->event_tracker->PushCounter(ts, vulkan_allocated_gpu_memory_,
-                                         vulkan_allocated_gpu_memory_id_, upid,
-                                         RefType::kRefUpid);
+                                         track);
   } else if (source == VulkanMemoryEvent::GPU_BUFFER) {
     if (type == VulkanMemoryEvent::CREATE) {
       vulkan_live_buffer_objects_ += 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_live_buffer_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_live_buffer_objects_,
-                                           vulkan_live_buffer_objects_id_, upid,
-                                           RefType::kRefUpid);
+                                           track);
     } else if (type == VulkanMemoryEvent::DESTROY) {
       vulkan_live_buffer_objects_ -= 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_live_buffer_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_live_buffer_objects_,
-                                           vulkan_live_buffer_objects_id_, upid,
-                                           RefType::kRefUpid);
+                                           track);
     } else if (type == VulkanMemoryEvent::BIND) {
       vulkan_bound_buffer_objects_ += 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_bound_buffer_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_bound_buffer_objects_,
-                                           vulkan_bound_buffer_objects_id_,
-                                           upid, RefType::kRefUpid);
+                                           track);
     } else if (type == VulkanMemoryEvent::DESTROY_BOUND) {
       vulkan_bound_buffer_objects_ -= 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_bound_buffer_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_bound_buffer_objects_,
-                                           vulkan_bound_buffer_objects_id_,
-                                           upid, RefType::kRefUpid);
+                                           track);
     }
   } else if (source == VulkanMemoryEvent::GPU_IMAGE) {
     if (type == VulkanMemoryEvent::CREATE) {
       vulkan_live_image_objects_ += 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_live_image_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_live_image_objects_,
-                                           vulkan_live_image_objects_id_, upid,
-                                           RefType::kRefUpid);
+                                           track);
     } else if (type == VulkanMemoryEvent::DESTROY) {
       vulkan_live_image_objects_ -= 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_live_image_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_live_image_objects_,
-                                           vulkan_live_image_objects_id_, upid,
-                                           RefType::kRefUpid);
+                                           track);
     } else if (type == VulkanMemoryEvent::BIND) {
       vulkan_bound_image_objects_ += 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_bound_image_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_bound_image_objects_,
-                                           vulkan_bound_image_objects_id_, upid,
-                                           RefType::kRefUpid);
+                                           track);
     } else if (type == VulkanMemoryEvent::DESTROY_BOUND) {
       vulkan_bound_image_objects_ -= 1;
+      TrackId track = context_->track_tracker->InternProcessCounterTrack(
+          vulkan_bound_image_objects_id_, upid);
       context_->event_tracker->PushCounter(ts, vulkan_bound_image_objects_,
-                                           vulkan_bound_image_objects_id_, upid,
-                                           RefType::kRefUpid);
+                                           track);
     }
   }
 }

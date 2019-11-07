@@ -24,6 +24,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/track_tracker.h"
 #include "src/trace_processor/variadic.h"
 
 namespace perfetto {
@@ -34,27 +35,16 @@ EventTracker::EventTracker(TraceProcessorContext* context)
 
 EventTracker::~EventTracker() = default;
 
-RowId EventTracker::PushCounter(int64_t timestamp,
-                                double value,
-                                StringId name_id,
-                                int64_t ref,
-                                RefType ref_type,
-                                bool resolve_utid_to_upid) {
-  PERFETTO_DCHECK(!resolve_utid_to_upid || ref_type == RefType::kRefUtid);
-
-  auto* definitions = context_->storage->mutable_counter_definitions();
-  TraceStorage::CounterDefinitions::Id defn_id;
-  if (resolve_utid_to_upid) {
-    defn_id = TraceStorage::CounterDefinitions::kInvalidId;
-  } else {
-    defn_id = definitions->AddCounterDefinition(name_id, ref, ref_type);
-  }
-  RowId row_id = PushCounter(timestamp, value, defn_id);
-  if (resolve_utid_to_upid && row_id != kInvalidRowId) {
+RowId EventTracker::PushProcessCounterForThread(int64_t timestamp,
+                                                double value,
+                                                StringId name_id,
+                                                UniqueTid utid) {
+  RowId row_id = PushCounter(timestamp, value, kInvalidTrackId);
+  if (row_id != kInvalidRowId) {
     auto table_and_row = TraceStorage::ParseRowId(row_id);
     PendingUpidResolutionCounter pending;
     pending.row = table_and_row.second;
-    pending.utid = static_cast<UniqueTid>(ref);
+    pending.utid = utid;
     pending.name_id = name_id;
     pending_upid_resolution_counter_.emplace_back(pending);
   }
@@ -63,7 +53,7 @@ RowId EventTracker::PushCounter(int64_t timestamp,
 
 RowId EventTracker::PushCounter(int64_t timestamp,
                                 double value,
-                                TraceStorage::CounterDefinitions::Id defn_id) {
+                                TrackId track_id) {
   if (timestamp < max_timestamp_) {
     PERFETTO_DLOG("counter event (ts: %" PRId64
                   ") out of order by %.4f ms, skipping",
@@ -74,7 +64,7 @@ RowId EventTracker::PushCounter(int64_t timestamp,
   max_timestamp_ = timestamp;
 
   auto* counter_values = context_->storage->mutable_counter_values();
-  uint32_t idx = counter_values->AddCounterValue(defn_id, timestamp, value);
+  uint32_t idx = counter_values->AddCounterValue(track_id, timestamp, value);
   return TraceStorage::CreateRowId(TableId::kCounterValues,
                                    static_cast<uint32_t>(idx));
 }
@@ -107,10 +97,9 @@ void EventTracker::FlushPendingEvents() {
     // TODO(lalitm): having upid == 0 is probably not the correct approach here
     // but it's unclear what may be better.
     UniquePid upid = thread.upid.value_or(0);
-    auto id =
-        context_->storage->mutable_counter_definitions()->AddCounterDefinition(
-            pending_counter.name_id, upid, RefType::kRefUpid);
-    context_->storage->mutable_counter_values()->set_counter_id(
+    auto id = context_->track_tracker->InternProcessCounterTrack(
+        pending_counter.name_id, upid);
+    context_->storage->mutable_counter_values()->set_track_id(
         pending_counter.row, id);
   }
 

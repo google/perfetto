@@ -588,8 +588,9 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       sprintf(fallback, "Counter %d", cid);
       name_id = context_->storage->InternString(fallback);
     }
-    context_->event_tracker->PushCounter(ts, event.counter_value(), name_id,
-                                         utid, RefType::kRefUtid);
+    TrackId track =
+        context_->track_tracker->InternThreadCounterTrack(name_id, utid);
+    context_->event_tracker->PushCounter(ts, event.counter_value(), track);
   }
 
   if (event.has_overruns())
