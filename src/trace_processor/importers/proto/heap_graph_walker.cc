@@ -73,13 +73,11 @@ void HeapGraphWalker::AddEdge(int64_t owner_row, int64_t owned_row) {
 void HeapGraphWalker::MarkRoot(int64_t row) {
   Node& n = GetNode(row);
   ReachableNode(&n);
-  if (n.node_index == 0)
-    FindSCC(&n);
 }
 
 void HeapGraphWalker::CalculateRetained() {
   for (Node& n : nodes_) {
-    if (n.node_index == 0)
+    if (n.reachable && n.node_index == 0)
       FindSCC(&n);
   }
 
@@ -158,7 +156,7 @@ void HeapGraphWalker::FoundSCC(Node* node) {
     component.unique_retained_size += elem->self_size;
     for (Node* parent : elem->parents) {
       // We do not count intra-component edges.
-      if (parent->component != component_id)
+      if (parent->reachable && parent->component != component_id)
         component.incoming_edges++;
     }
     component.orig_incoming_edges = component.incoming_edges;
