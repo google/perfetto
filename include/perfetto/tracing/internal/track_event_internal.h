@@ -24,15 +24,6 @@
 
 #include <unordered_map>
 
-// Only used to DCHECK that one interned data field isn't accidentally shared by
-// multiple TrackEventInternedData subclasses.
-// TODO(skyostil): Add __FUNCSIG__ for MSVC.
-#if PERFETTO_DCHECK_IS_ON() && defined(__GNUC__)
-#define PERFETTO_INTERNAL_TYPE_IDENTIFIER __PRETTY_FUNCTION__
-#else  // PERFETTO_DCHECK_IS_ON() && defined(__GNUC__)
-#define PERFETTO_INTERNAL_TYPE_IDENTIFIER ""
-#endif  // PERFETTO_DCHECK_IS_ON() && defined(__GNUC__)
-
 namespace perfetto {
 class DataSourceConfig;
 class DataSourceDescriptor;
