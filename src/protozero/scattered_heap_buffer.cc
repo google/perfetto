@@ -20,19 +20,30 @@
 
 namespace protozero {
 
+ScatteredHeapBuffer::Slice::Slice()
+    : buffer_(nullptr), size_(0u), unused_bytes_(0u) {}
+
 ScatteredHeapBuffer::Slice::Slice(size_t size)
     : buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[size])),
       size_(size),
       unused_bytes_(size) {
   PERFETTO_DCHECK(size);
-#if PERFETTO_DCHECK_IS_ON()
-  memset(start(), 0xff, size_);
-#endif  // PERFETTO_DCHECK_IS_ON()
+  Clear();
 }
 
 ScatteredHeapBuffer::Slice::Slice(Slice&& slice) noexcept = default;
 
 ScatteredHeapBuffer::Slice::~Slice() = default;
+
+ScatteredHeapBuffer::Slice& ScatteredHeapBuffer::Slice::operator=(Slice&&) =
+    default;
+
+void ScatteredHeapBuffer::Slice::Clear() {
+  unused_bytes_ = size_;
+#if PERFETTO_DCHECK_IS_ON()
+  memset(start(), 0xff, size_);
+#endif  // PERFETTO_DCHECK_IS_ON()
+}
 
 ScatteredHeapBuffer::ScatteredHeapBuffer(size_t initial_slice_size_bytes,
                                          size_t maximum_slice_size_bytes)
@@ -48,7 +59,12 @@ protozero::ContiguousMemoryRange ScatteredHeapBuffer::GetNewBuffer() {
   PERFETTO_CHECK(writer_);
   AdjustUsedSizeOfCurrentSlice();
 
-  slices_.emplace_back(next_slice_size_);
+  if (cached_slice_.start()) {
+    slices_.push_back(std::move(cached_slice_));
+    PERFETTO_DCHECK(!cached_slice_.start());
+  } else {
+    slices_.emplace_back(next_slice_size_);
+  }
   next_slice_size_ = std::min(maximum_slice_size_, next_slice_size_ * 2);
   return slices_.back().GetTotalRange();
 }
@@ -63,6 +79,14 @@ std::vector<uint8_t> ScatteredHeapBuffer::StitchSlices() {
   return buffer;
 }
 
+std::vector<protozero::ContiguousMemoryRange> ScatteredHeapBuffer::GetRanges() {
+  AdjustUsedSizeOfCurrentSlice();
+  std::vector<protozero::ContiguousMemoryRange> ranges;
+  for (const auto& slice : slices_)
+    ranges.push_back(slice.GetUsedRange());
+  return ranges;
+}
+
 void ScatteredHeapBuffer::AdjustUsedSizeOfCurrentSlice() {
   if (!slices_.empty())
     slices_.back().set_unused_bytes(writer_->bytes_available());
@@ -74,6 +98,14 @@ size_t ScatteredHeapBuffer::GetTotalSize() {
     total_size += slice.size();
   }
   return total_size;
+}
+
+void ScatteredHeapBuffer::Reset() {
+  if (slices_.empty())
+    return;
+  cached_slice_ = std::move(slices_.front());
+  cached_slice_.Clear();
+  slices_.clear();
 }
 
 }  // namespace protozero
