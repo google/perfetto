@@ -55,8 +55,7 @@ class GraphicsEventParser {
  private:
   TraceProcessorContext* const context_;
   // For GpuCounterEvent
-  std::unordered_map<uint32_t, const TraceStorage::CounterDefinitions::Id>
-      gpu_counter_ids_;
+  std::unordered_map<uint32_t, TrackId> gpu_counter_track_ids_;
   // For GpuRenderStageEvent
   const StringId gpu_render_stage_scope_id_;
   std::vector<TrackId> gpu_hw_queue_ids_;
