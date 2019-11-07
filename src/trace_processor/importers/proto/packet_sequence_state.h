@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
@@ -31,13 +32,13 @@
 namespace perfetto {
 namespace trace_processor {
 
-#if PERFETTO_DCHECK_IS_ON() && defined(__GNUC__)
-// When called from GetOrCreateDecoder(), __PRETTY_FUNCTION__ (supported by GCC
-// + clang) should include the stringified name of the MessageType.
-#define PERFETTO_TYPE_IDENTIFIER __PRETTY_FUNCTION__
-#else  // PERFETTO_DCHECK_IS_ON() && defined(__GNUC__)
+#if PERFETTO_DCHECK_IS_ON()
+// When called from GetOrCreateDecoder(), should include the stringified name of
+// the MessageType.
+#define PERFETTO_TYPE_IDENTIFIER PERFETTO_DEBUG_FUNCTION_IDENTIFIER()
+#else  // PERFETTO_DCHECK_IS_ON()
 #define PERFETTO_TYPE_IDENTIFIER nullptr
-#endif  // PERFETTO_DCHECK_IS_ON() && defined(__GNUC__)
+#endif  // PERFETTO_DCHECK_IS_ON()
 
 class PacketSequenceState {
  public:
