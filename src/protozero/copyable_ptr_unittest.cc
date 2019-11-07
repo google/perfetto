@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/copyable_ptr.h"
+#include "perfetto/protozero/copyable_ptr.h"
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace base {
+namespace protozero {
 namespace {
 
 struct X {
@@ -116,5 +115,4 @@ TEST(CopyablePtrTest, DeepCompare) {
 }
 
 }  // namespace
-}  // namespace base
-}  // namespace perfetto
+}  // namespace protozero
