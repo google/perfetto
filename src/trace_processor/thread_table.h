@@ -55,10 +55,10 @@ class ThreadTable : public SqliteTable {
     Cursor(Cursor&&) noexcept = default;
     Cursor& operator=(Cursor&&) = default;
 
-    UniqueTid min;
-    UniqueTid max;
-    UniqueTid current;
-    bool desc;
+    UniqueTid min_ = 0;
+    UniqueTid max_ = 0;
+    uint32_t index_ = 0;
+    bool desc_ = false;
 
     const TraceStorage* storage_ = nullptr;
     ThreadTable* table_ = nullptr;
