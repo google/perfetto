@@ -425,6 +425,7 @@ filegroup(
         "include/perfetto/tracing/track_event.h",
         "include/perfetto/tracing/track_event_category_registry.h",
         "include/perfetto/tracing/track_event_context.h",
+        "include/perfetto/tracing/track_event_interned_data_index.h",
     ],
 )
 

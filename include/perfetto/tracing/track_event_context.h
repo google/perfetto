@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACING_TRACK_EVENT_CONTEXT_H_
 
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/tracing/internal/track_event_internal.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -42,15 +43,19 @@ class TrackEventContext {
   protos::pbzero::TrackEvent* track_event() const { return track_event_; }
 
  private:
+  template <typename, size_t, typename, typename>
+  friend class TrackEventInternedDataIndex;
+  friend class internal::TrackEventInternal;
+
   using TracePacketHandle =
       ::protozero::MessageHandle<protos::pbzero::TracePacket>;
 
-  friend class internal::TrackEventInternal;
-  TrackEventContext(TracePacketHandle);
+  TrackEventContext(TracePacketHandle, internal::TrackEventIncrementalState*);
   TrackEventContext(const TrackEventContext&) = delete;
 
   TracePacketHandle trace_packet_;
   protos::pbzero::TrackEvent* track_event_;
+  internal::TrackEventIncrementalState* incremental_state_;
 };
 
 }  // namespace perfetto
