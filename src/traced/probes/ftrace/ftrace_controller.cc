@@ -34,7 +34,6 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
@@ -64,20 +63,9 @@ constexpr size_t kMaxPagesPerCpuPerReadTick = 256;  // 1 MB per cpu
 // data, which should fit in a typical L2D cache. Furthermore, the batching
 // limits the memory usage of traced_probes.
 //
-// Note that the compact scheduler event encoding buffers operate on the same
-// buffer size, and their maximum capacity is set at compile-time as it lives on
-// the stack. So the maximum possible number of events encoded in this many
-// tracing pages must not exceed compact_sched's capacity. See the static_assert
-// below.
 // TODO(rsavitski): consider making buffering & parsing page counts independent,
 // should be a single counter in the cpu_reader, similar to lost_events case.
 constexpr size_t kParsingBufferSizePages = 32;
-
-static_assert(kParsingBufferSizePages *
-                      (base::kPageSize /
-                       CompactSchedBundleState::kMinSupportedSchedSwitchSize) <=
-                  CompactSchedBundleState::kMaxElements,
-              "insufficient compact_sched buffer capacity");
 
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
   if (drain_period_ms == 0) {

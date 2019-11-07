@@ -169,7 +169,7 @@ class CpuReader {
                                  const PageHeader* page_header,
                                  const ProtoTranslationTable* table,
                                  const FtraceDataSourceConfig* ds_config,
-                                 CompactSchedBundleState* compact_sched_buffer,
+                                 CompactSchedBuffer* compact_sched_buffer,
                                  FtraceEventBundle* bundle,
                                  FtraceMetadata* metadata);
 
@@ -198,7 +198,15 @@ class CpuReader {
   static void ParseSchedSwitchCompact(const uint8_t* start,
                                       uint64_t timestamp,
                                       const CompactSchedSwitchFormat* format,
-                                      CompactSchedBundleState* bundle_state,
+                                      CompactSchedBuffer* compact_buf,
+                                      FtraceMetadata* metadata);
+
+  // Parse a sched_waking event according to pre-validated format, and buffer
+  // the individual fields in the given compact encoding batch.
+  static void ParseSchedWakingCompact(const uint8_t* start,
+                                      uint64_t timestamp,
+                                      const CompactSchedWakingFormat* format,
+                                      CompactSchedBuffer* compact_buf,
                                       FtraceMetadata* metadata);
 
   // Parses & encodes the given range of contiguous tracing pages. Called by

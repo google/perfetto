@@ -1,4 +1,5 @@
 sched:sched_switch
+sched:sched_waking
 kmem:ion_heap_grow
 kmem:ion_heap_shrink
 kmem:rss_stat
