@@ -37,6 +37,7 @@
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/trace_storage.h"
 #include "src/trace_processor/track_tracker.h"
 #include "src/trace_processor/vulkan_memory_tracker.h"
 #include "test/gtest_and_gmock.h"
@@ -136,13 +137,8 @@ class MockEventTracker : public EventTracker {
                     base::StringView next_comm,
                     int32_t next_prio));
 
-  MOCK_METHOD6(PushCounter,
-               RowId(int64_t timestamp,
-                     double value,
-                     StringId name_id,
-                     int64_t ref,
-                     RefType ref_type,
-                     bool resolve_utid_to_upid));
+  MOCK_METHOD3(PushCounter,
+               RowId(int64_t timestamp, double value, uint32_t track_id));
 
   MOCK_METHOD6(PushInstant,
                RowId(int64_t timestamp,
@@ -609,9 +605,10 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   cpu_freq->set_cpu_id(10);
   cpu_freq->set_state(2000);
 
-  EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), _, 10,
-                                   RefType::kRefCpuId, false));
+  EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), 0));
   Tokenize();
+
+  EXPECT_EQ(context_.storage->cpu_counter_track_table().cpu()[0], 10u);
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
@@ -628,10 +625,11 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_,
-              PushCounter(static_cast<int64_t>(ts), DoubleEq(value * 1024.0), _,
-                          0, RefType::kRefNoRef, false));
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
+                                   DoubleEq(value * 1024.0), 0u));
   Tokenize();
+
+  EXPECT_EQ(context_.storage->track_table().size(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadVmStats) {
@@ -644,9 +642,11 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   uint32_t value = 10;
   meminfo->set_value(value);
 
-  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value), _,
-                                   0, RefType::kRefNoRef, false));
+  EXPECT_CALL(*event_,
+              PushCounter(static_cast<int64_t>(ts), DoubleEq(value), 0u));
   Tokenize();
+
+  EXPECT_EQ(context_.storage->track_table().size(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {

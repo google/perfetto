@@ -51,21 +51,25 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
   if (evt.has_charge_counter_uah()) {
-    context_->event_tracker->PushCounter(
-        ts, evt.charge_counter_uah(), batt_charge_id_, 0, RefType::kRefNoRef);
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(batt_charge_id_);
+    context_->event_tracker->PushCounter(ts, evt.charge_counter_uah(), track);
   }
   if (evt.has_capacity_percent()) {
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(batt_capacity_id_);
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(evt.capacity_percent()), batt_capacity_id_, 0,
-        RefType::kRefNoRef);
+        ts, static_cast<double>(evt.capacity_percent()), track);
   }
   if (evt.has_current_ua()) {
-    context_->event_tracker->PushCounter(ts, evt.current_ua(), batt_current_id_,
-                                         0, RefType::kRefNoRef);
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(batt_current_id_);
+    context_->event_tracker->PushCounter(ts, evt.current_ua(), track);
   }
   if (evt.has_current_avg_ua()) {
-    context_->event_tracker->PushCounter(
-        ts, evt.current_avg_ua(), batt_current_avg_id_, 0, RefType::kRefNoRef);
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(batt_current_avg_id_);
+    context_->event_tracker->PushCounter(ts, evt.current_avg_ua(), track);
   }
 }
 
@@ -97,9 +101,9 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
             desc.has_timestamp_ms()
                 ? static_cast<int64_t>(desc.timestamp_ms()) * 1000000
                 : ts;
-        context_->event_tracker->PushCounter(actual_ts, desc.energy(),
-                                             power_rails_strs_id_[desc.index()],
-                                             0, RefType::kRefNoRef);
+        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+            power_rails_strs_id_[desc.index()]);
+        context_->event_tracker->PushCounter(actual_ts, desc.energy(), track);
       } else {
         context_->storage->IncrementStats(stats::power_rail_unknown_index);
       }

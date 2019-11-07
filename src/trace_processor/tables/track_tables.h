@@ -54,6 +54,58 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TRACK_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACK_DEF);
 
+#define PERFETTO_TP_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(CounterTrackTable, "counter_track")             \
+  PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)               \
+  C(int64_t, ref)                                      \
+  C(StringPool::Id, ref_type)                          \
+  C(StringPool::Id, unit)                              \
+  C(StringPool::Id, description)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_TRACK_DEF);
+
+#define PERFETTO_TP_THREAD_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(ThreadCounterTrackTable, "thread_counter_track")       \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                    \
+  C(uint32_t, utid)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_COUNTER_TRACK_DEF);
+
+#define PERFETTO_TP_PROCESS_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(ProcessCounterTrackTable, "process_counter_track")      \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                     \
+  C(uint32_t, upid)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_COUNTER_TRACK_DEF);
+
+#define PERFETTO_TP_CPU_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(CpuCounterTrackTable, "cpu_counter_track")          \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
+  C(uint32_t, cpu)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CPU_COUNTER_TRACK_DEF);
+
+#define PERFETTO_TP_IRQ_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(IrqCounterTrackTable, "irq_counter_track")          \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
+  C(int32_t, irq)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_IRQ_COUNTER_TRACK_DEF);
+
+#define PERFETTO_TP_SOFTIRQ_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(SoftirqCounterTrackTable, "softirq_counter_track")      \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                     \
+  C(int32_t, softirq)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_SOFTIRQ_COUNTER_TRACK_DEF);
+
+#define PERFETTO_TP_GPU_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(GpuCounterTrackTable, "gpu_counter_track")          \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
+  C(uint32_t, gpu_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_GPU_COUNTER_TRACK_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

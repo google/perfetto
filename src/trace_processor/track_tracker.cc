@@ -319,5 +319,133 @@ TrackId TrackTracker::GetOrCreateDefaultDescriptorTrack() {
                                default_descriptor_track_name_);
 }
 
+TrackId TrackTracker::InternGlobalCounterTrack(StringId name) {
+  auto it = global_counter_tracks_by_name_.find(name);
+  if (it != global_counter_tracks_by_name_.end()) {
+    return it->second;
+  }
+
+  tables::CounterTrackTable::Row row(name);
+  TrackId track = context_->storage->mutable_counter_track_table()->Insert(row);
+  global_counter_tracks_by_name_[name] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternCpuCounterTrack(StringId name, uint32_t cpu) {
+  auto it = cpu_counter_tracks_.find(std::make_pair(name, cpu));
+  if (it != cpu_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::CpuCounterTrackTable::Row row(name);
+  row.cpu = cpu;
+  row.ref = cpu;
+  row.ref_type = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefCpuId)]);
+
+  TrackId track =
+      context_->storage->mutable_cpu_counter_track_table()->Insert(row);
+  cpu_counter_tracks_[std::make_pair(name, cpu)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
+  auto it = utid_counter_tracks_.find(std::make_pair(name, utid));
+  if (it != utid_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::ThreadCounterTrackTable::Row row(name);
+  row.utid = utid;
+  row.ref = utid;
+  row.ref_type = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUtid)]);
+
+  TrackId track =
+      context_->storage->mutable_thread_counter_track_table()->Insert(row);
+  utid_counter_tracks_[std::make_pair(name, utid)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternProcessCounterTrack(StringId name, UniquePid upid) {
+  auto it = upid_counter_tracks_.find(std::make_pair(name, upid));
+  if (it != upid_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::ProcessCounterTrackTable::Row row(name);
+  row.upid = upid;
+  row.ref = upid;
+  row.ref_type = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUpid)]);
+
+  TrackId track =
+      context_->storage->mutable_process_counter_track_table()->Insert(row);
+  upid_counter_tracks_[std::make_pair(name, upid)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternIrqCounterTrack(StringId name, int32_t irq) {
+  auto it = irq_counter_tracks_.find(std::make_pair(name, irq));
+  if (it != irq_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::IrqCounterTrackTable::Row row(name);
+  row.irq = irq;
+  row.ref = irq;
+  row.ref_type = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefIrq)]);
+
+  TrackId track =
+      context_->storage->mutable_irq_counter_track_table()->Insert(row);
+  irq_counter_tracks_[std::make_pair(name, irq)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternSoftirqCounterTrack(StringId name,
+                                                int32_t softirq) {
+  auto it = softirq_counter_tracks_.find(std::make_pair(name, softirq));
+  if (it != softirq_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::SoftirqCounterTrackTable::Row row(name);
+  row.softirq = softirq;
+  row.ref = softirq;
+  row.ref_type = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefSoftIrq)]);
+
+  TrackId track =
+      context_->storage->mutable_softirq_counter_track_table()->Insert(row);
+  softirq_counter_tracks_[std::make_pair(name, softirq)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternGpuCounterTrack(StringId name, uint32_t gpu_id) {
+  auto it = gpu_counter_tracks_.find(std::make_pair(name, gpu_id));
+  if (it != gpu_counter_tracks_.end()) {
+    return it->second;
+  }
+  TrackId track = CreateGpuCounterTrack(name, gpu_id);
+  gpu_counter_tracks_[std::make_pair(name, gpu_id)] = track;
+  return track;
+}
+
+TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
+                                            uint32_t gpu_id,
+                                            StringId description,
+                                            StringId unit) {
+  tables::GpuCounterTrackTable::Row row(name);
+  row.gpu_id = gpu_id;
+  row.description = description;
+  row.unit = unit;
+  row.ref = gpu_id;
+  row.ref_type = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefGpuId)]);
+
+  return context_->storage->mutable_gpu_counter_track_table()->Insert(row);
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

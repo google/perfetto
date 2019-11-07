@@ -131,8 +131,9 @@ void SystraceParser::ParseSystracePoint(
       UniquePid upid =
           context_->process_tracker->GetOrCreateProcess(point.tgid);
       StringId name_id = context_->storage->InternString(point.name);
-      context_->event_tracker->PushCounter(ts, point.value, name_id, upid,
-                                           RefType::kRefUpid);
+      TrackId track =
+          context_->track_tracker->InternProcessCounterTrack(name_id, upid);
+      context_->event_tracker->PushCounter(ts, point.value, track);
     }
   }
 }
