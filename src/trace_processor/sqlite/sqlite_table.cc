@@ -58,54 +58,84 @@ int SqliteTable::OpenInternal(sqlite3_vtab_cursor** ppCursor) {
 }
 
 int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
-  QueryConstraints query_constraints;
+  using ConstraintInfo = BestIndexInfo::ConstraintInfo;
 
-  for (int i = 0; i < idx->nOrderBy; i++) {
-    int column = idx->aOrderBy[i].iColumn;
-    bool desc = idx->aOrderBy[i].desc;
-    query_constraints.AddOrderBy(column, desc);
-  }
-
+  QueryConstraints in_qc;
+  BestIndexInfo info;
   for (int i = 0; i < idx->nConstraint; i++) {
     const auto& cs = idx->aConstraint[i];
     if (!cs.usable)
       continue;
-    query_constraints.AddConstraint(cs.iColumn, cs.op);
+    in_qc.AddConstraint(cs.iColumn, cs.op);
 
-    // argvIndex is 1-based so use the current size of the vector.
-    int argv_index = static_cast<int>(query_constraints.constraints().size());
-    idx->aConstraintUsage[i].argvIndex = argv_index;
+    ConstraintInfo c_info;
+    c_info.qc_idx = static_cast<uint32_t>(in_qc.constraints().size() - 1);
+    info.constraint_info.emplace_back(c_info);
   }
 
-  BestIndexInfo info;
-  info.omit.resize(query_constraints.constraints().size());
-
-  int ret = BestIndex(query_constraints, &info);
-
-  if (SqliteTable::debug) {
-    PERFETTO_LOG(
-        "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%d",
-        name_.c_str(), query_constraints.ToNewSqlite3String().get(),
-        info.order_by_consumed, info.estimated_cost);
+  for (int i = 0; i < idx->nOrderBy; i++) {
+    int column = idx->aOrderBy[i].iColumn;
+    bool desc = idx->aOrderBy[i].desc;
+    in_qc.AddOrderBy(column, desc);
   }
 
+  int ret = BestIndex(in_qc, &info);
   if (ret != SQLITE_OK)
     return ret;
 
-  idx->orderByConsumed = info.order_by_consumed;
-  idx->estimatedCost = info.estimated_cost;
+  auto& cs_info = info.constraint_info;
 
-  size_t j = 0;
-  for (int i = 0; i < idx->nConstraint; i++) {
-    const auto& cs = idx->aConstraint[i];
-    if (cs.usable)
-      idx->aConstraintUsage[i].omit = info.omit[j++];
+  // Remove all the pruned terms from the constraints.
+  {
+    auto prune_fn = [](const ConstraintInfo& t) { return t.prune; };
+    auto prune_cs_it = std::remove_if(cs_info.begin(), cs_info.end(), prune_fn);
+    cs_info.erase(prune_cs_it, cs_info.end());
   }
 
-  if (!info.order_by_consumed)
-    query_constraints.ClearOrderBy();
+  idx->orderByConsumed = info.prune_order_by || info.sqlite_omit_order_by;
+  idx->estimatedCost = info.estimated_cost;
 
-  idx->idxStr = query_constraints.ToNewSqlite3String().release();
+  uint32_t in_qc_idx = 0;
+  for (int i = 0; i < idx->nConstraint; i++) {
+    const auto& c = idx->aConstraint[i];
+    if (c.usable) {
+      auto cs_fn = [in_qc_idx](const ConstraintInfo& t) {
+        return t.qc_idx == in_qc_idx;
+      };
+      auto it = std::find_if(cs_info.begin(), cs_info.end(), cs_fn);
+
+      // If the iterator no longer exists, we must have pruned it.
+      if (it == cs_info.end()) {
+        idx->aConstraintUsage[i].omit = true;
+      } else {
+        idx->aConstraintUsage[i].argvIndex =
+            static_cast<int>(std::distance(cs_info.begin(), it)) + 1;
+        idx->aConstraintUsage[i].omit = it->sqlite_omit;
+      }
+      in_qc_idx++;
+    }
+  }
+
+  QueryConstraints out_qc;
+  for (const auto& c_info : cs_info) {
+    const auto& c = in_qc.constraints()[c_info.qc_idx];
+    out_qc.AddConstraint(c.iColumn, c.op);
+  }
+  if (!info.prune_order_by) {
+    for (const auto& o : in_qc.order_by()) {
+      out_qc.AddOrderBy(o.iColumn, o.desc);
+    }
+  }
+
+  auto out_qc_str = out_qc.ToNewSqlite3String();
+  if (SqliteTable::debug) {
+    PERFETTO_LOG(
+        "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%d",
+        name_.c_str(), out_qc_str.get(), idx->orderByConsumed,
+        info.estimated_cost);
+  }
+
+  idx->idxStr = out_qc_str.release();
   idx->needToFreeIdxStr = true;
   idx->idxNum = ++best_index_num_;
 
