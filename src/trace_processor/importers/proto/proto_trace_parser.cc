@@ -630,20 +630,26 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
   for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
     protos::pbzero::AddressSymbols::Decoder address_symbols(*addr_it);
 
-    ssize_t frame_row = -1;
+    uint32_t symbol_set_id = context_->storage->symbol_table().size();
+    bool frame_found = false;
     for (int64_t mapping_row : mapping_rows) {
-      frame_row = context_->storage->stack_profile_frames().FindFrameRow(
-          static_cast<size_t>(mapping_row), address_symbols.address());
-      if (frame_row != -1)
-        break;
+      std::vector<int64_t> frame_rows =
+          context_->storage->stack_profile_frames().FindFrameRow(
+              static_cast<size_t>(mapping_row), address_symbols.address());
+
+      for (const int64_t frame_row : frame_rows) {
+        PERFETTO_DCHECK(frame_row >= 0);
+        context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
+            static_cast<size_t>(frame_row), symbol_set_id);
+        frame_found = true;
+      }
     }
-    if (frame_row == -1) {
+
+    if (!frame_found) {
       context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
       continue;
     }
-    uint32_t symbol_set_id = context_->storage->symbol_table().size();
-    context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
-        static_cast<size_t>(frame_row), symbol_set_id);
+
     for (auto line_it = address_symbols.lines(); line_it; ++line_it) {
       protos::pbzero::Line::Decoder line(*line_it);
       context_->storage->mutable_symbol_table()->Insert(
