@@ -38,6 +38,9 @@ message FtraceEventBundle {
   // entry in each repeated field per event.
   // TODO(rsavitski): unstable, do not use.
   message CompactSched {
+    // Interned table of unique strings for this bundle.
+    repeated string intern_table = 5;
+
     // Delta-encoded timestamps across all sched_switch events within this
     // bundle. The first is absolute, each next one is relative to its
     // predecessor.
@@ -45,12 +48,20 @@ message FtraceEventBundle {
     repeated int64 switch_prev_state = 2 [packed = true];
     repeated int32 switch_next_pid = 3 [packed = true];
     repeated int32 switch_next_prio = 4 [packed = true];
-
-    // Interned table of unique comm strings for this bundle.
-    repeated string switch_next_comm_table = 5;
-    // One per event, index into |switch_next_comm_table| corresponding to the
+    // One per event, index into |intern_table| corresponding to the
     // next_comm field of the event.
     repeated uint32 switch_next_comm_index = 6 [packed = true];
+
+    // Delta-encoded timestamps across all sched_waking events within this
+    // bundle. The first is absolute, each next one is relative to its
+    // predecessor.
+    repeated uint64 waking_timestamp = 7 [packed = true];
+    repeated int32 waking_pid = 8 [packed = true];
+    repeated int32 waking_target_cpu = 9 [packed = true];
+    repeated int32 waking_prio = 10 [packed = true];
+    // One per event, index into |intern_table| corresponding to the
+    // comm field of the event.
+    repeated uint32 waking_comm_index = 11 [packed = true];
   }
   optional CompactSched compact_sched = 4;
 }

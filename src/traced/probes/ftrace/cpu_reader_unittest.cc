@@ -861,7 +861,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   EXPECT_EQ(6, compact_sched.switch_next_pid().size());
   EXPECT_EQ(6, compact_sched.switch_next_prio().size());
   // 4 unique interned next_comm strings:
-  EXPECT_EQ(4, compact_sched.switch_next_comm_table().size());
+  EXPECT_EQ(4, compact_sched.intern_table().size());
   EXPECT_EQ(6, compact_sched.switch_next_comm_index().size());
 
   // First event exactly as expected (absolute timestamp):
@@ -870,7 +870,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   EXPECT_EQ(1, compact_sched.switch_prev_state(0));
   EXPECT_EQ(3733, compact_sched.switch_next_pid(0));
   EXPECT_EQ(120, compact_sched.switch_next_prio(0));
-  std::string next_comm = compact_sched.switch_next_comm_table(
+  std::string next_comm = compact_sched.intern_table(
       static_cast<int>(compact_sched.switch_next_comm_index(0)));
   EXPECT_EQ("sleep", next_comm);
 }
