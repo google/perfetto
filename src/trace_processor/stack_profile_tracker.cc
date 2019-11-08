@@ -82,12 +82,35 @@ base::Optional<int64_t> StackProfileTracker::AddMapping(
       static_cast<int64_t>(mapping.load_bias),
       context_->storage->InternString(base::StringView(path))};
 
-  int64_t cur_row;
+  TraceStorage::StackProfileMappings* mappings =
+      context_->storage->mutable_stack_profile_mappings();
+  int64_t cur_row = -1;
   auto it = mapping_idx_.find(row);
   if (it != mapping_idx_.end()) {
     cur_row = it->second;
   } else {
-    cur_row = context_->storage->mutable_stack_profile_mappings()->Insert(row);
+    std::vector<int64_t> db_mappings =
+        mappings->FindMappingRow(row.name_id, row.build_id);
+    for (const int64_t preexisting_mapping : db_mappings) {
+      PERFETTO_DCHECK(preexisting_mapping >= 0);
+      size_t preexisting_row_id = static_cast<size_t>(preexisting_mapping);
+      TraceStorage::StackProfileMappings::Row preexisting_row{
+          mappings->build_ids()[preexisting_row_id],
+          mappings->exact_offsets()[preexisting_row_id],
+          mappings->start_offsets()[preexisting_row_id],
+          mappings->starts()[preexisting_row_id],
+          mappings->ends()[preexisting_row_id],
+          mappings->load_biases()[preexisting_row_id],
+          mappings->names()[preexisting_row_id]};
+
+      if (row == preexisting_row) {
+        cur_row = preexisting_mapping;
+      }
+    }
+    if (cur_row == -1) {
+      cur_row =
+          context_->storage->mutable_stack_profile_mappings()->Insert(row);
+    }
     mapping_idx_.emplace(row, cur_row);
   }
   mappings_.emplace(id, cur_row);
@@ -118,12 +141,31 @@ base::Optional<int64_t> StackProfileTracker::AddFrame(
   TraceStorage::StackProfileFrames::Row row{str_id, mapping_row,
                                             static_cast<int64_t>(frame.rel_pc)};
 
-  int64_t cur_row;
+  TraceStorage::StackProfileFrames* frames =
+      context_->storage->mutable_stack_profile_frames();
+
+  int64_t cur_row = -1;
   auto it = frame_idx_.find(row);
   if (it != frame_idx_.end()) {
     cur_row = it->second;
   } else {
-    cur_row = context_->storage->mutable_stack_profile_frames()->Insert(row);
+    std::vector<int64_t> db_frames =
+        frames->FindFrameRow(static_cast<size_t>(mapping_row), frame.rel_pc);
+    for (const int64_t preexisting_frame : db_frames) {
+      PERFETTO_DCHECK(preexisting_frame >= 0);
+      size_t preexisting_row_id = static_cast<size_t>(preexisting_frame);
+      TraceStorage::StackProfileFrames::Row preexisting_row{
+          frames->names()[preexisting_row_id],
+          frames->mappings()[preexisting_row_id],
+          frames->rel_pcs()[preexisting_row_id]};
+
+      if (row == preexisting_row) {
+        cur_row = preexisting_frame;
+      }
+    }
+    if (cur_row == -1) {
+      cur_row = context_->storage->mutable_stack_profile_frames()->Insert(row);
+    }
     frame_idx_.emplace(row, cur_row);
   }
   frames_.emplace(id, cur_row);
