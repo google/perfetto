@@ -113,7 +113,7 @@ void ReEncodeBundle(protos::pbzero::TracePacket* packet_out,
   auto* compact_sched = bundle_out->set_compact_sched();
 
   for (const auto& s : string_table)
-    compact_sched->add_switch_next_comm_table(s.data(), s.size());
+    compact_sched->add_intern_table(s.data(), s.size());
 
   compact_sched->set_switch_timestamp(switch_timestamp);
   compact_sched->set_switch_next_comm_index(switch_next_comm_index);

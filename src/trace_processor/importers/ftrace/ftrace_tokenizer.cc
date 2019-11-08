@@ -73,7 +73,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSched(uint32_t cpu,
   // Build the interning table for next_comm fields.
   std::vector<StringId> string_table;
   string_table.reserve(512);
-  for (auto it = compact.switch_next_comm_table(); it; it++) {
+  for (auto it = compact.intern_table(); it; it++) {
     StringId value = context_->storage->InternString(*it);
     string_table.push_back(value);
   }
