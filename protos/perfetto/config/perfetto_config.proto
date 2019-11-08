@@ -631,16 +631,13 @@ message FtraceConfig {
   optional uint32 buffer_size_kb = 10;
   optional uint32 drain_period_ms = 11;
 
-  // Configuration for compact encoding of scheduler events. If enabled, this
-  // records a small subset of fields of selected scheduling events, and
-  // encodes them in a denser proto format than normal. This is useful due to
-  // scheduling events being abundant in a typical trace, and dominating its
-  // size via a combination of unnecessary data being retained, and proto
-  // format overheads.
+  // Configuration for compact encoding of scheduler events. When enabled (and
+  // recording the relevant ftrace events), the most high-volume events are
+  // encoded in a denser format than normal.
   // TODO(rsavitski): unstable, do not use.
   message CompactSchedConfig {
-    // If true, and sched_switch ftrace event is enabled, record those events
-    // in the compact format.
+    // If true, and sched_switch or sched_waking ftrace events are enabled,
+    // record those events in the compact format.
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
