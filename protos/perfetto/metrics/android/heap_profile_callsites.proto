@@ -51,10 +51,16 @@ message HeapProfileCallsites {
   }
 
   // Callsites per process instance.
+  // Next id: 6
   message InstanceStats {
     optional uint32 pid = 1;
     optional string process_name = 2;
     repeated Callsite callsites = 3;
+
+    // Bytes allocated via malloc but not freed.
+    optional int64 profile_delta_bytes = 4;
+    // Bytes allocated via malloc irrespective of whether they were freed.
+    optional int64 profile_total_bytes = 5;
   }
 
   repeated InstanceStats instance_stats = 1;
