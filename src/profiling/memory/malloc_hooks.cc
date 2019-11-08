@@ -84,12 +84,12 @@ int HEAPPROFD_ADD_PREFIX(_malloc_info)(int options, FILE* fp);
 int HEAPPROFD_ADD_PREFIX(_posix_memalign)(void** memptr,
                                           size_t alignment,
                                           size_t size);
-int HEAPPROFD_ADD_PREFIX(_iterate)(uintptr_t base,
-                                   size_t size,
-                                   void (*callback)(uintptr_t base,
-                                                    size_t size,
-                                                    void* arg),
-                                   void* arg);
+int HEAPPROFD_ADD_PREFIX(_malloc_iterate)(uintptr_t base,
+                                          size_t size,
+                                          void (*callback)(uintptr_t base,
+                                                           size_t size,
+                                                           void* arg),
+                                          void* arg);
 void HEAPPROFD_ADD_PREFIX(_malloc_disable)();
 void HEAPPROFD_ADD_PREFIX(_malloc_enable)();
 
@@ -620,12 +620,12 @@ int HEAPPROFD_ADD_PREFIX(_malloc_info)(int options, FILE* fp) {
   return dispatch->malloc_info(options, fp);
 }
 
-int HEAPPROFD_ADD_PREFIX(_iterate)(uintptr_t,
-                                   size_t,
-                                   void (*)(uintptr_t base,
-                                            size_t size,
-                                            void* arg),
-                                   void*) {
+int HEAPPROFD_ADD_PREFIX(_malloc_iterate)(uintptr_t,
+                                          size_t,
+                                          void (*)(uintptr_t base,
+                                                   size_t size,
+                                                   void* arg),
+                                          void*) {
   return 0;
 }
 
