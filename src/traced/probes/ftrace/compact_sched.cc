@@ -169,8 +169,8 @@ void CompactSchedBundleState::WriteAndReset(
     compact_out->set_switch_next_prio(switch_next_prio_);
 
     for (size_t i = 0; i < interned_switch_comms_size_; i++) {
-      compact_out->add_switch_next_comm_table(interned_switch_comms_[i].data(),
-                                              interned_switch_comms_[i].size());
+      compact_out->add_intern_table(interned_switch_comms_[i].data(),
+                                    interned_switch_comms_[i].size());
     }
     compact_out->set_switch_next_comm_index(switch_next_comm_index_);
   }
