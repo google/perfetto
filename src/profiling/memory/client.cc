@@ -202,10 +202,7 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
   }
 
   PERFETTO_DCHECK(client_config.interval >= 1);
-  // TODO(fmayer): Always make this nonblocking.
-  // This is so that without block_client, we get the old behaviour that rate
-  // limits using the blocking socket. We do not want to change that for Q.
-  sock.SetBlocking(!client_config.block_client);
+  sock.SetBlocking(false);
   Sampler sampler{client_config.interval};
   // note: the shared_ptr will retain a copy of the unhooked_allocator
   return std::allocate_shared<Client>(unhooked_allocator, std::move(sock),
@@ -368,10 +365,12 @@ bool Client::IsConnected() {
 }
 
 bool Client::SendControlSocketByte() {
-  // TODO(fmayer): Fix the special casing that only block_client uses a
-  // nonblocking socket.
+  // If base::IsAgain(errno), the socket buffer is full, so the service will
+  // pick up the notification even without adding another byte.
+  // In other error cases (usually EPIPE) we want to disconnect, because that
+  // is how the service signals the tracing session was torn down.
   if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1 &&
-      (!client_config_.block_client || !base::IsAgain(errno))) {
+      !base::IsAgain(errno)) {
     PERFETTO_PLOG("Failed to send control socket byte.");
     return false;
   }
