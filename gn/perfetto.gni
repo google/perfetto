@@ -194,7 +194,7 @@ declare_args() {
 declare_args() {
   # Enables the SQL query layer of trace processor.
   enable_perfetto_trace_processor_sqlite =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables the optional SQLite percentile module.
   enable_perfetto_trace_processor_percentile =
@@ -207,23 +207,23 @@ declare_args() {
 
   # Enables ftrace support in the trace processor.
   enable_perfetto_trace_processor_ftrace =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables parsing support for system probes in trace processor.
   enable_perfetto_trace_processor_system_probes =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables parsing support for android system probes in trace processor.
   enable_perfetto_trace_processor_android_probes =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables parsing support for heap graphs in trace processor.
   enable_perfetto_trace_processor_heap_graphs =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables graphics event support in the trace processor.
   enable_perfetto_trace_processor_graphics =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables JSON support in the trace processor. Required for JSON trace import
   # and export. Importer support can also be disabled using
@@ -233,7 +233,7 @@ declare_args() {
 
   # Enables Fuchsia trace format support in trace processor.
   enable_perfetto_trace_processor_fuchsia =
-      enable_perfetto_trace_processor && !build_with_chromium
+      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
@@ -244,7 +244,8 @@ declare_args() {
 declare_args() {
   # Enables importer support for JSON traces in the trace processor.
   enable_perfetto_trace_processor_json_import =
-      enable_perfetto_trace_processor_json && !build_with_chromium
+      enable_perfetto_trace_processor_json &&
+      !(build_with_chromium && is_android)
 
   # Enables syscall support in trace processor. Required for ftrace, system
   # probes, and android probes support.
