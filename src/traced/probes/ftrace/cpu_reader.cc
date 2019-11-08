@@ -16,8 +16,8 @@
 
 #include "src/traced/probes/ftrace/cpu_reader.h"
 
-#include <signal.h>
 #include <dirent.h>
+#include <signal.h>
 
 #include <utility>
 
@@ -330,9 +330,9 @@ bool CpuReader::ProcessPagesForDataSource(
         ParsePagePayload(parse_pos, &page_header.value(), table, ds_config,
                          &compact_sched, bundle, metadata);
 
-    // TODO(b/140866160): compare against header->size once padding size
-    // off-by-4 is fixed.
-    PERFETTO_DCHECK(evt_size > 0);
+    // TODO(rsavitski): propagate error to trace processor in release builds.
+    // (FtraceMetadata -> FtraceStats in trace).
+    PERFETTO_DCHECK(evt_size == page_header->size);
   }
 
   if (compact_sched_enabled)
@@ -429,7 +429,10 @@ size_t CpuReader::ParsePagePayload(
         uint32_t length;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &length))
           return 0;
-        ptr += length;
+        // length includes itself (4 bytes)
+        if (length < 4)
+          return 0;
+        ptr += length - 4;
         break;
       }
       case kTypeTimeExtend: {
