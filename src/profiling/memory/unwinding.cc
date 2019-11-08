@@ -303,9 +303,7 @@ void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
     shmem.EndRead(std::move(buf));
     // Reparsing takes time, so process the rest in a new batch to avoid timing
     // out.
-    // TODO(fmayer): Do not special case blocking mode.
-    if (client_data.client_config.block_client &&
-        reparses_before < client_data.metadata.reparses) {
+    if (reparses_before < client_data.metadata.reparses) {
       repost_task = true;
       break;
     }
