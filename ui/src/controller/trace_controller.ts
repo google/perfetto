@@ -494,7 +494,9 @@ export class TraceController extends Controller<States> {
           left join (select upid, sum(dur) as total_dur
               from sched join thread using(utid)
               group by upid
-            ) using(upid) group by utid, upid
+            ) using(upid)
+        where utid != 0
+        group by utid, upid
         order by total_dur desc, upid, utid`);
 
     const upidToUuid = new Map<number, string>();
