@@ -16,6 +16,7 @@ packet {
   trusted_packet_sequence_id: 999
   timestamp: 10
   heap_graph {
+    pid: 2
     roots {
       root_type: ROOT_JAVA_FRAME
       object_ids: 0x01
@@ -32,12 +33,18 @@ packet {
       type_id: 2
       self_size: 32
     }
+    objects {
+      id: 0x03
+      type_id: 2
+      self_size: 128
+    }
     continued: true
     index: 1
   }
 }
 packet {
   heap_graph {
+    pid: 2
     type_names {
       iid: 1
       str: "FactoryProducerDelegateImplActor"
