@@ -787,15 +787,17 @@ class TraceStorage {
       rel_pcs_.emplace_back(row.rel_pc);
       symbol_set_ids_.emplace_back(0);
       size_t row_number = names_.size() - 1;
-      index_.emplace(std::make_pair(row.mapping_row, row.rel_pc), row_number);
+      index_[std::make_pair(row.mapping_row, row.rel_pc)].emplace_back(
+          row_number);
       return static_cast<uint32_t>(row_number);
     }
 
-    ssize_t FindFrameRow(size_t mapping_row, uint64_t rel_pc) const {
+    std::vector<int64_t> FindFrameRow(size_t mapping_row,
+                                      uint64_t rel_pc) const {
       auto it = index_.find(std::make_pair(mapping_row, rel_pc));
       if (it == index_.end())
-        return -1;
-      return static_cast<ssize_t>(it->second);
+        return {};
+      return it->second;
     }
 
     void SetSymbolSetId(size_t row_idx, uint32_t symbol_set_id) {
@@ -816,7 +818,8 @@ class TraceStorage {
     std::deque<int64_t> rel_pcs_;
     std::deque<uint32_t> symbol_set_ids_;
 
-    std::map<std::pair<size_t /* mapping row */, uint64_t /* rel_pc */>, size_t>
+    std::map<std::pair<size_t /* mapping row */, uint64_t /* rel_pc */>,
+             std::vector<int64_t>>
         index_;
   };
 
