@@ -58,5 +58,7 @@ heap_profile_callsites {
         delta_bytes: 1090
       }
     }
+    profile_delta_bytes: 1090
+    profile_total_bytes: 2100
   }
 }

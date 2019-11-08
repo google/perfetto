@@ -14,6 +14,17 @@
 -- limitations under the License.
 --
 
+CREATE VIEW memory_delta AS
+SELECT upid, SUM(size) AS delta
+FROM heap_profile_allocation
+GROUP BY 1;
+
+CREATE VIEW memory_total AS
+SELECT upid, SUM(size) AS total
+FROM heap_profile_allocation
+WHERE size > 0
+GROUP BY 1;
+
 -- Join frames with symbols and mappings to get a textual representation.
 CREATE TABLE symbolized_frame AS
 SELECT
@@ -205,9 +216,14 @@ CREATE VIEW instance_stats_view AS
 SELECT HeapProfileCallsites_InstanceStats(
     'pid', process.pid,
     'process_name', process.name,
-    'callsites', repeated_callsite_proto
+    'callsites', repeated_callsite_proto,
+    'profile_delta_bytes', memory_delta.delta,
+    'profile_total_bytes', memory_total.total
 ) AS instance_stats_proto
-FROM process_callsite_proto JOIN process USING (upid);
+FROM process_callsite_proto
+JOIN memory_total USING (upid)
+JOIN memory_delta USING (upid)
+JOIN process USING (upid);
 
 CREATE VIEW heap_profile_callsites_output AS
 SELECT HeapProfileCallsites(
