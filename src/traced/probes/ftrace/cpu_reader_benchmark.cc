@@ -289,7 +289,7 @@ perfetto::ExamplePage g_full_page_sched_switch{
 
 }  // namespace
 
-using perfetto::CompactSchedBundleState;
+using perfetto::CompactSchedBuffer;
 using perfetto::CpuReader;
 using perfetto::DisabledCompactSchedConfigForTesting;
 using perfetto::EventFilter;
@@ -324,7 +324,7 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   while (state.KeepRunning()) {
     writer.Reset(&stream);
 
-    CompactSchedBundleState compact_buffer;
+    CompactSchedBuffer compact_buffer;
     const uint8_t* parse_pos = page.get();
     perfetto::base::Optional<CpuReader::PageHeader> page_header =
         CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());

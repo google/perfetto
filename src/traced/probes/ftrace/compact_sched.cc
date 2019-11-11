@@ -37,12 +37,6 @@ base::Optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
 
   CompactSchedSwitchFormat switch_format;
   switch_format.event_id = event.ftrace_event_id;
-
-  // We make a compile-time buffer capacity decision based on the expected event
-  // size per a set of pages. Check that the assumption holds.
-  if (event.size < CompactSchedBundleState::kMinSupportedSchedSwitchSize) {
-    return base::nullopt;
-  }
   switch_format.size = event.size;
 
   bool prev_state_valid = false;
@@ -81,7 +75,7 @@ base::Optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
 
         next_comm_valid =
             (field.ftrace_type == kFtraceFixedCString &&
-             field.ftrace_size == CompactSchedBundleState::kExpectedCommLength);
+             field.ftrace_size == CommInterner::kExpectedCommLength);
         break;
       default:
         break;
@@ -90,11 +84,67 @@ base::Optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
 
   if (!prev_state_valid || !next_pid_valid || !next_prio_valid ||
       !next_comm_valid) {
-    PERFETTO_ELOG("unexpected sched_switch format");
     return base::nullopt;
   }
-
   return base::make_optional(switch_format);
+}
+
+// Pre-parse the format of sched_waking, checking if our simplifying
+// assumptions about possible widths/signedness hold, and record the subset
+// of the format that will be used during parsing.
+base::Optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
+    const Event& event) {
+  using protos::pbzero::SchedWakingFtraceEvent;
+
+  CompactSchedWakingFormat waking_format;
+  waking_format.event_id = event.ftrace_event_id;
+  waking_format.size = event.size;
+
+  bool pid_valid = false;
+  bool target_cpu_valid = false;
+  bool prio_valid = false;
+  bool comm_valid = false;
+  for (const auto& field : event.fields) {
+    switch (field.proto_field_id) {
+      case SchedWakingFtraceEvent::kPidFieldNumber:
+        waking_format.pid_offset = field.ftrace_offset;
+        waking_format.pid_type = field.ftrace_type;
+
+        // kernel type: pid_t
+        pid_valid = (field.ftrace_type == kFtracePid32);
+        break;
+
+      case SchedWakingFtraceEvent::kTargetCpuFieldNumber:
+        waking_format.target_cpu_offset = field.ftrace_offset;
+        waking_format.target_cpu_type = field.ftrace_type;
+
+        // kernel type: int
+        target_cpu_valid = (field.ftrace_type == kFtraceInt32);
+        break;
+
+      case SchedWakingFtraceEvent::kPrioFieldNumber:
+        waking_format.prio_offset = field.ftrace_offset;
+        waking_format.prio_type = field.ftrace_type;
+
+        // kernel type: int
+        prio_valid = (field.ftrace_type == kFtraceInt32);
+        break;
+
+      case SchedWakingFtraceEvent::kCommFieldNumber:
+        waking_format.comm_offset = field.ftrace_offset;
+
+        comm_valid = (field.ftrace_type == kFtraceFixedCString &&
+                      field.ftrace_size == CommInterner::kExpectedCommLength);
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (!pid_valid || !target_cpu_valid || !prio_valid || !comm_valid) {
+    return base::nullopt;
+  }
+  return base::make_optional(waking_format);
 }
 
 }  // namespace
@@ -102,36 +152,44 @@ base::Optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
 // TODO(rsavitski): could avoid looping over all events if the caller did the
 // work to remember the relevant events (translation table construction already
 // loops over them).
+// TODO(rsavitski): consider tracking the validity of the formats individually,
+// so that we can e.g. still use compact_sched on a device without
+// compact_waking.
 CompactSchedEventFormat ValidateFormatForCompactSched(
     const std::vector<Event>& events) {
   using protos::pbzero::FtraceEvent;
 
   base::Optional<CompactSchedSwitchFormat> switch_format;
+  base::Optional<CompactSchedWakingFormat> waking_format;
   for (const Event& event : events) {
     if (event.proto_field_id == FtraceEvent::kSchedSwitchFieldNumber) {
       switch_format = ValidateSchedSwitchFormat(event);
     }
+    if (event.proto_field_id == FtraceEvent::kSchedWakingFieldNumber) {
+      waking_format = ValidateSchedWakingFormat(event);
+    }
   }
 
-  if (switch_format.has_value()) {
-    return CompactSchedEventFormat{/*format_valid=*/true,
-                                   switch_format.value()};
+  if (switch_format.has_value() && waking_format.has_value()) {
+    return CompactSchedEventFormat{/*format_valid=*/true, switch_format.value(),
+                                   waking_format.value()};
   } else {
+    PERFETTO_ELOG("Unexpected sched_switch or sched_waking format.");
     return CompactSchedEventFormat{/*format_valid=*/false,
-                                   CompactSchedSwitchFormat{}};
+                                   CompactSchedSwitchFormat{},
+                                   CompactSchedWakingFormat{}};
   }
 }
 
 CompactSchedEventFormat InvalidCompactSchedEventFormatForTesting() {
   return CompactSchedEventFormat{/*format_valid=*/false,
-                                 CompactSchedSwitchFormat{}};
+                                 CompactSchedSwitchFormat{},
+                                 CompactSchedWakingFormat{}};
 }
 
 // TODO(rsavitski): find the correct place in the trace for, and method of,
 // reporting rejection of compact_sched due to compile-time assumptions not
 // holding at runtime.
-// TODO(rsavitski): consider checking if the ftrace config correctly enables
-// sched_switch, for at least an informative print for now?
 CompactSchedConfig CreateCompactSchedConfig(
     const FtraceConfig& request,
     const CompactSchedEventFormat& compact_format) {
@@ -153,37 +211,76 @@ CompactSchedConfig DisabledCompactSchedConfigForTesting() {
 }
 
 // Sanity check size of stack-allocated bundle state.
-static_assert(sizeof(CompactSchedBundleState) <= 1 << 20,
-              "CompactSchedBundleState excessively large (used on the stack).");
+static_assert(sizeof(CompactSchedBuffer) <= 1 << 18,
+              "CompactSchedBuffer's on-stack size excessively large.");
 
-void CompactSchedBundleState::WriteAndReset(
+void CompactSchedSwitchBuffer::Write(
+    protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const {
+  compact_out->set_switch_timestamp(timestamp_);
+  compact_out->set_switch_next_pid(next_pid_);
+  compact_out->set_switch_prev_state(prev_state_);
+  compact_out->set_switch_next_prio(next_prio_);
+  compact_out->set_switch_next_comm_index(next_comm_index_);
+}
+
+void CompactSchedSwitchBuffer::Reset() {
+  last_timestamp_ = 0;
+  timestamp_.Reset();
+  next_pid_.Reset();
+  prev_state_.Reset();
+  next_prio_.Reset();
+  next_comm_index_.Reset();
+}
+
+void CompactSchedWakingBuffer::Write(
+    protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const {
+  compact_out->set_waking_timestamp(timestamp_);
+  compact_out->set_waking_pid(pid_);
+  compact_out->set_waking_target_cpu(target_cpu_);
+  compact_out->set_waking_prio(prio_);
+  compact_out->set_waking_comm_index(comm_index_);
+}
+
+void CompactSchedWakingBuffer::Reset() {
+  last_timestamp_ = 0;
+  timestamp_.Reset();
+  pid_.Reset();
+  target_cpu_.Reset();
+  prio_.Reset();
+  comm_index_.Reset();
+}
+
+void CommInterner::Write(
+    protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const {
+  for (size_t i = 0; i < interned_comms_size_; i++) {
+    compact_out->add_intern_table(interned_comms_[i].data(),
+                                  interned_comms_[i].size());
+  }
+}
+
+void CommInterner::Reset() {
+  intern_buf_write_pos_ = 0;
+  interned_comms_size_ = 0;
+}
+
+void CompactSchedBuffer::WriteAndReset(
     protos::pbzero::FtraceEventBundle* bundle) {
-  // If we buffered at least one event (using the interner as a proxy),
-  // write the state out.
-  if (interned_switch_comms_size_ > 0) {
-    auto compact_out = bundle->set_compact_sched();
+  if (switch_.size() > 0 || waking_.size() > 0) {
+    auto* compact_out = bundle->set_compact_sched();
 
-    compact_out->set_switch_timestamp(switch_timestamp_);
-    compact_out->set_switch_next_pid(switch_next_pid_);
-    compact_out->set_switch_prev_state(switch_prev_state_);
-    compact_out->set_switch_next_prio(switch_next_prio_);
+    PERFETTO_DCHECK(interner_.interned_comms_size() > 0);
+    interner_.Write(compact_out);
 
-    for (size_t i = 0; i < interned_switch_comms_size_; i++) {
-      compact_out->add_intern_table(interned_switch_comms_[i].data(),
-                                    interned_switch_comms_[i].size());
-    }
-    compact_out->set_switch_next_comm_index(switch_next_comm_index_);
+    if (switch_.size() > 0)
+      switch_.Write(compact_out);
+
+    if (waking_.size() > 0)
+      waking_.Write(compact_out);
   }
 
-  // Reset internal state.
-  last_switch_timestamp_ = 0;
-  switch_timestamp_.Reset();
-  switch_next_pid_.Reset();
-  switch_prev_state_.Reset();
-  switch_next_prio_.Reset();
-  switch_next_comm_index_.Reset();
-  intern_buf_write_pos_ = 0;
-  interned_switch_comms_size_ = 0;
+  interner_.Reset();
+  switch_.Reset();
+  waking_.Reset();
 }
 
 }  // namespace perfetto
