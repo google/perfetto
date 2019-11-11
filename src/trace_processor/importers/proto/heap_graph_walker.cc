@@ -72,6 +72,7 @@ void HeapGraphWalker::AddEdge(int64_t owner_row, int64_t owned_row) {
 
 void HeapGraphWalker::MarkRoot(int64_t row) {
   Node& n = GetNode(row);
+  n.root = true;
   ReachableNode(&n);
 }
 
@@ -96,7 +97,9 @@ void HeapGraphWalker::ReachableNode(Node* node) {
 }
 
 int64_t HeapGraphWalker::RetainedSize(const Component& component) {
-  int64_t retained_size = static_cast<int64_t>(component.unique_retained_size);
+  int64_t retained_size =
+      static_cast<int64_t>(component.unique_retained_size) +
+      static_cast<int64_t>(component.unique_retained_root_size);
   for (const int64_t child_component_id : component.children_components) {
     const Component& child_component =
         components_[static_cast<size_t>(child_component_id)];
@@ -150,6 +153,8 @@ void HeapGraphWalker::FoundSCC(Node* node) {
     // A node can never be part of two components.
     PERFETTO_CHECK(stack_elem->component == -1);
     stack_elem->component = component_id;
+    if (stack_elem->root)
+      component.root = true;
   } while (stack_elem != node);
 
   for (Node* elem : component_nodes) {
@@ -184,11 +189,20 @@ void HeapGraphWalker::FoundSCC(Node* node) {
           components_[static_cast<size_t>(grand_component_id)];
       grand_component.pending_nodes -= count;
       if (grand_component.pending_nodes == 0) {
-        component.unique_retained_size += grand_component.unique_retained_size;
-        if (IsUniqueOwner(component_to_node, count, grand_component_id,
-                          dc.last_node_row)) {
-          unique_retained_by_node[dc.last_node_row] +=
+        component.unique_retained_root_size +=
+            grand_component.unique_retained_root_size;
+        if (grand_component.root) {
+          component.unique_retained_root_size +=
               grand_component.unique_retained_size;
+        } else {
+          component.unique_retained_size +=
+              grand_component.unique_retained_size;
+
+          if (IsUniqueOwner(component_to_node, count, grand_component_id,
+                            dc.last_node_row)) {
+            unique_retained_by_node[dc.last_node_row] +=
+                grand_component.unique_retained_size;
+          }
         }
         grand_component.children_components.clear();
         component.children_components.erase(grand_component_id);
@@ -200,22 +214,22 @@ void HeapGraphWalker::FoundSCC(Node* node) {
     child_component.incoming_edges -= count;
     child_component.pending_nodes -= count;
 
-    if (child_component.orig_incoming_edges == count) {
+    if (child_component.pending_nodes == 0) {
       PERFETTO_CHECK(child_component.incoming_edges == 0);
-      PERFETTO_CHECK(child_component.pending_nodes == 0);
 
-      component.unique_retained_size += child_component.unique_retained_size;
-      if (count == 1) {
-        unique_retained_by_node[dc.last_node_row] +=
+      component.unique_retained_root_size +=
+          child_component.unique_retained_root_size;
+      if (child_component.root) {
+        component.unique_retained_root_size +=
             child_component.unique_retained_size;
-      }
-    } else if (child_component.pending_nodes == 0) {
-      PERFETTO_CHECK(child_component.incoming_edges == 0);
-      component.unique_retained_size += child_component.unique_retained_size;
-      if (IsUniqueOwner(component_to_node, count, child_component_id,
-                        dc.last_node_row)) {
-        unique_retained_by_node[dc.last_node_row] +=
-            child_component.unique_retained_size;
+      } else {
+        component.unique_retained_size += child_component.unique_retained_size;
+
+        if (IsUniqueOwner(component_to_node, count, child_component_id,
+                          dc.last_node_row)) {
+          unique_retained_by_node[dc.last_node_row] +=
+              child_component.unique_retained_size;
+        }
       }
       component.children_components.erase(child_component_id);
     } else {
@@ -228,9 +242,11 @@ void HeapGraphWalker::FoundSCC(Node* node) {
 
   size_t parents = component.orig_incoming_edges;
   // If this has no parents, but does not retain a node, we know that no other
-  // node can retain this node. Add 1 to poison that node.
-  if (parents == 0)
-    parents = 1;
+  // node can uniquely retain this node. Add 1 to poison that node.
+  // If this is a root, but it does not retain a node, we also know that no
+  // node can uniquely retain that node.
+  if (parents == 0 || component.root)
+    parents += 1;
   for (const int64_t child_component_id : component.children_components) {
     Component& child_component =
         components_[static_cast<size_t>(child_component_id)];
@@ -256,6 +272,7 @@ void HeapGraphWalker::FindSCC(Node* node) {
   node_stack_.push_back(node);
   node->on_stack = true;
   for (Node* child : node->children) {
+    PERFETTO_CHECK(child->reachable);
     if (child->node_index == 0) {
       FindSCC(child);
       if (child->lowlink < node->lowlink)
