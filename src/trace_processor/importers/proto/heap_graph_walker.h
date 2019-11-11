@@ -135,15 +135,20 @@ class HeapGraphWalker {
 
     bool reachable = false;
     bool on_stack = false;
+    bool root = false;
   };
 
   struct Component {
+    uint64_t self_size = 0;
     uint64_t unique_retained_size = 0;
+    uint64_t unique_retained_root_size = 0;
     size_t incoming_edges = 0;
     size_t orig_incoming_edges = 0;
     size_t pending_nodes = 0;
     std::set<int64_t> children_components;
     uint64_t lowlink = 0;
+
+    bool root = false;
   };
 
   Node& GetNode(int64_t id) { return nodes_[static_cast<size_t>(id)]; }
