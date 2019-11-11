@@ -17,8 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_TOKENIZER_H_
 
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,13 +30,21 @@ class FtraceTokenizer {
   explicit FtraceTokenizer(TraceProcessorContext* context)
       : context_(context) {}
 
-  void TokenizeFtraceBundle(TraceBlobView);
+  void TokenizeFtraceBundle(TraceBlobView bundle);
 
  private:
-  void TokenizeFtraceEvent(uint32_t cpu, TraceBlobView);
+  void TokenizeFtraceEvent(uint32_t cpu, TraceBlobView event);
   void TokenizeFtraceCompactSched(uint32_t cpu,
                                   const uint8_t* data,
                                   size_t size);
+  void TokenizeFtraceCompactSchedSwitch(
+      uint32_t cpu,
+      const protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact,
+      const std::vector<StringId>& string_table);
+  void TokenizeFtraceCompactSchedWaking(
+      uint32_t cpu,
+      const protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact,
+      const std::vector<StringId>& string_table);
 
   TraceProcessorContext* context_;
 };

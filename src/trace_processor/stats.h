@@ -121,7 +121,10 @@ namespace stats {
   F(packages_list_has_parse_errors,           kSingle,  kError,    kTrace),    \
   F(packages_list_has_read_errors,            kSingle,  kError,    kTrace),    \
   F(compact_sched_has_parse_errors,           kSingle,  kError,    kTrace),    \
-  F(misplaced_end_event,                      kSingle,  kDataLoss, kAnalysis)
+  F(misplaced_end_event,                      kSingle,  kDataLoss, kAnalysis), \
+  F(sched_waking_out_of_order,                kSingle,  kError,    kAnalysis), \
+  F(compact_sched_switch_skipped,             kSingle,  kInfo,     kAnalysis), \
+  F(compact_sched_waking_skipped,             kSingle,  kInfo,     kAnalysis)
 // clang-format on
 
 enum Type {
