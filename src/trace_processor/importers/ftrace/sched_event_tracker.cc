@@ -36,15 +36,27 @@ namespace trace_processor {
 
 SchedEventTracker::SchedEventTracker(TraceProcessorContext* context)
     : context_(context) {
-  auto* descriptor = GetMessageDescriptorForId(
+  // pre-parse sched_switch
+  auto* switch_descriptor = GetMessageDescriptorForId(
       protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
-  PERFETTO_CHECK(descriptor->max_field_id == kSchedSwitchMaxFieldId);
+  PERFETTO_CHECK(switch_descriptor->max_field_id == kSchedSwitchMaxFieldId);
 
   for (size_t i = 1; i <= kSchedSwitchMaxFieldId; i++) {
     sched_switch_field_ids_[i] =
-        context->storage->InternString(descriptor->fields[i].name);
+        context->storage->InternString(switch_descriptor->fields[i].name);
   }
-  sched_switch_id_ = context->storage->InternString(descriptor->name);
+  sched_switch_id_ = context->storage->InternString(switch_descriptor->name);
+
+  // pre-parse sched_waking
+  auto* waking_descriptor = GetMessageDescriptorForId(
+      protos::pbzero::FtraceEvent::kSchedWakingFieldNumber);
+  PERFETTO_CHECK(waking_descriptor->max_field_id == kSchedWakingMaxFieldId);
+
+  for (size_t i = 1; i <= kSchedWakingMaxFieldId; i++) {
+    sched_waking_field_ids_[i] =
+        context->storage->InternString(waking_descriptor->fields[i].name);
+  }
+  sched_waking_id_ = context->storage->InternString(waking_descriptor->name);
 }
 
 SchedEventTracker::~SchedEventTracker() = default;
@@ -130,6 +142,8 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // create slices as normal, but the first per-cpu switch is effectively
   // discarded.
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
+    context_->storage->IncrementStats(stats::compact_sched_switch_skipped);
+
     pending_sched->last_pid = next_pid;
     pending_sched->last_utid = next_utid;
     pending_sched->last_prio = next_prio;
@@ -224,6 +238,62 @@ void SchedEventTracker::ClosePendingSlice(size_t pending_slice_idx,
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
   slices->set_end_state(pending_slice_idx, task_state);
+}
+
+// Processes a sched_waking that was decoded from a compact representation,
+// adding to the raw and instants tables.
+void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
+                                               int64_t ts,
+                                               uint32_t wakee_pid,
+                                               int32_t target_cpu,
+                                               int32_t prio,
+                                               StringId comm_id) {
+  // At this stage all events should be globally timestamp ordered.
+  if (ts < context_->event_tracker->max_timestamp()) {
+    PERFETTO_ELOG("sched_waking event out of order by %.4f ms, skipping",
+                  (context_->event_tracker->max_timestamp() - ts) / 1e6);
+    context_->storage->IncrementStats(stats::sched_waking_out_of_order);
+    return;
+  }
+  context_->event_tracker->UpdateMaxTimestamp(ts);
+  PERFETTO_DCHECK(cpu < base::kMaxCpus);
+
+  // We infer the task that emitted the event (i.e. common_pid) from the
+  // scheduling slices. Drop the event if we haven't seen any sched_switch
+  // events for this cpu yet.
+  // Note that if sched_switch wasn't enabled, we will have to skip all
+  // compact waking events.
+  auto* pending_sched = &pending_sched_per_cpu_[cpu];
+  if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
+    context_->storage->IncrementStats(stats::compact_sched_waking_skipped);
+    return;
+  }
+  auto curr_utid = pending_sched->last_utid;
+
+  // Add an entry to the raw table.
+  auto rid = context_->storage->mutable_raw_events()->AddRawEvent(
+      ts, sched_waking_id_, cpu, curr_utid);
+
+  // "success" is hardcoded as always 1 by the kernel, with a TODO to remove it.
+  static constexpr int32_t kHardcodedSuccess = 1;
+
+  using SW = protos::pbzero::SchedWakingFtraceEvent;
+  auto add_raw_arg = [this](RowId row_id, int field_num, Variadic var) {
+    StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
+    context_->args_tracker->AddArg(row_id, key, key, var);
+  };
+  add_raw_arg(rid, SW::kCommFieldNumber, Variadic::String(comm_id));
+  add_raw_arg(rid, SW::kPidFieldNumber, Variadic::Integer(wakee_pid));
+  add_raw_arg(rid, SW::kPrioFieldNumber, Variadic::Integer(prio));
+  add_raw_arg(rid, SW::kSuccessFieldNumber,
+              Variadic::Integer(kHardcodedSuccess));
+  add_raw_arg(rid, SW::kTargetCpuFieldNumber, Variadic::Integer(target_cpu));
+
+  // Add a waking entry to the instants.
+  auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
+  auto* instants = context_->storage->mutable_instants();
+  instants->AddInstantEvent(ts, sched_waking_id_, /*value=*/0, wakee_utid,
+                            RefType::kRefUtid);
 }
 
 void SchedEventTracker::FlushPendingEvents() {

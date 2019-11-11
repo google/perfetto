@@ -44,10 +44,17 @@ struct InlineSchedSwitch {
   StringId next_comm;
 };
 
+struct InlineSchedWaking {
+  int32_t pid;
+  int32_t target_cpu;
+  int32_t prio;
+  StringId comm;
+};
+
 // Discriminated union of events that are cannot be easily read from the
 // mapped trace.
 struct InlineEvent {
-  enum class Type { kInvalid = 0, kSchedSwitch };
+  enum class Type { kInvalid = 0, kSchedSwitch, kSchedWaking };
 
   static InlineEvent SchedSwitch(InlineSchedSwitch content) {
     InlineEvent evt;
@@ -56,9 +63,17 @@ struct InlineEvent {
     return evt;
   }
 
+  static InlineEvent SchedWaking(InlineSchedWaking content) {
+    InlineEvent evt;
+    evt.type = Type::kSchedWaking;
+    evt.sched_waking = content;
+    return evt;
+  }
+
   Type type = Type::kInvalid;
   union {
     InlineSchedSwitch sched_switch;
+    InlineSchedWaking sched_waking;
   };
 };
 
@@ -135,12 +150,16 @@ struct TimestampedTracePiece {
                               sequence_state,
                               InlineEvent{}) {}
 
+  // TODO(rsavitski): each "empty" TraceBlobView created by this constructor
+  // still allocates ref-counting structures for the nonexistent memory.
+  // It's not a significant overhead, but consider making the class have a
+  // legitimate empty state.
   TimestampedTracePiece(int64_t ts, uint64_t idx, InlineEvent inline_evt)
       : TimestampedTracePiece(ts,
                               /*thread_ts=*/0,
                               /*thread_instructions=*/0,
                               idx,
-                              /*tbv=*/TraceBlobView(nullptr, 0, 0),
+                              TraceBlobView(nullptr, 0, 0),
                               /*value=*/nullptr,
                               /*fpv=*/nullptr,
                               /*sequence_state=*/nullptr,
