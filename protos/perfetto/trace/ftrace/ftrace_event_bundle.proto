@@ -36,7 +36,6 @@ message FtraceEventBundle {
   // a subset of events & their fields is recorded.
   // All fields (except comms) are stored in a structure-of-arrays form, one
   // entry in each repeated field per event.
-  // TODO(rsavitski): unstable, do not use.
   message CompactSched {
     // Interned table of unique strings for this bundle.
     repeated string intern_table = 5;
