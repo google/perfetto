@@ -52,7 +52,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.add_buffers()->set_size_kb(20 * 1024);
   trace_config.set_duration_ms(6000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -68,7 +68,8 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   helper.WaitForTracingDisabled(10000 /*ms*/);
   helper.ReadData();
   helper.WaitForReadData();
-
+  StopApp(app_name, "new.app.stopped", &task_runner);
+  task_runner.RunUntilCheckpoint("new.app.stopped", 1000 /*ms*/);
   return helper.trace();
 }
 
@@ -99,14 +100,12 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
-  StopApp(app_name);
 }
 
 TEST(HeapprofdJavaCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
-  StopApp(app_name);
 }
 
 TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
@@ -117,8 +116,6 @@ TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
     AssertGraphPresent(packets);
   else
     AssertNoProfileContents(packets);
-
-  StopApp(app_name);
 }
 
 }  // namespace
