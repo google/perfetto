@@ -259,9 +259,10 @@ print fmt: "some format")"));
 
 INSTANTIATE_TEST_SUITE_P(BySize, TranslationTableCreationTest, Values(4, 8));
 
-TEST(TranslationTableTest, CompactSchedFormatParsingSeedData) {
+TEST(TranslationTableTest, CompactSchedFormatParsingWalleyeData) {
   std::string path =
-      "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/";
+      "src/traced/probes/ftrace/test/data/"
+      "android_walleye_OPM5.171019.017.A1_4.4.88/";
   FtraceProcfs ftrace_procfs(path);
   auto table = ProtoTranslationTable::Create(
       &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
@@ -271,30 +272,7 @@ TEST(TranslationTableTest, CompactSchedFormatParsingSeedData) {
   // Format matches compile-time assumptions.
   ASSERT_TRUE(format.format_valid);
 
-  // Check exact format (note: 32 bit long prev_state).
-  EXPECT_EQ(68u, format.sched_switch.event_id);
-  EXPECT_EQ(60u, format.sched_switch.size);
-  EXPECT_EQ(52u, format.sched_switch.next_pid_offset);
-  EXPECT_EQ(FtraceFieldType::kFtracePid32, format.sched_switch.next_pid_type);
-  EXPECT_EQ(56u, format.sched_switch.next_prio_offset);
-  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_switch.next_prio_type);
-  EXPECT_EQ(32u, format.sched_switch.prev_state_offset);
-  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_switch.prev_state_type);
-  EXPECT_EQ(36u, format.sched_switch.next_comm_offset);
-}
-
-TEST(TranslationTableTest, CompactSchedFormatParsingSyntheticData) {
-  std::string path = "src/traced/probes/ftrace/test/data/synthetic/";
-  FtraceProcfs ftrace_procfs(path);
-  auto table = ProtoTranslationTable::Create(
-      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
-  PERFETTO_CHECK(table);
-  const CompactSchedEventFormat& format = table->compact_sched_format();
-
-  // Format matches compile-time assumptions.
-  ASSERT_TRUE(format.format_valid);
-
-  // Check exact format (note: 64 bit long prev_state).
+  // Check exact sched_switch format (note: 64 bit long prev_state).
   EXPECT_EQ(47u, format.sched_switch.event_id);
   EXPECT_EQ(64u, format.sched_switch.size);
   EXPECT_EQ(56u, format.sched_switch.next_pid_offset);
@@ -304,6 +282,33 @@ TEST(TranslationTableTest, CompactSchedFormatParsingSyntheticData) {
   EXPECT_EQ(32u, format.sched_switch.prev_state_offset);
   EXPECT_EQ(FtraceFieldType::kFtraceInt64, format.sched_switch.prev_state_type);
   EXPECT_EQ(40u, format.sched_switch.next_comm_offset);
+
+  // Check exact sched_waking format.
+  EXPECT_EQ(44u, format.sched_waking.event_id);
+  EXPECT_EQ(40u, format.sched_waking.size);
+  EXPECT_EQ(24u, format.sched_waking.pid_offset);
+  EXPECT_EQ(FtraceFieldType::kFtracePid32, format.sched_waking.pid_type);
+  EXPECT_EQ(36u, format.sched_waking.target_cpu_offset);
+  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_waking.target_cpu_type);
+  EXPECT_EQ(28u, format.sched_waking.prio_offset);
+  EXPECT_EQ(FtraceFieldType::kFtraceInt32, format.sched_waking.prio_type);
+  EXPECT_EQ(8u, format.sched_waking.comm_offset);
+}
+
+TEST(TranslationTableTest, CompactSchedFormatParsingSeedData) {
+  std::string path =
+      "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/";
+  FtraceProcfs ftrace_procfs(path);
+  auto table = ProtoTranslationTable::Create(
+      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  PERFETTO_CHECK(table);
+  const CompactSchedEventFormat& format = table->compact_sched_format();
+
+  // We consider the entire format invalid as there's no sched_waking event
+  // available. This is a simplifying assumption. We could instead look at each
+  // event independently (and in this case, sched_switch does match compile-time
+  // assumptions).
+  ASSERT_FALSE(format.format_valid);
 }
 
 TEST(TranslationTableTest, InferFtraceType) {

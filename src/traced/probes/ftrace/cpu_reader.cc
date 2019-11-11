@@ -16,8 +16,8 @@
 
 #include "src/traced/probes/ftrace/cpu_reader.h"
 
-#include <signal.h>
 #include <dirent.h>
+#include <signal.h>
 
 #include <utility>
 
@@ -279,7 +279,7 @@ bool CpuReader::ProcessPagesForDataSource(
     const ProtoTranslationTable* table) {
   // Begin an FtraceEventBundle, and allocate the buffer for compact scheduler
   // events (which will be unused if the compact option isn't enabled).
-  CompactSchedBundleState compact_sched;
+  CompactSchedBuffer compact_sched;
   auto packet = trace_writer->NewTracePacket();
   auto* bundle = packet->set_ftrace_events();
 
@@ -312,8 +312,9 @@ bool CpuReader::ProcessPagesForDataSource(
     //   a threshold. We need to flush the compact buffer to make the
     //   interning lookups cheap again.
     bool interner_past_threshold =
-        compact_sched_enabled && compact_sched.interned_switch_comms_size() >
-                                     kCompactSchedInternerThreshold;
+        compact_sched_enabled &&
+        compact_sched.interner().interned_comms_size() >
+            kCompactSchedInternerThreshold;
     if (page_header->lost_events || interner_past_threshold) {
       if (compact_sched_enabled)
         compact_sched.WriteAndReset(bundle);
@@ -398,14 +399,13 @@ base::Optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
 // binary ftrace events. See |ParsePageHeader| for the format of the earlier.
 //
 // This method is deliberately static so it can be tested independently.
-size_t CpuReader::ParsePagePayload(
-    const uint8_t* start_of_payload,
-    const PageHeader* page_header,
-    const ProtoTranslationTable* table,
-    const FtraceDataSourceConfig* ds_config,
-    CompactSchedBundleState* compact_sched_buffer,
-    FtraceEventBundle* bundle,
-    FtraceMetadata* metadata) {
+size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
+                                   const PageHeader* page_header,
+                                   const ProtoTranslationTable* table,
+                                   const FtraceDataSourceConfig* ds_config,
+                                   CompactSchedBuffer* compact_sched_buffer,
+                                   FtraceEventBundle* bundle,
+                                   FtraceMetadata* metadata) {
   const uint8_t* ptr = start_of_payload;
   const uint8_t* const end = ptr + page_header->size;
 
@@ -484,7 +484,10 @@ size_t CpuReader::ParsePagePayload(
           bool compact_sched_enabled = ds_config->compact_sched.enabled;
           const CompactSchedSwitchFormat& sched_switch_format =
               table->compact_sched_format().sched_switch;
+          const CompactSchedWakingFormat& sched_waking_format =
+              table->compact_sched_format().sched_waking;
 
+          // compact sched_switch
           if (compact_sched_enabled &&
               ftrace_event_id == sched_switch_format.event_id) {
             if (event_size < sched_switch_format.size)
@@ -492,8 +495,18 @@ size_t CpuReader::ParsePagePayload(
 
             ParseSchedSwitchCompact(start, timestamp, &sched_switch_format,
                                     compact_sched_buffer, metadata);
+
+            // compact sched_waking
+          } else if (compact_sched_enabled &&
+                     ftrace_event_id == sched_waking_format.event_id) {
+            if (event_size < sched_waking_format.size)
+              return 0;
+
+            ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
+                                    compact_sched_buffer, metadata);
+
           } else {
-            // Parse all other types of enabled events.
+            // Common case: parse all other types of enabled events.
             protos::pbzero::FtraceEvent* event = bundle->add_event();
             event->set_timestamp(timestamp);
             if (!ParseEvent(ftrace_event_id, start, next, table, event,
@@ -663,31 +676,56 @@ bool CpuReader::ParseField(const Field& field,
 // |CompactSchedSwitchFormat| for the assumptions made around the format, which
 // this code is closely tied to.
 // static
-void CpuReader::ParseSchedSwitchCompact(
-    const uint8_t* start,
-    uint64_t timestamp,
-    const CompactSchedSwitchFormat* format,
-    CompactSchedBundleState* compact_sched_buffer,
-    FtraceMetadata* metadata) {
-  compact_sched_buffer->AppendSwitchTimestamp(timestamp);
+void CpuReader::ParseSchedSwitchCompact(const uint8_t* start,
+                                        uint64_t timestamp,
+                                        const CompactSchedSwitchFormat* format,
+                                        CompactSchedBuffer* compact_buf,
+                                        FtraceMetadata* metadata) {
+  compact_buf->sched_switch().AppendTimestamp(timestamp);
 
   int32_t next_pid = ReadValue<int32_t>(start + format->next_pid_offset);
-  compact_sched_buffer->switch_next_pid()->Append(next_pid);
+  compact_buf->sched_switch().next_pid().Append(next_pid);
   metadata->AddPid(next_pid);
 
   int32_t next_prio = ReadValue<int32_t>(start + format->next_prio_offset);
-  compact_sched_buffer->switch_next_prio()->Append(next_prio);
+  compact_buf->sched_switch().next_prio().Append(next_prio);
 
   // Varint encoding of int32 and int64 is the same, so treat the value as
   // int64 after reading.
   int64_t prev_state = ReadSignedFtraceValue(start + format->prev_state_offset,
                                              format->prev_state_type);
-  compact_sched_buffer->switch_prev_state()->Append(prev_state);
+  compact_buf->sched_switch().prev_state().Append(prev_state);
 
   // next_comm
   const char* comm_ptr =
       reinterpret_cast<const char*>(start + format->next_comm_offset);
-  compact_sched_buffer->InternSwitchNextComm(comm_ptr);
+  size_t iid = compact_buf->interner().InternComm(comm_ptr);
+  compact_buf->sched_switch().next_comm_index().Append(iid);
+}
+
+// static
+void CpuReader::ParseSchedWakingCompact(const uint8_t* start,
+                                        uint64_t timestamp,
+                                        const CompactSchedWakingFormat* format,
+                                        CompactSchedBuffer* compact_buf,
+                                        FtraceMetadata* metadata) {
+  compact_buf->sched_waking().AppendTimestamp(timestamp);
+
+  int32_t pid = ReadValue<int32_t>(start + format->pid_offset);
+  compact_buf->sched_waking().pid().Append(pid);
+  metadata->AddPid(pid);
+
+  int32_t target_cpu = ReadValue<int32_t>(start + format->target_cpu_offset);
+  compact_buf->sched_waking().target_cpu().Append(target_cpu);
+
+  int32_t prio = ReadValue<int32_t>(start + format->prio_offset);
+  compact_buf->sched_waking().prio().Append(prio);
+
+  // comm
+  const char* comm_ptr =
+      reinterpret_cast<const char*>(start + format->comm_offset);
+  size_t iid = compact_buf->interner().InternComm(comm_ptr);
+  compact_buf->sched_waking().comm_index().Append(iid);
 }
 
 }  // namespace perfetto
