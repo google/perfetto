@@ -59,6 +59,16 @@ class SchedEventTracker {
                               int32_t next_prio,
                               StringId next_comm_id);
 
+  // This method is called when parsing a sched_waking encoded in the compact
+  // format. Note that the default encoding is handled by
+  // |EventTracker::PushInstant|.
+  void PushSchedWakingCompact(uint32_t cpu,
+                              int64_t ts,
+                              uint32_t wakee_pid,
+                              int32_t target_cpu,
+                              int32_t prio,
+                              StringId comm_id);
+
   // Called at the end of trace to flush any events which are pending to the
   // storage.
   void FlushPendingEvents();
@@ -98,6 +108,10 @@ class SchedEventTracker {
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
   StringId sched_switch_id_;
+
+  static constexpr uint8_t kSchedWakingMaxFieldId = 5;
+  std::array<StringId, kSchedWakingMaxFieldId + 1> sched_waking_field_ids_;
+  StringId sched_waking_id_;
 
   TraceProcessorContext* const context_;
 };
