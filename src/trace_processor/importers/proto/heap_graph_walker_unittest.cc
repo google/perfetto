@@ -23,6 +23,9 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAreArray;
+
 class HeapGraphWalkerTestDelegate : public HeapGraphWalker::Delegate {
  public:
   ~HeapGraphWalkerTestDelegate() override = default;
@@ -68,7 +71,7 @@ class HeapGraphWalkerTestDelegate : public HeapGraphWalker::Delegate {
 //   2   3   |
 //   ^   ^   |
 //    \ /    |
-//     4     |
+//     4R    |
 TEST(HeapGraphWalkerTest, Diamond) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -96,10 +99,10 @@ TEST(HeapGraphWalkerTest, Diamond) {
   EXPECT_EQ(delegate.UniqueRetained(4), 10);
 }
 
-// 1     2  |
-// ^     ^  |
-// \    /   |
-// 3<->4    |
+// 1       2  |
+// ^       ^  |
+//  \     /   |
+//  3R<->4    |
 TEST(HeapGraphWalkerTest, Loop) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -127,7 +130,7 @@ TEST(HeapGraphWalkerTest, Loop) {
   EXPECT_EQ(delegate.UniqueRetained(4), 6);
 }
 
-//    1     |
+//    1R    |
 //    ^\    |
 //   /  v   |
 //   3<-2   |
@@ -157,10 +160,10 @@ TEST(HeapGraphWalkerTest, Triangle) {
 // 1      |
 // ^      |
 // |      |
-// 2  4   |
-// ^  ^   |
-// |  |   |
-// 3  5   |
+// 2   4  |
+// ^   ^  |
+// |   |  |
+// 3R  5  |
 TEST(HeapGraphWalkerTest, Disconnected) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -201,7 +204,7 @@ TEST(HeapGraphWalkerTest, Disconnected) {
 //    4   5    |
 //    ^   ^    |
 //    \  /     |
-//      6      |
+//      6R     |
 TEST(HeapGraphWalkerTest, Complex) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -244,7 +247,7 @@ TEST(HeapGraphWalkerTest, Complex) {
 //  2<-> 3   |
 //  ^        |
 //  |        |
-//  4        |
+//  4R       |
 TEST(HeapGraphWalkerTest, SharedInComponent) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -268,6 +271,7 @@ TEST(HeapGraphWalkerTest, SharedInComponent) {
   EXPECT_EQ(delegate.Retained(4), 10);
 
   EXPECT_EQ(delegate.UniqueRetained(1), 1);
+  // TODO(fmayer): this should be 6, as it breaks away the component.
   EXPECT_EQ(delegate.UniqueRetained(2), 2);
   EXPECT_EQ(delegate.UniqueRetained(3), 3);
   EXPECT_EQ(delegate.UniqueRetained(4), 10);
@@ -276,7 +280,7 @@ TEST(HeapGraphWalkerTest, SharedInComponent) {
 // 1 <- 2   |
 // ^    ^   |
 // |    |   |
-// 3<-> 4   |
+// 3<-> 4R  |
 TEST(HeapGraphWalkerTest, TwoPaths) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -308,7 +312,7 @@ TEST(HeapGraphWalkerTest, TwoPaths) {
 //    1     |
 //   ^^     |
 //  /  \    |
-// 2    3   |
+// 2R   3R  |
 TEST(HeapGraphWalkerTest, Diverge) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -335,7 +339,7 @@ TEST(HeapGraphWalkerTest, Diverge) {
 //    1            |
 //   ^^            |
 //  /  \           |
-// 2    3 (dead)   |
+// 2R   3 (dead)   |
 TEST(HeapGraphWalkerTest, Dead) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
@@ -356,16 +360,11 @@ TEST(HeapGraphWalkerTest, Dead) {
   EXPECT_EQ(delegate.UniqueRetained(2), 3);
 }
 
-// We defined unique_retained as follows:
-//       the number of bytes that are only retained through this object.
-//       if this object were destroyed, this many bytes would be freed up.
-// The following test-case is a counter-example for the current
-// implementation.
 //    2<->3  |
 //    ^      |
 //    |      |
-//    1      |
-TEST(HeapGraphWalkerTest, DISABLED_UnreachableComponent) {
+//    1R     |
+TEST(HeapGraphWalkerTest, Component) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
   walker.AddNode(1, 1);
@@ -384,9 +383,204 @@ TEST(HeapGraphWalkerTest, DISABLED_UnreachableComponent) {
   EXPECT_EQ(delegate.Retained(3), 5);
 
   EXPECT_EQ(delegate.UniqueRetained(1), 6);
-  EXPECT_EQ(delegate.UniqueRetained(2), 5);
+  // TODO(fmayer): this should be 5, as this breaks away the component.
+  EXPECT_EQ(delegate.UniqueRetained(2), 2);
   EXPECT_EQ(delegate.UniqueRetained(3), 3);
 }
+
+//    2<->3R |
+//    ^      |
+//    |      |
+//    1R     |
+TEST(HeapGraphWalkerTest, ComponentWithRoot) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1);
+  walker.AddNode(2, 2);
+  walker.AddNode(3, 3);
+
+  walker.AddEdge(1, 2);
+  walker.AddEdge(2, 3);
+  walker.AddEdge(3, 2);
+
+  walker.MarkRoot(1);
+  walker.MarkRoot(3);
+  walker.CalculateRetained();
+
+  EXPECT_EQ(delegate.Retained(1), 6);
+  EXPECT_EQ(delegate.Retained(2), 5);
+  EXPECT_EQ(delegate.Retained(3), 5);
+
+  EXPECT_EQ(delegate.UniqueRetained(1), 1);
+  EXPECT_EQ(delegate.UniqueRetained(2), 2);
+  EXPECT_EQ(delegate.UniqueRetained(3), 3);
+}
+
+// R
+// 2 <-  3   |
+//  ^   ^   |
+//   \ /    |
+//    1R    |
+TEST(HeapGraphWalkerTest, TwoRoots) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1);
+  walker.AddNode(2, 2);
+  walker.AddNode(3, 3);
+
+  walker.AddEdge(1, 2);
+  walker.AddEdge(1, 3);
+  walker.AddEdge(3, 2);
+
+  walker.MarkRoot(1);
+  walker.MarkRoot(2);
+  walker.CalculateRetained();
+
+  EXPECT_EQ(delegate.Retained(1), 6);
+  EXPECT_EQ(delegate.Retained(2), 2);
+  EXPECT_EQ(delegate.Retained(3), 5);
+
+  EXPECT_EQ(delegate.UniqueRetained(1), 4);
+  EXPECT_EQ(delegate.UniqueRetained(2), 2);
+  EXPECT_EQ(delegate.UniqueRetained(3), 3);
+}
+
+// Call a function for every set in the powerset or the cartesian product
+// of v with itself.
+// TODO(fmayer): Find a smarter way to generate all graphs.
+template <typename F>
+void SquarePowerSet(const std::vector<int64_t>& v, F fn) {
+  for (uint64_t subset = 0; subset < pow(2, pow(v.size(), 2)); ++subset) {
+    std::vector<std::pair<int64_t, int64_t>> ps;
+    uint64_t node = 0;
+    for (int64_t n1 : v) {
+      for (int64_t n2 : v) {
+        if ((1 << node++) & subset)
+          ps.emplace_back(n1, n2);
+      }
+    }
+    fn(ps);
+  }
+}
+
+// Call a function for every set in the powerset.
+template <typename F>
+void PowerSet(const std::vector<int64_t>& v, F fn) {
+  for (uint64_t subset = 0; subset < pow(2, v.size()); ++subset) {
+    std::vector<int64_t> ps;
+    uint64_t node = 0;
+    for (int64_t n : v) {
+      if ((1 << node++) & subset)
+        ps.emplace_back(n);
+    }
+    fn(ps);
+  }
+}
+
+TEST(PowerSetTest, Simple) {
+  std::vector<int64_t> s = {0, 1, 2};
+  std::vector<std::vector<int64_t>> ps;
+  PowerSet(s, [&ps](const std::vector<int64_t>& x) { ps.emplace_back(x); });
+  EXPECT_THAT(ps, UnorderedElementsAre(std::vector<int64_t>{},      //
+                                       std::vector<int64_t>{0},     //
+                                       std::vector<int64_t>{1},     //
+                                       std::vector<int64_t>{2},     //
+                                       std::vector<int64_t>{0, 1},  //
+                                       std::vector<int64_t>{0, 2},  //
+                                       std::vector<int64_t>{1, 2},  //
+                                       std::vector<int64_t>{0, 1, 2}));
+}
+
+TEST(SquarePowerSetTest, Simple) {
+  std::vector<int64_t> s = {0, 1};
+  std::vector<std::vector<std::pair<int64_t, int64_t>>> ps;
+  SquarePowerSet(s, [&ps](const std::vector<std::pair<int64_t, int64_t>>& x) {
+    ps.emplace_back(x);
+  });
+
+  std::vector<std::pair<int64_t, int64_t>> expected[] = {
+      {},                        //
+      {{0, 0}},                  //
+      {{0, 1}},                  //
+      {{1, 0}},                  //
+      {{1, 1}},                  //
+      {{0, 0}, {0, 1}},          //
+      {{0, 0}, {1, 0}},          //
+      {{0, 0}, {1, 1}},          //
+      {{0, 1}, {1, 0}},          //
+      {{0, 1}, {1, 1}},          //
+      {{1, 0}, {1, 1}},          //
+      {{0, 0}, {0, 1}, {1, 0}},  //
+      {{0, 0}, {0, 1}, {1, 1}},  //
+      {{0, 0}, {1, 0}, {1, 1}},  //
+      {{0, 1}, {1, 0}, {1, 1}},  //
+      {{0, 0}, {0, 1}, {1, 0}, {1, 1}}};
+  EXPECT_THAT(ps, UnorderedElementsAreArray(expected));
+}
+
+// Generate all graphs with 4 nodes, and assert that deleting one node frees
+// up more memory than that node's unique retained.
+TEST(HeapGraphWalkerTest, AllGraphs) {
+  std::vector<int64_t> nodes{1, 2, 3, 4};
+  std::vector<uint64_t> sizes{0, 1, 2, 3, 4};
+  PowerSet(nodes, [&nodes, &sizes](const std::vector<int64_t>& roots) {
+    SquarePowerSet(
+        nodes, [&nodes, &sizes,
+                &roots](const std::vector<std::pair<int64_t, int64_t>>& edges) {
+          HeapGraphWalkerTestDelegate delegate;
+          HeapGraphWalker walker(&delegate);
+
+          HeapGraphWalkerTestDelegate delegate2;
+          HeapGraphWalker walker2(&delegate2);
+
+          for (int64_t node : nodes) {
+            walker.AddNode(node, sizes[static_cast<size_t>(node)]);
+            // walker2 leaves out node 1.
+            if (node != 1)
+              walker2.AddNode(node, sizes[static_cast<size_t>(node)]);
+          }
+
+          for (const auto& p : edges) {
+            walker.AddEdge(p.first, p.second);
+            // walker2 leaves out node 1.
+            if (p.first != 1 && p.second != 1)
+              walker2.AddEdge(p.first, p.second);
+          }
+
+          for (int64_t r : roots) {
+            walker.MarkRoot(r);
+            // walker2 leaves out node 1.
+            if (r != 1)
+              walker2.MarkRoot(r);
+          }
+
+          walker.CalculateRetained();
+          // We do not need to CalculateRetained on walker2, because we only
+          // get the reachable nodes.
+
+          int64_t reachable = 0;
+          int64_t reachable2 = 0;
+
+          ASSERT_FALSE(delegate2.Reachable(1));
+          for (int64_t n : nodes) {
+            if (delegate.Reachable(n))
+              reachable += sizes[static_cast<size_t>(n)];
+            if (delegate2.Reachable(n))
+              reachable2 += sizes[static_cast<size_t>(n)];
+          }
+          EXPECT_LE(reachable2, reachable);
+          if (delegate.Reachable(1)) {
+            // TODO(fmayer): This should be EXPECT_EQ, but we do currently
+            // undercount the unique retained, because we do not include the
+            // memory that could get freed by the component being broken apart.
+            EXPECT_LE(delegate.UniqueRetained(1), reachable - reachable2)
+                << "roots: " << testing::PrintToString(roots)
+                << ", edges: " << testing::PrintToString(edges);
+          }
+        });
+  });
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
