@@ -28,7 +28,7 @@ namespace perfetto {
 
 class FtraceConfig;
 
-// The subset of the sched_switch event's format that is used when parsing &
+// The subset of the sched_switch event's format that is used when parsing and
 // encoding into the compact format.
 struct CompactSchedSwitchFormat {
   uint32_t event_id;
@@ -43,6 +43,21 @@ struct CompactSchedSwitchFormat {
   uint16_t next_comm_offset;
 };
 
+// The subset of the sched_waking event's format that is used when parsing and
+// encoding into the compact format.
+struct CompactSchedWakingFormat {
+  uint32_t event_id;
+  uint16_t size;
+
+  uint16_t pid_offset;
+  FtraceFieldType pid_type;
+  uint16_t target_cpu_offset;
+  FtraceFieldType target_cpu_type;
+  uint16_t prio_offset;
+  FtraceFieldType prio_type;
+  uint16_t comm_offset;
+};
+
 // Pre-parsed format of a subset of scheduling events, for use during ftrace
 // parsing if compact encoding is enabled. Holds a flag, |format_valid| to
 // state whether the compile-time assumptions about the format held at runtime.
@@ -50,7 +65,9 @@ struct CompactSchedSwitchFormat {
 struct CompactSchedEventFormat {
   // If false, the rest of the struct is considered invalid.
   const bool format_valid;
+
   const CompactSchedSwitchFormat sched_switch;
+  const CompactSchedWakingFormat sched_waking;
 };
 
 CompactSchedEventFormat ValidateFormatForCompactSched(
@@ -62,8 +79,8 @@ CompactSchedEventFormat InvalidCompactSchedEventFormatForTesting();
 struct CompactSchedConfig {
   CompactSchedConfig(bool _enabled) : enabled(_enabled) {}
 
-  // If true, and sched_switch event is enabled, encode it in a compact format
-  // instead of the normal form.
+  // If true, and sched_switch and/or sched_waking events are enabled, encode
+  // them in a compact format instead of the normal form.
   const bool enabled = false;
 };
 
@@ -74,97 +91,145 @@ CompactSchedConfig CreateCompactSchedConfig(
 CompactSchedConfig EnabledCompactSchedConfigForTesting();
 CompactSchedConfig DisabledCompactSchedConfigForTesting();
 
-// Mutable state for buffering parts of scheduling events, that can later be
-// written out in a compact format with |WriteAndReset|. Used by the ftrace
-// reader, allocated on the stack.
-class CompactSchedBundleState {
+// Collects fields of sched_switch events, allowing them to be written out
+// in a compact encoding.
+class CompactSchedSwitchBuffer {
  public:
-  // Most of the state is stack-allocated, with a compile-time
-  // size. We work in batches of pages (see kParsingBufferSizePages in
-  // ftrace_controller.cc), and assume a minimum size of a sched event as
-  // written by the kernel (validated at runtime). We therefore can calculate
-  // the maximum necessary capacity for a given parsing buffer size (as
-  // statically asserted in ftrace_controller.cc).
-  // Note: be careful not to align the individual buffers at a multiple of the
-  // cache size.
-  // TODO(rsavitski): this will need a slight rework once we add sched_waking,
-  // as it'll be the min size of the two events.
-  static constexpr size_t kMaxElements = 2560;
-  static constexpr size_t kMinSupportedSchedSwitchSize = 56;
+  protozero::PackedVarInt& timestamp() { return timestamp_; }
+  protozero::PackedVarInt& prev_state() { return prev_state_; }
+  protozero::PackedVarInt& next_pid() { return next_pid_; }
+  protozero::PackedVarInt& next_prio() { return next_prio_; }
+  protozero::PackedVarInt& next_comm_index() { return next_comm_index_; }
+
+  size_t size() const {
+    // Caller should fill all per-field buffers at the same rate.
+    return timestamp_.size();
+  }
+
+  inline void AppendTimestamp(uint64_t timestamp) {
+    timestamp_.Append(timestamp - last_timestamp_);
+    last_timestamp_ = timestamp;
+  }
+
+  void Write(
+      protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const;
+  void Reset();
+
+ private:
+  // First timestamp in a bundle is absolute. The rest are all delta-encoded,
+  // each relative to the preceding sched_switch timestamp.
+  uint64_t last_timestamp_ = 0;
+
+  protozero::PackedVarInt timestamp_;
+  protozero::PackedVarInt prev_state_;
+  protozero::PackedVarInt next_pid_;
+  protozero::PackedVarInt next_prio_;
+  // Interning indices of the next_comm values. See |CommInterner|.
+  protozero::PackedVarInt next_comm_index_;
+};
+
+// As |CompactSchedSwitchBuffer|, but for sched_waking events.
+class CompactSchedWakingBuffer {
+ public:
+  protozero::PackedVarInt& pid() { return pid_; }
+  protozero::PackedVarInt& target_cpu() { return target_cpu_; }
+  protozero::PackedVarInt& prio() { return prio_; }
+  protozero::PackedVarInt& comm_index() { return comm_index_; }
+
+  size_t size() const {
+    // Caller should fill all per-field buffers at the same rate.
+    return timestamp_.size();
+  }
+
+  inline void AppendTimestamp(uint64_t timestamp) {
+    timestamp_.Append(timestamp - last_timestamp_);
+    last_timestamp_ = timestamp;
+  }
+
+  void Write(
+      protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const;
+  void Reset();
+
+ private:
+  uint64_t last_timestamp_ = 0;
+
+  protozero::PackedVarInt timestamp_;
+  protozero::PackedVarInt pid_;
+  protozero::PackedVarInt target_cpu_;
+  protozero::PackedVarInt prio_;
+  // Interning indices of the comm values. See |CommInterner|.
+  protozero::PackedVarInt comm_index_;
+};
+
+class CommInterner {
+ public:
   static constexpr size_t kExpectedCommLength = 16;
 
-  protozero::PackedVarInt* switch_timestamp() { return &switch_timestamp_; }
-
-  protozero::PackedVarInt* switch_prev_state() { return &switch_prev_state_; }
-
-  protozero::PackedVarInt* switch_next_pid() { return &switch_next_pid_; }
-
-  protozero::PackedVarInt* switch_next_prio() { return &switch_next_prio_; }
-
-  size_t interned_switch_comms_size() const {
-    return interned_switch_comms_size_;
-  }
-
-  inline void AppendSwitchTimestamp(uint64_t timestamp) {
-    switch_timestamp_.Append(timestamp - last_switch_timestamp_);
-    last_switch_timestamp_ = timestamp;
-  }
-
-  // TODO(rsavitski): see if we can use the fact that comms are <16 bytes
-  // long when comparing them.
-  void InternSwitchNextComm(const char* ptr) {
+  size_t InternComm(const char* ptr) {
     // Linearly scan existing string views, ftrace reader will
     // make sure this set doesn't grow too large.
     base::StringView transient_view(ptr);
-    for (size_t i = 0; i < interned_switch_comms_size_; i++) {
-      if (transient_view == interned_switch_comms_[i]) {
-        switch_next_comm_index_.Append(i);
-        return;
+    for (size_t i = 0; i < interned_comms_size_; i++) {
+      if (transient_view == interned_comms_[i]) {
+        return i;
       }
     }
 
-    // Unique next_comm, intern it. Null byte is not copied over.
+    // Unique comm, intern it. Null byte is not copied over.
     char* start = intern_buf_ + intern_buf_write_pos_;
     size_t size = transient_view.size();
     memcpy(start, ptr, size);
     intern_buf_write_pos_ += size;
 
-    switch_next_comm_index_.Append(interned_switch_comms_size_);
+    size_t idx = interned_comms_size_;
     base::StringView safe_view(start, size);
-    interned_switch_comms_[interned_switch_comms_size_++] = safe_view;
+    interned_comms_[interned_comms_size_++] = safe_view;
 
     PERFETTO_DCHECK(intern_buf_write_pos_ <= sizeof(intern_buf_));
+    PERFETTO_DCHECK(interned_comms_size_ < kMaxElements);
+    return idx;
   }
+
+  size_t interned_comms_size() const { return interned_comms_size_; }
+
+  void Write(
+      protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const;
+  void Reset();
+
+ private:
+  // TODO(rsavitski): Consider making the storage dynamically-expandable instead
+  // to not rely on sizing the buffer for the worst case.
+  static constexpr size_t kMaxElements = 4096;
+
+  char intern_buf_[kMaxElements * (kExpectedCommLength - 1)];
+  size_t intern_buf_write_pos_ = 0;
+
+  // Views into unique interned comm strings. Even if every event carries a
+  // unique comm, the ftrace reader is expected to flush the compact buffer way
+  // before this reaches capacity. This is since the cost of processing each
+  // event grows with every unique interned comm (as the interning needs to
+  // search all existing internings).
+  std::array<base::StringView, kMaxElements> interned_comms_;
+  uint32_t interned_comms_size_ = 0;
+};
+
+// Mutable state for buffering parts of scheduling events, that can later be
+// written out in a compact format with |WriteAndReset|. Used by the ftrace
+// reader.
+class CompactSchedBuffer {
+ public:
+  CompactSchedSwitchBuffer& sched_switch() { return switch_; }
+  CompactSchedWakingBuffer& sched_waking() { return waking_; }
+  CommInterner& interner() { return interner_; }
 
   // Writes out the currently buffered events, and starts the next batch
   // internally.
   void WriteAndReset(protos::pbzero::FtraceEventBundle* bundle);
 
  private:
-  // First timestamp in a bundle is absolute. The rest are all delta-encoded,
-  // each relative to the preceding sched_switch timestamp.
-  uint64_t last_switch_timestamp_ = 0;
-
-  protozero::PackedVarInt switch_timestamp_;
-  protozero::PackedVarInt switch_prev_state_;
-  protozero::PackedVarInt switch_next_pid_;
-  protozero::PackedVarInt switch_next_prio_;
-
-  // Storage for interned strings (without null bytes).
-  char intern_buf_[kMaxElements * (kExpectedCommLength - 1)];
-  size_t intern_buf_write_pos_ = 0;
-
-  // Views into unique interned next_comm strings. Even if every sched_switch
-  // carries a unique next_comm, the ftrace reader is expected to flush the
-  // compact buffer way before this reaches capacity. This is since the cost of
-  // processing each event grows with every unique interned next_comm (as the
-  // interning needs to search all existing internings).
-  std::array<base::StringView, kMaxElements> interned_switch_comms_;
-  uint32_t interned_switch_comms_size_ = 0;
-
-  // One entry per sched_switch event, contains the index of the interned
-  // next_comm string view (i.e. array index into |interned_switch_comms|).
-  protozero::PackedVarInt switch_next_comm_index_;
+  CommInterner interner_;
+  CompactSchedSwitchBuffer switch_;
+  CompactSchedWakingBuffer waking_;
 };
 
 }  // namespace perfetto

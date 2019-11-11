@@ -661,8 +661,9 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
 TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
   // Set scheduling event format as validated. The pre-parsed format itself
   // doesn't need to be sensible, as the tests won't use it.
-  auto valid_compact_format = CompactSchedEventFormat{
-      /*format_valid=*/true, CompactSchedSwitchFormat{}};
+  auto valid_compact_format =
+      CompactSchedEventFormat{/*format_valid=*/true, CompactSchedSwitchFormat{},
+                              CompactSchedWakingFormat{}};
 
   NiceMock<MockFtraceProcfs> ftrace;
   table_ = CreateFakeTable(valid_compact_format);
