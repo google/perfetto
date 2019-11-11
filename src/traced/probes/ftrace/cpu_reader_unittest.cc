@@ -381,7 +381,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -510,7 +510,7 @@ TEST(CpuReaderTest, ReallyLongEvent) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -560,7 +560,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -599,7 +599,7 @@ TEST(CpuReaderTest, FilterByEvent) {
                                    DisabledCompactSchedConfigForTesting()};
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -665,7 +665,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -775,7 +775,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -822,7 +822,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -846,7 +846,8 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   EXPECT_FALSE(bundle->has_compact_sched());
 
   // Instead, sched switch fields were buffered:
-  EXPECT_LT(0u, compact_buffer.interned_switch_comms_size());
+  EXPECT_LT(0u, compact_buffer.sched_switch().size());
+  EXPECT_LT(0u, compact_buffer.interner().interned_comms_size());
 
   // Write the buffer out & check the serialized format:
   compact_buffer.WriteAndReset(bundle_provider.writer());
@@ -1620,7 +1621,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -2065,7 +2066,7 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBundleState compact_buffer;
+  CompactSchedBuffer compact_buffer;
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
