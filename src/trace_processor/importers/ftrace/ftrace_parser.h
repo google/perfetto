@@ -34,17 +34,7 @@ class FtraceParser {
 
   void ParseFtraceStats(protozero::ConstBytes);
 
-  void ParseInlineSchedSwitch(uint32_t cpu,
-                              int64_t ts,
-                              const InlineSchedSwitch& event) {
-    context_->sched_tracker->PushSchedSwitchCompact(
-        cpu, ts, event.prev_state, static_cast<uint32_t>(event.next_pid),
-        event.next_prio, event.next_comm);
-  }
-
-  util::Status ParseFtraceEvent(uint32_t cpu,
-                                int64_t ts,
-                                const TraceBlobView& packet);
+  util::Status ParseFtraceEvent(uint32_t cpu, const TimestampedTracePiece& ttp);
 
  private:
   void ParseGenericFtrace(int64_t timestamp,

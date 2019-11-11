@@ -65,14 +65,7 @@ class FtraceModule
 
   ModuleResult ParseFtracePacket(uint32_t cpu,
                                  const TimestampedTracePiece& ttp) {
-    // Handle the (optional) alternative encoding format for sched_switch.
-    if (ttp.inline_event.type == InlineEvent::Type::kSchedSwitch) {
-      parser_.ParseInlineSchedSwitch(cpu, ttp.timestamp,
-                                     ttp.inline_event.sched_switch);
-      return ModuleResult::Handled();
-    }
-
-    return parser_.ParseFtraceEvent(cpu, ttp.timestamp, ttp.blob_view);
+    return parser_.ParseFtraceEvent(cpu, ttp);
   }
 
  private:
