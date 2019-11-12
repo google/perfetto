@@ -89,8 +89,22 @@ class TrackEventCategoryRegistry {
     return CategoryIndex;
   }
 
+  constexpr bool ValidateCategories(size_t index = 0) const {
+    return (index == category_count_)
+               ? true
+               : IsValidCategoryName(categories_[index].name)
+                     ? ValidateCategories(index + 1)
+                     : false;
+  }
+
  private:
   // TODO(skyostil): Make the compile-time routines nicer with C++14.
+  static constexpr bool IsValidCategoryName(const char* name) {
+    return (*name == '\"' || *name == '*')
+               ? false
+               : *name ? IsValidCategoryName(name + 1) : true;
+  }
+
   static constexpr bool StringEq(const char* a, const char* b) {
     return *a != *b ? false
                     : (!*a || !*b) ? (*a == *b) : StringEq(a + 1, b + 1);
