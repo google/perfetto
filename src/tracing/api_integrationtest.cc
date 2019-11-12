@@ -1098,6 +1098,28 @@ TEST_F(PerfettoApiTest, TrackEventScoped) {
                                   "E:test.", "E:test."));
 }
 
+TEST_F(PerfettoApiTest, TrackEventInstant) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("test");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_INSTANT("test", "TestEvent");
+  TRACE_EVENT_INSTANT("test", "AnotherEvent");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("I:test.TestEvent", "I:test.AnotherEvent"));
+}
+
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
   auto* data_source = &data_sources_["my_data_source"];
 
