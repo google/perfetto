@@ -182,7 +182,7 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
   std::vector<std::string> constraints;
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     const auto& cs = qc.constraints()[i];
-    auto col_name = GetNameForGlobalColumnIndex(defn, cs.iColumn);
+    auto col_name = GetNameForGlobalColumnIndex(defn, cs.column);
     if (col_name == "")
       continue;
 

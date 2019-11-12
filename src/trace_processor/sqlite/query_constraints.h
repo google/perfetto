@@ -38,7 +38,19 @@ namespace trace_processor {
 // in the xBestIndex call and passed to each corresponding xFilter call.
 class QueryConstraints {
  public:
-  using Constraint = sqlite3_index_info::sqlite3_index_constraint;
+  struct Constraint {
+    // Column this constraint refers to.
+    int column;
+
+    // SQLite op for the constraint.
+    int op;
+
+    // The original index of this constraint in the aConstraint array.
+    // Used internally by SqliteTable for xBestIndex - this should not be
+    // read or modified by subclasses of SqliteTable.
+    int a_constraint_idx;
+  };
+
   using OrderBy = sqlite3_index_info::sqlite3_index_orderby;
 
   static int FreeSqliteString(char* resource);
@@ -54,7 +66,7 @@ class QueryConstraints {
   // are equal.
   bool operator==(const QueryConstraints& other) const;
 
-  void AddConstraint(int column, unsigned char op);
+  void AddConstraint(int column, unsigned char op, int aconstraint_idx);
 
   void AddOrderBy(int column, unsigned char desc);
 
@@ -72,6 +84,10 @@ class QueryConstraints {
   const std::vector<OrderBy>& order_by() const { return order_by_; }
 
   const std::vector<Constraint>& constraints() const { return constraints_; }
+
+  std::vector<OrderBy>* mutable_order_by() { return &order_by_; }
+
+  std::vector<Constraint>* mutable_constraints() { return &constraints_; }
 
  private:
   QueryConstraints(const QueryConstraints&) = delete;
