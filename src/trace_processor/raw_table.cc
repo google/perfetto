@@ -75,8 +75,8 @@ int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // Only the string columns are handled by SQLite
   size_t name_index = schema().ColumnIndexFromName("name");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->constraint_info[i].sqlite_omit =
-        qc.constraints()[i].iColumn != static_cast<int>(name_index);
+    info->sqlite_omit_constraint[i] =
+        qc.constraints()[i].column != static_cast<int>(name_index);
   }
 
   return SQLITE_OK;
