@@ -33,6 +33,12 @@ These can be viewed using pprof. Googlers: head to pprof/ and upload them.
 
 This will create a pprof-compatible heap dump when Ctrl+C is pressed.
 
+You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record?p=memory)
+to record heapprofd profiles. Tick "Heap profiling" in the trace configuration,
+enter the processes you want to target, click "Add Device" to pair your phone,
+and record profiles straight from your browser. This is also possible on
+Windows.
+
 ## Viewing the data
 
 The resulting profile proto contains four views on the data
