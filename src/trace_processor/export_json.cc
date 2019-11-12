@@ -799,11 +799,21 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
           static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
     }
 
-    // Use "I" instead of "i" phase for backwards-compat with old consumers.
-    event["ph"] = "I";
+    event["ph"] = "n";
     event["cat"] = "disabled_by_default-cpu_profiler";
     event["name"] = "StackCpuSampling";
     event["s"] = "t";
+
+    // Add a dummy thread timestamp to this event to match the format of instant
+    // events. Useful in the UI to view args of a selected group of samples.
+    event["tts"] = Json::Int64(1);
+
+    // "n"-phase events are nestable async events which get tied together with
+    // their id, so we need to give each one a unique ID as we only
+    // want the samples to show up on their own track in the trace-viewer but
+    // not nested together.
+    static size_t g_id_counter = 0;
+    event["id"] = PrintUint64(++g_id_counter);
 
     std::vector<std::string> callstack;
     const auto& callsites = storage->stack_profile_callsite_table();
@@ -853,6 +863,12 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
     }
 
     event["args"]["frames"] = merged_callstack;
+
+    // TODO(oysteine): Used for backwards compatibility with the memlog
+    // pipeline, should remove once we've switched to looking directly at the
+    // tid.
+    event["args"]["thread_id"] = thread.tid;
+
     writer->WriteCommonEvent(event);
   }
 
