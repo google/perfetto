@@ -576,6 +576,8 @@ TEST(HeapGraphWalkerTest, AllGraphs) {
             EXPECT_LE(delegate.UniqueRetained(1), reachable - reachable2)
                 << "roots: " << testing::PrintToString(roots)
                 << ", edges: " << testing::PrintToString(edges);
+          } else {
+            EXPECT_EQ(reachable2, reachable);
           }
         });
   });
