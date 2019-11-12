@@ -42,7 +42,7 @@ bool QueryConstraints::operator==(const QueryConstraints& other) const {
   }
 
   for (size_t i = 0; i < constraints().size(); ++i) {
-    if ((constraints()[i].iColumn != other.constraints()[i].iColumn) ||
+    if ((constraints()[i].column != other.constraints()[i].column) ||
         (constraints()[i].op != other.constraints()[i].op)) {
       return false;
     }
@@ -58,10 +58,13 @@ bool QueryConstraints::operator==(const QueryConstraints& other) const {
   return true;
 }
 
-void QueryConstraints::AddConstraint(int column, unsigned char op) {
+void QueryConstraints::AddConstraint(int column,
+                                     unsigned char op,
+                                     int aconstraint_idx) {
   Constraint c{};
-  c.iColumn = column;
+  c.column = column;
   c.op = op;
+  c.a_constraint_idx = aconstraint_idx;
   constraints_.emplace_back(c);
 }
 
@@ -79,7 +82,7 @@ QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() const {
   str_result.append(std::to_string(constraints_.size()));
   str_result.append(",");
   for (const auto& cs : constraints_) {
-    str_result.append(std::to_string(cs.iColumn));
+    str_result.append(std::to_string(cs.column));
     str_result.append(",");
     str_result.append(std::to_string(cs.op));
     str_result.append(",");
@@ -117,7 +120,7 @@ QueryConstraints QueryConstraints::FromString(const char* idxStr) {
     PERFETTO_CHECK(splitter.Next());
     unsigned char op =
         static_cast<unsigned char>(strtol(splitter.cur_token(), nullptr, 10));
-    qc.AddConstraint(col, op);
+    qc.AddConstraint(col, op, 0);
   }
 
   PERFETTO_CHECK(splitter.Next() && splitter.cur_token_size() > 1);

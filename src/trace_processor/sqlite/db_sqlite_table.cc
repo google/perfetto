@@ -133,7 +133,7 @@ double DbSqliteTable::EstimateCost(const QueryConstraints& qc) {
   // This means we have at least one constraint. Check if any of the constraints
   // is an equality constraint on an id column.
   auto id_filter = [this](const QueryConstraints::Constraint& c) {
-    uint32_t col_idx = static_cast<uint32_t>(c.iColumn);
+    uint32_t col_idx = static_cast<uint32_t>(c.column);
     const auto& col = table_->GetColumn(col_idx);
     return sqlite_utils::IsOpEq(c.op) && col.IsId();
   };
@@ -167,7 +167,7 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   constraints_.resize(qc.constraints().size());
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
-    uint32_t col = static_cast<uint32_t>(cs.iColumn);
+    uint32_t col = static_cast<uint32_t>(cs.column);
 
     FilterOp op = SqliteOpToFilterOp(cs.op);
     SqlValue value = SqliteValueToSqlValue(argv[i]);

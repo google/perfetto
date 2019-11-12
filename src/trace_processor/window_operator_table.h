@@ -78,6 +78,7 @@ class WindowOperatorTable : public SqliteTable {
   util::Status Init(int, const char* const*, Schema* schema) override;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
+  int ModifyConstraints(QueryConstraints* qc) override;
   int Update(int, sqlite3_value**, sqlite3_int64*) override;
 
  private:
