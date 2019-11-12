@@ -518,15 +518,9 @@ TEST(SquarePowerSetTest, Simple) {
   EXPECT_THAT(ps, UnorderedElementsAreArray(expected));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
-#define MAYBE_AllGraphs AllGraphs
-#else
-#define MAYBE_AllGraphs DISABLED_AllGraphs
-#endif
-
 // Generate all graphs with 4 nodes, and assert that deleting one node frees
 // up more memory than that node's unique retained.
-TEST(HeapGraphWalkerTest, MAYBE_AllGraphs) {
+TEST(HeapGraphWalkerTest, DISABLED_AllGraphs) {
   std::vector<int64_t> nodes{1, 2, 3, 4};
   std::vector<uint64_t> sizes{0, 1, 2, 3, 4};
   PowerSet(nodes, [&nodes, &sizes](const std::vector<int64_t>& roots) {
