@@ -1189,7 +1189,8 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   EXPECT_EQ(result["traceEvents"].size(), 1u);
   Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["ph"].asString(), "I");
+  EXPECT_EQ(event["ph"].asString(), "n");
+  EXPECT_EQ(event["id"].asString(), "0x1");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["tid"].asUInt(), kThreadID);
   EXPECT_EQ(event["cat"].asString(), "disabled_by_default-cpu_profiler");
