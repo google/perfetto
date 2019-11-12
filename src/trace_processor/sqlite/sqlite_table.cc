@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <algorithm>
+#include <map>
 
 #include "perfetto/base/logging.h"
 
@@ -58,76 +59,51 @@ int SqliteTable::OpenInternal(sqlite3_vtab_cursor** ppCursor) {
 }
 
 int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
-  using ConstraintInfo = BestIndexInfo::ConstraintInfo;
+  QueryConstraints qc;
 
-  QueryConstraints in_qc;
-  BestIndexInfo info;
   for (int i = 0; i < idx->nConstraint; i++) {
     const auto& cs = idx->aConstraint[i];
     if (!cs.usable)
       continue;
-    in_qc.AddConstraint(cs.iColumn, cs.op);
-
-    ConstraintInfo c_info;
-    c_info.qc_idx = static_cast<uint32_t>(in_qc.constraints().size() - 1);
-    info.constraint_info.emplace_back(c_info);
+    qc.AddConstraint(cs.iColumn, cs.op, i);
   }
 
   for (int i = 0; i < idx->nOrderBy; i++) {
     int column = idx->aOrderBy[i].iColumn;
     bool desc = idx->aOrderBy[i].desc;
-    in_qc.AddOrderBy(column, desc);
+    qc.AddOrderBy(column, desc);
   }
 
-  int ret = BestIndex(in_qc, &info);
+  int ret = ModifyConstraints(&qc);
   if (ret != SQLITE_OK)
     return ret;
 
-  auto& cs_info = info.constraint_info;
+  BestIndexInfo info;
+  info.sqlite_omit_constraint.resize(qc.constraints().size());
 
-  // Remove all the pruned terms from the constraints.
-  {
-    auto prune_fn = [](const ConstraintInfo& t) { return t.prune; };
-    auto prune_cs_it = std::remove_if(cs_info.begin(), cs_info.end(), prune_fn);
-    cs_info.erase(prune_cs_it, cs_info.end());
-  }
+  ret = BestIndex(qc, &info);
+  if (ret != SQLITE_OK)
+    return ret;
 
-  idx->orderByConsumed = info.prune_order_by || info.sqlite_omit_order_by;
+  idx->orderByConsumed = qc.order_by().empty() || info.sqlite_omit_order_by;
   idx->estimatedCost = info.estimated_cost;
 
-  uint32_t in_qc_idx = 0;
-  for (int i = 0; i < idx->nConstraint; i++) {
-    const auto& c = idx->aConstraint[i];
-    if (c.usable) {
-      auto cs_fn = [in_qc_idx](const ConstraintInfo& t) {
-        return t.qc_idx == in_qc_idx;
-      };
-      auto it = std::find_if(cs_info.begin(), cs_info.end(), cs_fn);
-
-      // If the iterator no longer exists, we must have pruned it.
-      if (it == cs_info.end()) {
-        idx->aConstraintUsage[i].omit = true;
-      } else {
-        idx->aConstraintUsage[i].argvIndex =
-            static_cast<int>(std::distance(cs_info.begin(), it)) + 1;
-        idx->aConstraintUsage[i].omit = it->sqlite_omit;
-      }
-      in_qc_idx++;
-    }
+  // First pass: mark all constraints as omitted to ensure that any pruned
+  // constraints are not checked for by SQLite.
+  for (int i = 0; i < idx->nConstraint; ++i) {
+    auto& u = idx->aConstraintUsage[i];
+    u.omit = true;
   }
 
-  QueryConstraints out_qc;
-  for (const auto& c_info : cs_info) {
-    const auto& c = in_qc.constraints()[c_info.qc_idx];
-    out_qc.AddConstraint(c.iColumn, c.op);
-  }
-  if (!info.prune_order_by) {
-    for (const auto& o : in_qc.order_by()) {
-      out_qc.AddOrderBy(o.iColumn, o.desc);
-    }
+  // Second pass: actually set the correct omit and index values for all
+  // retained constraints.
+  for (uint32_t i = 0; i < qc.constraints().size(); ++i) {
+    auto& u = idx->aConstraintUsage[qc.constraints()[i].a_constraint_idx];
+    u.omit = info.sqlite_omit_constraint[i];
+    u.argvIndex = static_cast<int>(i) + 1;
   }
 
-  auto out_qc_str = out_qc.ToNewSqlite3String();
+  auto out_qc_str = qc.ToNewSqlite3String();
   if (SqliteTable::debug) {
     PERFETTO_LOG(
         "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%d",
@@ -139,6 +115,10 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
   idx->needToFreeIdxStr = true;
   idx->idxNum = ++best_index_num_;
 
+  return SQLITE_OK;
+}
+
+int SqliteTable::ModifyConstraints(QueryConstraints*) {
   return SQLITE_OK;
 }
 

@@ -46,8 +46,8 @@ int CounterValuesTable::BestIndex(const QueryConstraints& qc,
                                   BestIndexInfo* info) {
   info->estimated_cost = EstimateCost(qc);
   info->sqlite_omit_order_by = true;
-  for (auto& c_info : info->constraint_info)
-    c_info.sqlite_omit = true;
+  auto& omit_cs = info->sqlite_omit_constraint;
+  std::fill(omit_cs.begin(), omit_cs.end(), true);
 
   return SQLITE_OK;
 }

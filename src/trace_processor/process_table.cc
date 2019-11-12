@@ -61,7 +61,7 @@ int ProcessTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // because we can do that filter efficiently.
   const auto& cs = qc.constraints();
   auto fn = [](const QueryConstraints::Constraint& c) {
-    return c.iColumn == Column::kUpid && sqlite_utils::IsOpEq(c.op);
+    return c.column == Column::kUpid && sqlite_utils::IsOpEq(c.op);
   };
   info->estimated_cost = std::find_if(cs.begin(), cs.end(), fn) != cs.end()
                              ? 1
@@ -80,7 +80,7 @@ int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
 
   for (size_t j = 0; j < qc.constraints().size(); j++) {
     const auto& cs = qc.constraints()[j];
-    if (cs.iColumn == Column::kUpid) {
+    if (cs.column == Column::kUpid) {
       auto constraint_upid = static_cast<UniquePid>(sqlite3_value_int(argv[j]));
       // Set the range of upids that we are interested in, based on the
       // constraints in the query. Everything between min and max (exclusive)

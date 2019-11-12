@@ -69,7 +69,7 @@ FilteredRowIndex StorageTable::CreateRangeIterator(
   std::vector<size_t> bitvector_cs;
   for (size_t i = 0; i < cs.size(); i++) {
     const auto& c = cs[i];
-    size_t column = static_cast<size_t>(c.iColumn);
+    size_t column = static_cast<size_t>(c.column);
     auto bounds = schema_.GetColumn(column).BoundFilter(c.op, argv[i]);
 
     min_idx = std::max(min_idx, bounds.min_idx);
@@ -90,7 +90,7 @@ FilteredRowIndex StorageTable::CreateRangeIterator(
     const auto& c = cs[c_idx];
     auto* value = argv[c_idx];
 
-    const auto& schema_col = schema_.GetColumn(static_cast<size_t>(c.iColumn));
+    const auto& schema_col = schema_.GetColumn(static_cast<size_t>(c.column));
     schema_col.Filter(c.op, value, &index);
 
     if (!index.error().empty())
@@ -119,7 +119,7 @@ std::vector<QueryConstraints::OrderBy> StorageTable::RemoveRedundantOrderBy(
   std::set<int> equality_cols;
   for (const auto& c : cs) {
     if (sqlite_utils::IsOpEq(c.op))
-      equality_cols.emplace(c.iColumn);
+      equality_cols.emplace(c.column);
   }
   for (const auto& o : obs) {
     if (equality_cols.count(o.iColumn) > 0)
@@ -160,7 +160,7 @@ bool StorageTable::HasEqConstraint(const QueryConstraints& qc,
                                    const std::string& col_name) {
   size_t c_idx = schema().ColumnIndexFromName(col_name);
   auto fn = [c_idx](const QueryConstraints::Constraint& c) {
-    return c.iColumn == static_cast<int>(c_idx) && sqlite_utils::IsOpEq(c.op);
+    return c.column == static_cast<int>(c_idx) && sqlite_utils::IsOpEq(c.op);
   };
   const auto& cs = qc.constraints();
   return std::find_if(cs.begin(), cs.end(), fn) != cs.end();

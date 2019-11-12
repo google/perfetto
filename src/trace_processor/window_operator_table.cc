@@ -61,13 +61,17 @@ std::unique_ptr<SqliteTable::Cursor> WindowOperatorTable::CreateCursor() {
   return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
 }
 
-int WindowOperatorTable::BestIndex(const QueryConstraints& qc,
-                                   BestIndexInfo* info) {
+int WindowOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
+  return SQLITE_OK;
+}
+
+int WindowOperatorTable::ModifyConstraints(QueryConstraints* qc) {
   // Remove ordering on timestamp if it is the only ordering as we are already
   // sorted on TS. This makes span joining significantly faster.
-  const auto& ob = qc.order_by();
-  info->prune_order_by =
-      ob.size() == 1 && ob[0].iColumn == Column::kTs && !ob[0].desc;
+  const auto& ob = qc->order_by();
+  if (ob.size() == 1 && ob[0].iColumn == Column::kTs && !ob[0].desc) {
+    qc->mutable_order_by()->clear();
+  }
   return SQLITE_OK;
 }
 
@@ -110,7 +114,7 @@ int WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
   // Set return first if there is a equals constraint on the row id asking to
   // return the first row.
   bool return_first = qc.constraints().size() == 1 &&
-                      qc.constraints()[0].iColumn == Column::kRowId &&
+                      qc.constraints()[0].column == Column::kRowId &&
                       IsOpEq(qc.constraints()[0].op) &&
                       sqlite3_value_int(argv[0]) == 0;
   if (return_first) {

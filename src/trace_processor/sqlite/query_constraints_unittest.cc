@@ -36,7 +36,7 @@ class QueryConstraintsTest : public ::testing::Test {
 
 TEST_F(QueryConstraintsTest, ConvertToAndFromSqlString) {
   QueryConstraints qc;
-  qc.AddConstraint(12, 0);
+  qc.AddConstraint(12, 0, 0);
 
   QueryConstraints::SqliteString only_constraint = qc.ToNewSqlite3String();
   ASSERT_TRUE(strcmp(only_constraint.get(), "C1,12,0,O0") == 0);

@@ -56,9 +56,9 @@ int InstantsTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   size_t name_index = schema().ColumnIndexFromName("name");
   size_t ref_type_index = schema().ColumnIndexFromName("ref_type");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->constraint_info[i].sqlite_omit =
-        qc.constraints()[i].iColumn != static_cast<int>(name_index) &&
-        qc.constraints()[i].iColumn != static_cast<int>(ref_type_index);
+    info->sqlite_omit_constraint[i] =
+        qc.constraints()[i].column != static_cast<int>(name_index) &&
+        qc.constraints()[i].column != static_cast<int>(ref_type_index);
   }
 
   return SQLITE_OK;

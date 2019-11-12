@@ -62,7 +62,7 @@ int ThreadTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // because we can do that filter efficiently.
   const auto& constraints = qc.constraints();
   for (const auto& cs : qc.constraints()) {
-    if (cs.iColumn == Column::kUtid) {
+    if (cs.column == Column::kUtid) {
       info->estimated_cost = IsOpEq(constraints.front().op) ? 1 : 10;
     }
   }
@@ -82,7 +82,7 @@ int ThreadTable::Cursor::Filter(const QueryConstraints& qc,
 
   for (size_t j = 0; j < qc.constraints().size(); j++) {
     const auto& cs = qc.constraints()[j];
-    if (cs.iColumn == Column::kUtid) {
+    if (cs.column == Column::kUtid) {
       UniqueTid constraint_utid =
           static_cast<UniqueTid>(sqlite3_value_int(argv[j]));
       // Filter the range of utids that we are interested in, based on the
