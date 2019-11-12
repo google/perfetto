@@ -52,8 +52,8 @@ int SchedSliceTable::BestIndex(const QueryConstraints& qc,
   // We should be able to handle any constraint and any order by clause given
   // to us.
   info->sqlite_omit_order_by = true;
-  for (auto& c_info : info->constraint_info)
-    c_info.sqlite_omit = true;
+  auto& omit_cs = info->sqlite_omit_constraint;
+  std::fill(omit_cs.begin(), omit_cs.end(), true);
 
   return SQLITE_OK;
 }
@@ -63,7 +63,7 @@ uint32_t SchedSliceTable::EstimateQueryCost(const QueryConstraints& qc) {
 
   size_t ts_idx = schema().ColumnIndexFromName("ts");
   auto has_ts_column = [ts_idx](const QueryConstraints::Constraint& c) {
-    return c.iColumn == static_cast<int>(ts_idx);
+    return c.column == static_cast<int>(ts_idx);
   };
   bool has_time_constraint = std::any_of(cs.begin(), cs.end(), has_ts_column);
   if (has_time_constraint) {
@@ -74,8 +74,7 @@ uint32_t SchedSliceTable::EstimateQueryCost(const QueryConstraints& qc) {
 
   size_t utid_idx = schema().ColumnIndexFromName("utid");
   auto has_utid_eq_cs = [utid_idx](const QueryConstraints::Constraint& c) {
-    return c.iColumn == static_cast<int>(utid_idx) &&
-           sqlite_utils::IsOpEq(c.op);
+    return c.column == static_cast<int>(utid_idx) && sqlite_utils::IsOpEq(c.op);
   };
   bool has_utid_eq = std::any_of(cs.begin(), cs.end(), has_utid_eq_cs);
   if (has_utid_eq) {

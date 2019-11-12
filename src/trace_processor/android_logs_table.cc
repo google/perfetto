@@ -53,9 +53,9 @@ int AndroidLogsTable::BestIndex(const QueryConstraints& qc,
   size_t tag_index = schema().ColumnIndexFromName("tag");
   size_t msg_index = schema().ColumnIndexFromName("msg");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->constraint_info[i].sqlite_omit =
-        qc.constraints()[i].iColumn != static_cast<int>(tag_index) &&
-        qc.constraints()[i].iColumn != static_cast<int>(msg_index);
+    info->sqlite_omit_constraint[i] =
+        qc.constraints()[i].column != static_cast<int>(tag_index) &&
+        qc.constraints()[i].column != static_cast<int>(msg_index);
   }
 
   return SQLITE_OK;

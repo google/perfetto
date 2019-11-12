@@ -136,41 +136,23 @@ class SqliteTable : public sqlite3_vtab {
   // Populated by a BestIndex call to allow subclasses to tweak SQLite's
   // handling of sets of constraints.
   struct BestIndexInfo {
-    // Contains info about a single constraint.
-    struct ConstraintInfo {
-      // Gives the index of this constraint in the QueryConstraints class.
-      uint32_t qc_idx = 0;
-
-      // Indicates whether this constraint should be removed from the
-      // QueryConstraint class when passed to SqliteTable::Filter.
-      bool prune = false;
-
-      // Indiciates whether SQLite should omit double checking this constraint.
-      //
-      // If |prune| is set to true, this value will be ignored and SQLite will
-      // be told that it can omit double checking (i.e. this value will
-      // implicitly be taken to be true).
-      bool sqlite_omit = false;
-    };
-
-    // Stores the estimated cost of this query.
-    uint32_t estimated_cost = 0;
-
-    // Stores the information about each constraint.
-    std::vector<ConstraintInfo> constraint_info;
-
-    // Indicates that all the order by constraints should be pruned. This should
-    // be set to true if the table is exactly ordered by the order by terms in
-    // QueryConstraints.
-    bool prune_order_by = false;
+    // Contains bools which indicate whether SQLite should omit double checking
+    // the constraint at that index.
+    //
+    // If there are no constraints, SQLite will be told it can omit checking for
+    // the whole query.
+    std::vector<bool> sqlite_omit_constraint;
 
     // Indicates that SQLite should not double check the result of the order by
     // clause.
     //
-    // If |prune_order_by| is set to true, this value will be ignored and SQLite
+    // If there are no order by clauses, this value will be ignored and SQLite
     // will be told that it can omit double checking (i.e. this value will
     // implicitly be taken to be true).
     bool sqlite_omit_order_by = false;
+
+    // Stores the estimated cost of this query.
+    uint32_t estimated_cost = 0;
   };
 
   template <typename Context>
@@ -311,6 +293,7 @@ class SqliteTable : public sqlite3_vtab {
 
   // Optional metods to implement.
   using FindFunctionFn = void (**)(sqlite3_context*, int, sqlite3_value**);
+  virtual int ModifyConstraints(QueryConstraints* qc);
   virtual int FindFunction(const char* name, FindFunctionFn fn, void** args);
 
   // At registration time, the function should also pass true for |read_write|.

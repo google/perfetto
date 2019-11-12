@@ -60,8 +60,8 @@ int SliceTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   size_t cat_index = schema().ColumnIndexFromName("category");
   size_t ref_type_index = schema().ColumnIndexFromName("ref_type");
   for (size_t i = 0; i < qc.constraints().size(); i++) {
-    auto col = static_cast<size_t>(qc.constraints()[i].iColumn);
-    info->constraint_info[i].sqlite_omit =
+    auto col = static_cast<size_t>(qc.constraints()[i].column);
+    info->sqlite_omit_constraint[i] =
         col != name_index && col != cat_index && col != ref_type_index;
   }
   return SQLITE_OK;
