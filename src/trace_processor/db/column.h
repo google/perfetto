@@ -71,17 +71,9 @@ class Column {
     // Indicates that this column has no special properties.
     kNoFlag = 0,
 
-    // Indiciates that the column is an "id" column. Specifically, this means
-    // the backing data for this column has the property that data[i] = i;
-    //
-    // Note: generally, this flag should not be passed by users of this class.
-    // Instead they should use the Column::IdColumn method to create an id
-    // column.
-    kId = 1 << 0,
-
     // Indicates the data in the column is sorted. This can be used to speed
     // up filtering and skip sorting.
-    kSorted = 1 << 1,
+    kSorted = 1 << 0,
 
     // Indicates the data in the column is non-null. That is, the SparseVector
     // passed in will never have any null entries. This is only used for
@@ -90,7 +82,7 @@ class Column {
     //
     // This is used to speed up filters as we can safely index SparseVector
     // directly if this flag is set.
-    kNonNull = 1 << 2
+    kNonNull = 1 << 1,
   };
 
   template <typename T>
@@ -154,7 +146,7 @@ class Column {
   // given filter constraint.
   void FilterInto(FilterOp op, SqlValue value, RowMap* rm) const {
     // TODO(lalitm): add special logic here to deal with kId and kSorted flags.
-    if (type_ == ColumnType::kId && op == FilterOp::kEq) {
+    if (IsId() && op == FilterOp::kEq) {
       auto opt_idx = IndexOf(value);
       if (opt_idx) {
         rm->Intersect(RowMap::SingleRow(*opt_idx));
@@ -200,7 +192,7 @@ class Column {
   }
 
   // Returns true if this column is considered an id column.
-  bool IsId() const { return (flags_ & Flag::kId) != 0; }
+  bool IsId() const { return type_ == ColumnType::kId; }
 
   // Returns true if this column is a nullable column.
   bool IsNullable() const { return (flags_ & Flag::kNonNull) == 0; }

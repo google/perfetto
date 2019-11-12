@@ -130,7 +130,7 @@ Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
 
   for (const Column& col : columns_) {
     // We skip id columns as they are misleading on join tables.
-    if ((col.flags_ & Column::kId) != 0)
+    if (col.IsId())
       continue;
     table.columns_.emplace_back(col, &table, table.columns_.size(),
                                 col.row_map_idx_);
@@ -160,7 +160,7 @@ Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
   uint32_t left_row_maps_size = static_cast<uint32_t>(row_maps_.size());
   for (const Column& col : other.columns_) {
     // We skip id columns as they are misleading on join tables.
-    if ((col.flags_ & Column::kId) != 0)
+    if (col.IsId())
       continue;
 
     // Ensure that we offset the RowMap index by the number of RowMaps in the
