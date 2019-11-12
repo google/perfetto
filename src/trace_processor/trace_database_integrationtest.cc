@@ -108,6 +108,21 @@ TEST_F(TraceProcessorIntegrationTest, Hash) {
   ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xa9cb070fdc15f7a4));
 }
 
+TEST_F(TraceProcessorIntegrationTest, Demangle) {
+  auto it = Query("select DEMANGLE('_Znwm')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_STRCASEEQ(it.Get(0).string_value, "operator new(unsigned long)");
+
+  it = Query("select DEMANGLE('_ZN3art6Thread14CreateCallbackEPv')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_STRCASEEQ(it.Get(0).string_value,
+                   "art::Thread::CreateCallback(void*)");
+
+  it = Query("select DEMANGLE('test')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_TRUE(it.Get(0).is_null());
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
