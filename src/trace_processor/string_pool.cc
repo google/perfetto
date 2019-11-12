@@ -66,8 +66,12 @@ StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
 
 const uint8_t* StringPool::Block::TryInsert(base::StringView str) {
   auto str_size = str.size();
-  if (static_cast<uint64_t>(pos_) + str_size + kMaxMetadataSize > size_)
+  size_t max_pos = static_cast<size_t>(pos_) + str_size + kMaxMetadataSize;
+  if (max_pos > size_)
     return nullptr;
+
+  // Ensure that we commit up until the end of the string to memory.
+  mem_.EnsureCommitted(max_pos);
 
   // Get where we should start writing this string.
   uint8_t* begin = Get(pos_);
@@ -86,6 +90,7 @@ const uint8_t* StringPool::Block::TryInsert(base::StringView str) {
 
   // Update the end of the block and return the pointer to the string.
   pos_ = OffsetOf(end);
+
   return begin;
 }
 

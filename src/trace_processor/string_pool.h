@@ -123,7 +123,9 @@ class StringPool {
 
   struct Block {
     explicit Block(size_t size)
-        : mem_(base::PagedMemory::Allocate(size)), size_(size) {}
+        : mem_(base::PagedMemory::Allocate(size,
+                                           base::PagedMemory::kDontCommit)),
+          size_(size) {}
     ~Block() = default;
 
     // Allow std::move().
@@ -151,7 +153,7 @@ class StringPool {
    private:
     base::PagedMemory mem_;
     uint32_t pos_ = 0;
-    size_t size_;
+    size_t size_ = 0;
   };
 
   friend class Iterator;
