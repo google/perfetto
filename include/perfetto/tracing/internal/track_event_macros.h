@@ -61,6 +61,8 @@
                                  &g_category_state_storage[0]);               \
   extern const ::perfetto::internal::TrackEventCategoryRegistry               \
       kCategoryRegistry;                                                      \
+  static_assert(kConstExprCategoryRegistry.ValidateCategories(),              \
+                "Invalid category names found");                              \
   }  // namespace internal
 
 // In a .cc file, declares storage for each category's runtime state.
