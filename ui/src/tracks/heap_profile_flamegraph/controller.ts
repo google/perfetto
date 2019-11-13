@@ -17,6 +17,7 @@ import {
   TrackController,
   trackControllerRegistry
 } from '../../controller/track_controller';
+import {findRootSize} from '../../frontend/flamegraph';
 import {CallsiteInfo} from '../../frontend/globals';
 
 import {
@@ -25,6 +26,70 @@ import {
   HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND,
   HeapProfileFlamegraphKey,
 } from './common';
+
+const MIN_PIXEL_DISPLAYED = 1;
+
+// Merge callsites that have approximately width less than
+// MIN_PIXEL_DISPLAYED. All small callsites in the same depth and with same
+// parent will be merged to one callsite with size of the biggest merged
+// callsite.
+export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
+  const mergedData: CallsiteInfo[] = [];
+  const mergedCallsites: Map<number, number> = new Map();
+  for (let i = 0; i < data.length; i++) {
+    // When a small callsite is found, it will be merged with other small
+    // callsites of the same depth. So if the current callsite has already been
+    // merged we can skip it.
+    if (mergedCallsites.has(data[i].hash)) {
+      continue;
+    }
+    const copiedCallsite = copyCallsite(data[i]);
+    copiedCallsite.parentHash =
+        getCallsitesParentHash(copiedCallsite, mergedCallsites);
+
+    // If current callsite is small, find other small callsites with same depth
+    // and parent and merge them into the current one, marking them as merged.
+    if (copiedCallsite.totalSize <= minSizeDisplayed && i + 1 < data.length) {
+      let j = i + 1;
+      let nextCallsite = data[j];
+      while (j < data.length && copiedCallsite.depth === nextCallsite.depth) {
+        if (copiedCallsite.parentHash ===
+                getCallsitesParentHash(nextCallsite, mergedCallsites) &&
+            nextCallsite.totalSize <= minSizeDisplayed) {
+          copiedCallsite.totalSize += nextCallsite.totalSize;
+          mergedCallsites.set(nextCallsite.hash, copiedCallsite.hash);
+        }
+        j++;
+        nextCallsite = data[j];
+      }
+    }
+    mergedData.push(copiedCallsite);
+  }
+  return mergedData;
+}
+
+function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
+  return {
+    hash: callsite.hash,
+    parentHash: callsite.parentHash,
+    depth: callsite.depth,
+    name: callsite.name,
+    totalSize: callsite.totalSize
+  };
+}
+
+function getCallsitesParentHash(
+    callsite: CallsiteInfo, map: Map<number, number>): number {
+  return map.has(callsite.parentHash) ? map.get(callsite.parentHash)! :
+                                        callsite.parentHash;
+}
+
+function getMinSizeDisplayed(flamegraphData: CallsiteInfo[]): number {
+  const timeState = globals.state.frontendLocalState.visibleState;
+  const width = (timeState.endSec - timeState.startSec) / timeState.resolution;
+  const rootSize = findRootSize(flamegraphData);
+  return MIN_PIXEL_DISPLAYED * rootSize / width;
+}
 
 class HeapProfileFlameraphTrackController extends
     TrackController<Config, Data> {
@@ -35,6 +100,8 @@ class HeapProfileFlameraphTrackController extends
   private length = 0;
   private lastSelectedTs?: number;
   private lastSelectedId?: number;
+
+  private flamegraphDatasets: Map<string, CallsiteInfo[]> = new Map();
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
@@ -51,7 +118,7 @@ class HeapProfileFlameraphTrackController extends
       end: -1,
       resolution: this.resolution,
       length: 0,
-      flamegraph: new Array()
+      flamegraph: []
     };
     return data;
   }
@@ -65,6 +132,7 @@ class HeapProfileFlameraphTrackController extends
         return;
       }
       const selectedId = selection.id;
+      const selectedUpid = selection.upid;
       const selectedKind = selection.kind;
       const selectedTs = selection.ts;
       this.lastSelectedId = selection.id;
@@ -76,26 +144,46 @@ class HeapProfileFlameraphTrackController extends
           'TrackData',
           {id: HeapProfileFlamegraphKey, data: this.generateEmptyData()});
 
-      this.getFlamegraphData(selection.ts, selection.upid).then(flamegraph => {
-        if (flamegraph !== undefined && selection &&
-            selection.kind === selectedKind && selection.id === selectedId &&
-            selection.ts === selectedTs) {
-          globals.publish('TrackData', {
-            id: HeapProfileFlamegraphKey,
-            data: {
-              start: this.start,
-              end: this.end,
-              resolution: this.resolution,
-              length: this.length,
-              flamegraph
+      const key = `${selectedUpid};${selectedTs}`;
+
+      // TODO(tneda): Prevent lots of flamegraph queries being queued if a user
+      // clicks lots of the markers quickly.
+      this.getFlamegraphData(key, selection.ts, selectedUpid)
+          .then(flamegraphData => {
+            if (flamegraphData !== undefined && selection &&
+                selection.kind === selectedKind &&
+                selection.id === selectedId && selection.ts === selectedTs) {
+              // TODO(tneda): Remove before submitting.
+              const mergedFlamegraphData = mergeCallsites(
+                  flamegraphData, getMinSizeDisplayed(flamegraphData));
+
+              globals.publish('TrackData', {
+                id: HeapProfileFlamegraphKey,
+                data: {
+                  start: this.start,
+                  end: this.end,
+                  resolution: this.resolution,
+                  length: this.length,
+                  flamegraph: mergedFlamegraphData
+                }
+              });
             }
           });
-        }
-      });
     }
   }
 
-  async getFlamegraphData(ts: number, upid: number) {
+  async getFlamegraphData(key: string, ts: number, upid: number) {
+    let currentData;
+    if (this.flamegraphDatasets.has(key)) {
+      currentData = this.flamegraphDatasets.get(key);
+    } else {
+      currentData = await this.getFlamegraphDataFromTables(ts, upid);
+      this.flamegraphDatasets.set(key, currentData);
+    }
+    return currentData;
+  }
+
+  async getFlamegraphDataFromTables(ts: number, upid: number) {
     // Collecting data for drawing flagraph for selected heap profile.
     // Data needs to be in following format:
     // id, name, parent_id, depth, total_size
@@ -169,8 +257,7 @@ class HeapProfileFlameraphTrackController extends
         from callsite_children
         group by hash
         order by depth, parent_hash, size desc, name`);
-
-    const flamegraphData: CallsiteInfo[] = new Array();
+    const flamegraphData: CallsiteInfo[] = [];
     for (let i = 0; i < callsites.numRecords; i++) {
       const hash = callsites.columns[0].longValues![i];
       const name = callsites.columns[1].stringValues![i];

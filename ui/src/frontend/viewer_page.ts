@@ -132,8 +132,7 @@ class TraceViewer implements m.ClassComponent {
     const frontendLocalState = globals.frontendLocalState;
     const updateDimensions = () => {
       const rect = vnode.dom.getBoundingClientRect();
-      frontendLocalState.timeScale.setLimitsPx(
-          0, rect.width - TRACK_SHELL_WIDTH);
+      frontendLocalState.updateResolution(0, rect.width - TRACK_SHELL_WIDTH);
     };
 
     updateDimensions();

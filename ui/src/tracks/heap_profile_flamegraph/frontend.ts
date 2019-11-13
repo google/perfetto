@@ -42,7 +42,7 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
 
   constructor(trackState: TrackState) {
     super(trackState);
-    this.flamegraph = new Flamegraph(new Array());
+    this.flamegraph = new Flamegraph([]);
     this.flamegraph.enableThumbnail(this.config.isMinimized);
   }
 
@@ -53,7 +53,7 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
   private changeFlamegraphData() {
     const data = this.data();
     if (data === undefined) {
-      this.flamegraph.updateDataIfChanged(new Array());
+      this.flamegraph.updateDataIfChanged([]);
     } else {
       this.flamegraph.updateDataIfChanged(data.flamegraph);
     }
