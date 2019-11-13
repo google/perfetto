@@ -17,7 +17,7 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-package foo.bar;
+package protozero.test.protos;
 
 import public "src/protozero/test/example_proto/library_internals/galaxies.proto";
 

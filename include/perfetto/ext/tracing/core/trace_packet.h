@@ -27,10 +27,6 @@
 
 namespace perfetto {
 
-namespace protos {
-class TracePacket;  // From protos/trace_packet.pb.h.
-}  // namespace protos
-
 // A wrapper around a byte buffer that contains a protobuf-encoded TracePacket
 // (see trace_packet.proto). The TracePacket is decoded only if the Consumer
 // requests that. This is to allow Consumer(s) to just stream the packet over

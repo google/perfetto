@@ -84,6 +84,11 @@ class Field {
     return static_cast<int32_t>(int_value_);
   }
 
+  int32_t as_sint32() const {
+    PERFETTO_DCHECK(!valid() || type() == proto_utils::ProtoWireType::kVarInt);
+    return proto_utils::ZigZagDecode(static_cast<uint32_t>(int_value_));
+  }
+
   uint64_t as_uint64() const {
     PERFETTO_DCHECK(!valid() || type() == proto_utils::ProtoWireType::kVarInt ||
                     type() == proto_utils::ProtoWireType::kFixed32 ||
@@ -96,6 +101,11 @@ class Field {
                     type() == proto_utils::ProtoWireType::kFixed32 ||
                     type() == proto_utils::ProtoWireType::kFixed64);
     return static_cast<int64_t>(int_value_);
+  }
+
+  int64_t as_sint64() const {
+    PERFETTO_DCHECK(!valid() || type() == proto_utils::ProtoWireType::kVarInt);
+    return proto_utils::ZigZagDecode(static_cast<uint64_t>(int_value_));
   }
 
   float as_float() const {
@@ -159,8 +169,18 @@ class Field {
   void get(int64_t* val) const { *val = as_int64(); }
   void get(float* val) const { *val = as_float(); }
   void get(double* val) const { *val = as_double(); }
+  void get(std::string* val) const { *val = as_std_string(); }
   void get(ConstChars* val) const { *val = as_string(); }
   void get(ConstBytes* val) const { *val = as_bytes(); }
+  void get_signed(int32_t* val) const { *val = as_sint32(); }
+  void get_signed(int64_t* val) const { *val = as_sint64(); }
+
+  // For enum types.
+  template <typename T,
+            typename = typename std::enable_if<std::is_enum<T>::value, T>::type>
+  void get(T* val) const {
+    *val = static_cast<T>(as_int32());
+  }
 
  private:
   // Fields are deliberately not initialized to keep the class trivially
