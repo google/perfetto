@@ -93,6 +93,28 @@ TEST(ProtoDecoderTest, SingleRepeatedField) {
   EXPECT_FALSE(++it);
 }
 
+TEST(ProtoDecoderTest, RepeatedVariableLengthField) {
+  HeapBuffered<Message> message;
+
+  static constexpr char kTestString[] = "test";
+  static constexpr char kTestString2[] = "honk honk";
+  message->AppendString(1, kTestString);
+  message->AppendString(1, kTestString2);
+  std::vector<uint8_t> proto = message.SerializeAsArray();
+  TypedProtoDecoder<32, false> decoder(proto.data(), proto.size());
+
+  auto it = decoder.GetRepeated<ConstChars>(1);
+  ASSERT_EQ(it->type(), ProtoWireType::kLengthDelimited);
+  ASSERT_EQ(it->size(), sizeof(kTestString) - 1);
+  ASSERT_EQ(it->as_std_string(), std::string(kTestString));
+  ASSERT_EQ((*it).ToStdString(), std::string(kTestString));
+  ++it;
+  ASSERT_EQ(it->type(), ProtoWireType::kLengthDelimited);
+  ASSERT_EQ(it->size(), sizeof(kTestString2) - 1);
+  ASSERT_EQ(it->as_std_string(), std::string(kTestString2));
+  ASSERT_EQ((*it).ToStdString(), std::string(kTestString2));
+}
+
 TEST(ProtoDecoderTest, SingleRepeatedFieldWithExpansion) {
   Message message;
   ScatteredHeapBuffer delegate(512, 512);
