@@ -351,6 +351,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   auto& cli_config = data_source.client_configuration;
   cli_config.interval = heapprofd_config.sampling_interval_bytes();
   cli_config.block_client = heapprofd_config.block_client();
+  cli_config.block_client_timeout_us =
+      heapprofd_config.block_client_timeout_us();
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();

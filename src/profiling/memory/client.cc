@@ -30,6 +30,7 @@
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
 
+#include <algorithm>
 #include <atomic>
 #include <new>
 
@@ -79,6 +80,17 @@ char* FindMainThreadStack() {
 int UnsetDumpable(int) {
   prctl(PR_SET_DUMPABLE, 0);
   return 0;
+}
+
+constexpr uint64_t kInfiniteTries = 0;
+
+uint64_t GetMaxTries(const ClientConfiguration& client_config) {
+  if (!client_config.block_client)
+    return 1u;
+  if (client_config.block_client_timeout_us == 0)
+    return kInfiniteTries;
+  return std::min<uint64_t>(
+      1ul, client_config.block_client_timeout_us / kResendBackoffUs);
 }
 
 }  // namespace
@@ -229,6 +241,7 @@ Client::Client(base::UnixSocketRaw sock,
                pid_t pid_at_creation,
                const char* main_thread_stack_base)
     : client_config_(client_config),
+      max_shmem_tries_(GetMaxTries(client_config_)),
       sampler_(std::move(sampler)),
       sock_(std::move(sock)),
       main_thread_stack_base_(main_thread_stack_base),
@@ -307,17 +320,19 @@ bool Client::RecordMalloc(uint64_t sample_size,
 }
 
 bool Client::SendWireMessageWithRetriesIfBlocking(const WireMessage& msg) {
-  for (;;) {
+  for (uint64_t i = 0;
+       max_shmem_tries_ == kInfiniteTries || i < max_shmem_tries_; ++i) {
     if (PERFETTO_LIKELY(SendWireMessage(&shmem_, msg)))
       return true;
     // retry if in blocking mode and still connected
     if (client_config_.block_client && base::IsAgain(errno) && IsConnected()) {
       usleep(kResendBackoffUs);
-      continue;
+    } else {
+      break;
     }
-    PERFETTO_PLOG("Failed to write to shared ring buffer. Disconnecting.");
-    return false;
   }
+  PERFETTO_PLOG("Failed to write to shared ring buffer. Disconnecting.");
+  return false;
 }
 
 bool Client::RecordFree(const uint64_t alloc_address) {
