@@ -20,10 +20,12 @@ import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
   AdbRecordingTarget,
+  getDefaultRecordingTargets,
+  isAdbTarget,
   isAndroidTarget,
   isChromeTarget,
   isLinuxTarget,
-  TargetOs
+  RecordingTarget
 } from '../common/state';
 import {MAX_TIME, RecordMode} from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
@@ -702,21 +704,20 @@ function RecordHeader() {
 function RecordingPlatformSelection() {
   if (globals.state.recordingInProgress) return [];
 
-  const baseTargets = [
-    m('option', {value: 'Q'}, 'Android Q+'),
-    m('option', {value: 'P'}, 'Android P'),
-    m('option', {value: 'O'}, 'Android O-'),
-    m('option', {value: 'C'}, 'Chrome'),
-    m('option', {value: 'L'}, 'Linux desktop')
-  ];
-  const availableAndroidDevices = globals.state.availableDevices;
-  const selected = globals.state.androidDeviceConnected;
-  const choices: m.Children[] =
-      availableAndroidDevices.map(d => m('option', {value: d.serial}, d.name));
+  const availableAndroidDevices = globals.state.availableAdbDevices;
+  const recordingTarget = globals.state.recordingTarget;
 
-  const selectedIndex = selected ? baseTargets.length +
-          availableAndroidDevices.findIndex(d => d.serial === selected.serial) :
-                                   0;
+  const targets = [];
+  for (const {os, name} of getDefaultRecordingTargets()) {
+    targets.push(m('option', {value: os}, name));
+  }
+  for (const d of availableAndroidDevices) {
+    targets.push(m('option', {value: d.serial}, d.name));
+  }
+
+  const selectedIndex = isAdbTarget(recordingTarget) ?
+      targets.findIndex(node => node.attrs.value === recordingTarget.serial) :
+      targets.findIndex(node => node.attrs.value === recordingTarget.os);
 
   return m(
       '.target',
@@ -725,8 +726,7 @@ function RecordingPlatformSelection() {
           'Target platform:',
           m('select',
             {onchange: m.withAttr('value', onTargetChange), selectedIndex},
-            ...baseTargets,
-            ...choices),
+            ...targets),
           ),
       m('.chip',
         {onclick: addAndroidDevice},
@@ -734,16 +734,13 @@ function RecordingPlatformSelection() {
         m('i.material-icons', 'add')));
 }
 
-// Target can be the targetOS or the android serial
+// |target| can be the TargetOs or the android serial.
 function onTargetChange(target: string) {
-  const adbDevice =
-      globals.state.availableDevices.find(d => d.serial === target);
-  globals.dispatch(Actions.setAndroidDevice({target: adbDevice}));
-
-  const traceCfg = produce(globals.state.recordConfig, draft => {
-    draft.targetOS = adbDevice ? adbDevice.os as TargetOs : target as TargetOs;
-  });
-  globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+  const recordingTarget: RecordingTarget =
+      globals.state.availableAdbDevices.find(d => d.serial === target) ||
+      getDefaultRecordingTargets().find(t => t.os === target) ||
+      getDefaultRecordingTargets()[0];
+  globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
   globals.rafScheduler.scheduleFullRedraw();
 }
 
@@ -805,7 +802,7 @@ function RecordingNotes() {
       output directory. `,
         doc);
 
-  switch (globals.state.recordConfig.targetOS) {
+  switch (globals.state.recordingTarget.os) {
     case 'Q':
       break;
     case 'P':
@@ -829,10 +826,10 @@ function RecordingNotes() {
 }
 
 function RecordingSnippet() {
-  const targetOs = globals.state.recordConfig.targetOS;
+  const target = globals.state.recordingTarget;
 
   // We don't need commands to start tracing on chrome
-  if (isChromeTarget(targetOs)) {
+  if (isChromeTarget(target)) {
     return globals.state.extensionInstalled ?
         m('div',
           m('label',
@@ -840,11 +837,10 @@ function RecordingSnippet() {
          'Start Recording'.`)) :
         [];
   }
-  return m(
-      CodeSnippet, {text: getRecordCommand(targetOs), hardWhitespace: true});
+  return m(CodeSnippet, {text: getRecordCommand(target), hardWhitespace: true});
 }
 
-function getRecordCommand(targetOs: TargetOs) {
+function getRecordCommand(target: RecordingTarget) {
   const data = globals.trackDataStore.get('config') as
           {commandline: string, pbtxt: string} |
       null;
@@ -864,8 +860,7 @@ function getRecordCommand(targetOs: TargetOs) {
     cmd += `(sleep 0.5 && adb shell screenrecord --time-limit ${time}`;
     cmd += ' "/sdcard/tracescr.mp4") &\\\n';
   }
-  cmd +=
-      isAndroidTarget(targetOs) ? 'adb shell perfetto \\\n' : 'perfetto \\\n';
+  cmd += isAndroidTarget(target) ? 'adb shell perfetto \\\n' : 'perfetto \\\n';
   cmd += '  -c - --txt \\\n';
   cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
   cmd += '<<EOF\n\n';
@@ -877,7 +872,7 @@ function getRecordCommand(targetOs: TargetOs) {
 
 function recordingButtons() {
   const state = globals.state;
-  const realDeviceTarget = state.androidDeviceConnected !== undefined;
+  const target = state.recordingTarget;
   const recInProgress = state.recordingInProgress;
 
   const start =
@@ -899,15 +894,14 @@ function recordingButtons() {
 
   const buttons: m.Children = [];
 
-  const targetOs = state.recordConfig.targetOS;
-  if (isAndroidTarget(targetOs)) {
+  if (isAndroidTarget(target)) {
     if (!recInProgress) {
       buttons.push(showCmd);
-      if (realDeviceTarget) buttons.push(start);
+      if (isAdbTarget(target)) buttons.push(start);
     }
-  } else if (isChromeTarget(targetOs) && state.extensionInstalled) {
+  } else if (isChromeTarget(target) && state.extensionInstalled) {
     buttons.push(start);
-  } else if (isLinuxTarget(targetOs)) {
+  } else if (isLinuxTarget(target)) {
     buttons.push(showCmd);
   }
 
@@ -934,8 +928,8 @@ function onStartRecordingPressed() {
   location.href = '#!/record?p=instructions';
   globals.rafScheduler.scheduleFullRedraw();
 
-  const targetOs = globals.state.recordConfig.targetOS;
-  if (isAndroidTarget(targetOs) || isChromeTarget(targetOs)) {
+  const target = globals.state.recordingTarget;
+  if (isAndroidTarget(target) || isChromeTarget(target)) {
     globals.dispatch(Actions.startRecording({}));
   }
 }
@@ -962,12 +956,19 @@ function recordingLog() {
 // be inserted in the state, and the worker will be able to connect to the
 // correct device.
 async function addAndroidDevice() {
-  const device = await new AdbOverWebUsb().findDevice();
+  let device: USBDevice;
+  try {
+    device = await new AdbOverWebUsb().findDevice();
+  } catch (e) {
+    console.error('No device found: ${e.name}: ${e.message}');
+    return;
+  }
 
   if (!device.serialNumber) {
     console.error('serial number undefined');
     return;
   }
+
   // After the user has selected a device with the chrome UI, it will be
   // available when listing all the available device from WebUSB. Therefore,
   // we update the list of available devices.
@@ -990,7 +991,8 @@ export async function updateAvailableAdbDevices() {
     }
   });
 
-  globals.dispatch(Actions.setAvailableDevices({devices: availableAdbDevices}));
+  globals.dispatch(
+      Actions.setAvailableAdbDevices({devices: availableAdbDevices}));
   selectAndroidDeviceIfAvailable(availableAdbDevices);
   globals.rafScheduler.scheduleFullRedraw();
   return availableAdbDevices;
@@ -998,26 +1000,32 @@ export async function updateAvailableAdbDevices() {
 
 function selectAndroidDeviceIfAvailable(
     availableAdbDevices: AdbRecordingTarget[]) {
-  // If there is an android device attached, but not selected, select it by
-  // default.
-  if (!globals.state.androidDeviceConnected && availableAdbDevices.length) {
+  const recordingTarget = globals.state.recordingTarget;
+  const deviceConnected = isAdbTarget(recordingTarget);
+  const connectedDeviceDisconnected = deviceConnected &&
+      availableAdbDevices.find(
+          e => e.serial === (recordingTarget as AdbRecordingTarget).serial) ===
+          undefined;
+
+  // If there is an android device attached, but not selected (or the currently
+  // selected device was disconnected), select it by default.
+  if ((!deviceConnected || connectedDeviceDisconnected) &&
+      availableAdbDevices.length) {
     globals.dispatch(
-        Actions.setAndroidDevice({target: availableAdbDevices[0]}));
+        Actions.setRecordingTarget({target: availableAdbDevices[0]}));
     return;
   }
 
-  // If a device was selected, but it's not available anymore, reset the
-  // androidConnectedDevice to null.
-  const deviceConnected = globals.state.androidDeviceConnected;
-  if (deviceConnected &&
-      availableAdbDevices.find(e => e.serial === deviceConnected.serial) ===
-          undefined) {
-    globals.dispatch(Actions.setAndroidDevice({target: undefined}));
+  // If the currently selected device was disconnected, reset the recording
+  // target to the default one.
+  if (connectedDeviceDisconnected) {
+    globals.dispatch(
+        Actions.setRecordingTarget({target: getDefaultRecordingTargets()[0]}));
   }
 }
 
 function recordMenu(routePage: string) {
-  const targetOS = globals.state.recordConfig.targetOS;
+  const target = globals.state.recordingTarget;
   const chromeProbe =
       m('a[href="#!/record?p=chrome"]',
         m(`li${routePage === 'chrome' ? '.active' : ''}`,
@@ -1045,7 +1053,7 @@ function recordMenu(routePage: string) {
             m('.title', 'Instructions'),
             m('.sub', 'Generate config and instructions')))),
       m('header', 'Probes'),
-      m('ul', isChromeTarget(targetOS) ? [chromeProbe] : [
+      m('ul', isChromeTarget(target) ? [chromeProbe] : [
         m('a[href="#!/record?p=cpu"]',
           m(`li${routePage === 'cpu' ? '.active' : ''}`,
             m('i.material-icons', 'subtitles'),

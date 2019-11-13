@@ -36,11 +36,11 @@ import {
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
   AdbRecordingTarget,
-  isAndroidTarget,
+  isAdbTarget,
   isChromeTarget,
   MAX_TIME,
   RecordConfig,
-  TargetOs
+  RecordingTarget
 } from '../common/state';
 
 import {AdbOverWebUsb} from './adb';
@@ -630,9 +630,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
   // - Android device target: WebUSB is used to communicate using the adb
   // protocol. Actually, there is no full consumer_port implementation, but
   // only the support to start tracing and fetch the file.
-  async getTargetController(target: TargetOs, device?: AdbRecordingTarget):
-      Promise<RpcConsumerPort> {
-    const identifier = this.getTargetIdentifier(target, device);
+  async getTargetController(target: RecordingTarget): Promise<RpcConsumerPort> {
+    const identifier = this.getTargetIdentifier(target);
 
     // The reason why caching the target 'record controller' Promise is that
     // multiple rcp calls can happen while we are trying to understand if an
@@ -646,16 +645,16 @@ export class RecordController extends Controller<'main'> implements Consumer {
           if (isChromeTarget(target)) {
             controller =
                 new ChromeExtensionConsumerPort(this.extensionPort, this);
-          } else if (isAndroidTarget(target)) {
-            if (!device) throw Error(`No android device connected`);
-
+          } else if (isAdbTarget(target)) {
             this.onStatus(`Please allow USB debugging on device.
                  If you press cancel, reload the page.`);
-            const socketAccess = await this.hasSocketAccess(device);
+            const socketAccess = await this.hasSocketAccess(target);
 
             controller = socketAccess ?
                 new AdbSocketConsumerPort(this.adb, this) :
                 new AdbConsumerPort(this.adb, this);
+          } else {
+            throw Error(`No device connected`);
           }
 
           if (!controller) throw Error(`Unknown target: ${target}`);
@@ -666,9 +665,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
     return controllerPromise;
   }
 
-  private getTargetIdentifier(target: TargetOs, device?: AdbRecordingTarget):
-      string {
-    return device ? device.serial : target;
+  private getTargetIdentifier(target: RecordingTarget): string {
+    return isAdbTarget(target) ? target.serial : target.os;
   }
 
   private async hasSocketAccess(target: AdbRecordingTarget) {
@@ -684,8 +682,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
       _callback: RPCImplCallback) {
     try {
       const state = this.app.state;
-      (await this.getTargetController(
-           state.recordConfig.targetOS, state.androidDeviceConnected))
+      (await this.getTargetController(state.recordingTarget))
           .handleCommand(method.name, requestData);
     } catch (e) {
       console.error(`error invoking ${method}: ${e.message}`);

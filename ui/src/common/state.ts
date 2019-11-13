@@ -178,10 +178,13 @@ export interface LogsPagination {
   count: number;
 }
 
-export interface AdbRecordingTarget {
-  serial: string;
+export interface RecordingTarget {
   name: string;
-  os: string;
+  os: TargetOs;
+}
+
+export interface AdbRecordingTarget extends RecordingTarget {
+  serial: string;
 }
 
 export interface State {
@@ -237,8 +240,8 @@ export interface State {
   recordingInProgress: boolean;
   recordingCancelled: boolean;
   extensionInstalled: boolean;
-  androidDeviceConnected?: AdbRecordingTarget;
-  availableDevices: AdbRecordingTarget[];
+  recordingTarget: RecordingTarget;
+  availableAdbDevices: AdbRecordingTarget[];
   lastRecordingError?: string;
   recordingStatus?: string;
 
@@ -256,23 +259,28 @@ export declare type RecordMode =
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
 export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L';
 
-export function isAndroidTarget(target: TargetOs) {
-  return ['Q', 'P', 'O'].includes(target);
+export function isAndroidTarget(target: RecordingTarget) {
+  return ['Q', 'P', 'O'].includes(target.os);
 }
 
-export function isChromeTarget(target: TargetOs) {
-  return target === 'C';
+export function isChromeTarget(target: RecordingTarget) {
+  return target.os === 'C';
 }
 
-export function isLinuxTarget(target: TargetOs) {
-  return target === 'L';
+export function isLinuxTarget(target: RecordingTarget) {
+  return target.os === 'L';
+}
+
+export function isAdbTarget(target: RecordingTarget):
+    target is AdbRecordingTarget {
+  if ((target as AdbRecordingTarget).serial) return true;
+  return false;
 }
 
 export interface RecordConfig {
   [key: string]: null|number|boolean|string|string[];
 
   // Global settings
-  targetOS: TargetOs;
   mode: RecordMode;
   durationMs: number;
   bufferSizeMb: number;
@@ -330,7 +338,6 @@ export interface RecordConfig {
 
 export function createEmptyRecordConfig(): RecordConfig {
   return {
-    targetOS: 'Q',
     mode: 'STOP_WHEN_FULL',
     durationMs: 10000.0,
     maxFileSizeMb: 100,
@@ -389,6 +396,16 @@ export function createEmptyRecordConfig(): RecordConfig {
   };
 }
 
+export function getDefaultRecordingTargets(): RecordingTarget[] {
+  return [
+    {os: 'Q', name: 'Android Q+'},
+    {os: 'P', name: 'Android P'},
+    {os: 'O', name: 'Android O-'},
+    {os: 'C', name: 'Chrome'},
+    {os: 'L', name: 'Linux desktop'}
+  ];
+}
+
 export function createEmptyState(): State {
   return {
     route: null,
@@ -443,8 +460,8 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
-    androidDeviceConnected: undefined,
-    availableDevices: [],
+    recordingTarget: getDefaultRecordingTargets()[0],
+    availableAdbDevices: [],
 
     chromeCategories: undefined,
   };

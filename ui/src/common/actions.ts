@@ -25,11 +25,11 @@ import {
   NewEngineMode,
   OmniboxState,
   RecordConfig,
+  RecordingTarget,
   SCROLLING_TRACK_GROUP,
   SelectedTimeRange,
   State,
   Status,
-  TargetOs,
   TraceSource,
   TraceTime,
   TrackState,
@@ -51,9 +51,9 @@ function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
   const route = state.route;
-  const androidDeviceConnected = state.androidDeviceConnected;
+  const recordingTarget = state.recordingTarget;
   const extensionInstalled = state.extensionInstalled;
-  const availableDevices = state.availableDevices;
+  const availableAdbDevices = state.availableAdbDevices;
   const chromeCategories = state.chromeCategories;
   const newEngineMode = state.newEngineMode;
 
@@ -61,9 +61,9 @@ function clearTraceState(state: StateDraft) {
   state.nextId = nextId;
   state.recordConfig = recordConfig;
   state.route = route;
-  state.androidDeviceConnected = androidDeviceConnected;
+  state.recordingTarget = recordingTarget;
   state.extensionInstalled = extensionInstalled;
-  state.availableDevices = availableDevices;
+  state.availableAdbDevices = availableAdbDevices;
   state.chromeCategories = chromeCategories;
   state.newEngineMode = newEngineMode;
 }
@@ -348,7 +348,7 @@ export const StateActions = {
     this.selectNote(state, {id});
   },
 
-  toggleVideo(state: StateDraft): void {
+  toggleVideo(state: StateDraft, _: {}): void {
     state.videoEnabled = !state.videoEnabled;
     if (!state.videoEnabled) {
       state.video = null;
@@ -360,13 +360,13 @@ export const StateActions = {
     }
   },
 
-  toggleFlagPause(state: StateDraft): void {
+  toggleFlagPause(state: StateDraft, _: {}): void {
     if (state.video != null) {
       state.flagPauseEnabled = !state.flagPauseEnabled;
     }
   },
 
-  toggleScrubbing(state: StateDraft): void {
+  toggleScrubbing(state: StateDraft, _: {}): void {
     if (state.video != null) {
       state.scrubbingEnabled = !state.scrubbingEnabled;
     }
@@ -476,17 +476,17 @@ export const StateActions = {
     state.logsPagination = args;
   },
 
-  startRecording(state: StateDraft): void {
+  startRecording(state: StateDraft, _: {}): void {
     state.recordingInProgress = true;
     state.lastRecordingError = undefined;
     state.recordingCancelled = false;
   },
 
-  stopRecording(state: StateDraft): void {
+  stopRecording(state: StateDraft, _: {}): void {
     state.recordingInProgress = false;
   },
 
-  cancelRecording(state: StateDraft): void {
+  cancelRecording(state: StateDraft, _: {}): void {
     state.recordingInProgress = false;
     state.recordingCancelled = true;
   },
@@ -499,17 +499,14 @@ export const StateActions = {
     state.bufferUsage = args.percentage;
   },
 
-  setAndroidDevice(state: StateDraft, args: {target?: AdbRecordingTarget}):
-      void {
-        state.recordConfig.targetOS =
-            args.target ? args.target.os as TargetOs : 'Q';
-        state.androidDeviceConnected = args.target;
-      },
+  setRecordingTarget(state: StateDraft, args: {target: RecordingTarget}): void {
+    state.recordingTarget = args.target;
+  },
 
-  setAvailableDevices(state: StateDraft, args: {devices: AdbRecordingTarget[]}):
-      void {
-        state.availableDevices = args.devices;
-      },
+  setAvailableAdbDevices(
+      state: StateDraft, args: {devices: AdbRecordingTarget[]}): void {
+    state.availableAdbDevices = args.devices;
+  },
 
   setOmnibox(state: StateDraft, args: OmniboxState): void {
     state.frontendLocalState.omniboxState = args;
