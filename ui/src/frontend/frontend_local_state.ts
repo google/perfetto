@@ -270,4 +270,10 @@ export class FrontendLocalState {
     this._visibleState.resolution = globals.getCurResolution();
     this.ratelimitedUpdateVisible();
   }
+
+  updateResolution(pxStart: number, pxEnd: number) {
+    this.timeScale.setLimitsPx(pxStart, pxEnd);
+    this._visibleState.resolution = globals.getCurResolution();
+    this.ratelimitedUpdateVisible();
+  }
 }
