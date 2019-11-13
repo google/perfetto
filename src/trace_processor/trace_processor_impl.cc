@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/trace_processor_impl.h"
 
-#include <cxxabi.h>
 #include <inttypes.h>
 #include <algorithm>
 
@@ -55,6 +54,10 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include "src/trace_processor/export_json.h"
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <cxxabi.h>
 #endif
 
 // In Android and Chromium tree builds, we don't have the percentile module.
@@ -283,6 +286,7 @@ void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
   const char* ptr = reinterpret_cast<const char*>(sqlite3_value_text(value));
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   int ignored = 0;
   // This memory was allocated by malloc and will be passed to SQLite to free.
   char* demangled_name = abi::__cxa_demangle(ptr, nullptr, nullptr, &ignored);
@@ -291,6 +295,9 @@ void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
   sqlite3_result_text(ctx, demangled_name, -1, free);
+#else
+  sqlite3_result_text(ctx, ptr, -1, sqlite_utils::kSqliteTransient);
+#endif
 }
 
 void CreateHashFunction(sqlite3* db) {
