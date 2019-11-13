@@ -43,8 +43,11 @@ namespace protozero {
 class ProtoDecoder {
  public:
   // Creates a ProtoDecoder using the given |buffer| with size |length| bytes.
-  ProtoDecoder(const uint8_t* buffer, size_t length)
-      : begin_(buffer), end_(buffer + length), read_ptr_(buffer) {}
+  ProtoDecoder(const void* buffer, size_t length)
+      : begin_(reinterpret_cast<const uint8_t*>(buffer)),
+        end_(begin_ + length),
+        read_ptr_(begin_) {}
+  ProtoDecoder(const std::string& str) : ProtoDecoder(str.data(), str.size()) {}
   ProtoDecoder(const ConstBytes& cb) : ProtoDecoder(cb.data, cb.size) {}
 
   // Reads the next field from the buffer and advances the read cursor. If a

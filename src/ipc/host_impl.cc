@@ -126,13 +126,12 @@ void HostImpl::OnDataAvailable(base::UnixSocket* sock) {
 
 void HostImpl::OnReceivedFrame(ClientConnection* client,
                                const Frame& req_frame) {
-  if (req_frame.msg_case() == Frame::kMsgBindService)
+  if (req_frame.has_msg_bind_service())
     return OnBindService(client, req_frame);
-  if (req_frame.msg_case() == Frame::kMsgInvokeMethod)
+  if (req_frame.has_msg_invoke_method())
     return OnInvokeMethod(client, req_frame);
 
-  PERFETTO_DLOG("Received invalid RPC frame %u from client %" PRIu64,
-                req_frame.msg_case(), client->id);
+  PERFETTO_DLOG("Received invalid RPC frame from client %" PRIu64, client->id);
   Frame reply_frame;
   reply_frame.set_request_id(req_frame.request_id());
   reply_frame.mutable_msg_request_error()->set_error("unknown request");

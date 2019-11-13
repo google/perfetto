@@ -139,16 +139,16 @@ class FakeClient : public base::UnixSocket::EventListener {
     while (std::unique_ptr<Frame> frame = frame_deserializer_.PopNextFrame()) {
       ASSERT_EQ(1u, requests_.count(frame->request_id()));
       EXPECT_EQ(0, requests_[frame->request_id()]++);
-      if (frame->msg_case() == Frame::kMsgBindServiceReply) {
+      if (frame->has_msg_bind_service_reply()) {
         if (frame->msg_bind_service_reply().success())
           last_bound_service_id_ = frame->msg_bind_service_reply().service_id();
         return OnServiceBound(frame->msg_bind_service_reply());
       }
-      if (frame->msg_case() == Frame::kMsgInvokeMethodReply)
+      if (frame->has_msg_invoke_method_reply())
         return OnInvokeMethodReply(frame->msg_invoke_method_reply());
-      if (frame->msg_case() == Frame::kMsgRequestError)
+      if (frame->has_msg_request_error())
         return OnRequestError();
-      FAIL() << "Unexpected frame received from host " << frame->msg_case();
+      FAIL() << "Unexpected frame received from host";
     }
   }
 

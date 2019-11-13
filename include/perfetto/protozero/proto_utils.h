@@ -158,6 +158,15 @@ inline typename std::make_unsigned<T>::type ZigZagEncode(T value) {
          static_cast<UnsignedType>(value >> (sizeof(T) * 8 - 1));
 }
 
+// Proto types: sint64, sint32.
+template <typename T>
+inline typename std::make_signed<T>::type ZigZagDecode(T value) {
+  using UnsignedType = typename std::make_unsigned<T>::type;
+  auto u_value = static_cast<UnsignedType>(value);
+  return static_cast<typename std::make_signed<T>::type>(
+      ((u_value >> 1) ^ -(u_value & 1)));
+}
+
 template <typename T>
 inline uint8_t* WriteVarInt(T value, uint8_t* target) {
   // If value is <= 0 we must first sign extend to int64_t (see [1]).
