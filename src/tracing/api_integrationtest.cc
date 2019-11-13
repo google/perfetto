@@ -311,6 +311,74 @@ class PerfettoApiTest : public ::testing::Test {
     return log_messages;
   }
 
+  std::vector<std::string> ReadSlicesFromTrace(
+      perfetto::TracingSession* tracing_session) {
+    std::vector<char> raw_trace = tracing_session->ReadTraceBlocking();
+    EXPECT_GE(raw_trace.size(), 0u);
+
+    // Read back the trace, maintaining interning tables as we go.
+    std::vector<std::string> slices;
+    std::map<uint64_t, std::string> categories;
+    std::map<uint64_t, std::string> event_names;
+    perfetto::protos::Trace parsed_trace;
+    EXPECT_TRUE(
+        parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+
+    bool incremental_state_was_cleared = false;
+    uint32_t sequence_id = 0;
+    for (const auto& packet : parsed_trace.packet()) {
+      if (packet.incremental_state_cleared()) {
+        incremental_state_was_cleared = true;
+        categories.clear();
+        event_names.clear();
+      }
+
+      if (!packet.has_track_event())
+        continue;
+
+      // Make sure we only see track events on one sequence.
+      if (packet.trusted_packet_sequence_id()) {
+        if (!sequence_id)
+          sequence_id = packet.trusted_packet_sequence_id();
+        EXPECT_EQ(sequence_id, packet.trusted_packet_sequence_id());
+      }
+
+      // Update incremental state.
+      if (packet.has_interned_data()) {
+        const auto& interned_data = packet.interned_data();
+        for (const auto& it : interned_data.event_categories()) {
+          EXPECT_EQ(categories.find(it.iid()), categories.end());
+          categories[it.iid()] = it.name();
+        }
+        for (const auto& it : interned_data.event_names()) {
+          EXPECT_EQ(event_names.find(it.iid()), event_names.end());
+          event_names[it.iid()] = it.name();
+        }
+      }
+      const auto& track_event = packet.track_event();
+      std::string slice;
+      switch (track_event.type()) {
+        case perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN:
+          slice += "B";
+          break;
+        case perfetto::protos::TrackEvent::TYPE_SLICE_END:
+          slice += "E";
+          break;
+        case perfetto::protos::TrackEvent::TYPE_INSTANT:
+          slice += "I";
+          break;
+        default:
+        case perfetto::protos::TrackEvent::TYPE_UNSPECIFIED:
+          EXPECT_FALSE(track_event.type());
+      }
+      slice += ":" + categories[track_event.category_iids().Get(0)] + "." +
+               event_names[track_event.name_iid()];
+      slices.push_back(slice);
+    }
+    EXPECT_TRUE(incremental_state_was_cleared);
+    return slices;
+  }
+
   std::map<std::string, TestDataSourceHandle> data_sources_;
   std::list<TestTracingSessionHandle> sessions_;  // Needs stable pointers.
 };
@@ -992,6 +1060,42 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningComplexValue) {
   auto log_messages = ReadLogMessagesFromTrace(tracing_session->get());
   EXPECT_THAT(log_messages,
               ElementsAre("SomeFunction(file.cc:123): To be, or not to be"));
+}
+
+TEST_F(PerfettoApiTest, TrackEventScoped) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("test");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  {
+    uint64_t arg = 123;
+    TRACE_EVENT("test", "TestEventWithArgs",
+                [&](perfetto::TrackEventContext ctx) {
+                  ctx.track_event()->set_log_message()->set_body_iid(arg);
+                });
+  }
+
+  {
+    // Make sure you can have multiple scoped events in the same scope.
+    TRACE_EVENT("test", "TestEvent");
+    TRACE_EVENT("test", "AnotherEvent");
+    TRACE_EVENT("foo", "DisabledEvent");
+  }
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.TestEventWithArgs", "E:test.",
+                                  "B:test.TestEvent", "B:test.AnotherEvent",
+                                  "E:test.", "E:test."));
 }
 
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
