@@ -116,6 +116,7 @@ class RepeatedFieldIterator {
     iter_->get(&val);
     return val;
   }
+  const Field* operator->() const { return iter_; }
 
   RepeatedFieldIterator& operator++() {
     PERFETTO_DCHECK(iter_ != end_);
