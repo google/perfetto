@@ -274,10 +274,11 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
         protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
-  } else if (auto ts_absolute_field =
-                 event_decoder.FindField(kTimestampAbsoluteUsFieldNumber)) {
+  } else if (int64_t ts_absolute_us =
+                 event_decoder.FindField(kTimestampAbsoluteUsFieldNumber)
+                     .as_int64()) {
     // One-off absolute timestamps don't affect delta computation.
-    timestamp = ts_absolute_field.as_int64() * 1000;
+    timestamp = ts_absolute_us * 1000;
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
@@ -285,10 +286,10 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
         protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
-  } else if (packet_decoder.has_timestamp()) {
+  } else if (packet_decoder.timestamp()) {
     timestamp = packet_timestamp;
   } else {
-    PERFETTO_ELOG("TrackEvent without timestamp");
+    PERFETTO_ELOG("TrackEvent without valid timestamp");
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return;
   }
