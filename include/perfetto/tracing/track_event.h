@@ -152,10 +152,16 @@
     } finalizer;                                       \
   } PERFETTO_INTERNAL_UID(scoped_event)
 
+// Emit a thread-scoped slice which has zero duration.
+// TODO(skyostil): Add support for process-wide and global instant events.
+#define TRACE_EVENT_INSTANT(category, name, ...)                            \
+  PERFETTO_INTERNAL_TRACK_EVENT(                                            \
+      category, name, ::perfetto::protos::pbzero::TrackEvent::TYPE_INSTANT, \
+      ##__VA_ARGS__)
+
 // TODO(skyostil): Add arguments.
 // TODO(skyostil): Add async events.
 // TODO(skyostil): Add flow events.
-// TODO(skyostil): Add instant events.
 // TODO(skyostil): Add counters.
 
 #endif  // INCLUDE_PERFETTO_TRACING_TRACK_EVENT_H_
