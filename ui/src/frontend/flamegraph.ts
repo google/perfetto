@@ -34,6 +34,16 @@ const NODE_HEIGHT_DEFAULT = 15;
 export const HEAP_PROFILE_COLOR = 'hsl(224, 45%, 70%)';
 export const HEAP_PROFILE_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
+export function findRootSize(data: CallsiteInfo[]) {
+  let totalSize = 0;
+  let i = 0;
+  while (i < data.length && data[i].depth === 0) {
+    totalSize += data[i].totalSize;
+    i++;
+  }
+  return totalSize;
+}
+
 export class Flamegraph {
   private isThumbnail = false;
   private flamegraphData: CallsiteInfo[];
@@ -62,16 +72,6 @@ export class Flamegraph {
 
   private findMaxDepth() {
     this.maxDepth = Math.max(...this.flamegraphData.map(value => value.depth));
-  }
-
-  private findTotalSize() {
-    let totalSize = 0;
-    this.flamegraphData.forEach((value: CallsiteInfo) => {
-      if (value.parentHash === -1) {
-        totalSize += value.totalSize;
-      }
-    });
-    return totalSize;
   }
 
   hash(s: string): number {
@@ -109,7 +109,7 @@ export class Flamegraph {
     this.clickedCallsite = undefined;
     this.findMaxDepth();
     // Finding total size of roots.
-    this.totalSize = this.findTotalSize();
+    this.totalSize = findRootSize(flamegraphData);
   }
 
   draw(
