@@ -14,6 +14,7 @@
 
 import {extractDurationFromTraceConfig} from '../base/extract_utils';
 import {extractTraceConfig} from '../base/extract_utils';
+import {isAdbTarget} from '../common/state';
 
 import {Adb} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
@@ -55,8 +56,9 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
         this.device = await this.findDevice();
         if (!this.device) {
           this.state = AdbAuthState.DISCONNECTED;
+          const target = globals.state.recordingTarget;
           throw Error(`Device with serial ${
-              globals.state.serialAndroidDeviceConnected} not found.`);
+              isAdbTarget(target) ? target.serial : 'n/a'} not found.`);
         }
 
         this.sendStatus(`Please allow USB debugging on device.
@@ -110,9 +112,9 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
   }
 
   async findDevice(): Promise<USBDevice|undefined> {
-    const deviceConnected = globals.state.androidDeviceConnected;
-    if (!deviceConnected) return undefined;
+    const connectedDevice = globals.state.recordingTarget;
+    if (!isAdbTarget(connectedDevice)) return undefined;
     const devices = await navigator.usb.getDevices();
-    return devices.find(d => d.serialNumber === deviceConnected.serial);
+    return devices.find(d => d.serialNumber === connectedDevice.serial);
   }
 }
