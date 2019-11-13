@@ -69,4 +69,11 @@ void FunctionWithOneTrackEventWithTypedArgument() {
   puts("Hello");
 }
 
+void FunctionWithOneScopedTrackEvent() {
+  TRACE_EVENT("cat1", "ScopedEventFromModule");
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
 }  // namespace tracing_module
