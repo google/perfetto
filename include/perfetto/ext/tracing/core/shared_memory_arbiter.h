@@ -34,7 +34,6 @@ namespace base {
 class TaskRunner;
 }
 
-class CommitDataRequest;
 class StartupTraceWriter;
 class StartupTraceWriterRegistry;
 class SharedMemory;

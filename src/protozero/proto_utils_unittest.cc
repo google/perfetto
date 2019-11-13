@@ -103,6 +103,14 @@ TEST(ProtoUtilsTest, ZigZagEncoding) {
             ZigZagEncode(std::numeric_limits<int32_t>::min()));
   EXPECT_EQ(std::numeric_limits<uint64_t>::max(),
             ZigZagEncode(std::numeric_limits<int64_t>::min()));
+
+  EXPECT_EQ(0, ZigZagDecode(ZigZagEncode(0)));
+  EXPECT_EQ(-1, ZigZagDecode(ZigZagEncode(-1)));
+  EXPECT_EQ(1, ZigZagDecode(ZigZagEncode(1)));
+  EXPECT_EQ(-127, ZigZagDecode(ZigZagEncode(-127)));
+  EXPECT_EQ(0x7fffffff, ZigZagDecode(ZigZagEncode(0x7fffffff)));
+  EXPECT_EQ(9000000000, ZigZagDecode(ZigZagEncode(9000000000)));
+  EXPECT_EQ(-9000000000, ZigZagDecode(ZigZagEncode(-9000000000)));
 }
 
 TEST(ProtoUtilsTest, VarIntEncoding) {
