@@ -227,6 +227,7 @@ if (build_with_chromium) {
       "protos/perfetto/trace/interned_data:zero",
       "protos/perfetto/trace/profiling:zero",
       "protos/perfetto/trace/track_event:zero",
+      "src/tracing:sliced_protobuf_input_stream",
     ]
   }
   if (enable_perfetto_trace_processor_sqlite) {
