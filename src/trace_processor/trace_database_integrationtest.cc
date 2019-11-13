@@ -108,7 +108,12 @@ TEST_F(TraceProcessorIntegrationTest, Hash) {
   ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xa9cb070fdc15f7a4));
 }
 
-TEST_F(TraceProcessorIntegrationTest, Demangle) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define MAYBE_Demangle DISABLED_Demangle
+#else
+#define MAYBE_Demangle Demangle
+#endif
+TEST_F(TraceProcessorIntegrationTest, MAYBE_Demangle) {
   auto it = Query("select DEMANGLE('_Znwm')");
   ASSERT_TRUE(it.Next());
   ASSERT_STRCASEEQ(it.Get(0).string_value, "operator new(unsigned long)");
