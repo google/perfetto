@@ -105,6 +105,7 @@ class Client {
   bool IsConnected();
 
   ClientConfiguration client_config_;
+  uint64_t max_shmem_tries_;
   // sampler_ operations are not thread-safe.
   Sampler sampler_;
   base::UnixSocketRaw sock_;

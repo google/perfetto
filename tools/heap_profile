@@ -188,6 +188,11 @@ def main(argv):
       "This is the default",
       action="store_true")
   parser.add_argument(
+      "--block-client-timeout",
+      help="If --block-client is given, do not block any allocation for "
+      "longer than this timeout (us).",
+      type=int)
+  parser.add_argument(
       "--no-block-client",
       help="When buffer is full, stop the "
       "profile early.",
@@ -245,6 +250,8 @@ def main(argv):
   target_cfg = ""
   if not args.no_block_client:
     target_cfg += "block_client: true\n"
+  if args.block_client_timeout:
+    target_cfg += "block_client_timeout_us: %s\n" % args.block_client_timeout
   if args.idle_allocations:
     target_cfg += "idle_allocations: true\n"
   if args.no_startup:

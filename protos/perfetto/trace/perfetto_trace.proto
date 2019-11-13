@@ -5018,6 +5018,10 @@ message HeapprofdConfig {
   // process.
   optional bool block_client = 9;
 
+  // If set, stop the trace session after blocking the client for this
+  // timeout. Needs to be larger than 100 us, otherwise no retries are done.
+  optional uint32 block_client_timeout_us = 14;
+
   // Do not profile processes from startup, only match already running
   // processes.
   //
