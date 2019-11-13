@@ -141,7 +141,7 @@ class FakeHost : public base::UnixSocket::EventListener {
   }
 
   void OnFrameReceived(const Frame& req) {
-    if (req.msg_case() == Frame::kMsgBindService) {
+    if (req.has_msg_bind_service()) {
       auto svc_it = services.find(req.msg_bind_service().service_name());
       ASSERT_NE(services.end(), svc_it);
       const FakeService& svc = *svc_it->second;
@@ -155,7 +155,7 @@ class FakeHost : public base::UnixSocket::EventListener {
         method->set_id(method_it.second->id);
       }
       Reply(reply);
-    } else if (req.msg_case() == Frame::kMsgInvokeMethod) {
+    } else if (req.has_msg_invoke_method()) {
       // Lookup the service and method.
       bool has_more = false;
       do {

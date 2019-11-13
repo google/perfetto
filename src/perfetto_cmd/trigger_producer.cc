@@ -25,8 +25,6 @@
 
 namespace perfetto {
 
-class DataSourceConfig;
-
 TriggerProducer::TriggerProducer(base::TaskRunner* task_runner,
                                  std::function<void(bool)> callback,
                                  const std::vector<std::string>* const triggers)

@@ -23,6 +23,7 @@
 #include <google/protobuf/compiler/code_generator.h>
 #include <google/protobuf/compiler/plugin.h>
 #include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
 #include <google/protobuf/io/printer.h>
 #include <google/protobuf/io/zero_copy_stream.h>
 
@@ -429,7 +430,7 @@ class GeneratorJob {
   void GeneratePackedRepeatedFieldDescriptor(const FieldDescriptor* field) {
     std::map<std::string, std::string> setter;
     setter["id"] = std::to_string(field->number());
-    setter["name"] = field->name();
+    setter["name"] = field->lowercase_name();
     setter["action"] = "set";
     setter["buffer_type"] = FieldTypeToPackedBufferType(field->type());
     stub_h_->Print(
@@ -442,11 +443,15 @@ class GeneratorJob {
   void GenerateSimpleFieldDescriptor(const FieldDescriptor* field) {
     std::map<std::string, std::string> setter;
     setter["id"] = std::to_string(field->number());
-    setter["name"] = field->name();
+    setter["name"] = field->lowercase_name();
     setter["action"] = field->is_repeated() ? "add" : "set";
 
     std::string appender;
     std::string cpp_type;
+    const char* code_stub =
+        "void $action$_$name$($cpp_type$ value) {\n"
+        "  $appender$($id$, value);\n"
+        "}\n";
 
     switch (field->type()) {
       case FieldDescriptor::TYPE_BOOL: {
@@ -519,18 +524,21 @@ class GeneratorJob {
         cpp_type = GetCppClassName(field->enum_type(), true);
         break;
       }
-      case FieldDescriptor::TYPE_STRING: {
-        appender = "AppendString";
-        cpp_type = "const char*";
-        break;
-      }
+      case FieldDescriptor::TYPE_STRING:
       case FieldDescriptor::TYPE_BYTES: {
-        stub_h_->Print(
-            setter,
-            "void $action$_$name$(const uint8_t* data, size_t size) {\n"
+        if (field->type() == FieldDescriptor::TYPE_STRING) {
+          cpp_type = "const char*";
+        } else {
+          cpp_type = "const uint8_t*";
+        }
+        code_stub =
+            "void $action$_$name$(const std::string& value) {\n"
+            "  AppendBytes($id$, value.data(), value.size());\n"
+            "}\n"
+            "void $action$_$name$($cpp_type$ data, size_t size) {\n"
             "  AppendBytes($id$, data, size);\n"
-            "}\n");
-        return;
+            "}\n";
+        break;
       }
       case FieldDescriptor::TYPE_GROUP:
       case FieldDescriptor::TYPE_MESSAGE: {
@@ -540,20 +548,7 @@ class GeneratorJob {
     }
     setter["appender"] = appender;
     setter["cpp_type"] = cpp_type;
-    stub_h_->Print(setter,
-                   "void $action$_$name$($cpp_type$ value) {\n"
-                   "  $appender$($id$, value);\n"
-                   "}\n");
-
-    // For strings also generate a variant for non-null terminated strings.
-    if (field->type() == FieldDescriptor::TYPE_STRING) {
-      stub_h_->Print(setter,
-                     "// Doesn't check for null terminator.\n"
-                     "// Expects |value| to be at least |size| long.\n"
-                     "void $action$_$name$($cpp_type$ value, size_t size) {\n"
-                     "  AppendBytes($id$, value, size);\n"
-                     "}\n");
-    }
+    stub_h_->Print(setter, code_stub);
   }
 
   void GenerateNestedMessageFieldDescriptor(const FieldDescriptor* field) {
@@ -563,8 +558,17 @@ class GeneratorJob {
         "template <typename T = $inner_class$> T* $action$_$name$() {\n"
         "  return BeginNestedMessage<T>($id$);\n"
         "}\n\n",
-        "id", std::to_string(field->number()), "name", field->name(), "action",
-        action, "inner_class", inner_class);
+        "id", std::to_string(field->number()), "name", field->lowercase_name(),
+        "action", action, "inner_class", inner_class);
+    if (field->options().lazy()) {
+      stub_h_->Print(
+          "void $action$_$name$_raw(const std::string& raw) {\n"
+          "  return AppendBytes($id$, raw.data(), raw.size());\n"
+          "}\n\n",
+          "id", std::to_string(field->number()), "name",
+          field->lowercase_name(), "action", action, "inner_class",
+          inner_class);
+    }
   }
 
   void GenerateDecoder(const Descriptor* message) {
@@ -664,7 +668,7 @@ class GeneratorJob {
       }
 
       stub_h_->Print("bool has_$name$() const { return at<$id$>().valid(); }\n",
-                     "name", field->name(), "id",
+                     "name", field->lowercase_name(), "id",
                      std::to_string(field->number()));
 
       if (field->is_packed()) {
@@ -676,19 +680,20 @@ class GeneratorJob {
             "GetPackedRepeated<$wire_type$, $cpp_type$>($id$, "
             "parse_error_ptr); }\n",
             "wire_type", protozero_wire_type, "cpp_type", cpp_type, "name",
-            field->name(), "id", std::to_string(field->number()));
+            field->lowercase_name(), "id", std::to_string(field->number()));
       } else if (field->is_repeated()) {
         stub_h_->Print(
             "::protozero::RepeatedFieldIterator<$cpp_type$> $name$() const { "
             "return "
             "GetRepeated<$cpp_type$>($id$); }\n",
-            "name", field->name(), "cpp_type", cpp_type, "id",
+            "name", field->lowercase_name(), "cpp_type", cpp_type, "id",
             std::to_string(field->number()));
       } else {
         stub_h_->Print(
             "$cpp_type$ $name$() const { return at<$id$>().$getter$(); }\n",
-            "name", field->name(), "id", std::to_string(field->number()),
-            "cpp_type", cpp_type, "getter", getter);
+            "name", field->lowercase_name(), "id",
+            std::to_string(field->number()), "cpp_type", cpp_type, "getter",
+            getter);
       }
     }
     stub_h_->Outdent();

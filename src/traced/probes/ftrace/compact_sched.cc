@@ -23,6 +23,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/traced/probes/ftrace/event_info_constants.h"
+#include "src/traced/probes/ftrace/ftrace_config_utils.h"
 
 namespace perfetto {
 

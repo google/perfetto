@@ -27,7 +27,6 @@
 
 namespace perfetto {
 
-class DataSourceConfig;
 class TraceWriter;
 namespace base {
 class TaskRunner;
