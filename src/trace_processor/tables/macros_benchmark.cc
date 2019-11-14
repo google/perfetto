@@ -107,8 +107,7 @@ static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 1024;
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::minstd_rand0 rnd_engine;
   for (uint32_t i = 0; i < size; ++i) {
     RootTestTable::Row row(static_cast<uint32_t>(rnd_engine() % partitions));
     root.Insert(row);
@@ -130,8 +129,7 @@ static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 512;
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::minstd_rand0 rnd_engine;
   for (uint32_t i = 0; i < size; ++i) {
     uint32_t value = rnd_engine() % partitions;
 
@@ -158,8 +156,7 @@ static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 1024;
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::minstd_rand0 rnd_engine;
   for (uint32_t i = 0; i < size; ++i) {
     ChildTestTable::Row row;
     row.child_non_null = static_cast<uint32_t>(rnd_engine() % partitions);
@@ -184,8 +181,7 @@ static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 512;
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::minstd_rand0 rnd_engine;
   for (uint32_t i = 0; i < size; ++i) {
     uint32_t value = rnd_engine() % partitions;
 
@@ -214,8 +210,7 @@ static void BM_TableFilterChildNonNullEqMatchManyInParent(
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 1024;
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::minstd_rand0 rnd_engine;
   for (uint32_t i = 0; i < size; ++i) {
     ChildTestTable::Row row;
     row.root_non_null = static_cast<uint32_t>(rnd_engine() % partitions);
@@ -241,8 +236,7 @@ static void BM_TableFilterChildNullableEqMatchManyInParent(
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 512;
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::minstd_rand0 rnd_engine;
   for (uint32_t i = 0; i < size; ++i) {
     ChildTestTable::Row row;
     row.root_nullable = static_cast<uint32_t>(rnd_engine() % partitions);
@@ -265,8 +259,6 @@ static void BM_TableFilterParentSortedEq(benchmark::State& state) {
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
   for (uint32_t i = 0; i < size; ++i) {
     RootTestTable::Row row;
     row.root_sorted = i * 2;
@@ -289,8 +281,6 @@ static void BM_TableFilterChildSortedEq(benchmark::State& state) {
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
   for (uint32_t i = 0; i < size; ++i) {
     ChildTestTable::Row row;
     row.child_sorted = i * 2;
@@ -314,12 +304,10 @@ static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
-  constexpr uint32_t kRandomSeed = 42;
-  std::minstd_rand0 rnd_engine(kRandomSeed);
   for (uint32_t i = 0; i < size; ++i) {
     RootTestTable::Row root_row;
     root_row.root_sorted = i * 4;
-    root.Insert({});
+    root.Insert(root_row);
 
     ChildTestTable::Row row;
     row.root_sorted = i * 4 + 2;
@@ -334,3 +322,113 @@ static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
 BENCHMARK(BM_TableFilterChildSortedEqInParent)
     ->RangeMultiplier(8)
     ->Range(1024, 2 * 1024 * 1024);
+
+static void BM_TableSortRootNonNull(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  std::minstd_rand0 rnd_engine;
+  for (uint32_t i = 0; i < size; ++i) {
+    const uint32_t root_value = static_cast<uint32_t>(rnd_engine());
+
+    RootTestTable::Row row;
+    row.root_non_null = root_value;
+    root.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Sort({root.root_non_null().ascending()}));
+  }
+}
+BENCHMARK(BM_TableSortRootNonNull)->RangeMultiplier(8)->Range(1024, 256 * 1024);
+
+static void BM_TableSortRootNullable(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  std::minstd_rand0 rnd_engine;
+  for (uint32_t i = 0; i < size; ++i) {
+    const uint32_t root_value = static_cast<uint32_t>(rnd_engine());
+
+    RootTestTable::Row row;
+    row.root_nullable = root_value % 2 == 0
+                            ? perfetto::base::nullopt
+                            : perfetto::base::make_optional(root_value);
+    root.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Sort({root.root_nullable().ascending()}));
+  }
+}
+BENCHMARK(BM_TableSortRootNullable)
+    ->RangeMultiplier(8)
+    ->Range(1024, 256 * 1024);
+
+static void BM_TableSortChildNonNullInParent(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  std::minstd_rand0 rnd_engine;
+  for (uint32_t i = 0; i < size; ++i) {
+    const uint32_t root_value = static_cast<uint32_t>(rnd_engine());
+
+    RootTestTable::Row root_row;
+    root_row.root_non_null = root_value;
+    root.Insert(root_row);
+
+    const uint32_t child_value = static_cast<uint32_t>(rnd_engine());
+
+    ChildTestTable::Row child_row;
+    child_row.root_non_null = child_value;
+    child.Insert(child_row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(child.Sort({child.root_non_null().ascending()}));
+  }
+}
+BENCHMARK(BM_TableSortChildNonNullInParent)
+    ->RangeMultiplier(8)
+    ->Range(1024, 256 * 1024);
+
+static void BM_TableSortChildNullableInParent(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  std::minstd_rand0 rnd_engine;
+  for (uint32_t i = 0; i < size; ++i) {
+    const uint32_t root_value = static_cast<uint32_t>(rnd_engine());
+
+    RootTestTable::Row root_row;
+    root_row.root_nullable = root_value % 2 == 0
+                                 ? perfetto::base::nullopt
+                                 : perfetto::base::make_optional(root_value);
+    root.Insert(root_row);
+
+    const uint32_t child_value = static_cast<uint32_t>(rnd_engine());
+
+    ChildTestTable::Row child_row;
+    child_row.root_nullable = child_value % 2 == 0
+                                  ? perfetto::base::nullopt
+                                  : perfetto::base::make_optional(child_value);
+    child.Insert(child_row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(child.Sort({child.root_nullable().ascending()}));
+  }
+}
+BENCHMARK(BM_TableSortChildNullableInParent)
+    ->RangeMultiplier(8)
+    ->Range(1024, 256 * 1024);
