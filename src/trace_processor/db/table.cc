@@ -116,6 +116,15 @@ Table Table::Sort(const std::vector<Order>& od) const {
     table.row_maps_.emplace_back(map.SelectRows(rm));
     PERFETTO_DCHECK(table.row_maps_.back().size() == table.size());
   }
+
+  // Remove the sorted flag from all the columns.
+  for (auto& col : table.columns_) {
+    col.flags_ &= ~Column::Flag::kSorted;
+  }
+
+  // For the first order by, make the column flag itself as sorted.
+  table.columns_[od.front().col_idx].flags_ |= Column::Flag::kSorted;
+
   return table;
 }
 
