@@ -105,6 +105,9 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
 
+  // Scans /proc/pid/status and writes the ProcessTree packet for input pids.
+  void WriteProcessTree(const std::vector<int32_t>& pids);
+
   // Read and "latch" the current procfs scan-start timestamp, which
   // we reset only in FinalizeCurPacket.
   uint64_t CacheProcFsScanStartTimestamp();
