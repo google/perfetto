@@ -171,9 +171,14 @@ void ProcessStatsDataSource::WriteAllProcesses() {
 }
 
 void ProcessStatsDataSource::OnPids(const std::vector<int32_t>& pids) {
-  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_ON_PIDS);
   if (!enable_on_demand_dumps_)
     return;
+  WriteProcessTree(pids);
+}
+
+void ProcessStatsDataSource::WriteProcessTree(
+    const std::vector<int32_t>& pids) {
+  PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_ON_PIDS);
   PERFETTO_DCHECK(!cur_ps_tree_);
   int pids_scanned = 0;
   for (int32_t pid : pids) {
@@ -414,7 +419,7 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
 
   // Ensure that we write once long-term process info (e.g., name) for new pids
   // that we haven't seen before.
-  OnPids(pids);
+  WriteProcessTree(pids);
 }
 
 // Returns true if the stats for the given |pid| have been written, false it
