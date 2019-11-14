@@ -46,8 +46,8 @@ export interface CounterDetails {
 }
 
 export interface CallsiteInfo {
-  hash: number;
-  parentHash: number;
+  id: number;
+  parentId: number;
   depth: number;
   name?: string;
   totalSize: number;

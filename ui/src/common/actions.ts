@@ -436,7 +436,7 @@ export const StateActions = {
       kind: 'HEAP_PROFILE_FLAMEGRAPH',
       id: args.id,
       upid: args.upid,
-      ts: args.ts
+      ts: args.ts,
     };
   },
 
