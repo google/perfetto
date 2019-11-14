@@ -20,9 +20,13 @@ export const HeapProfileFlamegraphKey = 'heap-profile-flamegraph';
 
 export interface Data extends TrackData {
   flamegraph: CallsiteInfo[];
+  clickedCallsite?: CallsiteInfo;
+  key: string;
 }
 
 export interface Config {
   upid: number;
+  ts: number;
   isMinimized: boolean;
+  expandedId: number;
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Actions} from '../../common/actions';
 import {globals} from '../../controller/globals';
 import {
   TrackController,
@@ -29,6 +30,34 @@ import {
 
 const MIN_PIXEL_DISPLAYED = 1;
 
+export function expandCallsites(
+    data: CallsiteInfo[], clickedCallsiteIndex: number): CallsiteInfo[] {
+  if (clickedCallsiteIndex === -1) return data;
+  const expandedCallsites: CallsiteInfo[] = [];
+  if (clickedCallsiteIndex >= data.length || clickedCallsiteIndex < -1) {
+    return expandedCallsites;
+  }
+  const clickedCallsite = data[clickedCallsiteIndex];
+  expandedCallsites.unshift(clickedCallsite);
+  // Adding parents
+  let parentId = clickedCallsite.parentId;
+  while (parentId > -1) {
+    expandedCallsites.unshift(data[parentId]);
+    parentId = data[parentId].parentId;
+  }
+  // Adding children
+  const parents: number[] = [];
+  parents.push(clickedCallsiteIndex);
+  for (let i = clickedCallsiteIndex + 1; i < data.length; i++) {
+    const element = data[i];
+    if (parents.includes(element.parentId)) {
+      expandedCallsites.push(element);
+      parents.push(element.id);
+    }
+  }
+  return expandedCallsites;
+}
+
 // Merge callsites that have approximately width less than
 // MIN_PIXEL_DISPLAYED. All small callsites in the same depth and with same
 // parent will be merged to one callsite with size of the biggest merged
@@ -40,11 +69,11 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
     // When a small callsite is found, it will be merged with other small
     // callsites of the same depth. So if the current callsite has already been
     // merged we can skip it.
-    if (mergedCallsites.has(data[i].hash)) {
+    if (mergedCallsites.has(data[i].id)) {
       continue;
     }
     const copiedCallsite = copyCallsite(data[i]);
-    copiedCallsite.parentHash =
+    copiedCallsite.parentId =
         getCallsitesParentHash(copiedCallsite, mergedCallsites);
 
     // If current callsite is small, find other small callsites with same depth
@@ -53,11 +82,11 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
       let j = i + 1;
       let nextCallsite = data[j];
       while (j < data.length && copiedCallsite.depth === nextCallsite.depth) {
-        if (copiedCallsite.parentHash ===
+        if (copiedCallsite.parentId ===
                 getCallsitesParentHash(nextCallsite, mergedCallsites) &&
             nextCallsite.totalSize <= minSizeDisplayed) {
           copiedCallsite.totalSize += nextCallsite.totalSize;
-          mergedCallsites.set(nextCallsite.hash, copiedCallsite.hash);
+          mergedCallsites.set(nextCallsite.id, copiedCallsite.id);
         }
         j++;
         nextCallsite = data[j];
@@ -70,8 +99,8 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
 
 function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
   return {
-    hash: callsite.hash,
-    parentHash: callsite.parentHash,
+    id: callsite.id,
+    parentId: callsite.parentId,
     depth: callsite.depth,
     name: callsite.name,
     totalSize: callsite.totalSize
@@ -80,17 +109,21 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
 
 function getCallsitesParentHash(
     callsite: CallsiteInfo, map: Map<number, number>): number {
-  return map.has(callsite.parentHash) ? map.get(callsite.parentHash)! :
-                                        callsite.parentHash;
+  return map.has(callsite.parentId) ? map.get(callsite.parentId)! :
+                                      callsite.parentId;
 }
 
-function getMinSizeDisplayed(flamegraphData: CallsiteInfo[]): number {
+function getMinSizeDisplayed(
+    flamegraphData: CallsiteInfo[], rootSize?: number): number {
   const timeState = globals.state.frontendLocalState.visibleState;
   const width = (timeState.endSec - timeState.startSec) / timeState.resolution;
-  const rootSize = findRootSize(flamegraphData);
+  if (rootSize === undefined) {
+    rootSize = findRootSize(flamegraphData);
+  }
   return MIN_PIXEL_DISPLAYED * rootSize / width;
 }
 
+const EMPTY_KEY = 'empty';
 class HeapProfileFlameraphTrackController extends
     TrackController<Config, Data> {
   static readonly kind = HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND;
@@ -100,6 +133,7 @@ class HeapProfileFlameraphTrackController extends
   private length = 0;
   private lastSelectedTs?: number;
   private lastSelectedId?: number;
+  private lastExpandedId?: number;
 
   private flamegraphDatasets: Map<string, CallsiteInfo[]> = new Map();
 
@@ -118,65 +152,106 @@ class HeapProfileFlameraphTrackController extends
       end: -1,
       resolution: this.resolution,
       length: 0,
-      flamegraph: []
+      flamegraph: [],
+      key: EMPTY_KEY
     };
     return data;
   }
 
   run() {
-    super.run();
     const selection = globals.state.currentHeapProfileFlamegraph;
+
     if (selection && selection.kind === 'HEAP_PROFILE_FLAMEGRAPH') {
-      if (this.lastSelectedId === selection.id &&
-          this.lastSelectedTs === selection.ts) {
-        return;
+      if (this.lastSelectedId !== selection.id ||
+          this.lastSelectedTs !== selection.ts) {
+        const selectedId = selection.id;
+        const selectedUpid = selection.upid;
+        const selectedKind = selection.kind;
+        const selectedTs = selection.ts;
+        // If we opened new heap profile, we don't want to show it expanded, but
+        // if we are opening trace for the first time with existing state (ie.
+        // via link), we want to show it expanded.
+        this.lastExpandedId = !this.lastSelectedTs && this.config.expandedId ?
+            this.config.expandedId :
+            -1;
+        this.lastSelectedId = selection.id;
+        this.lastSelectedTs = selection.ts;
+
+        this.config.ts = selectedTs;
+        this.config.upid = selectedUpid;
+        this.config.expandedId = this.lastExpandedId;
+
+        const key = `${selectedUpid};${selectedTs}`;
+
+        // TODO(tneda): Prevent lots of flamegraph queries being queued if a
+        // user clicks lots of the markers quickly.
+        this.getFlamegraphData(key, selection.ts, selectedUpid)
+            .then(flamegraphData => {
+              if (flamegraphData !== undefined && selection &&
+                  selection.kind === selectedKind &&
+                  selection.id === selectedId && selection.ts === selectedTs) {
+                this.prepareAndMergeCallsites(flamegraphData, key);
+                globals.dispatch(Actions.updateTrackConfig(
+                    {id: this.trackState.id, config: this.config}));
+              }
+            });
+      } else if (this.config.expandedId !== this.lastExpandedId) {
+        const key = `${this.config.upid};${this.lastSelectedTs}`;
+        this.lastExpandedId = this.config.expandedId;
+        this.getFlamegraphData(key, this.lastSelectedTs, this.config.upid)
+            .then(flamegraphData => {
+              this.prepareAndMergeCallsites(flamegraphData, key);
+            });
       }
-      const selectedId = selection.id;
-      const selectedUpid = selection.upid;
-      const selectedKind = selection.kind;
-      const selectedTs = selection.ts;
-      this.lastSelectedId = selection.id;
-      this.lastSelectedTs = selection.ts;
-
-      // Sending empty data to show tha Loading state before we get an actual
-      // data.
+    } else {
       globals.publish(
-          'TrackData',
-          {id: HeapProfileFlamegraphKey, data: this.generateEmptyData()});
-
-      const key = `${selectedUpid};${selectedTs}`;
-
-      // TODO(tneda): Prevent lots of flamegraph queries being queued if a user
-      // clicks lots of the markers quickly.
-      this.getFlamegraphData(key, selection.ts, selectedUpid)
-          .then(flamegraphData => {
-            if (flamegraphData !== undefined && selection &&
-                selection.kind === selectedKind &&
-                selection.id === selectedId && selection.ts === selectedTs) {
-              // TODO(tneda): Remove before submitting.
-              const mergedFlamegraphData = mergeCallsites(
-                  flamegraphData, getMinSizeDisplayed(flamegraphData));
-
-              globals.publish('TrackData', {
-                id: HeapProfileFlamegraphKey,
-                data: {
-                  start: this.start,
-                  end: this.end,
-                  resolution: this.resolution,
-                  length: this.length,
-                  flamegraph: mergedFlamegraphData
-                }
-              });
-            }
-          });
+          'TrackData', {id: HeapProfileFlamegraphKey, data: undefined});
     }
   }
 
-  async getFlamegraphData(key: string, ts: number, upid: number) {
+  private publishEmptyData() {
+    globals.publish(
+        'TrackData',
+        {id: HeapProfileFlamegraphKey, data: this.generateEmptyData()});
+  }
+
+  private prepareAndMergeCallsites(
+      flamegraphData: CallsiteInfo[], key: string) {
+    const expandedFlamegraphData =
+        expandCallsites(flamegraphData, this.config.expandedId);
+    const expandedCallsite = this.config.expandedId === -1 ?
+        undefined :
+        flamegraphData[this.config.expandedId];
+
+    const rootSize =
+        expandedCallsite === undefined ? undefined : expandedCallsite.totalSize;
+    const mergedFlamegraphData = mergeCallsites(
+        expandedFlamegraphData,
+        getMinSizeDisplayed(expandedFlamegraphData, rootSize));
+
+    globals.publish('TrackData', {
+      id: HeapProfileFlamegraphKey,
+      data: {
+        start: this.start,
+        end: this.end,
+        resolution: this.resolution,
+        length: this.length,
+        flamegraph: mergedFlamegraphData,
+        key,
+        clickedCallsite: expandedCallsite
+      }
+    });
+  }
+
+  async getFlamegraphData(key: string, ts: number, upid: number):
+      Promise<CallsiteInfo[]> {
     let currentData;
     if (this.flamegraphDatasets.has(key)) {
-      currentData = this.flamegraphDatasets.get(key);
+      currentData = this.flamegraphDatasets.get(key)!;
     } else {
+      // Sending empty data to show Loading state before we get an actual
+      // data.
+      this.publishEmptyData();
       currentData = await this.getFlamegraphDataFromTables(ts, upid);
       this.flamegraphDatasets.set(key, currentData);
     }
@@ -258,19 +333,21 @@ class HeapProfileFlameraphTrackController extends
         group by hash
         order by depth, parent_hash, size desc, name`);
     const flamegraphData: CallsiteInfo[] = [];
+    const hashToindex: Map<number, number> = new Map();
     for (let i = 0; i < callsites.numRecords; i++) {
       const hash = callsites.columns[0].longValues![i];
       const name = callsites.columns[1].stringValues![i];
       const parentHash = callsites.columns[2].longValues![i];
       const depth = callsites.columns[3].longValues![i];
       const totalSize = callsites.columns[4].longValues![i];
-      flamegraphData.push({
-        hash: +hash,
-        totalSize: +totalSize,
-        depth: +depth,
-        parentHash: +parentHash,
-        name
-      });
+      const parentId =
+          hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
+      hashToindex.set(+hash, i);
+      // Instead of hash, we will store index of callsite in this original array
+      // as an id of callsite. That way, we have quicker access to parent and it
+      // will stay unique.
+      flamegraphData.push(
+          {id: i, totalSize: +totalSize, depth: +depth, parentId, name});
     }
     return flamegraphData;
   }
