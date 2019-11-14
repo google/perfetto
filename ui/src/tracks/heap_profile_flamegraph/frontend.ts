@@ -55,7 +55,8 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
     if (data === undefined) {
       this.flamegraph.updateDataIfChanged([]);
     } else {
-      this.flamegraph.updateDataIfChanged(data.flamegraph);
+      this.flamegraph.updateDataIfChanged(
+          data.flamegraph, data.clickedCallsite);
     }
   }
 
@@ -97,7 +98,9 @@ export class HeapProfileFlamegraphTrack extends Track<Config, Data> {
   }
 
   onMouseClick({x, y}: {x: number, y: number}): boolean {
-    this.flamegraph.onMouseClick({x, y});
+    this.config.expandedId = this.flamegraph.onMouseClick({x, y});
+    globals.dispatch(Actions.updateTrackConfig(
+        {id: this.trackState.id, config: this.config}));
     return true;
   }
 
