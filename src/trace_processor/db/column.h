@@ -145,8 +145,9 @@ class Column {
   // Updates the given RowMap by only keeping rows where this column meets the
   // given filter constraint.
   void FilterInto(FilterOp op, SqlValue value, RowMap* rm) const {
-    // TODO(lalitm): add special logic here to deal with kId and kSorted flags.
     if (IsId() && op == FilterOp::kEq) {
+      // If this is an equality constraint on an id column, try and find the
+      // single row with the id (if it exists).
       auto opt_idx = IndexOf(value);
       if (opt_idx) {
         rm->Intersect(RowMap::SingleRow(*opt_idx));
@@ -155,6 +156,48 @@ class Column {
       }
       return;
     }
+
+    if (IsSorted() && value.type == type()) {
+      // If the column is sorted and the value has the same type as the column,
+      // we should be able to just do a binary search to find the range of rows
+      // instead of a full table scan.
+      const Iterator b(this, 0);
+      const Iterator e(this, row_map().size());
+      switch (op) {
+        case FilterOp::kEq: {
+          uint32_t beg = std::distance(b, std::lower_bound(b, e, value));
+          uint32_t end = std::distance(b, std::upper_bound(b, e, value));
+          rm->Intersect(RowMap(beg, end));
+          return;
+        }
+        case FilterOp::kLe: {
+          uint32_t end = std::distance(b, std::upper_bound(b, e, value));
+          rm->Intersect(RowMap(0, end));
+          return;
+        }
+        case FilterOp::kLt: {
+          uint32_t end = std::distance(b, std::lower_bound(b, e, value));
+          rm->Intersect(RowMap(0, end));
+          return;
+        }
+        case FilterOp::kGe: {
+          uint32_t beg = std::distance(b, std::lower_bound(b, e, value));
+          rm->Intersect(RowMap(beg, row_map().size()));
+          return;
+        }
+        case FilterOp::kGt: {
+          uint32_t beg = std::distance(b, std::upper_bound(b, e, value));
+          rm->Intersect(RowMap(beg, row_map().size()));
+          return;
+        }
+        case FilterOp::kNe:
+        case FilterOp::kIsNull:
+        case FilterOp::kIsNotNull:
+        case FilterOp::kLike:
+          break;
+      }
+    }
+
     switch (type_) {
       case ColumnType::kInt32: {
         if (IsNullable()) {
@@ -275,6 +318,49 @@ class Column {
 
     // Types generated on the fly.
     kId,
+  };
+
+  // Iterator over a column which conforms to std iterator interface
+  // to allow using std algorithms (e.g. upper_bound, lower_bound etc.).
+  class Iterator {
+   public:
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = SqlValue;
+    using difference_type = uint32_t;
+    using pointer = uint32_t*;
+    using reference = uint32_t&;
+
+    Iterator(const Column* col, uint32_t row) : col_(col), row_(row) {}
+
+    Iterator(const Iterator&) = default;
+    Iterator& operator=(const Iterator&) = default;
+
+    bool operator==(const Iterator& other) const { return other.row_ == row_; }
+    bool operator!=(const Iterator& other) const { return !(*this == other); }
+    bool operator<(const Iterator& other) const { return other.row_ < row_; }
+    bool operator>(const Iterator& other) const { return other < *this; }
+    bool operator<=(const Iterator& other) const { return !(other < *this); }
+    bool operator>=(const Iterator& other) const { return !(*this < other); }
+
+    SqlValue operator*() const { return col_->Get(row_); }
+    Iterator& operator++() {
+      row_++;
+      return *this;
+    }
+    Iterator& operator--() {
+      row_--;
+      return *this;
+    }
+
+    Iterator& operator+=(uint32_t diff) {
+      row_ += diff;
+      return *this;
+    }
+    uint32_t operator-(const Iterator& other) { return row_ - other.row_; }
+
+   private:
+    const Column* col_ = nullptr;
+    uint32_t row_ = 0;
   };
 
   friend class Table;
