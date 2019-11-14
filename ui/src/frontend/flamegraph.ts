@@ -59,12 +59,6 @@ export class Flamegraph {
   private hoveredCallsite?: CallsiteInfo;
   private clickedCallsite?: CallsiteInfo;
 
-  // For each node, we use this map to get information about it's parent
-  // (total size of it, width and where it starts in graph) so we can
-  // calculate it's own position in graph.
-  // This one is store for base flamegraph when no clicking has happend.
-  private baseMap = new Map<number, Node>();
-
   constructor(flamegraphData: CallsiteInfo[]) {
     this.flamegraphData = flamegraphData;
     this.findMaxDepth();
@@ -101,12 +95,13 @@ export class Flamegraph {
    * Caller will have to call draw method ater updating data to have updated
    * graph.
    */
-  updateDataIfChanged(flamegraphData: CallsiteInfo[]) {
+  updateDataIfChanged(
+      flamegraphData: CallsiteInfo[], clickedCallsite?: CallsiteInfo) {
     if (this.flamegraphData === flamegraphData) {
       return;
     }
     this.flamegraphData = flamegraphData;
-    this.clickedCallsite = undefined;
+    this.clickedCallsite = clickedCallsite;
     this.findMaxDepth();
     // Finding total size of roots.
     this.totalSize = findRootSize(flamegraphData);
@@ -139,43 +134,24 @@ export class Flamegraph {
     ctx.fillRect(x, currentY, width, nodeHeight);
     currentY += nodeHeight;
 
-    const clickedNode = this.clickedCallsite !== undefined ?
-        this.baseMap.get(this.clickedCallsite.hash) :
-        undefined;
 
     for (let i = 0; i < this.flamegraphData.length; i++) {
       if (currentY > height) {
         break;
       }
       const value = this.flamegraphData[i];
-      const parentNode = nodesMap.get(value.parentHash);
+      const parentNode = nodesMap.get(value.parentId);
       if (parentNode === undefined) {
         continue;
       }
-      // If node is clicked, determine if we should draw current node.
-      let shouldDraw = true;
-      let isFullWidth = false;
-      let isGreyedOut = false;
 
-      const oldNode = this.baseMap.get(value.hash);
-      // We want to display full shape if it's thumbnail.
-      if (!this.isThumbnail && clickedNode !== undefined &&
-          this.clickedCallsite !== undefined && oldNode !== undefined) {
-        isFullWidth = value.depth <= this.clickedCallsite.depth;
-        isGreyedOut = value.depth < this.clickedCallsite.depth;
-        shouldDraw = isFullWidth ? (oldNode.x <= clickedNode.x) &&
-                ((oldNode.x + oldNode.width >=
-                  clickedNode.x + clickedNode.width)) :
-                                   (oldNode.x >= clickedNode.x) &&
-                ((oldNode.x + oldNode.width <=
-                  clickedNode.x + clickedNode.width));
-      }
+      const isClicked = !this.isThumbnail && this.clickedCallsite !== undefined;
+      const isFullWidth =
+          isClicked && value.depth <= this.clickedCallsite!.depth;
+      const isGreyedOut =
+          isClicked && value.depth < this.clickedCallsite!.depth;
 
-      if (!shouldDraw) {
-        continue;
-      }
-
-      const parent = value.parentHash;
+      const parent = value.parentId;
       const parentSize = parent === -1 ? this.totalSize : parentNode.size;
       // Calculate node's width based on its proportion in parent.
       const width =
@@ -189,14 +165,14 @@ export class Flamegraph {
       ctx.fillRect(currentX, currentY, width, nodeHeight);
 
       // Set current node's data in map for children to use.
-      nodesMap.set(value.hash, {
+      nodesMap.set(value.id, {
         width,
         nextXForChildren: currentX,
         size: value.totalSize,
         x: currentX
       });
       // Update next x coordinate in parent.
-      nodesMap.set(value.parentHash, {
+      nodesMap.set(value.parentId, {
         width: parentNode.width,
         nextXForChildren: currentX + width,
         size: parentNode.size,
@@ -239,10 +215,6 @@ export class Flamegraph {
       } else {
         xStarts.push(currentX);
       }
-    }
-
-    if (clickedNode === undefined) {
-      this.baseMap = nodesMap;
     }
 
     if (this.hoveredX > -1 && this.hoveredY > -1 && this.hoveredCallsite) {
@@ -288,12 +260,13 @@ export class Flamegraph {
     this.hoveredCallsite = undefined;
   }
 
-  onMouseClick({x, y}: {x: number, y: number}) {
+  // Returns id of clicked callsite if any.
+  onMouseClick({x, y}: {x: number, y: number}): number {
     if (this.isThumbnail) {
-      return true;
+      return -1;
     }
-    this.clickedCallsite = this.findSelectedCallsite(x, y);
-    return this.clickedCallsite !== undefined;
+    const clickedCallsite = this.findSelectedCallsite(x, y);
+    return clickedCallsite === undefined ? -1 : clickedCallsite.id;
   }
 
   private findSelectedCallsite(x: number, y: number): CallsiteInfo|undefined {
