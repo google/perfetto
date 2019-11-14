@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
 
-#include <deque>
-
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_storage.h"
 
@@ -27,12 +25,12 @@
 namespace perfetto {
 namespace trace_processor {
 
+using protos::pbzero::VulkanMemoryEvent;
+
 class TraceProcessorContext;
 
 class VulkanMemoryTracker {
  public:
-  using SourceStringId = uint64_t;
-
   explicit VulkanMemoryTracker(TraceProcessorContext* context);
   ~VulkanMemoryTracker() = default;
 
@@ -50,14 +48,23 @@ class VulkanMemoryTracker {
                          decoder->str().size));
   }
 
-  StringId FindSourceString(SourceStringId);
-  StringId FindTypeString(SourceStringId);
+  StringId FindSourceString(VulkanMemoryEvent::Source);
+  StringId FindOperationString(VulkanMemoryEvent::Operation);
+  StringId FindAllocationScopeString(VulkanMemoryEvent::AllocationScope);
+  StringId FindAllocationScopeCounterString(VulkanMemoryEvent::AllocationScope);
+  StringId FindMemoryTypeCounterString(uint32_t /*memory_type*/);
 
  private:
   TraceProcessorContext* const context_;
 
-  std::unordered_map<SourceStringId, StringId> source_string_map_;
-  std::unordered_map<SourceStringId, StringId> type_string_map_;
+  const std::string vulkan_driver_memory_counter_str_;
+  const std::string vulkan_device_memory_counter_str_;
+  std::vector<StringId> source_strs_id_;
+  std::vector<StringId> operation_strs_id_;
+  std::vector<StringId> scope_strs_id_;
+  std::vector<StringId> scope_counter_strs_id_;
+  std::unordered_map<uint32_t /*memory_type*/, StringId>
+      memory_type_counter_string_map_;
 
   void SetupSourceAndTypeInternedStrings();
 };

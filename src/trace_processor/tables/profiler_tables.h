@@ -77,11 +77,13 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);
   C(base::Optional<uint32_t>, upid)                                \
   C(base::Optional<int64_t>, device)                               \
   C(base::Optional<int64_t>, device_memory)                        \
+  C(base::Optional<uint32_t>, memory_type)                         \
   C(base::Optional<uint32_t>, heap)                                \
   C(base::Optional<StringPool::Id>, function_name)                 \
   C(base::Optional<int64_t>, object_handle)                        \
   C(base::Optional<int64_t>, memory_address)                       \
   C(base::Optional<int64_t>, memory_size)                          \
+  C(StringPool::Id, scope)                                         \
   C(base::Optional<uint32_t>, arg_set_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_VULKAN_MEMORY_ALLOCATIONS_DEF);

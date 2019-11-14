@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/vulkan_memory_tracker.h"
 
+#include <string>
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -26,90 +27,73 @@ namespace perfetto {
 namespace trace_processor {
 
 VulkanMemoryTracker::VulkanMemoryTracker(TraceProcessorContext* context)
-    : context_(context) {
+    : context_(context),
+      vulkan_driver_memory_counter_str_("vulkan.mem.driver.scope."),
+      vulkan_device_memory_counter_str_("vulkan.mem.device.memory.type.") {
   SetupSourceAndTypeInternedStrings();
 }
 
 void VulkanMemoryTracker::SetupSourceAndTypeInternedStrings() {
-  // It seems a good idea to have the source and type of the event coded as
-  // a string id inside the Perfetto db instead of having the enum value
-  // stored. However, it seems that Perfetto only allows protobufs which are
-  // optimized for LITE_RUNTIME (removing the line results in link errors).
-  // Apparently, there is also a minimal implementation of protobuf descriptor
-  // in the code base, but it does not have the reflection to retrieve the name
-  // of the enum. More investigation is required to resolve this.
-
-  // TODO (zakerinasab): Fix and uncomment the following code to avoid
-  // hardcoding the interned strings for the source and type of memory events.
-  // const protos::pbzero::EnumDescriptor* source_descriptor =
-  //     protos::pbzero::VulkanMemoryEvent::Source_descriptor();
-  // for (int i = 0; i < source_descriptor->value_count(); i++) {
-  //   auto source_enum = source_descriptor->value(i);
-  //   auto source_str = source_enum->name();
-  //   auto str_id = context_->storage->InternString(
-  //       base::StringView(source_str.c_str(), source_str.length()));
-  //   source_string_map_.emplace(source_enum->number(), str_id);
-  // }
-
-  // const protos::pbzero::EnumDescriptor* type_descriptor =
-  //     protos::pbzero::VulkanMemoryEvent::Type_descriptor();
-  // for (int i = 0; i < type_descriptor->value_count(); i++) {
-  //   auto type_enum = type_descriptor->value(i);
-  //   auto type_str = type_enum->name();
-  //   auto str_id = context_->storage->InternString(
-  //       base::StringView(type_str.c_str(), type_str.length()));
-  //   type_string_map_.emplace(type_enum->number(), str_id);
-  // }
-
-  std::unordered_map<int, std::string> event_sources({
-      {0, "UNKNOWN_SOURCE"},
-      {1, "DEVICE"},
-      {2, "HOST"},
-      {3, "GPU_DEVICE_MEMORY"},
-      {4, "GPU_BUFFER"},
-      {5, "GPU_IMAGE"},
-  });
-  for (const auto& source : event_sources) {
-    source_string_map_.emplace(
-        source.first, context_->storage->InternString(base::StringView(
-                          source.second.c_str(), source.second.length())));
+  const std::vector<std::string> event_sources = {
+      "UNSPECIFIED",       "DRIVER",     "DEVICE",
+      "GPU_DEVICE_MEMORY", "GPU_BUFFER", "GPU_IMAGE"};
+  for (size_t i = 0; i < event_sources.size(); i++) {
+    source_strs_id_.emplace_back(context_->storage->InternString(
+        base::StringView(event_sources[i].c_str(), event_sources[i].length())));
   }
 
-  std::unordered_map<int, std::string> event_types({
-      {0, "UNKNOWN_TYPE"},
-      {1, "CREATE"},
-      {2, "DESTROY"},
-      {3, "BIND"},
-      {4, "DESTROY_BOUND"},
-      {5, "ANNOTATIONS"},
-  });
-  for (const auto& type : event_types) {
-    type_string_map_.emplace(type.first,
-                             context_->storage->InternString(base::StringView(
-                                 type.second.c_str(), type.second.length())));
+  const std::vector<std::string> event_operations = {
+      "UNSPECIFIED", "CREATE",        "DESTROY",
+      "BIND",        "DESTROY_BOUND", "ANNOTATIONS"};
+  for (size_t i = 0; i < event_operations.size(); i++) {
+    operation_strs_id_.emplace_back(
+        context_->storage->InternString(base::StringView(
+            event_operations[i].c_str(), event_operations[i].length())));
+  }
+
+  const std::vector<std::string> event_scopes = {
+      "UNSPECIFIED", "COMMAND", "OBJECT", "CACHE", "DEVICE", "INSTANCE"};
+  for (size_t i = 0; i < event_scopes.size(); i++) {
+    scope_strs_id_.emplace_back(context_->storage->InternString(
+        base::StringView(event_scopes[i].c_str(), event_scopes[i].length())));
+    auto scope_counter_str =
+        vulkan_driver_memory_counter_str_ + event_scopes[i];
+    scope_counter_strs_id_.emplace_back(
+        context_->storage->InternString(base::StringView(
+            scope_counter_str.c_str(), scope_counter_str.length())));
   }
 }
 
 StringId VulkanMemoryTracker::FindSourceString(
-    SourceStringId source) {
-  StringId res = kNullStringId;
-  auto it = source_string_map_.find(source);
-  if (it == source_string_map_.end()) {
-    context_->storage->IncrementStats(
-        stats::vulkan_allocations_invalid_string_id);
-    return res;
-  }
-  res = it->second;
-  return res;
+    VulkanMemoryEvent::Source source) {
+  return source_strs_id_[static_cast<size_t>(source)];
 }
 
-StringId VulkanMemoryTracker::FindTypeString(
-    SourceStringId type) {
+StringId VulkanMemoryTracker::FindOperationString(
+    VulkanMemoryEvent::Operation operation) {
+  return operation_strs_id_[static_cast<size_t>(operation)];
+}
+
+StringId VulkanMemoryTracker::FindAllocationScopeString(
+    VulkanMemoryEvent::AllocationScope scope) {
+  return scope_strs_id_[static_cast<size_t>(scope)];
+}
+
+StringId VulkanMemoryTracker::FindAllocationScopeCounterString(
+    VulkanMemoryEvent::AllocationScope scope) {
+  return scope_counter_strs_id_[static_cast<size_t>(scope)];
+}
+
+StringId VulkanMemoryTracker::FindMemoryTypeCounterString(
+    uint32_t memory_type) {
   StringId res = kNullStringId;
-  auto it = type_string_map_.find(type);
-  if (it == type_string_map_.end()) {
-    context_->storage->IncrementStats(
-        stats::vulkan_allocations_invalid_string_id);
+  auto it = memory_type_counter_string_map_.find(memory_type);
+  if (it == memory_type_counter_string_map_.end()) {
+    auto type_counter_str =
+        vulkan_device_memory_counter_str_ + std::to_string(memory_type);
+    res = context_->storage->InternString(
+        base::StringView(type_counter_str.c_str(), type_counter_str.length()));
+    memory_type_counter_string_map_.emplace(memory_type, res);
     return res;
   }
   res = it->second;
