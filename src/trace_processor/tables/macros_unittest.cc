@@ -25,7 +25,7 @@ namespace {
 #define PERFETTO_TP_TEST_EVENT_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestEventTable, "event")                           \
   PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
-  C(int64_t, ts)                                          \
+  C(int64_t, ts, Column::Flag::kSorted)                   \
   C(int64_t, arg_set_id)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 
@@ -123,6 +123,29 @@ TEST(TableMacrosUnittest, InsertChild) {
   ASSERT_EQ(cpu_slice.priority()[0], 1024);
   ASSERT_EQ(cpu_slice.end_state()[0], reason);
   ASSERT_EQ(cpu_slice.end_state().GetString(0), "R");
+}
+
+TEST(TableMacrosUnittest, Sort) {
+  StringPool pool;
+  TestEventTable event(&pool, nullptr);
+
+  ASSERT_TRUE(event.ts().IsSorted());
+
+  event.Insert(TestEventTable::Row(0 /* ts */, 100 /* arg_set_id */));
+  event.Insert(TestEventTable::Row(1 /* ts */, 1 /* arg_set_id */));
+  event.Insert(TestEventTable::Row(2 /* ts */, 3 /* arg_set_id */));
+
+  Table out = event.Sort({event.arg_set_id().ascending()});
+  const auto& ts = out.GetColumn(*out.FindColumnIdxByName("ts"));
+  const auto& arg_set_id =
+      out.GetColumn(*out.FindColumnIdxByName("arg_set_id"));
+
+  ASSERT_FALSE(ts.IsSorted());
+  ASSERT_TRUE(arg_set_id.IsSorted());
+
+  ASSERT_EQ(arg_set_id.Get(0).long_value, 1);
+  ASSERT_EQ(arg_set_id.Get(1).long_value, 3);
+  ASSERT_EQ(arg_set_id.Get(2).long_value, 100);
 }
 
 }  // namespace

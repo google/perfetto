@@ -197,6 +197,9 @@ class Column {
   // Returns true if this column is a nullable column.
   bool IsNullable() const { return (flags_ & Flag::kNonNull) == 0; }
 
+  // Returns true if this column is a sorted column.
+  bool IsSorted() const { return (flags_ & Flag::kSorted) != 0; }
+
   const RowMap& row_map() const;
   const char* name() const { return name_; }
   SqlValue::Type type() const {
