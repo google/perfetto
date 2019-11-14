@@ -3931,9 +3931,6 @@ std::vector<Event> GetStaticEventInfo() {
        "ftrace",
        {
            {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
-            "ip", 1, ProtoSchemaType::kUint64,
-            TranslationStrategy::kInvalidTranslationStrategy},
-           {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
             "buf", 2, ProtoSchemaType::kString,
             TranslationStrategy::kInvalidTranslationStrategy},
        },

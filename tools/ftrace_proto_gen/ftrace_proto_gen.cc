@@ -45,7 +45,6 @@ std::string EventNameToProtoName(const std::string& name) {
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
   std::string line;
   std::vector<FtraceEventName> lines;
-
   std::ifstream fin(filename, std::ios::in);
   if (!fin) {
     fprintf(stderr, "failed to open whitelist %s\n", filename.c_str());
@@ -166,6 +165,12 @@ std::string SingleEventInfo(perfetto::Proto proto,
   // Vector of fields.
   s += "{ ";
   for (const auto& field : proto.SortedFields()) {
+    // Ignore the "ip" field from print events. This field has not proven
+    // particularly useful and takes up a large amount of space (30% of total
+    // PrintFtraceEvent size and up to 12% of the entire trace in some
+    // configurations)
+    if (group == "ftrace" && proto.event_name == "print" && field->name == "ip")
+      continue;
     s += "{";
     s += "kUnsetOffset, ";
     s += "kUnsetSize, ";

@@ -98,9 +98,10 @@ TEST_P(AllTranslationTableTest, Create) {
     EXPECT_TRUE(event);
     EXPECT_EQ(std::string(event->name), "print");
     EXPECT_EQ(std::string(event->group), "ftrace");
-    EXPECT_EQ(event->fields.at(1).proto_field_type, ProtoSchemaType::kString);
-    EXPECT_EQ(event->fields.at(1).ftrace_type, kFtraceCString);
-    EXPECT_EQ(event->fields.at(1).strategy, kCStringToString);
+
+    EXPECT_EQ(event->fields.at(0).proto_field_type, ProtoSchemaType::kString);
+    EXPECT_EQ(event->fields.at(0).ftrace_type, kFtraceCString);
+    EXPECT_EQ(event->fields.at(0).strategy, kCStringToString);
   }
 }
 
