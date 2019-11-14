@@ -216,7 +216,6 @@ export interface State {
   status: Status;
   currentSelection: Selection|null;
   currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
-
   logsPagination: LogsPagination;
 
   /**

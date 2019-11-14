@@ -22,10 +22,15 @@ import {findRootSize} from '../../frontend/flamegraph';
 import {CallsiteInfo} from '../../frontend/globals';
 
 import {
+  ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
   Config,
   Data,
+  DEFAULT_VIEWING_OPTION,
   HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND,
   HeapProfileFlamegraphKey,
+  OBJECTS_ALLOCATED_KEY,
+  OBJECTS_ALLOCATED_NOT_FREED_KEY,
+  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from './common';
 
 const MIN_PIXEL_DISPLAYED = 1;
@@ -123,7 +128,6 @@ function getMinSizeDisplayed(
   return MIN_PIXEL_DISPLAYED * rootSize / width;
 }
 
-const EMPTY_KEY = 'empty';
 class HeapProfileFlameraphTrackController extends
     TrackController<Config, Data> {
   static readonly kind = HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND;
@@ -134,6 +138,7 @@ class HeapProfileFlameraphTrackController extends
   private lastSelectedTs?: number;
   private lastSelectedId?: number;
   private lastExpandedId?: number;
+  private lastViewingOption?: string;
 
   private flamegraphDatasets: Map<string, CallsiteInfo[]> = new Map();
 
@@ -146,14 +151,13 @@ class HeapProfileFlameraphTrackController extends
     return this.generateEmptyData();
   }
 
-  private generateEmptyData() {
+  private generateEmptyData(): Data {
     const data: Data = {
       start: -1,
       end: -1,
       resolution: this.resolution,
       length: 0,
-      flamegraph: [],
-      key: EMPTY_KEY
+      flamegraph: []
     };
     return data;
   }
@@ -176,6 +180,9 @@ class HeapProfileFlameraphTrackController extends
             -1;
         this.lastSelectedId = selection.id;
         this.lastSelectedTs = selection.ts;
+        this.lastViewingOption = this.config.viewingOption ?
+            this.config.viewingOption :
+            DEFAULT_VIEWING_OPTION;
 
         this.config.ts = selectedTs;
         this.config.upid = selectedUpid;
@@ -185,23 +192,46 @@ class HeapProfileFlameraphTrackController extends
 
         // TODO(tneda): Prevent lots of flamegraph queries being queued if a
         // user clicks lots of the markers quickly.
-        this.getFlamegraphData(key, selection.ts, selectedUpid)
+        this.getFlamegraphData(
+                key, this.lastViewingOption, selection.ts, selectedUpid)
             .then(flamegraphData => {
               if (flamegraphData !== undefined && selection &&
                   selection.kind === selectedKind &&
                   selection.id === selectedId && selection.ts === selectedTs) {
-                this.prepareAndMergeCallsites(flamegraphData, key);
+                this.prepareAndMergeCallsites(
+                    flamegraphData, this.lastViewingOption);
                 globals.dispatch(Actions.updateTrackConfig(
                     {id: this.trackState.id, config: this.config}));
               }
             });
-      } else if (this.config.expandedId !== this.lastExpandedId) {
+      } else if (
+          this.config.expandedId &&
+          this.config.expandedId !== this.lastExpandedId) {
         const key = `${this.config.upid};${this.lastSelectedTs}`;
         this.lastExpandedId = this.config.expandedId;
-        this.getFlamegraphData(key, this.lastSelectedTs, this.config.upid)
+        this.getFlamegraphData(
+                key,
+                this.config.viewingOption,
+                this.lastSelectedTs,
+                this.config.upid)
             .then(flamegraphData => {
               this.prepareAndMergeCallsites(flamegraphData, key);
             });
+      } else if (this.config.viewingOption !== this.lastViewingOption) {
+        const key = `${this.config.upid};${this.lastSelectedTs}`;
+        this.lastViewingOption = this.config.viewingOption;
+        this.config.expandedId = -1;
+        this.getFlamegraphData(
+                key,
+                this.config.viewingOption,
+                this.lastSelectedTs,
+                this.config.upid)
+            .then(flamegraphData => {
+              this.prepareAndMergeCallsites(
+                  flamegraphData, this.lastViewingOption);
+            });
+        globals.dispatch(Actions.updateTrackConfig(
+            {id: this.trackState.id, config: this.config}));
       }
     } else {
       globals.publish(
@@ -216,7 +246,8 @@ class HeapProfileFlameraphTrackController extends
   }
 
   private prepareAndMergeCallsites(
-      flamegraphData: CallsiteInfo[], key: string) {
+      flamegraphData: CallsiteInfo[],
+      viewingOption: string|undefined = DEFAULT_VIEWING_OPTION) {
     const expandedFlamegraphData =
         expandCallsites(flamegraphData, this.config.expandedId);
     const expandedCallsite = this.config.expandedId === -1 ?
@@ -225,6 +256,7 @@ class HeapProfileFlameraphTrackController extends
 
     const rootSize =
         expandedCallsite === undefined ? undefined : expandedCallsite.totalSize;
+
     const mergedFlamegraphData = mergeCallsites(
         expandedFlamegraphData,
         getMinSizeDisplayed(expandedFlamegraphData, rootSize));
@@ -237,109 +269,77 @@ class HeapProfileFlameraphTrackController extends
         resolution: this.resolution,
         length: this.length,
         flamegraph: mergedFlamegraphData,
-        key,
-        clickedCallsite: expandedCallsite
+        clickedCallsite: expandedCallsite,
+        viewingOption
       }
     });
   }
 
-  async getFlamegraphData(key: string, ts: number, upid: number):
-      Promise<CallsiteInfo[]> {
-    let currentData;
+
+  async getFlamegraphData(
+      baseKey: string, viewingOption: string, ts: number,
+      upid: number): Promise<CallsiteInfo[]> {
+    let currentData: CallsiteInfo[];
+    const key = `${baseKey}-${viewingOption}`;
     if (this.flamegraphDatasets.has(key)) {
       currentData = this.flamegraphDatasets.get(key)!;
     } else {
       // Sending empty data to show Loading state before we get an actual
       // data.
       this.publishEmptyData();
-      currentData = await this.getFlamegraphDataFromTables(ts, upid);
+
+      // Collecting data for drawing flamegraph for selected heap profile.
+      // Data needs to be in following format:
+      // id, name, parent_id, depth, total_size
+      const tableName = await this.prepareViewsAndTables(ts, upid);
+      currentData =
+          await this.getFlamegraphDataFromTables(tableName, viewingOption);
       this.flamegraphDatasets.set(key, currentData);
     }
     return currentData;
   }
 
-  async getFlamegraphDataFromTables(ts: number, upid: number) {
-    // Collecting data for drawing flagraph for selected heap profile.
-    // Data needs to be in following format:
-    // id, name, parent_id, depth, total_size
+  async getFlamegraphDataFromTables(
+      tableName: string, viewingOption = DEFAULT_VIEWING_OPTION) {
+    let orderBy = '';
+    let sizeIndex = 4;
+    switch (viewingOption) {
+      case SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
+        orderBy = `where size > 0 order by depth, parent_hash, size desc, name`;
+        sizeIndex = 4;
+        break;
+      case ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
+        orderBy =
+            `where alloc_size > 0 order by depth, parent_hash, alloc_size desc,
+            name`;
+        sizeIndex = 5;
+        break;
+      case OBJECTS_ALLOCATED_NOT_FREED_KEY:
+        orderBy =
+            `where count > 0 order by depth, parent_hash, count desc, name`;
+        sizeIndex = 6;
+        break;
+      case OBJECTS_ALLOCATED_KEY:
+        orderBy = `where alloc_count > 0 order by depth, parent_hash,
+            alloc_count desc, name`;
+        sizeIndex = 7;
+        break;
+      default:
+        break;
+    }
 
-    // Creating unique names for views so we can reuse and not delete them
-    // for each marker.
-    const tableNameCallsiteNameSize =
-        this.tableName(`callsite_with_name_and_size_${ts}`);
-    const tableNameCallsiteHashNameSize =
-        this.tableName(`callsite_hash_name_size_${ts}`);
-    // Joining the callsite table with frame table then with alloc table to get
-    // the size and name for each callsite.
-    await this.query(
-        // TODO(tneda|lalitm): get names from symbols to exactly replicate
-        // pprof.
-        `create view if not exists ${tableNameCallsiteNameSize} as
-      select cs.id, parent_id, depth, IFNULL(symbols.name, fr.name) as name,
-      SUM(IFNULL(size, 0)) as size
-      from stack_profile_callsite cs
-      join stack_profile_frame fr on cs.frame_id = fr.id
-      inner join (SELECT symbol_set_id, FIRST_VALUE(name) OVER(PARTITION BY
-        symbol_set_id) as name
-      FROM stack_profile_symbol GROUP BY symbol_set_id) as symbols
-        using(symbol_set_id)
-      left join heap_profile_allocation alloc on alloc.callsite_id = cs.id and
-      alloc.ts <= ${ts} and alloc.upid = ${upid} group by cs.id`);
-
-    // Recursive query to compute the hash for each callsite based on names
-    // rather than ids.
-    // We get all the children of the row in question and emit a row with hash
-    // equal hash(name, parent.hash). Roots without the parent will have -1 as
-    // hash.  Slices will be merged into a big slice.
-    await this.query(
-        `create view if not exists ${tableNameCallsiteHashNameSize} as
-      with recursive callsite_table_names(
-        id, hash, name, size, parent_hash, depth) AS (
-      select id, hash(name) as hash, name, size, -1, depth
-      from ${tableNameCallsiteNameSize}
-      where depth = 0
-      UNION ALL
-      SELECT cs.id, hash(cs.name, ctn.hash) as hash, cs.name, cs.size, ctn.hash,
-      cs.depth
-      FROM callsite_table_names ctn
-      INNER JOIN ${tableNameCallsiteNameSize} cs ON ctn.id = cs.parent_id
-      )
-      SELECT hash, name, parent_hash, depth, SUM(size) as size
-      FROM callsite_table_names
-      group by hash`);
-
-    // Recursive query to compute the cumulative size of each callsite.
-    // Base case: We get all the callsites where the size is non-zero.
-    // Recursive case: We get the callsite which is the parent of the current
-    //  callsite(in terms of hashes) and emit a row with the size of the current
-    //  callsite plus all the info of the parent.
-    // Grouping: For each callsite, our recursive table has n rows where n is
-    //  the number of descendents with a non-zero self size. We need to group on
-    //  the hash and sum all the sizes to get the cumulative size for each
-    //  callsite hash.
     const callsites = await this.query(
-        `with recursive callsite_children(hash, name, parent_hash, depth, size)
-        AS (
-        select *
-        from ${tableNameCallsiteHashNameSize}
-        where size > 0
-        union all
-        select chns.hash, chns.name, chns.parent_hash, chns.depth, cc.size
-        from ${tableNameCallsiteHashNameSize} chns
-        inner join callsite_children cc on chns.hash = cc.parent_hash
-        )
-        SELECT hash, name, parent_hash, depth, SUM(size) as size
-        from callsite_children
-        group by hash
-        order by depth, parent_hash, size desc, name`);
-    const flamegraphData: CallsiteInfo[] = [];
+        `SELECT hash, name, parent_hash, depth, size, alloc_size, count,
+        alloc_count from ${tableName} ${orderBy}`);
+
+    const flamegraphData: CallsiteInfo[] = new Array();
     const hashToindex: Map<number, number> = new Map();
     for (let i = 0; i < callsites.numRecords; i++) {
       const hash = callsites.columns[0].longValues![i];
       const name = callsites.columns[1].stringValues![i];
       const parentHash = callsites.columns[2].longValues![i];
       const depth = callsites.columns[3].longValues![i];
-      const totalSize = callsites.columns[4].longValues![i];
+      const totalSize = callsites.columns[sizeIndex].longValues![i];
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
       hashToindex.set(+hash, i);
@@ -350,6 +350,94 @@ class HeapProfileFlameraphTrackController extends
           {id: i, totalSize: +totalSize, depth: +depth, parentId, name});
     }
     return flamegraphData;
+  }
+
+  private async prepareViewsAndTables(ts: number, upid: number):
+      Promise<string> {
+    // Creating unique names for views so we can reuse and not delete them
+    // for each marker.
+    const tableNameCallsiteNameSize =
+        this.tableName(`callsite_with_name_and_size_${ts}`);
+    const tableNameCallsiteHashNameSize =
+        this.tableName(`callsite_hash_name_size_${ts}`);
+    const tableNameGroupedCallsitesForFlamegraph =
+        this.tableName(`grouped_callsites_for_flamegraph${ts}`);
+    // const tableNameGroupedCallsitesForFlamegraph =
+    // this.tableNameGroupdCallsitesForFlamegraphAsKey(ts); Joining the callsite
+    // table with frame table then with alloc table to get the size and name for
+    // each callsite.
+    await this.query(`create view if not exists ${tableNameCallsiteNameSize} as
+      select cs.id, parent_id, depth, IFNULL(symbols.name, fr.name) as name,
+      SUM(IFNULL(size, 0)) as size,
+      SUM(case when size > 0 then size else 0 end) as alloc_size,
+      SUM(IFNULL(count, 0)) as count,
+      SUM(case when count > 0 then count else 0 end) as alloc_count
+      from stack_profile_callsite cs
+      join stack_profile_frame fr on cs.frame_id = fr.id
+      inner join (SELECT symbol_set_id, FIRST_VALUE(name) OVER(PARTITION BY
+        symbol_set_id) as name
+      FROM stack_profile_symbol GROUP BY symbol_set_id) as symbols
+        using(symbol_set_id)
+      left join heap_profile_allocation alloc on alloc.callsite_id = cs.id and
+      alloc.ts <= ${ts} and alloc.upid = ${upid} group by cs.id`);
+    // Recursive query to compute the hash for each callsite based on names
+    // rather than ids.
+    // We get all the children of the row in question and emit a row with hash
+    // equal hash(name, parent.hash). Roots without the parent will have -1 as
+    // hash.  Slices will be merged into a big slice.
+    await this.query(
+        `create view if not exists ${tableNameCallsiteHashNameSize} as
+      with recursive callsite_table_names(
+        id, hash, name, size, alloc_size, count, alloc_count, parent_hash,
+        depth) AS (
+      select id, hash(name) as hash, name, size, alloc_size, count, alloc_count,
+      -1, depth
+      from ${tableNameCallsiteNameSize}
+      where depth = 0
+      UNION ALL
+      SELECT cs.id, hash(cs.name, ctn.hash) as hash, cs.name, cs.size,
+      cs.alloc_size, cs.count, cs.alloc_count, ctn.hash,
+      cs.depth
+      FROM callsite_table_names ctn
+      INNER JOIN ${tableNameCallsiteNameSize} cs ON ctn.id = cs.parent_id
+      )
+      SELECT hash, name, parent_hash, depth,
+      SUM(size) as size,
+      SUM(case when alloc_size > 0 then alloc_size else 0 end) as alloc_size,
+      SUM(count) as count,
+      SUM(case when alloc_count > 0 then alloc_count else 0 end) as alloc_count
+      FROM callsite_table_names
+      group by hash`);
+    // Recursive query to compute the cumulative size of each callsite.
+    // Base case: We get all the callsites where the size is non-zero.
+    // Recursive case: We get the callsite which is the parent of the current
+    //  callsite(in terms of hashes) and emit a row with the size of the current
+    //  callsite plus all the info of the parent.
+    // Grouping: For each callsite, our recursive table has n rows where n is
+    //  the number of descendents with a non-zero self size. We need to group on
+    //  the hash and sum all the sizes to get the cumulative size for each
+    //  callsite hash.
+    await this.query(`create temp table if not exists ${
+        tableNameGroupedCallsitesForFlamegraph}
+        as with recursive callsite_children(hash, name, parent_hash, depth,
+          size, alloc_size, count, alloc_count) AS (
+        select *
+        from ${tableNameCallsiteHashNameSize}
+        union all
+        select chns.hash, chns.name, chns.parent_hash, chns.depth, cc.size,
+        cc.alloc_size, cc.count, cc.alloc_count
+        from ${tableNameCallsiteHashNameSize} chns
+        inner join callsite_children cc on chns.hash = cc.parent_hash
+        )
+        SELECT hash, name, parent_hash, depth,
+        SUM(size) as size,
+        SUM(case when alloc_size > 0 then alloc_size else 0 end) as alloc_size,
+        SUM(count) as count,
+        SUM(case when alloc_count > 0 then alloc_count else 0 end) as
+          alloc_count
+        from callsite_children
+        group by hash`);
+    return tableNameGroupedCallsitesForFlamegraph;
   }
 }
 
