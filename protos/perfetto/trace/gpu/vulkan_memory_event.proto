@@ -41,38 +41,54 @@ message VulkanMemoryEventAnnotation {
 // information that are not directly related to a memory event, nonetheless are
 // essential to understand the memory usage. An example is the size and memory
 // types of the memory heaps.
+//
+// Next reserved id: 10 (up to 15).
+// Next id: 21.
 message VulkanMemoryEvent {
   enum Source {
-    UNKNOWN_SOURCE = 0;
-    DEVICE = 1;
-    HOST = 2;
-    GPU_DEVICE_MEMORY = 3;
-    GPU_BUFFER = 4;
-    GPU_IMAGE = 5;
+    SOURCE_UNSPECIFIED = 0;
+    SOURCE_DRIVER = 1;
+    SOURCE_DEVICE = 2;
+    SOURCE_DEVICE_MEMORY = 3;
+    SOURCE_BUFFER = 4;
+    SOURCE_IMAGE = 5;
   }
 
-  enum Type {
-    UNKNOWN_TYPE = 0;
-    CREATE = 1;         // alloc, create
-    DESTROY = 2;        // free, destroy (non-bound)
-    BIND = 3;           // bind buffer and image
-    DESTROY_BOUND = 4;  // destroy (bound)
-    ANNOTATIONS = 5;    // only annotations
+  enum Operation {
+    OP_UNSPECIFIED = 0;
+    OP_CREATE = 1;         // alloc, create
+    OP_DESTROY = 2;        // free, destroy (non-bound)
+    OP_BIND = 3;           // bind buffer and image
+    OP_DESTROY_BOUND = 4;  // destroy (bound)
+    OP_ANNOTATIONS = 5;    // only annotations
+  }
+
+  enum AllocationScope {
+    SCOPE_UNSPECIFIED = 0;
+    SCOPE_COMMAND = 1;
+    SCOPE_OBJECT = 2;
+    SCOPE_CACHE = 3;
+    SCOPE_DEVICE = 4;
+    SCOPE_INSTANCE = 5;
   }
 
   optional Source source = 1;
-  optional Type type = 2;
+  optional Operation operation = 2;
   optional int64 timestamp = 3;
   optional uint32 pid = 4;
-  optional fixed64 device = 5;
-  optional fixed64 device_memory = 6;
-  optional uint32 heap = 7;
+  optional fixed64 memory_address = 5;
+  optional uint64 memory_size = 6;
   // Interned string. Original string value is stored in function_names from
   // protos/perfetto/trace/interned_data/interned_data.proto.
-  optional uint64 caller_iid = 8;  // caller api, interned string
-  optional fixed64 object_handle = 9;
-  optional fixed64 memory_address = 10;
-  optional uint64 memory_size = 11;
+  optional uint64 caller_iid = 7;
+  optional AllocationScope allocation_scope = 8;
   // Extra related information, e.g., create configs, etc.
-  repeated VulkanMemoryEventAnnotation annotations = 12;
+  repeated VulkanMemoryEventAnnotation annotations = 9;
+
+  // Field IDs used for device memory (low sampling rate)
+  optional fixed64 device = 16;
+  optional fixed64 device_memory = 17;
+  optional uint32 memory_type = 18;
+  optional uint32 heap = 19;
+  optional fixed64 object_handle = 20;
 }

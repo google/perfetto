@@ -22,6 +22,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/vulkan_memory_tracker.h"
 
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
@@ -30,12 +31,19 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+struct ProtoEnumHasher {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
+};
+
 // Class for parsing graphics related events.
 class GraphicsEventParser {
  public:
   using ConstBytes = protozero::ConstBytes;
-  using VulkanMemoryEventSource = protos::pbzero::VulkanMemoryEvent::Source;
-  using VulkanMemoryEventType = protos::pbzero::VulkanMemoryEvent::Type;
+  using VulkanMemoryEventSource = VulkanMemoryEvent::Source;
+  using VulkanMemoryEventOperation = VulkanMemoryEvent::Operation;
   explicit GraphicsEventParser(TraceProcessorContext*);
 
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
@@ -46,11 +54,8 @@ class GraphicsEventParser {
   void ParseVulkanMemoryEvent(PacketSequenceState*,
                               size_t sequence_state_generation,
                               ConstBytes);
-  void UpdateVulkanMemoryAllocationCounters(int64_t ts,
-                                            UniquePid,
-                                            VulkanMemoryEventSource,
-                                            VulkanMemoryEventType,
-                                            size_t allocation_size);
+  void UpdateVulkanMemoryAllocationCounters(UniquePid,
+                                            const VulkanMemoryEvent::Decoder&);
 
  private:
   TraceProcessorContext* const context_;
@@ -67,18 +72,12 @@ class GraphicsEventParser {
   const StringId layer_name_key_id_;
   std::array<StringId, 14> event_type_name_ids_;
   // For VulkanMemoryEvent
-  const StringId vulkan_allocated_host_memory_id_;
-  const StringId vulkan_allocated_gpu_memory_id_;
-  const StringId vulkan_live_image_objects_id_;
-  const StringId vulkan_live_buffer_objects_id_;
-  const StringId vulkan_bound_image_objects_id_;
-  const StringId vulkan_bound_buffer_objects_id_;
-  int64_t vulkan_allocated_host_memory_;
-  int64_t vulkan_allocated_gpu_memory_;
-  int64_t vulkan_live_image_objects_;
-  int64_t vulkan_live_buffer_objects_;
-  int64_t vulkan_bound_image_objects_;
-  int64_t vulkan_bound_buffer_objects_;
+  std::unordered_map<VulkanMemoryEvent::AllocationScope,
+                     int64_t /*counter_value*/,
+                     ProtoEnumHasher>
+      vulkan_driver_memory_counters_;
+  std::unordered_map<uint32_t /*memory_type*/, int64_t /*counter_value*/>
+      vulkan_device_memory_counters_;
   // For GpuLog
   const StringId gpu_log_track_name_id_;
   const StringId gpu_log_scope_id_;
