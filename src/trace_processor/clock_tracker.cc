@@ -38,22 +38,56 @@ ClockTracker::ClockTracker(TraceProcessorContext* ctx)
 
 ClockTracker::~ClockTracker() = default;
 
-void ClockTracker::AddSnapshot(const std::map<ClockId, int64_t>& clocks) {
+void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
   const auto snapshot_id = cur_snapshot_id_++;
 
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
   base::Hash hasher;
-  for (const auto& id_and_ts : clocks)
-    hasher.Update(id_and_ts.first);
+  for (const auto& clock : clocks)
+    hasher.Update(clock.clock_id);
   const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());
 
   // Add a new entry in each clock's snapshot vector.
-  for (const auto& id_and_ts : clocks) {
-    ClockId clock_id = id_and_ts.first;
-    ClockDomain& clock = clocks_[clock_id];
-    const int64_t timestamp_ns = clock.ToNs(id_and_ts.second);
-    ClockSnapshots& vect = clock.snapshots[snapshot_hash];
+  for (const auto& clock : clocks) {
+    ClockId clock_id = clock.clock_id;
+    ClockDomain& domain = clocks_[clock_id];
+    if (domain.snapshots.empty()) {
+      if (clock.is_incremental && !ClockIsSeqScoped(clock_id)) {
+        PERFETTO_ELOG("Clock sync error: the global clock with id=%" PRIu64
+                      " cannot use incremental encoding; this is only "
+                      "supported for sequence-scoped clocks.",
+                      clock_id);
+        context_->storage->IncrementStats(stats::invalid_clock_snapshots);
+        return;
+      }
+      domain.unit_multiplier_ns = clock.unit_multiplier_ns;
+      domain.is_incremental = clock.is_incremental;
+    } else if (PERFETTO_UNLIKELY(
+                   domain.unit_multiplier_ns != clock.unit_multiplier_ns ||
+                   domain.is_incremental != clock.is_incremental)) {
+      PERFETTO_ELOG("Clock sync error: the clock domain with id=%" PRIu64
+                    " (unit=%" PRIu64
+                    ", incremental=%d), was previously registered with "
+                    "different properties (unit=%" PRIu64 ", incremental=%d).",
+                    clock_id, clock.unit_multiplier_ns, clock.is_incremental,
+                    domain.unit_multiplier_ns, domain.is_incremental);
+      context_->storage->IncrementStats(stats::invalid_clock_snapshots);
+      return;
+    }
+    const int64_t timestamp_ns =
+        clock.absolute_timestamp * domain.unit_multiplier_ns;
+    domain.last_timestamp_ns = timestamp_ns;
+
+    ClockSnapshots& vect = domain.snapshots[snapshot_hash];
+    if (!vect.snapshot_ids.empty() &&
+        PERFETTO_UNLIKELY(vect.snapshot_ids.back() == snapshot_id)) {
+      PERFETTO_ELOG("Clock sync error: duplicate clock domain with id=%" PRIu64
+                    " at snapshot %" PRIu32 ".",
+                    clock_id, snapshot_id);
+      context_->storage->IncrementStats(stats::invalid_clock_snapshots);
+      return;
+    }
 
     // Clock ids in the range [64, 128) are sequence-scoped and must be
     // translated to global ids via SeqScopedClockIdToGlobal() before calling
@@ -110,11 +144,11 @@ void ClockTracker::AddSnapshot(const std::map<ClockId, int64_t>& clocks) {
     auto it2 = it1;
     ++it2;
     for (; it2 != clocks.end(); ++it2) {
-      if (!non_monotonic_clocks_.count(it1->first))
-        graph_.emplace(it1->first, it2->first, snapshot_hash);
+      if (!non_monotonic_clocks_.count(it1->clock_id))
+        graph_.emplace(it1->clock_id, it2->clock_id, snapshot_hash);
 
-      if (!non_monotonic_clocks_.count(it2->first))
-        graph_.emplace(it2->first, it1->first, snapshot_hash);
+      if (!non_monotonic_clocks_.count(it2->clock_id))
+        graph_.emplace(it2->clock_id, it1->clock_id, snapshot_hash);
     }
   }
 }
@@ -176,15 +210,15 @@ base::Optional<int64_t> ClockTracker::Convert(ClockId src_clock_id,
 
   // Iterate trough the path found and translate timestamps onto the new clock
   // domain on each step, until the target domain is reached.
-  int64_t ns = GetClock(src_clock_id).ToNs(src_timestamp);
+  int64_t ns = GetClock(src_clock_id)->ToNs(src_timestamp);
   for (uint32_t i = 0; i < path.len; ++i) {
     const ClockGraphEdge edge = path.at(i);
-    const ClockDomain& cur_clock = GetClock(std::get<0>(edge));
-    const ClockDomain& next_clock = GetClock(std::get<1>(edge));
+    ClockDomain* cur_clock = GetClock(std::get<0>(edge));
+    ClockDomain* next_clock = GetClock(std::get<1>(edge));
     const SnapshotHash hash = std::get<2>(edge);
 
     // Find the closest timestamp within the snapshots of the source clock.
-    const ClockSnapshots& cur_snap = cur_clock.GetSnapshot(hash);
+    const ClockSnapshots& cur_snap = cur_clock->GetSnapshot(hash);
     const auto& ts_vec = cur_snap.timestamps_ns;
     auto it = std::upper_bound(ts_vec.begin(), ts_vec.end(), ns);
     if (it != ts_vec.begin())
@@ -199,7 +233,7 @@ base::Optional<int64_t> ClockTracker::Convert(ClockId src_clock_id,
     // And use that to retrieve the corresponding time in the next clock domain.
     // The snapshot id must exist in the target clock domain. If it doesn't
     // either the hash logic or the pathfinding logic are bugged.
-    const ClockSnapshots& next_snap = next_clock.GetSnapshot(hash);
+    const ClockSnapshots& next_snap = next_clock->GetSnapshot(hash);
     auto next_it = std::lower_bound(next_snap.snapshot_ids.begin(),
                                     next_snap.snapshot_ids.end(), snapshot_id);
     PERFETTO_DCHECK(next_it != next_snap.snapshot_ids.end() &&

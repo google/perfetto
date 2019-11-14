@@ -158,6 +158,55 @@ TEST_F(ClockTrackerTest, ChainedResolutionHard) {
   EXPECT_EQ(*ct_.Convert(MONOTONIC_RAW, 753, REALTIME), 753 - 1 - 50 + 9000);
 }
 
+TEST_F(ClockTrackerTest, SequenceScopedClocks) {
+  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  ClockTracker::ClockId c64_1 = ct_.SeqScopedClockIdToGlobal(1, 64);
+  ClockTracker::ClockId c65_1 = ct_.SeqScopedClockIdToGlobal(1, 65);
+  ClockTracker::ClockId c66_1 = ct_.SeqScopedClockIdToGlobal(1, 66);
+  ClockTracker::ClockId c66_2 = ct_.SeqScopedClockIdToGlobal(2, 64);
+
+  ct_.AddSnapshot(
+      {{MONOTONIC, 10000},
+       {c64_1, 100000},
+       {c65_1, 100, /*unit_multiplier_ns=*/1000, /*is_incremental=*/false},
+       {c66_1, 10, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
+
+  // c64_1 is non-incremental and in nanos.
+  EXPECT_EQ(*ct_.Convert(c64_1, 150000, MONOTONIC), 60000);
+  EXPECT_EQ(*ct_.Convert(c64_1, 150000, BOOTTIME), 159000);
+  EXPECT_EQ(*ct_.ToTraceTime(c64_1, 150000), 159000);
+
+  // c65_1 is non-incremental and in micros.
+  EXPECT_EQ(*ct_.Convert(c65_1, 150, MONOTONIC), 60000);
+  EXPECT_EQ(*ct_.Convert(c65_1, 150, BOOTTIME), 159000);
+  EXPECT_EQ(*ct_.ToTraceTime(c65_1, 150), 159000);
+
+  // c66_1 is incremental and in micros.
+  EXPECT_EQ(*ct_.Convert(c66_1, 1 /* abs 11 */, MONOTONIC), 11000);
+  EXPECT_EQ(*ct_.Convert(c66_1, 1 /* abs 12 */, MONOTONIC), 12000);
+  EXPECT_EQ(*ct_.Convert(c66_1, 1 /* abs 13 */, BOOTTIME), 112000);
+  EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 15 */), 114000);
+
+  ct_.AddSnapshot(
+      {{MONOTONIC, 20000},
+       {c66_1, 20, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
+  ct_.AddSnapshot(
+      {{MONOTONIC, 20000},
+       {c66_2, 20, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
+
+  // c66_1 and c66_2 are both incremental and in micros, but shouldn't affect
+  // each other.
+  EXPECT_EQ(*ct_.Convert(c66_1, 1 /* abs 21 */, MONOTONIC), 21000);
+  EXPECT_EQ(*ct_.Convert(c66_2, 2 /* abs 22 */, MONOTONIC), 22000);
+  EXPECT_EQ(*ct_.Convert(c66_1, 1 /* abs 22 */, MONOTONIC), 22000);
+  EXPECT_EQ(*ct_.Convert(c66_2, 2 /* abs 24 */, MONOTONIC), 24000);
+  EXPECT_EQ(*ct_.Convert(c66_1, 1 /* abs 23 */, BOOTTIME), 122000);
+  EXPECT_EQ(*ct_.Convert(c66_2, 2 /* abs 26 */, BOOTTIME), 125000);
+  EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 25 */), 124000);
+  EXPECT_EQ(*ct_.ToTraceTime(c66_2, 4 /* abs 30 */), 129000);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

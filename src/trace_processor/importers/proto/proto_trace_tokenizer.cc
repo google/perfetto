@@ -413,7 +413,7 @@ void ProtoTraceTokenizer::ParseInternedData(
 
 util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
                                                      uint32_t seq_id) {
-  std::map<ClockTracker::ClockId, int64_t> clock_map;
+  std::vector<ClockTracker::ClockValue> clocks;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
@@ -427,9 +427,14 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
       }
       clock_id = ClockTracker::SeqScopedClockIdToGlobal(seq_id, clk.clock_id());
     }
-    clock_map[clock_id] = static_cast<int64_t>(clk.timestamp());
+    int64_t unit_multiplier_ns =
+        clk.unit_multiplier_ns()
+            ? static_cast<int64_t>(clk.unit_multiplier_ns())
+            : 1;
+    clocks.emplace_back(clock_id, clk.timestamp(), unit_multiplier_ns,
+                        clk.is_incremental());
   }
-  context_->clock_tracker->AddSnapshot(clock_map);
+  context_->clock_tracker->AddSnapshot(clocks);
   return util::OkStatus();
 }
 
