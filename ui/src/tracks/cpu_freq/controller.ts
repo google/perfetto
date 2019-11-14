@@ -38,9 +38,9 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
 
     if (!this.setup) {
       const result = await this.query(`
-      select max(value) from
-        counters where name = 'cpufreq'
-        and ref = ${this.config.cpu}`);
+        select max(value)
+        from counter
+        where track_id = ${this.config.freqTrackId}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
 
       await this.query(
@@ -49,36 +49,39 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       await this.query(`create view ${this.tableName('freq')}
           as select
             ts,
-            lead(ts) over (order by ts) - ts as dur,
-            ref as cpu,
-            name as freq_name,
+            lead(ts) over () - ts as dur,
             value as freq_value
-          from counters
-          where name = 'cpufreq'
-            and ref = ${this.config.cpu}
-            and ref_type = 'cpu';
+          from counter c
+          where track_id = ${this.config.freqTrackId};
       `);
 
-      await this.query(`create view ${this.tableName('idle')}
-        as select
-          ts,
-          lead(ts) over (order by ts) - ts as dur,
-          ref as cpu,
-          name as idle_name,
-          value as idle_value
-        from counters
-        where name = 'cpuidle'
-          and ref = ${this.config.cpu}
-          and ref_type = 'cpu';
-      `);
+      // If there is no idle track, just make the idle track a single row
+      // which spans the entire time range.
+      if (this.config.idleTrackId === undefined) {
+        await this.query(`create view ${this.tableName('idle')} as
+           select
+             0 as ts,
+             ${Number.MAX_SAFE_INTEGER} as dur,
+             -1 as idle_value;
+          `);
+      } else {
+        await this.query(`create view ${this.tableName('idle')}
+          as select
+            ts,
+            lead(ts) over () - ts as dur,
+            value as idle_value
+          from counter c
+          where track_id = ${this.config.idleTrackId};
+        `);
+      }
 
       await this.query(`create virtual table ${this.tableName('freq_idle')}
-              using span_join(${this.tableName('freq')} PARTITIONED cpu,
-                              ${this.tableName('idle')} PARTITIONED cpu);`);
+              using span_join(${this.tableName('freq')},
+                              ${this.tableName('idle')});`);
 
       await this.query(`create virtual table ${this.tableName('span_activity')}
-      using span_join(${this.tableName('freq_idle')} PARTITIONED cpu,
-                      ${this.tableName('window')});`);
+              using span_join(${this.tableName('freq_idle')},
+                              ${this.tableName('window')});`);
 
       // TODO(taylori): Move the idle value processing to the TP.
       await this.query(`create view ${this.tableName('activity')}
@@ -86,7 +89,6 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
         ts,
         dur,
         quantum_ts,
-        cpu,
         case idle_value
           when 4294967295 then -1
           else idle_value
