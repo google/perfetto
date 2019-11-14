@@ -18,10 +18,18 @@ import {CallsiteInfo} from '../../frontend/globals';
 export const HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND = 'HeapProfileFlamegraphTrack';
 export const HeapProfileFlamegraphKey = 'heap-profile-flamegraph';
 
+export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'space';
+export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'alloc_space';
+export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'objects';
+export const OBJECTS_ALLOCATED_KEY = 'alloc_objects';
+
+export const DEFAULT_VIEWING_OPTION = SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY;
+
 export interface Data extends TrackData {
   flamegraph: CallsiteInfo[];
   clickedCallsite?: CallsiteInfo;
-  key: string;
+  // undefined means that there is no change since previous value.
+  viewingOption?: string;
 }
 
 export interface Config {
@@ -29,4 +37,5 @@ export interface Config {
   ts: number;
   isMinimized: boolean;
   expandedId: number;
+  viewingOption: string;
 }
