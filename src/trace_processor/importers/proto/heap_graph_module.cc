@@ -65,6 +65,28 @@ const char* HeapGraphRootTypeToString(int32_t type) {
   }
 }
 
+// Iterate over a repeated field of varints, independent of whether it is
+// packed or not.
+template <int32_t field_no, typename T, typename F>
+bool ForEachVarInt(const T& decoder, F fn) {
+  auto field = decoder.template at<field_no>();
+  bool parse_error = false;
+  if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+    // packed repeated
+    auto it = decoder.template GetPackedRepeated<
+        ::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(
+        field_no, &parse_error);
+    for (; it; ++it)
+      fn(*it);
+  } else {
+    // non-packed repeated
+    auto it = decoder.template GetRepeated<uint64_t>(field_no);
+    for (; it; ++it)
+      fn(*it);
+  }
+  return parse_error;
+}
+
 }  // namespace
 
 void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
@@ -78,20 +100,36 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
     obj.object_id = object.id();
     obj.self_size = object.self_size();
     obj.type_id = object.type_id();
-    auto ref_field_ids_it = object.reference_field_id();
-    auto ref_object_ids_it = object.reference_object_id();
-    for (; ref_field_ids_it && ref_object_ids_it;
-         ++ref_field_ids_it, ++ref_object_ids_it) {
-      HeapGraphTracker::SourceObject::Reference ref;
-      ref.field_name_id = *ref_field_ids_it;
-      ref.owned_object_id = *ref_object_ids_it;
-      obj.references.emplace_back(std::move(ref));
+
+    std::vector<uint64_t> field_ids;
+    std::vector<uint64_t> object_ids;
+
+    bool parse_error = ForEachVarInt<
+        protos::pbzero::HeapGraphObject::kReferenceFieldIdFieldNumber>(
+        object, [&field_ids](uint64_t value) { field_ids.push_back(value); });
+
+    if (!parse_error) {
+      parse_error = ForEachVarInt<
+          protos::pbzero::HeapGraphObject::kReferenceObjectIdFieldNumber>(
+          object,
+          [&object_ids](uint64_t value) { object_ids.push_back(value); });
     }
 
-    if (ref_field_ids_it || ref_object_ids_it) {
-      context_->storage->IncrementIndexedStats(stats::heap_graph_missing_packet,
-                                               static_cast<int>(upid));
+    if (parse_error) {
+      context_->storage->IncrementIndexedStats(
+          stats::heap_graph_malformed_packet, static_cast<int>(upid));
+      break;
+    }
+    if (field_ids.size() != object_ids.size()) {
+      context_->storage->IncrementIndexedStats(
+          stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
+    }
+    for (size_t i = 0; i < field_ids.size(); ++i) {
+      HeapGraphTracker::SourceObject::Reference ref;
+      ref.field_name_id = field_ids[i];
+      ref.owned_object_id = object_ids[i];
+      obj.references.emplace_back(std::move(ref));
     }
     context_->heap_graph_tracker->AddObject(upid, ts, std::move(obj));
   }
@@ -118,8 +156,16 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
 
     HeapGraphTracker::SourceRoot src_root;
     src_root.root_type = context_->storage->InternString(str_view);
-    for (auto obj_it = entry.object_ids(); obj_it; ++obj_it)
-      src_root.object_ids.emplace_back(*obj_it);
+    bool parse_error =
+        ForEachVarInt<protos::pbzero::HeapGraphRoot::kObjectIdsFieldNumber>(
+            entry, [&src_root](uint64_t value) {
+              src_root.object_ids.emplace_back(value);
+            });
+    if (parse_error) {
+      context_->storage->IncrementIndexedStats(
+          stats::heap_graph_malformed_packet, static_cast<int>(upid));
+      break;
+    }
     context_->heap_graph_tracker->AddRoot(upid, ts, std::move(src_root));
   }
   if (!heap_graph.continued()) {

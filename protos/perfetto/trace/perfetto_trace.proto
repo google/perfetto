@@ -3049,7 +3049,7 @@ message HeapGraphRoot {
     ROOT_JNI_MONITOR = 14;
   };
   // Objects retained by this root.
-  repeated uint64 object_ids = 1;
+  repeated uint64 object_ids = 1 [packed = true];
 
   optional Type root_type = 2;
 }
@@ -3065,10 +3065,10 @@ message HeapGraphObject {
 
   // Indices for InternedData.field_names for the name of the field referring
   // to the object.
-  repeated uint64 reference_field_id = 4;
+  repeated uint64 reference_field_id = 4 [packed = true];
 
   // Ids of the Object that is referred to.
-  repeated uint64 reference_object_id = 5;
+  repeated uint64 reference_object_id = 5 [packed = true];
 }
 
 message HeapGraph {
