@@ -119,6 +119,34 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
+int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
+  using C = QueryConstraints::Constraint;
+
+  // Reorder constraints to consider the constraints on columns which are
+  // cheaper to filter first.
+  auto* cs = qc->mutable_constraints();
+  std::sort(cs->begin(), cs->end(), [this](const C& a, const C& b) {
+    uint32_t a_idx = static_cast<uint32_t>(a.column);
+    uint32_t b_idx = static_cast<uint32_t>(b.column);
+    const auto& a_col = table_->GetColumn(a_idx);
+    const auto& b_col = table_->GetColumn(b_idx);
+
+    // Id columns are always very cheap to filter on so try and get them
+    // first.
+    if (a_col.IsId() && !b_col.IsId())
+      return true;
+
+    // Sorted columns are also quite cheap to filter so order them after
+    // any id columns.
+    if (a_col.IsSorted() && !b_col.IsSorted())
+      return true;
+
+    // TODO(lalitm): introduce more orderings here based on empirical data.
+    return false;
+  });
+  return SQLITE_OK;
+}
+
 double DbSqliteTable::EstimateCost(const QueryConstraints& qc) {
   // Currently our cost estimation algorithm is quite simplistic but is good
   // enough for the simplest cases.

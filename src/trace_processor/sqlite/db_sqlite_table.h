@@ -58,6 +58,7 @@ class DbSqliteTable : public SqliteTable {
                     const char* const*,
                     SqliteTable::Schema*) override final;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
+  int ModifyConstraints(QueryConstraints*) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
