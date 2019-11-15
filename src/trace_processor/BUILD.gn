@@ -357,6 +357,7 @@ if (enable_perfetto_trace_processor_metrics) {  # shell requires metrics.
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "basic_types_unittest.cc",
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
