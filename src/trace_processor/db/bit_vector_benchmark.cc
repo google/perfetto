@@ -22,6 +22,20 @@ namespace {
 
 using perfetto::trace_processor::BitVector;
 
+bool IsBenchmarkFunctionalOnly() {
+  return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
+}
+
+void BitVectorArgs(benchmark::internal::Benchmark* b) {
+  b->Arg(64);
+
+  if (!IsBenchmarkFunctionalOnly()) {
+    b->Arg(512);
+    b->Arg(8192);
+    b->Arg(123456);
+    b->Arg(1234567);
+  }
+}
 }
 
 static void BM_BitVectorAppendTrue(benchmark::State& state) {
@@ -72,12 +86,7 @@ static void BM_BitVectorSet(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK(BM_BitVectorSet)
-    ->Arg(64)
-    ->Arg(512)
-    ->Arg(8192)
-    ->Arg(123456)
-    ->Arg(1234567);
+BENCHMARK(BM_BitVectorSet)->Apply(BitVectorArgs);
 
 static void BM_BitVectorClear(benchmark::State& state) {
   static constexpr uint32_t kRandomSeed = 42;
@@ -107,12 +116,7 @@ static void BM_BitVectorClear(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK(BM_BitVectorClear)
-    ->Arg(64)
-    ->Arg(512)
-    ->Arg(8192)
-    ->Arg(123456)
-    ->Arg(1234567);
+BENCHMARK(BM_BitVectorClear)->Apply(BitVectorArgs);
 
 static void BM_BitVectorIndexOfNthSet(benchmark::State& state) {
   static constexpr uint32_t kRandomSeed = 42;
@@ -142,12 +146,7 @@ static void BM_BitVectorIndexOfNthSet(benchmark::State& state) {
     pool_idx = (pool_idx + 1) % kPoolSize;
   }
 }
-BENCHMARK(BM_BitVectorIndexOfNthSet)
-    ->Arg(64)
-    ->Arg(512)
-    ->Arg(8192)
-    ->Arg(123456)
-    ->Arg(1234567);
+BENCHMARK(BM_BitVectorIndexOfNthSet)->Apply(BitVectorArgs);
 
 static void BM_BitVectorGetNumBitsSet(benchmark::State& state) {
   static constexpr uint32_t kRandomSeed = 42;
@@ -175,12 +174,7 @@ static void BM_BitVectorGetNumBitsSet(benchmark::State& state) {
   }
   PERFETTO_CHECK(res == count);
 }
-BENCHMARK(BM_BitVectorGetNumBitsSet)
-    ->Arg(64)
-    ->Arg(512)
-    ->Arg(8192)
-    ->Arg(123456)
-    ->Arg(1234567);
+BENCHMARK(BM_BitVectorGetNumBitsSet)->Apply(BitVectorArgs);
 
 static void BM_BitVectorResize(benchmark::State& state) {
   static constexpr uint32_t kRandomSeed = 42;
@@ -239,9 +233,4 @@ static void BM_BitVectorUpdateSetBits(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK(BM_BitVectorUpdateSetBits)
-    ->Arg(64)
-    ->Arg(512)
-    ->Arg(8192)
-    ->Arg(123456)
-    ->Arg(1234567);
+BENCHMARK(BM_BitVectorUpdateSetBits)->Apply(BitVectorArgs);
