@@ -193,8 +193,7 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
       continue;
 
     if (col_name == kTsColumnName || col_name == kDurColumnName) {
-      // We don't support constraints on ts or duration in the child tables.
-      PERFETTO_DFATAL("ts or duration constraints on child tables");
+      // Allow SQLite handle any constraints on ts or duration.
       continue;
     }
     auto op = sqlite_utils::OpToString(cs.op);
