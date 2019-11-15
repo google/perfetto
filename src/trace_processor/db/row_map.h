@@ -434,6 +434,26 @@ class RowMap {
     }
   }
 
+  template <typename Comparator>
+  void StableSort(std::vector<uint32_t>* out, Comparator c) const {
+    switch (mode_) {
+      case Mode::kRange: {
+        StableSort(out, c, [this](uint32_t off) { return start_idx_ + off; });
+        break;
+      }
+      case Mode::kBitVector: {
+        StableSort(out, c, [this](uint32_t off) {
+          return bit_vector_.IndexOfNthSet(off);
+        });
+        break;
+      }
+      case Mode::kIndexVector: {
+        StableSort(out, c, [this](uint32_t off) { return index_vector_[off]; });
+        break;
+      }
+    }
+  }
+
   // Returns the iterator over the rows in this RowMap.
   Iterator IterateRows() const { return Iterator(this); }
 
@@ -528,6 +548,13 @@ class RowMap {
         break;
       }
     }
+  }
+
+  template <typename Comparator, typename Indexer>
+  void StableSort(std::vector<uint32_t>* out, Comparator c, Indexer i) const {
+    std::stable_sort(
+        out->begin(), out->end(),
+        [&c, &i](uint32_t a, uint32_t b) { return c(i(a), i(b)); });
   }
 
   RowMap SelectRowsSlow(const RowMap& selector) const;
