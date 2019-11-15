@@ -120,11 +120,8 @@ class HeapGraphWalker {
 
  private:
   struct Node {
-    // These are sets to conveniently get rid of double edges between nodes.
-    // We do not care if an object owns another object via multiple references
-    // or only one.
-    std::set<Node*> children;
-    std::set<Node*> parents;
+    std::vector<Node*> children;
+    std::vector<Node*> parents;
     uint64_t self_size = 0;
     uint64_t retained_size = 0;
 
