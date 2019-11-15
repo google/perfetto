@@ -57,6 +57,13 @@ struct PERFETTO_EXPORT SqlValue {
     return value;
   }
 
+  static SqlValue Double(double v) {
+    SqlValue value;
+    value.double_value = v;
+    value.type = Type::kDouble;
+    return value;
+  }
+
   static SqlValue String(const char* v) {
     SqlValue value;
     value.string_value = v;
@@ -69,7 +76,7 @@ struct PERFETTO_EXPORT SqlValue {
     return double_value;
   }
 
-  int Compare(const SqlValue& value) const {
+  int64_t Compare(const SqlValue& value) const {
     // TODO(lalitm): this is almost the same as what SQLite does with the
     // exception of comparisions between long and double - we choose (for
     // performance reasons) to omit comparisions between them.
@@ -80,10 +87,11 @@ struct PERFETTO_EXPORT SqlValue {
       case Type::kNull:
         return 0;
       case Type::kLong:
-        return static_cast<int>(long_value - value.long_value);
+        return long_value - value.long_value;
       case Type::kDouble: {
-        double diff = double_value - value.double_value;
-        return diff < 0 ? -1 : (diff > 0 ? 1 : 0);
+        return double_value < value.double_value
+                   ? -1
+                   : (double_value > value.double_value ? 1 : 0);
       }
       case Type::kString:
         return strcmp(string_value, value.string_value);
@@ -92,7 +100,7 @@ struct PERFETTO_EXPORT SqlValue {
         int ret = memcmp(bytes_value, value.bytes_value, bytes);
         if (ret != 0)
           return ret;
-        return static_cast<int>(bytes_count - value.bytes_count);
+        return static_cast<int64_t>(bytes_count - value.bytes_count);
       }
     }
     PERFETTO_FATAL("For GCC");
