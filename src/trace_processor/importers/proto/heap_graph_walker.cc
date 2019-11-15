@@ -66,8 +66,11 @@ void HeapGraphWalker::AddNode(int64_t row, uint64_t size) {
 }
 
 void HeapGraphWalker::AddEdge(int64_t owner_row, int64_t owned_row) {
-  GetNode(owner_row).children.emplace(&GetNode(owned_row));
-  GetNode(owned_row).parents.emplace(&GetNode(owner_row));
+  Node& owner_node = GetNode(owner_row);
+  Node& owned_node = GetNode(owned_row);
+
+  owner_node.children.emplace_back(&owned_node);
+  owned_node.parents.emplace_back(&owner_node);
 }
 
 void HeapGraphWalker::MarkRoot(int64_t row) {
@@ -268,23 +271,43 @@ void HeapGraphWalker::FoundSCC(Node* node) {
 }
 
 void HeapGraphWalker::FindSCC(Node* node) {
-  node->node_index = node->lowlink = next_node_index_++;
-  node_stack_.push_back(node);
-  node->on_stack = true;
-  for (Node* child : node->children) {
-    PERFETTO_CHECK(child->reachable);
-    if (child->node_index == 0) {
-      FindSCC(child);
-      if (child->lowlink < node->lowlink)
-        node->lowlink = child->lowlink;
-    } else if (child->on_stack) {
-      if (child->node_index < node->lowlink)
+  std::vector<Node*> walk_stack;
+  std::vector<size_t> walk_child;
+
+  walk_stack.emplace_back(node);
+  walk_child.emplace_back(0);
+
+  while (!walk_stack.empty()) {
+    node = walk_stack.back();
+    size_t& child_idx = walk_child.back();
+
+    if (child_idx == 0) {
+      node->node_index = node->lowlink = next_node_index_++;
+      node_stack_.push_back(node);
+      node->on_stack = true;
+    } else {
+      Node* prev_child = node->children[child_idx - 1];
+      if (prev_child->node_index > node->node_index &&
+          prev_child->lowlink < node->lowlink)
+        node->lowlink = prev_child->lowlink;
+    }
+
+    if (child_idx == node->children.size()) {
+      if (node->lowlink == node->node_index)
+        FoundSCC(node);
+      walk_stack.pop_back();
+      walk_child.pop_back();
+    } else {
+      Node* child = node->children[child_idx++];
+      PERFETTO_CHECK(child->reachable);
+      if (child->node_index == 0) {
+        walk_stack.emplace_back(child);
+        walk_child.emplace_back(0);
+      } else if (child->on_stack && child->node_index < node->lowlink) {
         node->lowlink = child->node_index;
+      }
     }
   }
-
-  if (node->lowlink == node->node_index)
-    FoundSCC(node);
 }
 
 }  // namespace trace_processor
