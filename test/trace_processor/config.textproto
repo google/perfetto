@@ -13,7 +13,8 @@ packet {
 }
 packet {
   trace_config {
-    trace_uuid: "abcde\0ghijklmnop"
+    trace_uuid_msb: 1314564453825188563
+    trace_uuid_lsb: -6605018796207623390
   }
 }
 

@@ -450,8 +450,17 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
-  if (trace_config_->trace_uuid().empty() || !dropbox_tag_.empty()) {
-    trace_config_->set_trace_uuid(base::UuidToString(base::Uuidv4()));
+  if (trace_config_->trace_uuid_lsb() == 0 &&
+      trace_config_->trace_uuid_msb() == 0) {
+    base::Uuid uuid = base::Uuidv4();
+    uuid_ = base::UuidToString(uuid);
+    trace_config_->set_trace_uuid_msb(base::GetUuidMsb(uuid));
+    trace_config_->set_trace_uuid_lsb(base::GetUuidLsb(uuid));
+  } else {
+    base::Uuid uuid;
+    base::SetUuidMsb(trace_config_->trace_uuid_msb(), &uuid);
+    base::SetUuidLsb(trace_config_->trace_uuid_lsb(), &uuid);
+    uuid_ = base::UuidToString(uuid);
   }
 
   if (!trace_config_->incident_report_config().destination_package().empty()) {

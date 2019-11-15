@@ -35,6 +35,22 @@ Optional<Uuid> BytesToUuid(const uint8_t* data, size_t size);
 inline Optional<Uuid> BytesToUuid(const char* data, size_t size) {
   return BytesToUuid(reinterpret_cast<const uint8_t*>(data), size);
 }
+inline int64_t GetUuidMsb(const Uuid& uuid) {
+  int64_t result;
+  memcpy(&result, uuid.data() + 8, 8);
+  return result;
+}
+inline int64_t GetUuidLsb(const Uuid& uuid) {
+  int64_t result;
+  memcpy(&result, uuid.data(), 8);
+  return result;
+}
+inline void SetUuidMsb(int64_t top, Uuid* uuid) {
+  memcpy(uuid->data() + 8, &top, 8);
+}
+inline void SetUuidLsb(int64_t bottom, Uuid* uuid) {
+  memcpy(uuid->data(), &bottom, 8);
+}
 
 }  // namespace base
 }  // namespace perfetto
