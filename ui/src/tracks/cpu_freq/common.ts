@@ -28,5 +28,8 @@ export interface Data extends TrackData {
 
 export interface Config {
   cpu: number;
+  freqTrackId: number;
+  idleTrackId?: number;
   maximumValue?: number;
-  minimumValue?: number;}
+  minimumValue?: number;
+}
