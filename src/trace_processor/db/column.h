@@ -142,6 +142,16 @@ class Column {
     PERFETTO_FATAL("For GCC");
   }
 
+  // Sorts |idx| in ascending or descending order (determined by |desc|) based
+  // on the contents of this column.
+  void StableSort(bool desc, std::vector<uint32_t>* idx) const {
+    if (desc) {
+      StableSort<true /* desc */>(idx);
+    } else {
+      StableSort<false /* desc */>(idx);
+    }
+  }
+
   // Updates the given RowMap by only keeping rows where this column meets the
   // given filter constraint.
   void FilterInto(FilterOp op, SqlValue value, RowMap* rm) const {
@@ -578,6 +588,63 @@ class Column {
       case FilterOp::kIsNotNull:
         PERFETTO_FATAL("Should be handled above");
     }
+  }
+
+  template <bool desc>
+  void StableSort(std::vector<uint32_t>* out) const {
+    switch (type_) {
+      case ColumnType::kInt32: {
+        if (IsNullable()) {
+          StableSort<desc, int32_t, true /* is_nullable */>(out);
+        } else {
+          StableSort<desc, int32_t, false /* is_nullable */>(out);
+        }
+        break;
+      }
+      case ColumnType::kUint32: {
+        if (IsNullable()) {
+          StableSort<desc, uint32_t, true /* is_nullable */>(out);
+        } else {
+          StableSort<desc, uint32_t, false /* is_nullable */>(out);
+        }
+        break;
+      }
+      case ColumnType::kInt64: {
+        if (IsNullable()) {
+          StableSort<desc, int64_t, true /* is_nullable */>(out);
+        } else {
+          StableSort<desc, int64_t, false /* is_nullable */>(out);
+        }
+        break;
+      }
+      case ColumnType::kString: {
+        row_map().StableSort(out, [this](uint32_t a_idx, uint32_t b_idx) {
+          auto a_str = GetStringPoolStringAtIdx(a_idx);
+          auto b_str = GetStringPoolStringAtIdx(b_idx);
+          return desc ? b_str < a_str : a_str < b_str;
+        });
+        break;
+      }
+      case ColumnType::kId:
+        row_map().StableSort(out, [](uint32_t a_idx, uint32_t b_idx) {
+          return desc ? b_idx < a_idx : a_idx < b_idx;
+        });
+    }
+  }
+
+  template <bool desc, typename T, bool is_nullable>
+  void StableSort(std::vector<uint32_t>* out) const {
+    const auto& sv = sparse_vector<T>();
+    row_map().StableSort(out, [&sv](uint32_t a_idx, uint32_t b_idx) {
+      if (is_nullable) {
+        auto a_val = sv.Get(a_idx);
+        auto b_val = sv.Get(b_idx);
+        return desc ? b_val < a_val : a_val < b_val;
+      }
+      auto a_val = sv.GetNonNull(a_idx);
+      auto b_val = sv.GetNonNull(b_idx);
+      return desc ? b_val < a_val : a_val < b_val;
+    });
   }
 
   template <typename T>

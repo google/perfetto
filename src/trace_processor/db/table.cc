@@ -96,17 +96,36 @@ Table Table::Sort(const std::vector<Order>& od) const {
   std::vector<uint32_t> idx(size_);
   std::iota(idx.begin(), idx.end(), 0);
 
-  // Sort the row indices according to the given order by constraints.
-  std::sort(idx.begin(), idx.end(), [this, &od](uint32_t a, uint32_t b) {
-    for (const Order& o : od) {
-      const Column& col = columns_[o.col_idx];
-      int cmp =
-          col.Get(a) < col.Get(b) ? -1 : (col.Get(b) < col.Get(a) ? 1 : 0);
-      if (cmp != 0)
-        return o.desc ? cmp > 0 : cmp < 0;
-    }
-    return false;
-  });
+  // As our data is columnar, it's always more efficient to sort one column
+  // at a time rather than try and sort lexiographically all at once.
+  // To preserve correctness, we need to stably sort the index vector once
+  // for each order by in *reverse* order. Reverse order is important as it
+  // preserves the lexiographical property.
+  //
+  // For example, suppose we have the following:
+  // Table {
+  //   Column x;
+  //   Column y
+  //   Column z;
+  // }
+  //
+  // Then, to sort "y asc, x desc", we could do one of two things:
+  //  1) sort the index vector all at once and on each index, we compare
+  //     y then z. This is slow as the data is columnar and we need to
+  //     repeatedly branch inside each column.
+  //  2) we can stably sort first on x desc and then sort on y asc. This will
+  //     first put all the x in the correct order such that when we sort on
+  //     y asc, we will have the correct order of x where y is the same (since
+  //     the sort is stable).
+  //
+  // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
+  // the first constraint in the below loop) in a non-stable way. However, this
+  // is more subtle than it appears as we would then need special handling where
+  // there are order bys on a column which is already sorted (e.g. ts, id).
+  // Investigate whether the performance gains from this are worthwhile.
+  for (auto it = od.rbegin(); it != od.rend(); ++it) {
+    columns_[it->col_idx].StableSort(it->desc, &idx);
+  }
 
   // Return a copy of this table with the RowMaps using the computed ordered
   // RowMap.
