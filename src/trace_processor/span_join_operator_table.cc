@@ -169,8 +169,14 @@ std::unique_ptr<SqliteTable::Cursor> SpanJoinOperatorTable::CreateCursor() {
   return std::unique_ptr<SpanJoinOperatorTable::Cursor>(new Cursor(this, db_));
 }
 
-int SpanJoinOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
+int SpanJoinOperatorTable::BestIndex(const QueryConstraints& qc,
+                                     BestIndexInfo* info) {
   // TODO(lalitm): figure out cost estimation.
+  const auto& ob = qc.order_by();
+  if (ob.size() == 1 && ob.front().iColumn == Column::kTimestamp &&
+      !ob.front().desc) {
+    info->sqlite_omit_order_by = true;
+  }
   return SQLITE_OK;
 }
 

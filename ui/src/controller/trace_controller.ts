@@ -302,7 +302,8 @@ export class TraceController extends Controller<States> {
     //}
     const maxCpuFreq = await engine.query(`
      select max(value)
-     from counters
+     from counter c
+     inner join cpu_counter_track t on c.track_id = t.id
      where name = 'cpufreq';
     `);
 
@@ -325,13 +326,28 @@ export class TraceController extends Controller<States> {
       // cpu freq data.
       // TODO(taylori): Find a way to display cpu idle
       // events even if there are no cpu freq events.
-      const freqExists = await engine.query(`
-        select value
-        from counters
-        where name = 'cpufreq' and ref = ${cpu}
+      const cpuFreqIdle = await engine.query(`
+        select
+          id as cpu_freq_id,
+          (
+            select id
+            from cpu_counter_track
+            where name = 'cpuidle'
+            and cpu = ${cpu}
+            limit 1
+          ) as cpu_idle_id
+        from cpu_counter_track
+        where name = 'cpufreq' and cpu = ${cpu}
         limit 1;
       `);
-      if (freqExists.numRecords > 0) {
+      if (cpuFreqIdle.numRecords > 0) {
+        const freqTrackId = +cpuFreqIdle.columns[0].longValues![0];
+
+        const idleTrackExists: boolean = !cpuFreqIdle.columns[1].isNulls![0];
+        const idleTrackId = idleTrackExists ?
+            +cpuFreqIdle.columns[1].longValues![0] :
+            undefined;
+
         tracksToAdd.push({
           engineId: this.engineId,
           kind: CPU_FREQ_TRACK_KIND,
@@ -340,6 +356,8 @@ export class TraceController extends Controller<States> {
           config: {
             cpu,
             maximumValue: +maxCpuFreq.columns[0].doubleValues![0],
+            freqTrackId,
+            idleTrackId,
           }
         });
       }
@@ -414,46 +432,69 @@ export class TraceController extends Controller<States> {
       }
     }
 
-
-    const counters = await engine.query(`
-      select name, ref, ref_type
-      from counter_definitions
-      where ref is not null
-      group by name, ref, ref_type
-      order by ref_type desc
+    // Add global or GPU counter tracks that are not bound to any pid/tid.
+    const globalCounters = await engine.query(`
+      select name, id
+      from counter_track
+      where type = 'counter_track'
+      union
+      select name, id
+      from gpu_counter_track
+      where name != 'gpufreq'
     `);
-
-    interface CounterMap {
-      [index: number]: string[];
+    for (let i = 0; i < globalCounters.numRecords; i++) {
+      const name = globalCounters.columns[0].stringValues![i];
+      const trackId = +globalCounters.columns[1].longValues![i];
+      tracksToAdd.push({
+        engineId: this.engineId,
+        kind: 'CounterTrack',
+        name,
+        trackGroup: SCROLLING_TRACK_GROUP,
+        config: {
+          name,
+          trackId,
+        }
+      });
     }
 
-    const counterUpids: CounterMap = new Array();
-    const counterUtids: CounterMap = new Array();
-    for (let i = 0; i < counters.numRecords; i++) {
-      const name = counters.columns[0].stringValues![i];
-      const ref = +counters.columns[1].longValues![i];
-      const refType = counters.columns[2].stringValues![i];
-      if (refType === 'upid') {
-        const el = counterUpids[ref];
-        el === undefined ? counterUpids[ref] = [name] :
-                           counterUpids[ref].push(name);
-      } else if (refType === 'utid') {
-        const el = counterUtids[ref];
-        el === undefined ? counterUtids[ref] = [name] :
-                           counterUtids[ref].push(name);
-      } else if (
-          refType === '[NULL]' || (refType === 'gpu' && name !== 'gpufreq')) {
-        // Add global or GPU counter tracks that are not bound to any pid/tid.
-        tracksToAdd.push({
-          engineId: this.engineId,
-          kind: 'CounterTrack',
-          name,
-          trackGroup: SCROLLING_TRACK_GROUP,
-          config: {
-            name,
-            ref: 0,
-          }
-        });
+    interface CounterTrack {
+      name: string;
+      trackId: number;
+    }
+
+    const counterUtids = new Map<number, CounterTrack[]>();
+    const threadCounters = await engine.query(`
+      select name, utid, id
+      from thread_counter_track
+    `);
+    for (let i = 0; i < threadCounters.numRecords; i++) {
+      const name = threadCounters.columns[0].stringValues![i];
+      const utid = +threadCounters.columns[1].longValues![i];
+      const trackId = +threadCounters.columns[2].longValues![i];
+
+      const el = counterUtids.get(utid);
+      if (el === undefined) {
+        counterUtids.set(utid, [{name, trackId}]);
+      } else {
+        el.push({name, trackId});
+      }
+    }
+
+    const counterUpids = new Map<number, CounterTrack[]>();
+    const processCounters = await engine.query(`
+      select name, upid, id
+      from process_counter_track
+    `);
+    for (let i = 0; i < processCounters.numRecords; i++) {
+      const name = processCounters.columns[0].stringValues![i];
+      const upid = +processCounters.columns[1].longValues![i];
+      const trackId = +processCounters.columns[2].longValues![i];
+
+      const el = counterUpids.get(upid);
+      if (el === undefined) {
+        counterUpids.set(upid, [{name, trackId}]);
+      } else {
+        el.push({name, trackId});
       }
     }
 
@@ -526,8 +567,8 @@ export class TraceController extends Controller<States> {
       const threadTrack =
           utid === null ? undefined : utidToThreadTrack.get(utid);
       if (threadTrack === undefined &&
-          (upid === null || counterUpids[upid] === undefined) &&
-          counterUtids[utid] === undefined && !threadHasSched &&
+          (upid === null || counterUpids.get(upid) === undefined) &&
+          counterUtids.get(utid) === undefined && !threadHasSched &&
           (upid === null || upid !== null && !heapUpids.has(upid))) {
         continue;
       }
@@ -571,18 +612,15 @@ export class TraceController extends Controller<States> {
         }));
 
         if (upid !== null) {
-          const counterNames = counterUpids[upid];
+          const counterNames = counterUpids.get(upid);
           if (counterNames !== undefined) {
             counterNames.forEach(element => {
               tracksToAdd.push({
                 engineId: this.engineId,
                 kind: 'CounterTrack',
-                name: element,
+                name: element.name,
                 trackGroup: pUuid,
-                config: {
-                  name: element,
-                  ref: upid,
-                }
+                config: {name: element.name, trackId: element.trackId}
               });
             });
           }
@@ -612,17 +650,17 @@ export class TraceController extends Controller<States> {
           }
         }
       }
-      const counterThreadNames = counterUtids[utid];
+      const counterThreadNames = counterUtids.get(utid);
       if (counterThreadNames !== undefined) {
         counterThreadNames.forEach(element => {
           tracksToAdd.push({
             engineId: this.engineId,
             kind: 'CounterTrack',
-            name: element,
+            name: element.name,
             trackGroup: pUuid,
             config: {
-              name: element,
-              ref: utid,
+              name: element.name,
+              trackId: element.trackId,
             }
           });
         });

@@ -39,20 +39,22 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     if (!this.setup) {
       const result = await this.query(`
-      select max(value), min(value) from
-        counters where name = '${this.config.name}'
-        and ref = ${this.config.ref}`);
+        select max(value), min(value)
+        from counter
+        where track_id = ${this.config.trackId}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
       this.minimumValueSeen = +result.columns[1].doubleValues![0];
       await this.query(
         `create virtual table ${this.tableName('window')} using window;`);
 
-      await this.query(`create view ${this.tableName('counter_view')} as
-        select ts,
-        lead(ts, 1, ts) over (partition by ref_type order by ts) - ts as dur,
-        value, name, ref
-        from counters
-        where name = '${this.config.name}' and ref = ${this.config.ref};`);
+      await this.query(`
+        create view ${this.tableName('counter_view')} as
+        select
+          ts,
+          lead(ts, 1, ts) over (order by ts) - ts as dur,
+          value
+        from counter
+        where track_id = ${this.config.trackId};`);
 
       await this.query(`create virtual table ${this.tableName('span')} using
         span_join(${this.tableName('counter_view')},
@@ -60,13 +62,16 @@ class CounterTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    const result = await this.engine.queryOneRow(`select count(*)
-    from (select
-      ts,
-      lead(ts, 1, ts) over (partition by ref_type order by ts) as ts_end,
-      from counters
-      where name = '${this.config.name}' and ref = ${this.config.ref})
-    where ts <= ${endNs} and ${startNs} <= ts_end`);
+    const result = await this.engine.queryOneRow(`
+      select count(*)
+      from (
+        select
+          ts,
+          lead(ts, 1, ts) over (order by ts) as ts_end,
+        from counter
+        where track_id = ${this.config.trackId}
+      )
+      where ts <= ${endNs} and ${startNs} <= ts_end`);
 
     // Only quantize if we have too much data to draw.
     const isQuantized = result[0] > LIMIT;
@@ -94,18 +99,32 @@ class CounterTrackController extends TrackController<Config, Data> {
       // Union that with the query that finds all the counters within
       // the current query range.
       query = `
-      select * from (select ts, value, counter_id from counters
-      where name = '${this.config.name}' and ref = ${this.config.ref} and
-      ts <= ${startNs} order by ts desc limit 1)
-      UNION
-      select * from (select ts, value, counter_id
-        from (select
-          ts,
-          lead(ts, 1, ts) over (partition by ref_type order by ts) as ts_end,
-          value, counter_id
-          from counters
-          where name = '${this.config.name}' and ref = ${this.config.ref})
-      where ts <= ${endNs} and ${startNs} <= ts_end limit ${LIMIT});`;
+      select *
+      from (
+        select ts, value, track_id
+        from counter
+        where
+          track_id = ${this.config.trackId} and
+          ts <= ${startNs}
+        order by ts desc
+        limit 1
+      )
+      union
+      select *
+      from (
+        select ts, value, track_id
+        from (
+          select
+            ts,
+            lead(ts, 1, ts) over (order by ts) as ts_end,
+            value,
+            track_id
+          from counter
+          where track_id = ${this.config.trackId}
+        )
+        where ts <= ${endNs} and ${startNs} <= ts_end
+        limit ${LIMIT}
+      );`;
     }
 
     const rawResult = await this.query(query);

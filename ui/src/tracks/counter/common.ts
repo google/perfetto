@@ -30,6 +30,6 @@ export interface Config {
   name: string;
   maximumValue?: number;
   minimumValue?: number;
-  ref: number;
+  trackId: number;
   scale?: 'DEFAULT'|'RELATIVE';
 }
