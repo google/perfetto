@@ -44,6 +44,32 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CHILD_TABLE);
 }  // namespace trace_processor
 }  // namespace perfetto
 
+namespace {
+
+bool IsBenchmarkFunctionalOnly() {
+  return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
+}
+
+void TableFilterArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Arg(1024);
+  } else {
+    b->RangeMultiplier(8);
+    b->Range(1024, 2 * 1024 * 1024);
+  }
+}
+
+void TableSortArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Arg(64);
+  } else {
+    b->RangeMultiplier(8);
+    b->Range(1024, 256 * 1024);
+  }
+}
+
+}  // namespace
+
 using perfetto::trace_processor::ChildTestTable;
 using perfetto::trace_processor::RootTestTable;
 using perfetto::trace_processor::SqlValue;
@@ -80,9 +106,7 @@ static void BM_TableIteratorChild(benchmark::State& state) {
       it = child.IterateRows();
   }
 }
-BENCHMARK(BM_TableIteratorChild)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableIteratorChild)->Apply(TableFilterArgs);
 
 static void BM_TableFilterIdColumn(benchmark::State& state) {
   StringPool pool;
@@ -96,9 +120,7 @@ static void BM_TableFilterIdColumn(benchmark::State& state) {
     benchmark::DoNotOptimize(root.Filter({root.id().eq(SqlValue::Long(30))}));
   }
 }
-BENCHMARK(BM_TableFilterIdColumn)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterIdColumn)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   StringPool pool;
@@ -118,9 +140,7 @@ static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
         root.Filter({root.root_non_null().eq(SqlValue::Long(0))}));
   }
 }
-BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   StringPool pool;
@@ -144,9 +164,7 @@ static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
         root.Filter({root.root_nullable().eq(SqlValue::Long(1))}));
   }
 }
-BENCHMARK(BM_TableFilterRootNullableEqMatchMany)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterRootNullableEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
   StringPool pool;
@@ -169,9 +187,7 @@ static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
         child.Filter({child.child_non_null().eq(SqlValue::Long(0))}));
   }
 }
-BENCHMARK(BM_TableFilterChildNonNullEqMatchMany)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterChildNonNullEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
   StringPool pool;
@@ -197,9 +213,7 @@ static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
         child.Filter({child.child_nullable().eq(SqlValue::Long(1))}));
   }
 }
-BENCHMARK(BM_TableFilterChildNullableEqMatchMany)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterChildNullableEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildNonNullEqMatchManyInParent(
     benchmark::State& state) {
@@ -224,8 +238,7 @@ static void BM_TableFilterChildNonNullEqMatchManyInParent(
   }
 }
 BENCHMARK(BM_TableFilterChildNonNullEqMatchManyInParent)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+    ->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildNullableEqMatchManyInParent(
     benchmark::State& state) {
@@ -250,8 +263,7 @@ static void BM_TableFilterChildNullableEqMatchManyInParent(
   }
 }
 BENCHMARK(BM_TableFilterChildNullableEqMatchManyInParent)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+    ->Apply(TableFilterArgs);
 
 static void BM_TableFilterParentSortedEq(benchmark::State& state) {
   StringPool pool;
@@ -270,9 +282,7 @@ static void BM_TableFilterParentSortedEq(benchmark::State& state) {
         root.Filter({root.root_sorted().eq(SqlValue::Long(22))}));
   }
 }
-BENCHMARK(BM_TableFilterParentSortedEq)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterParentSortedEq)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildSortedEq(benchmark::State& state) {
   StringPool pool;
@@ -293,9 +303,7 @@ static void BM_TableFilterChildSortedEq(benchmark::State& state) {
         child.Filter({child.child_sorted().eq(SqlValue::Long(22))}));
   }
 }
-BENCHMARK(BM_TableFilterChildSortedEq)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterChildSortedEq)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
   StringPool pool;
@@ -319,9 +327,7 @@ static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
         child.Filter({child.root_sorted().eq(SqlValue::Long(22))}));
   }
 }
-BENCHMARK(BM_TableFilterChildSortedEqInParent)
-    ->RangeMultiplier(8)
-    ->Range(1024, 2 * 1024 * 1024);
+BENCHMARK(BM_TableFilterChildSortedEqInParent)->Apply(TableFilterArgs);
 
 static void BM_TableSortRootNonNull(benchmark::State& state) {
   StringPool pool;
@@ -342,7 +348,7 @@ static void BM_TableSortRootNonNull(benchmark::State& state) {
     benchmark::DoNotOptimize(root.Sort({root.root_non_null().ascending()}));
   }
 }
-BENCHMARK(BM_TableSortRootNonNull)->RangeMultiplier(8)->Range(1024, 256 * 1024);
+BENCHMARK(BM_TableSortRootNonNull)->Apply(TableSortArgs);
 
 static void BM_TableSortRootNullable(benchmark::State& state) {
   StringPool pool;
@@ -365,9 +371,7 @@ static void BM_TableSortRootNullable(benchmark::State& state) {
     benchmark::DoNotOptimize(root.Sort({root.root_nullable().ascending()}));
   }
 }
-BENCHMARK(BM_TableSortRootNullable)
-    ->RangeMultiplier(8)
-    ->Range(1024, 256 * 1024);
+BENCHMARK(BM_TableSortRootNullable)->Apply(TableSortArgs);
 
 static void BM_TableSortChildNonNullInParent(benchmark::State& state) {
   StringPool pool;
@@ -395,9 +399,7 @@ static void BM_TableSortChildNonNullInParent(benchmark::State& state) {
     benchmark::DoNotOptimize(child.Sort({child.root_non_null().ascending()}));
   }
 }
-BENCHMARK(BM_TableSortChildNonNullInParent)
-    ->RangeMultiplier(8)
-    ->Range(1024, 256 * 1024);
+BENCHMARK(BM_TableSortChildNonNullInParent)->Apply(TableSortArgs);
 
 static void BM_TableSortChildNullableInParent(benchmark::State& state) {
   StringPool pool;
@@ -429,6 +431,4 @@ static void BM_TableSortChildNullableInParent(benchmark::State& state) {
     benchmark::DoNotOptimize(child.Sort({child.root_nullable().ascending()}));
   }
 }
-BENCHMARK(BM_TableSortChildNullableInParent)
-    ->RangeMultiplier(8)
-    ->Range(1024, 256 * 1024);
+BENCHMARK(BM_TableSortChildNullableInParent)->Apply(TableSortArgs);
