@@ -95,6 +95,7 @@ void HeapGraphTracker::FinalizeProfile() {
 
     int64_t reference_set_id =
         context_->storage->heap_graph_reference_table().size();
+    std::set<int64_t> seen_owned;
     for (const SourceObject::Reference& ref : obj.references) {
       // This is true for unset reference fields.
       if (ref.owned_object_id == 0)
@@ -107,7 +108,10 @@ void HeapGraphTracker::FinalizeProfile() {
         continue;
 
       int64_t owned_row = it->second;
-      walker_.AddEdge(owner_row, owned_row);
+      bool inserted;
+      std::tie(std::ignore, inserted) = seen_owned.emplace(owned_row);
+      if (inserted)
+        walker_.AddEdge(owner_row, owned_row);
 
       auto field_name_it = interned_field_names_.find(ref.field_name_id);
       if (field_name_it == interned_field_names_.end()) {
