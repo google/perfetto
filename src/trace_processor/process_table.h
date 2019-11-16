@@ -36,7 +36,8 @@ class ProcessTable : public SqliteTable {
     kPid = 2,
     kStartTs = 3,
     kEndTs = 4,
-    kParentUpid = 5
+    kParentUpid = 5,
+    kUid = 6
   };
   class Cursor : public SqliteTable::Cursor {
    public:

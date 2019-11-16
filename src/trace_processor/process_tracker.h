@@ -91,6 +91,9 @@ class ProcessTracker {
                                        base::Optional<uint32_t> ppid,
                                        base::StringView name);
 
+  // Sets the process user id.
+  void SetProcessUid(UniquePid upid, uint32_t uid);
+
   // Assigns the given name to the process identified by |upid| if it does not
   // have a name yet.
   void SetProcessNameIfUnset(UniquePid upid, StringId process_name_id);
