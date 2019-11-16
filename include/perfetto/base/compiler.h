@@ -38,25 +38,6 @@
 #define PERFETTO_NO_INLINE
 #endif
 
-// TODO(lalitm): is_trivially_constructible is currently not available
-// in some environments we build in. Reenable when that environment supports
-// this.
-#if defined(__GLIBCXX__)
-#define PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(T) true
-#else
-#define PERFETTO_IS_TRIVIALLY_CONSTRUCTIBLE(T) \
-  std::is_trivially_constructible<T>::value
-#endif
-
-// TODO(lalitm): is_trivially_copyable is currently not available
-// in some environments we build in. Reenable when that environment supports
-// this.
-#if defined(__GLIBCXX__)
-#define PERFETTO_IS_TRIVIALLY_COPYABLE(T) true
-#else
-#define PERFETTO_IS_TRIVIALLY_COPYABLE(T) std::is_trivially_copyable<T>::value
-#endif
-
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)
