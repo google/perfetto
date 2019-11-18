@@ -12,6 +12,7 @@ synth_1.py smoke.sql synth_1_smoke.out
 
 # Test for the process<>thread tracking logic.
 synth_process_tracking.py process_tracking.sql process_tracking.out
+synth_process_tracking.py process_tracking_uid.sql process_tracking_uid.out
 process_tracking_short_lived_1.py process_tracking.sql process_tracking_process_tracking_short_lived_1.out
 process_tracking_short_lived_2.py process_tracking.sql process_tracking_process_tracking_short_lived_2.out
 process_tracking_exec.py process_tracking.sql process_tracking_process_tracking_exec.out
