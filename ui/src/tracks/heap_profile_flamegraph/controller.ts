@@ -362,24 +362,33 @@ class HeapProfileFlameraphTrackController extends
         this.tableName(`callsite_hash_name_size_${ts}`);
     const tableNameGroupedCallsitesForFlamegraph =
         this.tableName(`grouped_callsites_for_flamegraph${ts}`);
-    // const tableNameGroupedCallsitesForFlamegraph =
-    // this.tableNameGroupdCallsitesForFlamegraphAsKey(ts); Joining the callsite
-    // table with frame table then with alloc table to get the size and name for
-    // each callsite.
+    // Joining the callsite table with frame table then with alloc table to get
+    // the size and name for each callsite.
+    // TODO(tneda): Make frame name nullable in the trace processor for
+    // consistency with the other columns.
     await this.query(`create view if not exists ${tableNameCallsiteNameSize} as
-      select cs.id, parent_id, depth, IFNULL(symbols.name, fr.name) as name,
-      SUM(IFNULL(size, 0)) as size,
-      SUM(case when size > 0 then size else 0 end) as alloc_size,
-      SUM(IFNULL(count, 0)) as count,
-      SUM(case when count > 0 then count else 0 end) as alloc_count
-      from stack_profile_callsite cs
-      join stack_profile_frame fr on cs.frame_id = fr.id
-      inner join (SELECT symbol_set_id, FIRST_VALUE(name) OVER(PARTITION BY
-        symbol_set_id) as name
-      FROM stack_profile_symbol GROUP BY symbol_set_id) as symbols
-        using(symbol_set_id)
-      left join heap_profile_allocation alloc on alloc.callsite_id = cs.id and
-      alloc.ts <= ${ts} and alloc.upid = ${upid} group by cs.id`);
+         select id, parent_id, depth, IFNULL(DEMANGLE(name), name) as name,
+            map_name, size, alloc_size, count, alloc_count from (
+         select cs.id as id, parent_id, depth,
+            coalesce(symbols.name,
+                case when fr.name != '' then fr.name else map.name end) as name,
+            map.name as map_name,
+            SUM(IFNULL(size, 0)) as size,
+            SUM(IFNULL(size, 0)) as size,
+            SUM(case when size > 0 then size else 0 end) as alloc_size,
+            SUM(IFNULL(count, 0)) as count,
+            SUM(case when count > 0 then count else 0 end) as alloc_count
+         from stack_profile_callsite cs
+         join stack_profile_frame fr on cs.frame_id = fr.id
+         join stack_profile_mapping map on fr.mapping = map.id
+         inner join (
+              select symbol_set_id, FIRST_VALUE(name) OVER(PARTITION BY
+                symbol_set_id) as name
+              from stack_profile_symbol GROUP BY symbol_set_id
+            ) as symbols using(symbol_set_id)
+         left join heap_profile_allocation alloc on alloc.callsite_id = cs.id
+         and alloc.ts <= ${ts} and alloc.upid = ${upid} group by cs.id)`);
+
     // Recursive query to compute the hash for each callsite based on names
     // rather than ids.
     // We get all the children of the row in question and emit a row with hash
@@ -421,7 +430,8 @@ class HeapProfileFlameraphTrackController extends
         tableNameGroupedCallsitesForFlamegraph}
         as with recursive callsite_children(hash, name, parent_hash, depth,
           size, alloc_size, count, alloc_count) AS (
-        select *
+        select hash, name, parent_hash, depth, size, alloc_size,
+          count, alloc_count
         from ${tableNameCallsiteHashNameSize}
         union all
         select chns.hash, chns.name, chns.parent_hash, chns.depth, cc.size,
