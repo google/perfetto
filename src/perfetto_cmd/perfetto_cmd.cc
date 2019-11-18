@@ -453,14 +453,13 @@ int PerfettoCmd::Main(int argc, char** argv) {
   if (trace_config_->trace_uuid_lsb() == 0 &&
       trace_config_->trace_uuid_msb() == 0) {
     base::Uuid uuid = base::Uuidv4();
-    uuid_ = base::UuidToString(uuid);
-    trace_config_->set_trace_uuid_msb(base::GetUuidMsb(uuid));
-    trace_config_->set_trace_uuid_lsb(base::GetUuidLsb(uuid));
+    uuid_ = uuid.ToString();
+    trace_config_->set_trace_uuid_msb(uuid.msb());
+    trace_config_->set_trace_uuid_lsb(uuid.lsb());
   } else {
-    base::Uuid uuid;
-    base::SetUuidMsb(trace_config_->trace_uuid_msb(), &uuid);
-    base::SetUuidLsb(trace_config_->trace_uuid_lsb(), &uuid);
-    uuid_ = base::UuidToString(uuid);
+    base::Uuid uuid(trace_config_->trace_uuid_lsb(),
+                    trace_config_->trace_uuid_msb());
+    uuid_ = uuid.ToString();
   }
 
   if (!trace_config_->incident_report_config().destination_package().empty()) {
