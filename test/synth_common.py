@@ -173,11 +173,13 @@ class Trace(object):
     if ts is not None:
       self.packet.timestamp = ts
 
-  def add_process(self, pid, ppid, cmdline):
+  def add_process(self, pid, ppid, cmdline, uid=None):
     process = self.packet.process_tree.processes.add()
     process.pid = pid
     process.ppid = ppid
     process.cmdline.append(cmdline)
+    if uid is not None:
+      process.uid = uid
     self.proc_map[pid] = cmdline
 
   def add_thread(self, tid, tgid, cmdline):

@@ -40,7 +40,7 @@ trace.add_sched(ts=4, prev_pid=12, next_pid=0, prev_comm='p1-t2')
 # SQL level we should be able to tell that p1-t0 and p1-t2 belong to 'process1'
 # but p1-t1 should be left unjoinable.
 trace.add_process_tree_packet(ts=5)
-trace.add_process(10, 0, "process1")
+trace.add_process(10, 0, "process1", 1001)
 trace.add_thread(12, 10, "p1-t2")
 
 # Now create another process (pid=20) with three threads(tids=20,21,22).
@@ -58,7 +58,7 @@ trace.add_sched(ts=14, prev_pid=22, next_pid=0, prev_comm='p2-t2')
 
 # From the process tracker viewpoint we pretend we only scraped tids=20,21.
 trace.add_process_tree_packet(ts=15)
-trace.add_process(20, 0, "process_2")
+trace.add_process(20, 0, "process_2", 1002)
 trace.add_thread(21, 20, "p2-t1")
 
 # Finally the very complex case: a third process (pid=30) which spawns threads

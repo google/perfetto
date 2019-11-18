@@ -212,7 +212,12 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     } else {
       auto args = proc.cmdline();
       base::StringView argv0 = args ? *args : base::StringView();
-      context_->process_tracker->SetProcessMetadata(pid, ppid, argv0);
+      UniquePid upid =
+          context_->process_tracker->SetProcessMetadata(pid, ppid, argv0);
+      if (proc.has_uid()) {
+        context_->process_tracker->SetProcessUid(
+            upid, static_cast<uint32_t>(proc.uid()));
+      }
     }
   }
 
