@@ -66,7 +66,9 @@ SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
 
 SqlStatsTable::Cursor::~Cursor() = default;
 
-int SqlStatsTable::Cursor::Filter(const QueryConstraints&, sqlite3_value**) {
+int SqlStatsTable::Cursor::Filter(const QueryConstraints&,
+                                  sqlite3_value**,
+                                  FilterHistory) {
   *this = Cursor(table_);
   num_rows_ = storage_->sql_stats().size();
   return SQLITE_OK;

@@ -47,7 +47,9 @@ class SqlStatsTable : public SqliteTable {
     ~Cursor() override;
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints&, sqlite3_value**) override;
+    int Filter(const QueryConstraints&,
+               sqlite3_value**,
+               FilterHistory) override;
     int Next() override;
     int Eof() override;
     int Column(sqlite3_context*, int N) override;
