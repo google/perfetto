@@ -127,6 +127,9 @@ class RowMap {
       }
     }
 
+    Iterator(Iterator&&) noexcept = default;
+    Iterator& operator=(Iterator&&) = default;
+
     // Forwards the iterator to the next row of the RowMap.
     void Next() {
       switch (rm_->mode_) {
@@ -190,6 +193,9 @@ class RowMap {
     }
 
    private:
+    Iterator(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&) = delete;
+
     // Only one of the below will be non-null depending on the mode of the
     // RowMap.
     std::unique_ptr<RangeIterator> range_it_;
