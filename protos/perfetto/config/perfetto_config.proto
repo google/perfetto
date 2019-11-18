@@ -1112,8 +1112,9 @@ message TraceConfig {
   }
   optional IncidentReportConfig incident_report_config = 25;
 
+  // DEPRECATED. Was trace_uuid, use trace_uuid_msb and trace_uuid_lsb instead.
+  reserved 26;
   // An identifier clients can use to tie this trace to other logging.
-  optional bytes trace_uuid = 26;
   // Alternative encoding of trace_uuid as two int64s.
   optional int64 trace_uuid_msb = 27;
   optional int64 trace_uuid_lsb = 28;
