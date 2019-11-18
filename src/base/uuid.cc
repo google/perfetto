@@ -54,8 +54,8 @@ std::string UuidToPrettyString(const Uuid& uuid) {
   for (size_t i = 0; i < uuid.size(); ++i) {
     if (i == 4 || i == 6 || i == 8 || i == 10)
       j++;
-    s[2 * i + j] = kHexmap[(uuid[i] & 0xf0) >> 4];
-    s[2 * i + 1 + j] = kHexmap[(uuid[i] & 0x0f)];
+    s[2 * i + j] = kHexmap[(uuid[uuid.size() - i - 1] & 0xf0) >> 4];
+    s[2 * i + 1 + j] = kHexmap[(uuid[uuid.size() - i - 1] & 0x0f)];
   }
   return s;
 }
