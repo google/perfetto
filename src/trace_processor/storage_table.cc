@@ -170,7 +170,8 @@ StorageTable::Cursor::Cursor(StorageTable* table)
     : SqliteTable::Cursor(table), table_(table) {}
 
 int StorageTable::Cursor::Filter(const QueryConstraints& qc,
-                                 sqlite3_value** argv) {
+                                 sqlite3_value** argv,
+                                 FilterHistory) {
   iterator_ = table_->CreateBestRowIterator(qc, argv);
   if (!iterator_)
     return SQLITE_ERROR;

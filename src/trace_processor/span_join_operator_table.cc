@@ -283,7 +283,8 @@ SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
       table_(table) {}
 
 int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
-                                          sqlite3_value** argv) {
+                                          sqlite3_value** argv,
+                                          FilterHistory) {
   int err = t1_.Initialize(qc, argv);
   if (err != SQLITE_OK)
     return err;

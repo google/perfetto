@@ -158,10 +158,29 @@ DbSqliteTable::Cursor::Cursor(DbSqliteTable* table)
     : SqliteTable::Cursor(table), initial_db_table_(table->table_) {}
 
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
-                                  sqlite3_value** argv) {
+                                  sqlite3_value** argv,
+                                  FilterHistory history) {
   // Clear out the iterator before filtering to ensure the destructor is run
   // before the table's destructor.
   iterator_ = base::nullopt;
+
+  if (history == FilterHistory::kSame && qc.constraints().size() == 1 &&
+      sqlite_utils::IsOpEq(qc.constraints().front().op)) {
+    // If we've seen the same constraint set with a single equality constraint
+    // more than |kRepeatedThreshold| times, we assume we will see it more
+    // in the future and thus cache a table sorted on the column. That way,
+    // future equality constraints can binary search for the value instead of
+    // doing a full table scan.
+    constexpr uint32_t kRepeatedThreshold = 3;
+    if (!sorted_cache_table_ && repeated_cache_count_++ > kRepeatedThreshold) {
+      const auto& c = qc.constraints().front();
+      uint32_t col = static_cast<uint32_t>(c.column);
+      sorted_cache_table_ = initial_db_table_->Sort({Order{col, false}});
+    }
+  } else {
+    sorted_cache_table_ = base::nullopt;
+    repeated_cache_count_ = 0;
+  }
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   constraints_.resize(qc.constraints().size());
@@ -183,7 +202,11 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     orders_[i] = Order{col, static_cast<bool>(ob.desc)};
   }
 
-  db_table_ = initial_db_table_->Filter(constraints_).Sort(orders_);
+  // Try and use the sorted cache table (if it exists) to speed up the sorting.
+  // Otherwise, just use the original table.
+  auto* source =
+      sorted_cache_table_ ? &*sorted_cache_table_ : &*initial_db_table_;
+  db_table_ = source->Filter(constraints_).Sort(orders_);
   iterator_ = db_table_->IterateRows();
 
   return SQLITE_OK;

@@ -37,7 +37,9 @@ class StorageTable : public SqliteTable {
     Cursor(StorageTable* table);
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints& qc, sqlite3_value** argv) override;
+    int Filter(const QueryConstraints& qc,
+               sqlite3_value** argv,
+               FilterHistory) override;
     int Next() override;
     int Eof() override;
     int Column(sqlite3_context*, int N) override;
