@@ -603,15 +603,15 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
   // TODO(eseckler): Propagate statuses from modules.
   context_->android_probes_module->ParseTraceConfig(trace_config);
 
-  if (trace_config.trace_uuid().size != 0) {
-    ConstBytes bytes = trace_config.trace_uuid();
-    base::Optional<base::Uuid> uuid = base::BytesToUuid(bytes.data, bytes.size);
-    if (uuid.has_value()) {
-      std::string str = base::UuidToPrettyString(uuid.value());
-      StringId id = context_->storage->InternString(base::StringView(str));
-      context_->storage->SetMetadata(metadata::trace_uuid,
-                                     Variadic::String(id));
-    }
+  int64_t uuid_msb = trace_config.trace_uuid_msb();
+  int64_t uuid_lsb = trace_config.trace_uuid_lsb();
+  if (uuid_msb != 0 || uuid_lsb != 0) {
+    base::Uuid uuid;
+    base::SetUuidMsb(uuid_msb, &uuid);
+    base::SetUuidLsb(uuid_lsb, &uuid);
+    std::string str = base::UuidToPrettyString(uuid);
+    StringId id = context_->storage->InternString(base::StringView(str));
+    context_->storage->SetMetadata(metadata::trace_uuid, Variadic::String(id));
   }
 }
 
