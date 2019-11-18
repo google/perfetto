@@ -31,6 +31,11 @@ class TraceProcessorContext;
 
 class VulkanMemoryTracker {
  public:
+  enum class DeviceCounterType {
+    kAllocationCounter = 0,
+    kBindCounter = 1,
+  };
+
   explicit VulkanMemoryTracker(TraceProcessorContext* context);
   ~VulkanMemoryTracker() = default;
 
@@ -52,7 +57,8 @@ class VulkanMemoryTracker {
   StringId FindOperationString(VulkanMemoryEvent::Operation);
   StringId FindAllocationScopeString(VulkanMemoryEvent::AllocationScope);
   StringId FindAllocationScopeCounterString(VulkanMemoryEvent::AllocationScope);
-  StringId FindMemoryTypeCounterString(uint32_t /*memory_type*/);
+  StringId FindMemoryTypeCounterString(uint32_t /*memory_type*/,
+                                       DeviceCounterType);
 
  private:
   TraceProcessorContext* const context_;
@@ -64,7 +70,9 @@ class VulkanMemoryTracker {
   std::vector<StringId> scope_strs_id_;
   std::vector<StringId> scope_counter_strs_id_;
   std::unordered_map<uint32_t /*memory_type*/, StringId>
-      memory_type_counter_string_map_;
+      memory_type_allocation_counter_string_map_;
+  std::unordered_map<uint32_t /*memory_type*/, StringId>
+      memory_type_bind_counter_string_map_;
 
   void SetupSourceAndTypeInternedStrings();
 };

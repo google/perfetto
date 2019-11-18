@@ -309,37 +309,95 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
 void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
     UniquePid upid,
     const VulkanMemoryEvent::Decoder& event) {
-  if (event.source() == VulkanMemoryEvent::SOURCE_DRIVER) {
-    auto allocation_scope = static_cast<VulkanMemoryEvent::AllocationScope>(
-        event.allocation_scope());
-    if (event.operation() == VulkanMemoryEvent::OP_CREATE) {
-      vulkan_driver_memory_counters_[allocation_scope] += event.memory_size();
-    } else if (event.operation() == VulkanMemoryEvent::OP_DESTROY) {
-      vulkan_driver_memory_counters_[allocation_scope] -= event.memory_size();
-    }
-    StringId track_id =
-        context_->vulkan_memory_tracker->FindAllocationScopeCounterString(
-            allocation_scope);
-    TrackId track =
-        context_->track_tracker->InternProcessCounterTrack(track_id, upid);
-    context_->event_tracker->PushCounter(
-        event.timestamp(), vulkan_driver_memory_counters_[allocation_scope],
-        track);
-  } else if (event.source() == VulkanMemoryEvent::SOURCE_BUFFER ||
-             event.source() == VulkanMemoryEvent::SOURCE_IMAGE) {
-    auto memory_type = static_cast<uint32_t>(event.memory_type());
-    if (event.operation() == VulkanMemoryEvent::OP_BIND) {
-      vulkan_device_memory_counters_[memory_type] += event.memory_size();
-    } else if (event.operation() == VulkanMemoryEvent::OP_DESTROY_BOUND) {
-      vulkan_device_memory_counters_[memory_type] -= event.memory_size();
-    }
-    StringId track_id =
-        context_->vulkan_memory_tracker->FindMemoryTypeCounterString(
-            memory_type);
-    TrackId track =
-        context_->track_tracker->InternProcessCounterTrack(track_id, upid);
-    context_->event_tracker->PushCounter(
-        event.timestamp(), vulkan_device_memory_counters_[memory_type], track);
+  StringId track_id = kNullStringId;
+  TrackId track = UINT32_MAX;
+  auto allocation_scope = VulkanMemoryEvent::SCOPE_UNSPECIFIED;
+  uint32_t memory_type = UINT32_MAX;
+  switch (event.source()) {
+    case VulkanMemoryEvent::SOURCE_DRIVER:
+      allocation_scope = static_cast<VulkanMemoryEvent::AllocationScope>(
+          event.allocation_scope());
+      switch (event.operation()) {
+        case VulkanMemoryEvent::OP_CREATE:
+          vulkan_driver_memory_counters_[allocation_scope] +=
+              event.memory_size();
+          break;
+        case VulkanMemoryEvent::OP_DESTROY:
+          vulkan_driver_memory_counters_[allocation_scope] -=
+              event.memory_size();
+          break;
+        case VulkanMemoryEvent::OP_UNSPECIFIED:
+        case VulkanMemoryEvent::OP_BIND:
+        case VulkanMemoryEvent::OP_DESTROY_BOUND:
+        case VulkanMemoryEvent::OP_ANNOTATIONS:
+          return;
+      }
+      track_id =
+          context_->vulkan_memory_tracker->FindAllocationScopeCounterString(
+              allocation_scope);
+      track =
+          context_->track_tracker->InternProcessCounterTrack(track_id, upid);
+      context_->event_tracker->PushCounter(
+          event.timestamp(), vulkan_driver_memory_counters_[allocation_scope],
+          track);
+      break;
+
+    case VulkanMemoryEvent::SOURCE_DEVICE_MEMORY:
+      memory_type = static_cast<uint32_t>(event.memory_type());
+      switch (event.operation()) {
+        case VulkanMemoryEvent::OP_CREATE:
+          vulkan_device_memory_counters_allocate_[memory_type] +=
+              event.memory_size();
+          break;
+        case VulkanMemoryEvent::OP_DESTROY:
+          vulkan_device_memory_counters_allocate_[memory_type] -=
+              event.memory_size();
+          break;
+        case VulkanMemoryEvent::OP_UNSPECIFIED:
+        case VulkanMemoryEvent::OP_BIND:
+        case VulkanMemoryEvent::OP_DESTROY_BOUND:
+        case VulkanMemoryEvent::OP_ANNOTATIONS:
+          return;
+      }
+      track_id = context_->vulkan_memory_tracker->FindMemoryTypeCounterString(
+          memory_type,
+          VulkanMemoryTracker::DeviceCounterType::kAllocationCounter);
+      track =
+          context_->track_tracker->InternProcessCounterTrack(track_id, upid);
+      context_->event_tracker->PushCounter(
+          event.timestamp(),
+          vulkan_device_memory_counters_allocate_[memory_type], track);
+      break;
+
+    case VulkanMemoryEvent::SOURCE_BUFFER:
+    case VulkanMemoryEvent::SOURCE_IMAGE:
+      memory_type = static_cast<uint32_t>(event.memory_type());
+      switch (event.operation()) {
+        case VulkanMemoryEvent::OP_BIND:
+          vulkan_device_memory_counters_bind_[memory_type] +=
+              event.memory_size();
+          break;
+        case VulkanMemoryEvent::OP_DESTROY_BOUND:
+          vulkan_device_memory_counters_bind_[memory_type] -=
+              event.memory_size();
+          break;
+        case VulkanMemoryEvent::OP_UNSPECIFIED:
+        case VulkanMemoryEvent::OP_CREATE:
+        case VulkanMemoryEvent::OP_DESTROY:
+        case VulkanMemoryEvent::OP_ANNOTATIONS:
+          return;
+      }
+      track_id = context_->vulkan_memory_tracker->FindMemoryTypeCounterString(
+          memory_type, VulkanMemoryTracker::DeviceCounterType::kBindCounter);
+      track =
+          context_->track_tracker->InternProcessCounterTrack(track_id, upid);
+      context_->event_tracker->PushCounter(
+          event.timestamp(), vulkan_device_memory_counters_bind_[memory_type],
+          track);
+      break;
+    case VulkanMemoryEvent::SOURCE_UNSPECIFIED:
+    case VulkanMemoryEvent::SOURCE_DEVICE:
+      return;
   }
 }
 
