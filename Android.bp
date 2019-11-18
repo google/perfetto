@@ -326,6 +326,7 @@ cc_library_shared {
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_ipc",
+    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
     ":perfetto_src_traced_probes_data_source",
@@ -419,6 +420,7 @@ cc_library_shared {
   srcs: [
     ":perfetto_src_android_internal_android_internal",
     ":perfetto_src_android_internal_headers",
+    ":perfetto_src_perfetto_cmd_perfetto_atoms",
   ],
   shared_libs: [
     "android.hardware.atrace@1.0",
@@ -426,14 +428,17 @@ cc_library_shared {
     "android.hardware.power.stats@1.0",
     "libbase",
     "libbinder",
+    "libcutils",
     "libhidlbase",
     "libincident",
     "liblog",
     "libservices",
+    "libstatssocket",
     "libutils",
   ],
   static_libs: [
     "libhealthhalutils",
+    "libstatslog_perfetto",
   ],
   export_include_dirs: [
     "include",
@@ -701,6 +706,7 @@ cc_binary {
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_ipc",
+    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_producer",
@@ -968,6 +974,7 @@ cc_test {
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_ipc",
+    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_daemon",
     ":perfetto_src_profiling_memory_end_to_end_tests",
@@ -4043,6 +4050,7 @@ filegroup {
     "src/android_internal/health_hal.cc",
     "src/android_internal/incident_service.cc",
     "src/android_internal/power_stats_hal.cc",
+    "src/android_internal/statsd_logging.cc",
   ],
 }
 
@@ -4201,6 +4209,11 @@ filegroup {
     "src/ipc/host_impl_unittest.cc",
     "src/ipc/test/ipc_integrationtest.cc",
   ],
+}
+
+// GN: //src/perfetto_cmd:perfetto_atoms
+filegroup {
+  name: "perfetto_src_perfetto_cmd_perfetto_atoms",
 }
 
 // GN: //src/perfetto_cmd:perfetto_cmd
@@ -5408,6 +5421,7 @@ cc_test {
     ":perfetto_src_ipc_ipc",
     ":perfetto_src_ipc_test_messages_gen",
     ":perfetto_src_ipc_unittests",
+    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_producer",
@@ -6110,4 +6124,39 @@ cc_binary {
   defaults: [
     "perfetto_defaults",
   ],
+}
+
+cc_library_static {
+    name: "libstatslog_perfetto",
+    generated_sources: ["statslog_perfetto.cpp"],
+    generated_headers: ["statslog_perfetto.h"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    export_generated_headers: ["statslog_perfetto.h"],
+    shared_libs: [
+        "libcutils",
+        "liblog",
+        "libstatssocket",
+        "libutils",
+    ],
+}
+
+genrule {
+    name: "statslog_perfetto.h",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_perfetto.h --module perfetto --namespace perfetto,android_internal",
+    out: [
+        "statslog_perfetto.h",
+    ],
+}
+
+genrule {
+    name: "statslog_perfetto.cpp",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_perfetto.cpp --module perfetto --namespace perfetto,android_internal --importHeader statslog_perfetto.h",
+    out: [
+        "statslog_perfetto.cpp",
+    ],
 }
