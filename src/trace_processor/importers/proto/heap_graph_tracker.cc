@@ -80,8 +80,10 @@ void HeapGraphTracker::FinalizeProfile() {
     }
     context_->storage->mutable_heap_graph_object_table()->Insert(
         {current_upid_, current_ts_, static_cast<int64_t>(obj.object_id),
-         static_cast<int64_t>(obj.self_size), -1, 0, -1, 0, it->second,
-         base::nullopt});
+         static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
+         /*unique_retained_size=*/-1, /*reference_set_id=*/-1,
+         /*reachable=*/0, /*type_name=*/it->second,
+         /*root_type=*/base::nullopt});
     int64_t row = context_->storage->heap_graph_object_table().size() - 1;
     object_id_to_row_.emplace(obj.object_id, row);
     walker_.AddNode(row, obj.self_size);
