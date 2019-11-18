@@ -25,32 +25,46 @@
 namespace perfetto {
 namespace base {
 
-using Uuid = std::array<uint8_t, 16>;
-Uuid Uuidv4();
+class Uuid {
+ public:
+  explicit Uuid(const std::string& s);
+  explicit Uuid(int64_t lsb, int64_t msb);
+  Uuid();
 
-Uuid StringToUuid(const std::string&);
-std::string UuidToString(const Uuid&);
-std::string UuidToPrettyString(const Uuid&);
-Optional<Uuid> BytesToUuid(const uint8_t* data, size_t size);
-inline Optional<Uuid> BytesToUuid(const char* data, size_t size) {
-  return BytesToUuid(reinterpret_cast<const uint8_t*>(data), size);
-}
-inline int64_t GetUuidMsb(const Uuid& uuid) {
-  int64_t result;
-  memcpy(&result, uuid.data() + 8, 8);
-  return result;
-}
-inline int64_t GetUuidLsb(const Uuid& uuid) {
-  int64_t result;
-  memcpy(&result, uuid.data(), 8);
-  return result;
-}
-inline void SetUuidMsb(int64_t top, Uuid* uuid) {
-  memcpy(uuid->data() + 8, &top, 8);
-}
-inline void SetUuidLsb(int64_t bottom, Uuid* uuid) {
-  memcpy(uuid->data(), &bottom, 8);
-}
+  std::array<uint8_t, 16>* data() { return &data_; }
+  const std::array<uint8_t, 16>* data() const { return &data_; }
+
+  bool operator==(const Uuid& other) const { return data_ == other.data_; }
+
+  bool operator!=(const Uuid& other) const { return !(*this == other); }
+
+  int64_t msb() const {
+    int64_t result;
+    memcpy(&result, data_.data() + 8, 8);
+    return result;
+  }
+
+  int64_t lsb() const {
+    int64_t result;
+    memcpy(&result, data_.data(), 8);
+    return result;
+  }
+
+  void set_lsb_msb(int64_t lsb, int64_t msb) {
+    set_lsb(lsb);
+    set_msb(msb);
+  }
+
+  std::string ToString() const;
+  std::string ToPrettyString() const;
+
+ private:
+  void set_msb(int64_t msb) { memcpy(data_.data() + 8, &msb, 8); }
+  void set_lsb(int64_t lsb) { memcpy(data_.data(), &lsb, 8); }
+  std::array<uint8_t, 16> data_{};
+};
+
+Uuid Uuidv4();
 
 }  // namespace base
 }  // namespace perfetto
