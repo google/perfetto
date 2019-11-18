@@ -74,7 +74,8 @@ ProcessTable::Cursor::Cursor(ProcessTable* table)
     : SqliteTable::Cursor(table), storage_(table->storage_) {}
 
 int ProcessTable::Cursor::Filter(const QueryConstraints& qc,
-                                 sqlite3_value** argv) {
+                                 sqlite3_value** argv,
+                                 FilterHistory) {
   min_ = 0;
   max_ = static_cast<uint32_t>(storage_->process_count());
   desc_ = false;
