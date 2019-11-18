@@ -77,14 +77,14 @@ export class Flamegraph {
     return hash & 0xff;
   }
 
-  generateColor(name: string|undefined, isGreyedOut = false): string {
+  generateColor(name: string, isGreyedOut = false): string {
     if (this.isThumbnail) {
       return HEAP_PROFILE_COLOR;
     }
     if (isGreyedOut) {
       return '#d9d9d9';
     }
-    if (name === undefined || name === 'root') {
+    if (name === 'unknown' || name === 'root') {
       return '#c0c0c0';
     }
     const hue = this.hash(name);
@@ -161,7 +161,8 @@ export class Flamegraph {
       currentY = nodeHeight * (value.depth + 1);
 
       // Draw node.
-      ctx.fillStyle = this.generateColor(value.name, isGreyedOut);
+      const name = this.getCallsiteName(value);
+      ctx.fillStyle = this.generateColor(name, isGreyedOut);
       ctx.fillRect(currentX, currentY, width, nodeHeight);
 
       // Set current node's data in map for children to use.
@@ -185,7 +186,6 @@ export class Flamegraph {
       }
 
       // Draw name.
-      const name = this.getCallsiteName(value);
       ctx.font = `${this.textSize}px Google Sans`;
       const text = cropText(name, charWidth, width - 2);
       ctx.fillStyle = 'black';
@@ -240,7 +240,8 @@ export class Flamegraph {
   }
 
   private getCallsiteName(value: CallsiteInfo): string {
-    return value.name === undefined ? 'unknown' : value.name;
+    return value.name === undefined || value.name === '' ? 'unknown' :
+                                                           value.name;
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
