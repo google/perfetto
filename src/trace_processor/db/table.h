@@ -43,6 +43,9 @@ class Table {
       }
     }
 
+    Iterator(Iterator&&) noexcept = default;
+    Iterator& operator=(Iterator&&) = default;
+
     // Advances the iterator to the next row of the table.
     void Next() {
       for (auto& it : its_) {
@@ -60,6 +63,9 @@ class Table {
     }
 
    private:
+    Iterator(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&) = delete;
+
     const Table* table_ = nullptr;
     std::vector<RowMap::Iterator> its_;
   };

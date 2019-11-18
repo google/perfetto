@@ -30,6 +30,9 @@ class DbSqliteTable : public SqliteTable {
    public:
     explicit Cursor(DbSqliteTable* table);
 
+    Cursor(Cursor&&) noexcept = default;
+    Cursor& operator=(Cursor&&) = default;
+
     // Implementation of SqliteTable::Cursor.
     int Filter(const QueryConstraints& qc, sqlite3_value** argv) override;
     int Next() override;
@@ -37,6 +40,9 @@ class DbSqliteTable : public SqliteTable {
     int Column(sqlite3_context*, int N) override;
 
    private:
+    Cursor(const Cursor&) = delete;
+    Cursor& operator=(const Cursor&) = delete;
+
     const Table* initial_db_table_ = nullptr;
 
     base::Optional<Table> db_table_;
