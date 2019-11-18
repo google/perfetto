@@ -194,6 +194,10 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
   return upid;
 }
 
+void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
+  context_->storage->GetMutableProcess(upid)->uid = uid;
+}
+
 void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
                                            StringId process_name_id) {
   TraceStorage::Process* process = context_->storage->GetMutableProcess(upid);
