@@ -103,7 +103,8 @@ WindowOperatorTable::Cursor::Cursor(WindowOperatorTable* table)
     : SqliteTable::Cursor(table), table_(table) {}
 
 int WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
-                                        sqlite3_value** argv) {
+                                        sqlite3_value** argv,
+                                        FilterHistory) {
   *this = Cursor(table_);
   window_start_ = table_->window_start_;
   window_end_ = table_->window_start_ + table_->window_dur_;

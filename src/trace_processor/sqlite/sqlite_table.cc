@@ -130,9 +130,7 @@ int SqliteTable::Update(int, sqlite3_value**, sqlite3_int64*) {
   return SQLITE_READONLY;
 }
 
-const QueryConstraints& SqliteTable::ParseConstraints(int idxNum,
-                                                      const char* idxStr,
-                                                      int argc) {
+bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
   bool cache_hit = true;
   if (idxNum != qc_hash_) {
     qc_cache_ = QueryConstraints::FromString(idxStr);
@@ -143,7 +141,7 @@ const QueryConstraints& SqliteTable::ParseConstraints(int idxNum,
     PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d cache_hit=%d",
                  name_.c_str(), idxStr, argc, cache_hit);
   }
-  return qc_cache_;
+  return cache_hit;
 }
 
 SqliteTable::Cursor::Cursor(SqliteTable* table) : table_(table) {

@@ -73,7 +73,8 @@ ThreadTable::Cursor::Cursor(ThreadTable* table)
     : SqliteTable::Cursor(table), storage_(table->storage_), table_(table) {}
 
 int ThreadTable::Cursor::Filter(const QueryConstraints& qc,
-                                sqlite3_value** argv) {
+                                sqlite3_value** argv,
+                                FilterHistory) {
   *this = Cursor(table_);
 
   min_ = 0;

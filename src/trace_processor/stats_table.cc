@@ -55,7 +55,9 @@ int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
 StatsTable::Cursor::Cursor(StatsTable* table)
     : SqliteTable::Cursor(table), table_(table), storage_(table->storage_) {}
 
-int StatsTable::Cursor::Filter(const QueryConstraints&, sqlite3_value**) {
+int StatsTable::Cursor::Filter(const QueryConstraints&,
+                               sqlite3_value**,
+                               FilterHistory) {
   *this = Cursor(table_);
   return SQLITE_OK;
 }
