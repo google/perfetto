@@ -115,6 +115,7 @@ class TraceStorage {
     StringId name_id = 0;
     uint32_t pid = 0;
     base::Optional<UniquePid> parent_upid;
+    base::Optional<uint32_t> uid;
   };
 
   // Information about a unique thread seen in a trace.
