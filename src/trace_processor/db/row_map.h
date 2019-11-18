@@ -397,6 +397,18 @@ class RowMap {
       return;
     }
 
+    if (mode_ == Mode::kRange && other.mode_ == Mode::kRange) {
+      // If both RowMaps have ranges, we can just take the smallest intersection
+      // of them as the new RowMap.
+      // This case is important to optimize as it comes up with sorted columns.
+      start_idx_ = std::max(start_idx_, other.start_idx_);
+      end_idx_ = std::min(end_idx_, other.end_idx_);
+
+      if (end_idx_ <= start_idx_)
+        *this = RowMap();
+      return;
+    }
+
     // TODO(lalitm): improve efficiency of this if we end up needing it.
     RemoveIf([&other](uint32_t row) { return !other.Contains(row); });
   }
