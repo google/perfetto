@@ -85,18 +85,37 @@ StringId VulkanMemoryTracker::FindAllocationScopeCounterString(
 }
 
 StringId VulkanMemoryTracker::FindMemoryTypeCounterString(
-    uint32_t memory_type) {
+    uint32_t memory_type,
+    DeviceCounterType counter_type) {
   StringId res = kNullStringId;
-  auto it = memory_type_counter_string_map_.find(memory_type);
-  if (it == memory_type_counter_string_map_.end()) {
-    auto type_counter_str =
-        vulkan_device_memory_counter_str_ + std::to_string(memory_type);
-    res = context_->storage->InternString(
-        base::StringView(type_counter_str.c_str(), type_counter_str.length()));
-    memory_type_counter_string_map_.emplace(memory_type, res);
-    return res;
+  std::unordered_map<uint32_t, StringId>::iterator it;
+  std::string type_counter_str;
+  switch (counter_type) {
+    case DeviceCounterType::kAllocationCounter:
+      it = memory_type_allocation_counter_string_map_.find(memory_type);
+      if (it == memory_type_allocation_counter_string_map_.end()) {
+        type_counter_str = vulkan_device_memory_counter_str_ +
+                           std::to_string(memory_type) + ".allocation";
+        res = context_->storage->InternString(base::StringView(
+            type_counter_str.c_str(), type_counter_str.length()));
+        memory_type_allocation_counter_string_map_.emplace(memory_type, res);
+      } else {
+        res = it->second;
+      }
+      break;
+    case DeviceCounterType::kBindCounter:
+      it = memory_type_bind_counter_string_map_.find(memory_type);
+      if (it == memory_type_bind_counter_string_map_.end()) {
+        type_counter_str = vulkan_device_memory_counter_str_ +
+                           std::to_string(memory_type) + ".bind";
+        res = context_->storage->InternString(base::StringView(
+            type_counter_str.c_str(), type_counter_str.length()));
+        memory_type_bind_counter_string_map_.emplace(memory_type, res);
+      } else {
+        res = it->second;
+      }
+      break;
   }
-  res = it->second;
   return res;
 }
 

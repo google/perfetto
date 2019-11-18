@@ -77,7 +77,9 @@ class GraphicsEventParser {
                      ProtoEnumHasher>
       vulkan_driver_memory_counters_;
   std::unordered_map<uint32_t /*memory_type*/, int64_t /*counter_value*/>
-      vulkan_device_memory_counters_;
+      vulkan_device_memory_counters_allocate_;
+  std::unordered_map<uint32_t /*memory_type*/, int64_t /*counter_value*/>
+      vulkan_device_memory_counters_bind_;
   // For GpuLog
   const StringId gpu_log_track_name_id_;
   const StringId gpu_log_scope_id_;
