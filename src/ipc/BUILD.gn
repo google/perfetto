@@ -31,7 +31,7 @@ source_set("ipc") {
   deps = [
     "../../gn:default_deps",
     "../../gn:protobuf_lite",
-    "../../protos/perfetto/ipc:wire_protocol",
+    "../../protos/perfetto/ipc:wire_protocol_cpp",
     "../base",
   ]
   sources = [
@@ -54,7 +54,7 @@ perfetto_fuzzer_test("buffered_frame_deserializer_fuzzer") {
   deps = [
     ":ipc",
     "../../gn:default_deps",
-    "../../protos/perfetto/ipc:wire_protocol",
+    "../../protos/perfetto/ipc:wire_protocol_cpp",
   ]
 }
 
@@ -65,7 +65,7 @@ perfetto_unittest_source_set("unittests") {
     ":test_messages",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../protos/perfetto/ipc:wire_protocol",
+    "../../protos/perfetto/ipc:wire_protocol_cpp",
     "../base",
     "../base:test_support",
   ]

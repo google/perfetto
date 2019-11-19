@@ -23,7 +23,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/ipc/wire_protocol.pb.h"
+#include "protos/perfetto/ipc/wire_protocol.gen.h"
 
 namespace perfetto {
 namespace ipc {
@@ -60,15 +60,16 @@ std::vector<char> GetSimpleFrame(size_t size) {
       padding_char = padding_char == 'z' ? '0' : padding_char + 1;
       padding[i] = padding_char;
     }
-    frame.add_data_for_testing(padding.data(), padding_size);
+    frame.add_data_for_testing(std::string(padding.data(), padding_size));
   }
-  PERFETTO_CHECK(frame.ByteSize() == static_cast<int>(payload_size));
+  PERFETTO_CHECK(frame.SerializeAsString().size() == payload_size);
   std::vector<char> encoded_frame;
   encoded_frame.resize(size);
   char* enc_buf = encoded_frame.data();
-  PERFETTO_CHECK(frame.SerializeToArray(enc_buf + kHeaderSize,
-                                        static_cast<int>(payload_size)));
+
+  std::string payload = frame.SerializeAsString();
   memcpy(enc_buf, base::AssumeLittleEndian(&payload_size), kHeaderSize);
+  memcpy(enc_buf + kHeaderSize, payload.data(), payload.size());
   PERFETTO_CHECK(encoded_frame.size() == size);
   return encoded_frame;
 }
@@ -108,8 +109,7 @@ TEST(BufferedFrameDeserializerTest, WholeMessages) {
     // Excactly one frame should be decoded, with no leftover buffer.
     auto decoded_frame = bfd.PopNextFrame();
     ASSERT_TRUE(decoded_frame);
-    ASSERT_EQ(static_cast<int32_t>(size - kHeaderSize),
-              decoded_frame->ByteSize());
+    ASSERT_EQ(size - kHeaderSize, decoded_frame->SerializeAsString().size());
     ASSERT_FALSE(bfd.PopNextFrame());
     ASSERT_EQ(0u, bfd.size());
   }
@@ -132,11 +132,11 @@ TEST(BufferedFrameDeserializerTest, FragmentedFrameIsCorrectlyDeserialized) {
   method->set_id(0x424242);
   method->set_name("foo");
   std::vector<char> serialized_frame;
-  uint32_t payload_size = static_cast<uint32_t>(frame.ByteSize());
 
+  std::string payload = frame.SerializeAsString();
+  uint32_t payload_size = static_cast<uint32_t>(payload.size());
   serialized_frame.resize(kHeaderSize + payload_size);
-  ASSERT_TRUE(frame.SerializeToArray(serialized_frame.data() + kHeaderSize,
-                                     static_cast<int>(payload_size)));
+  memcpy(serialized_frame.data() + kHeaderSize, payload.data(), payload_size);
   memcpy(serialized_frame.data(), base::AssumeLittleEndian(&payload_size),
          kHeaderSize);
 
@@ -163,8 +163,8 @@ TEST(BufferedFrameDeserializerTest, FragmentedFrameIsCorrectlyDeserialized) {
   // Validate the received frame2.
   std::unique_ptr<Frame> decoded_simple_frame = bfd.PopNextFrame();
   ASSERT_TRUE(decoded_simple_frame);
-  ASSERT_EQ(static_cast<int32_t>(simple_frame.size() - kHeaderSize),
-            decoded_simple_frame->ByteSize());
+  ASSERT_EQ(simple_frame.size() - kHeaderSize,
+            decoded_simple_frame->SerializeAsString().size());
 
   std::unique_ptr<Frame> decoded_frame = bfd.PopNextFrame();
   ASSERT_TRUE(decoded_frame);
@@ -238,8 +238,7 @@ TEST(BufferedFrameDeserializerTest, MultipleFramesInOneReceive) {
     for (size_t expected_size : batch) {
       auto frame = bfd.PopNextFrame();
       ASSERT_TRUE(frame);
-      ASSERT_EQ(static_cast<int32_t>(expected_size - kHeaderSize),
-                frame->ByteSize());
+      ASSERT_EQ(expected_size - kHeaderSize, frame->SerializeAsString().size());
     }
     ASSERT_FALSE(bfd.PopNextFrame());
     ASSERT_EQ(0u, bfd.size());
@@ -301,8 +300,7 @@ TEST(BufferedFrameDeserializerTest, CanRecoverAfterUnparsableFrames) {
       ASSERT_FALSE(decoded_frame);
     } else {
       ASSERT_TRUE(decoded_frame);
-      ASSERT_EQ(static_cast<int32_t>(size - kHeaderSize),
-                decoded_frame->ByteSize());
+      ASSERT_EQ(size - kHeaderSize, decoded_frame->SerializeAsString().size());
     }
     ASSERT_EQ(0u, bfd.size());
   }
