@@ -170,7 +170,10 @@ class BazelLabel(object):
         else:
           indent = '    '
         for entry in v:
-          res += '%s    "%s",\n' % (indent, entry)
+          if entry.startswith('PERFETTO_CONFIG.'):
+            res += '%s    %s,\n' % (indent, entry)
+          else:
+            res += '%s    "%s",\n' % (indent, entry)
         res += '%s]' % indent
         if k == 'deps' and self.external_deps:
           res += ' + %s' % self.external_deps[0]
@@ -265,6 +268,8 @@ def gen_proto_labels(target):
 
   if target.name in proto_targets:
     sources_label.visibility = ['//visibility:public']
+  else:
+    sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 
   return [plugin_label, sources_label]
 
