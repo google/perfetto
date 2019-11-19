@@ -51,6 +51,8 @@ export interface CallsiteInfo {
   depth: number;
   name?: string;
   totalSize: number;
+  selfSize: number;
+  mapping: string;
 }
 
 export interface HeapProfileDetails {
