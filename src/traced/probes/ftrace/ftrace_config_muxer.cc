@@ -148,9 +148,11 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         continue;
       }
 
+      // Note: sched_wakeup intentionally removed (diverging from atrace), as it
+      // is high-volume, but mostly redundant when sched_waking is also enabled.
+      // The event can still be enabled explicitly when necessary.
       if (category == "sched") {
         events.insert(GroupAndName("sched", "sched_switch"));
-        events.insert(GroupAndName("sched", "sched_wakeup"));
         events.insert(GroupAndName("sched", "sched_waking"));
         events.insert(GroupAndName("sched", "sched_blocked_reason"));
         events.insert(GroupAndName("sched", "sched_cpu_hotplug"));
