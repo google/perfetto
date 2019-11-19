@@ -28,5 +28,6 @@ source_set("protozero") {
     "scattered_heap_buffer.h",
     "scattered_stream_null_delegate.h",
     "scattered_stream_writer.h",
+    "static_buffer.h",
   ]
 }
