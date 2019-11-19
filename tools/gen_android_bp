@@ -92,27 +92,20 @@ target_host_supported = [
 module_prefix = 'perfetto_'
 
 # Shared libraries which are directly translated to Android system equivalents.
-shared_library_whitelist = [
-    'android',
-    'android.hardware.atrace@1.0',
+library_whitelist = [
+    "android.hardware.atrace@1.0",
     'android.hardware.health@2.0',
-    'android.hardware.power.stats@1.0',
+    "android.hardware.power.stats@1.0",
+    'android',
     'base',
     'binder',
-    'cutils',
     'hidlbase',
     'hidltransport',
     'hwbinder',
     'incident',
     'log',
     'services',
-    'statssocket',
     'utils',
-]
-
-# Static libraries which are directly translated to Android system equivalents.
-static_library_whitelist = [
-    'statslog_perfetto',
 ]
 
 # Name of the module which settings such as compiler flags for all other
@@ -621,10 +614,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       # Generally library names should be mangled as 'libXXX', unless they
       # are HAL libraries (e.g., android.hardware.health@2.0).
       android_lib = lib if '@' in lib else 'lib' + lib
-      if lib in shared_library_whitelist:
+      if lib in library_whitelist:
         module.shared_libs.add(android_lib)
-      if lib in static_library_whitelist:
-        module.static_libs.add(android_lib)
 
   # If the module is a static library, export all the generated headers.
   if module.type == 'cc_library_static':
