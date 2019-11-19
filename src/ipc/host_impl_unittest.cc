@@ -30,7 +30,7 @@
 #include "src/ipc/test/test_socket.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/ipc/wire_protocol.pb.h"
+#include "protos/perfetto/ipc/wire_protocol.gen.h"
 #include "src/ipc/test/client_unittest_messages.pb.h"
 
 namespace perfetto {

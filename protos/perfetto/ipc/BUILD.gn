@@ -30,8 +30,11 @@ ipc_library("ipc") {
   ]
 }
 
-perfetto_proto_library("wire_protocol") {
-  proto_generators = [ "lite" ]
+perfetto_proto_library("wire_protocol_@TYPE@") {
+  proto_generators = [
+    "zero",
+    "cpp",
+  ]
   sources = [
     "wire_protocol.proto",
   ]

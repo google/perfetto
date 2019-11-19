@@ -194,6 +194,8 @@ TEST(ProtoUtilsTest, VarIntDecoding) {
   }
 }
 
+// ParseVarInt() must fail gracefully if we hit the |end| without seeing the
+// MSB == 0 (i.e. end-of-sequence).
 TEST(ProtoUtilsTest, VarIntDecodingOutOfBounds) {
   uint8_t buf[] = {0xff, 0xff, 0xff, 0xff};
   for (size_t i = 0; i < 5; i++) {
@@ -202,6 +204,27 @@ TEST(ProtoUtilsTest, VarIntDecodingOutOfBounds) {
     EXPECT_EQ(&buf[0], res);
     EXPECT_EQ(0u, value);
   }
+}
+
+// Even if we see a valid end-of-sequence, ParseVarInt() must fail if the number
+// is larger than 10 bytes. That would cause subtl bugs when trying to shift
+// left by more than 64 bits.
+TEST(ProtoUtilsTest, RejectVarIntTooBig) {
+  // This is the biggest valid varint we support (2**64 - 1).
+  uint8_t good[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01};
+
+  // Parsing this value must succeed.
+  uint64_t value = static_cast<uint64_t>(-1);
+  const uint8_t* res = ParseVarInt(&good[0], &good[sizeof(good)], &value);
+  EXPECT_EQ(&good[sizeof(good)], res);
+  EXPECT_EQ(value, static_cast<uint64_t>(-1ULL));
+
+  uint8_t bad[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                   0xff, 0xff, 0xff, 0xff, 0x01};
+  value = static_cast<uint64_t>(-1);
+  res = ParseVarInt(&bad[0], &bad[sizeof(bad)], &value);
+  EXPECT_EQ(&bad[0], res);
+  EXPECT_EQ(0u, value);
 }
 
 }  // namespace
