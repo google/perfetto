@@ -37,7 +37,6 @@
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
-#include "protos/perfetto/config/trace_config.pb.h"
 #include "src/tracing/internal/in_process_tracing_backend.h"
 #include "src/tracing/internal/system_tracing_backend.h"
 
@@ -59,12 +58,8 @@ class StopArgsImpl : public DataSourceBase::StopArgs {
 
 uint64_t ComputeConfigHash(const DataSourceConfig& config) {
   base::Hash hasher;
-  perfetto::protos::DataSourceConfig config_proto;
-  config.ToProto(&config_proto);
-  std::string config_bytes;
-  bool serialized = config_proto.SerializeToString(&config_bytes);
-  PERFETTO_DCHECK(serialized);
-  hasher.Update(&config_bytes[0], config_bytes.size());
+  std::string config_bytes = config.SerializeAsString();
+  hasher.Update(config_bytes.data(), config_bytes.size());
   return hasher.digest();
 }
 

@@ -39,9 +39,6 @@ proto_sources_minimal = [
   "system_info.proto",
 ]
 
-# Used only for packet_stream_validator.cc (in the service).
-proto_sources_trusted = [ "trusted_packet.proto" ]
-
 # Most targets should either depend on :zero (writers) / :lite (readers)
 # or ":minimal_zero" / :minimal_lite (mostly for chrome).
 
@@ -93,17 +90,6 @@ perfetto_proto_library("minimal_@TYPE@") {
     "../config:@TYPE@",
   ]
   sources = proto_sources_minimal
-}
-
-# Used by the traced service for packet sanitization.
-perfetto_proto_library("trusted_@TYPE@") {
-  proto_generators = [ "lite" ]
-  deps = [
-    ":minimal_@TYPE@",
-    "../common:@TYPE@",
-    "../config:@TYPE@",
-  ]
-  sources = proto_sources_trusted
 }
 
 # This target is not used in the tree and is built only to guarantee that the
