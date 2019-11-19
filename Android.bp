@@ -4398,6 +4398,7 @@ cc_binary_host {
 filegroup {
   name: "perfetto_src_protozero_protozero",
   srcs: [
+    "src/protozero/field.cc",
     "src/protozero/message.cc",
     "src/protozero/message_handle.cc",
     "src/protozero/packed_repeated_fields.cc",
@@ -4405,6 +4406,54 @@ filegroup {
     "src/protozero/scattered_heap_buffer.cc",
     "src/protozero/scattered_stream_null_delegate.cc",
     "src/protozero/scattered_stream_writer.cc",
+  ],
+}
+
+// GN: //src/protozero:testing_messages_cpp
+genrule {
+  name: "perfetto_src_protozero_testing_messages_cpp_gen",
+  srcs: [
+    "src/protozero/test/example_proto/library.proto",
+    "src/protozero/test/example_proto/library_internals/galaxies.proto",
+    "src/protozero/test/example_proto/test_messages.proto",
+    "src/protozero/test/example_proto/upper_import.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/src/protozero/test/example_proto/library.gen.cc",
+    "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.cc",
+    "external/perfetto/src/protozero/test/example_proto/test_messages.gen.cc",
+    "external/perfetto/src/protozero/test/example_proto/upper_import.gen.cc",
+  ],
+}
+
+// GN: //src/protozero:testing_messages_cpp
+genrule {
+  name: "perfetto_src_protozero_testing_messages_cpp_gen_headers",
+  srcs: [
+    "src/protozero/test/example_proto/library.proto",
+    "src/protozero/test/example_proto/library_internals/galaxies.proto",
+    "src/protozero/test/example_proto/test_messages.proto",
+    "src/protozero/test/example_proto/upper_import.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/src/protozero/test/example_proto/library.gen.h",
+    "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.h",
+    "external/perfetto/src/protozero/test/example_proto/test_messages.gen.h",
+    "external/perfetto/src/protozero/test/example_proto/upper_import.gen.h",
+  ],
+  export_include_dirs: [
+    ".",
+    "protos",
   ],
 }
 
@@ -4512,6 +4561,7 @@ filegroup {
     "src/protozero/proto_decoder_unittest.cc",
     "src/protozero/proto_utils_unittest.cc",
     "src/protozero/scattered_stream_writer_unittest.cc",
+    "src/protozero/test/cppgen_conformance_unittest.cc",
     "src/protozero/test/fake_scattered_buffer.cc",
     "src/protozero/test/protozero_conformance_unittest.cc",
   ],
@@ -5422,6 +5472,7 @@ cc_test {
     ":perfetto_src_profiling_memory_unittests",
     ":perfetto_src_profiling_memory_wire_protocol",
     ":perfetto_src_protozero_protozero",
+    ":perfetto_src_protozero_testing_messages_cpp_gen",
     ":perfetto_src_protozero_testing_messages_lite_gen",
     ":perfetto_src_protozero_testing_messages_zero_gen",
     ":perfetto_src_protozero_unittests",
@@ -5547,6 +5598,7 @@ cc_test {
     "perfetto_protos_perfetto_trace_trusted_lite_gen_headers",
     "perfetto_src_ipc_test_messages_gen_headers",
     "perfetto_src_perfetto_cmd_protos_gen_headers",
+    "perfetto_src_protozero_testing_messages_cpp_gen_headers",
     "perfetto_src_protozero_testing_messages_lite_gen_headers",
     "perfetto_src_protozero_testing_messages_zero_gen_headers",
     "perfetto_src_traced_probes_ftrace_test_messages_lite_gen_headers",
