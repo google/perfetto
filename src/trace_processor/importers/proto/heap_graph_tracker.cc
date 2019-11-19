@@ -83,6 +83,7 @@ void HeapGraphTracker::FinalizeProfile() {
          static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
          /*unique_retained_size=*/-1, /*reference_set_id=*/-1,
          /*reachable=*/0, /*type_name=*/it->second,
+         /*deobfuscated_type_name=*/base::nullopt,
          /*root_type=*/base::nullopt});
     int64_t row = context_->storage->heap_graph_object_table().size() - 1;
     object_id_to_row_.emplace(obj.object_id, row);
@@ -124,7 +125,8 @@ void HeapGraphTracker::FinalizeProfile() {
       }
       StringPool::Id field_name = field_name_it->second;
       context_->storage->mutable_heap_graph_reference_table()->Insert(
-          {reference_set_id, owner_row, owned_row, field_name});
+          {reference_set_id, owner_row, owned_row, field_name,
+           /*deobfuscated_field_name=*/base::nullopt});
     }
     context_->storage->mutable_heap_graph_object_table()
         ->mutable_reference_set_id()
