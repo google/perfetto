@@ -108,7 +108,9 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
     parentId: callsite.parentId,
     depth: callsite.depth,
     name: callsite.name,
-    totalSize: callsite.totalSize
+    totalSize: callsite.totalSize,
+    mapping: callsite.mapping,
+    selfSize: callsite.selfSize
   };
 }
 
@@ -330,7 +332,7 @@ class HeapProfileFlameraphTrackController extends
 
     const callsites = await this.query(
         `SELECT hash, name, parent_hash, depth, size, alloc_size, count,
-        alloc_count from ${tableName} ${orderBy}`);
+        alloc_count, map_name, self_size from ${tableName} ${orderBy}`);
 
     const flamegraphData: CallsiteInfo[] = new Array();
     const hashToindex: Map<number, number> = new Map();
@@ -338,8 +340,10 @@ class HeapProfileFlameraphTrackController extends
       const hash = callsites.columns[0].longValues![i];
       const name = callsites.columns[1].stringValues![i];
       const parentHash = callsites.columns[2].longValues![i];
-      const depth = callsites.columns[3].longValues![i];
-      const totalSize = callsites.columns[sizeIndex].longValues![i];
+      const depth = +callsites.columns[3].longValues![i];
+      const totalSize = +callsites.columns[sizeIndex].longValues![i];
+      const mapping = callsites.columns[8].stringValues![i];
+      const selfSize = +callsites.columns[9].longValues![i];
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
       hashToindex.set(+hash, i);
@@ -347,7 +351,7 @@ class HeapProfileFlameraphTrackController extends
       // as an id of callsite. That way, we have quicker access to parent and it
       // will stay unique.
       flamegraphData.push(
-          {id: i, totalSize: +totalSize, depth: +depth, parentId, name});
+          {id: i, totalSize, depth, parentId, name, selfSize, mapping});
     }
     return flamegraphData;
   }
@@ -396,27 +400,27 @@ class HeapProfileFlameraphTrackController extends
     // hash.  Slices will be merged into a big slice.
     await this.query(
         `create view if not exists ${tableNameCallsiteHashNameSize} as
-      with recursive callsite_table_names(
-        id, hash, name, size, alloc_size, count, alloc_count, parent_hash,
-        depth) AS (
-      select id, hash(name) as hash, name, size, alloc_size, count, alloc_count,
-      -1, depth
-      from ${tableNameCallsiteNameSize}
-      where depth = 0
-      UNION ALL
-      SELECT cs.id, hash(cs.name, ctn.hash) as hash, cs.name, cs.size,
-      cs.alloc_size, cs.count, cs.alloc_count, ctn.hash,
-      cs.depth
-      FROM callsite_table_names ctn
-      INNER JOIN ${tableNameCallsiteNameSize} cs ON ctn.id = cs.parent_id
-      )
-      SELECT hash, name, parent_hash, depth,
-      SUM(size) as size,
-      SUM(case when alloc_size > 0 then alloc_size else 0 end) as alloc_size,
-      SUM(count) as count,
-      SUM(case when alloc_count > 0 then alloc_count else 0 end) as alloc_count
-      FROM callsite_table_names
-      group by hash`);
+        with recursive callsite_table_names(
+          id, hash, name, map_name, size, alloc_size, count, alloc_count,
+          parent_hash, depth) AS (
+        select id, hash(name) as hash, name, map_name, size, alloc_size, count,
+          alloc_count, -1, depth
+        from ${tableNameCallsiteNameSize}
+        where depth = 0
+        union all
+        select cs.id, hash(cs.name, ctn.hash) as hash, cs.name, cs.map_name,
+          cs.size, cs.alloc_size, cs.count, cs.alloc_count, ctn.hash, cs.depth
+        from callsite_table_names ctn
+        inner join ${tableNameCallsiteNameSize} cs ON ctn.id = cs.parent_id
+        )
+        select hash, name, map_name, parent_hash, depth, SUM(size) as size,
+          SUM(case when alloc_size > 0 then alloc_size else 0 end)
+            as alloc_size, SUM(count) as count,
+          SUM(case when alloc_count > 0 then alloc_count else 0 end)
+            as alloc_count
+        from callsite_table_names
+        group by hash`);
+
     // Recursive query to compute the cumulative size of each callsite.
     // Base case: We get all the callsites where the size is non-zero.
     // Recursive case: We get the callsite which is the parent of the current
@@ -428,23 +432,27 @@ class HeapProfileFlameraphTrackController extends
     //  callsite hash.
     await this.query(`create temp table if not exists ${
         tableNameGroupedCallsitesForFlamegraph}
-        as with recursive callsite_children(hash, name, parent_hash, depth,
-          size, alloc_size, count, alloc_count) AS (
-        select hash, name, parent_hash, depth, size, alloc_size,
-          count, alloc_count
+        as with recursive callsite_children(
+          hash, name, map_name, parent_hash, depth, size, alloc_size, count,
+          alloc_count, self_size, self_alloc_size, self_count, self_alloc_count)
+        as (
+        select hash, name, map_name, parent_hash, depth, size, alloc_size,
+          count, alloc_count, size as self_size, alloc_size as self_alloc_size,
+          count as self_count, alloc_count as self_alloc_count
         from ${tableNameCallsiteHashNameSize}
         union all
-        select chns.hash, chns.name, chns.parent_hash, chns.depth, cc.size,
-        cc.alloc_size, cc.count, cc.alloc_count
+        select chns.hash, chns.name, chns.map_name, chns.parent_hash,
+          chns.depth, cc.size, cc.alloc_size, cc.count, cc.alloc_count,
+          chns.size, chns.alloc_size, chns.count, chns.alloc_count
         from ${tableNameCallsiteHashNameSize} chns
         inner join callsite_children cc on chns.hash = cc.parent_hash
         )
-        SELECT hash, name, parent_hash, depth,
-        SUM(size) as size,
-        SUM(case when alloc_size > 0 then alloc_size else 0 end) as alloc_size,
-        SUM(count) as count,
-        SUM(case when alloc_count > 0 then alloc_count else 0 end) as
-          alloc_count
+        select hash, name, map_name, parent_hash, depth, SUM(size) as size,
+          SUM(case when alloc_size > 0 then alloc_size else 0 end)
+            as alloc_size, SUM(count) as count,
+          SUM(case when alloc_count > 0 then alloc_count else 0 end) as
+            alloc_count,
+          self_size, self_alloc_size, self_count, self_alloc_count
         from callsite_children
         group by hash`);
     return tableNameGroupedCallsitesForFlamegraph;
