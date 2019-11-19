@@ -124,12 +124,35 @@ class ClockTracker {
     return (static_cast<uint64_t>(seq_id) << 32) | clock_id;
   }
 
+  // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
+  // a ClockId returned by SeqScopedClockIdToGlobal().
+  static bool ClockIsSeqScoped(ClockId global_clock_id) {
+    // If the id is > 2**32, this is a sequence-scoped clock id translated into
+    // the global namespace.
+    return (global_clock_id >> 32) > 0;
+  }
+
   explicit ClockTracker(TraceProcessorContext*);
   virtual ~ClockTracker();
 
+  // Clock description and its value in a snapshot.
+  struct ClockValue {
+    ClockValue(ClockId id, int64_t ts) : clock_id(id), absolute_timestamp(ts) {}
+    ClockValue(ClockId id, int64_t ts, int64_t unit, bool incremental)
+        : clock_id(id),
+          absolute_timestamp(ts),
+          unit_multiplier_ns(unit),
+          is_incremental(incremental) {}
+
+    ClockId clock_id;
+    int64_t absolute_timestamp;
+    int64_t unit_multiplier_ns = 1;
+    bool is_incremental = false;
+  };
+
   // Appends a new snapshot for the given clock domains.
   // This is typically called by the code that reads the ClockSnapshot packet.
-  void AddSnapshot(const std::map<ClockId, int64_t>&);
+  void AddSnapshot(const std::vector<ClockValue>&);
 
   base::Optional<int64_t> Convert(ClockId src_clock_id,
                                   int64_t src_timestamp,
@@ -193,8 +216,27 @@ class ClockTracker {
     // One time-series for each hash.
     std::map<SnapshotHash, ClockSnapshots> snapshots;
 
-    // TODO(primiano): support other resolutions.
-    int64_t ToNs(int64_t timestamp) const { return timestamp * 1; }
+    // Multiplier for timestamps given in this domain.
+    int64_t unit_multiplier_ns = 1;
+
+    // Whether this clock domain encodes timestamps as deltas. This is only
+    // supported on sequence-local domains.
+    bool is_incremental = false;
+
+    // If |is_incremental| is true, this stores the most recent absolute
+    // timestamp in nanoseconds.
+    int64_t last_timestamp_ns = 0;
+
+    // Treats |timestamp| as delta timestamp if the clock uses incremental
+    // encoding, and as absolute timestamp otherwise.
+    int64_t ToNs(int64_t timestamp) {
+      if (!is_incremental)
+        return timestamp * unit_multiplier_ns;
+
+      int64_t delta_ns = timestamp * unit_multiplier_ns;
+      last_timestamp_ns += delta_ns;
+      return last_timestamp_ns;
+    }
 
     const ClockSnapshots& GetSnapshot(uint32_t hash) const {
       auto it = snapshots.find(hash);
@@ -208,10 +250,10 @@ class ClockTracker {
 
   ClockPath FindPath(ClockId src, ClockId target);
 
-  const ClockDomain& GetClock(ClockId clock_id) const {
+  ClockDomain* GetClock(ClockId clock_id) {
     auto it = clocks_.find(clock_id);
     PERFETTO_DCHECK(it != clocks_.end());
-    return it->second;
+    return &it->second;
   }
 
   TraceProcessorContext* const context_;

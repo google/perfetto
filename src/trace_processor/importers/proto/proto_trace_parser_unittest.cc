@@ -2266,10 +2266,9 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   context_.sorter.reset(new TraceSorter(
       &context_, std::numeric_limits<int64_t>::max() /*window size*/));
 
-  std::map<ClockTracker::ClockId, int64_t> clock_map;
-  clock_map[protos::pbzero::ClockSnapshot::Clock::BOOTTIME] = 0u;
-  clock_map[protos::pbzero::ClockSnapshot::Clock::MONOTONIC] = 1000000u;
-  clock_->AddSnapshot(clock_map);
+  clock_->AddSnapshot(
+      {{protos::pbzero::ClockSnapshot::Clock::BOOTTIME, 0},
+       {protos::pbzero::ClockSnapshot::Clock::MONOTONIC, 1000000}});
 
   {
     auto* packet = trace_.add_packet();

@@ -45,22 +45,23 @@ message ClockSnapshot {
     //             IDs and setting this ID to hash(full_clock_name) & ~127.
     optional uint32 clock_id = 1;
 
-    // Unit is ns unless specified otherwise by the resolution_* fields below.
+    // Absolute timestamp. Unit is ns unless specified otherwise by the
+    // unit_multiplier_ns field below.
     optional uint64 timestamp = 2;
 
-    // TODO(eseckler): the fields below and sequence-scoped clock IDs are not
-    // supported yet by the trace processor.
+    // When true each TracePacket's timestamp should be interpreted as a delta
+    // from the last TracePacket's timestamp (referencing this clock) emitted by
+    // the same packet_sequence_id. Should only be used for user-defined
+    // sequence-local clocks. The first packet timestamp after each
+    // ClockSnapshot that contains this clock is relative to the |timestamp| in
+    // the ClockSnapshot.
+    optional bool is_incremental = 3;
 
-    // When true the timestamp should be interpreted as a delta from the last
-    // TracePacket's timestamp emitted by the same packet_sequence_id.
-    // The first packet timestamp after a ClockSnapshot is relative to the last
-    // ClockSnapshot seen on the packet sequence.
-    // optional bool is_incremental = 3;
-
-    // Allows to specify a custom unit different than the default (ns)
-    // for this clock domain. A multiplier of 1000 means that a timestamp = 3
-    // should be interpreted as 3000 ns = 3 us.
-    // optional uint64 unit_multiplier_ns = 4;
+    // Allows to specify a custom unit different than the default (ns) for this
+    // clock domain. A multiplier of 1000 means that a timestamp = 3 should be
+    // interpreted as 3000 ns = 3 us. All snapshots for the same clock within a
+    // trace need to use the same unit.
+    optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;
 }
