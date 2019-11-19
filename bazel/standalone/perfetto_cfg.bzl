@@ -55,6 +55,11 @@ PERFETTO_CONFIG = struct(
         sqlite = [],
     ),
 
+    # Allow Bazel embedders to change the visibility of the proto targets.
+    # This variable has been introduced to limit the change to Bazel and avoid
+    # making the targets public in the google internal tree.
+    proto_library_visibility = "//visibility:private",
+
     # This struct allows the embedder to customize copts and other args passed
     # to rules like cc_binary. Prefixed rules (e.g. perfetto_cc_binary) will
     # look into this struct before falling back on native.cc_binary().
