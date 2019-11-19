@@ -26,6 +26,7 @@ source_set("tracing") {
   sources = [
     "buffer_exhausted_policy.h",
     "data_source.h",
+    "event_context.h",
     "internal/basic_types.h",
     "internal/data_source_internal.h",
     "internal/tracing_muxer.h",
@@ -40,7 +41,6 @@ source_set("tracing") {
     "tracing_backend.h",
     "track_event.h",
     "track_event_category_registry.h",
-    "track_event_context.h",
     "track_event_interned_data_index.h",
   ]
 }

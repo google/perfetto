@@ -131,7 +131,7 @@ void TrackEventInternal::DisableTracing(
 }
 
 // static
-TrackEventContext TrackEventInternal::WriteEvent(
+EventContext TrackEventInternal::WriteEvent(
     TraceWriterBase* trace_writer,
     TrackEventIncrementalState* incr_state,
     const char* category,
@@ -150,10 +150,10 @@ TrackEventContext TrackEventInternal::WriteEvent(
 
   // We assume that |category| and |name| point to strings with static lifetime.
   // This means we can use their addresses as interning keys.
-  TrackEventContext ctx(std::move(packet), incr_state);
+  EventContext ctx(std::move(packet), incr_state);
   size_t category_iid = InternedEventCategory::Get(&ctx, category);
 
-  auto track_event = ctx.track_event();
+  auto track_event = ctx.event();
   track_event->set_type(type);
   // TODO(skyostil): Handle multiple categories.
   track_event->add_category_iids(category_iid);
