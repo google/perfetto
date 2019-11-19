@@ -179,7 +179,7 @@ template("gcc_like_toolchain") {
         command = "rm -f {{output}} && libtool -static {{arflags}} -o {{output}} -filelist $rspfile"
       } else {
         rspfile_content = "{{inputs}}"
-        command = "$ar rcsD {{output}} @$rspfile"
+        command = "rm -f {{output}} && $ar rcsD {{output}} @$rspfile"
       }
       outputs = [
         "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
