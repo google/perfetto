@@ -225,20 +225,22 @@ void StaticAssertSingleBytePreamble() {
 // buffer.
 inline const uint8_t* ParseVarInt(const uint8_t* start,
                                   const uint8_t* end,
-                                  uint64_t* value) {
+                                  uint64_t* out_value) {
   const uint8_t* pos = start;
-  uint64_t shift = 0;
-  *value = 0;
-  do {
-    if (PERFETTO_UNLIKELY(pos >= end)) {
-      *value = 0;
-      return start;
+  uint64_t value = 0;
+  for (uint32_t shift = 0; pos < end && shift < 64u; shift += 7) {
+    // Cache *pos into |cur_byte| to prevent that the compiler dereferences the
+    // pointer twice (here and in the if() below) due to char* aliasing rules.
+    uint8_t cur_byte = *pos++;
+    value |= static_cast<uint64_t>(cur_byte & 0x7f) << shift;
+    if ((cur_byte & 0x80) == 0) {
+      // In valid cases we get here.
+      *out_value = value;
+      return pos;
     }
-    PERFETTO_DCHECK(shift < 64ull);
-    *value |= static_cast<uint64_t>(*pos & 0x7f) << shift;
-    shift += 7;
-  } while (*pos++ & 0x80);
-  return pos;
+  }
+  *out_value = 0;
+  return start;
 }
 
 }  // namespace proto_utils
