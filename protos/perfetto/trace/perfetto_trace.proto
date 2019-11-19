@@ -3031,6 +3031,23 @@ message PowerRails {
 
 // Begin of protos/perfetto/trace/profiling/heap_graph.proto
 
+message ObfuscatedMember {
+  optional string obfuscated_name = 1;
+  optional string deobfuscated_name = 2;
+}
+
+message ObfuscatedClass {
+  optional string obfuscated_name = 1;
+  optional string deobfuscated_name = 2;
+  repeated ObfuscatedMember obfuscated_members = 3;
+}
+
+message DeobfuscationMapping {
+  optional string package_name = 1;
+  optional int64 version_code = 2;
+  repeated ObfuscatedClass obfusucated_classes = 3;
+}
+
 message HeapGraphRoot {
   enum Type {
     ROOT_UNKNOWN = 0;

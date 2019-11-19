@@ -42,18 +42,19 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
 
-#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C) \
-  NAME(HeapGraphObjectTable, "heap_graph_object")          \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
-  C(int64_t, upid)                                         \
-  C(int64_t, graph_sample_ts)                              \
-  C(int64_t, object_id)                                    \
-  C(int64_t, self_size)                                    \
-  C(int64_t, retained_size)                                \
-  C(int64_t, unique_retained_size)                         \
-  C(int64_t, reference_set_id)                             \
-  C(int32_t, reachable)                                    \
-  C(StringPool::Id, type_name)                             \
+#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)  \
+  NAME(HeapGraphObjectTable, "heap_graph_object")           \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                         \
+  C(int64_t, upid)                                          \
+  C(int64_t, graph_sample_ts)                               \
+  C(int64_t, object_id)                                     \
+  C(int64_t, self_size)                                     \
+  C(int64_t, retained_size)                                 \
+  C(int64_t, unique_retained_size)                          \
+  C(int64_t, reference_set_id)                              \
+  C(int32_t, reachable)                                     \
+  C(StringPool::Id, type_name)                              \
+  C(base::Optional<StringPool::Id>, deobfuscated_type_name) \
   C(base::Optional<StringPool::Id>, root_type)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
@@ -64,7 +65,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
   C(int64_t, reference_set_id)                                \
   C(int64_t, owner_id)                                        \
   C(int64_t, owned_id)                                        \
-  C(StringPool::Id, field_name)
+  C(StringPool::Id, field_name)                               \
+  C(base::Optional<StringPool::Id>, deobfuscated_field_name)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);
 
