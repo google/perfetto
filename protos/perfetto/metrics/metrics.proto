@@ -23,7 +23,6 @@ import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/mem_metric.proto";
 import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
-import "protos/perfetto/metrics/android/process_growth.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/lmk_metric.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
@@ -51,7 +50,7 @@ message TraceMetadata {
 //
 // Next id: 18
 message TraceMetrics {
-  reserved 4, 13, 14;
+  reserved 4, 10, 13, 14;
 
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
@@ -70,9 +69,6 @@ message TraceMetrics {
 
   // Package list.
   optional AndroidPackageList android_package_list = 12;
-
-  // Per-process memory growth metrics.
-  optional AndroidProcessGrowth android_process_growth = 10;
 
   // ion buffer memory metrics.
   optional AndroidIonMetric android_ion = 9;
