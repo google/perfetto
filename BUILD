@@ -528,6 +528,7 @@ filegroup(
 filegroup(
     name = "src_protozero_protozero",
     srcs = [
+        "src/protozero/field.cc",
         "src/protozero/message.cc",
         "src/protozero/message_handle.cc",
         "src/protozero/packed_repeated_fields.cc",
@@ -1156,7 +1157,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_common_cpp",
     deps = [
         ":protos_perfetto_common_protos",
-        ":protos_perfetto_common_lite",
+        ":protos_perfetto_common_zero",
     ],
 )
 
@@ -1198,8 +1199,8 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_android_cpp",
     deps = [
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_common_lite",
-        ":protos_perfetto_config_android_lite",
+        ":protos_perfetto_config_android_zero",
+        ":protos_perfetto_common_zero",
         ":protos_perfetto_common_cpp",
     ],
 )
@@ -1237,23 +1238,23 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_cpp",
     deps = [
         ":protos_perfetto_config_protos",
-        ":protos_perfetto_config_inode_file_cpp",
+        ":protos_perfetto_config_gpu_zero",
+        ":protos_perfetto_config_profiling_zero",
         ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_lite",
-        ":protos_perfetto_config_android_lite",
+        ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_common_cpp",
-        ":protos_perfetto_config_gpu_lite",
-        ":protos_perfetto_common_lite",
-        ":protos_perfetto_config_profiling_lite",
         ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_config_power_zero",
+        ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_power_cpp",
-        ":protos_perfetto_config_process_stats_lite",
-        ":protos_perfetto_config_power_lite",
+        ":protos_perfetto_config_inode_file_cpp",
+        ":protos_perfetto_config_zero",
         ":protos_perfetto_config_profiling_cpp",
-        ":protos_perfetto_config_inode_file_lite",
         ":protos_perfetto_config_gpu_cpp",
-        ":protos_perfetto_config_ftrace_lite",
-        ":protos_perfetto_config_sys_stats_lite",
+        ":protos_perfetto_config_inode_file_zero",
+        ":protos_perfetto_config_android_zero",
+        ":protos_perfetto_config_process_stats_zero",
+        ":protos_perfetto_common_zero",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
     ],
@@ -1264,7 +1265,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_ftrace_cpp",
     deps = [
         ":protos_perfetto_config_ftrace_protos",
-        ":protos_perfetto_config_ftrace_lite",
+        ":protos_perfetto_config_ftrace_zero",
     ],
 )
 
@@ -1297,7 +1298,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_gpu_cpp",
     deps = [
         ":protos_perfetto_config_gpu_protos",
-        ":protos_perfetto_config_gpu_lite",
+        ":protos_perfetto_config_gpu_zero",
     ],
 )
 
@@ -1330,7 +1331,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_inode_file_cpp",
     deps = [
         ":protos_perfetto_config_inode_file_protos",
-        ":protos_perfetto_config_inode_file_lite",
+        ":protos_perfetto_config_inode_file_zero",
     ],
 )
 
@@ -1390,7 +1391,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_power_cpp",
     deps = [
         ":protos_perfetto_config_power_protos",
-        ":protos_perfetto_config_power_lite",
+        ":protos_perfetto_config_power_zero",
     ],
 )
 
@@ -1423,7 +1424,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_process_stats_cpp",
     deps = [
         ":protos_perfetto_config_process_stats_protos",
-        ":protos_perfetto_config_process_stats_lite",
+        ":protos_perfetto_config_process_stats_zero",
     ],
 )
 
@@ -1456,7 +1457,7 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_profiling_cpp",
     deps = [
         ":protos_perfetto_config_profiling_protos",
-        ":protos_perfetto_config_profiling_lite",
+        ":protos_perfetto_config_profiling_zero",
     ],
 )
 
@@ -1512,8 +1513,8 @@ perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_sys_stats_cpp",
     deps = [
         ":protos_perfetto_config_sys_stats_protos",
-        ":protos_perfetto_common_lite",
-        ":protos_perfetto_config_sys_stats_lite",
+        ":protos_perfetto_config_sys_stats_zero",
+        ":protos_perfetto_common_zero",
         ":protos_perfetto_common_cpp",
     ],
 )

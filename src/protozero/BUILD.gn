@@ -28,6 +28,7 @@ source_set("protozero") {
     "../../include/perfetto/ext/base",  # TODO(primiano): remove this
   ]
   sources = [
+    "field.cc",
     "message.cc",
     "message_handle.cc",
     "packed_repeated_fields.cc",
@@ -49,6 +50,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":protozero",
+    ":testing_messages_cpp",
     ":testing_messages_lite",
     ":testing_messages_zero",
     "../../gn:default_deps",
@@ -63,6 +65,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_decoder_unittest.cc",
     "proto_utils_unittest.cc",
     "scattered_stream_writer_unittest.cc",
+    "test/cppgen_conformance_unittest.cc",
     "test/fake_scattered_buffer.cc",
     "test/fake_scattered_buffer.h",
     "test/protozero_conformance_unittest.cc",
@@ -72,10 +75,6 @@ perfetto_unittest_source_set("unittests") {
 # Generates both xxx.pbzero.h and xxx.pb.h (official proto).
 
 perfetto_proto_library("testing_messages_@TYPE@") {
-  proto_generators = [
-    "lite",
-    "zero",
-  ]
   sources = [
     "test/example_proto/library.proto",
     "test/example_proto/library_internals/galaxies.proto",
