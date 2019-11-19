@@ -182,11 +182,11 @@ template("perfetto_proto_library") {
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "cpp") {
-      lite_target_name_ = string_replace(target_name, expansion_token, "lite")
+      zero_target_name_ = string_replace(target_name, expansion_token, "zero")
       protozero_cpp_library(target_name_) {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
-        deps = deps_ + [ ":$lite_target_name_" ]
+        deps = deps_ + [ ":$zero_target_name_" ]
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "lite") {

@@ -182,6 +182,10 @@ class Field {
     *val = static_cast<T>(as_int32());
   }
 
+  // Serializes the field back into a proto-encoded byte stream and appends it
+  // to |dst|. |dst| is resized accordingly.
+  void SerializeAndAppendTo(std::string* dst);
+
  private:
   // Fields are deliberately not initialized to keep the class trivially
   // constructible. It makes a large perf difference for ProtoDecoder.
