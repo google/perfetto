@@ -71,7 +71,7 @@
 //      event   |     '--------------------------------'     |  arguments
 //              V                                            V
 //  .----------------------------------.    .-----------------------------.
-//  | TrackEvent                       |    | TrackEventContext           |
+//  | TrackEvent                       |    | EventContext                |
 //  |  - Registry of event categories  |    |  - One track event instance |
 //  '----------------------------------'    '-----------------------------'
 //              |                                            |

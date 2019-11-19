@@ -55,8 +55,8 @@
 // string will only be emitted the first time the trace point is hit.
 //
 //   TRACE_EVENT_BEGIN(
-//      "category", "Event", [&](perfetto::TrackEventContext ctx) {
-//        auto my_message = ctx.track_event()->set_my_message();
+//      "category", "Event", [&](perfetto::EventContext ctx) {
+//        auto my_message = ctx.event()->set_my_message();
 //        size_t iid = MyInternedData::Get(&ctx, "Some data");
 //        my_message->set_iid(iid);
 //      });
@@ -170,7 +170,7 @@ class TrackEventInternedDataIndex
  public:
   // Return an interning id for |value|. The returned id can be immediately
   // written to the trace.
-  static size_t Get(TrackEventContext* ctx, const ValueType& value) {
+  static size_t Get(EventContext* ctx, const ValueType& value) {
     // First check if the value exists in the dictionary.
     auto index_for_field = GetOrCreateIndexForField(ctx->incremental_state_);
     size_t iid;

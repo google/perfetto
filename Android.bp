@@ -5042,6 +5042,7 @@ filegroup {
   name: "perfetto_src_tracing_client_api",
   srcs: [
     "src/tracing/data_source.cc",
+    "src/tracing/event_context.cc",
     "src/tracing/internal/in_process_tracing_backend.cc",
     "src/tracing/internal/system_tracing_backend.cc",
     "src/tracing/internal/tracing_muxer_impl.cc",
@@ -5049,7 +5050,6 @@ filegroup {
     "src/tracing/platform.cc",
     "src/tracing/tracing.cc",
     "src/tracing/track_event_category_registry.cc",
-    "src/tracing/track_event_context.cc",
     "src/tracing/virtual_destructors.cc",
   ],
 }
