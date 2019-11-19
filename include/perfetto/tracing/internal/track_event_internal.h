@@ -25,9 +25,9 @@
 #include <unordered_map>
 
 namespace perfetto {
+class EventContext;
 class DataSourceConfig;
 class DataSourceDescriptor;
-class TrackEventContext;
 
 namespace internal {
 class TrackEventCategoryRegistry;
@@ -49,10 +49,10 @@ struct TrackEventIncrementalState {
   // A heap-allocated message for storing newly seen interned data while we are
   // in the middle of writing a track event. When a track event wants to write
   // new interned data into the trace, it is first serialized into this message
-  // and then flushed to the real trace in TrackEventContext when the packet
-  // ends. The message is cached here as a part of incremental state so that we
-  // can reuse the underlying buffer allocation for subsequently written
-  // interned data.
+  // and then flushed to the real trace in EventContext when the packet ends.
+  // The message is cached here as a part of incremental state so that we can
+  // reuse the underlying buffer allocation for subsequently written interned
+  // data.
   protozero::HeapBuffered<protos::pbzero::InternedData>
       serialized_interned_data;
 
@@ -81,7 +81,7 @@ class TrackEventInternal {
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
                              uint32_t instance_index);
 
-  static perfetto::TrackEventContext WriteEvent(
+  static perfetto::EventContext WriteEvent(
       TraceWriterBase*,
       TrackEventIncrementalState*,
       const char* category,

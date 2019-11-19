@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/track_event_context.h"
+#include "perfetto/tracing/event_context.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 
-TrackEventContext::TrackEventContext(
-    TrackEventContext::TracePacketHandle trace_packet,
+EventContext::EventContext(
+    EventContext::TracePacketHandle trace_packet,
     internal::TrackEventIncrementalState* incremental_state)
     : trace_packet_(std::move(trace_packet)),
-      track_event_(trace_packet_->set_track_event()),
+      event_(trace_packet_->set_track_event()),
       incremental_state_(incremental_state) {}
 
-TrackEventContext::~TrackEventContext() {
+EventContext::~EventContext() {
   // When the track event is finalized (i.e., the context is destroyed), we
   // should flush any newly seen interned data to the trace. The data has
   // earlier been written to a heap allocated protobuf message

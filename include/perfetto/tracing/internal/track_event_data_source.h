@@ -20,9 +20,9 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/data_source.h"
+#include "perfetto/tracing/event_context.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track_event_category_registry.h"
-#include "perfetto/tracing/track_event_context.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 #include <unordered_map>
@@ -81,13 +81,12 @@ class TrackEventDataSource
   // TODO(skyostil): Investigate whether this should be fully outlined to reduce
   // binary size.
   template <size_t CategoryIndex,
-            typename ArgumentFunction = void (*)(TrackEventContext)>
+            typename ArgumentFunction = void (*)(EventContext)>
   static void TraceForCategory(
       uint32_t instances,
       const char* event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
-      ArgumentFunction arg_function = [](TrackEventContext) {
-      }) PERFETTO_NO_INLINE {
+      ArgumentFunction arg_function = [](EventContext) {}) PERFETTO_NO_INLINE {
     Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
         instances, [&](typename Base::TraceContext ctx) {
           // TODO(skyostil): Intern categories at compile time.
