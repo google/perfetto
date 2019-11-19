@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/process_metadata.sql');
+
 CREATE VIEW memory_delta AS
 SELECT upid, SUM(size) AS delta
 FROM heap_profile_allocation
@@ -216,6 +218,7 @@ CREATE VIEW instance_stats_view AS
 SELECT HeapProfileCallsites_InstanceStats(
     'pid', process.pid,
     'process_name', process.name,
+    'process', process_metadata.metadata,
     'callsites', repeated_callsite_proto,
     'profile_delta_bytes', memory_delta.delta,
     'profile_total_bytes', memory_total.total
@@ -223,7 +226,8 @@ SELECT HeapProfileCallsites_InstanceStats(
 FROM process_callsite_proto
 JOIN memory_total USING (upid)
 JOIN memory_delta USING (upid)
-JOIN process USING (upid);
+JOIN process USING (upid)
+JOIN process_metadata USING (upid);
 
 CREATE VIEW heap_profile_callsites_output AS
 SELECT HeapProfileCallsites(

@@ -1,7 +1,10 @@
 java_heap_stats {
   instance_stats {
     upid: 2
-    process_name: "system_server"
+    process {
+      name: "system_server"
+      uid: 1000
+    }
     samples {
       ts: 10
       heap_size: 224
