@@ -64,7 +64,7 @@ WINDOW win AS (PARTITION BY upid ORDER BY ts);
  */
 CREATE VIEW output AS
 SELECT ts,
-       lead(ts, 1, ts) over win - ts as dur,
+       lead(ts, 1, ts + dur) over win - ts as dur,
        SUM(rss_oom_lt_zero_diff) OVER win as rss_oom_lt_zero,
        SUM(rss_oom_eq_zero_diff) OVER win as rss_oom_eq_zero,
        SUM(rss_fg_diff) OVER win as rss_fg,
