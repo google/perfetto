@@ -24,7 +24,7 @@ fi
 function get_gn_value() {
   local out=$1
   local key=$2
-  gn args "$out" --list --short | sed -n -e "s/$key = \"\(.*\)\"/\1/p"
+  gn args "$out" --list=$key --short | awk '{print $3}'
 }
 
 function is_monolithic() {
