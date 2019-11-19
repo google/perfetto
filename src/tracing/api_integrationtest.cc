@@ -777,11 +777,11 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgs) {
 
   auto random_value = random();
   TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
-                    [random_value](perfetto::TrackEventContext ctx) {
-                      auto* log = ctx.track_event()->set_log_message();
+                    [random_value](perfetto::EventContext ctx) {
+                      auto* log = ctx.event()->set_log_message();
                       log->set_source_location_iid(1);
                       log->set_body_iid(2);
-                      auto* dbg = ctx.track_event()->add_debug_annotations();
+                      auto* dbg = ctx.event()->add_debug_annotations();
                       dbg->set_name("random");
                       dbg->set_int_value(random_value);
                     });
@@ -855,45 +855,38 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterning) {
 
   size_t body_iid;
   InternedLogMessageBody::commit_count = 0;
-  TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
-        EXPECT_EQ(0, InternedLogMessageBody::commit_count);
-        body_iid = InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
-        auto log = ctx.track_event()->set_log_message();
-        log->set_body_iid(body_iid);
-        EXPECT_EQ(1, InternedLogMessageBody::commit_count);
+  TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
+    EXPECT_EQ(0, InternedLogMessageBody::commit_count);
+    body_iid = InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
+    auto log = ctx.event()->set_log_message();
+    log->set_body_iid(body_iid);
+    EXPECT_EQ(1, InternedLogMessageBody::commit_count);
 
-        auto body_iid2 =
-            InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
-        EXPECT_EQ(body_iid, body_iid2);
-        EXPECT_EQ(1, InternedLogMessageBody::commit_count);
-      });
+    auto body_iid2 = InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
+    EXPECT_EQ(body_iid, body_iid2);
+    EXPECT_EQ(1, InternedLogMessageBody::commit_count);
+  });
   TRACE_EVENT_END("foo");
 
-  TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
-        // Check that very large amounts of interned data works.
-        auto log = ctx.track_event()->set_log_message();
-        log->set_body_iid(
-            InternedLogMessageBody::Get(&ctx, large_message.str()));
-        EXPECT_EQ(2, InternedLogMessageBody::commit_count);
-      });
+  TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
+    // Check that very large amounts of interned data works.
+    auto log = ctx.event()->set_log_message();
+    log->set_body_iid(InternedLogMessageBody::Get(&ctx, large_message.str()));
+    EXPECT_EQ(2, InternedLogMessageBody::commit_count);
+  });
   TRACE_EVENT_END("foo");
 
   // Make sure interned data persists across trace points.
-  TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
-        auto body_iid2 =
-            InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
-        EXPECT_EQ(body_iid, body_iid2);
+  TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
+    auto body_iid2 = InternedLogMessageBody::Get(&ctx, "Alas, poor Yorick!");
+    EXPECT_EQ(body_iid, body_iid2);
 
-        auto body_iid3 =
-            InternedLogMessageBody::Get(&ctx, "I knew him, Horatio");
-        EXPECT_NE(body_iid, body_iid3);
-        auto log = ctx.track_event()->set_log_message();
-        log->set_body_iid(body_iid3);
-        EXPECT_EQ(3, InternedLogMessageBody::commit_count);
-      });
+    auto body_iid3 = InternedLogMessageBody::Get(&ctx, "I knew him, Horatio");
+    EXPECT_NE(body_iid, body_iid3);
+    auto log = ctx.event()->set_log_message();
+    log->set_body_iid(body_iid3);
+    EXPECT_EQ(3, InternedLogMessageBody::commit_count);
+  });
   TRACE_EVENT_END("foo");
 
   tracing_session->get()->StopBlocking();
@@ -932,20 +925,18 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByValue) {
   tracing_session->get()->StartBlocking();
 
   size_t body_iid;
-  TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
-        body_iid = InternedLogMessageBodySmall::Get(&ctx, "This above all:");
-        auto log = ctx.track_event()->set_log_message();
-        log->set_body_iid(body_iid);
+  TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
+    body_iid = InternedLogMessageBodySmall::Get(&ctx, "This above all:");
+    auto log = ctx.event()->set_log_message();
+    log->set_body_iid(body_iid);
 
-        auto body_iid2 =
-            InternedLogMessageBodySmall::Get(&ctx, "This above all:");
-        EXPECT_EQ(body_iid, body_iid2);
+    auto body_iid2 = InternedLogMessageBodySmall::Get(&ctx, "This above all:");
+    EXPECT_EQ(body_iid, body_iid2);
 
-        auto body_iid3 =
-            InternedLogMessageBodySmall::Get(&ctx, "to thine own self be true");
-        EXPECT_NE(body_iid, body_iid3);
-      });
+    auto body_iid3 =
+        InternedLogMessageBodySmall::Get(&ctx, "to thine own self be true");
+    EXPECT_NE(body_iid, body_iid3);
+  });
   TRACE_EVENT_END("foo");
 
   tracing_session->get()->StopBlocking();
@@ -983,11 +974,11 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByHashing) {
 
   size_t body_iid;
   TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
+      "foo", "EventWithState", [&](perfetto::EventContext ctx) {
         // Test using a dynamically created interned value.
         body_iid = InternedLogMessageBodyHashed::Get(
             &ctx, std::string("Though this ") + "be madness,");
-        auto log = ctx.track_event()->set_log_message();
+        auto log = ctx.event()->set_log_message();
         log->set_body_iid(body_iid);
 
         auto body_iid2 =
@@ -1037,23 +1028,21 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningComplexValue) {
   auto* tracing_session = NewTrace(cfg);
   tracing_session->get()->StartBlocking();
 
-  TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::TrackEventContext ctx) {
-        const SourceLocation location{"file.cc", "SomeFunction", 123};
-        auto location_iid = InternedSourceLocation::Get(&ctx, location);
-        auto body_iid =
-            InternedLogMessageBody::Get(&ctx, "To be, or not to be");
-        auto log = ctx.track_event()->set_log_message();
-        log->set_source_location_iid(location_iid);
-        log->set_body_iid(body_iid);
+  TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
+    const SourceLocation location{"file.cc", "SomeFunction", 123};
+    auto location_iid = InternedSourceLocation::Get(&ctx, location);
+    auto body_iid = InternedLogMessageBody::Get(&ctx, "To be, or not to be");
+    auto log = ctx.event()->set_log_message();
+    log->set_source_location_iid(location_iid);
+    log->set_body_iid(body_iid);
 
-        auto location_iid2 = InternedSourceLocation::Get(&ctx, location);
-        EXPECT_EQ(location_iid, location_iid2);
+    auto location_iid2 = InternedSourceLocation::Get(&ctx, location);
+    EXPECT_EQ(location_iid, location_iid2);
 
-        const SourceLocation location2{"file.cc", "SomeFunction", 456};
-        auto location_iid3 = InternedSourceLocation::Get(&ctx, location2);
-        EXPECT_NE(location_iid, location_iid3);
-      });
+    const SourceLocation location2{"file.cc", "SomeFunction", 456};
+    auto location_iid3 = InternedSourceLocation::Get(&ctx, location2);
+    EXPECT_NE(location_iid, location_iid3);
+  });
   TRACE_EVENT_END("foo");
 
   tracing_session->get()->StopBlocking();
@@ -1077,10 +1066,9 @@ TEST_F(PerfettoApiTest, TrackEventScoped) {
 
   {
     uint64_t arg = 123;
-    TRACE_EVENT("test", "TestEventWithArgs",
-                [&](perfetto::TrackEventContext ctx) {
-                  ctx.track_event()->set_log_message()->set_body_iid(arg);
-                });
+    TRACE_EVENT("test", "TestEventWithArgs", [&](perfetto::EventContext ctx) {
+      ctx.event()->set_log_message()->set_body_iid(arg);
+    });
   }
 
   {

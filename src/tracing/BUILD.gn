@@ -261,6 +261,7 @@ source_set("client_api") {
   ]
   sources = [
     "data_source.cc",
+    "event_context.cc",
     "internal/in_process_tracing_backend.cc",
     "internal/in_process_tracing_backend.h",
     "internal/tracing_muxer_impl.cc",
@@ -269,7 +270,6 @@ source_set("client_api") {
     "platform.cc",
     "tracing.cc",
     "track_event_category_registry.cc",
-    "track_event_context.cc",
     "virtual_destructors.cc",
   ]
 

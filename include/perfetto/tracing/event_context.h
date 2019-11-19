@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_TRACK_EVENT_CONTEXT_H_
-#define INCLUDE_PERFETTO_TRACING_TRACK_EVENT_CONTEXT_H_
+#ifndef INCLUDE_PERFETTO_TRACING_EVENT_CONTEXT_H_
+#define INCLUDE_PERFETTO_TRACING_EVENT_CONTEXT_H_
 
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
@@ -29,18 +29,18 @@ class TrackEventInternal;
 // Allows adding custom arguments into track events. Example:
 //
 //   TRACE_EVENT_BEGIN("category", "Title",
-//                     [](perfetto::TrackEventContext ctx) {
-//                       auto* dbg = ctx.track_event()->add_debug_annotations();
+//                     [](perfetto::EventContext ctx) {
+//                       auto* dbg = ctx.event()->add_debug_annotations();
 //                       dbg->set_name("name");
 //                       dbg->set_int_value(1234);
 //                     });
 //
-class TrackEventContext {
+class EventContext {
  public:
-  TrackEventContext(TrackEventContext&&) = default;
-  ~TrackEventContext();
+  EventContext(EventContext&&) = default;
+  ~EventContext();
 
-  protos::pbzero::TrackEvent* track_event() const { return track_event_; }
+  protos::pbzero::TrackEvent* event() const { return event_; }
 
  private:
   template <typename, size_t, typename, typename>
@@ -50,14 +50,14 @@ class TrackEventContext {
   using TracePacketHandle =
       ::protozero::MessageHandle<protos::pbzero::TracePacket>;
 
-  TrackEventContext(TracePacketHandle, internal::TrackEventIncrementalState*);
-  TrackEventContext(const TrackEventContext&) = delete;
+  EventContext(TracePacketHandle, internal::TrackEventIncrementalState*);
+  EventContext(const EventContext&) = delete;
 
   TracePacketHandle trace_packet_;
-  protos::pbzero::TrackEvent* track_event_;
+  protos::pbzero::TrackEvent* event_;
   internal::TrackEventIncrementalState* incremental_state_;
 };
 
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_TRACING_TRACK_EVENT_CONTEXT_H_
+#endif  // INCLUDE_PERFETTO_TRACING_EVENT_CONTEXT_H_
