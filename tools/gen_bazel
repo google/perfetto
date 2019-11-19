@@ -215,7 +215,7 @@ def gen_proto_labels(target):
   assert (target.type == 'proto_library')
 
   def get_sources_label(target_name):
-    return re.sub('_(lite|zero|cpp)$', '',
+    return re.sub('_(lite|zero|cpp|ipc)$', '',
                   get_bazel_label_name(target_name)) + '_protos'
 
   sources_label_name = get_sources_label(target.name)
@@ -253,7 +253,14 @@ def gen_proto_labels(target):
   assert (all(x.startswith('//') for x in target.sources))
   assert (all(x.endswith('.proto') for x in target.sources))
   sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
-  deps = [':' + get_sources_label(x) for x in target.proto_deps]
+
+  # TODO(primiano): Remove the "wire_protocol not in x" condition below once
+  # the IPC layer stops depending on libprotobuf (i.e. once aosp/1163503 lands).
+  deps = [
+      ':' + get_sources_label(x)
+      for x in target.proto_deps
+      if '//protos/perfetto/ipc:wire_protocol' not in x
+  ]
   sources_label.deps = sorted(deps)
 
   if target.name in proto_targets:
