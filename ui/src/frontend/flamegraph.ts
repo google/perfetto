@@ -132,6 +132,15 @@ export class Flamegraph {
     // Draw root node.
     ctx.fillStyle = this.generateColor('root', false);
     ctx.fillRect(x, currentY, width, nodeHeight);
+    ctx.font = `${this.textSize}px Google Sans`;
+    const text = cropText(
+        `root: ${
+            this.displaySize(
+                this.totalSize, unit, unit === 'B' ? 1024 : 1000)}`,
+        charWidth,
+        width - 2);
+    ctx.fillStyle = 'black';
+    ctx.fillText(text, x + 5, currentY + nodeHeight - 4);
     currentY += nodeHeight;
 
 
@@ -219,29 +228,88 @@ export class Flamegraph {
 
     if (this.hoveredX > -1 && this.hoveredY > -1 && this.hoveredCallsite) {
       // Draw the tooltip.
-      const line1 = this.getCallsiteName(this.hoveredCallsite);
+      const lines: string[] = [];
+      let lineSplitter: LineSplitter;
+      const nameText = this.getCallsiteName(this.hoveredCallsite);
+      lineSplitter =
+          splitIfTooBig(nameText, width, ctx.measureText(nameText).width);
+      const nameTextWidth = lineSplitter.lineWidth;
+      lines.push(...lineSplitter.lines);
+
+      const mappingText = this.hoveredCallsite.mapping;
+      lineSplitter =
+          splitIfTooBig(mappingText, width, ctx.measureText(mappingText).width);
+      const mappingTextWidth = lineSplitter.lineWidth;
+      lines.push(...lineSplitter.lines);
+
       const percentage = this.hoveredCallsite.totalSize / this.totalSize * 100;
-      const line2 = `total: ${this.hoveredCallsite.totalSize}${unit} (${
-          percentage.toFixed(2)}%)`;
+      const totalSizeText = `total: ${
+          this.displaySize(
+              this.hoveredCallsite.totalSize,
+              unit,
+              unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
+      lineSplitter = splitIfTooBig(
+          totalSizeText, width, ctx.measureText(totalSizeText).width);
+      const totalSizeTextWidth = lineSplitter.lineWidth;
+      lines.push(...lineSplitter.lines);
+
+      let selfSizeWidth = 0;
+      if (this.hoveredCallsite.selfSize > 0) {
+        const selfSizeText = `self: ${
+            this.displaySize(
+                this.hoveredCallsite.selfSize,
+                unit,
+                unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
+        lineSplitter = splitIfTooBig(
+            selfSizeText, width, ctx.measureText(selfSizeText).width);
+        selfSizeWidth = lineSplitter.lineWidth;
+        lines.push(...lineSplitter.lines);
+      }
+
+      const rectWidth = Math.max(
+                            nameTextWidth,
+                            mappingTextWidth,
+                            totalSizeTextWidth,
+                            selfSizeWidth) +
+          16;
+      const rectXStart = this.hoveredX + 8 + rectWidth > width ?
+          width - rectWidth - 8 :
+          this.hoveredX + 8;
+      const rectHeight = nodeHeight * (lines.length + 1);
+      const rectYStart = this.hoveredY + 4 + rectHeight > height ?
+          height - rectHeight - 8 :
+          this.hoveredY + 4;
+
       ctx.font = '12px Google Sans';
-      const line1Width = ctx.measureText(line1).width;
-      const line2Width = ctx.measureText(line2).width;
-      const rectWidth = Math.max(line1Width, line2Width);
-      const rectYStart = this.hoveredY + 10;
-      const rectHeight = nodeHeight * 3;
-      const rectYEnd = rectYStart + rectHeight;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillRect(this.hoveredX + 5, rectYStart, rectWidth + 16, rectHeight);
+      ctx.fillRect(rectXStart, rectYStart, rectWidth, rectHeight);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
       ctx.textAlign = 'left';
-      ctx.fillText(line1, this.hoveredX + 8, rectYStart + 18 /* 8 + 10s */);
-      ctx.fillText(line2, this.hoveredX + 8, rectYEnd - 8);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        ctx.fillText(line, rectXStart + 4, rectYStart + (i + 1) * 18);
+      }
     }
   }
 
   private getCallsiteName(value: CallsiteInfo): string {
     return value.name === undefined || value.name === '' ? 'unknown' :
                                                            value.name;
+  }
+
+  private displaySize(totalSize: number, unit: string, step = 1024): string {
+    if (unit === '') return totalSize.toLocaleString();
+    if (totalSize === 0) return `0 ${unit}`;
+    const units = [
+      ['', 0],
+      ['K', step],
+      ['M', Math.pow(step, 2)],
+      ['G', Math.pow(step, 3)]
+    ];
+    let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
+    unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
+    return `${(totalSize / +units[unitsIndex][1]).toLocaleString()} ${
+        units[unitsIndex][0]}${unit}`;
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
@@ -302,4 +370,24 @@ export class Flamegraph {
   enableThumbnail(isThumbnail: boolean) {
     this.isThumbnail = isThumbnail;
   }
+}
+
+export interface LineSplitter {
+  lineWidth: number;
+  lines: string[];
+}
+
+export function splitIfTooBig(
+    line: string, width: number, lineWidth: number): LineSplitter {
+  if (line === '') return {lineWidth, lines: []};
+  const lines: string[] = [];
+  const charWidth = lineWidth / line.length;
+  const maxWidth = width - 32;
+  const maxLineLen = Math.trunc(maxWidth / charWidth);
+  while (line.length > 0) {
+    lines.push(line.slice(0, maxLineLen));
+    line = line.slice(maxLineLen);
+  }
+  lineWidth = Math.min(maxWidth, lineWidth);
+  return {lineWidth, lines};
 }
