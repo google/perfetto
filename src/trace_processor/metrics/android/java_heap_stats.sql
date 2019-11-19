@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/process_metadata.sql');
+
 CREATE VIEW total_size_samples AS
 SELECT upid, graph_sample_ts, SUM(self_size) AS total_size
 FROM heap_graph_object
@@ -43,16 +45,16 @@ FROM heap_graph_samples;
 CREATE TABLE heap_graph_instance_stats AS
 SELECT
   upid,
-  process.name process_name,
+  process_metadata.metadata AS process_metadata,
   RepeatedField(sample_proto) AS sample_protos
-FROM heap_graph_sample_protos JOIN process USING (upid)
+FROM heap_graph_sample_protos JOIN process_metadata USING (upid)
 GROUP BY 1, 2;
 
 CREATE VIEW java_heap_stats_output AS
 SELECT JavaHeapStats(
   'instance_stats', RepeatedField(JavaHeapStats_InstanceStats(
     'upid', upid,
-    'process_name', process_name,
+    'process', process_metadata,
     'samples', sample_protos
   )))
 FROM heap_graph_instance_stats;

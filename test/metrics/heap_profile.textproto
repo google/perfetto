@@ -4,11 +4,13 @@ packet {
       pid: 1
       ppid: 0
       cmdline: "init"
+      uid: 0
     }
     processes {
       pid: 2
       ppid: 1
       cmdline: "system_server"
+      uid: 1000
     }
   }
 }
