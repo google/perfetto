@@ -104,3 +104,56 @@ message PackedRepeatedFields {
   repeated fixed32 field_fixed32 = 2 [packed = true];
   repeated sfixed64 field_sfixed64 = 3 [packed = true];
 }
+
+// The following two messages are for testing that unknown fields being
+// preserved in the decode->reencode path.
+
+message TestVersioning_V1 {
+  enum Enumz_V1 {
+    ONE = 1;
+    TWO = 2;
+  }
+  message Sub1_V1 {
+    optional int32 sub1_int = 1;
+    optional string sub1_string = 2;
+  }
+  optional int32 root_int = 1;
+  repeated Enumz_V1 enumz = 2;
+  optional string root_string = 3;
+  repeated string rep_string = 4;
+  optional Sub1_V1 sub1 = 5;
+  repeated Sub1_V1 sub1_rep = 6;
+  optional Sub1_V1 sub1_lazy = 7 [lazy = true];
+}
+
+message TestVersioning_V2 {
+  enum Enumz_V2 {
+    ONE = 1;
+    TWO = 2;
+    THREE_V2 = 3;
+  }
+  message Sub1_V2 {
+    optional int32 sub1_int = 1;
+    optional string sub1_string = 2;
+    optional int32 sub1_int_v2 = 3;      // New in v2.
+    optional string sub1_string_v2 = 4;  // New in v2.
+  }
+  message Sub2_V2 {  // New in v2.
+    optional int32 sub2_int = 1;
+    optional string sub2_string = 2;
+  }
+
+  optional int32 root_int = 1;
+  repeated Enumz_V2 enumz = 2;
+  optional string root_string = 3;
+  repeated string rep_string = 4;
+  optional Sub1_V2 sub1 = 5;
+  repeated Sub1_V2 sub1_rep = 6;
+  optional Sub1_V2 sub1_lazy = 7 [lazy = true];
+
+  // New fields introduced in V2.
+  optional int32 root_int_v2 = 10;
+  optional Sub2_V2 sub2 = 11;
+  repeated Sub2_V2 sub2_rep = 12;
+  optional Sub2_V2 sub2_lazy = 13 [lazy = true];
+}
