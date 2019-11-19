@@ -51,10 +51,9 @@ consumers (that would open a hard to audit path between
 untrusted-and-unprivileged and trusted-and-more-privileged entities).
 
 **Attestation of trace contents**  
-The tracing service guarantees that the `TracePacket` fields defined also in
-[trusted_packet.proto](/protos/perfetto/trace/trusted_packet.proto) cannot be
-spoofed by the Producer(s). Packets that try to define those fields are rejected
-(modulo the clock snapshots).  
+The tracing service guarantees that the `TracePacket` fields written by the
+Service cannot be spoofed by the Producer(s).  
+Packets that try to define those fields are rejected, modulo clock snapshots.  
 See [PacketStreamValidator](/src/tracing/core/packet_stream_validator.cc) and
 [its unit test](/src/tracing/core/packet_stream_validator_unittest.cc) for more
 details.  
