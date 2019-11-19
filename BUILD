@@ -1559,13 +1559,13 @@ perfetto_cc_protozero_library(
 perfetto_cc_ipc_library(
     name = "protos_perfetto_ipc_ipc",
     deps = [
-        ":protos_perfetto_ipc_ipc_protos",
+        ":protos_perfetto_ipc_protos",
     ],
 )
 
 # GN target: //protos/perfetto/ipc:ipc
 perfetto_proto_library(
-    name = "protos_perfetto_ipc_ipc_protos",
+    name = "protos_perfetto_ipc_protos",
     srcs = [
         "protos/perfetto/ipc/consumer_port.proto",
         "protos/perfetto/ipc/producer_port.proto",
@@ -1581,8 +1581,6 @@ perfetto_proto_library(
         ":protos_perfetto_config_profiling_protos",
         ":protos_perfetto_config_protos",
         ":protos_perfetto_config_sys_stats_protos",
-        ":protos_perfetto_ipc_wire_protocol_protos",
-        ":protos_perfetto_ipc_wire_protocol_protos",
     ],
 )
 
