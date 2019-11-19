@@ -189,7 +189,6 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
-        ":protos_perfetto_trace_minimal_lite",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -198,7 +197,6 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
         ":protos_perfetto_trace_track_event_zero",
-        ":protos_perfetto_trace_trusted_lite",
     ] + PERFETTO_CONFIG.deps.protobuf_lite,
 )
 
@@ -354,6 +352,7 @@ filegroup(
         "include/perfetto/protozero/scattered_heap_buffer.h",
         "include/perfetto/protozero/scattered_stream_null_delegate.h",
         "include/perfetto/protozero/scattered_stream_writer.h",
+        "include/perfetto/protozero/static_buffer.h",
     ],
 )
 
@@ -536,6 +535,7 @@ filegroup(
         "src/protozero/scattered_heap_buffer.cc",
         "src/protozero/scattered_stream_null_delegate.cc",
         "src/protozero/scattered_stream_writer.cc",
+        "src/protozero/static_buffer.cc",
     ],
 )
 
@@ -2155,35 +2155,6 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace:trusted_lite
-perfetto_cc_proto_library(
-    name = "protos_perfetto_trace_trusted_lite",
-    deps = [
-        ":protos_perfetto_trace_trusted_protos",
-    ],
-)
-
-# GN target: //protos/perfetto/trace:trusted_lite
-perfetto_proto_library(
-    name = "protos_perfetto_trace_trusted_protos",
-    srcs = [
-        "protos/perfetto/trace/trusted_packet.proto",
-    ],
-    deps = [
-        ":protos_perfetto_common_protos",
-        ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_ftrace_protos",
-        ":protos_perfetto_config_gpu_protos",
-        ":protos_perfetto_config_inode_file_protos",
-        ":protos_perfetto_config_power_protos",
-        ":protos_perfetto_config_process_stats_protos",
-        ":protos_perfetto_config_profiling_protos",
-        ":protos_perfetto_config_protos",
-        ":protos_perfetto_config_sys_stats_protos",
-        ":protos_perfetto_trace_minimal_protos",
-    ],
-)
-
 # GN target: //protos/third_party/pprof:lite
 perfetto_cc_proto_library(
     name = "protos_third_party_pprof_lite",
@@ -2287,7 +2258,6 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
-        ":protos_perfetto_trace_minimal_lite",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -2296,7 +2266,6 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
         ":protos_perfetto_trace_track_event_zero",
-        ":protos_perfetto_trace_trusted_lite",
     ] + PERFETTO_CONFIG.deps.protobuf_lite,
 )
 
@@ -2368,7 +2337,6 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
-               ":protos_perfetto_trace_minimal_lite",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
@@ -2377,7 +2345,6 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_ps_zero",
                ":protos_perfetto_trace_sys_stats_zero",
                ":protos_perfetto_trace_track_event_zero",
-               ":protos_perfetto_trace_trusted_lite",
                ":src_perfetto_cmd_protos",
            ] + PERFETTO_CONFIG.deps.protobuf_lite +
            PERFETTO_CONFIG.deps.zlib,

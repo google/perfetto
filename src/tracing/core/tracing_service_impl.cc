@@ -49,15 +49,20 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/protozero/static_buffer.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_buffer.h"
 
-#include "protos/perfetto/trace/clock_snapshot.pb.h"
-#include "protos/perfetto/trace/system_info.pb.h"
-#include "protos/perfetto/trace/trusted_packet.pb.h"
+#include "protos/perfetto/common/trace_stats.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/system_info.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trigger.pbzero.h"
 
 // General note: this class must assume that Producers are malicious and will
 // try to crash / exploit this class. We can trust pointers because they come
@@ -130,6 +135,14 @@ static int32_t EncodeCommitDataRequest(ProducerID producer_id,
   acc |= (cmov & mask) << 10;
   acc |= (producer_id & mask);
   return static_cast<int32_t>(acc);
+}
+
+void SerializeAndAppendPacket(std::vector<TracePacket>* packets,
+                              std::vector<uint8_t> packet) {
+  Slice slice = Slice::Allocate(packet.size());
+  memcpy(slice.own_data(), packet.data(), packet.size());
+  packets->emplace_back();
+  packets->back().AddSlice(std::move(slice));
 }
 
 }  // namespace
@@ -1540,21 +1553,18 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
       // truncated packets are also rejected, so the producer can't give us a
       // partial packet (e.g., a truncated string) which only becomes valid when
       // the trusted data is appended here.
-      protos::TrustedPacket trusted_packet;
-      trusted_packet.set_trusted_uid(
+      Slice slice = Slice::Allocate(32);
+      protozero::StaticBuffered<protos::pbzero::TracePacket> trusted_packet(
+          slice.own_data(), slice.size);
+      trusted_packet->set_trusted_uid(
           static_cast<int32_t>(sequence_properties.producer_uid_trusted));
-      trusted_packet.set_trusted_packet_sequence_id(
+      trusted_packet->set_trusted_packet_sequence_id(
           tracing_session->GetPacketSequenceID(
               sequence_properties.producer_id_trusted,
               sequence_properties.writer_id));
       if (previous_packet_dropped)
-        trusted_packet.set_previous_packet_dropped(previous_packet_dropped);
-      static constexpr size_t kTrustedBufSize = 16;
-      Slice slice = Slice::Allocate(kTrustedBufSize);
-      PERFETTO_CHECK(
-          trusted_packet.SerializeToArray(slice.own_data(), kTrustedBufSize));
-      slice.size = static_cast<size_t>(trusted_packet.GetCachedSize());
-      PERFETTO_DCHECK(slice.size > 0 && slice.size <= kTrustedBufSize);
+        trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
+      slice.size = trusted_packet.Finalize();
       packet.AddSlice(std::move(slice));
 
       // Append the packet (inclusive of the trusted uid) to |packets|.
@@ -2160,23 +2170,17 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
   // The sync marks are used to tokenize large traces efficiently.
   // See description in trace_packet.proto.
   if (sync_marker_packet_size_ == 0) {
-    // Serialize the marker and the uid separately to guarantee that the marker
-    // is serialzied at the end and is adjacent to the start of the next packet.
-    int size_left = static_cast<int>(sizeof(sync_marker_packet_));
-    uint8_t* dst = &sync_marker_packet_[0];
-    protos::TrustedPacket packet;
-    packet.set_trusted_uid(static_cast<int32_t>(uid_));
-    packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    PERFETTO_CHECK(packet.SerializeToArray(dst, size_left));
-    size_left -= packet.ByteSize();
-    sync_marker_packet_size_ += static_cast<size_t>(packet.ByteSize());
-    dst += sync_marker_packet_size_;
+    // The marker ABI expects that the marker is written after the uid.
+    // Protozero guarantees that fields are written in the same order of the
+    // calls. The ResynchronizeTraceStreamUsingSyncMarker test verifies the ABI.
+    protozero::StaticBuffered<protos::pbzero::TracePacket> packet(
+        &sync_marker_packet_[0], sizeof(sync_marker_packet_));
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
 
-    packet.Clear();
-    packet.set_synchronization_marker(kSyncMarker, sizeof(kSyncMarker));
-    PERFETTO_CHECK(packet.SerializeToArray(dst, size_left));
-    sync_marker_packet_size_ += static_cast<size_t>(packet.ByteSize());
-    PERFETTO_CHECK(sync_marker_packet_size_ <= sizeof(sync_marker_packet_));
+    // Keep this last.
+    packet->set_synchronization_marker(kSyncMarker, sizeof(kSyncMarker));
+    sync_marker_packet_size_ = packet.Finalize();
   }
   packets->emplace_back();
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
@@ -2184,33 +2188,36 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
 
 void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
                                         bool set_root_timestamp) {
-  protos::TrustedPacket packet;
-  protos::ClockSnapshot* clock_snapshot = packet.mutable_clock_snapshot();
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  uint64_t root_timestamp_ns = 0;
+  auto* clock_snapshot = packet->set_clock_snapshot();
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   struct {
     clockid_t id;
-    protos::ClockSnapshot::Clock::BuiltinClocks type;
+    protos::pbzero::ClockSnapshot::Clock::BuiltinClocks type;
     struct timespec ts;
   } clocks[] = {
-      {CLOCK_BOOTTIME, protos::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
+      {CLOCK_BOOTTIME, protos::pbzero::ClockSnapshot::Clock::BOOTTIME, {0, 0}},
       {CLOCK_REALTIME_COARSE,
-       protos::ClockSnapshot::Clock::REALTIME_COARSE,
+       protos::pbzero::ClockSnapshot::Clock::REALTIME_COARSE,
        {0, 0}},
       {CLOCK_MONOTONIC_COARSE,
-       protos::ClockSnapshot::Clock::MONOTONIC_COARSE,
+       protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE,
        {0, 0}},
-      {CLOCK_REALTIME, protos::ClockSnapshot::Clock::REALTIME, {0, 0}},
-      {CLOCK_MONOTONIC, protos::ClockSnapshot::Clock::MONOTONIC, {0, 0}},
+      {CLOCK_REALTIME, protos::pbzero::ClockSnapshot::Clock::REALTIME, {0, 0}},
+      {CLOCK_MONOTONIC,
+       protos::pbzero::ClockSnapshot::Clock::MONOTONIC,
+       {0, 0}},
       {CLOCK_MONOTONIC_RAW,
-       protos::ClockSnapshot::Clock::MONOTONIC_RAW,
+       protos::pbzero::ClockSnapshot::Clock::MONOTONIC_RAW,
        {0, 0}},
       {CLOCK_PROCESS_CPUTIME_ID,
-       protos::ClockSnapshot::Clock::PROCESS_CPUTIME,
+       protos::pbzero::ClockSnapshot::Clock::PROCESS_CPUTIME,
        {0, 0}},
       {CLOCK_THREAD_CPUTIME_ID,
-       protos::ClockSnapshot::Clock::THREAD_CPUTIME,
+       protos::pbzero::ClockSnapshot::Clock::THREAD_CPUTIME,
        {0, 0}},
   };
   // First snapshot all the clocks as atomically as we can.
@@ -2220,11 +2227,11 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
   }
   for (auto& clock : clocks) {
     if (set_root_timestamp &&
-        clock.type == protos::ClockSnapshot::Clock::BOOTTIME) {
-      packet.set_timestamp(
-          static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
+        clock.type == protos::pbzero::ClockSnapshot::Clock::BOOTTIME) {
+      root_timestamp_ns =
+          static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count());
     }
-    protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
+    auto* c = clock_snapshot->add_clocks();
     c->set_clock_id(static_cast<uint32_t>(clock.type));
     c->set_timestamp(
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
@@ -2232,32 +2239,27 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
 #else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
   auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
   if (set_root_timestamp)
-    packet.set_timestamp(wall_time_ns);
-  protos::ClockSnapshot::Clock* c = clock_snapshot->add_clocks();
-  c->set_clock_id(protos::ClockSnapshot::Clock::MONOTONIC);
+    root_timestamp_ns = wall_time_ns;
+  auto* c = clock_snapshot->add_clocks();
+  c->set_clock_id(protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
   c->set_timestamp(wall_time_ns);
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 
-  packet.set_trusted_uid(static_cast<int32_t>(uid_));
-  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
-  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
-  PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
-  packets->emplace_back();
-  packets->back().AddSlice(std::move(slice));
+  if (root_timestamp_ns)
+    packet->set_timestamp(root_timestamp_ns);
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
 void TracingServiceImpl::SnapshotStats(TracingSession* tracing_session,
                                        std::vector<TracePacket>* packets) {
-  protos::TrustedPacket packet;
-  packet.set_trusted_uid(static_cast<int32_t>(uid_));
-  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
-
-  protos::TraceStats* trace_stats = packet.mutable_trace_stats();
-  GetTraceStats(tracing_session).ToProto(trace_stats);
-  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
-  PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
-  packets->emplace_back();
-  packets->back().AddSlice(std::move(slice));
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  GetTraceStats(tracing_session).Serialize(packet->set_trace_stats());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
 TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
@@ -2291,14 +2293,11 @@ void TracingServiceImpl::MaybeEmitTraceConfig(
   if (tracing_session->did_emit_config)
     return;
   tracing_session->did_emit_config = true;
-  protos::TrustedPacket packet;
-  tracing_session->config.ToProto(packet.mutable_trace_config());
-  packet.set_trusted_uid(static_cast<int32_t>(uid_));
-  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
-  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
-  PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
-  packets->emplace_back();
-  packets->back().AddSlice(std::move(slice));
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  tracing_session->config.Serialize(packet->set_trace_config());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
 void TracingServiceImpl::MaybeEmitSystemInfo(
@@ -2307,24 +2306,21 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   if (tracing_session->did_emit_system_info)
     return;
   tracing_session->did_emit_system_info = true;
-  protos::TrustedPacket packet;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  protos::SystemInfo* info = packet.mutable_system_info();
+  auto* info = packet->set_system_info();
   struct utsname uname_info;
   if (uname(&uname_info) == 0) {
-    protos::Utsname* utsname_info = info->mutable_utsname();
+    auto* utsname_info = info->set_utsname();
     utsname_info->set_sysname(uname_info.sysname);
     utsname_info->set_version(uname_info.version);
     utsname_info->set_machine(uname_info.machine);
     utsname_info->set_release(uname_info.release);
   }
 #endif
-  packet.set_trusted_uid(static_cast<int32_t>(uid_));
-  packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
-  Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
-  PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
-  packets->emplace_back();
-  packets->back().AddSlice(std::move(slice));
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
@@ -2335,20 +2331,16 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
   for (size_t i = tracing_session->num_triggers_emitted_into_trace;
        i < tracing_session->received_triggers.size(); ++i) {
     const auto& info = tracing_session->received_triggers[i];
-    protos::TrustedPacket packet;
-
-    protos::Trigger* trigger = packet.mutable_trigger();
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    auto* trigger = packet->set_trigger();
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));
 
-    packet.set_timestamp(info.boot_time_ns);
-    packet.set_trusted_uid(static_cast<int32_t>(uid_));
-    packet.set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    Slice slice = Slice::Allocate(static_cast<size_t>(packet.ByteSize()));
-    PERFETTO_CHECK(packet.SerializeWithCachedSizesToArray(slice.own_data()));
-    packets->emplace_back();
-    packets->back().AddSlice(std::move(slice));
+    packet->set_timestamp(info.boot_time_ns);
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
     ++tracing_session->num_triggers_emitted_into_trace;
   }
 }
