@@ -2037,6 +2037,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
     "protos/perfetto/config/profiling/java_hprof_config.proto",
+    "protos/perfetto/config/profiling/perf_event_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -2046,6 +2047,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.cc",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.cc",
+    "external/perfetto/protos/perfetto/config/profiling/perf_event_config.gen.cc",
   ],
 }
 
@@ -2055,6 +2057,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
     "protos/perfetto/config/profiling/java_hprof_config.proto",
+    "protos/perfetto/config/profiling/perf_event_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -2064,6 +2067,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.h",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.h",
+    "external/perfetto/protos/perfetto/config/profiling/perf_event_config.gen.h",
   ],
   export_include_dirs: [
     ".",
@@ -2077,6 +2081,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
     "protos/perfetto/config/profiling/java_hprof_config.proto",
+    "protos/perfetto/config/profiling/perf_event_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -2085,6 +2090,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.cc",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.cc",
+    "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pb.cc",
   ],
 }
 
@@ -2094,6 +2100,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
     "protos/perfetto/config/profiling/java_hprof_config.proto",
+    "protos/perfetto/config/profiling/perf_event_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -2102,6 +2109,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.h",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.h",
+    "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pb.h",
   ],
   export_include_dirs: [
     ".",
@@ -2115,6 +2123,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
     "protos/perfetto/config/profiling/java_hprof_config.proto",
+    "protos/perfetto/config/profiling/perf_event_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -2124,6 +2133,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pbzero.cc",
   ],
 }
 
@@ -2133,6 +2143,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/profiling/heapprofd_config.proto",
     "protos/perfetto/config/profiling/java_hprof_config.proto",
+    "protos/perfetto/config/profiling/perf_event_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -2142,6 +2153,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pbzero.h",
   ],
   export_include_dirs: [
     ".",
