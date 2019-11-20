@@ -56,6 +56,10 @@ if (enable_perfetto_heapprofd) {
   ]
 }
 
+if (enable_perfetto_traced_perf) {
+  perfetto_unittests_targets += [ "src/profiling/perf:producer_unittests" ]
+}
+
 if (enable_perfetto_trace_processor) {
   perfetto_unittests_targets += [ "src/trace_processor:unittests" ]
 
