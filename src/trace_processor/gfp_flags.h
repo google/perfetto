@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_GFP_FLAGS_H_
 #define SRC_TRACE_PROCESSOR_GFP_FLAGS_H_
 
+#include <tuple>
 #include "perfetto/ext/base/string_writer.h"
 
 namespace perfetto {
