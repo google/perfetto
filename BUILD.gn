@@ -51,6 +51,10 @@ if (enable_perfetto_heapprofd) {
   }
 }
 
+if (enable_perfetto_traced_perf) {
+  all_targets += [ "src/profiling/perf:traced_perf" ]
+}
+
 if (perfetto_build_with_android) {
   all_targets += [ "src/android_internal/:libperfetto_android_internal" ]
 }
