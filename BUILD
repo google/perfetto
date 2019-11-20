@@ -1500,6 +1500,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/config/profiling/heapprofd_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
+        "protos/perfetto/config/profiling/perf_event_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

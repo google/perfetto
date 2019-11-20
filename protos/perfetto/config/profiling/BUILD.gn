@@ -18,5 +18,6 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "heapprofd_config.proto",
     "java_hprof_config.proto",
+    "perf_event_config.proto",
   ]
 }
