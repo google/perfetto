@@ -10,3 +10,4 @@
 
 ## Bugfixes
 * Fixed heapprofd on x86.
+* Fixed issue with calloc being incorrectly sampled.
