@@ -333,10 +333,19 @@ bool SpanJoinOperatorTable::Cursor::IsOverlappingSpan() {
     return false;
   } else if (t1_.partition() != t2_.partition()) {
     return false;
-  } else if (t1_.ts_end() <= t2_.ts_start() || t2_.ts_end() <= t1_.ts_start()) {
-    return false;
   }
-  return true;
+
+  // We consider all slices to be [start, end) - that is the range of
+  // timestamps has an open interval at the start but a closed interval
+  // at the end. (with the exception of dur == -1 which we treat as if
+  // end == start for the purpose of this function).
+  int64_t t1_start = t1_.ts_start();
+  int64_t t1_end = t1_.ts_end() - t1_start == -1 ? t1_start : t1_.ts_end();
+  int64_t t2_start = t2_.ts_start();
+  int64_t t2_end = t2_.ts_end() - t2_start == -1 ? t2_start : t2_.ts_end();
+  return (t1_start == t2_start && t1_.IsRealSlice() && t2_.IsRealSlice()) ||
+         (t1_start >= t2_start && t1_start < t2_end) ||
+         (t2_start >= t1_start && t2_start < t1_end);
 }
 
 int SpanJoinOperatorTable::Cursor::Next() {
@@ -452,7 +461,6 @@ int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
   } else if (N == Column::kDuration) {
     auto max_start = std::max(t1_.ts_start(), t2_.ts_start());
     auto min_end = std::min(t1_.ts_end(), t2_.ts_end());
-    PERFETTO_DCHECK(min_end > max_start);
     auto dur = min_end - max_start;
     sqlite3_result_int64(context, static_cast<sqlite3_int64>(dur));
   } else if (N == Column::kPartition &&
@@ -550,7 +558,7 @@ SpanJoinOperatorTable::Query::StepRet SpanJoinOperatorTable::Query::Step() {
       // to do so. Otherwise, just emit the underlying slice.
       if (defn_->emit_shadow_slices()) {
         mode_ = Mode::kShadowSlice;
-        ts_start_ = ts_end_;
+        ts_start_ = ts_end_ - ts_start_ == -1 ? ts_start_ : ts_end_;
         ts_end_ = !defn_->IsPartitioned() || partition_ == CursorPartition()
                       ? CursorTs()
                       : std::numeric_limits<int64_t>::max();
@@ -568,12 +576,12 @@ SpanJoinOperatorTable::Query::StepRet SpanJoinOperatorTable::Query::Step() {
 
       // Close off the remainder of this partition with a shadow slice.
       mode_ = Mode::kShadowSlice;
-      ts_start_ = ts_end_;
+      ts_start_ = ts_end_ - ts_start_ == -1 ? ts_start_ : ts_end_;
       ts_end_ = std::numeric_limits<int64_t>::max();
     } else {
       return StepRet(StepRet::Code::kError, res);
     }
-  } while (ts_start_ == ts_end_);
+  } while (ts_start_ == ts_end_ && !IsRealSlice());
 
   return StepRet(StepRet::Code::kRow);
 }
@@ -623,7 +631,8 @@ SpanJoinOperatorTable::Query::StepRet SpanJoinOperatorTable::Query::StepUntil(
     int64_t timestamp) {
   PERFETTO_DCHECK(!Eof());
   auto partition = partition_;
-  while (partition_ == partition && ts_end_ <= timestamp) {
+  while (partition_ == partition && ts_start_ < timestamp &&
+         ts_end_ <= timestamp) {
     auto res = Step();
     if (!res.is_row())
       return res;
