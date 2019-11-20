@@ -37,7 +37,7 @@ export class HeapProfileDetailsPanel extends
       this.pid = heapDumpInfo.pid;
       return m(
           '.details-panel',
-          m('.details-panel-heading', `Heap Profile Details:`),
+          m('.details-panel-heading', m('h2', `Heap Profile Details`)),
           m(
               '.details-table',
               [m('table',
@@ -76,7 +76,7 @@ export class HeapProfileDetailsPanel extends
     } else {
       return m(
           '.details-panel',
-          m('.details-panel-heading', `Heap Snapshot Details:`));
+          m('.details-panel-heading', m('h2', `Heap Profile Details`)));
     }
   }
 

@@ -140,10 +140,13 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         m('.panel', panel, m('.debug-panel-border')) :
         m('.panel', {key: panel.key}, panel);
 
-    return m(
-        '.scroll-limiter',
-        m('canvas.main-canvas'),
-        attrs.panels.map(renderPanel));
+    return [
+      m(
+          '.scroll-limiter',
+          m('canvas.main-canvas'),
+          ),
+      m('.panels', attrs.panels.map(renderPanel))
+    ];
   }
 
   onupdate(vnodeDom: m.CVnodeDOM<Attrs>) {
@@ -210,7 +213,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.panelHeights = [];
     this.totalPanelHeight = 0;
 
-    const panels = dom.querySelectorAll('.panel');
+    const panels = dom.parentElement!.querySelectorAll('.panel');
     assertTrue(panels.length === this.attrs.panels.length);
     for (let i = 0; i < panels.length; i++) {
       const height = panels[i].getBoundingClientRect().height;
