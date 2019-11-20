@@ -19,6 +19,8 @@
 #include <inttypes.h>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/gfp_flags.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/variadic.h"
 
@@ -32,6 +34,21 @@
 
 namespace perfetto {
 namespace trace_processor {
+
+namespace {
+std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
+    base::StringView system_release) {
+  size_t first_dot_pos = system_release.find(".");
+  size_t second_dot_pos = system_release.find(".", first_dot_pos + 1);
+  auto major_version = base::StringToUInt32(
+      system_release.substr(0, first_dot_pos).ToStdString());
+  auto minor_version = base::StringToUInt32(
+      system_release
+          .substr(first_dot_pos + 1, second_dot_pos - (first_dot_pos + 1))
+          .ToStdString());
+  return std::make_tuple(major_version.value(), minor_version.value());
+}
+}  // namespace
 
 RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
     : storage_(storage) {
@@ -83,6 +100,27 @@ int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+bool RawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
+  if (!storage_->metadata().MetadataExists(metadata::KeyIDs::system_name) ||
+      !storage_->metadata().MetadataExists(metadata::KeyIDs::system_release)) {
+    return false;
+  }
+
+  const Variadic& name =
+      storage_->metadata().GetScalarMetadata(metadata::KeyIDs::system_name);
+  base::StringView system_name = storage_->GetString(name.string_value);
+  if (system_name != "Linux")
+    return false;
+
+  const Variadic& release =
+      storage_->metadata().GetScalarMetadata(metadata::KeyIDs::system_release);
+  base::StringView system_release = storage_->GetString(release.string_value);
+  auto version = ParseKernelReleaseVersion(system_release);
+
+  WriteGfpFlag(value.uint_value, version, writer);
+  return true;
+}
+
 void RawTable::FormatSystraceArgs(NullTermStringView event_name,
                                   ArgSetId arg_set_id,
                                   base::StringWriter* writer) {
@@ -131,12 +169,17 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     uint32_t arg_row = start_row + arg_idx;
     const auto& args = storage_->args();
     const auto& key = storage_->GetString(args.keys()[arg_row]);
-    const auto& value = args.arg_values()[arg_row];
 
     writer->AppendChar(' ');
     writer->AppendString(key.c_str(), key.size());
     writer->AppendChar('=');
-    value_fn(value);
+
+    if (key == "gfp_flags" &&
+        ParseGfpFlags(args.arg_values()[arg_row], writer)) {
+      return;
+    }
+
+    value_fn(args.arg_values()[arg_row]);
   };
 
   if (event_name == "sched_switch") {
