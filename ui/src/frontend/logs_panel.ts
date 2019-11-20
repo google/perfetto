@@ -59,8 +59,8 @@ export class LogPanel extends Panel<{}> {
   }
 
   oncreate({dom}: m.CVnodeDOM) {
-    this.scrollContainer =
-        assertExists(dom.querySelector('.scrolling-container') as HTMLElement);
+    this.scrollContainer = assertExists(
+        dom.parentElement!.parentElement!.parentElement as HTMLElement);
     this.scrollContainer.addEventListener(
         'scroll', this.onScroll.bind(this), {passive: true});
     this.bounds = globals.trackDataStore.get(LogBoundsKey) as LogBounds;
@@ -143,8 +143,7 @@ export class LogPanel extends Panel<{}> {
             'class': isStale ? 'stale' : '',
           },
           `Logs rows [${offset}, ${offset + count}] / ${total}`),
-        m('.scrolling-container',
-          m('.rows', {style: {height: `${total * ROW_H}px`}}, rows)));
+        m('.rows', {style: {height: `${total * ROW_H}px`}}, rows));
   }
 
   renderCanvas() {}

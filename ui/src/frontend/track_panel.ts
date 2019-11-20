@@ -153,7 +153,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
   view({attrs}: m.CVnode<TrackContentAttrs>) {
     return m('.track-content', {
       onmousemove: (e: MouseEvent) => {
-        attrs.track.onMouseMove({x: e.layerX, y: e.layerY});
+        attrs.track.onMouseMove({x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
         globals.rafScheduler.scheduleRedraw();
       },
       onmouseout: () => {
@@ -165,15 +165,16 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         // track.
         if (e.shiftKey) return;
         // If the click is outside of the current time range, clear it.
-        const clickTime =
-            globals.frontendLocalState.timeScale.pxToTime(e.layerX);
+        const clickTime = globals.frontendLocalState.timeScale.pxToTime(
+            e.layerX - TRACK_SHELL_WIDTH);
         const start = globals.frontendLocalState.selectedTimeRange.startSec;
         const end = globals.frontendLocalState.selectedTimeRange.endSec;
         if (start !== undefined && end !== undefined &&
             (clickTime < start || clickTime > end)) {
           globals.frontendLocalState.removeTimeRange();
           e.stopPropagation();
-        } else if (attrs.track.onMouseClick({x: e.layerX, y: e.layerY})) {
+        } else if (attrs.track.onMouseClick(
+                       {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
           e.stopPropagation();
         }
         globals.rafScheduler.scheduleRedraw();
