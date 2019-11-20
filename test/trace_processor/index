@@ -156,3 +156,6 @@ config.textproto metadata.sql config_metadata.out
 # Verifies the contents of raw & instants tables.
 ../data/compact_sched.pb sched_waking_raw.sql sched_waking_raw_compact_sched.out
 ../data/compact_sched.pb sched_waking_instants.sql sched_waking_instants_compact_sched.out
+
+# Ensures process -> package matching works as expected.
+process_metadata_matching.textproto process_metadata_matching.sql process_metadata_matching.out
