@@ -318,10 +318,14 @@ int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
     res = next_stepped_->StepToPartition(step_now->partition());
     if (PERFETTO_UNLIKELY(res.is_err()))
       return res.err_code;
+  } else {
+    res = next_stepped_->Step();
+    if (PERFETTO_UNLIKELY(res.is_err()))
+      return res.err_code;
   }
 
   // Otherwise, find an overlapping span.
-  return Next();
+  return FindOverlappingSpan();
 }
 
 bool SpanJoinOperatorTable::Cursor::IsOverlappingSpan() {
@@ -340,7 +344,10 @@ int SpanJoinOperatorTable::Cursor::Next() {
   auto res = next_stepped_->Step();
   if (res.is_err())
     return res.err_code;
+  return FindOverlappingSpan();
+}
 
+int SpanJoinOperatorTable::Cursor::FindOverlappingSpan() {
   while (true) {
     if (t1_.Eof() || t2_.Eof()) {
       if (table_->partitioning_ != PartitioningType::kMixedPartitioning)
@@ -351,7 +358,7 @@ int SpanJoinOperatorTable::Cursor::Next() {
       if (partitioned->Eof())
         return SQLITE_OK;
 
-      res = partitioned->StepToNextPartition();
+      auto res = partitioned->StepToNextPartition();
       if (PERFETTO_UNLIKELY(res.is_err()))
         return res.err_code;
       else if (PERFETTO_UNLIKELY(res.is_eof()))
@@ -365,7 +372,7 @@ int SpanJoinOperatorTable::Cursor::Next() {
     }
 
     int64_t partition = std::max(t1_.partition(), t2_.partition());
-    res = t1_.StepToPartition(partition);
+    auto res = t1_.StepToPartition(partition);
     if (PERFETTO_UNLIKELY(res.is_err()))
       return res.err_code;
     else if (PERFETTO_UNLIKELY(res.is_eof()))
@@ -604,6 +611,9 @@ SpanJoinOperatorTable::Query::StepToPartition(int64_t target_partition) {
     int res = PrepareRawStmt();
     if (res != SQLITE_OK)
       return StepRet(StepRet::Code::kError, res);
+    auto ret = Step();
+    if (!ret.is_row())
+      return ret;
     partition_ = target_partition;
   }
   return StepRet(StepRet::Code::kRow);
