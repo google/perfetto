@@ -24,4 +24,5 @@ message AndroidProcessMetadata {
   optional string package_name = 3;
   optional int64 apk_version_code = 4;
   optional bool debuggable = 5;
+  optional bool shared_uid = 6;
 }
