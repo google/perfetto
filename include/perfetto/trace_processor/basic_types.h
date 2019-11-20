@@ -35,6 +35,10 @@ struct PERFETTO_EXPORT Config {
   // When set to true, this option forces trace processor to perform a full
   // sort ignoring any internal heureustics to skip sorting parts of the data.
   bool force_full_sort = false;
+
+  // When set to a non-zero value, this overrides the default block size used
+  // by the StringPool. For defaults, see kDefaultBlockSize in string_pool.h.
+  size_t string_pool_block_size_bytes = 0;
 };
 
 // Represents a dynamically typed value returned by SQL.
