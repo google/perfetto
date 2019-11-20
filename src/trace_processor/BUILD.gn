@@ -242,6 +242,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "cpu_profile_stack_sample_table.h",
       "filtered_row_index.cc",
       "filtered_row_index.h",
+      "gfp_flags.cc",
+      "gfp_flags.h",
       "heap_profile_allocation_table.cc",
       "heap_profile_allocation_table.h",
       "instants_table.cc",
