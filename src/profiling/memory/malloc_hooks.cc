@@ -467,7 +467,7 @@ void* HEAPPROFD_ADD_PREFIX(_malloc)(size_t size) {
 void* HEAPPROFD_ADD_PREFIX(_calloc)(size_t nmemb, size_t size) {
   const MallocDispatch* dispatch = GetDispatch();
   void* addr = dispatch->calloc(nmemb, size);
-  MaybeSampleAllocation(size, addr);
+  MaybeSampleAllocation(nmemb * size, addr);
   return addr;
 }
 
