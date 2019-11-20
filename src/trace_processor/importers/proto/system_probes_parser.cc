@@ -20,6 +20,7 @@
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -296,6 +297,24 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     } else {
       PERFETTO_ELOG("Unknown architecture %s", machine.ToStdString().c_str());
     }
+
+    StringPool::Id sysname_id =
+        context_->storage->InternString(utsname.sysname());
+    StringPool::Id version_id =
+        context_->storage->InternString(utsname.version());
+    StringPool::Id release_id =
+        context_->storage->InternString(utsname.release());
+    StringPool::Id machine_id =
+        context_->storage->InternString(utsname.machine());
+
+    context_->storage->SetMetadata(metadata::system_name,
+                                   Variadic::String(sysname_id));
+    context_->storage->SetMetadata(metadata::system_version,
+                                   Variadic::String(version_id));
+    context_->storage->SetMetadata(metadata::system_release,
+                                   Variadic::String(release_id));
+    context_->storage->SetMetadata(metadata::system_machine,
+                                   Variadic::String(machine_id));
   }
 }
 

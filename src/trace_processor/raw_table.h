@@ -41,6 +41,7 @@ class RawTable : public StorageTable {
                           ArgSetId arg_set_id,
                           base::StringWriter* writer);
   void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+  bool ParseGfpFlags(Variadic value, base::StringWriter* writer);
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
   const TraceStorage* const storage_;
