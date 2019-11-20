@@ -241,6 +241,8 @@ class SpanJoinOperatorTable : public SqliteTable {
     Cursor(Cursor&&) noexcept = default;
     Cursor& operator=(Cursor&&) = default;
 
+    int FindOverlappingSpan();
+
     bool IsOverlappingSpan();
     Query::StepRet StepUntilRealSlice();
 
