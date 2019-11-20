@@ -19,7 +19,7 @@ import {drawDoubleHeadedArrow} from '../common/canvas_utils';
 import {translateState} from '../common/thread_state';
 import {timeToCode, toNs} from '../common/time';
 
-import {globals} from './globals';
+import {globals, SliceDetails, ThreadDesc} from './globals';
 import {Panel, PanelSize} from './panel';
 import {scrollToTrackAndTs} from './scroll_helper';
 
@@ -29,47 +29,47 @@ export class SliceDetailsPanel extends Panel {
     if (sliceInfo.utid === undefined) return;
     const threadInfo = globals.threads.get(sliceInfo.utid);
 
-    if (threadInfo && sliceInfo.ts !== undefined &&
-        sliceInfo.dur !== undefined) {
-      return m(
-          '.details-panel',
-          m('.details-panel-heading', `Slice Details:`),
-          m(
-              '.details-table',
-              [m('table',
-                 [
-                   m('tr',
-                     m('th', `Process`),
-                     m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
-                   m('tr',
-                     m('th', `Thread`),
-                     m('td',
-                       `${threadInfo.threadName} [${threadInfo.tid}]`,
-                       m('i.material-icons',
-                         {
-                           onclick: () => this.goToThread(),
-                           title: 'Go to thread'
-                         },
-                         'call_made'))),
-                   m('tr',
-                     m('th', `Start time`),
-                     m('td', `${timeToCode(sliceInfo.ts)}`)),
-                   m('tr',
-                     m('th', `Duration`),
-                     m('td', `${timeToCode(sliceInfo.dur)}`)),
-                   m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
-                   m('tr',
-                     m('th', `End State`),
-                     m('td', `${translateState(sliceInfo.endState)}`))
-                 ])],
-              ));
+    return m(
+        '.details-panel',
+        m('.details-panel-heading',
+          m('h2.split', `Slice Details`),
+          (sliceInfo.wakeupTs && sliceInfo.wakerUtid) ?
+              m('h2.split', 'Scheduling Latency') :
+              ''),
+        this.getDetails(sliceInfo, threadInfo));
+  }
+
+  getDetails(sliceInfo: SliceDetails, threadInfo: ThreadDesc|undefined) {
+    if (!threadInfo || sliceInfo.ts === undefined ||
+        sliceInfo.dur === undefined) {
+      return null;
     } else {
       return m(
-          '.details-panel',
-          m(
-              '.details-panel-heading',
-              `Slice Details:`,
-              ));
+          '.details-table',
+          m('table',
+            [
+              m('tr',
+                m('th', `Process`),
+                m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
+              m('tr',
+                m('th', `Thread`),
+                m('td',
+                  `${threadInfo.threadName} [${threadInfo.tid}]`,
+                  m('i.material-icons',
+                    {onclick: () => this.goToThread(), title: 'Go to thread'},
+                    'call_made'))),
+              m('tr',
+                m('th', `Start time`),
+                m('td', `${timeToCode(sliceInfo.ts)}`)),
+              m('tr',
+                m('th', `Duration`),
+                m('td', `${timeToCode(sliceInfo.dur)}`)),
+              m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
+              m('tr',
+                m('th', `End State`),
+                m('td', `${translateState(sliceInfo.endState)}`))
+            ]),
+      );
     }
   }
 
@@ -113,13 +113,8 @@ export class SliceDetailsPanel extends Panel {
     // Show expanded details on the scheduling of the currently selected slice.
     if (details.wakeupTs && details.wakerUtid !== undefined) {
       const threadInfo = globals.threads.get(details.wakerUtid);
-      // Draw separation line.
-      ctx.fillStyle = '#3c4b5d';
-      ctx.fillRect(size.width / 2, 10, 1, size.height - 10);
-      ctx.font = '16px Google Sans';
-      ctx.fillText('Scheduling Latency:', size.width / 2 + 30, 30);
       // Draw diamond and vertical line.
-      const startDraw = {x: size.width / 2 + 30, y: 52};
+      const startDraw = {x: size.width / 2 + 20, y: 52};
       ctx.beginPath();
       ctx.moveTo(startDraw.x, startDraw.y + 28);
       ctx.fillStyle = 'black';

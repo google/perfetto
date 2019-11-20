@@ -36,7 +36,7 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
     if (threadInfo) {
       return m(
           '.details-panel',
-          m('.details-panel-heading', 'Thread State'),
+          m('.details-panel-heading', m('h2', 'Thread State')),
           m('.details-table', [m('table', [
               m('tr',
                 m('th', `Start time`),
