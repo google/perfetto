@@ -16,16 +16,47 @@
 
 SELECT RUN_METRIC('android/android_package_list.sql');
 
-DROP TABLE IF EXISTS process_metadata;
+DROP TABLE IF EXISTS uid_package_count;
 
-CREATE TABLE process_metadata AS
+CREATE TABLE uid_package_count AS
+SELECT uid, COUNT(1) AS cnt
+FROM package_list;
+
+DROP TABLE IF EXISTS process_metadata_table;
+
+CREATE TABLE process_metadata_table AS
 SELECT
   process.upid,
+  process.name AS process_name,
+  process.uid,
+  CASE WHEN uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
+  plist.package_name,
+  plist.version_code,
+  plist.debuggable
+FROM process
+LEFT JOIN uid_package_count USING (uid)
+LEFT JOIN package_list plist
+ON (
+  process.uid = plist.uid
+  AND uid_package_count.uid = plist.uid
+  AND (
+    -- unique match
+    uid_package_count.cnt = 1
+    -- or process name starts with the package name
+    OR process.name LIKE plist.package_name || '%')
+  );
+
+DROP VIEW IF EXISTS process_metadata;
+
+CREATE VIEW process_metadata AS
+SELECT
+  upid,
   AndroidProcessMetadata(
-    'name', process.name,
+    'name', process_name,
     'uid', uid,
-    'package_name', plist.package_name,
-    'apk_version_code', plist.version_code,
-    'debuggable', plist.debuggable
+    'shared_uid', shared_uid,
+    'package_name', package_name,
+    'apk_version_code', version_code,
+    'debuggable', debuggable
   ) AS metadata
-FROM process LEFT JOIN package_list plist USING (uid);
+FROM process_metadata_table;
