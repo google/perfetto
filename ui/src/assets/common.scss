@@ -53,7 +53,6 @@
 
 * {
     box-sizing: border-box;
-    overflow: hidden;
     -webkit-tap-highlight-color: none;
     touch-action: none;
 }
@@ -97,6 +96,7 @@ body>main {
     grid-template-rows: auto auto 1fr;
     grid-template-columns: auto 1fr;
     color: #121212;
+    overflow: hidden;
 }
 
 button {
@@ -132,7 +132,8 @@ button.close {
     grid-area: page;
     position: relative;
     display: flex;
-    flex-direction: column
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .split-panel {
@@ -140,6 +141,7 @@ button.close {
   display: flex;
   flex-flow: row;
   position: relative;
+  overflow: hidden;
 }
 
 .video-panel {
@@ -346,6 +348,24 @@ button.close {
   overflow-y: auto;
   flex: 1 1 auto;
   will-change: transform;  // Force layer creation.
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "space";
+}
+
+.details-panel-container {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  // TODO(taylori): This causes the sticky header to flicker when scrolling.
+  // Is will-change necessary in the details panel?
+  // will-change: transform;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "space";
 }
 
 .pinned-panel-container {
@@ -355,6 +375,10 @@ button.close {
   overflow: visible;
   box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
   z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "space";
 }
 
 // In the scrolling case, since the canvas is overdrawn and continuously
@@ -362,14 +386,17 @@ button.close {
 // height equaling the total height of the content to prevent scrolling
 // height from growing.
 .scroll-limiter {
-  overflow: hidden;
   position: relative;
+  grid-area: space;
+  overflow: hidden;
 }
 
 canvas.main-canvas {
-  top: 0px;
   z-index: -1;
-  position: absolute;
+}
+
+.panels {
+  grid-area: space;
 }
 
 .panel {
