@@ -1,4 +1,4 @@
-# Copyright (C) 2017 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(135923303): as part of fixing b/135923303, symbolizer.h will be removed
-# and namespacing of pprof_builder.h will be changed so do not depend on this
-# target.
-source_set("symbolizer") {
-  sources = [
-    "pprof_builder.h",
-    "symbolizer.h",
-  ]
-}
-
-source_set("normalize") {
-  sources = [
-    "normalize.h",
-  ]
-}
+import("../../gn/perfetto.gni")
+import("../../gn/test.gni")
 
 source_set("deobfuscator") {
   sources = [
-    "deobfuscator.h",
+    "deobfuscator.cc",
+  ]
+  deps = [
+    "../..//include/perfetto/ext/base:base",
+    "../../gn:default_deps",
+  ]
+  public_deps = [
+    "../../../include/perfetto/profiling:deobfuscator",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":deobfuscator",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../base",
+    "../base:test_support",
+  ]
+  sources = [
+    "deobfuscator_unittest.cc",
   ]
 }
