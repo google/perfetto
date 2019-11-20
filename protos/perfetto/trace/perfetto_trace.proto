@@ -4451,6 +4451,7 @@ message DataSourceConfig {
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
   optional PackagesListConfig packages_list_config = 109 [lazy = true];
+  optional PerfEventConfig perf_event_config = 111 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -5105,6 +5106,15 @@ message JavaHprofConfig {
 }
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
+
+// Begin of protos/perfetto/config/profiling/perf_event_config.proto
+
+// TODO(b/144281346): unstable, do not use. Will change in incompatible ways.
+message PerfEventConfig {
+  optional int32 tid = 1;
+}
+
+// End of protos/perfetto/config/profiling/perf_event_config.proto
 
 // Begin of protos/perfetto/config/gpu/gpu_counter_config.proto
 
