@@ -754,6 +754,15 @@ class TraceStorage {
       return TraceStorage::CreateRowId(kMetadataTable, index);
     }
 
+    const Variadic& GetScalarMetadata(metadata::KeyIDs key) const {
+      PERFETTO_DCHECK(scalar_indices.count(key) == 1);
+      return values_.at(scalar_indices.at(key));
+    }
+
+    bool MetadataExists(metadata::KeyIDs key) const {
+      return scalar_indices.count(key) >= 1;
+    }
+
     void OverwriteMetadata(uint32_t index, Variadic value) {
       PERFETTO_DCHECK(index < values_.size());
       values_[index] = value;
