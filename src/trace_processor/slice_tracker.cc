@@ -127,20 +127,26 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
 base::Optional<uint32_t> SliceTracker::EndAndroid(int64_t timestamp,
                                                   uint32_t ftrace_tid,
                                                   uint32_t atrace_tgid) {
-  auto actual_tgid_it = ftrace_to_atrace_tgid_.find(ftrace_tid);
-  if (actual_tgid_it == ftrace_to_atrace_tgid_.end()) {
-    // This is possible if we start tracing after a begin slice.
-    PERFETTO_DLOG("Unknown tgid for ftrace tid %u", ftrace_tid);
-    return base::nullopt;
-  }
-  uint32_t actual_tgid = actual_tgid_it->second;
+  auto map_tgid_it = ftrace_to_atrace_tgid_.find(ftrace_tid);
+  bool has_map_tgid = map_tgid_it != ftrace_to_atrace_tgid_.end();
+
   // atrace_tgid can be 0 in older android versions where the end event would
   // not contain the value.
-  if (atrace_tgid != 0 && atrace_tgid != actual_tgid) {
-    PERFETTO_DLOG("Mismatched atrace pid %u and looked up pid %u", atrace_tgid,
-                  actual_tgid);
-    context_->storage->IncrementStats(stats::atrace_tgid_mismatch);
+  if (atrace_tgid == 0) {
+    if (!has_map_tgid) {
+      // This is possible if we start tracing after a begin slice.
+      PERFETTO_DLOG("Unknown tgid for ftrace tid %u", ftrace_tid);
+      return base::nullopt;
+    }
+  } else {
+    if (has_map_tgid && atrace_tgid != map_tgid_it->second) {
+      PERFETTO_DLOG("Mismatched atrace pid %u and looked up pid %u",
+                    atrace_tgid, map_tgid_it->second);
+      context_->storage->IncrementStats(stats::atrace_tgid_mismatch);
+    }
   }
+
+  uint32_t actual_tgid = atrace_tgid == 0 ? map_tgid_it->second : atrace_tgid;
   UniqueTid utid =
       context_->process_tracker->UpdateThread(ftrace_tid, actual_tgid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
