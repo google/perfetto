@@ -47,7 +47,6 @@ using perfetto::base::StripSuffix;
 using perfetto::base::ToUpper;
 
 static constexpr auto TYPE_MESSAGE = FieldDescriptor::TYPE_MESSAGE;
-static constexpr auto TYPE_ENUM = FieldDescriptor::TYPE_ENUM;
 static constexpr auto TYPE_SINT32 = FieldDescriptor::TYPE_SINT32;
 static constexpr auto TYPE_SINT64 = FieldDescriptor::TYPE_SINT64;
 
@@ -96,9 +95,10 @@ class CppObjGenerator : public ::google::protobuf::compiler::CodeGenerator {
                 std::string* error) const override;
 
  private:
-  std::string GetCppType(const FieldDescriptor* field, bool constref) const;
-  std::string GetPackedBuffer(const FieldDescriptor* field) const;
-  std::string GetPackedWireType(const FieldDescriptor* field) const;
+  static std::string GetCppType(const FieldDescriptor* field, bool constref);
+  static std::string GetProtozeroSetter(const FieldDescriptor* field);
+  static std::string GetPackedBuffer(const FieldDescriptor* field);
+  static std::string GetPackedWireType(const FieldDescriptor* field);
 
   void GenEnum(const EnumDescriptor*, Printer*) const;
   void GenEnumAliases(const EnumDescriptor*, Printer*) const;
@@ -140,6 +140,10 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
   h_printer.Print("#include \"perfetto/protozero/copyable_ptr.h\"\n");
   h_printer.Print("#include \"perfetto/base/export.h\"\n\n");
 
+  cc_printer.Print("#include \"perfetto/protozero/message.h\"\n");
+  cc_printer.Print(
+      "#include \"perfetto/protozero/packed_repeated_fields.h\"\n");
+  cc_printer.Print("#include \"perfetto/protozero/proto_decoder.h\"\n");
   cc_printer.Print("#include \"perfetto/protozero/scattered_heap_buffer.h\"\n");
   cc_printer.Print(kHeader);
   cc_printer.Print("#pragma GCC diagnostic push\n");
@@ -165,10 +169,6 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
     }
   }
 
-  // Include the .pbzero.h for the current file.
-  std::string inc_base_name = StripSuffix(file->name(), ".proto");
-  cc_printer.Print("\n#include \"$f$.pbzero.h\"\n", "f", inc_base_name);
-
   // Recursively traverse all imports and turn them into #include(s).
   std::vector<const FileDescriptor*> imports_to_visit;
   std::set<const FileDescriptor*> imports_visited;
@@ -180,7 +180,6 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
     imports_visited.insert(cur);
     std::string base_name = StripSuffix(cur->name(), ".proto");
     cc_printer.Print("#include \"$f$.gen.h\"\n", "f", base_name);
-    cc_printer.Print("#include \"$f$.pbzero.h\"\n", "f", base_name);
     for (int i = 0; i < cur->dependency_count(); i++) {
       const FileDescriptor* dep = cur->dependency(i);
       if (imports_visited.count(dep) || lazy_imports.count(dep->name()))
@@ -277,9 +276,9 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
     }
   };
 
+  add_fwd_decl(kClass, "protozero::Message");
   for (const Descriptor* msg : all_types) {
     add_fwd_decl(kClass, GetFullName(msg, true));
-    add_fwd_decl(kClass, GetFullName(msg, true, ".pbzero"));
   }
   for (const EnumDescriptor* enm : all_enums) {
     add_fwd_decl(kEnum, GetFullName(enm, true));
@@ -335,7 +334,7 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
 }
 
 std::string CppObjGenerator::GetCppType(const FieldDescriptor* field,
-                                        bool constref) const {
+                                        bool constref) {
   switch (field->type()) {
     case FieldDescriptor::TYPE_DOUBLE:
       return "double";
@@ -372,8 +371,37 @@ std::string CppObjGenerator::GetCppType(const FieldDescriptor* field,
   abort();  // for gcc
 }
 
-std::string CppObjGenerator::GetPackedBuffer(
-    const FieldDescriptor* field) const {
+std::string CppObjGenerator::GetProtozeroSetter(const FieldDescriptor* field) {
+  switch (field->type()) {
+    case FieldDescriptor::TYPE_BOOL:
+      return "AppendTinyVarInt";
+    case FieldDescriptor::TYPE_INT32:
+    case FieldDescriptor::TYPE_INT64:
+    case FieldDescriptor::TYPE_UINT32:
+    case FieldDescriptor::TYPE_UINT64:
+    case FieldDescriptor::TYPE_ENUM:
+      return "AppendVarInt";
+    case FieldDescriptor::TYPE_SINT32:
+    case FieldDescriptor::TYPE_SINT64:
+      return "AppendSignedVarInt";
+    case FieldDescriptor::TYPE_FIXED32:
+    case FieldDescriptor::TYPE_FIXED64:
+    case FieldDescriptor::TYPE_SFIXED32:
+    case FieldDescriptor::TYPE_SFIXED64:
+    case FieldDescriptor::TYPE_FLOAT:
+    case FieldDescriptor::TYPE_DOUBLE:
+      return "AppendFixed";
+    case FieldDescriptor::TYPE_STRING:
+    case FieldDescriptor::TYPE_BYTES:
+      return "AppendString";
+    case FieldDescriptor::TYPE_GROUP:
+    case FieldDescriptor::TYPE_MESSAGE:
+      abort();
+  }
+  abort();
+}
+
+std::string CppObjGenerator::GetPackedBuffer(const FieldDescriptor* field) {
   switch (field->type()) {
     case FieldDescriptor::TYPE_FIXED32:
       return "::protozero::PackedFixedSizeInt<uint32_t>";
@@ -405,8 +433,7 @@ std::string CppObjGenerator::GetPackedBuffer(
   abort();
 }
 
-std::string CppObjGenerator::GetPackedWireType(
-    const FieldDescriptor* field) const {
+std::string CppObjGenerator::GetPackedWireType(const FieldDescriptor* field) {
   switch (field->type()) {
     case FieldDescriptor::TYPE_FIXED32:
     case FieldDescriptor::TYPE_SFIXED32:
@@ -523,8 +550,7 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
 
   p->Print("std::string SerializeAsString() const;\n");
   p->Print("std::vector<uint8_t> SerializeAsArray() const;\n");
-  p->Print("void Serialize($p$*) const;\n", "p",
-           GetFullName(msg, true, ".pbzero"));
+  p->Print("void Serialize(::protozero::Message*) const;\n");
 
   p->Print("// (DEPRECATED) Conversion methods from/to libprotobuf types.\n");
   p->Print("// These two will go away soon, see go/perfetto-libprotobuf.\n");
@@ -733,8 +759,7 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
   // Generate the SerializeAsString() method definition.
   p->Print("std::string $f$::SerializeAsString() const {\n", "f", full_name);
   p->Indent();
-  p->Print("::protozero::HeapBuffered<$p$> msg;\n", "p",
-           GetFullName(msg, true, ".pbzero"));
+  p->Print("::protozero::HeapBuffered<::protozero::Message> msg;\n");
   p->Print("Serialize(msg.get());\n");
   p->Print("return msg.SerializeAsString();\n");
   p->Outdent();
@@ -744,62 +769,59 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
   p->Print("std::vector<uint8_t> $f$::SerializeAsArray() const {\n", "f",
            full_name);
   p->Indent();
-  p->Print("::protozero::HeapBuffered<$p$> msg;\n", "p",
-           GetFullName(msg, true, ".pbzero"));
+  p->Print("::protozero::HeapBuffered<::protozero::Message> msg;\n");
   p->Print("Serialize(msg.get());\n");
   p->Print("return msg.SerializeAsArray();\n");
   p->Outdent();
   p->Print("}\n\n");
 
-  // Generaate the Serialize() method that writes the fields into the passed
+  // Generate the Serialize() method that writes the fields into the passed
   // protozero |msg| write-only interface |msg|.
-  p->Print("void $f$::Serialize($p$* msg) const {\n", "f", full_name, "p",
-           GetFullName(msg, true, ".pbzero"));
+  p->Print("void $f$::Serialize(::protozero::Message* msg) const {\n", "f",
+           full_name);
   p->Indent();
   for (int i = 0; i < msg->field_count(); i++) {
     const FieldDescriptor* field = msg->field(i);
-    std::string fld_name = field->lowercase_name();
-    if (field->options().lazy()) {
-      p->Print("msg->set_$n$_raw($n$_);\n", "n", fld_name);
+    std::map<std::string, std::string> args;
+    args["id"] = std::to_string(field->number());
+    args["n"] = field->lowercase_name();
+    p->Print(args, "// Field $id$: $n$\n");
+    if (field->is_packed()) {
+      PERFETTO_CHECK(field->is_repeated());
+      p->Print("{\n");
+      p->Indent();
+      p->Print("$p$ pack;\n", "p", GetPackedBuffer(field));
+      p->Print(args, "for (auto& it : $n$_)\n");
+      p->Print(args, "  pack.Append(it);\n");
+      p->Print(args, "msg->AppendBytes($id$, pack.data(), pack.size());\n");
+      p->Outdent();
+      p->Print("}\n");
     } else {
-      std::string enum_type;
-      if (field->type() == TYPE_ENUM)
-        enum_type = GetFullName(field->enum_type(), true, ".pbzero");
-      if (field->is_packed()) {
-        PERFETTO_CHECK(field->is_repeated());
-        p->Print("{\n");
-        p->Indent();
-        p->Print("$p$ pack;\n", "p", GetPackedBuffer(field));
-        p->Print("for (auto& it : $n$_)\n", "n", fld_name);
-        p->Print("  pack.Append(it);\n");
-        p->Print("msg->set_$n$(pack);\n", "n", fld_name);
-        p->Outdent();
-        p->Print("}\n");
-      } else if (field->is_repeated()) {
-        p->Print("for (auto& it : $n$_) {\n", "n", fld_name);
-        if (field->type() == TYPE_MESSAGE) {
-          p->Print("  it.Serialize(msg->add_$n$());\n", "n", fld_name);
-        } else if (field->type() == TYPE_ENUM) {
-          p->Print("  msg->add_$n$(static_cast<::$e$>(it));\n", "n", fld_name,
-                   "e", enum_type);
-        } else {
-          p->Print("  msg->add_$n$(it);\n", "n", fld_name);
-        }
-        p->Print("}\n");
-      } else {  // repeated = false
-        p->Print("if (_has_field_[$id$]) { ", "id",
-                 std::to_string(field->number()));
-        if (field->type() == TYPE_MESSAGE) {
-          p->Print("$n$_->Serialize(msg->set_$n$());", "n", fld_name);
-        } else if (field->type() == TYPE_ENUM) {
-          p->Print("msg->set_$n$(static_cast<::$e$>($n$_));", "n", fld_name,
-                   "e", enum_type);
-        } else {
-          p->Print("msg->set_$n$($n$_);", "n", fld_name);
-        }
-        p->Print(" }\n");
+      if (field->is_repeated()) {
+        p->Print(args, "for (auto& it : $n$_) {\n");
+        args["lvalue"] = "it";
+        args["rvalue"] = "it";
+      } else {
+        p->Print(args, "if (_has_field_[$id$]) {\n");
+        args["lvalue"] = "(*" + field->lowercase_name() + "_)";
+        args["rvalue"] = field->lowercase_name() + "_";
       }
+      p->Indent();
+      if (field->options().lazy()) {
+        p->Print(args, "msg->AppendString($id$, $rvalue$);\n");
+      } else if (field->type() == TYPE_MESSAGE) {
+        p->Print(args,
+                 "$lvalue$.Serialize("
+                 "msg->BeginNestedMessage<::protozero::Message>($id$));\n");
+      } else {
+        args["setter"] = GetProtozeroSetter(field);
+        p->Print(args, "msg->$setter$($id$, $rvalue$);\n");
+      }
+      p->Outdent();
+      p->Print("}\n");
     }
+
+    p->Print("\n");
   }  // for (field)
   p->Print(
       "msg->AppendRawProtoBytes(unknown_fields_.data(), "

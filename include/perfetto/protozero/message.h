@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <string>
 #include <type_traits>
 
 #include "perfetto/base/export.h"
@@ -142,6 +143,11 @@ class PERFETTO_EXPORT Message {
   }
 
   void AppendString(uint32_t field_id, const char* str);
+
+  void AppendString(uint32_t field_id, const std::string& str) {
+    AppendBytes(field_id, str.data(), str.size());
+  }
+
   void AppendBytes(uint32_t field_id, const void* value, size_t size);
 
   // Append raw bytes for a field, using the supplied |ranges| to
