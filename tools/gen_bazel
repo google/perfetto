@@ -75,6 +75,7 @@ proto_targets = [
     '//protos/perfetto/trace:merged_trace',
     '//protos/perfetto/config:merged_config',
     '//protos/perfetto/metrics:lite',
+    '//protos/perfetto/metrics/android:lite',
     '//protos/perfetto/trace:lite',
     '//protos/perfetto/config:lite',
 ]
@@ -192,6 +193,10 @@ class BazelLabel(object):
     return res
 
 
+# Public visibility for targets in Bazel.
+PUBLIC_VISIBILITY = ['//visibility:public']
+
+
 def get_bazel_label_name(gn_name):
   """Converts a GN target name into a Bazel label name.
 
@@ -267,7 +272,7 @@ def gen_proto_labels(target):
   sources_label.deps = sorted(deps)
 
   if target.name in proto_targets:
-    sources_label.visibility = ['//visibility:public']
+    sources_label.visibility = PUBLIC_VISIBILITY
   else:
     sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 
@@ -419,6 +424,12 @@ exports_files(["NOTICE"])
   labels = {}
   for target in sorted(itervalues(gn.proto_libs)):
     for label in gen_target(target):
+      # Ensure that if the existing target has public visibility, we preserve
+      # that in the new label; this ensures that we don't accidentaly reduce
+      # the visibility of targets which are meant to be public.
+      existing_label = labels.get(label.name)
+      if existing_label and existing_label.visibility == PUBLIC_VISIBILITY:
+        label.visibility = PUBLIC_VISIBILITY
       labels[label.name] = label
 
   res += ''.join(str(x) for x in sorted(itervalues(labels)))
