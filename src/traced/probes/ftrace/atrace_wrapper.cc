@@ -108,7 +108,7 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
   fds[0].events = POLLIN;
 
   // Store the start time of atrace and setup the timeout.
-  constexpr auto timeout = base::TimeMillis(7500);
+  constexpr auto timeout = base::TimeMillis(20000);
   auto start = base::GetWallTimeMs();
   for (;;) {
     // Check if we are below the timeout and update the select timeout to
