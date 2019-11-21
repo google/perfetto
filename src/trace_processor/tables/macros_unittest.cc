@@ -44,98 +44,118 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
   C(StringPool::Id, end_state)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_CPU_SLICE_TABLE_DEF);
 
-TEST(TableMacrosUnittest, Name) {
-  StringPool pool;
-  TestEventTable event(&pool, nullptr);
-  TestSliceTable slice(&pool, &event);
-  TestCpuSliceTable cpu_slice(&pool, &slice);
+class TableMacrosUnittest : public ::testing::Test {
+ protected:
+  StringPool pool_;
 
-  ASSERT_EQ(event.table_name(), "event");
-  ASSERT_EQ(slice.table_name(), "slice");
-  ASSERT_EQ(cpu_slice.table_name(), "cpu_slice");
+  TestEventTable event_{&pool_, nullptr};
+  TestSliceTable slice_{&pool_, &event_};
+  TestCpuSliceTable cpu_slice_{&pool_, &slice_};
+};
+
+TEST_F(TableMacrosUnittest, Name) {
+  ASSERT_EQ(event_.table_name(), "event");
+  ASSERT_EQ(slice_.table_name(), "slice");
+  ASSERT_EQ(cpu_slice_.table_name(), "cpu_slice");
 }
 
-TEST(TableMacrosUnittest, InsertParent) {
-  StringPool pool;
-  TestEventTable event(&pool, nullptr);
-  TestSliceTable slice(&pool, &event);
-
-  uint32_t id = event.Insert(TestEventTable::Row(100, 0));
+TEST_F(TableMacrosUnittest, InsertParent) {
+  uint32_t id = event_.Insert(TestEventTable::Row(100, 0));
   ASSERT_EQ(id, 0u);
-  ASSERT_EQ(event.type().GetString(0), "event");
-  ASSERT_EQ(event.ts()[0], 100);
-  ASSERT_EQ(event.arg_set_id()[0], 0);
+  ASSERT_EQ(event_.type().GetString(0), "event");
+  ASSERT_EQ(event_.ts()[0], 100);
+  ASSERT_EQ(event_.arg_set_id()[0], 0);
 
-  id = slice.Insert(TestSliceTable::Row(200, 123, 10, 0));
+  id = slice_.Insert(TestSliceTable::Row(200, 123, 10, 0));
   ASSERT_EQ(id, 1u);
 
-  ASSERT_EQ(event.type().GetString(1), "slice");
-  ASSERT_EQ(event.ts()[1], 200);
-  ASSERT_EQ(event.arg_set_id()[1], 123);
-  ASSERT_EQ(slice.type().GetString(0), "slice");
-  ASSERT_EQ(slice.ts()[0], 200);
-  ASSERT_EQ(slice.arg_set_id()[0], 123);
-  ASSERT_EQ(slice.dur()[0], 10);
-  ASSERT_EQ(slice.depth()[0], 0);
+  ASSERT_EQ(event_.type().GetString(1), "slice");
+  ASSERT_EQ(event_.ts()[1], 200);
+  ASSERT_EQ(event_.arg_set_id()[1], 123);
+  ASSERT_EQ(slice_.type().GetString(0), "slice");
+  ASSERT_EQ(slice_.ts()[0], 200);
+  ASSERT_EQ(slice_.arg_set_id()[0], 123);
+  ASSERT_EQ(slice_.dur()[0], 10);
+  ASSERT_EQ(slice_.depth()[0], 0);
 
-  id = slice.Insert(TestSliceTable::Row(210, 456, base::nullopt, 0));
+  id = slice_.Insert(TestSliceTable::Row(210, 456, base::nullopt, 0));
   ASSERT_EQ(id, 2u);
 
-  ASSERT_EQ(event.type().GetString(2), "slice");
-  ASSERT_EQ(event.ts()[2], 210);
-  ASSERT_EQ(event.arg_set_id()[2], 456);
-  ASSERT_EQ(slice.type().GetString(1), "slice");
-  ASSERT_EQ(slice.ts()[1], 210);
-  ASSERT_EQ(slice.arg_set_id()[1], 456);
-  ASSERT_EQ(slice.dur()[1], base::nullopt);
-  ASSERT_EQ(slice.depth()[1], 0);
+  ASSERT_EQ(event_.type().GetString(2), "slice");
+  ASSERT_EQ(event_.ts()[2], 210);
+  ASSERT_EQ(event_.arg_set_id()[2], 456);
+  ASSERT_EQ(slice_.type().GetString(1), "slice");
+  ASSERT_EQ(slice_.ts()[1], 210);
+  ASSERT_EQ(slice_.arg_set_id()[1], 456);
+  ASSERT_EQ(slice_.dur()[1], base::nullopt);
+  ASSERT_EQ(slice_.depth()[1], 0);
 }
 
-TEST(TableMacrosUnittest, InsertChild) {
-  StringPool pool;
-  TestEventTable event(&pool, nullptr);
-  TestSliceTable slice(&pool, &event);
-  TestCpuSliceTable cpu_slice(&pool, &slice);
+TEST_F(TableMacrosUnittest, InsertChild) {
+  event_.Insert(TestEventTable::Row(100, 0));
+  slice_.Insert(TestSliceTable::Row(200, 123, 10, 0));
 
-  event.Insert(TestEventTable::Row(100, 0));
-  slice.Insert(TestSliceTable::Row(200, 123, 10, 0));
-
-  auto reason = pool.InternString("R");
-  uint32_t id =
-      cpu_slice.Insert(TestCpuSliceTable::Row(205, 456, 5, 1, 4, 1024, reason));
+  auto reason = pool_.InternString("R");
+  uint32_t id = cpu_slice_.Insert(
+      TestCpuSliceTable::Row(205, 456, 5, 1, 4, 1024, reason));
   ASSERT_EQ(id, 2u);
-  ASSERT_EQ(event.type().GetString(2), "cpu_slice");
-  ASSERT_EQ(event.ts()[2], 205);
-  ASSERT_EQ(event.arg_set_id()[2], 456);
+  ASSERT_EQ(event_.type().GetString(2), "cpu_slice");
+  ASSERT_EQ(event_.ts()[2], 205);
+  ASSERT_EQ(event_.arg_set_id()[2], 456);
 
-  ASSERT_EQ(slice.type().GetString(1), "cpu_slice");
-  ASSERT_EQ(slice.ts()[1], 205);
-  ASSERT_EQ(slice.arg_set_id()[1], 456);
-  ASSERT_EQ(slice.dur()[1], 5);
-  ASSERT_EQ(slice.depth()[1], 1);
+  ASSERT_EQ(slice_.type().GetString(1), "cpu_slice");
+  ASSERT_EQ(slice_.ts()[1], 205);
+  ASSERT_EQ(slice_.arg_set_id()[1], 456);
+  ASSERT_EQ(slice_.dur()[1], 5);
+  ASSERT_EQ(slice_.depth()[1], 1);
 
-  ASSERT_EQ(cpu_slice.type().GetString(0), "cpu_slice");
-  ASSERT_EQ(cpu_slice.ts()[0], 205);
-  ASSERT_EQ(cpu_slice.arg_set_id()[0], 456);
-  ASSERT_EQ(cpu_slice.dur()[0], 5);
-  ASSERT_EQ(cpu_slice.depth()[0], 1);
-  ASSERT_EQ(cpu_slice.cpu()[0], 4);
-  ASSERT_EQ(cpu_slice.priority()[0], 1024);
-  ASSERT_EQ(cpu_slice.end_state()[0], reason);
-  ASSERT_EQ(cpu_slice.end_state().GetString(0), "R");
+  ASSERT_EQ(cpu_slice_.type().GetString(0), "cpu_slice");
+  ASSERT_EQ(cpu_slice_.ts()[0], 205);
+  ASSERT_EQ(cpu_slice_.arg_set_id()[0], 456);
+  ASSERT_EQ(cpu_slice_.dur()[0], 5);
+  ASSERT_EQ(cpu_slice_.depth()[0], 1);
+  ASSERT_EQ(cpu_slice_.cpu()[0], 4);
+  ASSERT_EQ(cpu_slice_.priority()[0], 1024);
+  ASSERT_EQ(cpu_slice_.end_state()[0], reason);
+  ASSERT_EQ(cpu_slice_.end_state().GetString(0), "R");
 }
 
-TEST(TableMacrosUnittest, Sort) {
-  StringPool pool;
-  TestEventTable event(&pool, nullptr);
+TEST_F(TableMacrosUnittest, StringIsNotNull) {
+  TestCpuSliceTable::Row row;
+  row.end_state = pool_.InternString("R");
+  cpu_slice_.Insert(row);
+  cpu_slice_.Insert({});
 
-  ASSERT_TRUE(event.ts().IsSorted());
+  Table out = cpu_slice_.Filter({cpu_slice_.end_state().is_not_null()});
+  const auto& end_state = out.GetColumn(*out.FindColumnIdxByName("end_state"));
 
-  event.Insert(TestEventTable::Row(0 /* ts */, 100 /* arg_set_id */));
-  event.Insert(TestEventTable::Row(1 /* ts */, 1 /* arg_set_id */));
-  event.Insert(TestEventTable::Row(2 /* ts */, 3 /* arg_set_id */));
+  ASSERT_EQ(out.size(), 1u);
 
-  Table out = event.Sort({event.arg_set_id().ascending()});
+  ASSERT_STREQ(end_state.Get(0).string_value, "R");
+}
+
+TEST_F(TableMacrosUnittest, StringIsNull) {
+  TestCpuSliceTable::Row row;
+  row.end_state = pool_.InternString("R");
+  cpu_slice_.Insert(row);
+  cpu_slice_.Insert({});
+
+  Table out = cpu_slice_.Filter({cpu_slice_.end_state().is_null()});
+  const auto& end_state = out.GetColumn(*out.FindColumnIdxByName("end_state"));
+
+  ASSERT_EQ(out.size(), 1u);
+
+  ASSERT_EQ(end_state.Get(0).type, SqlValue::kNull);
+}
+
+TEST_F(TableMacrosUnittest, Sort) {
+  ASSERT_TRUE(event_.ts().IsSorted());
+
+  event_.Insert(TestEventTable::Row(0 /* ts */, 100 /* arg_set_id */));
+  event_.Insert(TestEventTable::Row(1 /* ts */, 1 /* arg_set_id */));
+  event_.Insert(TestEventTable::Row(2 /* ts */, 3 /* arg_set_id */));
+
+  Table out = event_.Sort({event_.arg_set_id().ascending()});
   const auto& ts = out.GetColumn(*out.FindColumnIdxByName("ts"));
   const auto& arg_set_id =
       out.GetColumn(*out.FindColumnIdxByName("arg_set_id"));
