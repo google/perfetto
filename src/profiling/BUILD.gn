@@ -20,11 +20,11 @@ source_set("deobfuscator") {
     "deobfuscator.cc",
   ]
   deps = [
-    "../..//include/perfetto/ext/base:base",
     "../../gn:default_deps",
+    "../../include/perfetto/ext/base:base",
   ]
   public_deps = [
-    "../../../include/perfetto/profiling:deobfuscator",
+    "../../include/perfetto/profiling:deobfuscator",
   ]
 }
 
