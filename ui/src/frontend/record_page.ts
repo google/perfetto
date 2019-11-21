@@ -769,7 +769,7 @@ function BufferUsageProgressBar() {
 
 function RecordingNotes() {
   const docUrl = '//docs.perfetto.dev/#/build-instructions?id=get-the-code';
-  const extensionURL = `https://chrome.google.com/webstore/a/google.com/detail/
+  const extensionURL = `https://chrome.google.com/webstore/detail/
       perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
 
   const notes: m.Children = [];
