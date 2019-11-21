@@ -290,7 +290,7 @@ class GnParser(object):
         """
     target = self.all_targets.get(gn_target_name)
     if target is not None:
-      return target  # Taraget already processed.
+      return target  # Target already processed.
 
     desc = self.gn_desc_[gn_target_name]
     target = GnParser.Target(gn_target_name, desc['type'])
