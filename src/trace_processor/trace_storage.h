@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/stats.h"
@@ -103,7 +104,7 @@ const std::vector<const char*>& GetRefTypeStringMap();
 // names for a given CPU).
 class TraceStorage {
  public:
-  TraceStorage();
+  TraceStorage(const Config& = Config());
 
   virtual ~TraceStorage();
 
