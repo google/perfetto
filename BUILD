@@ -1525,7 +1525,7 @@ perfetto_proto_library(
         "protos/perfetto/config/trace_config.proto",
     ],
     visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
+        "//visibility:public",
     ],
     deps = [
         ":protos_perfetto_common_protos",
@@ -1676,7 +1676,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
     ],
     visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
+        "//visibility:public",
     ],
 )
 
@@ -1703,7 +1703,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/metrics.proto",
     ],
     visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
+        "//visibility:public",
     ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
