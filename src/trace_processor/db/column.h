@@ -496,7 +496,7 @@ class Column {
     } else if (op == FilterOp::kIsNotNull) {
       PERFETTO_DCHECK(value.is_null());
       row_map().FilterInto(rm, [this](uint32_t row) {
-        return GetStringPoolStringAtIdx(row).data() == nullptr;
+        return GetStringPoolStringAtIdx(row).data() != nullptr;
       });
       return;
     }
