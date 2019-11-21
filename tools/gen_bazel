@@ -73,6 +73,7 @@ default_targets = [
 # These targets are marked public.
 proto_targets = [
     '//protos/perfetto/trace:merged_trace',
+    '//protos/perfetto/trace:non_minimal_lite',
     '//protos/perfetto/config:merged_config',
     '//protos/perfetto/metrics:lite',
     '//protos/perfetto/metrics/android:lite',

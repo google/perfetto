@@ -2007,7 +2007,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/trace_packet_defaults.proto",
     ],
     visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
+        "//visibility:public",
     ],
     deps = [
         ":protos_perfetto_common_protos",
