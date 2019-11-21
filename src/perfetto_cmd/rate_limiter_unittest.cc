@@ -267,7 +267,9 @@ TEST(RateLimiterTest, DropBox_TooSoon) {
   ASSERT_FALSE(limiter.ShouldTrace(args));
 }
 
-TEST(RateLimiterTest, DropBox_TooMuch) {
+// TODO(hjd): Undisable when is it possible to unittest
+// user vs. non-user behaviour.
+TEST(RateLimiterTest, DISABLED_DropBox_TooMuch) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
