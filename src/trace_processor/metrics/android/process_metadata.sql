@@ -20,7 +20,8 @@ DROP TABLE IF EXISTS uid_package_count;
 
 CREATE TABLE uid_package_count AS
 SELECT uid, COUNT(1) AS cnt
-FROM package_list;
+FROM package_list
+GROUP BY 1;
 
 DROP TABLE IF EXISTS process_metadata_table;
 
