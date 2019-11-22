@@ -49,7 +49,7 @@ class ProcessTrackerTest : public ::testing::Test {
 TEST_F(ProcessTrackerTest, PushProcess) {
   TraceStorage storage;
   context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
-  auto pair_it = context.process_tracker->UpidsForPid(1);
+  auto pair_it = context.process_tracker->UpidsForPidForTesting(1);
   ASSERT_EQ(pair_it.first->second, 1u);
 }
 
@@ -69,7 +69,7 @@ TEST_F(ProcessTrackerTest, StartNewProcess) {
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
   context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
   context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
-  auto pair_it = context.process_tracker->UpidsForPid(1);
+  auto pair_it = context.process_tracker->UpidsForPidForTesting(1);
   ASSERT_EQ(pair_it.first->second, 1u);
   ASSERT_EQ(++pair_it.first, pair_it.second);
 }
@@ -77,9 +77,9 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
   context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
   context.process_tracker->SetProcessMetadata(3, base::nullopt, "test");
-  auto pair_it = context.process_tracker->UpidsForPid(1);
+  auto pair_it = context.process_tracker->UpidsForPidForTesting(1);
   ASSERT_EQ(pair_it.first->second, 1u);
-  auto second_pair_it = context.process_tracker->UpidsForPid(3);
+  auto second_pair_it = context.process_tracker->UpidsForPidForTesting(3);
   ASSERT_EQ(second_pair_it.first->second, 2u);
 }
 
@@ -126,10 +126,10 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   // We expect 3 threads: Invalid thread, main thread for pid, tid 12.
   ASSERT_EQ(context.storage->thread_count(), 3u);
 
-  auto tid_it = context.process_tracker->UtidsForTid(12);
+  auto tid_it = context.process_tracker->UtidsForTidForTesting(12);
   ASSERT_NE(tid_it.first, tid_it.second);
   ASSERT_EQ(thread.upid.value(), 1u);
-  auto pid_it = context.process_tracker->UpidsForPid(2);
+  auto pid_it = context.process_tracker->UpidsForPidForTesting(2);
   ASSERT_NE(pid_it.first, pid_it.second);
   ASSERT_EQ(context.storage->process_count(), 2u);
 }
