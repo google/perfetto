@@ -17,6 +17,7 @@
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <string.h>
 #include <algorithm>
 #include <map>
@@ -87,6 +88,7 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
 
   idx->orderByConsumed = qc.order_by().empty() || info.sqlite_omit_order_by;
   idx->estimatedCost = info.estimated_cost;
+  idx->estimatedRows = info.estimated_rows;
 
   // First pass: mark all constraints as omitted to ensure that any pruned
   // constraints are not checked for by SQLite.
@@ -106,9 +108,10 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
   auto out_qc_str = qc.ToNewSqlite3String();
   if (SqliteTable::debug) {
     PERFETTO_LOG(
-        "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%d",
+        "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%f "
+        "estimatedRows=%" PRId64,
         name_.c_str(), out_qc_str.get(), idx->orderByConsumed,
-        info.estimated_cost);
+        idx->estimatedCost, static_cast<int64_t>(idx->estimatedRows));
   }
 
   idx->idxStr = out_qc_str.release();
@@ -137,9 +140,13 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
     qc_hash_ = idxNum;
     cache_hit = false;
   }
-  if (SqliteTable::debug) {
-    PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d cache_hit=%d",
-                 name_.c_str(), idxStr, argc, cache_hit);
+
+  // Logging this every ReadConstraints just leads to log spam on joins making
+  // it unusable. Instead, only print this out when we miss the cache (which
+  // happens precisely when the constraint set from SQLite changes.)
+  if (SqliteTable::debug && !cache_hit) {
+    PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d", name_.c_str(),
+                 idxStr, argc);
   }
   return cache_hit;
 }

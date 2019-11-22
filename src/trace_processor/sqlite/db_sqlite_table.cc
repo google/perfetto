@@ -115,7 +115,9 @@ util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
 
 int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   // TODO(lalitm): investigate SQLITE_INDEX_SCAN_UNIQUE for id columns.
-  info->estimated_cost = static_cast<uint32_t>(EstimateCost(qc));
+  auto cost_and_rows = EstimateCost(*table_, qc);
+  info->estimated_cost = cost_and_rows.cost;
+  info->estimated_rows = cost_and_rows.rows;
   return SQLITE_OK;
 }
 
@@ -172,35 +174,72 @@ int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
   return SQLITE_OK;
 }
 
-double DbSqliteTable::EstimateCost(const QueryConstraints& qc) {
+DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
+    const Table& table,
+    const QueryConstraints& qc) {
   // Currently our cost estimation algorithm is quite simplistic but is good
   // enough for the simplest cases.
-  // TODO(lalitm): flesh out this algorithm to cover more complex cases.
+  // TODO(lalitm): replace hardcoded constants with either more heuristics
+  // based on the exact type of constraint or profiling the queries themselves.
 
-  // If we have no constraints, we always return the size of the table as we
-  // want to discourage the query planner from taking this road.
-  const auto& constraints = qc.constraints();
-  if (constraints.empty())
-    return table_->size();
+  // We estimate the fixed cost of set-up and tear-down of a query in terms of
+  // the number of rows scanned.
+  constexpr double kFixedQueryCost = 1000.0;
 
-  // This means we have at least one constraint. Check if any of the constraints
-  // is an equality constraint on an id column.
-  auto id_filter = [this](const QueryConstraints::Constraint& c) {
-    uint32_t col_idx = static_cast<uint32_t>(c.column);
-    const auto& col = table_->GetColumn(col_idx);
-    return sqlite_utils::IsOpEq(c.op) && col.IsId();
-  };
+  // Setup the variables for estimating the number of rows we will have at the
+  // end of filtering. Note that |current_row_count| should always be at least 1
+  // as otherwise SQLite can make some bad choices.
+  uint32_t current_row_count = table.size();
 
-  // If we have a eq constraint on an id column, we return 0 as it's an O(1)
-  // operation regardless of all the other constriants.
-  auto it = std::find_if(constraints.begin(), constraints.end(), id_filter);
-  if (it != constraints.end())
-    return 1;
+  // If the table is empty, any constraint set only pays the fixed cost.
+  if (current_row_count == 0)
+    return QueryCost{kFixedQueryCost, 0};
 
-  // Otherwise, we divide the number of rows in the table by the number of
-  // constraints as a simple way of indiciating the more constraints we have
-  // the better we can do.
-  return table_->size() / constraints.size();
+  // Setup the variables for estimating the cost of filtering.
+  double filter_cost = 0.0;
+  const auto& cs = qc.constraints();
+  for (const auto& c : cs) {
+    const auto& col = table.GetColumn(static_cast<uint32_t>(c.column));
+    if (sqlite_utils::IsOpEq(c.op) && col.IsId()) {
+      // If we have an id equality constraint, it's a bit expensive to find
+      // the exact row but it filters down to a single row.
+      filter_cost += 100;
+      current_row_count = 1;
+    } else if (sqlite_utils::IsOpEq(c.op)) {
+      // If there is only a single equality constraint, we have special logic
+      // to sort by that column and then binary search if we see the constraint
+      // set often. Model this by dividing but the log of the number of rows as
+      // a good approximation. Otherwise, we'll need to do a full table scan.
+      filter_cost += cs.size() == 1
+                         ? (2 * current_row_count) / log2(current_row_count)
+                         : current_row_count;
+
+      // We assume that an equalty constraint will cut down the number of rows
+      // by approximate log of the number of rows.
+      double estimated_rows = current_row_count / log2(current_row_count);
+      current_row_count = std::max(static_cast<uint32_t>(estimated_rows), 1u);
+    } else {
+      // Otherwise, we will need to do a full table scan and we estimate we will
+      // maybe (at best) halve the number of rows.
+      filter_cost += current_row_count;
+      current_row_count = std::max(current_row_count / 2u, 1u);
+    }
+  }
+
+  // Now, to figure out the cost of sorting, multiply the final row count
+  // by |qc.order_by().size()| * log(row count). This should act as a crude
+  // estimation of the cost.
+  double sort_cost =
+      qc.order_by().size() * current_row_count * log2(current_row_count);
+
+  // The cost of iterating rows is more expensive than filtering the rows
+  // so multiply by an appropriate factor.
+  double iteration_cost = current_row_count * 2.0;
+
+  // To get the final cost, add up all the individual components.
+  double final_cost =
+      kFixedQueryCost + filter_cost + sort_cost + iteration_cost;
+  return QueryCost{final_cost, current_row_count};
 }
 
 std::unique_ptr<SqliteTable::Cursor> DbSqliteTable::CreateCursor() {

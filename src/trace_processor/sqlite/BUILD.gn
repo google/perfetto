@@ -40,6 +40,7 @@ if (enable_perfetto_trace_processor_sqlite) {
   perfetto_unittest_source_set("unittests") {
     testonly = true
     sources = [
+      "db_sqlite_table_unittest.cc",
       "query_constraints_unittest.cc",
       "sqlite3_str_split_unittest.cc",
     ]
