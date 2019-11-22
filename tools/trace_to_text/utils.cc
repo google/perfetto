@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <ostream>
+#include <set>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -29,6 +30,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pb.h"
 
 #include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
@@ -92,7 +94,50 @@ std::map<NameAndBuildIdPair, std::vector<uint64_t>> GetUnsymbolizedFrames(
   return res;
 }
 
+std::map<std::string, std::set<std::string>> GetHeapGraphClasses(
+    trace_processor::TraceProcessor* tp) {
+  std::map<std::string, std::set<std::string>> res;
+  Iterator it = tp->ExecuteQuery("select type_name from heap_graph_object");
+  while (it.Next())
+    res.emplace(it.Get(0).string_value, std::set<std::string>());
+
+  PERFETTO_CHECK(it.Status().ok());
+
+  it = tp->ExecuteQuery("select field_name from heap_graph_reference");
+  while (it.Next()) {
+    std::string field_name = it.Get(0).string_value;
+    if (field_name.size() == 0)
+      continue;
+    size_t n = field_name.rfind(".");
+    if (n == std::string::npos || n == field_name.size() - 1) {
+      PERFETTO_ELOG("Invalid field name: %s", field_name.c_str());
+      continue;
+    }
+    std::string class_name = field_name;
+    class_name.resize(n);
+    field_name = field_name.substr(n + 1);
+    res[class_name].emplace(field_name);
+  }
+
+  PERFETTO_CHECK(it.Status().ok());
+  return res;
+}
+
+using ::protozero::proto_utils::kMessageLengthFieldSize;
+using ::protozero::proto_utils::MakeTagLengthDelimited;
+using ::protozero::proto_utils::WriteVarInt;
+
 }  // namespace
+
+void WriteTracePacket(const std::string& str, std::ostream* output) {
+  constexpr char kPreamble =
+      MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
+  uint8_t length_field[10];
+  uint8_t* end = WriteVarInt(str.size(), length_field);
+  *output << kPreamble;
+  *output << std::string(length_field, end);
+  *output << str;
+}
 
 void ForEachPacketBlobInTrace(
     std::istream* input,
@@ -163,6 +208,14 @@ std::vector<std::string> GetPerfettoBinaryPath() {
       roots.emplace_back(sp.cur_token(), sp.cur_token_size());
   }
   return roots;
+}
+
+base::Optional<std::string> GetPerfettoProguardMapPath() {
+  base::Optional<std::string> proguard_map;
+  const char* env = getenv("PERFETTO_PROGUARD_MAP");
+  if (env != nullptr)
+    proguard_map = env;
+  return proguard_map;
 }
 
 bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
@@ -236,6 +289,46 @@ void SymbolizeDatabase(
     }
     callback(std::move(packet));
   }
+}
+
+void DeobfuscateDatabase(
+    trace_processor::TraceProcessor* tp,
+    const std::map<std::string, profiling::ObfuscatedClass>& mapping,
+    std::function<void(perfetto::protos::TracePacket)> callback) {
+  std::map<std::string, std::set<std::string>> classes =
+      GetHeapGraphClasses(tp);
+  perfetto::protos::TracePacket packet;
+  // TODO(fmayer): Add handling for package name and version code here so we
+  // can support multiple dumps in the same trace.
+  perfetto::protos::DeobfuscationMapping* proto_mapping =
+      packet.mutable_deobfuscation_mapping();
+  for (const auto& p : classes) {
+    const std::string& obfuscated_class_name = p.first;
+    const std::set<std::string>& obfuscated_field_names = p.second;
+    auto it = mapping.find(obfuscated_class_name);
+    if (it == mapping.end()) {
+      // This can happen for non-obfuscated class names. Do not log.
+      continue;
+    }
+    const profiling::ObfuscatedClass& cls = it->second;
+    perfetto::protos::ObfuscatedClass* proto_class =
+        proto_mapping->add_obfuscated_classes();
+    proto_class->set_obfuscated_name(obfuscated_class_name);
+    proto_class->set_deobfuscated_name(cls.deobfuscated_name);
+    for (const std::string& obfuscated_field_name : obfuscated_field_names) {
+      auto field_it = cls.deobfuscated_fields.find(obfuscated_field_name);
+      if (field_it != cls.deobfuscated_fields.end()) {
+        perfetto::protos::ObfuscatedMember* proto_member =
+            proto_class->add_obfuscated_members();
+        proto_member->set_obfuscated_name(obfuscated_field_name);
+        proto_member->set_deobfuscated_name(field_it->second);
+      } else {
+        PERFETTO_ELOG("%s.%s not found", obfuscated_class_name.c_str(),
+                      obfuscated_field_name.c_str());
+      }
+    }
+  }
+  callback(packet);
 }
 
 TraceWriter::TraceWriter(std::ostream* output) : output_(output) {}
