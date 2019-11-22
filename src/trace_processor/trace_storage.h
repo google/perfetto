@@ -349,6 +349,8 @@ class TraceStorage {
       return slice_count() - 1;
     }
 
+    void set_name(uint32_t index, StringId name) { names_[index] = name; }
+
     void set_duration(uint32_t index, int64_t duration_ns) {
       durations_[index] = duration_ns;
     }
