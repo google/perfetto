@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "tools/trace_to_text/deobfuscate_profile.h"
 #include "tools/trace_to_text/symbolize_profile.h"
 #include "tools/trace_to_text/trace_to_json.h"
 #include "tools/trace_to_text/trace_to_profile.h"
@@ -176,6 +177,8 @@ int Main(int argc, char** argv) {
   if (format == "symbolize")
     return SymbolizeProfile(input_stream, output_stream);
 
+  if (format == "deobfuscate")
+    return DeobfuscateProfile(input_stream, output_stream);
   return Usage(argv[0]);
 }
 

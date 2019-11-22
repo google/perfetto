@@ -38,7 +38,7 @@ message ObfuscatedClass {
 message DeobfuscationMapping {
   optional string package_name = 1;
   optional int64 version_code = 2;
-  repeated ObfuscatedClass obfusucated_classes = 3;
+  repeated ObfuscatedClass obfuscated_classes = 3;
 }
 
 message HeapGraphRoot {

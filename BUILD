@@ -330,6 +330,14 @@ filegroup(
     ],
 )
 
+# GN target: //include/perfetto/profiling:deobfuscator
+filegroup(
+    name = "include_perfetto_profiling_deobfuscator",
+    srcs = [
+        "include/perfetto/profiling/deobfuscator.h",
+    ],
+)
+
 # GN target: //include/perfetto/profiling:symbolizer
 filegroup(
     name = "include_perfetto_profiling_symbolizer",
@@ -522,6 +530,14 @@ filegroup(
     srcs = [
         "src/perfetto_cmd/trigger_producer.cc",
         "src/perfetto_cmd/trigger_producer.h",
+    ],
+)
+
+# GN target: //src/profiling:deobfuscator
+filegroup(
+    name = "src_profiling_deobfuscator",
+    srcs = [
+        "src/profiling/deobfuscator.cc",
     ],
 )
 
@@ -1095,6 +1111,8 @@ filegroup(
 filegroup(
     name = "tools_trace_to_text_common",
     srcs = [
+        "tools/trace_to_text/deobfuscate_profile.cc",
+        "tools/trace_to_text/deobfuscate_profile.h",
         "tools/trace_to_text/main.cc",
         "tools/trace_to_text/symbolize_profile.cc",
         "tools/trace_to_text/symbolize_profile.h",
@@ -2631,6 +2649,7 @@ perfetto_cc_library(
     name = "libpprofbuilder",
     srcs = [
         ":src_base_base",
+        ":src_profiling_deobfuscator",
         ":src_protozero_protozero",
         ":src_trace_processor_common",
         ":src_trace_processor_db_lib",
@@ -2649,6 +2668,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_traced_sys_stats_counters",
+        ":include_perfetto_profiling_deobfuscator",
         ":include_perfetto_profiling_symbolizer",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",
@@ -2727,12 +2747,14 @@ perfetto_cc_binary(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_traced_sys_stats_counters",
+        ":include_perfetto_profiling_deobfuscator",
         ":include_perfetto_profiling_symbolizer",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":src_base_base",
+        ":src_profiling_deobfuscator",
         ":src_protozero_protozero",
         ":src_trace_processor_common",
         ":src_trace_processor_db_lib",
