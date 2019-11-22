@@ -117,21 +117,31 @@ bool ProguardParser::AddLine(std::string line) {
     std::tie(obfuscated_name, deobfuscated_name) = *opt_pair;
     auto p = mapping_.emplace(std::move(obfuscated_name),
                               std::move(deobfuscated_name));
-    if (!p.second)
+    if (!p.second) {
+      PERFETTO_ELOG("Duplicate class.");
       return false;
+    }
     current_class_ = &p.first->second;
   } else {
-    // TODO(fmayer): Teach this to properly parse methods.
     std::string obfuscated_name;
     std::string deobfuscated_name;
     auto opt_pair = ParseMember(std::move(line));
     if (!opt_pair)
       return false;
     std::tie(obfuscated_name, deobfuscated_name) = *opt_pair;
-    auto p = current_class_->deobfuscated_fields.emplace(
-        std::move(obfuscated_name), std::move(deobfuscated_name));
-    if (!p.second)
+    // TODO(fmayer): Teach this to properly parse methods.
+    if (deobfuscated_name.find("(") != std::string::npos) {
+      // Skip functions, as they will trigger the "Duplicate member" below.
+      return true;
+    }
+    auto p = current_class_->deobfuscated_fields.emplace(obfuscated_name,
+                                                         deobfuscated_name);
+    if (!p.second && p.first->second != deobfuscated_name) {
+      PERFETTO_ELOG("Member redefinition: %s.%s",
+                    current_class_->deobfuscated_name.c_str(),
+                    deobfuscated_name.c_str());
       return false;
+    }
   }
   return true;
 }

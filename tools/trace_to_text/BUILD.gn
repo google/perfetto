@@ -39,6 +39,8 @@ perfetto_host_executable("trace_to_text_lite") {
 source_set("utils") {
   deps = [
     ":symbolizer",
+    "../../include/perfetto/profiling:deobfuscator",
+    "../../src/profiling:deobfuscator",
   ]
   public_deps = [
     "../../gn:default_deps",
@@ -128,6 +130,8 @@ source_set("common") {
     ":pprofbuilder",
     ":symbolizer",
     ":utils",
+    "../../include/perfetto/profiling:deobfuscator",
+    "../../src/profiling:deobfuscator",
   ]
   public_deps = [
     "../../gn:default_deps",
@@ -143,6 +147,8 @@ source_set("common") {
     "../../src/trace_processor:lib",
   ]
   sources = [
+    "deobfuscate_profile.cc",
+    "deobfuscate_profile.h",
     "main.cc",
     "symbolize_profile.cc",
     "symbolize_profile.h",
