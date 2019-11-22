@@ -28,4 +28,5 @@ message Utsname {
 
 message SystemInfo {
   optional Utsname utsname = 1;
+  optional string android_build_fingerprint = 2;
 }

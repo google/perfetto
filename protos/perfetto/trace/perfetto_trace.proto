@@ -3530,6 +3530,7 @@ message Utsname {
 
 message SystemInfo {
   optional Utsname utsname = 1;
+  optional string android_build_fingerprint = 2;
 }
 
 // End of protos/perfetto/trace/system_info.proto
