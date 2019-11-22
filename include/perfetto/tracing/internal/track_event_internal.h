@@ -17,17 +17,16 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 
+#include <unordered_map>
+
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
-#include <unordered_map>
-
 namespace perfetto {
 class EventContext;
-class DataSourceConfig;
-class DataSourceDescriptor;
 
 namespace internal {
 class TrackEventCategoryRegistry;

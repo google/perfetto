@@ -21,6 +21,7 @@ source_set("tracing") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",
+    "core:forward_decls",
   ]
 
   sources = [

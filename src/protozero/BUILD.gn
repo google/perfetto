@@ -37,6 +37,7 @@ source_set("protozero") {
     "scattered_stream_null_delegate.cc",
     "scattered_stream_writer.cc",
     "static_buffer.cc",
+    "virtual_destructors.cc",
   ]
 }
 

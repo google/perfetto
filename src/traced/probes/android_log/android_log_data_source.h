@@ -26,11 +26,11 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
 
-class DataSourceConfig;
 class TraceWriter;
 namespace base {
 class TaskRunner;
