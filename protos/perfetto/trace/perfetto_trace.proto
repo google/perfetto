@@ -3605,6 +3605,7 @@ message TracePacket {
     GraphicsFrameEvent graphics_frame_event = 57;
     // removed field with id 62
     GpuLog gpu_log = 63;
+    VulkanApiEvent vulkan_api_event = 64;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -4368,6 +4369,24 @@ message GpuRenderStageEvent {
 }
 
 // End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
+
+// Begin of protos/perfetto/trace/gpu/vulkan_api_event.proto
+
+// Message for recording the Vulkan call.
+message VulkanApiEvent {
+  oneof event { VkDebugUtilsObjectName vk_debug_utils_object_name = 1; }
+
+  // For recording vkSetDebugUtilsObjectNameEXT and
+  // vkDebugMarkerSetObjectNameEXT
+  message VkDebugUtilsObjectName {
+    optional int32 pid = 1;
+    optional uint64 vk_device = 2;
+    optional uint64 object = 3;
+    optional string object_name = 4;
+  }
+}
+
+// End of protos/perfetto/trace/gpu/vulkan_api_event.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
