@@ -1,1 +1,4 @@
-select ref_type, depth, count(*) as count from slices group by ref_type, depth order by ref_type, depth;
+select depth, count(*) as count
+from slice
+group by ref_type, depth
+order by ref_type, depth;
