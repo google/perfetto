@@ -58,7 +58,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 64.
+// Next id: 65.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -112,6 +112,7 @@ message TracePacket {
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
     ModuleSymbols module_symbols = 61;
+    DeobfuscationMapping deobfuscation_mapping = 64;
 
     // Only used by TrackEvent.
     TrackDescriptor track_descriptor = 60;

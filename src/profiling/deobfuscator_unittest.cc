@@ -79,7 +79,7 @@ TEST(ProguardParserTest, DuplicateClass) {
   ASSERT_TRUE(p.AddLine(
       "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
   ASSERT_FALSE(p.AddLine(
-      "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
+      "android.arch.core.executor.ArchTaskExecutor2 -> android.arch.a.a.a:"));
 }
 
 TEST(ProguardParserTest, DuplicateField) {
@@ -89,7 +89,7 @@ TEST(ProguardParserTest, DuplicateField) {
   ASSERT_TRUE(
       p.AddLine("    android.arch.core.executor.TaskExecutor mDelegate -> b"));
   ASSERT_FALSE(
-      p.AddLine("    android.arch.core.executor.TaskExecutor mDelegate -> b"));
+      p.AddLine("    android.arch.core.executor.TaskExecutor mDelegate2 -> b"));
 }
 
 }  // namespace
