@@ -1,4 +1,4 @@
-select ts, name, value, ref, ref_type
+select ts, name, value, ref as upid
 from counters
 where name like 'mem.mm.%'
 order by ts
