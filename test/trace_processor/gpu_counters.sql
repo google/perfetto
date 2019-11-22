@@ -1,1 +1,5 @@
-select "counter_id","ts","value","name","ref","ref_type","description","unit" from counters order by "ts";
+select "ts","value","name","gpu_id","description","unit"
+from counter
+join gpu_counter_track
+  on counter.track_id = gpu_counter_track.id
+order by "ts";
