@@ -128,20 +128,19 @@ TEST(TracePacketTest, MoveOperators) {
   tp.AddSlice(buf1, sizeof(buf1));
   tp.AddSlice(buf2, sizeof(buf2));
   tp.AddSlice(Slice::Allocate(11));
-  tp.AddSlice(Slice(std::unique_ptr<std::string>(new std::string("foobar"))));
 
   TracePacket moved_tp(std::move(tp));
   ASSERT_EQ(0u, tp.size());
   ASSERT_TRUE(tp.slices().empty());
-  ASSERT_EQ(4u, moved_tp.slices().size());
-  ASSERT_EQ(5u + 7u + 11u + 6u, moved_tp.size());
+  ASSERT_EQ(3u, moved_tp.slices().size());
+  ASSERT_EQ(5u + 7u + 11u, moved_tp.size());
 
   TracePacket moved_tp_2;
   moved_tp_2 = std::move(moved_tp);
   ASSERT_EQ(0u, moved_tp.size());
   ASSERT_TRUE(moved_tp.slices().empty());
-  ASSERT_EQ(4u, moved_tp_2.slices().size());
-  ASSERT_EQ(5u + 7u + 11u + 6u, moved_tp_2.size());
+  ASSERT_EQ(3u, moved_tp_2.slices().size());
+  ASSERT_EQ(5u + 7u + 11u, moved_tp_2.size());
 }
 
 }  // namespace

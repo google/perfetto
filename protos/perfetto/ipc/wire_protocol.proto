@@ -17,9 +17,9 @@
 syntax = "proto2";
 option optimize_for = LITE_RUNTIME;
 
-package perfetto.ipc;
+package perfetto.protos;
 
-message Frame {
+message IPCFrame {
   // Client -> Host.
   message BindService { optional string service_name = 1; }
 
