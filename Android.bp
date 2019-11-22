@@ -95,6 +95,7 @@ cc_binary {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -167,6 +168,7 @@ cc_binary {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -302,6 +304,7 @@ cc_library_shared {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -383,6 +386,7 @@ cc_library_shared {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -488,6 +492,7 @@ cc_library_static {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -553,6 +558,7 @@ cc_library_static {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -602,6 +608,7 @@ cc_library_static {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -672,6 +679,7 @@ cc_binary {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -739,6 +747,7 @@ cc_binary {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -928,6 +937,7 @@ cc_test {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_trace_android_lite_gen",
@@ -1040,6 +1050,7 @@ cc_test {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_lite_gen_headers",
@@ -1099,7 +1110,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.gen.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.gen.cc",
@@ -1133,7 +1144,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.gen.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.gen.h",
@@ -1170,7 +1181,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.cc",
@@ -1203,7 +1214,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.h",
@@ -1241,7 +1252,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.cc",
@@ -1275,7 +1286,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.h",
@@ -1305,7 +1316,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/android/android_log_config.gen.cc",
     "external/perfetto/protos/perfetto/config/android/packages_list_config.gen.cc",
@@ -1323,7 +1334,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/android/android_log_config.gen.h",
     "external/perfetto/protos/perfetto/config/android/packages_list_config.gen.h",
@@ -1344,7 +1355,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/android/android_log_config.pb.cc",
     "external/perfetto/protos/perfetto/config/android/packages_list_config.pb.cc",
@@ -1361,7 +1372,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/android/android_log_config.pb.h",
     "external/perfetto/protos/perfetto/config/android/packages_list_config.pb.h",
@@ -1383,7 +1394,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/android/android_log_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/android/packages_list_config.pbzero.cc",
@@ -1401,7 +1412,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/android/android_log_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/android/packages_list_config.pbzero.h",
@@ -1425,7 +1436,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.cc",
     "external/perfetto/protos/perfetto/config/data_source_config.gen.cc",
@@ -1447,7 +1458,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.h",
     "external/perfetto/protos/perfetto/config/data_source_config.gen.h",
@@ -1470,7 +1481,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.gen.cc",
   ],
@@ -1486,7 +1497,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.gen.h",
   ],
@@ -1505,7 +1516,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pb.cc",
   ],
@@ -1520,7 +1531,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pb.h",
   ],
@@ -1540,7 +1551,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pbzero.cc",
   ],
@@ -1556,7 +1567,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/ftrace/ftrace_config.pbzero.h",
   ],
@@ -1576,7 +1587,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.gen.cc",
   ],
@@ -1592,7 +1603,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.gen.h",
   ],
@@ -1611,7 +1622,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pb.cc",
   ],
@@ -1626,7 +1637,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pb.h",
   ],
@@ -1646,7 +1657,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pbzero.cc",
   ],
@@ -1662,7 +1673,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pbzero.h",
   ],
@@ -1682,7 +1693,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/inode_file/inode_file_config.gen.cc",
   ],
@@ -1698,7 +1709,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/inode_file/inode_file_config.gen.h",
   ],
@@ -1717,7 +1728,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/inode_file/inode_file_config.pb.cc",
   ],
@@ -1732,7 +1743,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/inode_file/inode_file_config.pb.h",
   ],
@@ -1752,7 +1763,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/inode_file/inode_file_config.pbzero.cc",
   ],
@@ -1768,7 +1779,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/inode_file/inode_file_config.pbzero.h",
   ],
@@ -1790,7 +1801,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.cc",
     "external/perfetto/protos/perfetto/config/data_source_config.pb.cc",
@@ -1811,7 +1822,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.h",
     "external/perfetto/protos/perfetto/config/data_source_config.pb.h",
@@ -1834,7 +1845,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/power/android_power_config.gen.cc",
   ],
@@ -1850,7 +1861,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/power/android_power_config.gen.h",
   ],
@@ -1869,7 +1880,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/power/android_power_config.pb.cc",
   ],
@@ -1884,7 +1895,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/power/android_power_config.pb.h",
   ],
@@ -1904,7 +1915,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/power/android_power_config.pbzero.cc",
   ],
@@ -1920,7 +1931,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/power/android_power_config.pbzero.h",
   ],
@@ -1940,7 +1951,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/process_stats/process_stats_config.gen.cc",
   ],
@@ -1956,7 +1967,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/process_stats/process_stats_config.gen.h",
   ],
@@ -1975,7 +1986,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/process_stats/process_stats_config.pb.cc",
   ],
@@ -1990,7 +2001,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/process_stats/process_stats_config.pb.h",
   ],
@@ -2010,7 +2021,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/process_stats/process_stats_config.pbzero.cc",
   ],
@@ -2026,7 +2037,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/process_stats/process_stats_config.pbzero.h",
   ],
@@ -2048,7 +2059,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.cc",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.cc",
@@ -2068,7 +2079,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.h",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.h",
@@ -2091,7 +2102,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.cc",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.cc",
@@ -2110,7 +2121,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.h",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.h",
@@ -2134,7 +2145,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.cc",
@@ -2154,7 +2165,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.h",
@@ -2176,7 +2187,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/sys_stats/sys_stats_config.gen.cc",
   ],
@@ -2192,7 +2203,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/sys_stats/sys_stats_config.gen.h",
   ],
@@ -2211,7 +2222,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/sys_stats/sys_stats_config.pb.cc",
   ],
@@ -2226,7 +2237,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/sys_stats/sys_stats_config.pb.h",
   ],
@@ -2246,7 +2257,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/sys_stats/sys_stats_config.pbzero.cc",
   ],
@@ -2262,7 +2273,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/sys_stats/sys_stats_config.pbzero.h",
   ],
@@ -2285,7 +2296,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/data_source_config.pbzero.cc",
@@ -2307,7 +2318,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/data_source_config.pbzero.h",
@@ -2331,12 +2342,10 @@ genrule {
     "aprotoc",
     "ipc_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/ipc/consumer_port.ipc.cc",
-    "external/perfetto/protos/perfetto/ipc/consumer_port.pb.cc",
     "external/perfetto/protos/perfetto/ipc/producer_port.ipc.cc",
-    "external/perfetto/protos/perfetto/ipc/producer_port.pb.cc",
   ],
 }
 
@@ -2351,11 +2360,47 @@ genrule {
     "aprotoc",
     "ipc_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/ipc/consumer_port.ipc.h",
-    "external/perfetto/protos/perfetto/ipc/consumer_port.pb.h",
     "external/perfetto/protos/perfetto/ipc/producer_port.ipc.h",
+  ],
+  export_include_dirs: [
+    ".",
+    "protos",
+  ],
+}
+
+// GN: //protos/perfetto/ipc:lite
+genrule {
+  name: "perfetto_protos_perfetto_ipc_lite_gen",
+  srcs: [
+    "protos/perfetto/ipc/consumer_port.proto",
+    "protos/perfetto/ipc/producer_port.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/ipc/consumer_port.pb.cc",
+    "external/perfetto/protos/perfetto/ipc/producer_port.pb.cc",
+  ],
+}
+
+// GN: //protos/perfetto/ipc:lite
+genrule {
+  name: "perfetto_protos_perfetto_ipc_lite_gen_headers",
+  srcs: [
+    "protos/perfetto/ipc/consumer_port.proto",
+    "protos/perfetto/ipc/producer_port.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/ipc/consumer_port.pb.h",
     "external/perfetto/protos/perfetto/ipc/producer_port.pb.h",
   ],
   export_include_dirs: [
@@ -2374,7 +2419,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/ipc/wire_protocol.gen.cc",
   ],
@@ -2390,7 +2435,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/ipc/wire_protocol.gen.h",
   ],
@@ -2410,7 +2455,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/ipc/wire_protocol.pbzero.cc",
   ],
@@ -2426,7 +2471,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/ipc/wire_protocol.pbzero.h",
   ],
@@ -2458,7 +2503,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/metrics/android/batt_metric.pbzero.cc",
     "external/perfetto/protos/perfetto/metrics/android/cpu_metric.pbzero.cc",
@@ -2498,7 +2543,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/metrics/android/batt_metric.pbzero.h",
     "external/perfetto/protos/perfetto/metrics/android/cpu_metric.pbzero.h",
@@ -2530,7 +2575,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/metrics/metrics.pbzero.cc",
   ],
@@ -2546,7 +2591,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/metrics/metrics.pbzero.h",
   ],
@@ -2567,7 +2612,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pb.cc",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pb.cc",
@@ -2586,7 +2631,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pb.h",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pb.h",
@@ -2610,7 +2655,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pbzero.cc",
@@ -2630,7 +2675,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.h",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pbzero.h",
@@ -2653,7 +2698,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pb.cc",
     "external/perfetto/protos/perfetto/trace/chrome/chrome_metadata.pb.cc",
@@ -2672,7 +2717,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pb.h",
     "external/perfetto/protos/perfetto/trace/chrome/chrome_metadata.pb.h",
@@ -2696,7 +2741,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/chrome/chrome_metadata.pbzero.cc",
@@ -2716,7 +2761,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h",
     "external/perfetto/protos/perfetto/trace/chrome/chrome_metadata.pbzero.h",
@@ -2737,7 +2782,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/filesystem/inode_file_map.pb.cc",
   ],
@@ -2752,7 +2797,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/filesystem/inode_file_map.pb.h",
   ],
@@ -2772,7 +2817,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/filesystem/inode_file_map.pbzero.cc",
   ],
@@ -2788,7 +2833,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/filesystem/inode_file_map.pbzero.h",
   ],
@@ -2839,7 +2884,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ftrace/binder.pb.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/block.pb.cc",
@@ -2918,7 +2963,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ftrace/binder.pb.h",
     "external/perfetto/protos/perfetto/trace/ftrace/block.pb.h",
@@ -3002,7 +3047,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ftrace/binder.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/ftrace/block.pbzero.cc",
@@ -3082,7 +3127,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ftrace/binder.pbzero.h",
     "external/perfetto/protos/perfetto/trace/ftrace/block.pbzero.h",
@@ -3136,7 +3181,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pb.cc",
@@ -3157,7 +3202,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pb.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pb.h",
@@ -3183,7 +3228,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pbzero.cc",
@@ -3205,7 +3250,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pbzero.h",
@@ -3227,7 +3272,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/interned_data/interned_data.pb.cc",
   ],
@@ -3242,7 +3287,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/interned_data/interned_data.pb.h",
   ],
@@ -3262,7 +3307,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/interned_data/interned_data.pbzero.cc",
   ],
@@ -3278,7 +3323,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/interned_data/interned_data.pbzero.h",
   ],
@@ -3299,7 +3344,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.cc",
     "external/perfetto/protos/perfetto/trace/system_info.pb.cc",
@@ -3318,7 +3363,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.h",
     "external/perfetto/protos/perfetto/trace/system_info.pb.h",
@@ -3342,7 +3387,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/system_info.pbzero.cc",
@@ -3362,7 +3407,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/clock_snapshot.pbzero.h",
     "external/perfetto/protos/perfetto/trace/system_info.pbzero.h",
@@ -3386,7 +3431,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/test_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/trace.pb.cc",
@@ -3407,7 +3452,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/test_event.pb.h",
     "external/perfetto/protos/perfetto/trace/trace.pb.h",
@@ -3433,7 +3478,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
@@ -3455,7 +3500,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/test_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
@@ -3477,7 +3522,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.cc",
   ],
@@ -3492,7 +3537,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.h",
   ],
@@ -3512,7 +3557,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.cc",
   ],
@@ -3528,7 +3573,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h",
   ],
@@ -3548,7 +3593,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pb.cc",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pb.cc",
@@ -3565,7 +3610,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pb.h",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pb.h",
@@ -3587,7 +3632,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pbzero.cc",
@@ -3605,7 +3650,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pbzero.h",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pbzero.h",
@@ -3626,7 +3671,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace_processor/metrics_impl.pbzero.cc",
   ],
@@ -3642,7 +3687,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace_processor/metrics_impl.pbzero.h",
   ],
@@ -3663,7 +3708,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.cc",
@@ -3682,7 +3727,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.h",
@@ -3706,7 +3751,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
@@ -3726,7 +3771,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.h",
@@ -3748,7 +3793,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ps/process_stats.pb.cc",
     "external/perfetto/protos/perfetto/trace/ps/process_tree.pb.cc",
@@ -3765,7 +3810,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ps/process_stats.pb.h",
     "external/perfetto/protos/perfetto/trace/ps/process_tree.pb.h",
@@ -3787,7 +3832,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ps/process_stats.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/ps/process_tree.pbzero.cc",
@@ -3805,7 +3850,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/ps/process_stats.pbzero.h",
     "external/perfetto/protos/perfetto/trace/ps/process_tree.pbzero.h",
@@ -3825,7 +3870,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/sys_stats/sys_stats.pb.cc",
   ],
@@ -3840,7 +3885,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/sys_stats/sys_stats.pb.h",
   ],
@@ -3860,7 +3905,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/sys_stats/sys_stats.pbzero.cc",
   ],
@@ -3876,7 +3921,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/sys_stats/sys_stats.pbzero.h",
   ],
@@ -3902,7 +3947,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/log_message.pb.cc",
@@ -3931,7 +3976,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/log_message.pb.h",
@@ -3965,7 +4010,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/log_message.pbzero.cc",
@@ -3995,7 +4040,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/debug_annotation.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/log_message.pbzero.h",
@@ -4021,7 +4066,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/third_party/pprof/profile.pb.cc",
   ],
@@ -4036,7 +4081,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/third_party/pprof/profile.pb.h",
   ],
@@ -4153,9 +4198,9 @@ filegroup {
   ],
 }
 
-// GN: //src/ipc:test_messages
+// GN: //src/ipc:test_messages_ipc
 genrule {
-  name: "perfetto_src_ipc_test_messages_gen",
+  name: "perfetto_src_ipc_test_messages_ipc_gen",
   srcs: [
     "src/ipc/test/client_unittest_messages.proto",
     "src/ipc/test/deferred_unittest_messages.proto",
@@ -4165,20 +4210,60 @@ genrule {
     "aprotoc",
     "ipc_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/ipc/test/client_unittest_messages.ipc.cc",
-    "external/perfetto/src/ipc/test/client_unittest_messages.pb.cc",
     "external/perfetto/src/ipc/test/deferred_unittest_messages.ipc.cc",
-    "external/perfetto/src/ipc/test/deferred_unittest_messages.pb.cc",
     "external/perfetto/src/ipc/test/greeter_service.ipc.cc",
+  ],
+}
+
+// GN: //src/ipc:test_messages_ipc
+genrule {
+  name: "perfetto_src_ipc_test_messages_ipc_gen_headers",
+  srcs: [
+    "src/ipc/test/client_unittest_messages.proto",
+    "src/ipc/test/deferred_unittest_messages.proto",
+    "src/ipc/test/greeter_service.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "ipc_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/src/ipc/test/client_unittest_messages.ipc.h",
+    "external/perfetto/src/ipc/test/deferred_unittest_messages.ipc.h",
+    "external/perfetto/src/ipc/test/greeter_service.ipc.h",
+  ],
+  export_include_dirs: [
+    ".",
+    "protos",
+  ],
+}
+
+// GN: //src/ipc:test_messages_lite
+genrule {
+  name: "perfetto_src_ipc_test_messages_lite_gen",
+  srcs: [
+    "src/ipc/test/client_unittest_messages.proto",
+    "src/ipc/test/deferred_unittest_messages.proto",
+    "src/ipc/test/greeter_service.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/src/ipc/test/client_unittest_messages.pb.cc",
+    "external/perfetto/src/ipc/test/deferred_unittest_messages.pb.cc",
     "external/perfetto/src/ipc/test/greeter_service.pb.cc",
   ],
 }
 
-// GN: //src/ipc:test_messages
+// GN: //src/ipc:test_messages_lite
 genrule {
-  name: "perfetto_src_ipc_test_messages_gen_headers",
+  name: "perfetto_src_ipc_test_messages_lite_gen_headers",
   srcs: [
     "src/ipc/test/client_unittest_messages.proto",
     "src/ipc/test/deferred_unittest_messages.proto",
@@ -4186,15 +4271,11 @@ genrule {
   ],
   tools: [
     "aprotoc",
-    "ipc_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location ipc_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
-    "external/perfetto/src/ipc/test/client_unittest_messages.ipc.h",
     "external/perfetto/src/ipc/test/client_unittest_messages.pb.h",
-    "external/perfetto/src/ipc/test/deferred_unittest_messages.ipc.h",
     "external/perfetto/src/ipc/test/deferred_unittest_messages.pb.h",
-    "external/perfetto/src/ipc/test/greeter_service.ipc.h",
     "external/perfetto/src/ipc/test/greeter_service.pb.h",
   ],
   export_include_dirs: [
@@ -4237,7 +4318,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.cc",
   ],
@@ -4252,7 +4333,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.h",
   ],
@@ -4451,7 +4532,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/protozero/test/example_proto/library.gen.cc",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.cc",
@@ -4473,7 +4554,7 @@ genrule {
     "aprotoc",
     "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/protozero/test/example_proto/library.gen.h",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.h",
@@ -4498,7 +4579,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/protozero/test/example_proto/library.pb.cc",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pb.cc",
@@ -4519,7 +4600,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/protozero/test/example_proto/library.pb.h",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pb.h",
@@ -4545,7 +4626,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/protozero/test/example_proto/library.pbzero.cc",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pbzero.cc",
@@ -4567,7 +4648,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/protozero/test/example_proto/library.pbzero.h",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pbzero.h",
@@ -4884,7 +4965,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/traced/probes/ftrace/test/test_messages.pb.cc",
   ],
@@ -4899,7 +4980,7 @@ genrule {
   tools: [
     "aprotoc",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/traced/probes/ftrace/test/test_messages.pb.h",
   ],
@@ -4919,7 +5000,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/traced/probes/ftrace/test/test_messages.pbzero.cc",
   ],
@@ -4935,7 +5016,7 @@ genrule {
     "aprotoc",
     "protozero_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --cpp_out=$(genDir)/external/perfetto/ --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/src/traced/probes/ftrace/test/test_messages.pbzero.h",
   ],
@@ -5448,6 +5529,7 @@ cc_test {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_metrics_android_zero_gen",
@@ -5488,7 +5570,8 @@ cc_test {
     ":perfetto_src_base_unittests",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_ipc",
-    ":perfetto_src_ipc_test_messages_gen",
+    ":perfetto_src_ipc_test_messages_ipc_gen",
+    ":perfetto_src_ipc_test_messages_lite_gen",
     ":perfetto_src_ipc_unittests",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
@@ -5596,6 +5679,7 @@ cc_test {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_metrics_android_zero_gen_headers",
@@ -5629,7 +5713,8 @@ cc_test {
     "perfetto_protos_perfetto_trace_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
     "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
-    "perfetto_src_ipc_test_messages_gen_headers",
+    "perfetto_src_ipc_test_messages_ipc_gen_headers",
+    "perfetto_src_ipc_test_messages_lite_gen_headers",
     "perfetto_src_perfetto_cmd_protos_gen_headers",
     "perfetto_src_protozero_testing_messages_cpp_gen_headers",
     "perfetto_src_protozero_testing_messages_lite_gen_headers",
@@ -6019,6 +6104,7 @@ cc_binary {
     ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
     ":perfetto_protos_perfetto_config_zero_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
+    ":perfetto_protos_perfetto_ipc_lite_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_zero_gen",
     ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -6083,6 +6169,7 @@ cc_binary {
     "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_config_zero_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
+    "perfetto_protos_perfetto_ipc_lite_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
