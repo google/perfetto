@@ -4441,16 +4441,27 @@ message DataSourceConfig {
   // cpp classes and polluting tracing/core with data-source-specific classes.
   // Instead they are treated as opaque strings containing raw proto bytes.
 
+  // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
+  // Data source name: linux.inode_file_map
   optional InodeFileConfig inode_file_config = 102 [lazy = true];
+  // Data source name: linux.process_stats
   optional ProcessStatsConfig process_stats_config = 103 [lazy = true];
+  // Data source name: linux.sys_stats
   optional SysStatsConfig sys_stats_config = 104 [lazy = true];
+  // Data source name: android.heapprofd
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
+  // Data source name: android.java_hprof
   optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
+  // Data source name: android.power
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
+  // Data source name: android.log
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
+  // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  // Data source name: android.packages_list
   optional PackagesListConfig packages_list_config = 109 [lazy = true];
+  // Data source name: linux.perf
   optional PerfEventConfig perf_event_config = 111 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
