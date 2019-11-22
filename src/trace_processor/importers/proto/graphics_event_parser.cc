@@ -29,8 +29,6 @@
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
-#include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
-#include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 
 namespace perfetto {
@@ -166,40 +164,6 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   }
 }
 
-const StringId GraphicsEventParser::GetFullStageName(
-    const protos::pbzero::GpuRenderStageEvent_Decoder& event) {
-  size_t stage_id = static_cast<size_t>(event.stage_id());
-  StringId stage_name;
-
-  if (stage_id < gpu_render_stage_ids_.size()) {
-    stage_name = gpu_render_stage_ids_[stage_id];
-  } else {
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "render stage(%zu)", stage_id);
-    stage_name = context_->storage->InternString(buffer);
-  }
-  // If the slice has a render target handle, we append the hex value of the
-  // handle to the name.  If a debug marker is available, we append the name
-  // of the render target.
-  if (event.has_render_target_handle()) {
-    char buffer[256];
-    base::StringWriter str_writer(buffer, sizeof(buffer));
-    str_writer.AppendString(context_->storage->GetString(stage_name));
-    auto debug_marker_name =
-        debug_marker_names_.find(event.render_target_handle());
-    str_writer.AppendChar('[');
-    if (debug_marker_name == debug_marker_names_.end()) {
-      str_writer.AppendLiteral("0x");
-      str_writer.AppendHexInt(event.render_target_handle());
-    } else {
-      str_writer.AppendString(debug_marker_name->second);
-    }
-    str_writer.AppendChar(']');
-    stage_name = context_->storage->InternString(str_writer.GetStringView());
-  }
-  return stage_name;
-}
-
 void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
                                                    ConstBytes blob) {
   protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
@@ -239,8 +203,15 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
   };
 
   if (event.has_event_id()) {
-    StringId stage_name = GetFullStageName(event);
-
+    size_t stage_id = static_cast<size_t>(event.stage_id());
+    StringId stage_name;
+    if (stage_id < gpu_render_stage_ids_.size()) {
+      stage_name = gpu_render_stage_ids_[stage_id];
+    } else {
+      char buffer[64];
+      snprintf(buffer, 64, "render stage(%zu)", stage_id);
+      stage_name = context_->storage->InternString(buffer);
+    }
     TrackId track_id =
         gpu_hw_queue_ids_[static_cast<size_t>(event.hw_queue_id())];
     const auto slice_id = context_->slice_tracker->Scoped(
@@ -553,15 +524,6 @@ void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
   tables::GpuSliceTable::Row row;
   row.slice_id = slice_id.value();
   context_->storage->mutable_gpu_slice_table()->Insert(row);
-}
-
-void GraphicsEventParser::ParseVulkanApiEvent(ConstBytes blob) {
-  protos::pbzero::VulkanApiEvent::Decoder vk_event(blob.data, blob.size);
-  if (vk_event.has_vk_debug_utils_object_name()) {
-    protos::pbzero::VulkanApiEvent_VkDebugUtilsObjectName::Decoder event(
-        vk_event.vk_debug_utils_object_name());
-    debug_marker_names_[event.object()] = event.object_name();
-  }
 }
 
 }  // namespace trace_processor

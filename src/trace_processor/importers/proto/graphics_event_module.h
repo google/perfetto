@@ -64,11 +64,6 @@ class GraphicsEventModule
       return ModuleResult::Handled();
     }
 
-    if (decoder.has_vulkan_api_event()) {
-      parser_.ParseVulkanApiEvent(decoder.vulkan_api_event());
-      return ModuleResult::Handled();
-    }
-
     return ModuleResult::Ignored();
   }
 
