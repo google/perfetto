@@ -27,7 +27,7 @@ namespace trace_processor {
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
     : context_(context) {
   // Create a mapping from (t|p)id 0 -> u(t|p)id 0 for the idle process.
-  tids_.emplace(0, 0);
+  tids_.emplace(0, std::vector<UniqueTid>{0});
   pids_.emplace(0, 0);
 }
 
@@ -40,7 +40,7 @@ UniqueTid ProcessTracker::StartNewThread(int64_t timestamp,
   TraceStorage::Thread* thread = context_->storage->GetMutableThread(new_utid);
   thread->name_id = thread_name_id;
   thread->start_ns = timestamp;
-  tids_.emplace(tid, new_utid);
+  tids_[tid].emplace_back(new_utid);
   return new_utid;
 }
 
@@ -48,6 +48,12 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
   UniqueTid utid = GetOrCreateThread(tid);
   TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
   thread->end_ns = timestamp;
+
+  // Remove the thread from the list of threads being tracked as any event after
+  // this one should be ignored.
+  auto& vector = tids_[tid];
+  vector.erase(std::remove(vector.begin(), vector.end(), utid));
+
   if (thread->upid.has_value()) {
     TraceStorage::Process* process =
         context_->storage->GetMutableProcess(thread->upid.value());
@@ -61,17 +67,16 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
 }
 
 base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
-  auto pair_it = tids_.equal_range(tid);
-  if (pair_it.first != pair_it.second) {
-    auto prev_utid = std::prev(pair_it.second)->second;
-    TraceStorage::Thread* thread =
-        context_->storage->GetMutableThread(prev_utid);
-
-    // Only return alive threads.
-    if (thread->end_ns == 0)
-      return prev_utid;
+  auto vector_it = tids_.find(tid);
+  if (vector_it == tids_.end() || vector_it->second.empty()) {
+    return base::nullopt;
   }
-  return base::nullopt;
+
+  // If the thread is being tracked by the process tracker, it should not be
+  // known to have ended.
+  UniqueTid utid = vector_it->second.back();
+  PERFETTO_DCHECK(context_->storage->GetMutableThread(utid)->end_ns == 0u);
+  return utid;
 }
 
 UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
@@ -83,7 +88,7 @@ UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
                                            StringId thread_name_id) {
   auto utid = GetOrCreateThread(tid);
   if (!thread_name_id.is_null()) {
-    TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
+    auto* thread = context_->storage->GetMutableThread(utid);
     thread->name_id = thread_name_id;
   }
   return utid;
@@ -91,51 +96,56 @@ UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
 
 void ProcessTracker::SetThreadNameIfUnset(UniqueTid utid,
                                           StringId thread_name_id) {
-  TraceStorage::Thread* thread = context_->storage->GetMutableThread(utid);
+  auto* thread = context_->storage->GetMutableThread(utid);
   if (thread->name_id == kNullStringId)
     thread->name_id = thread_name_id;
 }
 
 UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
-  auto tids_pair = tids_.equal_range(tid);
+  auto vector_it = tids_.find(tid);
 
   // Try looking for a thread that matches both tid and thread group id (pid).
   TraceStorage::Thread* thread = nullptr;
   UniqueTid utid = 0;
-  for (auto it = tids_pair.first; it != tids_pair.second; it++) {
-    UniqueTid iter_utid = it->second;
-    auto* iter_thread = context_->storage->GetMutableThread(iter_utid);
-    if (iter_thread->end_ns != 0) {
-      // If the thread is already dead, don't bother choosing it as the
-      // thread for this process.
-      continue;
-    }
-    if (!iter_thread->upid.has_value()) {
-      // We haven't discovered the parent process for the thread. Assign it
-      // now and use this thread.
-      thread = iter_thread;
-      utid = iter_utid;
-      break;
-    }
-    const auto& iter_process =
-        context_->storage->GetProcess(iter_thread->upid.value());
-    if (iter_process.end_ns != 0) {
-      // If the process is already dead, don't bother choosing the associated
-      // thread.
-      continue;
-    }
-    if (iter_process.pid == pid) {
-      // We found a thread that matches both the tid and its parent pid.
-      thread = iter_thread;
-      utid = iter_utid;
-      break;
-    }
-  }  // for(tids).
+  if (vector_it != tids_.end()) {
+    const auto& vector = vector_it->second;
+
+    // Iterate backwards through the threads so ones later in the trace are more
+    // likely to be picked.
+    for (auto it = vector.rbegin(); it != vector.rend(); it++) {
+      auto* iter_thread = context_->storage->GetMutableThread(*it);
+
+      // If we finished this thread, we should have removed it from the vector
+      // entirely.
+      PERFETTO_DCHECK(iter_thread->end_ns == 0);
+
+      if (!iter_thread->upid.has_value()) {
+        // We haven't discovered the parent process for the thread. Assign it
+        // now and use this thread.
+        thread = iter_thread;
+        utid = *it;
+        break;
+      }
+
+      const auto& iter_process =
+          context_->storage->GetProcess(iter_thread->upid.value());
+      if (iter_process.end_ns != 0) {
+        // If the process is already dead, don't bother choosing the associated
+        // thread.
+        continue;
+      }
+      if (iter_process.pid == pid) {
+        // We found a thread that matches both the tid and its parent pid.
+        thread = iter_thread;
+        utid = *it;
+        break;
+      }
+    }  // for(tids).
+  }
 
   // If no matching thread was found, create a new one.
   if (thread == nullptr) {
-    utid = context_->storage->AddEmptyThread(tid);
-    tids_.emplace(tid, utid);
+    utid = StartNewThread(0, tid, 0);
     thread = context_->storage->GetMutableThread(utid);
   }
 
