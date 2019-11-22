@@ -31,22 +31,6 @@
 
 namespace perfetto {
 namespace trace_to_text {
-namespace {
-
-using ::protozero::proto_utils::kMessageLengthFieldSize;
-using ::protozero::proto_utils::MakeTagLengthDelimited;
-using ::protozero::proto_utils::WriteVarInt;
-
-void WriteTracePacket(const std::string& str, std::ostream* output) {
-  constexpr char kPreamble =
-      MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
-  uint8_t length_field[10];
-  uint8_t* end = WriteVarInt(str.size(), length_field);
-  *output << kPreamble;
-  *output << std::string(length_field, end);
-  *output << str;
-}
-}
 
 // Ingest profile, and emit a symbolization table for each sequence. This can
 // be prepended to the profile to attach the symbol information.
