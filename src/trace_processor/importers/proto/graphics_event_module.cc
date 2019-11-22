@@ -28,6 +28,7 @@ GraphicsEventModule::GraphicsEventModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kGpuLogFieldNumber, context);
   RegisterForField(TracePacket::kGraphicsFrameEventFieldNumber, context);
   RegisterForField(TracePacket::kVulkanMemoryEventFieldNumber, context);
+  RegisterForField(TracePacket::kVulkanApiEventFieldNumber, context);
 }
 
 GraphicsEventModule::~GraphicsEventModule() = default;
@@ -54,6 +55,9 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       parser_.ParseVulkanMemoryEvent(ttp.packet_sequence_state,
                                      ttp.packet_sequence_state_generation,
                                      decoder.vulkan_memory_event());
+      return;
+    case TracePacket::kVulkanApiEventFieldNumber:
+      parser_.ParseVulkanApiEvent(decoder.vulkan_api_event());
       return;
   }
 }
