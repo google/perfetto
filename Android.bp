@@ -3085,7 +3085,6 @@ genrule {
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
     "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
-    "protos/perfetto/trace/gpu/vulkan_api_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
   tools: [
@@ -3096,7 +3095,6 @@ genrule {
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pb.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pb.cc",
-    "external/perfetto/protos/perfetto/trace/gpu/vulkan_api_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pb.cc",
   ],
 }
@@ -3108,7 +3106,6 @@ genrule {
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
     "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
-    "protos/perfetto/trace/gpu/vulkan_api_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
   tools: [
@@ -3119,7 +3116,6 @@ genrule {
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pb.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pb.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pb.h",
-    "external/perfetto/protos/perfetto/trace/gpu/vulkan_api_event.pb.h",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pb.h",
   ],
   export_include_dirs: [
@@ -3135,7 +3131,6 @@ genrule {
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
     "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
-    "protos/perfetto/trace/gpu/vulkan_api_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
   tools: [
@@ -3147,7 +3142,6 @@ genrule {
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.cc",
-    "external/perfetto/protos/perfetto/trace/gpu/vulkan_api_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.cc",
   ],
 }
@@ -3159,7 +3153,6 @@ genrule {
     "protos/perfetto/trace/gpu/gpu_counter_event.proto",
     "protos/perfetto/trace/gpu/gpu_log.proto",
     "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
-    "protos/perfetto/trace/gpu/vulkan_api_event.proto",
     "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
   ],
   tools: [
@@ -3171,7 +3164,6 @@ genrule {
     "external/perfetto/protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_log.pbzero.h",
     "external/perfetto/protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h",
-    "external/perfetto/protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h",
   ],
   export_include_dirs: [
