@@ -1,1 +1,3 @@
-select count(*) from counters where ref is not null
+select count(*)
+from counter
+inner join counter_track on counter_track.id = counter.track_id
