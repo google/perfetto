@@ -2307,8 +2307,8 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
     return;
   tracing_session->did_emit_system_info = true;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   auto* info = packet->set_system_info();
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   struct utsname uname_info;
   if (uname(&uname_info) == 0) {
     auto* utsname_info = info->set_utsname();
@@ -2317,7 +2317,15 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
     utsname_info->set_machine(uname_info.machine);
     utsname_info->set_release(uname_info.release);
   }
-#endif
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  char value[PROP_VALUE_MAX];
+  if (__system_property_get("ro.build.fingerprint", value)) {
+    info->set_android_build_fingerprint(value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.build.fingerprint");
+  }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
