@@ -1,7 +1,6 @@
 select
   ts,
   name,
-  value,
-  ref_type
+  value
 from instants
 limit 10;
