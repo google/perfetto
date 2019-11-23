@@ -38,8 +38,9 @@ const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
     (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
 
-declare type Frame = perfetto.ipc.Frame;
-declare type IMethodInfo = perfetto.ipc.Frame.BindServiceReply.IMethodInfo;
+declare type Frame = perfetto.protos.IPCFrame;
+declare type IMethodInfo =
+    perfetto.protos.IPCFrame.BindServiceReply.IMethodInfo;
 declare type ISlice = perfetto.protos.ReadBuffersResponse.ISlice;
 
 interface Command {
@@ -114,9 +115,9 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
       console.error(`Method ${method} not supported by the target`);
       return;
     }
-    const frame = new perfetto.ipc.Frame({
+    const frame = new perfetto.protos.IPCFrame({
       requestId,
-      msgInvokeMethod: new perfetto.ipc.Frame.InvokeMethod(
+      msgInvokeMethod: new perfetto.protos.IPCFrame.InvokeMethod(
           {serviceId: this.serviceId, methodId, argsProto})
     });
     this.requestMethods.set(requestId, method);
@@ -126,7 +127,8 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   static generateFrameBufferToSend(frame: Frame): Uint8Array {
-    const frameProto: Uint8Array = perfetto.ipc.Frame.encode(frame).finish();
+    const frameProto: Uint8Array =
+        perfetto.protos.IPCFrame.encode(frame).finish();
     const frameLen = frameProto.length;
     const buf = new Uint8Array(WIRE_PROTOCOL_HEADER_SIZE + frameLen);
     const dv = new DataView(buf.buffer);
@@ -159,7 +161,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   private parseMessage(frameBuffer: Uint8Array) {
-    const frame = perfetto.ipc.Frame.decode(frameBuffer);
+    const frame = perfetto.protos.IPCFrame.decode(frameBuffer);
     this.handleIncomingFrame(frame);
   }
 
@@ -290,10 +292,10 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   bind() {
     console.assert(this.socket !== undefined);
     const requestId = this.requestId++;
-    const frame = new perfetto.ipc.Frame({
+    const frame = new perfetto.protos.IPCFrame({
       requestId,
-      msgBindService:
-          new perfetto.ipc.Frame.BindService({serviceName: 'ConsumerPort'})
+      msgBindService: new perfetto.protos.IPCFrame.BindService(
+          {serviceName: 'ConsumerPort'})
     });
     return new Promise((resolve, _) => {
       this.resolveBindingPromise = resolve;
@@ -318,7 +320,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     }
   }
 
-  handleIncomingFrame(frame: perfetto.ipc.Frame) {
+  handleIncomingFrame(frame: perfetto.protos.IPCFrame) {
     const requestId = frame.requestId as number;
     switch (frame.msg) {
       case 'msgBindServiceReply': {

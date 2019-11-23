@@ -90,7 +90,6 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
                                   bool drop_reply,
                                   base::WeakPtr<ServiceProxy> service_proxy,
                                   int fd) {
-  std::string args_proto;
   RequestID request_id = ++last_request_id_;
   Frame frame;
   frame.set_request_id(request_id);
@@ -98,9 +97,8 @@ RequestID ClientImpl::BeginInvoke(ServiceID service_id,
   req->set_service_id(service_id);
   req->set_method_id(remote_method_id);
   req->set_drop_reply(drop_reply);
-  bool did_serialize = method_args.SerializeToString(&args_proto);
-  req->set_args_proto(args_proto);
-  if (!did_serialize || !SendFrame(frame, fd)) {
+  req->set_args_proto(method_args.SerializeAsString());
+  if (!SendFrame(frame, fd)) {
     PERFETTO_DLOG("BeginInvoke() failed while sending the frame");
     return 0;
   }
