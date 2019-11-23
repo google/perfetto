@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import("../../gn/fuzzer.gni")
-import("../../gn/ipc_library.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/test.gni")
@@ -62,7 +61,8 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":ipc",
-    ":test_messages",
+    ":test_messages_ipc",
+    ":test_messages_lite",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
@@ -78,14 +78,16 @@ perfetto_unittest_source_set("unittests") {
   ]
 }
 
-ipc_library("test_messages") {
+perfetto_proto_library("test_messages_@TYPE@") {
+  proto_generators = [
+    "ipc",
+    "lite",  # TODO(primiano): remove in next CLs.
+  ]
   sources = [
     "test/client_unittest_messages.proto",
     "test/deferred_unittest_messages.proto",
     "test/greeter_service.proto",
   ]
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = perfetto_root_path
 }
 
 # This is used by Bazel BUILD rules.

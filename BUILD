@@ -183,6 +183,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_zero",
         ":protos_perfetto_ipc_ipc",
+        ":protos_perfetto_ipc_lite",
         ":protos_perfetto_ipc_wire_protocol_cpp",
         ":protos_perfetto_ipc_wire_protocol_zero",
         ":protos_perfetto_trace_android_zero",
@@ -1615,7 +1616,15 @@ perfetto_cc_ipc_library(
     ],
 )
 
-# GN target: //protos/perfetto/ipc:ipc
+# GN target: //protos/perfetto/ipc:lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_ipc_lite",
+    deps = [
+        ":protos_perfetto_ipc_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/ipc:lite
 perfetto_proto_library(
     name = "protos_perfetto_ipc_protos",
     srcs = [
@@ -2378,6 +2387,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_zero",
         ":protos_perfetto_ipc_ipc",
+        ":protos_perfetto_ipc_lite",
         ":protos_perfetto_ipc_wire_protocol_cpp",
         ":protos_perfetto_ipc_wire_protocol_zero",
         ":protos_perfetto_trace_android_zero",
@@ -2458,6 +2468,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_ipc_ipc",
+               ":protos_perfetto_ipc_lite",
                ":protos_perfetto_ipc_wire_protocol_cpp",
                ":protos_perfetto_ipc_wire_protocol_zero",
                ":protos_perfetto_trace_android_zero",

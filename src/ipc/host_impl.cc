@@ -221,11 +221,9 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
   auto* reply_frame_data = reply_frame.mutable_msg_invoke_method_reply();
   reply_frame_data->set_has_more(reply.has_more());
   if (reply.success()) {
-    std::string reply_proto;
-    if (reply->SerializeToString(&reply_proto)) {
-      reply_frame_data->set_reply_proto(reply_proto);
-      reply_frame_data->set_success(true);
-    }
+    std::string reply_proto = reply->SerializeAsString();
+    reply_frame_data->set_reply_proto(reply_proto);
+    reply_frame_data->set_success(true);
   }
   SendFrame(client, reply_frame, reply.fd());
 }

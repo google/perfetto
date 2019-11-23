@@ -32,8 +32,6 @@
 namespace perfetto {
 namespace ipc {
 
-class Frame;
-
 class HostImpl : public Host, public base::UnixSocket::EventListener {
  public:
   HostImpl(const char* socket_name, base::TaskRunner*);

@@ -12,18 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/ipc_library.gni")
 import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
 # IPC service definitions.
-ipc_library("ipc") {
-  deps = [
-    "../common:lite",
-    "../config:lite",
+# Generates {producer,consumer}_port.ipc.{cc,h}
+perfetto_proto_library("@TYPE@") {
+  proto_generators = [ "ipc" ]
+  sources = [
+    "consumer_port.proto",
+    "producer_port.proto",
   ]
-  proto_in_dir = perfetto_root_path
-  proto_out_dir = perfetto_root_path
+}
+
+# This needs to be split from the above because of the {common,config} deps,
+# which don't affect .ipc.{cc,h} generation.
+perfetto_proto_library("@TYPE@") {
+  proto_generators = [ "lite" ]  # TODO(primiano): remove in next CLs.
+  deps = [
+    "../common:@TYPE@",
+    "../config:@TYPE@",
+  ]
   sources = [
     "consumer_port.proto",
     "producer_port.proto",

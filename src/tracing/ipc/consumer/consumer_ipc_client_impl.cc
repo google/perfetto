@@ -164,9 +164,11 @@ void ConsumerIPCClientImpl::OnReadBuffersResponse(
     return;
   }
   std::vector<TracePacket> trace_packets;
-  for (auto& resp_slice : *response->mutable_slices()) {
-    partial_packet_.AddSlice(
-        Slice(std::unique_ptr<std::string>(resp_slice.release_data())));
+  for (auto& resp_slice : response->slices()) {
+    const std::string& slice_data = resp_slice.data();
+    Slice slice = Slice::Allocate(slice_data.size());
+    memcpy(slice.own_data(), slice_data.data(), slice.size);
+    partial_packet_.AddSlice(std::move(slice));
     if (resp_slice.last_slice_for_packet())
       trace_packets.emplace_back(std::move(partial_packet_));
   }
