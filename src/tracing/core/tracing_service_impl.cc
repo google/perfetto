@@ -2308,6 +2308,7 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   tracing_session->did_emit_system_info = true;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* info = packet->set_system_info();
+  base::ignore_result(info);  // For PERFETTO_OS_WIN.
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   struct utsname uname_info;
   if (uname(&uname_info) == 0) {
