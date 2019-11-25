@@ -122,7 +122,9 @@ Table Table::Sort(const std::vector<Order>& od) const {
   // the first constraint in the below loop) in a non-stable way. However, this
   // is more subtle than it appears as we would then need special handling where
   // there are order bys on a column which is already sorted (e.g. ts, id).
-  // Investigate whether the performance gains from this are worthwhile.
+  // Investigate whether the performance gains from this are worthwhile. This
+  // also needs changes to the constraint modification logic in DbSqliteTable
+  // which currently eliminates constraints on sorted columns.
   for (auto it = od.rbegin(); it != od.rend(); ++it) {
     columns_[it->col_idx].StableSort(it->desc, &idx);
   }
