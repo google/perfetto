@@ -22,13 +22,10 @@
 #include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/observable_events.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
 namespace perfetto {
 
-class TraceConfig;
 class TracePacket;
-class TraceStats;
-class TracingServiceState;
 
 class PERFETTO_EXPORT Consumer {
  public:

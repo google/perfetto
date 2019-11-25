@@ -109,7 +109,7 @@ TEST(ProtoCppConformanceTest, GoldEncode_GenDecode) {
   std::string serialized = gold_msg.SerializeAsString();
 
   pbtest::EveryField msg;
-  EXPECT_TRUE(msg.ParseRawProto(serialized));
+  EXPECT_TRUE(msg.ParseFromString(serialized));
   CheckTestingFields(msg);
 }
 
@@ -119,7 +119,7 @@ TEST(ProtoCppConformanceTest, GenEncode_GenDecode) {
   std::string serialized = msg.SerializeAsString();
 
   pbtest::EveryField dec_msg;
-  dec_msg.ParseRawProto(serialized);
+  dec_msg.ParseFromString(serialized);
   CheckTestingFields(dec_msg);
   EXPECT_EQ(serialized.size(), dec_msg.SerializeAsString().size());
 }
@@ -192,7 +192,7 @@ TEST(ProtoCppConformanceTest, PreserveUnknownFields) {
   // the v1 message.
   {
     pbtest::TestVersioning_V1 msg_v1;
-    EXPECT_TRUE(msg_v1.ParseRawProto(serialized));
+    EXPECT_TRUE(msg_v1.ParseFromString(serialized));
     EXPECT_EQ(msg_v1.root_int(), 10);
     EXPECT_EQ(msg_v1.enumz_size(), 3);
     // These are to workaround "ODR-usage" rules that would require that the
@@ -225,7 +225,7 @@ TEST(ProtoCppConformanceTest, PreserveUnknownFields) {
   // fields have been preserved in the double de/serializataion across versions.
   {
     pbtest::TestVersioning_V2 msg_v2;
-    EXPECT_TRUE(msg_v2.ParseRawProto(serialized));
+    EXPECT_TRUE(msg_v2.ParseFromString(serialized));
     EXPECT_EQ(msg_v2.root_int(), 101);
     EXPECT_EQ(msg_v2.root_int_v2(), 11);
     EXPECT_EQ(msg_v2.enumz_size(), 3);
@@ -253,7 +253,7 @@ TEST(ProtoCppConformanceTest, PreserveUnknownFields) {
     }
     {
       pbtest::TestVersioning_V2::Sub1_V2 lazy;
-      EXPECT_TRUE(lazy.ParseRawProto(msg_v2.sub1_lazy_raw()));
+      EXPECT_TRUE(lazy.ParseFromString(msg_v2.sub1_lazy_raw()));
       EXPECT_EQ(lazy.sub1_int(), 15);
       EXPECT_EQ(lazy.sub1_string(), "sub1-lazy-string");
       EXPECT_EQ(lazy.sub1_int_v2(), 16);
@@ -261,7 +261,7 @@ TEST(ProtoCppConformanceTest, PreserveUnknownFields) {
     }
     {
       pbtest::TestVersioning_V2::Sub2_V2 lazy;
-      EXPECT_TRUE(lazy.ParseRawProto(msg_v2.sub2_lazy_raw()));
+      EXPECT_TRUE(lazy.ParseFromString(msg_v2.sub2_lazy_raw()));
       EXPECT_EQ(lazy.sub2_int(), 17);
       EXPECT_EQ(lazy.sub2_string(), "sub2-v2-lazy-string");
     }
@@ -285,7 +285,7 @@ TEST(ProtoCppConformanceTest, DontDefaultInitialize) {
   EXPECT_TRUE(msg.has_field_string());
 
   pbtest::EveryField dec;
-  dec.ParseRawProto(msg.SerializeAsString());
+  dec.ParseFromString(msg.SerializeAsString());
   std::string reserialized = dec.SerializeAsString();
 
   pbgold::EveryField gold_msg;
@@ -320,7 +320,7 @@ TEST(ProtoCppConformanceTest, PackedRepeatedFields) {
   }
   {
     pbtest::PackedRepeatedFields msg;
-    EXPECT_TRUE(msg.ParseRawProto(serialized));
+    EXPECT_TRUE(msg.ParseFromString(serialized));
 
     std::vector<int> exp_int32;
     for (int i = -100; i < 100; i++)

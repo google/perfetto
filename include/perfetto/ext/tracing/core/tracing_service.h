@@ -28,6 +28,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/forward_decls.h"
 
 namespace perfetto {
 
@@ -35,13 +36,9 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
-class CommitDataRequest;
 class Consumer;
-class DataSourceDescriptor;
 class Producer;
 class SharedMemoryArbiter;
-class TracingServiceState;
-class TraceConfig;
 class TraceWriter;
 
 // TODO: for the moment this assumes that all the calls happen on the same

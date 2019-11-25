@@ -27,12 +27,11 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
 namespace perfetto {
 
 class TracingBackend;
 class Platform;
-class TraceConfig;
 class TracingSession;  // Declared below.
 
 enum BackendType : uint32_t {

@@ -137,6 +137,7 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
   h_printer.Print("#include <vector>\n");
   h_printer.Print("#include <string>\n");
   h_printer.Print("#include <type_traits>\n\n");
+  h_printer.Print("#include \"perfetto/protozero/cpp_message_obj.h\"\n");
   h_printer.Print("#include \"perfetto/protozero/copyable_ptr.h\"\n");
   h_printer.Print("#include \"perfetto/base/export.h\"\n\n");
 
@@ -500,7 +501,9 @@ void CppObjGenerator::GenEnumAliases(const EnumDescriptor* enum_desc,
 
 void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
   std::string full_name = GetFullName(msg);
-  p->Print("\nclass PERFETTO_EXPORT $n$ {\n", "n", full_name);
+  p->Print(
+      "\nclass PERFETTO_EXPORT $n$ : public ::protozero::CppMessageObj {\n",
+      "n", full_name);
   p->Print(" public:\n");
   p->Indent();
 
@@ -530,7 +533,7 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
   p->Print("};\n\n");
 
   p->Print("$n$();\n", "n", full_name);
-  p->Print("~$n$();\n", "n", full_name);
+  p->Print("~$n$() override;\n", "n", full_name);
   p->Print("$n$($n$&&) noexcept;\n", "n", full_name);
   p->Print("$n$& operator=($n$&&);\n", "n", full_name);
   p->Print("$n$(const $n$&);\n", "n", full_name);
@@ -542,21 +545,16 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
   p->Print("\n");
 
   std::string proto_type = GetFullName(msg, true);
-  p->Print("// Raw proto decoding.\n");
-  p->Print("bool ParseFromArray(const void*, size_t);\n");
-  p->Print("bool ParseRawProto(const std::string& str) {\n");
-  p->Print("  return ParseFromArray(str.data(), str.size());\n");
-  p->Print("}\n");
-
-  p->Print("std::string SerializeAsString() const;\n");
-  p->Print("std::vector<uint8_t> SerializeAsArray() const;\n");
+  p->Print("bool ParseFromArray(const void*, size_t) override;\n");
+  p->Print("std::string SerializeAsString() const override;\n");
+  p->Print("std::vector<uint8_t> SerializeAsArray() const override;\n");
   p->Print("void Serialize(::protozero::Message*) const;\n");
 
   p->Print("// (DEPRECATED) Conversion methods from/to libprotobuf types.\n");
   p->Print("// These two will go away soon, see go/perfetto-libprotobuf.\n");
   p->Print(
       "template <typename T /*$p$*/> void FromProto(const T& pb_obj) { "
-      "ParseRawProto(pb_obj.SerializeAsString()); }\n",
+      "ParseFromString(pb_obj.SerializeAsString()); }\n",
       "p", proto_type);
   p->Print(
       "template <typename T /*$p$*/> void ToProto(T* pb_obj) const { "
@@ -680,7 +678,7 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
 
   std::string proto_type = GetFullName(msg, true);
 
-  // Generate the ParseRawProto() method definition.
+  // Generate the ParseFromArray() method definition.
   p->Print("bool $f$::ParseFromArray(const void* raw, size_t size) {\n", "f",
            full_name);
   p->Indent();
@@ -711,7 +709,7 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
     } else {
       std::string statement;
       if (field->type() == TYPE_MESSAGE) {
-        statement = "$rval$.ParseRawProto(field.as_std_string());\n";
+        statement = "$rval$.ParseFromString(field.as_std_string());\n";
       } else {
         if (field->type() == TYPE_SINT32 || field->type() == TYPE_SINT64) {
           // sint32/64 fields are special and need to be zig-zag-decoded.

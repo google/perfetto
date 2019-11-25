@@ -33,16 +33,15 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/tracing.h"
-
 namespace perfetto {
 
 class ConsumerEndpoint;
 class DataSourceBase;
-class DataSourceConfig;
 class ProducerEndpoint;
 class TraceWriterBase;
 class TracingBackend;

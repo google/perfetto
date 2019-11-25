@@ -19,10 +19,9 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
 namespace perfetto {
 
-class DataSourceConfig;
 class SharedMemory;
 
 // A Producer is an entity that connects to the write-only port of the Service
