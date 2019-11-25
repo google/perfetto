@@ -144,6 +144,31 @@ int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
     // TODO(lalitm): introduce more orderings here based on empirical data.
     return false;
   });
+
+  // Remove any order by constraints which also have an equality constraint.
+  auto* ob = qc->mutable_order_by();
+  {
+    auto p = [&cs](const QueryConstraints::OrderBy& o) {
+      auto inner_p = [&o](const QueryConstraints::Constraint& c) {
+        return c.column == o.iColumn && sqlite_utils::IsOpEq(c.op);
+      };
+      return std::any_of(cs->begin(), cs->end(), inner_p);
+    };
+    auto remove_it = std::remove_if(ob->begin(), ob->end(), p);
+    ob->erase(remove_it, ob->end());
+  }
+
+  // Go through the order by constraints in reverse order and eliminate
+  // constraints until the first non-sorted on.
+  {
+    auto p = [this](const QueryConstraints::OrderBy& o) {
+      return !table_->GetColumn(static_cast<uint32_t>(o.iColumn)).IsSorted();
+    };
+    auto first_non_sorted_it = std::find_if(ob->rbegin(), ob->rend(), p);
+    auto pop_count = std::distance(ob->rbegin(), first_non_sorted_it);
+    ob->resize(ob->size() - static_cast<uint32_t>(pop_count));
+  }
+
   return SQLITE_OK;
 }
 
