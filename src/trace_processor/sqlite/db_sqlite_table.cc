@@ -159,10 +159,12 @@ int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
   }
 
   // Go through the order by constraints in reverse order and eliminate
-  // constraints until the first non-sorted on.
+  // constraints until the first non-sorted column or the first order by in
+  // descending order.
   {
     auto p = [this](const QueryConstraints::OrderBy& o) {
-      return !table_->GetColumn(static_cast<uint32_t>(o.iColumn)).IsSorted();
+      const auto& col = table_->GetColumn(static_cast<uint32_t>(o.iColumn));
+      return o.desc || !col.IsSorted();
     };
     auto first_non_sorted_it = std::find_if(ob->rbegin(), ob->rend(), p);
     auto pop_count = std::distance(ob->rbegin(), first_non_sorted_it);
