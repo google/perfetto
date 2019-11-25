@@ -1,24 +1,26 @@
 create view freq_view as
   select
     ts,
-    lead(ts) OVER (PARTITION BY name, ref ORDER BY ts) - ts as dur,
-    ref as cpu,
+    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
+    cpu,
     name as freq_name,
     value as freq_value
-  from counters
-  where name = 'cpufreq'
-    and ref_type = 'cpu';
+  from counter
+  inner join cpu_counter_track
+    on counter.track_id = cpu_counter_track.id
+  where name = 'cpufreq';
 
 create view idle_view
   as select
     ts,
-    lead(ts) OVER (PARTITION BY name, ref ORDER BY ts) - ts as dur,
-    ref as cpu,
+    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
+    cpu,
     name as idle_name,
     value as idle_value
-  from counters
-  where name = 'cpuidle'
-    and ref_type = 'cpu';
+  from counter
+  inner join cpu_counter_track
+    on counter.track_id = cpu_counter_track.id
+  where name = 'cpuidle';
 
 create virtual table freq_idle
   using span_join(freq_view PARTITIONED cpu, idle_view PARTITIONED cpu)
