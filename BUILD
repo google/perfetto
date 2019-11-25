@@ -149,6 +149,7 @@ perfetto_cc_library(
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_public",
         ":include_perfetto_tracing_core_core",
+        ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
     ],
     deps = [
@@ -354,6 +355,7 @@ filegroup(
     srcs = [
         "include/perfetto/protozero/contiguous_memory_range.h",
         "include/perfetto/protozero/copyable_ptr.h",
+        "include/perfetto/protozero/cpp_message_obj.h",
         "include/perfetto/protozero/field.h",
         "include/perfetto/protozero/message.h",
         "include/perfetto/protozero/message_handle.h",
@@ -410,6 +412,14 @@ filegroup(
         "include/perfetto/tracing/core/data_source_descriptor.h",
         "include/perfetto/tracing/core/trace_config.h",
         "include/perfetto/tracing/core/tracing_service_state.h",
+    ],
+)
+
+# GN target: //include/perfetto/tracing/core:forward_decls
+filegroup(
+    name = "include_perfetto_tracing_core_forward_decls",
+    srcs = [
+        "include/perfetto/tracing/core/forward_decls.h",
     ],
 )
 
@@ -555,6 +565,7 @@ filegroup(
         "src/protozero/scattered_stream_null_delegate.cc",
         "src/protozero/scattered_stream_writer.cc",
         "src/protozero/static_buffer.cc",
+        "src/protozero/virtual_destructors.cc",
     ],
 )
 
@@ -2350,6 +2361,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_tracing_core_core",
+        ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
     ],
     visibility = [
@@ -2420,6 +2432,7 @@ perfetto_cc_binary(
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_tracing_core_core",
+        ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
         ":src_android_internal_headers",
         ":src_android_internal_lazy_library_loader",

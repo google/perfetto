@@ -23,10 +23,9 @@
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/traced/probes/ftrace/event_info_constants.h"
+#include "src/traced/probes/ftrace/ftrace_config_utils.h"
 
 namespace perfetto {
-
-class FtraceConfig;
 
 // The subset of the sched_switch event's format that is used when parsing and
 // encoding into the compact format.

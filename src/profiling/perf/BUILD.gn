@@ -51,6 +51,9 @@ source_set("producer") {
     "../../../src/base:unix_socket",
     "../../../src/tracing:ipc",
   ]
+  public_deps = [
+    "../../../include/perfetto/tracing/core",
+  ]
   sources = [
     "event_config.h",
     "event_reader.cc",
