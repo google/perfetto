@@ -16,7 +16,10 @@
 
 -- View of Power Rail counters with ts converted from ns to ms.
 CREATE VIEW power_rails_counters AS
-SELECT value, ts/1000000 AS ts, name FROM counters WHERE name LIKE 'power.%';
+SELECT value, ts/1000000 AS ts, name
+FROM counter c
+JOIN counter_track t on c.track_id = t.id
+WHERE name LIKE 'power.%';
 
 CREATE VIEW power_rails_view AS
 WITH RECURSIVE name AS (SELECT DISTINCT name FROM power_rails_counters)
