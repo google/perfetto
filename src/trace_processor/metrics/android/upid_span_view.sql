@@ -24,9 +24,10 @@ SELECT
       end_ts,
       (SELECT end_ts FROM trace_bounds)
     )
-    FROM process WHERE upid = ref) + 1
-  ) OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
-  ref AS upid,
+    FROM process p WHERE p.upid = t.upid) + 1
+  ) OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  upid,
   value AS {{table_name}}_val
-FROM counters
-WHERE name = '{{counter_name}}' AND ref IS NOT NULL AND ref_type = 'upid';
+FROM counter c JOIN process_counter_track t
+  ON t.id = c.track_id
+WHERE name = '{{counter_name}}' AND upid IS NOT NULL;

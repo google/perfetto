@@ -62,11 +62,12 @@ CREATE VIEW oom_score_span AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-    OVER(PARTITION BY counter_id ORDER BY ts) - ts AS dur,
-  ref AS upid,
+    OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  upid,
   CAST(value AS INT) AS oom_score_val
-FROM counters
-WHERE name = 'oom_score_adj' AND ref IS NOT NULL;
+FROM counter c JOIN process_counter_track t
+  ON c.track_id = t.id
+WHERE name = 'oom_score_adj' AND upid IS NOT NULL;
 
 DROP TABLE IF EXISTS anon_rss_by_oom_span;
 
