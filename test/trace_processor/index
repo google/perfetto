@@ -60,7 +60,7 @@ kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
 ../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
-../data/memory_counters.pb counters_ref_type_null.sql counters_ref_type_null_memory_counters.out
+../data/memory_counters.pb global_memory_counter.sql global_memory_counter_memory_counters.out
 
 # Stats
 ../data/android_sched_and_ps.pb stats.sql android_sched_and_ps_stats.out
@@ -102,7 +102,7 @@ synth_1.py filter_sched.sql synth_1_filter_sched.out
 ../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
 
 # Counters table
-synth_1.py filter_counters.sql synth_1_filter_counters.out
+synth_1.py filter_counter.sql synth_1_filter_counter.out
 ../data/memory_counters.pb b120278869_neg_ts_end.sql memory_counters_b120278869_neg_ts_end.out
 counters_where_cpu.py counters_where_cpu.sql counters_where_cpu_counters_where_cpu.out
 counters_group_by_freq.py counters_group_by_freq.sql counters_group_by_freq_counters_group_by_freq.out
