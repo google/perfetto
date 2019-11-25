@@ -21,14 +21,13 @@
 #include <memory>
 
 #include "perfetto/base/export.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/tracing_tls.h"
 #include "perfetto/tracing/platform.h"
-
 namespace perfetto {
 
 class DataSourceBase;
-class DataSourceDescriptor;
 class TraceWriterBase;
 struct TracingInitArgs;
 class TracingSession;

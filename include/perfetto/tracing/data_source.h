@@ -36,11 +36,13 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/locked_handle.h"
 #include "perfetto/tracing/trace_writer_base.h"
+
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -50,8 +52,6 @@ class TrackEventCategoryRegistry;
 template <typename, const internal::TrackEventCategoryRegistry*>
 class TrackEventDataSource;
 }  // namespace internal
-
-class DataSourceConfig;
 
 // Base class with the virtual methods to get start/stop notifications.
 // Embedders are supposed to derive the templated version below, not this one.

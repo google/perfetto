@@ -77,7 +77,7 @@ void JavaHprofProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
   JavaHprofConfig config;
-  config.ParseRawProto(ds_config.java_hprof_config_raw());
+  config.ParseFromString(ds_config.java_hprof_config_raw());
   DataSource ds;
   ds.id = id;
   for (uint64_t pid : config.pid())

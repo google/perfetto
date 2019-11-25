@@ -252,7 +252,7 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
   PERFETTO_LOG("Ftrace setup (target_buf=%" PRIu32 ")", config.target_buffer());
   const BufferID buffer_id = static_cast<BufferID>(config.target_buffer());
   FtraceConfig ftrace_config;
-  ftrace_config.ParseRawProto(config.ftrace_config_raw());
+  ftrace_config.ParseFromString(config.ftrace_config_raw());
   std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
       ftrace_->GetWeakPtr(), session_id, std::move(ftrace_config),
       endpoint_->CreateTraceWriter(buffer_id)));

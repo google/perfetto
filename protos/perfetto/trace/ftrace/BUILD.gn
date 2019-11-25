@@ -17,6 +17,10 @@ import("../../../../gn/proto_library.gni")
 import("all_protos.gni")
 
 perfetto_proto_library("@TYPE@") {
+  proto_generators = [
+    "zero",
+    "lite",
+  ]
   sources = ftrace_proto_names
 }
 

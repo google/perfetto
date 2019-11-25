@@ -36,9 +36,9 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/id_allocator.h"
-
 namespace perfetto {
 
 namespace base {
@@ -46,12 +46,10 @@ class TaskRunner;
 }  // namespace base
 
 class Consumer;
-class DataSourceConfig;
 class Producer;
 class SharedMemory;
 class SharedMemoryArbiterImpl;
 class TraceBuffer;
-class TraceConfig;
 class TracePacket;
 
 // The tracing service business logic.

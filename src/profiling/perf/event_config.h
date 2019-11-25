@@ -22,7 +22,8 @@
 #include <sys/types.h>
 
 #include "perfetto/ext/base/optional.h"
-#include "protos/perfetto/config/data_source_config.gen.h"
+#include "perfetto/tracing/core/data_source_config.h"
+
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
 
 namespace perfetto {
