@@ -22,10 +22,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/config/data_source_config.gen.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "test/gtest_and_gmock.h"
+
 #include "protos/perfetto/config/data_source_config.pbzero.h"
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
-#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace profiling {
@@ -37,14 +38,14 @@ static DataSourceConfig ConfigForTid(int32_t tid) {
   protozero::HeapBuffered<protos::pbzero::DataSourceConfig> ds_config;
   ds_config->set_perf_event_config_raw(pb_config.SerializeAsString());
   DataSourceConfig cfg;
-  PERFETTO_CHECK(cfg.ParseRawProto(ds_config.SerializeAsString()));
+  PERFETTO_CHECK(cfg.ParseFromString(ds_config.SerializeAsString()));
   return cfg;
 }
 
 TEST(EventConfigTest, TidRequired) {
   // Doesn't pass validation without a TID
   DataSourceConfig cfg;
-  ASSERT_TRUE(cfg.ParseRawProto(std::string{}));
+  ASSERT_TRUE(cfg.ParseFromString(""));
 
   base::Optional<EventConfig> event_config = EventConfig::Create(cfg);
   ASSERT_FALSE(event_config.has_value());

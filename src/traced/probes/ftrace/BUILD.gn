@@ -100,6 +100,7 @@ source_set("integrationtests") {
 
 source_set("ftrace") {
   public_deps = [
+    "../../../../protos/perfetto/config/ftrace:cpp",
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../tracing",
   ]
@@ -108,7 +109,6 @@ source_set("ftrace") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
-    "../../../../protos/perfetto/config/ftrace:cpp",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero",

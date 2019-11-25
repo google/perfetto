@@ -17,11 +17,12 @@
 #ifndef INCLUDE_PERFETTO_EXT_TRACING_CORE_TRACE_STATS_H_
 #define INCLUDE_PERFETTO_EXT_TRACING_CORE_TRACE_STATS_H_
 
-// This header exists only for legacy code that used to refer to the
-// checked-in auto-generated code, before it was moved to be a build-time gen
-// rule. DO NOT add any new includes to this header, instead directly include
-// the one below.
-// TODO(primiano): cleanup call-sites and remove this header.
+// Creates the aliases in the ::perfetto namespace, doing things like:
+// using ::perfetto::Foo = ::perfetto::protos::gen::Foo.
+// See comments in forward_decls.h for the historical reasons of this
+// indirection layer.
+#include "perfetto/tracing/core/forward_decls.h"
+
 #include "protos/perfetto/common/trace_stats.gen.h"
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_TRACE_STATS_H_

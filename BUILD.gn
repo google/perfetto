@@ -113,7 +113,6 @@ if (perfetto_build_standalone) {
 
     # For checking all generated xxx.gen.{cc,h} files without waiting for
     # embedders to try to use them and fail.
-    "protos/perfetto/trace:cpp",
     "protos/perfetto/config:cpp",
     "protos/perfetto/common:cpp",
 

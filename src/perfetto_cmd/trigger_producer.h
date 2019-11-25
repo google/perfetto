@@ -24,10 +24,8 @@
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
 namespace perfetto {
-
-class DataSourceConfig;
 
 // This is a producer that only sends the provided |triggers| to the service. It
 // will never register any data sources.

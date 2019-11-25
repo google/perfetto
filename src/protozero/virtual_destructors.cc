@@ -1,5 +1,6 @@
+
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +15,10 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACING_CORE_CHROME_CONFIG_H_
-#define INCLUDE_PERFETTO_TRACING_CORE_CHROME_CONFIG_H_
+#include "perfetto/protozero/cpp_message_obj.h"
 
-// Creates the aliases in the ::perfetto namespace, doing things like:
-// using ::perfetto::Foo = ::perfetto::protos::gen::Foo.
-// See comments in forward_decls.h for the historical reasons of this
-// indirection layer.
-#include "perfetto/tracing/core/forward_decls.h"
+namespace protozero {
 
-#include "protos/perfetto/config/chrome/chrome_config.gen.h"
+CppMessageObj::~CppMessageObj() = default;
 
-#endif  // INCLUDE_PERFETTO_TRACING_CORE_CHROME_CONFIG_H_
+}  // namespace protozero

@@ -296,7 +296,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   }
 
   HeapprofdConfig heapprofd_config;
-  heapprofd_config.ParseRawProto(ds_config.heapprofd_config_raw());
+  heapprofd_config.ParseFromString(ds_config.heapprofd_config_raw());
 
   if (heapprofd_config.all() && !heapprofd_config.pid().empty())
     PERFETTO_ELOG("No point setting all and pid");
