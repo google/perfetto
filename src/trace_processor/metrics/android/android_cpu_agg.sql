@@ -18,14 +18,15 @@
 -- View with start and end ts for each cpu frequency, per cpu.
 CREATE VIEW cpu_freq_view AS
 SELECT
-  ref as cpu,
+  cpu,
   ts,
   LEAD(ts, 1, (SELECT end_ts from trace_bounds))
-    OVER (PARTITION by ref ORDER BY ts) AS end_ts,
+    OVER (PARTITION by cpu ORDER BY ts) AS end_ts,
   LEAD(ts, 1, (SELECT end_ts from trace_bounds))
-    OVER (PARTITION by ref ORDER BY ts) - ts AS dur,
+    OVER (PARTITION by cpu ORDER BY ts) - ts AS dur,
   value as freq
-FROM counters
+FROM counter
+JOIN cpu_counter_track on counter.track_id = cpu_counter_track.id
 WHERE name = 'cpufreq';
 
 -- View that joins the cpufreq table with the slice table.

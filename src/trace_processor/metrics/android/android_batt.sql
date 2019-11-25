@@ -22,27 +22,32 @@ SELECT
   current_ua
 FROM (
   SELECT distinct(ts) AS ts
-  FROM counters
+  FROM counter c
+  JOIN counter_track t on c.track_id = t.id
   WHERE name LIKE 'batt.%'
 ) AS all_ts
 LEFT JOIN (
   SELECT ts, value AS current_avg_ua
-  FROM counters
+  FROM counter c
+  JOIN counter_track t on c.track_id = t.id
   WHERE name='batt.current.avg_ua'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS capacity_percent
-  FROM counters
+  FROM counter c
+  JOIN counter_track t on c.track_id = t.id
   WHERE name='batt.capacity_pct'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS charge_uah
-  FROM counters
+  FROM counter c
+  JOIN counter_track t on c.track_id = t.id
   WHERE name='batt.charge_uah'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS current_ua
-  FROM counters
+  FROM counter c
+  JOIN counter_track t on c.track_id = t.id
   WHERE name='batt.current_ua'
 ) USING(ts)
 ORDER BY ts;

@@ -25,11 +25,12 @@ CREATE VIEW oom_scores AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-    OVER(PARTITION BY counter_id ORDER BY ts) AS ts_end,
-  ref AS upid,
+    OVER(PARTITION BY track_id ORDER BY ts) AS ts_end,
+  upid,
   value AS score
-FROM counter_definitions JOIN counter_values USING(counter_id)
-WHERE name = 'oom_score_adj' AND ref IS NOT NULL AND ref_type = 'upid';
+FROM counter c JOIN process_counter_track t
+  ON c.track_id = t.id
+WHERE name = 'oom_score_adj' AND upid IS NOT NULL;
 
 CREATE VIEW lmk_by_score AS
 SELECT lmk_events.upid, CAST(oom_scores.score AS INT) AS score
