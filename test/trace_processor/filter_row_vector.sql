@@ -1,13 +1,13 @@
-SELECT ts FROM counter_values
+SELECT ts
+FROM counter
 WHERE
   ts > 72563651549 AND
-  counter_id = (
-    SELECT d.counter_id
-    FROM counter_definitions d
-    INNER JOIN process p on d.ref = p.upid
+  track_id = (
+    SELECT t.id
+    FROM process_counter_track t
+    JOIN process p USING (upid)
     WHERE
-      d.name = 'Heap size (KB)'
-      AND d.ref_type = 'upid'
+      t.name = 'Heap size (KB)'
       AND p.pid = 1204
   ) AND
   value != 17952.000000
