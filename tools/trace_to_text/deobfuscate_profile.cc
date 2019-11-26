@@ -19,7 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/profiling/deobfuscator.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "tools/trace_to_text/deobfuscate_profile.h"
 #include "tools/trace_to_text/utils.h"
 
@@ -78,8 +78,8 @@ int DeobfuscateProfile(std::istream* input, std::ostream* output) {
 
   tp->NotifyEndOfFile();
   DeobfuscateDatabase(tp.get(), obfuscation_map,
-                      [output](const perfetto::protos::TracePacket& packet) {
-                        WriteTracePacket(packet.SerializeAsString(), output);
+                      [output](const std::string& packet_proto) {
+                        WriteTracePacket(packet_proto, output);
                       });
   return 0;
 }
