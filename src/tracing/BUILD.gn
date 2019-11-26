@@ -59,7 +59,6 @@ source_set("tracing") {
     "core/tracing_service_impl.h",
     "core/virtual_destructors.cc",
   ]
-  assert_no_deps = [ "//gn:protobuf_lite" ]
 }
 
 # TODO(primiano): Remove this target as soon as chromium's
