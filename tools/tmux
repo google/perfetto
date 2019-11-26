@@ -194,7 +194,8 @@ else
   DIR=$(mktemp -p $TMPDIR -d perfetto.XXXXXX)
 fi
 
-tools/ninja -C "$OUT" traced traced_probes perfetto trace_to_text test/configs
+"$CUR_DIR/ninja" -C "$OUT" \
+  traced traced_probes perfetto trace_to_text test/configs
 
 push "$OUT/traced"
 push "$OUT/traced_probes"
