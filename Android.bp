@@ -4695,6 +4695,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_sqlite_unittests",
   srcs: [
+    "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
     "src/trace_processor/sqlite/query_constraints_unittest.cc",
     "src/trace_processor/sqlite/sqlite3_str_split_unittest.cc",
   ],
