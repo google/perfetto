@@ -30,6 +30,9 @@ SELECT RUN_METRIC('android/upid_span_view.sql',
   'table_name', 'swap',
   'counter_name', 'mem.swap');
 
+-- OOM score
+SELECT RUN_METRIC('android/process_oom_score.sql');
+
 -- Anon RSS + Swap
 DROP TABLE IF EXISTS anon_and_swap_join;
 
@@ -54,20 +57,6 @@ DROP VIEW IF EXISTS java_heap_span;
 CREATE VIEW java_heap_span AS
 SELECT ts, dur, upid, java_heap_kb_val * 1024 AS java_heap_val
 FROM java_heap_kb_span;
-
--- Create a track for process OOM scores.
-DROP VIEW IF EXISTS oom_score_span;
-
-CREATE VIEW oom_score_span AS
-SELECT
-  ts,
-  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-    OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
-  upid,
-  CAST(value AS INT) AS oom_score_val
-FROM counter c JOIN process_counter_track t
-  ON c.track_id = t.id
-WHERE name = 'oom_score_adj' AND upid IS NOT NULL;
 
 DROP TABLE IF EXISTS anon_rss_by_oom_span;
 
