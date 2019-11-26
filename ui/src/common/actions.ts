@@ -15,6 +15,7 @@
 import {Draft} from 'immer';
 
 import {assertExists} from '../base/logging';
+import {CallsiteInfo} from '../common/state';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 
 import {
@@ -438,6 +439,18 @@ export const StateActions = {
       upid: args.upid,
       ts: args.ts,
     };
+  },
+
+  expandHeapProfileFlamegraph(
+      state: StateDraft, args: {expandedCallsite?: CallsiteInfo}): void {
+    if (state.currentHeapProfileFlamegraph === null) return;
+    state.currentHeapProfileFlamegraph.expandedCallsite = args.expandedCallsite;
+  },
+
+  changeViewHeapProfileFlamegraph(
+      state: StateDraft, args: {viewingOption: string}): void {
+    if (state.currentHeapProfileFlamegraph === null) return;
+    state.currentHeapProfileFlamegraph.viewingOption = args.viewingOption;
   },
 
   selectChromeSlice(state: StateDraft, args: {id: number, trackId: string}):

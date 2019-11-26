@@ -44,9 +44,6 @@ import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
 import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
 import {
-  HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND
-} from '../tracks/heap_profile_flamegraph/common';
-import {
   PROCESS_SCHEDULING_TRACK_KIND
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
@@ -54,6 +51,10 @@ import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 import {Child, Children, Controller} from './controller';
 import {globals} from './globals';
+import {
+  HeapProfileController,
+  HeapProfileControllerArgs
+} from './heap_profile_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
@@ -148,6 +149,10 @@ export class TraceController extends Controller<States> {
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
           Child('selection', SelectionController, selectionArgs));
+
+        const heapProfileArgs: HeapProfileControllerArgs = {engine};
+        childControllers.push(
+            Child('heapProfile', HeapProfileController, heapProfileArgs));
 
         childControllers.push(Child('search', SearchController, {
           engine,
@@ -630,14 +635,6 @@ export class TraceController extends Controller<States> {
               engineId: this.engineId,
               kind: HEAP_PROFILE_TRACK_KIND,
               name: `Heap Profile`,
-              trackGroup: pUuid,
-              config: {upid}
-            });
-
-            tracksToAdd.push({
-              engineId: this.engineId,
-              kind: HEAP_PROFILE_FLAMEGRAPH_TRACK_KIND,
-              name: `Heap Profile Flamegraph`,
               trackGroup: pUuid,
               config: {upid}
             });

@@ -41,6 +41,16 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
+export interface CallsiteInfo {
+  id: number;
+  parentId: number;
+  depth: number;
+  name?: string;
+  totalSize: number;
+  selfSize: number;
+  mapping: string;
+}
+
 export interface TraceFileSource {
   type: 'FILE';
   file: File;
@@ -153,6 +163,8 @@ export interface HeapProfileFlamegraph {
   id: number;
   upid: number;
   ts: number;
+  expandedCallsite?: CallsiteInfo;
+  viewingOption?: string;
 }
 
 export interface ChromeSliceSelection {

@@ -1,5 +1,5 @@
-import {CallsiteInfo} from '../../frontend/globals';
-import {mergeCallsites} from './controller';
+import {mergeCallsites} from './flamegraph_util';
+import {CallsiteInfo} from './state';
 
 test('zeroCallsitesMerged', () => {
   const callsites: CallsiteInfo[] = [
