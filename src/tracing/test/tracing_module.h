@@ -36,6 +36,7 @@ perfetto::internal::TrackEventIncrementalState* GetIncrementalState();
 void FunctionWithOneTrackEvent();
 void FunctionWithOneTrackEventWithTypedArgument();
 void FunctionWithOneScopedTrackEvent();
+void FunctionWithOneTrackEventWithDebugAnnotations();
 
 }  // namespace tracing_module
 

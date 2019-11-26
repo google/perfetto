@@ -25,6 +25,7 @@
 #include "perfetto/tracing/track_event_interned_data_index.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 
@@ -62,6 +63,22 @@ struct InternedEventName
                   size_t iid,
                   const char* value) {
     auto name = interned_data->add_event_names();
+    name->set_iid(iid);
+    name->set_name(value);
+  }
+};
+
+struct InternedDebugAnnotationName
+    : public TrackEventInternedDataIndex<
+          InternedDebugAnnotationName,
+          perfetto::protos::pbzero::InternedData::
+              kDebugAnnotationNamesFieldNumber,
+          const char*,
+          SmallInternedDataTraits> {
+  static void Add(protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const char* value) {
+    auto name = interned_data->add_debug_annotation_names();
     name->set_iid(iid);
     name->set_name(value);
   }
@@ -162,6 +179,15 @@ EventContext TrackEventInternal::WriteEvent(
     track_event->set_name_iid(name_iid);
   }
   return ctx;
+}
+
+// static
+protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
+    perfetto::EventContext* event_ctx,
+    const char* name) {
+  auto annotation = event_ctx->event()->add_debug_annotations();
+  annotation->set_name_iid(InternedDebugAnnotationName::Get(event_ctx, name));
+  return annotation;
 }
 
 }  // namespace internal

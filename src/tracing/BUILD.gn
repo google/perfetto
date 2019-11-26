@@ -261,6 +261,7 @@ source_set("client_api") {
   ]
   sources = [
     "data_source.cc",
+    "debug_annotation.cc",
     "event_context.cc",
     "internal/in_process_tracing_backend.cc",
     "internal/in_process_tracing_backend.h",
