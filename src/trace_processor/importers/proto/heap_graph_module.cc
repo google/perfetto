@@ -173,5 +173,68 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
   }
 }
 
+void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
+  // TODO(fmayer): Support multiple profiles in the same trace.
+  protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
+      blob.data, blob.size);
+  for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
+       ++class_it) {
+    protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
+    auto obfuscated_class_name_id =
+        context_->storage->string_pool().GetId(cls.obfuscated_name());
+    if (!obfuscated_class_name_id) {
+      PERFETTO_DLOG("Class string %s not found",
+                    cls.obfuscated_name().ToStdString().c_str());
+    } else {
+      const std::vector<int64_t>* cls_objects =
+          context_->heap_graph_tracker->RowsForType(*obfuscated_class_name_id);
+
+      if (cls_objects) {
+        auto interned_deobfuscated_name =
+            context_->storage->InternString(cls.deobfuscated_name());
+        for (int64_t row : *cls_objects) {
+          context_->storage->mutable_heap_graph_object_table()
+              ->mutable_deobfuscated_type_name()
+              ->Set(static_cast<uint32_t>(row), interned_deobfuscated_name);
+        }
+      } else {
+        PERFETTO_DLOG("Class %s not found",
+                      cls.obfuscated_name().ToStdString().c_str());
+      }
+    }
+    for (auto member_it = cls.obfuscated_members(); member_it; ++member_it) {
+      protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
+
+      std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
+                                      "." +
+                                      member.obfuscated_name().ToStdString();
+      std::string merged_deobfuscated =
+          cls.deobfuscated_name().ToStdString() + "." +
+          member.deobfuscated_name().ToStdString();
+
+      auto obfuscated_field_name_id = context_->storage->string_pool().GetId(
+          base::StringView(merged_obfuscated));
+      if (!obfuscated_field_name_id) {
+        PERFETTO_DLOG("Field string %s not found", merged_obfuscated.c_str());
+        continue;
+      }
+
+      const std::vector<int64_t>* field_references =
+          context_->heap_graph_tracker->RowsForField(*obfuscated_field_name_id);
+      if (field_references) {
+        auto interned_deobfuscated_name = context_->storage->InternString(
+            base::StringView(merged_deobfuscated));
+        for (int64_t row : *field_references) {
+          context_->storage->mutable_heap_graph_reference_table()
+              ->mutable_deobfuscated_field_name()
+              ->Set(static_cast<uint32_t>(row), interned_deobfuscated_name);
+        }
+      } else {
+        PERFETTO_DLOG("Field %s not found", merged_obfuscated.c_str());
+      }
+    }
+  }
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
