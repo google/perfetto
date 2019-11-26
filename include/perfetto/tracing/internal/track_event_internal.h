@@ -21,12 +21,18 @@
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 class EventContext;
+namespace protos {
+namespace pbzero {
+class DebugAnnotation;
+}  // namespace pbzero
+}  // namespace protos
 
 namespace internal {
 class TrackEventCategoryRegistry;
@@ -86,6 +92,19 @@ class TrackEventInternal {
       const char* category,
       const char* name,
       perfetto::protos::pbzero::TrackEvent::Type);
+
+  template <typename T>
+  static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
+                                 const char* name,
+                                 T value) {
+    auto annotation = AddDebugAnnotation(event_ctx, name);
+    WriteDebugAnnotation(annotation, value);
+  }
+
+ private:
+  static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
+      perfetto::EventContext*,
+      const char* name);
 };
 
 }  // namespace internal
