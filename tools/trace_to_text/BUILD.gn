@@ -39,20 +39,20 @@ perfetto_host_executable("trace_to_text_lite") {
 source_set("utils") {
   deps = [
     ":symbolizer",
+    "../../gn:default_deps",
     "../../include/perfetto/profiling:deobfuscator",
+    "../../include/perfetto/protozero",
+    "../../include/perfetto/trace_processor",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/interned_data:zero",
+    "../../protos/perfetto/trace/profiling:zero",
     "../../src/profiling:deobfuscator",
   ]
   public_deps = [
-    "../../gn:default_deps",
     "../../gn:zlib",
-    "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
-    "../../include/perfetto/ext/traced:sys_stats_counters",
-    "../../protos/perfetto/trace:lite",
-    "../../protos/perfetto/trace/ftrace:lite",
-    "../../protos/perfetto/trace/interned_data:lite",
-    "../../protos/perfetto/trace/profiling:lite",
-    "../../src/trace_processor:lib",
+    "../../include/perfetto/profiling:deobfuscator",
+    "../../include/perfetto/profiling:symbolizer",
   ]
   sources = [
     "utils.cc",
@@ -62,16 +62,14 @@ source_set("utils") {
 
 source_set("local_symbolizer") {
   public_deps = [
+    "../../include/perfetto/ext/base",
+    "../../include/perfetto/profiling:symbolizer",
+  ]
+  deps = [
     ":symbolizer",
     ":utils",
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",
     "../../include/perfetto/protozero",
-    "../../protos/perfetto/trace:lite",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/interned_data:lite",
-    "../../protos/perfetto/trace/profiling:lite",
   ]
   sources = [
     "local_symbolizer.cc",
@@ -80,16 +78,9 @@ source_set("local_symbolizer") {
 }
 
 source_set("symbolizer") {
-  public_deps = [
+  deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",
     "../../include/perfetto/profiling:symbolizer",
-    "../../include/perfetto/protozero",
-    "../../protos/perfetto/trace:lite",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/interned_data:lite",
-    "../../protos/perfetto/trace/profiling:lite",
   ]
   sources = [
     "symbolizer.cc",
@@ -103,11 +94,11 @@ source_set("pprofbuilder") {
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/profiling:symbolizer",
-    "../../protos/perfetto/trace:lite",
-    "../../protos/perfetto/trace/profiling:lite",
-    "../../protos/third_party/pprof:lite",
-    "../../src/base",
-    "../../src/trace_processor:lib",
+    "../../include/perfetto/protozero",
+    "../../include/perfetto/trace_processor",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/profiling:zero",
+    "../../protos/third_party/pprof:zero",
   ]
   sources = [
     "pprof_builder.cc",
@@ -128,22 +119,13 @@ source_set("common") {
   deps = [
     ":local_symbolizer",
     ":pprofbuilder",
-    ":symbolizer",
     ":utils",
-    "../../include/perfetto/profiling:deobfuscator",
-    "../../src/profiling:deobfuscator",
-  ]
-  public_deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
+    "../../include/perfetto/profiling:deobfuscator",
     "../../include/perfetto/protozero",
-    "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/ftrace:lite",
-    "../../protos/perfetto/trace/interned_data:lite",
-    "../../protos/perfetto/trace/profiling:lite",
-    "../../src/base",
     "../../src/trace_processor:lib",
   ]
   sources = [
@@ -170,6 +152,7 @@ source_set("lite") {
   deps = [
     ":common",
     "../../gn:default_deps",
+    "../../include/perfetto/base",
   ]
   sources = [
     "lite_fallbacks.cc",
@@ -185,6 +168,7 @@ source_set("full") {
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../gn:zlib",
+    "../../protos/perfetto/trace:zero",
   ]
   sources = [
     "proto_full_utils.cc",

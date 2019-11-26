@@ -26,12 +26,13 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/traced/sys_stats_counters.h"
-#include "protos/perfetto/trace/ftrace/ftrace_stats.pb.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_processor.h"
 
-#include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_to_text {
@@ -184,22 +185,6 @@ void ForEachPacketBlobInTrace(
   }
 }
 
-void ForEachPacketInTrace(
-    std::istream* input,
-    const std::function<void(const protos::TracePacket&)>& f) {
-  ForEachPacketBlobInTrace(
-      input, [f](std::unique_ptr<char[]> buf, size_t size) {
-        protos::TracePacket packet;
-        auto res = packet.ParseFromArray(buf.get(), static_cast<int>(size));
-        if (!res) {
-          PERFETTO_ELOG("Skipping invalid packet");
-          return;
-        }
-        f(packet);
-      });
-  fprintf(stderr, "\n");
-}
-
 std::vector<std::string> GetPerfettoBinaryPath() {
   std::vector<std::string> roots;
   const char* root = getenv("PERFETTO_BINARY_PATH");
@@ -257,10 +242,9 @@ bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
   return true;
 }
 
-void SymbolizeDatabase(
-    trace_processor::TraceProcessor* tp,
-    Symbolizer* symbolizer,
-    std::function<void(perfetto::protos::TracePacket)> callback) {
+void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
+                       Symbolizer* symbolizer,
+                       std::function<void(const std::string&)> callback) {
   PERFETTO_CHECK(symbolizer);
   auto unsymbolized = GetUnsymbolizedFrames(tp);
   for (auto it = unsymbolized.cbegin(); it != unsymbolized.cend(); ++it) {
@@ -271,9 +255,8 @@ void SymbolizeDatabase(
     if (res.empty())
       continue;
 
-    perfetto::protos::TracePacket packet;
-    perfetto::protos::ModuleSymbols* module_symbols =
-        packet.mutable_module_symbols();
+    protozero::HeapBuffered<perfetto::protos::pbzero::TracePacket> packet;
+    auto* module_symbols = packet->set_module_symbols();
     module_symbols->set_path(name_and_buildid.first);
     module_symbols->set_build_id(name_and_buildid.second);
     PERFETTO_DCHECK(res.size() == rel_pcs.size());
@@ -287,21 +270,20 @@ void SymbolizeDatabase(
         line->set_line_number(frame.line);
       }
     }
-    callback(std::move(packet));
+    callback(packet.SerializeAsString());
   }
 }
 
 void DeobfuscateDatabase(
     trace_processor::TraceProcessor* tp,
     const std::map<std::string, profiling::ObfuscatedClass>& mapping,
-    std::function<void(perfetto::protos::TracePacket)> callback) {
+    std::function<void(const std::string&)> callback) {
   std::map<std::string, std::set<std::string>> classes =
       GetHeapGraphClasses(tp);
-  perfetto::protos::TracePacket packet;
+  protozero::HeapBuffered<perfetto::protos::pbzero::TracePacket> packet;
   // TODO(fmayer): Add handling for package name and version code here so we
   // can support multiple dumps in the same trace.
-  perfetto::protos::DeobfuscationMapping* proto_mapping =
-      packet.mutable_deobfuscation_mapping();
+  auto* proto_mapping = packet->set_deobfuscation_mapping();
   for (const auto& p : classes) {
     const std::string& obfuscated_class_name = p.first;
     const std::set<std::string>& obfuscated_field_names = p.second;
@@ -311,15 +293,13 @@ void DeobfuscateDatabase(
       continue;
     }
     const profiling::ObfuscatedClass& cls = it->second;
-    perfetto::protos::ObfuscatedClass* proto_class =
-        proto_mapping->add_obfuscated_classes();
+    auto* proto_class = proto_mapping->add_obfuscated_classes();
     proto_class->set_obfuscated_name(obfuscated_class_name);
     proto_class->set_deobfuscated_name(cls.deobfuscated_name);
     for (const std::string& obfuscated_field_name : obfuscated_field_names) {
       auto field_it = cls.deobfuscated_fields.find(obfuscated_field_name);
       if (field_it != cls.deobfuscated_fields.end()) {
-        perfetto::protos::ObfuscatedMember* proto_member =
-            proto_class->add_obfuscated_members();
+        auto* proto_member = proto_class->add_obfuscated_members();
         proto_member->set_obfuscated_name(obfuscated_field_name);
         proto_member->set_deobfuscated_name(field_it->second);
       } else {
@@ -328,7 +308,7 @@ void DeobfuscateDatabase(
       }
     }
   }
-  callback(packet);
+  callback(packet.SerializeAsString());
 }
 
 TraceWriter::TraceWriter(std::ostream* output) : output_(output) {}

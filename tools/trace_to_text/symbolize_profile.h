@@ -17,10 +17,6 @@
 #ifndef TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
 #define TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
 
-#include "perfetto/profiling/symbolizer.h"
-#include "perfetto/trace_processor/trace_processor.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
-
 #include <functional>
 #include <iostream>
 
