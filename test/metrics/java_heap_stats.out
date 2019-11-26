@@ -4,7 +4,7 @@ java_heap_stats {
     process_name: "system_server"
     samples {
       ts: 10
-      heap_size: 224
+      heap_size: 480
       reachable_heap_size: 96
     }
   }

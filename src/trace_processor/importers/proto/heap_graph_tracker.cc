@@ -78,15 +78,17 @@ void HeapGraphTracker::FinalizeProfile() {
           stats::heap_graph_invalid_string_id, static_cast<int>(current_upid_));
       continue;
     }
+    StringPool::Id type_name = it->second;
     context_->storage->mutable_heap_graph_object_table()->Insert(
         {current_upid_, current_ts_, static_cast<int64_t>(obj.object_id),
          static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
          /*unique_retained_size=*/-1, /*reference_set_id=*/-1,
-         /*reachable=*/0, /*type_name=*/it->second,
+         /*reachable=*/0, /*type_name=*/type_name,
          /*deobfuscated_type_name=*/base::nullopt,
          /*root_type=*/base::nullopt});
     int64_t row = context_->storage->heap_graph_object_table().size() - 1;
     object_id_to_row_.emplace(obj.object_id, row);
+    class_to_rows_[type_name].emplace_back(row);
     walker_.AddNode(row, obj.self_size);
   }
 
@@ -127,6 +129,8 @@ void HeapGraphTracker::FinalizeProfile() {
       context_->storage->mutable_heap_graph_reference_table()->Insert(
           {reference_set_id, owner_row, owned_row, field_name,
            /*deobfuscated_field_name=*/base::nullopt});
+      int64_t row = context_->storage->heap_graph_reference_table().size() - 1;
+      field_to_rows_[field_name].emplace_back(row);
     }
     context_->storage->mutable_heap_graph_object_table()
         ->mutable_reference_set_id()
@@ -151,9 +155,20 @@ void HeapGraphTracker::FinalizeProfile() {
 
   walker_.CalculateRetained();
 
-  auto context = context_;
-  this->~HeapGraphTracker();
-  new (this) HeapGraphTracker(context);
+  // TODO(fmayer): Track these fields per sequence, then delete the
+  // current sequence's data here.
+  current_upid_ = 0;
+  current_ts_ = 0;
+  current_objects_.clear();
+  current_roots_.clear();
+  interned_type_names_.clear();
+  interned_field_names_.clear();
+  object_id_to_row_.clear();
+  prev_index_ = 0;
+  walker_ = HeapGraphWalker(this);
+
+  // class_to_rows_ and field_to_rows_ need to outlive this to handle
+  // DeobfuscationMapping later.
 }
 
 void HeapGraphTracker::MarkReachable(int64_t row) {

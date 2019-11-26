@@ -42,11 +42,16 @@ class HeapGraphModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
       return ModuleResult::Handled();
     }
 
+    if (decoder.has_deobfuscation_mapping()) {
+      ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
+      return ModuleResult::Handled();
+    }
     return ModuleResult::Ignored();
   }
 
  private:
   void ParseHeapGraph(int64_t ts, protozero::ConstBytes);
+  void ParseDeobfuscationMapping(protozero::ConstBytes);
 };
 
 }  // namespace trace_processor
