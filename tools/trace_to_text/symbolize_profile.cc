@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/profiling/symbolizer.h"
+#include "perfetto/trace_processor/trace_processor.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 #include "tools/trace_to_text/local_symbolizer.h"
@@ -57,8 +58,8 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
   tp->NotifyEndOfFile();
 
   SymbolizeDatabase(tp.get(), symbolizer.get(),
-                    [output](const perfetto::protos::TracePacket& packet) {
-                      WriteTracePacket(packet.SerializeAsString(), output);
+                    [output](const std::string& packet_proto) {
+                      WriteTracePacket(packet_proto, output);
                     });
   return 0;
 }
