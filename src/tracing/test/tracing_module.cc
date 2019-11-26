@@ -75,4 +75,11 @@ void FunctionWithOneScopedTrackEvent() {
   puts("Hello");
 }
 
+void FunctionWithOneTrackEventWithDebugAnnotations() {
+  TRACE_EVENT_BEGIN("cat1", "EventWithAnnotations", "p1", 42, "p2", .5f);
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
 }  // namespace tracing_module

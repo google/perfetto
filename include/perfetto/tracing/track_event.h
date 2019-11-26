@@ -54,8 +54,18 @@
 //
 //       int main() {
 //         perfetto::TrackEvent::Register();
-//         TRACK_EVENT("category", "MyEvent");
-//         ...
+//
+//         // A basic track event with just a name.
+//         TRACE_EVENT("category", "MyEvent");
+//
+//         // A track event with (up to two) debug annotations.
+//         TRACE_EVENT("category", "MyEvent", "parameter", 42);
+//
+//         // A track event with a strongly typed parameter.
+//         TRACE_EVENT("category", "MyEvent", [](perfetto::EventContext ctx) {
+//           ctx.event()->set_foo(42);
+//           ctx.event()->set_bar(.5f);
+//         });
 //       }
 //
 // ====================

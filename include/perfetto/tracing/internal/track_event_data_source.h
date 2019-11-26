@@ -96,6 +96,49 @@ class TrackEventDataSource
         });
   }
 
+  // Trace point with one debug annotation.
+  template <size_t CategoryIndex, typename ArgType>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               const char* arg_name,
+                               ArgType arg_value) PERFETTO_NO_INLINE {
+    Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
+        instances, [&](typename Base::TraceContext ctx) {
+          // TODO(skyostil): Intern categories at compile time.
+          auto event_ctx = TrackEventInternal::WriteEvent(
+              ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+              Registry->GetCategory(CategoryIndex)->name, event_name, type);
+          TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name,
+                                                 std::move(arg_value));
+        });
+  }
+
+  // Trace point with two debug annotations. Note that we only support up to two
+  // direct debug annotations. For more complicated arguments, you should
+  // define your own argument type in track_event.proto and use a lambda to fill
+  // it in your trace point.
+  template <size_t CategoryIndex, typename ArgType, typename ArgType2>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               const char* arg_name,
+                               ArgType arg_value,
+                               const char* arg_name2,
+                               ArgType2 arg_value2) PERFETTO_NO_INLINE {
+    Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
+        instances, [&](typename Base::TraceContext ctx) {
+          // TODO(skyostil): Intern categories at compile time.
+          auto event_ctx = TrackEventInternal::WriteEvent(
+              ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+              Registry->GetCategory(CategoryIndex)->name, event_name, type);
+          TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name,
+                                                 std::move(arg_value));
+          TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name2,
+                                                 std::move(arg_value2));
+        });
+  }
+
   static bool Register() {
     // Registration is performed out-of-line so users don't need to depend on
     // DataSourceDescriptor C++ bindings.
