@@ -34,6 +34,8 @@
 namespace perfetto {
 namespace profiling {
 
+using JavaHprofConfig = protos::gen::JavaHprofConfig;
+
 class JavaHprofProducer : public Producer {
  public:
   JavaHprofProducer(base::TaskRunner* task_runner)

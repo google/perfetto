@@ -115,6 +115,7 @@ template("protozero_cpp_library") {
     deps = [
       "$perfetto_root_path/gn:default_deps",
       "$perfetto_root_path/include/perfetto/base",
+      "$perfetto_root_path/src/protozero",
     ]
 
     if (defined(invoker.deps)) {
@@ -158,6 +159,7 @@ template("ipc_library") {
                              "include_dirs",
                              "proto_in_dir",
                              "proto_out_dir",
+                             "generator_plugin_options",
                              "sources",
                              "testonly",
                              "visibility",
@@ -211,19 +213,20 @@ template("perfetto_proto_library") {
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "cpp") {
-      zero_target_name_ = string_replace(target_name, expansion_token, "zero")
       protozero_cpp_library(target_name_) {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
-        deps = deps_ + [ ":$zero_target_name_" ]
+        generator_plugin_options = "wrapper_namespace=gen"
+        deps = deps_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "ipc") {
-      lite_target_name_ = string_replace(target_name, expansion_token, "lite")
+      cpp_target_name_ = string_replace(target_name, expansion_token, "cpp")
       ipc_library(target_name_) {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
-        deps = deps_ + [ ":$lite_target_name_" ]
+        generator_plugin_options = "wrapper_namespace=gen"
+        deps = deps_ + [ ":$cpp_target_name_" ]
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "lite") {

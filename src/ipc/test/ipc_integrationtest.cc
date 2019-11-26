@@ -20,8 +20,8 @@
 #include "src/ipc/test/test_socket.h"
 #include "test/gtest_and_gmock.h"
 
+#include "src/ipc/test/greeter_service.gen.h"
 #include "src/ipc/test/greeter_service.ipc.h"
-#include "src/ipc/test/greeter_service.pb.h"
 
 namespace ipc_test {
 namespace {
@@ -35,6 +35,8 @@ using ::perfetto::ipc::Host;
 using ::perfetto::ipc::Service;
 using ::perfetto::ipc::ServiceProxy;
 
+using namespace ::ipc_test::gen;
+
 constexpr char kSockName[] = TEST_SOCK_NAME("ipc_integrationtest");
 
 class MockEventListener : public ServiceProxy::EventListener {
@@ -43,7 +45,7 @@ class MockEventListener : public ServiceProxy::EventListener {
   MOCK_METHOD0(OnDisconnect, void());
 };
 
-class MockGreeterService : public ipc_test::Greeter {
+class MockGreeterService : public ::ipc_test::gen::Greeter {
  public:
   MOCK_METHOD2(OnSayHello,
                void(const GreeterRequestMsg&, DeferredGreeterReplyMsg*));

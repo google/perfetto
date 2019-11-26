@@ -29,10 +29,26 @@
 //     that generates foo.gen.h. This is achievable using public_deps in GN but
 //     is not testable / enforceable, hence too easy to get wrong.
 
-// TODO(primiano): update forward declarations and add the rest of the story in
-// the next CLs.
+// Historically the classes below used to be generated from the corresponding
+// .proto(s) at CL *check-in* time (!= build time) in the ::perfetto namespace.
+// Nowadays we have code everywhere that assume the right class is
+// ::perfetto::TraceConfig or the like. Back then other headers could just
+// forward declared ::perfetto::TraceConfig. These days, the real class is
+// ::perfetto::protos::gen::TraceConfig and core/trace_config.h aliases that as
+// using ::perfetto::TraceConfig = ::perfetto::protos::gen::TraceConfig.
+// In C++ one cannot forward declare a type alias (but only the aliased type).
+// Hence this header, which should be used every time one wants to forward
+// declare classes like TraceConfig.
+
+// The overall plan is that, when one of the classes below is needed:
+// The .h file includes this file.
+// The .cc file includes perfetto/tracing/core/trace_config.h (or equiv). That
+// header will pull the full declaration from trace_config.gen.h and will also
+// setup the alias in the ::perfetto namespace.
 
 namespace perfetto {
+namespace protos {
+namespace gen {
 
 class ChromeConfig;
 class CommitDataRequest;
@@ -42,6 +58,18 @@ class ObservableEvents;
 class TraceConfig;
 class TraceStats;
 class TracingServiceState;
+
+}  // namespace gen
+}  // namespace protos
+
+using ChromeConfig = ::perfetto::protos::gen::ChromeConfig;
+using CommitDataRequest = ::perfetto::protos::gen::CommitDataRequest;
+using DataSourceConfig = ::perfetto::protos::gen::DataSourceConfig;
+using DataSourceDescriptor = ::perfetto::protos::gen::DataSourceDescriptor;
+using ObservableEvents = ::perfetto::protos::gen::ObservableEvents;
+using TraceConfig = ::perfetto::protos::gen::TraceConfig;
+using TraceStats = ::perfetto::protos::gen::TraceStats;
+using TracingServiceState = ::perfetto::protos::gen::TracingServiceState;
 
 }  // namespace perfetto
 
