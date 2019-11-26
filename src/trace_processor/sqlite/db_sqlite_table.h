@@ -62,6 +62,10 @@ class DbSqliteTable : public SqliteTable {
     std::vector<Constraint> constraints_;
     std::vector<Order> orders_;
   };
+  struct QueryCost {
+    double cost;
+    uint32_t rows;
+  };
 
   static void RegisterTable(sqlite3* db,
                             const Table* table,
@@ -78,9 +82,10 @@ class DbSqliteTable : public SqliteTable {
   int ModifyConstraints(QueryConstraints*) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
- private:
-  double EstimateCost(const QueryConstraints& qc);
+  // static for testing.
+  static QueryCost EstimateCost(const Table& table, const QueryConstraints& qc);
 
+ private:
   const Table* table_ = nullptr;
 };
 
