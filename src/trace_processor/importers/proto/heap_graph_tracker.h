@@ -68,6 +68,20 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
                    int64_t retained,
                    int64_t unique_retained) override;
 
+  const std::vector<int64_t>* RowsForType(StringPool::Id type_name) const {
+    auto it = class_to_rows_.find(type_name);
+    if (it == class_to_rows_.end())
+      return nullptr;
+    return &it->second;
+  }
+
+  const std::vector<int64_t>* RowsForField(StringPool::Id field_name) const {
+    auto it = field_to_rows_.find(field_name);
+    if (it == field_to_rows_.end())
+      return nullptr;
+    return &it->second;
+  }
+
  private:
   bool SetPidAndTimestamp(UniquePid upid, int64_t ts);
   TraceProcessorContext* const context_;
@@ -82,6 +96,9 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
   uint64_t prev_index_ = 0;
 
   HeapGraphWalker walker_{this};
+
+  std::map<StringPool::Id, std::vector<int64_t>> class_to_rows_;
+  std::map<StringPool::Id, std::vector<int64_t>> field_to_rows_;
 };
 
 }  // namespace trace_processor
