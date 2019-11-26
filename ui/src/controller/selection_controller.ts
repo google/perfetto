@@ -73,7 +73,7 @@ export class SelectionController extends Controller<'main'> {
         if (results !== undefined && selection &&
             selection.kind === selectedKind && selection.id === selectedId) {
           Object.assign(selected, results);
-          globals.publish('HeapDumpDetails', selected);
+          globals.publish('HeapProfileDetails', selected);
         }
       });
     } else if (selection.kind === 'COUNTER') {
@@ -154,13 +154,7 @@ export class SelectionController extends Controller<'main'> {
             ts} and upid = ${upid}`);
     const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;
-    return {
-      ts: startTime,
-      allocated,
-      allocatedNotFreed,
-      tsNs: ts,
-      pid,
-    };
+    return {ts: startTime, allocated, allocatedNotFreed, tsNs: ts, pid, upid};
   }
 
   async counterDetails(ts: number, rightTs: number, id: number) {

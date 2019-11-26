@@ -15,69 +15,137 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {
+  ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+  DEFAULT_VIEWING_OPTION,
+  OBJECTS_ALLOCATED_KEY,
+  OBJECTS_ALLOCATED_NOT_FREED_KEY,
+  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
+} from '../common/flamegraph_util';
 import {timeToCode} from '../common/time';
 
+import {Flamegraph} from './flamegraph';
 import {globals} from './globals';
-import {Panel} from './panel';
+import {Panel, PanelSize} from './panel';
 
 interface HeapProfileDetailsPanelAttrs {}
+
+const HEADER_HEIGHT = 30;
 
 export class HeapProfileDetailsPanel extends
     Panel<HeapProfileDetailsPanelAttrs> {
   private ts = 0;
   private pid = 0;
+  private flamegraph: Flamegraph = new Flamegraph([]);
+  private currentViewingOption = DEFAULT_VIEWING_OPTION;
 
   view() {
-    const heapDumpInfo = globals.heapDumpDetails;
+    const heapDumpInfo = globals.heapProfileDetails;
     if (heapDumpInfo && heapDumpInfo.ts !== undefined &&
         heapDumpInfo.allocated !== undefined &&
         heapDumpInfo.allocatedNotFreed !== undefined &&
-        heapDumpInfo.tsNs !== undefined && heapDumpInfo.pid !== undefined) {
+        heapDumpInfo.tsNs !== undefined && heapDumpInfo.pid !== undefined &&
+        heapDumpInfo.upid !== undefined) {
       this.ts = heapDumpInfo.tsNs;
       this.pid = heapDumpInfo.pid;
+      if (heapDumpInfo.flamegraph) {
+        this.flamegraph.updateDataIfChanged(heapDumpInfo.flamegraph);
+      }
+      const height = heapDumpInfo.flamegraph ?
+          this.flamegraph.getHeight() + HEADER_HEIGHT :
+          0;
       return m(
           '.details-panel',
-          m('.details-panel-heading', m('h2', `Heap Profile Details`)),
-          m(
-              '.details-table',
-              [m('table',
-                 [
-                   m('tr',
-                     m('th', `Snapshot time`),
-                     m('td', `${timeToCode(heapDumpInfo.ts)}`)),
-                   m('tr',
-                     m('th', `Total allocated:`),
-                     m('td',
-                       `${heapDumpInfo.allocated.toLocaleString()} bytes`)),
-                   m('tr',
-                     m('th', `Allocated not freed:`),
-                     m('td',
-                       `${
-                           heapDumpInfo.allocatedNotFreed
-                               .toLocaleString()} bytes`)),
-                 ])],
-              ),
-          m('.explanation',
-            'Heap profile support is in beta. If you need missing features, ',
-            'download and open it in ',
-            m(`a[href='https://pprof.corp.google.com']`, 'pprof'),
-            ' (Googlers only) or ',
-            m(`a[href='https://www.speedscope.app']`, 'Speedscope'),
-            '.'),
-          m('button',
-            {
-              onclick: () => {
-                this.downloadPprof();
+          {
+            onclick: (e: MouseEvent) => {
+              if (this.flamegraph !== undefined) {
+                this.onMouseClick({y: e.layerY, x: e.layerX});
               }
+              return false;
             },
-            m('i.material-icons', 'file_download'),
-            'Download profile'),
+            onmousemove: (e: MouseEvent) => {
+              if (this.flamegraph !== undefined) {
+                this.onMouseMove({y: e.layerY, x: e.layerX});
+                globals.rafScheduler.scheduleRedraw();
+              }
+              return false;
+            },
+            onmouseout: () => {
+              if (this.flamegraph !== undefined) {
+                this.onMouseOut();
+              }
+            }
+          },
+          m('.details-panel-heading.heap-profile',
+            [
+              m('div.options',
+                [
+                  m('div.title', `Heap Profile:`),
+                  this.getViewingOptionButtons(),
+                ]),
+              m('div.details',
+                [
+                  m('div.time',
+                    `Snapshot time: ${timeToCode(heapDumpInfo.ts)}`),
+                  m('button.download',
+                    {
+                      onclick: () => {
+                        this.downloadPprof();
+                      }
+                    },
+                    m('i.material-icons', 'file_download'),
+                    'Download profile'),
+                ]),
+            ]),
+          m(`div[style=height:${height}px]`),
       );
     } else {
       return m(
           '.details-panel',
-          m('.details-panel-heading', m('h2', `Heap Profile Details`)));
+          m('.details-panel-heading', m('h2', `Heap Profile`)));
     }
+  }
+
+  getButtonsClass(viewingOption = DEFAULT_VIEWING_OPTION): string {
+    return this.currentViewingOption === viewingOption ? '.chosen' : '';
+  }
+
+  getViewingOptionButtons(): m.Children {
+    return m(
+        'div',
+        m(`button${this.getButtonsClass(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY)}`,
+          {
+            onclick: () => {
+              this.changeViewingOption(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY);
+            }
+          },
+          'space'),
+        m(`button${this.getButtonsClass(ALLOC_SPACE_MEMORY_ALLOCATED_KEY)}`,
+          {
+            onclick: () => {
+              this.changeViewingOption(ALLOC_SPACE_MEMORY_ALLOCATED_KEY);
+            }
+          },
+          'alloc_space'),
+        m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_NOT_FREED_KEY)}`,
+          {
+            onclick: () => {
+              this.changeViewingOption(OBJECTS_ALLOCATED_NOT_FREED_KEY);
+            }
+          },
+          'objects'),
+        m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_KEY)}`,
+          {
+            onclick: () => {
+              this.changeViewingOption(OBJECTS_ALLOCATED_KEY);
+            }
+          },
+          'alloc_objects'));
+  }
+
+  changeViewingOption(viewingOption: string) {
+    this.currentViewingOption = viewingOption;
+    globals.dispatch(Actions.changeViewHeapProfileFlamegraph({viewingOption}));
   }
 
   downloadPprof() {
@@ -89,5 +157,34 @@ export class HeapProfileDetailsPanel extends
         Actions.convertTraceToPprof({pid: this.pid, ts1: this.ts, src}));
   }
 
-  renderCanvas() {}
+  private changeFlamegraphData() {
+    const data = globals.heapProfileDetails;
+    const flamegraphData = data.flamegraph === undefined ? [] : data.flamegraph;
+    this.flamegraph.updateDataIfChanged(flamegraphData, data.expandedCallsite);
+  }
+
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    this.changeFlamegraphData();
+    const unit =
+        this.currentViewingOption === SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY ||
+            this.currentViewingOption === ALLOC_SPACE_MEMORY_ALLOCATED_KEY ?
+        'B' :
+        '';
+    this.flamegraph.draw(ctx, size.width, size.height, 0, HEADER_HEIGHT, unit);
+  }
+
+  onMouseClick({x, y}: {x: number, y: number}): boolean {
+    const expandedCallsite = this.flamegraph.onMouseClick({x, y});
+    globals.dispatch(Actions.expandHeapProfileFlamegraph({expandedCallsite}));
+    return true;
+  }
+
+  onMouseMove({x, y}: {x: number, y: number}): boolean {
+    this.flamegraph.onMouseMove({x, y});
+    return true;
+  }
+
+  onMouseOut() {
+    this.flamegraph.onMouseOut();
+  }
 }
