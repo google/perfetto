@@ -24,7 +24,7 @@
 //     property for a large and complex codebase.
 //  2. Adding #include to build-time-generated headers from headers typically
 //     creates subtle build errors that are hard to spot in GN. This is because
-//     once a standard header (say foo.h9 has an #include "protos/foo.gen.h",
+//     once a standard header (say foo.h) has an #include "protos/foo.gen.h",
 //     the build target that depends on foo.h needs to depend on the genrule
 //     that generates foo.gen.h. This is achievable using public_deps in GN but
 //     is not testable / enforceable, hence too easy to get wrong.
