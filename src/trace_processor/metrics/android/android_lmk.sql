@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/process_oom_score.sql');
+
 -- Create all the views used to for LMK related stuff.
 CREATE TABLE lmk_events AS
 SELECT ref AS upid, MIN(ts) AS ts
@@ -21,24 +23,13 @@ FROM instants
 WHERE name = 'mem.lmk' AND ref_type = 'upid'
 GROUP BY 1;
 
-CREATE VIEW oom_scores AS
-SELECT
-  ts,
-  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-    OVER(PARTITION BY track_id ORDER BY ts) AS ts_end,
-  upid,
-  value AS score
-FROM counter c JOIN process_counter_track t
-  ON c.track_id = t.id
-WHERE name = 'oom_score_adj' AND upid IS NOT NULL;
-
 CREATE VIEW lmk_by_score AS
-SELECT lmk_events.upid, CAST(oom_scores.score AS INT) AS score
+SELECT lmk_events.upid, oom_scores.oom_score_val AS score
 FROM lmk_events
-LEFT JOIN oom_scores
+LEFT JOIN oom_score_span oom_scores
   ON (lmk_events.upid = oom_scores.upid AND
       lmk_events.ts >= oom_scores.ts AND
-      lmk_events.ts < oom_scores.ts_end)
+      lmk_events.ts < oom_scores.ts + oom_scores.dur)
 ORDER BY lmk_events.upid;
 
 CREATE VIEW lmk_counts AS
