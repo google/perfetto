@@ -386,8 +386,7 @@ function MemorySettings(cssClass: string) {
       m(Probe,
         {
           title: 'Heap profiling',
-          // TODO(tneda): Image should be one with flamegraphs.
-          img: 'rec_meminfo.png',
+          img: 'heap_profiler.png',
           descr: `Track native heap allocations & deallocations of an Android
                process. (Available on Android 10+)`,
           setEnabled: (cfg, val) => cfg.heapProfiling = val,
