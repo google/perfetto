@@ -15,7 +15,7 @@
 import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {createEmptyState, State} from '../common/state';
+import {CallsiteInfo, createEmptyState, State} from '../common/state';
 
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
@@ -45,22 +45,18 @@ export interface CounterDetails {
   duration?: number;
 }
 
-export interface CallsiteInfo {
-  id: number;
-  parentId: number;
-  depth: number;
-  name?: string;
-  totalSize: number;
-  selfSize: number;
-  mapping: string;
-}
-
 export interface HeapProfileDetails {
+  id?: number;
   ts?: number;
   tsNs?: number;
   allocated?: number;
   allocatedNotFreed?: number;
   pid?: number;
+  upid?: number;
+  flamegraph?: CallsiteInfo[];
+  expandedCallsite?: CallsiteInfo;
+  viewingOption?: string;
+  expandedId?: number;
 }
 
 export interface QuantizedLoad {
@@ -96,7 +92,7 @@ class Globals {
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
   private _counterDetails?: CounterDetails = undefined;
-  private _heapDumpDetails?: HeapProfileDetails = undefined;
+  private _heapProfileDetails?: HeapProfileDetails = undefined;
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
@@ -128,7 +124,7 @@ class Globals {
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
     this._counterDetails = {};
-    this._heapDumpDetails = {};
+    this._heapProfileDetails = {};
   }
 
   get state(): State {
@@ -184,12 +180,12 @@ class Globals {
     this._counterDetails = assertExists(click);
   }
 
-  get heapDumpDetails() {
-    return assertExists(this._heapDumpDetails);
+  get heapProfileDetails() {
+    return assertExists(this._heapProfileDetails);
   }
 
-  set heapDumpDetails(click: HeapProfileDetails) {
-    this._heapDumpDetails = assertExists(click);
+  set heapProfileDetails(click: HeapProfileDetails) {
+    this._heapProfileDetails = assertExists(click);
   }
 
   set numQueuedQueries(value: number) {

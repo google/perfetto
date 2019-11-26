@@ -97,6 +97,57 @@
         width: 50%;
       }
     }
+    &.heap-profile {
+      display: flex;
+    justify-content: space-between;
+    align-content: center;
+    height: 30px;
+      padding: 0px;
+      font-size: 12px;
+      * {
+        align-self: center;
+      }
+      .options {
+        display: inline-flex;
+        justify-content: space-around;
+      }
+      .details {
+        display: inline-flex;
+        justify-content: flex-end;
+      }
+      button {
+        width: fit-content;
+        height: 20px;
+        padding: 3px;
+        padding-top: 0px;
+        margin: 2px;
+        font-size: 12px;
+        opacity: 0.5;
+        &.download {
+          opacity: 1;
+          padding-top: 3px;
+          height: 21px;
+        }
+        &.chosen {
+          opacity: 1;
+        }
+        .material-icons {
+          font-size: 15px;
+          margin-right: 3px;
+          vertical-align: middle;
+        }
+      }
+      .title {
+        justify-self: start;
+        margin-left: 5px;
+        font-size: 14px;
+        margin-right: 10px;
+      }
+      .time {
+        justify-self: end;
+        margin-right: 10px;
+      }
+    }
   }
 
   table {
@@ -143,18 +194,6 @@
     margin-top: 12px;
     margin-left: 10px;
   }
-
-  .explanation {
-    font-size: 14px;
-    width: 35%;
-    margin-top: 10px;
-    padding-left: 10px;
-  }
-
-  .material-icons {
-    vertical-align: middle;
-    margin-right: 10px;
-  }
 }
 
 .notes-editor-panel {
@@ -199,10 +238,6 @@
       box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
     }
   }
-}
-
-.flame-graph-panel {
-  height: 500px;
 }
 
 .log-panel {

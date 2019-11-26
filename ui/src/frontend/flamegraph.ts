@@ -15,7 +15,7 @@
 import {searchSegment} from '../base/binary_search';
 import {cropText} from '../common/canvas_utils';
 
-import {CallsiteInfo} from './globals';
+import {CallsiteInfo} from '../common/state';
 
 interface Node {
   width: number;
@@ -59,6 +59,8 @@ export class Flamegraph {
   private hoveredCallsite?: CallsiteInfo;
   private clickedCallsite?: CallsiteInfo;
 
+  private startingY = 0;
+
   constructor(flamegraphData: CallsiteInfo[]) {
     this.flamegraphData = flamegraphData;
     this.findMaxDepth();
@@ -97,6 +99,7 @@ export class Flamegraph {
    */
   updateDataIfChanged(
       flamegraphData: CallsiteInfo[], clickedCallsite?: CallsiteInfo) {
+    this.clickedCallsite = clickedCallsite;
     if (this.flamegraphData === flamegraphData) {
       return;
     }
@@ -114,6 +117,7 @@ export class Flamegraph {
     const name = '____MMMMMMQQwwZZZZZZzzzzzznnnnnnwwwwwwWWWWWqq$$mmmmmm__';
     const charWidth = ctx.measureText(name).width / name.length;
     const nodeHeight = this.getNodeHeight();
+    this.startingY = y;
 
     if (this.flamegraphData === undefined) {
       return;
@@ -167,7 +171,7 @@ export class Flamegraph {
           (isFullWidth ? 1 : value.totalSize / parentSize) * parentNode.width;
 
       const currentX = parentNode.nextXForChildren;
-      currentY = nodeHeight * (value.depth + 1);
+      currentY = y + nodeHeight * (value.depth + 1);
 
       // Draw node.
       const name = this.getCallsiteName(value);
@@ -329,17 +333,17 @@ export class Flamegraph {
     this.hoveredCallsite = undefined;
   }
 
-  // Returns id of clicked callsite if any.
-  onMouseClick({x, y}: {x: number, y: number}): number {
+  onMouseClick({x, y}: {x: number, y: number}): CallsiteInfo|undefined {
     if (this.isThumbnail) {
-      return -1;
+      return undefined;
     }
     const clickedCallsite = this.findSelectedCallsite(x, y);
-    return clickedCallsite === undefined ? -1 : clickedCallsite.id;
+    return clickedCallsite;
   }
 
   private findSelectedCallsite(x: number, y: number): CallsiteInfo|undefined {
-    const depth = Math.trunc(y / this.getNodeHeight()) - 1;  // at 0 is root
+    const depth = Math.trunc((y - this.startingY) / this.getNodeHeight()) -
+        1;  // at 0 is root
     if (depth >= 0 && this.xStartsPerDepth.has(depth)) {
       const startX = this.searchSmallest(this.xStartsPerDepth.get(depth)!, x);
       const result = this.graphData.get(`${depth};${startX}`);
