@@ -37,35 +37,35 @@ class Host;
 // Implements the Producer port of the IPC service. This class proxies requests
 // and responses between the core service logic (|svc_|) and remote Producer(s)
 // on the IPC socket, through the methods overriddden from ProducerPort.
-class ProducerIPCService : public protos::ProducerPort {
+class ProducerIPCService : public protos::gen::ProducerPort {
  public:
   explicit ProducerIPCService(TracingService* core_service);
   ~ProducerIPCService() override;
 
   // ProducerPort implementation (from .proto IPC definition).
-  void InitializeConnection(const protos::InitializeConnectionRequest&,
+  void InitializeConnection(const protos::gen::InitializeConnectionRequest&,
                             DeferredInitializeConnectionResponse) override;
-  void RegisterDataSource(const protos::RegisterDataSourceRequest&,
+  void RegisterDataSource(const protos::gen::RegisterDataSourceRequest&,
                           DeferredRegisterDataSourceResponse) override;
-  void UnregisterDataSource(const protos::UnregisterDataSourceRequest&,
+  void UnregisterDataSource(const protos::gen::UnregisterDataSourceRequest&,
                             DeferredUnregisterDataSourceResponse) override;
-  void RegisterTraceWriter(const protos::RegisterTraceWriterRequest&,
+  void RegisterTraceWriter(const protos::gen::RegisterTraceWriterRequest&,
                            DeferredRegisterTraceWriterResponse) override;
-  void UnregisterTraceWriter(const protos::UnregisterTraceWriterRequest&,
+  void UnregisterTraceWriter(const protos::gen::UnregisterTraceWriterRequest&,
                              DeferredUnregisterTraceWriterResponse) override;
-  void CommitData(const protos::CommitDataRequest&,
+  void CommitData(const protos::gen::CommitDataRequest&,
                   DeferredCommitDataResponse) override;
   void NotifyDataSourceStarted(
-      const protos::NotifyDataSourceStartedRequest&,
+      const protos::gen::NotifyDataSourceStartedRequest&,
       DeferredNotifyDataSourceStartedResponse) override;
   void NotifyDataSourceStopped(
-      const protos::NotifyDataSourceStoppedRequest&,
+      const protos::gen::NotifyDataSourceStoppedRequest&,
       DeferredNotifyDataSourceStoppedResponse) override;
 
-  void ActivateTriggers(const protos::ActivateTriggersRequest&,
+  void ActivateTriggers(const protos::gen::ActivateTriggersRequest&,
                         DeferredActivateTriggersResponse) override;
 
-  void GetAsyncCommand(const protos::GetAsyncCommandRequest&,
+  void GetAsyncCommand(const protos::gen::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
   void OnClientDisconnected() override;
 

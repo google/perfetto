@@ -29,7 +29,6 @@ source_set("ipc") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../gn:protobuf_lite",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
     "../base",
   ]
@@ -61,8 +60,8 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":ipc",
+    ":test_messages_cpp",
     ":test_messages_ipc",
-    ":test_messages_lite",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
@@ -81,7 +80,8 @@ perfetto_unittest_source_set("unittests") {
 perfetto_proto_library("test_messages_@TYPE@") {
   proto_generators = [
     "ipc",
-    "lite",  # TODO(primiano): remove in next CLs.
+    "zero",
+    "cpp",
   ]
   sources = [
     "test/client_unittest_messages.proto",

@@ -31,12 +31,14 @@
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
-#include "src/ipc/test/client_unittest_messages.pb.h"
+#include "src/ipc/test/client_unittest_messages.gen.h"
 
 namespace perfetto {
 namespace ipc {
 namespace {
 
+using ::perfetto::ipc::gen::ReplyProto;
+using ::perfetto::ipc::gen::RequestProto;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;

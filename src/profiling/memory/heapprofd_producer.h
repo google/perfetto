@@ -45,6 +45,8 @@
 namespace perfetto {
 namespace profiling {
 
+using HeapprofdConfig = protos::gen::HeapprofdConfig;
+
 struct Process {
   pid_t pid;
   std::string cmdline;

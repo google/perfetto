@@ -83,12 +83,12 @@ void ProducerIPCClientImpl::OnConnect() {
   // The IPC layer guarantees that any outstanding callback will be dropped on
   // the floor if producer_port_ is destroyed between the request and the reply.
   // Binding |this| is hence safe.
-  ipc::Deferred<protos::InitializeConnectionResponse> on_init;
+  ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
-      [this](ipc::AsyncResult<protos::InitializeConnectionResponse> resp) {
+      [this](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
         OnConnectionInitialized(resp.success());
       });
-  protos::InitializeConnectionRequest req;
+  protos::gen::InitializeConnectionRequest req;
   req.set_producer_name(name_);
   req.set_shared_memory_size_hint_bytes(
       static_cast<uint32_t>(shared_memory_size_hint_bytes_));
@@ -101,31 +101,32 @@ void ProducerIPCClientImpl::OnConnect() {
       break;
     case TracingService::ProducerSMBScrapingMode::kEnabled:
       req.set_smb_scraping_mode(
-          protos::InitializeConnectionRequest::SMB_SCRAPING_ENABLED);
+          protos::gen::InitializeConnectionRequest::SMB_SCRAPING_ENABLED);
       break;
     case TracingService::ProducerSMBScrapingMode::kDisabled:
       req.set_smb_scraping_mode(
-          protos::InitializeConnectionRequest::SMB_SCRAPING_DISABLED);
+          protos::gen::InitializeConnectionRequest::SMB_SCRAPING_DISABLED);
       break;
   }
 
 #if PERFETTO_DCHECK_IS_ON()
   req.set_build_flags(
-      protos::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_ON);
+      protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_ON);
 #else
   req.set_build_flags(
-      protos::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF);
+      protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF);
 #endif
   producer_port_.InitializeConnection(req, std::move(on_init));
 
   // Create the back channel to receive commands from the Service.
-  ipc::Deferred<protos::GetAsyncCommandResponse> on_cmd;
-  on_cmd.Bind([this](ipc::AsyncResult<protos::GetAsyncCommandResponse> resp) {
-    if (!resp)
-      return;  // The IPC channel was closed and |resp| was auto-rejected.
-    OnServiceRequest(*resp);
-  });
-  producer_port_.GetAsyncCommand(protos::GetAsyncCommandRequest(),
+  ipc::Deferred<protos::gen::GetAsyncCommandResponse> on_cmd;
+  on_cmd.Bind(
+      [this](ipc::AsyncResult<protos::gen::GetAsyncCommandResponse> resp) {
+        if (!resp)
+          return;  // The IPC channel was closed and |resp| was auto-rejected.
+        OnServiceRequest(*resp);
+      });
+  producer_port_.GetAsyncCommand(protos::gen::GetAsyncCommandRequest(),
                                  std::move(on_cmd));
 }
 
@@ -147,26 +148,23 @@ void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
 }
 
 void ProducerIPCClientImpl::OnServiceRequest(
-    const protos::GetAsyncCommandResponse& cmd) {
+    const protos::gen::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   // This message is sent only when connecting to a service running Android Q+.
   // See comment below in kStartDataSource.
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kSetupDataSource) {
+  if (cmd.has_setup_data_source()) {
     const auto& req = cmd.setup_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
-    DataSourceConfig cfg;
-    cfg.FromProto(req.config());
     data_sources_setup_.insert(dsid);
-    producer_->SetupDataSource(dsid, cfg);
+    producer_->SetupDataSource(dsid, req.config());
     return;
   }
 
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStartDataSource) {
+  if (cmd.has_start_data_source()) {
     const auto& req = cmd.start_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
-    DataSourceConfig cfg;
-    cfg.FromProto(req.config());
+    const DataSourceConfig& cfg = req.config();
     if (!data_sources_setup_.count(dsid)) {
       // When connecting with an older (Android P) service, the service will not
       // send a SetupDataSource message. We synthesize it here in that case.
@@ -176,14 +174,14 @@ void ProducerIPCClientImpl::OnServiceRequest(
     return;
   }
 
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kStopDataSource) {
+  if (cmd.has_stop_data_source()) {
     const DataSourceInstanceID dsid = cmd.stop_data_source().instance_id();
     producer_->StopDataSource(dsid);
     data_sources_setup_.erase(dsid);
     return;
   }
 
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kSetupTracing) {
+  if (cmd.has_setup_tracing()) {
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     PERFETTO_CHECK(shmem_fd);
 
@@ -198,7 +196,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
     return;
   }
 
-  if (cmd.cmd_case() == protos::GetAsyncCommandResponse::kFlush) {
+  if (cmd.has_flush()) {
     // This cast boilerplate is required only because protobuf uses its own
     // uint64 and not stdint's uint64_t. On some 64 bit archs they differ on the
     // type (long vs long long) even though they have the same size.
@@ -212,8 +210,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
     return;
   }
 
-  if (cmd.cmd_case() ==
-      protos::GetAsyncCommandResponse::kClearIncrementalState) {
+  if (cmd.has_clear_incremental_state()) {
     const auto* data_source_ids =
         cmd.clear_incremental_state().data_source_ids().data();
     static_assert(sizeof(data_source_ids[0]) == sizeof(DataSourceInstanceID),
@@ -225,8 +222,7 @@ void ProducerIPCClientImpl::OnServiceRequest(
     return;
   }
 
-  PERFETTO_DFATAL("Unknown async request %d received from tracing service",
-                  cmd.cmd_case());
+  PERFETTO_DFATAL("Unknown async request received from tracing service");
 }
 
 void ProducerIPCClientImpl::RegisterDataSource(
@@ -236,11 +232,11 @@ void ProducerIPCClientImpl::RegisterDataSource(
     PERFETTO_DLOG(
         "Cannot RegisterDataSource(), not connected to tracing service");
   }
-  protos::RegisterDataSourceRequest req;
-  descriptor.ToProto(req.mutable_data_source_descriptor());
-  ipc::Deferred<protos::RegisterDataSourceResponse> async_response;
+  protos::gen::RegisterDataSourceRequest req;
+  *req.mutable_data_source_descriptor() = descriptor;
+  ipc::Deferred<protos::gen::RegisterDataSourceResponse> async_response;
   async_response.Bind(
-      [](ipc::AsyncResult<protos::RegisterDataSourceResponse> response) {
+      [](ipc::AsyncResult<protos::gen::RegisterDataSourceResponse> response) {
         if (!response)
           PERFETTO_DLOG("RegisterDataSource() failed: connection reset");
       });
@@ -254,10 +250,10 @@ void ProducerIPCClientImpl::UnregisterDataSource(const std::string& name) {
         "Cannot UnregisterDataSource(), not connected to tracing service");
     return;
   }
-  protos::UnregisterDataSourceRequest req;
+  protos::gen::UnregisterDataSourceRequest req;
   req.set_data_source_name(name);
   producer_port_.UnregisterDataSource(
-      req, ipc::Deferred<protos::UnregisterDataSourceResponse>());
+      req, ipc::Deferred<protos::gen::UnregisterDataSourceResponse>());
 }
 
 void ProducerIPCClientImpl::RegisterTraceWriter(uint32_t writer_id,
@@ -268,11 +264,11 @@ void ProducerIPCClientImpl::RegisterTraceWriter(uint32_t writer_id,
         "Cannot RegisterTraceWriter(), not connected to tracing service");
     return;
   }
-  protos::RegisterTraceWriterRequest req;
+  protos::gen::RegisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);
   req.set_target_buffer(target_buffer);
   producer_port_.RegisterTraceWriter(
-      req, ipc::Deferred<protos::RegisterTraceWriterResponse>());
+      req, ipc::Deferred<protos::gen::RegisterTraceWriterResponse>());
 }
 
 void ProducerIPCClientImpl::UnregisterTraceWriter(uint32_t writer_id) {
@@ -282,10 +278,10 @@ void ProducerIPCClientImpl::UnregisterTraceWriter(uint32_t writer_id) {
         "Cannot UnregisterTraceWriter(), not connected to tracing service");
     return;
   }
-  protos::UnregisterTraceWriterRequest req;
+  protos::gen::UnregisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);
   producer_port_.UnregisterTraceWriter(
-      req, ipc::Deferred<protos::UnregisterTraceWriterResponse>());
+      req, ipc::Deferred<protos::gen::UnregisterTraceWriterResponse>());
 }
 
 void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
@@ -295,14 +291,12 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
     PERFETTO_DLOG("Cannot CommitData(), not connected to tracing service");
     return;
   }
-  protos::CommitDataRequest proto_req;
-  req.ToProto(&proto_req);
-  ipc::Deferred<protos::CommitDataResponse> async_response;
+  ipc::Deferred<protos::gen::CommitDataResponse> async_response;
   // TODO(primiano): add a test that destroys ProducerIPCClientImpl soon after
   // this call and checks that the callback is dropped.
   if (callback) {
     async_response.Bind(
-        [callback](ipc::AsyncResult<protos::CommitDataResponse> response) {
+        [callback](ipc::AsyncResult<protos::gen::CommitDataResponse> response) {
           if (!response) {
             PERFETTO_DLOG("CommitData() failed: connection reset");
             return;
@@ -310,7 +304,7 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
           callback();
         });
   }
-  producer_port_.CommitData(proto_req, std::move(async_response));
+  producer_port_.CommitData(req, std::move(async_response));
 }
 
 void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
@@ -320,10 +314,10 @@ void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
         "Cannot NotifyDataSourceStarted(), not connected to tracing service");
     return;
   }
-  protos::NotifyDataSourceStartedRequest req;
+  protos::gen::NotifyDataSourceStartedRequest req;
   req.set_data_source_id(id);
   producer_port_.NotifyDataSourceStarted(
-      req, ipc::Deferred<protos::NotifyDataSourceStartedResponse>());
+      req, ipc::Deferred<protos::gen::NotifyDataSourceStartedResponse>());
 }
 
 void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
@@ -333,10 +327,10 @@ void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
         "Cannot NotifyDataSourceStopped(), not connected to tracing service");
     return;
   }
-  protos::NotifyDataSourceStoppedRequest req;
+  protos::gen::NotifyDataSourceStoppedRequest req;
   req.set_data_source_id(id);
   producer_port_.NotifyDataSourceStopped(
-      req, ipc::Deferred<protos::NotifyDataSourceStoppedResponse>());
+      req, ipc::Deferred<protos::gen::NotifyDataSourceStoppedResponse>());
 }
 
 void ProducerIPCClientImpl::ActivateTriggers(
@@ -347,12 +341,12 @@ void ProducerIPCClientImpl::ActivateTriggers(
         "Cannot ActivateTriggers(), not connected to tracing service");
     return;
   }
-  protos::ActivateTriggersRequest proto_req;
+  protos::gen::ActivateTriggersRequest proto_req;
   for (const auto& name : triggers) {
     *proto_req.add_trigger_names() = name;
   }
   producer_port_.ActivateTriggers(
-      proto_req, ipc::Deferred<protos::ActivateTriggersResponse>());
+      proto_req, ipc::Deferred<protos::gen::ActivateTriggersResponse>());
 }
 
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
