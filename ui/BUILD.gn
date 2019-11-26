@@ -355,6 +355,7 @@ copy("query_dist") {
 
 copy("assets_dist") {
   sources = [
+              "src/assets/heap_profiler.png",
               "src/assets/logo-3d.png",
               "src/assets/logo.png",
               "src/assets/rec_atrace.png",
