@@ -20,10 +20,10 @@ import {DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 import {ControllerAny} from './controller';
 
-type PublishKinds =
-    'OverviewData'|'TrackData'|'Threads'|'QueryResult'|'LegacyTrace'|
-    'SliceDetails'|'CounterDetails'|'HeapDumpDetails'|'FileDownload'|'Loading'|
-    'Search'|'BufferUsage'|'RecordingLog'|'SearchResult';
+type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
+    'LegacyTrace'|'SliceDetails'|'CounterDetails'|'HeapProfileDetails'|
+    'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
+    'RecordingLog'|'SearchResult';
 
 export interface App {
   state: State;
