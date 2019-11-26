@@ -35,6 +35,7 @@ sql_files = [
   "android/process_unagg_mem_view.sql",
   "android/process_mem.sql",
   "android/process_metadata.sql",
+  "android/process_oom_score.sql",
   "android/mem_stats_priority_breakdown.sql",
   "android/span_view_stats.sql",
   "android/upid_span_view.sql",
