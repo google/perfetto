@@ -24,6 +24,8 @@
 
 namespace perfetto {
 
+using FtraceConfig = protos::gen::FtraceConfig;
+
 // 0 is invalid.
 using FtraceConfigId = uint64_t;
 

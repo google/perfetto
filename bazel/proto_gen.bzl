@@ -63,9 +63,10 @@ def _proto_gen_impl(ctx):
     ]
     plugin_deps = []
     if ctx.attr.plugin:
+        wrap_arg = ctx.attr.wrapper_namespace
         arguments += [
             "--plugin=protoc-gen-plugin=" + ctx.executable.plugin.path,
-            "--plugin_out=wrapper_namespace=pbzero:" + out_dir,
+            "--plugin_out=wrapper_namespace=" + wrap_arg + ":" + out_dir,
         ]
         plugin_deps += [ctx.executable.plugin]
     else:
@@ -100,6 +101,10 @@ proto_gen = rule(
             executable = True,
             mandatory = False,
             cfg = "host",
+        ),
+        "wrapper_namespace": attr.string(
+            mandatory = False,
+            default = ""
         ),
         "suffix": attr.string(
             mandatory = True,

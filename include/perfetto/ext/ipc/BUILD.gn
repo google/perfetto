@@ -14,7 +14,7 @@
 
 source_set("ipc") {
   public_deps = [
-    "../../../../gn:protobuf_lite",
+    "../../protozero",
     "../base",
   ]
   sources = [
