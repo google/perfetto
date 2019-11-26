@@ -134,12 +134,40 @@ void ForEachMethod(const ServiceDescriptor& svc,
   }
 }
 
-void GenerateServiceHeader(const FileDescriptor& file,
-                           const ServiceDescriptor& svc,
-                           Printer* printer) {
+class IPCGenerator : public ::google::protobuf::compiler::CodeGenerator {
+ public:
+  explicit IPCGenerator();
+  ~IPCGenerator() override;
+
+  // CodeGenerator implementation
+  bool Generate(const google::protobuf::FileDescriptor* file,
+                const std::string& options,
+                google::protobuf::compiler::GeneratorContext* context,
+                std::string* error) const override;
+
+  void GenerateServiceCpp(const FileDescriptor& file,
+                          const ServiceDescriptor& svc,
+                          Printer* printer) const;
+  void GenerateServiceHeader(const FileDescriptor& file,
+                             const ServiceDescriptor& svc,
+                             Printer* printer) const;
+
+  std::vector<std::string> GetNamespaces(const FileDescriptor& file) const {
+    std::string pkg = file.package() + wrapper_namespace_;
+    return SplitString(pkg, ".");
+  }
+
+  mutable std::string wrapper_namespace_;
+};
+
+IPCGenerator::IPCGenerator() = default;
+IPCGenerator::~IPCGenerator() = default;
+
+void IPCGenerator::GenerateServiceHeader(const FileDescriptor& file,
+                                         const ServiceDescriptor& svc,
+                                         Printer* printer) const {
   printer->Print("\n");
-  std::vector<std::string> namespaces = SplitString(file.package(), ".");
-  for (const std::string& ns : namespaces)
+  for (const std::string& ns : GetNamespaces(file))
     printer->Print("namespace $ns$ {\n", "ns", ns);
 
   // Generate the host-side declarations.
@@ -174,19 +202,17 @@ void GenerateServiceHeader(const FileDescriptor& file,
   });
   printer->Print("};\n\n");
 
-  for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++)
-    printer->Print("}  // namespace $ns$\n", "ns", *it);
+  for (const std::string& ns : GetNamespaces(file))
+    printer->Print("}  // namespace $ns$\n", "ns", ns);
 
   printer->Print("\n");
 }
 
-void GenerateServiceCpp(const FileDescriptor& file,
-                        const ServiceDescriptor& svc,
-                        Printer* printer) {
+void IPCGenerator::GenerateServiceCpp(const FileDescriptor& file,
+                                      const ServiceDescriptor& svc,
+                                      Printer* printer) const {
   printer->Print("\n");
-
-  std::vector<std::string> namespaces = SplitString(file.package(), ".");
-  for (const std::string& ns : namespaces)
+  for (const std::string& ns : GetNamespaces(file))
     printer->Print("namespace $ns$ {\n", "ns", ns);
 
   printer->Print("::perfetto::ipc::ServiceDescriptor* $c$::NewDescriptor() {\n",
@@ -214,29 +240,25 @@ void GenerateServiceCpp(const FileDescriptor& file,
                    input_type, "o", output_type);
   });
 
-  for (auto it = namespaces.rbegin(); it != namespaces.rend(); it++)
-    printer->Print("}  // namespace $ns$\n", "ns", *it);
+  for (const std::string& ns : GetNamespaces(file))
+    printer->Print("}  // namespace $ns$\n", "ns", ns);
 }
 
-class IPCGenerator : public ::google::protobuf::compiler::CodeGenerator {
- public:
-  explicit IPCGenerator();
-  ~IPCGenerator() override;
-
-  // CodeGenerator implementation
-  bool Generate(const google::protobuf::FileDescriptor* file,
-                const std::string& options,
-                google::protobuf::compiler::GeneratorContext* context,
-                std::string* error) const override;
-};
-
-IPCGenerator::IPCGenerator() = default;
-IPCGenerator::~IPCGenerator() = default;
-
 bool IPCGenerator::Generate(const FileDescriptor* file,
-                            const std::string& /*options*/,
+                            const std::string& options,
                             GeneratorContext* context,
                             std::string* error) const {
+  for (const std::string& option : SplitString(options, ",")) {
+    std::vector<std::string> option_pair = SplitString(option, "=");
+    if (option_pair[0] == "wrapper_namespace") {
+      wrapper_namespace_ =
+          option_pair.size() == 2 ? "." + option_pair[1] : std::string();
+    } else {
+      *error = "Unknown plugin option: " + option_pair[0];
+      return false;
+    }
+  }
+
   if (file->options().cc_generic_services()) {
     *error = "Please set \"cc_generic_service = false\".";
     return false;
@@ -256,11 +278,18 @@ bool IPCGenerator::Generate(const FileDescriptor* file,
 
   h_printer.Print(kBanner);
   h_printer.Print("#ifndef $guard$\n#define $guard$\n\n", "guard", guard);
-  h_printer.Print("#include \"$h$\"\n", "h", StripName(*file) + ".pb.h");
   h_printer.Print("#include \"perfetto/ext/ipc/deferred.h\"\n");
   h_printer.Print("#include \"perfetto/ext/ipc/service.h\"\n");
   h_printer.Print("#include \"perfetto/ext/ipc/service_descriptor.h\"\n");
   h_printer.Print("#include \"perfetto/ext/ipc/service_proxy.h\"\n\n");
+
+  // Add #include-s to .gen.h file for each .proto file imported, including the
+  // .proto file that defines services itself.
+  h_printer.Print("#include \"$h$\"\n", "h", StripName(*file) + ".gen.h");
+  for (int i = 0; i < file->dependency_count(); ++i) {
+    const FileDescriptor* file_dep = file->dependency(i);
+    h_printer.Print("#include \"$h$\"\n", "h", StripName(*file_dep) + ".gen.h");
+  }
 
   cc_printer.Print(kBanner);
   cc_printer.Print("#include \"$h$\"\n", "h", GetStubName(*file) + ".h");

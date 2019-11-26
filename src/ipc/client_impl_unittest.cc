@@ -32,12 +32,14 @@
 #include "src/ipc/test/test_socket.h"
 #include "test/gtest_and_gmock.h"
 
-#include "src/ipc/test/client_unittest_messages.pb.h"
+#include "src/ipc/test/client_unittest_messages.gen.h"
 
 namespace perfetto {
 namespace ipc {
 namespace {
 
+using ::perfetto::ipc::gen::ReplyProto;
+using ::perfetto::ipc::gen::RequestProto;
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Invoke;

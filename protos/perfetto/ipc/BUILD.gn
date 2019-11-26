@@ -18,24 +18,20 @@ import("../../../gn/proto_library.gni")
 # IPC service definitions.
 # Generates {producer,consumer}_port.ipc.{cc,h}
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "ipc" ]
+  proto_generators = [
+    "ipc",
+    "cpp",
+  ]
   sources = [
     "consumer_port.proto",
     "producer_port.proto",
   ]
-}
-
-# This needs to be split from the above because of the {common,config} deps,
-# which don't affect .ipc.{cc,h} generation.
-perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "lite" ]  # TODO(primiano): remove in next CLs.
   deps = [
-    "../common:@TYPE@",
-    "../config:@TYPE@",
-  ]
-  sources = [
-    "consumer_port.proto",
-    "producer_port.proto",
+    # Deliberately :cpp and not :@TYPE@. In both cases (:gen and :cpp taraget)
+    # we want to depend on the "cpp" variants. This is because the generated
+    # .ipc.h depends on the .gen.h coming from the various common/xxx.proto.
+    "../common:cpp",
+    "../config:cpp",
   ]
 }
 
