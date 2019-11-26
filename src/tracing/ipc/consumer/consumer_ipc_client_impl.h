@@ -28,7 +28,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/ipc/consumer_port.ipc.h"
 
 namespace perfetto {
@@ -42,7 +42,6 @@ class Client;
 }  // namespace ipc
 
 class Consumer;
-class TraceConfig;
 
 // Exposes a Service endpoint to Consumer(s), proxying all requests through a
 // IPC channel to the remote Service. This class is the glue layer between the
@@ -79,8 +78,10 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void OnDisconnect() override;
 
  private:
-  void OnReadBuffersResponse(ipc::AsyncResult<protos::ReadBuffersResponse>);
-  void OnEnableTracingResponse(ipc::AsyncResult<protos::EnableTracingResponse>);
+  void OnReadBuffersResponse(
+      ipc::AsyncResult<protos::gen::ReadBuffersResponse>);
+  void OnEnableTracingResponse(
+      ipc::AsyncResult<protos::gen::EnableTracingResponse>);
 
   // TODO(primiano): think to dtor order, do we rely on any specific sequence?
   Consumer* const consumer_;
@@ -90,7 +91,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
 
   // The proxy interface for the consumer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  protos::ConsumerPortProxy consumer_port_;
+  protos::gen::ConsumerPortProxy consumer_port_;
 
   bool connected_ = false;
 

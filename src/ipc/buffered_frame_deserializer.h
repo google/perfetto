@@ -30,11 +30,15 @@
 
 namespace perfetto {
 
-class IPCFrame;  // Forward declaration from wire_protocol.gen.h.
+namespace protos {
+namespace gen {
+class IPCFrame;
+}  // namespace gen
+}  // namespace protos
 
 namespace ipc {
 
-using Frame = ::perfetto::IPCFrame;
+using Frame = ::perfetto::protos::gen::IPCFrame;
 
 // Deserializes incoming frames, taking care of buffering and tokenization.
 // Used by both host and client to decode incoming frames.

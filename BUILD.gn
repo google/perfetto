@@ -203,6 +203,7 @@ if (!build_with_chromium) {
     sources = [
       "include/perfetto/tracing.h",
     ]
+    assert_no_deps = [ "//gn:protobuf_lite" ]
   }
 }
 
@@ -233,6 +234,7 @@ if (build_with_chromium) {
       "src/tracing:sliced_protobuf_input_stream",
     ]
   }
+  assert_no_deps = [ "//gn:protobuf_lite" ]
   if (enable_perfetto_trace_processor_sqlite) {
     component("libtrace_processor") {
       public_configs = [ "gn:public_config" ]

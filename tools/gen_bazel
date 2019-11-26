@@ -251,7 +251,7 @@ def gen_proto_labels(target):
   # rule need to pass down the dependency on the target that generates
   # common.gen.{cc,h}. This is not needed for protozero because protozero
   # headers are fully hermetic deps-wise and use only on forward declarations.
-  if target.proto_deps and target.proto_plugin == 'cppgen':
+  if target.proto_deps and target.proto_plugin in ('cppgen', 'ipc'):
     plugin_label.deps += [
         ':' + get_bazel_label_name(x) for x in target.proto_deps
     ]
@@ -263,12 +263,14 @@ def gen_proto_labels(target):
   assert (all(x.endswith('.proto') for x in target.sources))
   sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
 
-  # TODO(primiano): Remove the "wire_protocol not in x" condition below once
-  # the IPC layer stops depending on libprotobuf (i.e. once aosp/1163503 lands).
   deps = [
       ':' + get_sources_label(x)
       for x in target.proto_deps
-      if '//protos/perfetto/ipc:wire_protocol' not in x
+
+      # This is to avoid a dependency-on-self in the case where
+      # protos/perfetto/ipc:ipc depends on protos/perfetto/ipc:cpp and both
+      # targets resolve to "protos_perfetto_ipc_protos".
+      if get_sources_label(x) != sources_label_name
   ]
   sources_label.deps = sorted(deps)
 

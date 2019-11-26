@@ -19,11 +19,13 @@
 #include "perfetto/base/logging.h"
 #include "test/gtest_and_gmock.h"
 
-#include "src/ipc/test/deferred_unittest_messages.pb.h"
+#include "src/ipc/test/deferred_unittest_messages.gen.h"
 
 namespace perfetto {
 namespace ipc {
 namespace {
+
+using ::perfetto::ipc::gen::TestMessage;
 
 #if PERFETTO_DCHECK_IS_ON()
 #define EXPECT_DCHECK(x) EXPECT_DEATH_IF_SUPPORTED((x), ".*")
