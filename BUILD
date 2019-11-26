@@ -418,6 +418,7 @@ filegroup(
     srcs = [
         "include/perfetto/tracing/buffer_exhausted_policy.h",
         "include/perfetto/tracing/data_source.h",
+        "include/perfetto/tracing/debug_annotation.h",
         "include/perfetto/tracing/event_context.h",
         "include/perfetto/tracing/internal/basic_types.h",
         "include/perfetto/tracing/internal/data_source_internal.h",
@@ -1021,6 +1022,7 @@ filegroup(
     name = "src_tracing_client_api",
     srcs = [
         "src/tracing/data_source.cc",
+        "src/tracing/debug_annotation.cc",
         "src/tracing/event_context.cc",
         "src/tracing/internal/in_process_tracing_backend.cc",
         "src/tracing/internal/in_process_tracing_backend.h",

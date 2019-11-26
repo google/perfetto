@@ -27,6 +27,7 @@ source_set("tracing") {
   sources = [
     "buffer_exhausted_policy.h",
     "data_source.h",
+    "debug_annotation.h",
     "event_context.h",
     "internal/basic_types.h",
     "internal/data_source_internal.h",
