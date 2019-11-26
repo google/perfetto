@@ -8,23 +8,18 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 
-#include "protos/third_party/pprof/profile.pb.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto {
 namespace protoprofile {
 namespace {
 
 using protozero::proto_utils::ProtoWireType;
-using GLine = ::perfetto::third_party::perftools::profiles::Line;
-using GMapping = ::perfetto::third_party::perftools::profiles::Mapping;
-using GLocation = ::perfetto::third_party::perftools::profiles::Location;
-using GProfile = ::perfetto::third_party::perftools::profiles::Profile;
-using GValueType = ::perfetto::third_party::perftools::profiles::ValueType;
-using GFunction = ::perfetto::third_party::perftools::profiles::Function;
-using GSample = ::perfetto::third_party::perftools::profiles::Sample;
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::DynamicMessageFactory;
 using ::google::protobuf::FieldDescriptor;
@@ -68,9 +63,9 @@ void MultiFileErrorCollectorImpl::AddWarning(const std::string& filename,
 
 class SizeProfileComputer {
  public:
-  GProfile Compute(const uint8_t* ptr,
-                   size_t size,
-                   const Descriptor* descriptor);
+  std::string Compute(const uint8_t* ptr,
+                      size_t size,
+                      const Descriptor* descriptor);
 
  private:
   struct StackInfo {
@@ -168,32 +163,31 @@ void SizeProfileComputer::Sample(size_t size) {
   stack_info_[key].samples.push_back(size);
 }
 
-GProfile SizeProfileComputer::Compute(const uint8_t* ptr,
-                                      size_t size,
-                                      const Descriptor* descriptor) {
+std::string SizeProfileComputer::Compute(const uint8_t* ptr,
+                                         size_t size,
+                                         const Descriptor* descriptor) {
   PERFETTO_CHECK(InternString("") == 0);
   ComputeInner(ptr, size, descriptor);
-  GProfile profile;
+  protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
+      profile;
 
-  GValueType* sample_type;
-
-  sample_type = profile.add_sample_type();
+  auto* sample_type = profile->add_sample_type();
   sample_type->set_type(InternString("protos"));
   sample_type->set_unit(InternString("count"));
 
-  sample_type = profile.add_sample_type();
+  sample_type = profile->add_sample_type();
   sample_type->set_type(InternString("max_size"));
   sample_type->set_unit(InternString("bytes"));
 
-  sample_type = profile.add_sample_type();
+  sample_type = profile->add_sample_type();
   sample_type->set_type(InternString("min_size"));
   sample_type->set_unit(InternString("bytes"));
 
-  sample_type = profile.add_sample_type();
+  sample_type = profile->add_sample_type();
   sample_type->set_type(InternString("median"));
   sample_type->set_unit(InternString("bytes"));
 
-  sample_type = profile.add_sample_type();
+  sample_type = profile->add_sample_type();
   sample_type->set_type(InternString("total_size"));
   sample_type->set_unit(InternString("bytes"));
 
@@ -201,10 +195,12 @@ GProfile SizeProfileComputer::Compute(const uint8_t* ptr,
   for (auto& id_info : stack_info_) {
     StackInfo& info = id_info.second;
 
-    GSample* sample = profile.add_sample();
+    protozero::PackedVarInt location_ids;
+    auto* sample = profile->add_sample();
     for (auto it = info.locations.rbegin(); it != info.locations.rend(); ++it) {
-      sample->add_location_id(static_cast<uint64_t>(*it));
+      location_ids.Append(static_cast<uint64_t>(*it));
     }
+    sample->set_location_id(location_ids);
 
     std::sort(info.samples.begin(), info.samples.end());
     size_t count = info.samples.size();
@@ -215,11 +211,13 @@ GProfile SizeProfileComputer::Compute(const uint8_t* ptr,
     for (size_t i = 0; i < count; ++i)
       total_size += info.samples[i];
     // These have to be in the same order as the sample types above:
-    sample->add_value(static_cast<int64_t>(count));
-    sample->add_value(static_cast<int64_t>(max_size));
-    sample->add_value(static_cast<int64_t>(min_size));
-    sample->add_value(static_cast<int64_t>(median_size));
-    sample->add_value(static_cast<int64_t>(total_size));
+    protozero::PackedVarInt values;
+    values.Append(static_cast<int64_t>(count));
+    values.Append(static_cast<int64_t>(max_size));
+    values.Append(static_cast<int64_t>(min_size));
+    values.Append(static_cast<int64_t>(median_size));
+    values.Append(static_cast<int64_t>(total_size));
+    sample->set_value(values);
   }
 
   // The proto profile has a two step mapping where samples are associated with
@@ -227,14 +225,14 @@ GProfile SizeProfileComputer::Compute(const uint8_t* ptr,
   // distinguish them so we make a 1:1 mapping between the locations and the
   // functions:
   for (const auto& location_id : locations_) {
-    GLocation* location = profile.add_location();
+    auto* location = profile->add_location();
     location->set_id(static_cast<uint64_t>(location_id.second));
-    GLine* line = location->add_line();
+    auto* line = location->add_line();
     line->set_function_id(static_cast<uint64_t>(location_id.second));
   }
 
   for (const auto& location_id : locations_) {
-    GFunction* function = profile.add_function();
+    auto* function = profile->add_function();
     function->set_id(static_cast<uint64_t>(location_id.second));
     function->set_name(InternString(location_id.first));
   }
@@ -242,9 +240,9 @@ GProfile SizeProfileComputer::Compute(const uint8_t* ptr,
   // Finally the string table. We intern more strings above, so this has to be
   // last.
   for (int i = 0; i < static_cast<int>(strings_.size()); i++) {
-    profile.add_string_table(strings_[static_cast<size_t>(i)]);
+    profile->add_string_table(strings_[static_cast<size_t>(i)]);
   }
-  return profile;
+  return profile.SerializeAsString();
 }
 
 void SizeProfileComputer::ComputeInner(const uint8_t* ptr,
@@ -349,9 +347,7 @@ int Main(int argc, const char** argv) {
     return 1;
   }
   SizeProfileComputer computer;
-  GProfile profile = computer.Compute(start, size, descriptor);
-  std::string out;
-  profile.SerializeToString(&out);
+  std::string out = computer.Compute(start, size, descriptor);
   base::WriteAll(output_fd.get(), out.data(), out.size());
   base::FlushFile(output_fd.get());
 

@@ -32,13 +32,13 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/profiling/symbolizer.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_processor.h"
 
-#include "protos/perfetto/trace/profiling/profile_common.pb.h"
-#include "protos/perfetto/trace/profiling/profile_packet.pb.h"
-#include "protos/perfetto/trace/trace.pb.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/third_party/pprof/profile.pb.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 
 namespace perfetto {
 namespace trace_to_text {
@@ -48,14 +48,6 @@ namespace {
 using ::protozero::proto_utils::kMessageLengthFieldSize;
 using ::protozero::proto_utils::MakeTagLengthDelimited;
 using ::protozero::proto_utils::WriteVarInt;
-
-using GLine = ::perfetto::third_party::perftools::profiles::Line;
-using GMapping = ::perfetto::third_party::perftools::profiles::Mapping;
-using GLocation = ::perfetto::third_party::perftools::profiles::Location;
-using GProfile = ::perfetto::third_party::perftools::profiles::Profile;
-using GValueType = ::perfetto::third_party::perftools::profiles::ValueType;
-using GFunction = ::perfetto::third_party::perftools::profiles::Function;
-using GSample = ::perfetto::third_party::perftools::profiles::Sample;
 
 struct View {
   const char* type;
@@ -266,15 +258,18 @@ class GProfileBuilder {
         break;
       }
 
-      GSample* gsample = result_.add_sample();
+      auto* gsample = result_->add_sample();
+      protozero::PackedVarInt sample_values;
       for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
         int64_t callstack_id = (*view_its)[i].Get(0).long_value;
         if (i == 0) {
           auto frames = FramesForCallstack(callstack_id);
           if (frames.empty())
             return false;
+          protozero::PackedVarInt location_ids;
           for (int64_t frame : frames)
-            gsample->add_location_id(ToPprofId(frame));
+            location_ids.Append(ToPprofId(frame));
+          gsample->set_location_id(location_ids);
           seen_frames->insert(frames.cbegin(), frames.cend());
         } else {
           if (callstack_id != (*view_its)[i].Get(0).long_value) {
@@ -282,8 +277,9 @@ class GProfileBuilder {
             return false;
           }
         }
-        gsample->add_value((*view_its)[i].Get(1).long_value);
+        sample_values.Append((*view_its)[i].Get(1).long_value);
       }
+      gsample->set_value(sample_values);
     }
     return true;
   }
@@ -299,7 +295,8 @@ class GProfileBuilder {
       if (seen_mappings.find(id) == seen_mappings.end())
         continue;
       ++mappings_no;
-      GMapping* gmapping = result_.add_mapping();
+      auto interned_filename = Intern(mapping_it.Get(4).string_value);
+      auto* gmapping = result_->add_mapping();
       gmapping->set_id(ToPprofId(id));
       // Do not set the build_id here to avoid downstream services
       // trying to symbolize (e.g. b/141735056)
@@ -309,7 +306,7 @@ class GProfileBuilder {
           static_cast<uint64_t>(mapping_it.Get(2).long_value));
       gmapping->set_memory_limit(
           static_cast<uint64_t>(mapping_it.Get(3).long_value));
-      gmapping->set_filename(Intern(mapping_it.Get(4).string_value));
+      gmapping->set_filename(interned_filename);
     }
     if (!mapping_it.Status().ok()) {
       PERFETTO_DFATAL_OR_ELOG("Invalid mapping iterator: %s",
@@ -337,11 +334,14 @@ class GProfileBuilder {
       std::string demangled_name = name;
       MaybeDemangle(&demangled_name);
 
-      GFunction* gfunction = result_.add_function();
+      auto interned_demangled_name = Intern(demangled_name);
+      auto interned_system_name = Intern(name);
+      auto interned_filename = Intern(symbol_it.Get(2).string_value);
+      auto* gfunction = result_->add_function();
       gfunction->set_id(ToPprofId(id));
-      gfunction->set_name(Intern(demangled_name));
-      gfunction->set_system_name(Intern(name));
-      gfunction->set_filename(Intern(symbol_it.Get(2).string_value));
+      gfunction->set_name(interned_demangled_name);
+      gfunction->set_system_name(interned_system_name);
+      gfunction->set_filename(interned_filename);
     }
 
     if (!symbol_it.Status().ok()) {
@@ -376,7 +376,7 @@ class GProfileBuilder {
       int64_t symbol_set_id = frame_it.Get(4).long_value;
 
       seen_mappings->emplace(mapping_id);
-      GLocation* glocation = result_.add_location();
+      auto* glocation = result_->add_location();
       glocation->set_id(ToPprofId(frame_id));
       glocation->set_mapping_id(ToPprofId(mapping_id));
       // TODO(fmayer): Convert to abspc.
@@ -386,7 +386,7 @@ class GProfileBuilder {
       if (symbol_set_id) {
         for (const Line& line : LineForSymbolSetId(symbol_set_id)) {
           seen_symbol_ids->emplace(line.symbol_id);
-          GLine* gline = glocation->add_line();
+          auto* gline = glocation->add_line();
           gline->set_line(line.line_number);
           gline->set_function_id(ToPprofId(line.symbol_id));
         }
@@ -395,14 +395,16 @@ class GProfileBuilder {
         std::string demangled_name = frame_name;
         MaybeDemangle(&demangled_name);
 
-        GFunction* gfunction = result_.add_function();
-        gfunction->set_id(ToPprofId(synthesized_symbol_id));
-        gfunction->set_name(Intern(demangled_name));
-        gfunction->set_system_name(Intern(frame_name));
-
-        GLine* gline = glocation->add_line();
+        auto* gline = glocation->add_line();
         gline->set_line(0);
         gline->set_function_id(ToPprofId(synthesized_symbol_id));
+
+        auto interned_demangled_name = Intern(demangled_name);
+        auto interned_system_name = Intern(frame_name);
+        auto* gfunction = result_->add_function();
+        gfunction->set_id(ToPprofId(synthesized_symbol_id));
+        gfunction->set_name(interned_demangled_name);
+        gfunction->set_system_name(interned_system_name);
       }
     }
 
@@ -425,15 +427,20 @@ class GProfileBuilder {
 
   void WriteSampleTypes() {
     for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
-      auto* sample_type = result_.add_sample_type();
+      Intern(kViews[i].type);
+      Intern(kViews[i].unit);
+    }
+
+    for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
+      auto* sample_type = result_->add_sample_type();
       sample_type->set_type(Intern(kViews[i].type));
       sample_type->set_unit(Intern(kViews[i].unit));
     }
   }
 
-  GProfile GenerateGProfile(trace_processor::TraceProcessor* tp,
-                            uint64_t upid,
-                            uint64_t ts) {
+  std::string GenerateGProfile(trace_processor::TraceProcessor* tp,
+                               uint64_t upid,
+                               uint64_t ts) {
     std::set<int64_t> seen_frames;
     std::set<int64_t> seen_mappings;
     std::set<int64_t> seen_symbol_ids;
@@ -449,7 +456,7 @@ class GProfileBuilder {
       return {};
     if (!WriteSymbols(tp, seen_symbol_ids))
       return {};
-    return std::move(result_);
+    return result_.SerializeAsString();
   }
 
   const std::vector<int64_t>& FramesForCallstack(int64_t callstack_id) {
@@ -471,13 +478,14 @@ class GProfileBuilder {
     if (it == string_table_.end()) {
       std::tie(it, std::ignore) =
           string_table_.emplace(s, string_table_.size());
-      result_.add_string_table(s);
+      result_->add_string_table(s);
     }
     return it->second;
   }
 
  private:
-  GProfile result_;
+  protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
+      result_;
   std::map<std::string, int64_t> string_table_;
   const std::vector<std::vector<int64_t>>& callsite_to_frames_;
   const std::map<int64_t, std::vector<Line>>& symbol_set_id_to_lines_;
@@ -509,30 +517,22 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
                   uint64_t pid,
                   const std::vector<uint64_t>& timestamps) {
   if (symbolizer) {
-    SymbolizeDatabase(
-        tp, symbolizer, [&tp](perfetto::protos::TracePacket packet) {
-          size_t size = static_cast<size_t>(packet.ByteSize());
-          std::unique_ptr<uint8_t[]> buf(new uint8_t[size]);
-          packet.SerializeToArray(buf.get(), packet.ByteSize());
-
-          std::unique_ptr<uint8_t[]> preamble(new uint8_t[11]);
-          preamble[0] =
-              MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
-          uint8_t* end = WriteVarInt(size, &preamble[1]);
-          size_t preamble_size = static_cast<size_t>(end - &preamble[0]);
-          auto status = tp->Parse(std::move(preamble), preamble_size);
-          if (!status.ok()) {
-            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                    status.message().c_str());
-            return;
-          }
-          status = tp->Parse(std::move(buf), size);
-          if (!status.ok()) {
-            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                    status.message().c_str());
-            return;
-          }
-        });
+    SymbolizeDatabase(tp, symbolizer, [&tp](const std::string& packet_proto) {
+      std::unique_ptr<uint8_t[]> buf(new uint8_t[11 + packet_proto.size()]);
+      uint8_t* wptr = &buf[0];
+      *(wptr++) =
+          MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
+      wptr = WriteVarInt(packet_proto.size(), wptr);
+      memcpy(wptr, packet_proto.data(), packet_proto.size());
+      wptr += packet_proto.size();
+      size_t buf_size = static_cast<size_t>(wptr - &buf[0]);
+      auto status = tp->Parse(std::move(buf), buf_size);
+      if (!status.ok()) {
+        PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                status.message().c_str());
+        return;
+      }
+    });
   }
 
   tp->NotifyEndOfFile();
@@ -570,10 +570,9 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
     Iterator pid_it = tp->ExecuteQuery(pid_query);
     PERFETTO_CHECK(pid_it.Next());
 
-    GProfile profile = builder.GenerateGProfile(tp, upid, ts);
-    output->emplace_back(
-        SerializedProfile{static_cast<uint64_t>(pid_it.Get(0).long_value),
-                          profile.SerializeAsString()});
+    std::string profile_proto = builder.GenerateGProfile(tp, upid, ts);
+    output->emplace_back(SerializedProfile{
+        static_cast<uint64_t>(pid_it.Get(0).long_value), profile_proto});
   }
   if (any_fail) {
     PERFETTO_ELOG(

@@ -21,9 +21,12 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/trace_processor/trace_processor.h"
-
 namespace perfetto {
+
+namespace trace_processor {
+class TraceProcessor;
+}
+
 namespace trace_to_text {
 
 class Symbolizer;

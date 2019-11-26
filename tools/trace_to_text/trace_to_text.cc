@@ -29,7 +29,7 @@
 #include "tools/trace_to_text/utils.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_to_text {
