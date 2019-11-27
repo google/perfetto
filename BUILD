@@ -2261,6 +2261,7 @@ perfetto_cc_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_track_event_protos",
     srcs = [
+        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/debug_annotation.proto",
         "protos/perfetto/trace/track_event/log_message.proto",
         "protos/perfetto/trace/track_event/process_descriptor.proto",

@@ -16,6 +16,7 @@ import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
   sources = [
+    "chrome_compositor_scheduler_state.proto",
     "debug_annotation.proto",
     "log_message.proto",
     "process_descriptor.proto",
