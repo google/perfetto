@@ -16,7 +16,7 @@
 
 SELECT RUN_METRIC('android/android_lmk.sql');
 
-CREATE VIEW android_lmk_reason_output AS
+CREATE VIEW IF NOT EXISTS android_lmk_reason_output AS
 WITH
 lmk_ooms AS (
   SELECT
