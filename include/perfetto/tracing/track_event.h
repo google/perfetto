@@ -154,13 +154,8 @@
 
 // Begin a thread-scoped slice which gets automatically closed when going out of
 // scope.
-#define TRACE_EVENT(category, name, ...)               \
-  TRACE_EVENT_BEGIN(category, name, ##__VA_ARGS__);    \
-  struct {                                             \
-    struct EventFinalizer {                            \
-      ~EventFinalizer() { TRACE_EVENT_END(category); } \
-    } finalizer;                                       \
-  } PERFETTO_INTERNAL_UID(scoped_event)
+#define TRACE_EVENT(category, name, ...) \
+  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ##__VA_ARGS__)
 
 // Emit a thread-scoped slice which has zero duration.
 // TODO(skyostil): Add support for process-wide and global instant events.

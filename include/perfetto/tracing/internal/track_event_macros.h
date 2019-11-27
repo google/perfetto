@@ -102,4 +102,24 @@
 #define PERFETTO_INTERNAL_CONCAT(a, b) PERFETTO_INTERNAL_CONCAT2(a, b)
 #define PERFETTO_INTERNAL_UID(prefix) PERFETTO_INTERNAL_CONCAT(prefix, __LINE__)
 
+#define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
+  struct {                                                                    \
+    struct EventFinalizer {                                                   \
+      /* The int parameter is an implementation detail. It allows the      */ \
+      /* anonymous struct to use aggregate initialization to invoke the    */ \
+      /* lambda (which emits the BEGIN event and returns an integer)       */ \
+      /* with the proper reference capture for any                         */ \
+      /* TrackEventArgumentFunction in |__VA_ARGS__|. This is required so  */ \
+      /* that the scoped event is exactly ONE line and can't escape the    */ \
+      /* scope if used in a single line if statement.                      */ \
+      EventFinalizer(int) {}                                                  \
+      ~EventFinalizer() { TRACE_EVENT_END(category); }                        \
+    } finalizer;                                                              \
+  } PERFETTO_INTERNAL_UID(scoped_event) {                                     \
+    [&]() {                                                                   \
+      TRACE_EVENT_BEGIN(category, name, ##__VA_ARGS__);                       \
+      return 0;                                                               \
+    }()                                                                       \
+  }
+
 #endif  // INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_MACROS_H_

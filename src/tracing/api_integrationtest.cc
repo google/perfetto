@@ -1109,6 +1109,10 @@ TEST_F(PerfettoApiTest, TrackEventScoped) {
     });
   }
 
+  // Ensure a single line if statement counts as a valid scope for the macro.
+  if (true)
+    TRACE_EVENT("test", "SingleLineTestEvent");
+
   {
     // Make sure you can have multiple scoped events in the same scope.
     TRACE_EVENT("test", "TestEvent");
@@ -1120,6 +1124,7 @@ TEST_F(PerfettoApiTest, TrackEventScoped) {
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("B:test.TestEventWithArgs", "E:test.",
+                                  "B:test.SingleLineTestEvent", "E:test.",
                                   "B:test.TestEvent", "B:test.AnotherEvent",
                                   "E:test.", "E:test."));
 }
