@@ -31,73 +31,102 @@ class TestTable : public Table {
     columns_.emplace_back(Column::IdColumn(this, 0u, 0u));
     columns_.emplace_back(
         Column("a", &a_, Column::Flag::kNoFlag, this, 1u, 0u));
+    columns_.emplace_back(
+        Column("sorted", &sorted_, Column::Flag::kSorted, this, 2u, 0u));
   }
 
  private:
   StringPool pool_;
   SparseVector<uint32_t> a_;
+  SparseVector<uint32_t> sorted_;
 };
 
-TEST(DbSqliteTableTest, EstimateCostEmpty) {
+TEST(DbSqliteTable, IdEqCheaperThanOtherEq) {
+  TestTable table(1234);
+
+  QueryConstraints id_eq;
+  id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+
+  auto id_cost = DbSqliteTable::EstimateCost(table, id_eq);
+
+  QueryConstraints a_eq;
+  a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 1u);
+
+  auto a_cost = DbSqliteTable::EstimateCost(table, a_eq);
+
+  ASSERT_LT(id_cost.cost, a_cost.cost);
+  ASSERT_LT(id_cost.rows, a_cost.rows);
+}
+
+TEST(DbSqliteTable, IdEqCheaperThatOtherConstraint) {
+  TestTable table(1234);
+
+  QueryConstraints id_eq;
+  id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+
+  auto id_cost = DbSqliteTable::EstimateCost(table, id_eq);
+
+  QueryConstraints a_eq;
+  a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_LT, 1u);
+
+  auto a_cost = DbSqliteTable::EstimateCost(table, a_eq);
+
+  ASSERT_LT(id_cost.cost, a_cost.cost);
+  ASSERT_LT(id_cost.rows, a_cost.rows);
+}
+
+TEST(DbSqliteTable, SingleEqCheaperThanMultipleConstraint) {
+  TestTable table(1234);
+
+  QueryConstraints single_eq;
+  single_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+
+  auto single_cost = DbSqliteTable::EstimateCost(table, single_eq);
+
+  QueryConstraints multi_eq;
+  multi_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  multi_eq.AddConstraint(2u, SQLITE_INDEX_CONSTRAINT_EQ, 1u);
+
+  auto multi_cost = DbSqliteTable::EstimateCost(table, multi_eq);
+
+  // The cost of the single filter should be cheaper (because of our special
+  // handling of single equality). But the number of rows should be greater.
+  ASSERT_LT(single_cost.cost, multi_cost.cost);
+  ASSERT_GT(single_cost.rows, multi_cost.rows);
+}
+
+TEST(DbSqliteTable, EmptyTableCosting) {
   TestTable table(0u);
 
-  auto cost = DbSqliteTable::EstimateCost(table, QueryConstraints());
-  ASSERT_EQ(cost.rows, 0u);
+  QueryConstraints id_eq;
+  id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  // The cost should be 1000 (fixed cost).
-  ASSERT_DOUBLE_EQ(cost.cost, 1000.0);
+  auto id_cost = DbSqliteTable::EstimateCost(table, id_eq);
+
+  QueryConstraints a_eq;
+  a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_LT, 1u);
+
+  auto a_cost = DbSqliteTable::EstimateCost(table, a_eq);
+
+  ASSERT_DOUBLE_EQ(id_cost.cost, a_cost.cost);
+  ASSERT_EQ(id_cost.rows, a_cost.rows);
 }
 
-TEST(DbSqliteTableTest, EstimateCostSmoke) {
-  TestTable table(1234u);
+TEST(DbSqliteTable, OrderByOnSortedCheaper) {
+  TestTable table(1234);
 
-  auto cost = DbSqliteTable::EstimateCost(table, QueryConstraints());
-  ASSERT_EQ(cost.rows, 1234u);
+  QueryConstraints a_qc;
+  a_qc.AddOrderBy(1u, false);
 
-  // The cost should be 1000 (fixed cost) + 2468 (iteration cost).
-  ASSERT_DOUBLE_EQ(cost.cost, 3468);
-}
+  auto a_cost = DbSqliteTable::EstimateCost(table, a_qc);
 
-TEST(DbSqliteTableTest, EstimateCostFilterId) {
-  TestTable table(1234u);
+  // On an ordered column, the constraint for sorting would get pruned so
+  // we would end up with an empty constraint set.
+  QueryConstraints sorted_qc;
+  auto sorted_cost = DbSqliteTable::EstimateCost(table, sorted_qc);
 
-  QueryConstraints qc;
-  qc.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
-
-  auto cost = DbSqliteTable::EstimateCost(table, qc);
-  ASSERT_EQ(cost.rows, 1u);
-
-  // The cost should be 1000 (fixed cost) + 100 (filter cost) + 2 (iteration
-  // cost).
-  ASSERT_DOUBLE_EQ(cost.cost, 1102);
-}
-
-TEST(DbSqliteTableTest, EstimateCostEqualityConstraint) {
-  TestTable table(1234u);
-
-  QueryConstraints qc;
-  qc.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
-
-  auto cost = DbSqliteTable::EstimateCost(table, qc);
-  ASSERT_EQ(cost.rows, 120u);
-
-  // The cost should be 1000 (fixed cost) + 240.332 (filter cost) + 240
-  // (iteration cost).
-  ASSERT_DOUBLE_EQ(round(cost.cost), 1480);
-}
-
-TEST(DbSqliteTableTest, EstimateCostSort) {
-  TestTable table(1234u);
-
-  QueryConstraints qc;
-  qc.AddOrderBy(1u, false);
-
-  auto cost = DbSqliteTable::EstimateCost(table, qc);
-  ASSERT_EQ(cost.rows, 1234u);
-
-  // The cost should be 1000 (fixed cost) + 12672.102 (sort cost) + 2468
-  // (iteration cost).
-  ASSERT_DOUBLE_EQ(round(cost.cost), 16140);
+  ASSERT_LT(sorted_cost.cost, a_cost.cost);
+  ASSERT_EQ(sorted_cost.rows, a_cost.rows);
 }
 
 }  // namespace
