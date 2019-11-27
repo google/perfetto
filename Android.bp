@@ -5793,7 +5793,12 @@ cc_binary_host {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
-  static_executable: true,
+  dist: {
+    targets: [
+      "sdk_repo",
+    ],
+  },
+  stl: "libc++_static",
 }
 
 // GN: //tools/trace_to_text:trace_to_text
