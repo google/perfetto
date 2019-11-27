@@ -44,7 +44,8 @@ namespace metadata {
   F(system_name,                         kSingle,  Variadic::kString), \
   F(system_version,                      kSingle,  Variadic::kString), \
   F(system_release,                      kSingle,  Variadic::kString), \
-  F(system_machine,                      kSingle,  Variadic::kString)
+  F(system_machine,                      kSingle,  Variadic::kString), \
+  F(android_build_fingerprint,           kSingle,  Variadic::kString)
 // clang-format on
 
 enum KeyType {

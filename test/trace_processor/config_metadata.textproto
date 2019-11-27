@@ -17,4 +17,8 @@ packet {
     trace_uuid_lsb: -6605018796207623390
   }
 }
-
+packet {
+  system_info {
+    android_build_fingerprint: "the fingerprint"
+  }
+}
