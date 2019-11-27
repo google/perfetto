@@ -1,4 +1,5 @@
-# Copyright (C) 2019 The Android Open Source Project
+#!/usr/bin/python
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,23 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/proto_library.gni")
+from os import sys, path
 
-perfetto_proto_library("@TYPE@") {
-  sources = [
-    "batt_metric.proto",
-    "cpu_metric.proto",
-    "heap_profile_callsites.proto",
-    "ion_metric.proto",
-    "java_heap_stats.proto",
-    "lmk_metric.proto",
-    "lmk_reason_metric.proto",
-    "mem_metric.proto",
-    "mem_unagg_metric.proto",
-    "package_list.proto",
-    "powrails_metric.proto",
-    "process_metadata.proto",
-    "startup_metric.proto",
-    "unsymbolized_frames.proto",
-  ]
-}
+sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
+import synth_common
+
+trace = synth_common.create_trace()
+
+trace.add_process_tree_packet()
+trace.add_process(1, 0, 'init')
+trace.add_process(2, 1, 'system_server')
+trace.add_process(3, 1, 'lmk_victim_1')
+
+trace.add_ftrace_packet(cpu=0)
+trace.add_oom_score_update(ts=1, oom_score_adj=0, pid=3)
+trace.add_kernel_lmk(ts=100, tid=3)
+
+print(trace.trace.SerializeToString())
