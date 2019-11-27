@@ -23,6 +23,7 @@ sql_files = [
   "android/android_mem.sql",
   "android/android_mem_unagg.sql",
   "android/android_ion.sql",
+  "android/android_lmk_reason.sql",
   "android/android_lmk.sql",
   "android/android_powrails.sql",
   "android/android_startup_launches.sql",
