@@ -83,7 +83,7 @@ declare_args() {
     target_triplet = "arm-linux-androideabi"
   } else if (target_os == "android" && target_cpu == "x86") {
     target_triplet = "i686-linux-android"
-  } else if (target_os == "android" && target_cpu == "x86_64") {
+  } else if (target_os == "android" && target_cpu == "x64") {
     target_triplet = "x86_64-linux-android"
   } else {
     assert(false,
