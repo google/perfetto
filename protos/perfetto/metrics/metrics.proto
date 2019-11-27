@@ -45,6 +45,7 @@ message TraceMetadata {
   repeated Entry error_stats_entry = 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
+  optional string android_build_fingerprint = 4;
 }
 
 // Root message for all Perfetto-based metrics.

@@ -316,6 +316,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     context_->storage->SetMetadata(metadata::system_machine,
                                    Variadic::String(machine_id));
   }
+
+  if (packet.has_android_build_fingerprint()) {
+    context_->storage->SetMetadata(
+        metadata::android_build_fingerprint,
+        Variadic::String(context_->storage->InternString(
+            packet.android_build_fingerprint())));
+  }
 }
 
 }  // namespace trace_processor

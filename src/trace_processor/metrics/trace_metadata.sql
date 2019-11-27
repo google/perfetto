@@ -27,5 +27,8 @@ CREATE VIEW trace_metadata_output AS
 SELECT TraceMetadata(
   'error_stats_entry', (SELECT RepeatedField(entry) FROM error_stats_view),
   'trace_duration_ns', (SELECT end_ts - start_ts FROM trace_bounds),
-  'trace_uuid', (SELECT str_value FROM metadata WHERE name = 'trace_uuid')
+  'trace_uuid', (SELECT str_value FROM metadata WHERE name = 'trace_uuid'),
+  'android_build_fingerprint', (
+    SELECT str_value FROM metadata WHERE name = 'android_build_fingerprint'
+  )
 );
