@@ -1,0 +1,5 @@
+android_lmk_reason {
+  lmks: {
+    oom_score_adj: 0
+  }
+}
