@@ -155,7 +155,10 @@ additional_args = {
         ('required', {'libperfetto_android_internal', 'trigger_perfetto'}),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
-    'trace_processor_shell': [('static_executable', True),],
+    'trace_processor_shell': [
+      ('dist', {'targets': ['sdk_repo']}),
+      ('stl', 'libc++_static'),
+    ],
 }
 
 
@@ -262,6 +265,16 @@ def write_blueprint_key_value(output, name, value, sort=True):
   if isinstance(value, Target):
     value.to_string(output)
     return
+  if isinstance(value, dict):
+    kv_output = []
+    for k, v in value.items():
+      write_blueprint_key_value(kv_output, k, v)
+
+    output.append('  %s: {' % name)
+    for line in kv_output:
+      output.append('  %s' % line)
+    output.append('  },')
+    return
   output.append('  %s: "%s",' % (name, value))
 
 
@@ -320,7 +333,8 @@ class Module(object):
     self.android = Target('android')
     self.host = Target('host')
     self.lto = None
-    self.static_executable = False
+    self.stl = None
+    self.dist = dict()
     self.data = set()
     # The genrule_XXX below are properties that must to be propagated back
     # on the module(s) that depend on the genrule.
@@ -349,9 +363,10 @@ class Module(object):
     self._output_field(output, 'include_dirs')
     self._output_field(output, 'header_libs')
     self._output_field(output, 'required')
-    self._output_field(output, 'static_executable')
+    self._output_field(output, 'dist')
     self._output_field(output, 'tool_files')
     self._output_field(output, 'data')
+    self._output_field(output, 'stl')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -625,8 +640,10 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     curr = getattr(module, key)
     if add_val and isinstance(add_val, set) and isinstance(curr, set):
       curr.update(add_val)
-    elif isinstance(add_val, bool) and isinstance(curr, bool):
+    elif isinstance(add_val, str) and (not curr or isinstance(curr, str)):
       setattr(module, key, add_val)
+    elif isinstance(add_val, dict) and isinstance(curr, dict):
+      curr.update(add_val)
     else:
       raise Error('Unimplemented type of additional_args: %r' % key)
 
