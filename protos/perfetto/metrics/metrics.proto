@@ -25,6 +25,7 @@ import "protos/perfetto/metrics/android/mem_metric.proto";
 import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/lmk_metric.proto";
+import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/heap_profile_callsites.proto";
@@ -48,7 +49,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 18
+// Next id: 19
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -93,6 +94,9 @@ message TraceMetrics {
 
   // If the trace contains a heap graph, output allocation statistics.
   optional JavaHeapStats java_heap_stats = 17;
+
+  // Metrics used to find potential culprits of low-memory kills.
+  optional AndroidLmkReasonMetric android_lmk_reason = 18;
 
   // Demo extensions.
   extensions 450 to 499;
