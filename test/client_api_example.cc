@@ -18,45 +18,62 @@
 
 #include <thread>
 
+#include "protos/perfetto/config/gpu/gpu_counter_config.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
 // header public -> non-public dependency while building this file.
-
 namespace {
-
 class MyDataSource : public perfetto::DataSource<MyDataSource> {
  public:
   void OnSetup(const SetupArgs& args) override {
     // This can be used to access the domain-specific DataSourceConfig, via
     // args.config->xxx_config_raw().
-    PERFETTO_ILOG("OnSetup called, name: %s", args.config->name().c_str());
+    const std::string& config_raw = args.config->gpu_counter_config_raw();
+    perfetto::protos::pbzero::GpuCounterConfig::Decoder config(config_raw);
+
+    int sample_period = 0;
+    if (config.has_counter_period_ns())
+      sample_period = static_cast<int>(config.counter_period_ns());
+
+    std::vector<uint32_t> counter_ids;
+    for (auto it = config.counter_ids(); it; ++it) {
+      uint32_t counter_id = it->as_uint32();
+      if (counter_id > 0) {
+        counter_ids.push_back(counter_id);
+      }
+    }
+
+    PERFETTO_ILOG(
+        "OnSetup called, name: %s,"
+        "counter_period_ms: %d, tracing_session_id: %" PRIu64
+        " num counters: %zu",
+        args.config->name().c_str(), int(sample_period / 1000000),
+        args.config->tracing_session_id(), counter_ids.size());
   }
 
   void OnStart(const StartArgs&) override { PERFETTO_ILOG("OnStart called"); }
 
-  void OnStop(const StopArgs& args) override {
+  void OnStop(const StopArgs& stop_args) override {
     PERFETTO_ILOG("OnStop called");
 
-    // Demonstrates the ability to defer stop and handle it asynchronously,
-    // writing data at the very end of the trace.
-    auto stop_closure = args.HandleStopAsynchronously();
-    std::thread another_thread([stop_closure] {
-      sleep(2);
-      MyDataSource::Trace([](MyDataSource::TraceContext ctx) {
-        PERFETTO_LOG("Tracing lambda called while stopping");
-        auto packet = ctx.NewTracePacket();
-        packet->set_for_testing()->set_str("event recorded while stopping");
-        packet->Finalize();  //  Required because of the Flush below.
+    auto stop_closure = stop_args.HandleStopAsynchronously();
 
-        // This explicit Flush() is required because the service doesn't issue
-        // any other flush requests after the Stop() signal.
-        ctx.Flush();
-      });
-      stop_closure();
+    // It is possible to trace on stop as well, but doing so requires manually
+    // calling Flush() at the end.
+    MyDataSource::Trace([](MyDataSource::TraceContext ctx) {
+      PERFETTO_LOG("Tracing lambda called while stopping");
+      // This block here is to auto-finalize the packet before calling Flush.
+      {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp(999);
+      }
+      ctx.Flush();
     });
-    another_thread.detach();
+
+    stop_closure();
   }
 };
 
@@ -79,7 +96,9 @@ int main() {
       PERFETTO_LOG("Tracing lambda called");
       auto packet = ctx.NewTracePacket();
       packet->set_timestamp(42);
-      packet->set_for_testing()->set_str("event 1");
+      auto* gpu_packet = packet->set_gpu_counter_event();
+      auto* cnt = gpu_packet->add_counters();
+      cnt->set_counter_id(1);
     });
     sleep(1);
   }

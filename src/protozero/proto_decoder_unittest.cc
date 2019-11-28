@@ -20,6 +20,7 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/protozero/static_buffer.h"
 #include "test/gtest_and_gmock.h"
 
 #include "src/protozero/test/example_proto/test_messages.pb.h"
@@ -55,24 +56,44 @@ TEST(ProtoDecoderTest, ReadString) {
   }
 }
 
-TEST(ProtoDecoderTest, VeryLargeField) {
-  const uint64_t size = 512 * 1024 * 1024 + 6;
+TEST(ProtoDecoderTest, SkipVeryLargeFields) {
+  const size_t kPayloadSize = 257 * 1024 * 1024;
+  const uint64_t data_size = 4096 + kPayloadSize;
   std::unique_ptr<uint8_t, perfetto::base::FreeDeleter> data(
-      static_cast<uint8_t*>(malloc(size)));
+      static_cast<uint8_t*>(malloc(data_size)));
 
-  data.get()[0] = static_cast<unsigned char>('\x0A');
-  data.get()[1] = static_cast<unsigned char>('\x80');
-  data.get()[2] = static_cast<unsigned char>('\x80');
-  data.get()[3] = static_cast<unsigned char>('\x80');
-  data.get()[4] = static_cast<unsigned char>('\x80');
-  data.get()[5] = static_cast<unsigned char>('\x02');
+  StaticBufferDelegate delegate(data.get(), data_size);
+  ScatteredStreamWriter writer(&delegate);
+  Message message;
+  message.Reset(&writer);
 
-  ProtoDecoder decoder(data.get(), size);
+  // Append a valid field.
+  message.AppendVarInt(/*field_id=*/1, 11);
+
+  // Append a very large field that will be skipped.
+  uint8_t raw[10];
+  uint8_t* wptr = raw;
+  wptr = WriteVarInt(MakeTagLengthDelimited(2), wptr);
+  wptr = WriteVarInt(kPayloadSize, wptr);
+  message.AppendRawProtoBytes(raw, static_cast<size_t>(wptr - raw));
+  const uint8_t padding[1024 * 128]{};
+  for (size_t i = 0; i < kPayloadSize / sizeof(padding); i++)
+    message.AppendRawProtoBytes(padding, sizeof(padding));
+
+  // Append another valid field.
+  message.AppendVarInt(/*field_id=*/3, 13);
+
+  ProtoDecoder decoder(data.get(), static_cast<size_t>(writer.written()));
   Field field = decoder.ReadField();
   ASSERT_EQ(1u, field.id());
-  ASSERT_EQ(nullptr, field.data());
-  ASSERT_EQ(0u, field.size());
-  ASSERT_EQ(0u, decoder.bytes_left());
+  ASSERT_EQ(11, field.as_int32());
+
+  field = decoder.ReadField();
+  ASSERT_EQ(3u, field.id());
+  ASSERT_EQ(13, field.as_int32());
+
+  field = decoder.ReadField();
+  ASSERT_FALSE(field.valid());
 }
 
 TEST(ProtoDecoderTest, SingleRepeatedField) {
@@ -530,6 +551,73 @@ TEST(ProtoDecoderTest, MalformedPackedVarIntBuffer) {
        packed_it++) {
   }
   ASSERT_TRUE(parse_error);
+}
+
+// Tests that big field ids (> 0xffff) are just skipped but don't fail parsing.
+// This is a regression test for b/145339282 (DataSourceConfig.for_testing
+// having a very large ID == 268435455 until Android R).
+TEST(ProtoDecoderTest, SkipBigFieldIds) {
+  Message message;
+  ScatteredHeapBuffer delegate(512, 512);
+  ScatteredStreamWriter writer(&delegate);
+  delegate.set_writer(&writer);
+  message.Reset(&writer);
+  message.AppendVarInt(/*field_id=*/1, 11);
+  message.AppendVarInt(/*field_id=*/1000000, 0);  // Will be skipped
+  message.AppendVarInt(/*field_id=*/65535, 99);
+  message.AppendVarInt(/*field_id=*/268435455, 0);  // Will be skipped
+  message.AppendVarInt(/*field_id=*/2, 12);
+  message.AppendVarInt(/*field_id=*/2000000, 0);  // Will be skipped
+  std::vector<uint8_t> data = delegate.StitchSlices();
+
+  // Check the iterator-based ProtoDecoder.
+  {
+    ProtoDecoder decoder(data.data(), data.size());
+    Field field = decoder.ReadField();
+    ASSERT_TRUE(field.valid());
+    ASSERT_EQ(field.id(), 1u);
+    ASSERT_EQ(field.as_int32(), 11);
+
+    field = decoder.ReadField();
+    ASSERT_TRUE(field.valid());
+    ASSERT_EQ(field.id(), 65535u);
+    ASSERT_EQ(field.as_int32(), 99);
+
+    field = decoder.ReadField();
+    ASSERT_TRUE(field.valid());
+    ASSERT_EQ(field.id(), 2u);
+    ASSERT_EQ(field.as_int32(), 12);
+
+    field = decoder.ReadField();
+    ASSERT_FALSE(field.valid());
+  }
+
+  // Test the one-shot-read TypedProtoDecoder.
+  // Note: field 65535 will be also skipped because this TypedProtoDecoder has
+  // a cap on MAX_FIELD_ID = 3.
+  {
+    TypedProtoDecoder<3, true> tpd(data.data(), data.size());
+    EXPECT_EQ(tpd.Get(1).as_int32(), 11);
+    EXPECT_EQ(tpd.Get(2).as_int32(), 12);
+  }
+}
+
+// Edge case for SkipBigFieldIds, the message contains only one field with a
+// very big id. Test that we skip it and return an invalid field, instead of
+// geetting stuck in some loop.
+TEST(ProtoDecoderTest, OneBigFieldIdOnly) {
+  Message message;
+  ScatteredHeapBuffer delegate(512, 512);
+  ScatteredStreamWriter writer(&delegate);
+  delegate.set_writer(&writer);
+  message.Reset(&writer);
+  message.AppendVarInt(/*field_id=*/268435455, 0);
+  std::vector<uint8_t> data = delegate.StitchSlices();
+
+  // Check the iterator-based ProtoDecoder.
+  ProtoDecoder decoder(data.data(), data.size());
+  Field field = decoder.ReadField();
+  ASSERT_FALSE(field.valid());
 }
 
 }  // namespace
