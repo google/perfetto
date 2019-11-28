@@ -96,7 +96,7 @@ class TrackEventInternal {
   template <typename T>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
                                  const char* name,
-                                 T value) {
+                                 T&& value) {
     auto annotation = AddDebugAnnotation(event_ctx, name);
     WriteDebugAnnotation(annotation, value);
   }

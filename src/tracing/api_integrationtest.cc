@@ -404,6 +404,8 @@ class PerfettoApiTest : public ::testing::Test {
             value << "(pointer)" << std::hex << it.pointer_value();
           } else if (it.has_legacy_json_value()) {
             value << "(json)" << it.legacy_json_value();
+          } else if (it.has_nested_value()) {
+            value << "(nested)" << it.nested_value().string_value();
           }
           slice += value.str();
           first_annotation = false;
@@ -1222,6 +1224,86 @@ TEST_F(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
       ElementsAre(
           R"(B:test.E(custom_arg=(json){"key": 123}))",
           R"(B:test.E(normal_arg=(string)x,custom_arg=(json){"key": 123}))"));
+}
+
+TEST_F(PerfettoApiTest, TrackEventCustomRawDebugAnnotations) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("test");
+
+  // Note: this class is also testing a non-moveable and non-copiable argument.
+  class MyRawDebugAnnotation : public perfetto::DebugAnnotation {
+   public:
+    MyRawDebugAnnotation() { msg_->set_string_value("nested_value"); }
+    ~MyRawDebugAnnotation() = default;
+
+    // |msg_| already deletes these implicitly, but let's be explicit for safety
+    // against future changes.
+    MyRawDebugAnnotation(const MyRawDebugAnnotation&) = delete;
+    MyRawDebugAnnotation(MyRawDebugAnnotation&&) = delete;
+
+    void Add(perfetto::protos::pbzero::DebugAnnotation* annotation) const {
+      auto ranges = msg_.GetRanges();
+      annotation->AppendScatteredBytes(
+          perfetto::protos::pbzero::DebugAnnotation::kNestedValueFieldNumber,
+          &ranges[0], ranges.size());
+    }
+
+   private:
+    mutable protozero::HeapBuffered<
+        perfetto::protos::pbzero::DebugAnnotation::NestedValue>
+        msg_;
+  };
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "E", "raw_arg", MyRawDebugAnnotation());
+  TRACE_EVENT_BEGIN("test", "E", "plain_arg", 42, "raw_arg",
+                    MyRawDebugAnnotation());
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(
+      slices,
+      ElementsAre("B:test.E(raw_arg=(nested)nested_value)",
+                  "B:test.E(plain_arg=(int)42,raw_arg=(nested)nested_value)"));
+}
+
+TEST_F(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  bool called = false;
+  auto ArgumentFunction = [&] {
+    called = true;
+    return 123;
+  };
+
+  TRACE_EVENT_BEGIN("test", "DisabledEvent", "arg", ArgumentFunction());
+  { TRACE_EVENT("test", "DisabledScopedEvent", "arg", ArgumentFunction()); }
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  EXPECT_FALSE(called);
+
+  ArgumentFunction();
+  EXPECT_TRUE(called);
 }
 
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
