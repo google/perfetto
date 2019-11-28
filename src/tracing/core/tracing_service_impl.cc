@@ -2236,14 +2236,22 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
     c->set_timestamp(
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
   }
-#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
+        // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
   if (set_root_timestamp)
     root_timestamp_ns = wall_time_ns;
   auto* c = clock_snapshot->add_clocks();
   c->set_clock_id(protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
   c->set_timestamp(wall_time_ns);
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  // The default trace clock is boot time, so we always need to emit a path to
+  // it. However since we don't actually have a boot time source on these
+  // platforms, pretend that wall time equals boot time.
+  c = clock_snapshot->add_clocks();
+  c->set_clock_id(protos::pbzero::ClockSnapshot::Clock::BOOTTIME);
+  c->set_timestamp(wall_time_ns);
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
+        // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
   if (root_timestamp_ns)
     packet->set_timestamp(root_timestamp_ns);
