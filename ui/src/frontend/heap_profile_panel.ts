@@ -152,7 +152,6 @@ export class HeapProfileDetailsPanel extends
     const engine = Object.values(globals.state.engines)[0];
     if (!engine) return;
     const src = engine.source;
-    // TODO(tneda): add second timestamp
     globals.dispatch(
         Actions.convertTraceToPprof({pid: this.pid, ts1: this.ts, src}));
   }
