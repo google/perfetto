@@ -204,6 +204,8 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   double filter_cost = 0.0;
   const auto& cs = qc.constraints();
   for (const auto& c : cs) {
+    if (current_row_count < 2)
+      break;
     const auto& col = table.GetColumn(static_cast<uint32_t>(c.column));
     if (sqlite_utils::IsOpEq(c.op) && col.IsId()) {
       // If we have an id equality constraint, it's a bit expensive to find
