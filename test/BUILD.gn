@@ -58,7 +58,9 @@ executable("client_api_example") {
   deps = [
     "..:libperfetto_client_experimental",
     "../gn:default_deps",
+    "../protos/perfetto/config/gpu:zero",
     "../protos/perfetto/trace:zero",
+    "../protos/perfetto/trace/gpu:zero",
   ]
 }
 
