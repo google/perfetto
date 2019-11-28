@@ -32,6 +32,23 @@ const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
 const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
+let HEAP_PROFILE_DETAILS_HEIGHT_PX = DEFAULT_DETAILS_HEIGHT_PX;
+
+function generateHeapProfileHeight() {
+  const panelContainer =
+      document.querySelector('.scrolling-panel-container') as HTMLElement;
+  if (HEAP_PROFILE_DETAILS_HEIGHT_PX === DEFAULT_DETAILS_HEIGHT_PX &&
+      panelContainer !== null) {
+    HEAP_PROFILE_DETAILS_HEIGHT_PX = panelContainer.clientHeight;
+  }
+}
+
+function getHeightForDetailsPanel(): number {
+  return globals.state.currentSelection &&
+          globals.state.currentSelection.kind === 'HEAP_PROFILE' ?
+      HEAP_PROFILE_DETAILS_HEIGHT_PX :
+      DEFAULT_DETAILS_HEIGHT_PX;
+}
 
 function hasLogs(): boolean {
   const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
@@ -49,6 +66,7 @@ export type Tab = 'current_selection'|'time_range'|'android_logs';
 class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private dragStartHeight = 0;
   private height = 0;
+  private previousHeight = this.height;
   private resize: (height: number) => void = () => {};
   private isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
   private tabNames = new Map<Tab, string>([
@@ -116,9 +134,10 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
             onclick: () => {
               if (this.height === DRAG_HANDLE_HEIGHT_PX) {
                 this.isClosed = false;
-                this.resize(DEFAULT_DETAILS_HEIGHT_PX);
+                this.resize(this.previousHeight);
               } else {
                 this.isClosed = true;
+                this.previousHeight = this.height;
                 this.resize(DRAG_HANDLE_HEIGHT_PX);
               }
               globals.rafScheduler.scheduleFullRedraw();
@@ -133,6 +152,7 @@ export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = DRAG_HANDLE_HEIGHT_PX;
   // Used to set details panel to default height on selection.
   private showDetailsPanel = true;
+  private lastSelectedKind?: string;
 
   view() {
     const detailsPanels: Map<Tab, AnyAttrsVnode> = new Map();
@@ -159,6 +179,7 @@ export class DetailsPanel implements m.ClassComponent {
           detailsPanels.set(
               'current_selection',
               m(HeapProfileDetailsPanel, {key: 'heap_profile'}));
+          generateHeapProfileHeight();
           break;
         case 'CHROME_SLICE':
           detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
@@ -187,11 +208,13 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     const wasShowing = this.showDetailsPanel;
+    const changedSelection =
+        curSelection && this.lastSelectedKind !== curSelection.kind;
     this.showDetailsPanel = detailsPanels.size > 0;
+    this.lastSelectedKind = curSelection ? curSelection.kind : undefined;
     // Pop up details panel on first selection.
-    if (!wasShowing && this.showDetailsPanel &&
-        this.detailsHeight === DRAG_HANDLE_HEIGHT_PX) {
-      this.detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
+    if (!wasShowing && changedSelection && this.showDetailsPanel) {
+      this.detailsHeight = getHeightForDetailsPanel();
     }
 
     const panel = globals.frontendLocalState.currentTab ?
