@@ -30,5 +30,9 @@ SELECT TraceMetadata(
   'trace_uuid', (SELECT str_value FROM metadata WHERE name = 'trace_uuid'),
   'android_build_fingerprint', (
     SELECT str_value FROM metadata WHERE name = 'android_build_fingerprint'
+  ),
+  'statsd_triggering_subscription_id', (
+    SELECT int_value FROM metadata
+    WHERE name = 'statsd_triggering_subscription_id'
   )
 );
