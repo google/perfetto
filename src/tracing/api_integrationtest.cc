@@ -540,7 +540,7 @@ TEST_F(PerfettoApiTest, TrackEvent) {
   bool end_found = false;
   bool process_descriptor_found = false;
   bool thread_descriptor_found = false;
-  auto now = perfetto::test::GetWallTimeNs();
+  auto now = perfetto::test::GetTraceTimeNs();
   uint32_t sequence_id = 0;
   int32_t cur_pid = perfetto::test::GetCurrentProcessId();
   for (const auto& packet : trace.packet()) {
@@ -558,6 +558,7 @@ TEST_F(PerfettoApiTest, TrackEvent) {
       thread_descriptor_found = true;
     }
     if (packet.incremental_state_cleared()) {
+      EXPECT_TRUE(packet.has_trace_packet_defaults());
       incremental_state_was_cleared = true;
       categories.clear();
       event_names.clear();
@@ -589,6 +590,13 @@ TEST_F(PerfettoApiTest, TrackEvent) {
 
     EXPECT_GT(packet.timestamp(), 0u);
     EXPECT_LE(packet.timestamp(), now);
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    EXPECT_FALSE(packet.has_timestamp_clock_id());
+#else
+    EXPECT_EQ(packet.timestamp_clock_id(),
+              protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+#endif
     EXPECT_EQ(track_event.category_iids().size(), 1);
     EXPECT_GE(track_event.category_iids().Get(0), 1u);
 
