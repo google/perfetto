@@ -505,8 +505,8 @@ class RowMap {
       }
       case Mode::kBitVector: {
         auto out_it = out->bit_vector_.IterateAllBits();
-        for (; it; it.Next(), out_it.Next()) {
-          PERFETTO_DCHECK(out_it);
+        for (; out_it; it.Next(), out_it.Next()) {
+          PERFETTO_DCHECK(it);
           if (out_it.IsSet() && !p(it.index()))
             out_it.Clear();
         }
