@@ -226,7 +226,7 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
 
   let heapprofd: HeapprofdConfig|undefined = undefined;
   if (uiCfg.heapProfiling) {
-    // TODO(tneda): Check or inform user if buffer size are too small.
+    // TODO(taylori): Check or inform user if buffer size are too small.
     if (heapprofd === undefined) heapprofd = new HeapprofdConfig();
     heapprofd.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
     if (uiCfg.hpSharedMemoryBuffer >= 8192 &&
