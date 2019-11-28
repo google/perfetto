@@ -113,7 +113,7 @@ export class Flamegraph {
   draw(
       ctx: CanvasRenderingContext2D, width: number, height: number, x = 0,
       y = 0, unit = 'B') {
-    // TODO(tneda): Instead of pesimistic approach improve displaying text.
+    // TODO(taylori): Instead of pesimistic approach improve displaying text.
     const name = '____MMMMMMQQwwZZZZZZzzzzzznnnnnnwwwwwwWWWWWqq$$mmmmmm__';
     const charWidth = ctx.measureText(name).width / name.length;
     const nodeHeight = this.getNodeHeight();
