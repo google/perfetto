@@ -264,6 +264,27 @@ TEST_F(TableMacrosUnittest, StringComparision) {
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 }
 
+TEST_F(TableMacrosUnittest, FilterIdThenOther) {
+  TestCpuSliceTable::Row row;
+  row.cpu = 1;
+  row.end_state = pool_.InternString("D");
+
+  cpu_slice_.Insert(row);
+  cpu_slice_.Insert(row);
+  cpu_slice_.Insert(row);
+
+  auto out =
+      cpu_slice_.Filter({cpu_slice_.id().eq(SqlValue::Long(0)),
+                         cpu_slice_.end_state().eq(SqlValue::String("D")),
+                         cpu_slice_.cpu().eq(SqlValue::Long(1))});
+  const auto& end_state = out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  const auto& cpu = out.GetColumn(*out.FindColumnIdxByName("cpu"));
+
+  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(cpu.Get(0).long_value, 1u);
+  ASSERT_STREQ(end_state.Get(0).string_value, "D");
+}
+
 TEST_F(TableMacrosUnittest, Sort) {
   ASSERT_TRUE(event_.ts().IsSorted());
 
