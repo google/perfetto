@@ -433,48 +433,65 @@ class Column {
       return;
     }
 
+    if (value.type != SqlValue::Type::kLong) {
+      rm->Intersect(RowMap());
+      return;
+    }
+
     int64_t long_value = value.long_value;
     switch (op) {
       case FilterOp::kLt:
         row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-          if (is_nullable)
-            return sparse_vector<T>().Get(idx) < long_value;
+          if (is_nullable) {
+            auto opt_value = sparse_vector<T>().Get(idx);
+            return opt_value && *opt_value < long_value;
+          }
           return sparse_vector<T>().GetNonNull(idx) < long_value;
         });
         break;
       case FilterOp::kEq:
         row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-          if (is_nullable)
-            return sparse_vector<T>().Get(idx) == long_value;
+          if (is_nullable) {
+            auto opt_value = sparse_vector<T>().Get(idx);
+            return opt_value && opt_value == long_value;
+          }
           return sparse_vector<T>().GetNonNull(idx) == long_value;
         });
         break;
       case FilterOp::kGt:
         row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-          if (is_nullable)
-            return sparse_vector<T>().Get(idx) > long_value;
+          if (is_nullable) {
+            auto opt_value = sparse_vector<T>().Get(idx);
+            return opt_value && opt_value > long_value;
+          }
           return sparse_vector<T>().GetNonNull(idx) > long_value;
         });
         break;
       case FilterOp::kNe:
         row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-          if (is_nullable)
-            return sparse_vector<T>().GetNonNull(idx) != long_value;
-          return sparse_vector<T>().Get(idx) != long_value;
+          if (is_nullable) {
+            auto opt_value = sparse_vector<T>().Get(idx);
+            return opt_value && opt_value != long_value;
+          }
+          return sparse_vector<T>().GetNonNull(idx) != long_value;
         });
         break;
       case FilterOp::kLe:
         row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-          if (is_nullable)
-            return sparse_vector<T>().GetNonNull(idx) <= long_value;
-          return sparse_vector<T>().Get(idx) <= long_value;
+          if (is_nullable) {
+            auto opt_value = sparse_vector<T>().Get(idx);
+            return opt_value && opt_value <= long_value;
+          }
+          return sparse_vector<T>().GetNonNull(idx) <= long_value;
         });
         break;
       case FilterOp::kGe:
         row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-          if (is_nullable)
-            return sparse_vector<T>().GetNonNull(idx) >= long_value;
-          return sparse_vector<T>().Get(idx) >= long_value;
+          if (is_nullable) {
+            auto opt_value = sparse_vector<T>().Get(idx);
+            return opt_value && opt_value >= long_value;
+          }
+          return sparse_vector<T>().GetNonNull(idx) >= long_value;
         });
         break;
       case FilterOp::kLike:
@@ -501,36 +518,47 @@ class Column {
       return;
     }
 
+    if (value.type != SqlValue::Type::kString) {
+      rm->Intersect(RowMap());
+      return;
+    }
+
     NullTermStringView str_value = value.string_value;
     switch (op) {
       case FilterOp::kLt:
         row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-          return GetStringPoolStringAtIdx(idx) < str_value;
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && v < str_value;
         });
         break;
       case FilterOp::kEq:
         row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-          return GetStringPoolStringAtIdx(idx) == str_value;
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && v == str_value;
         });
         break;
       case FilterOp::kGt:
         row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-          return GetStringPoolStringAtIdx(idx) > str_value;
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && v > str_value;
         });
         break;
       case FilterOp::kNe:
         row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-          return GetStringPoolStringAtIdx(idx) != str_value;
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && v != str_value;
         });
         break;
       case FilterOp::kLe:
         row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-          return GetStringPoolStringAtIdx(idx) <= str_value;
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && v <= str_value;
         });
         break;
       case FilterOp::kGe:
         row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-          return GetStringPoolStringAtIdx(idx) >= str_value;
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && v >= str_value;
         });
         break;
       case FilterOp::kLike:
@@ -547,11 +575,15 @@ class Column {
   void FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
     if (op == FilterOp::kIsNull) {
       PERFETTO_DCHECK(value.is_null());
-      row_map().FilterInto(rm, [](uint32_t) { return false; });
+      rm->Intersect(RowMap());
       return;
     } else if (op == FilterOp::kIsNotNull) {
       PERFETTO_DCHECK(value.is_null());
-      row_map().FilterInto(rm, [](uint32_t) { return true; });
+      return;
+    }
+
+    if (value.type != SqlValue::Type::kLong) {
+      rm->Intersect(RowMap());
       return;
     }
 
