@@ -34,6 +34,8 @@ using namespace proto_utils;
 namespace {
 
 struct ParseFieldResult {
+  enum ParseResult { kAbort, kSkip, kOk };
+  ParseResult parse_res;
   const uint8_t* next;
   Field field;
 };
@@ -42,7 +44,7 @@ struct ParseFieldResult {
 // field to parse. If parsing fails, the returned |next| == |buffer|.
 PERFETTO_ALWAYS_INLINE ParseFieldResult
 ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
-  ParseFieldResult res{buffer, Field{}};
+  ParseFieldResult res{ParseFieldResult::kAbort, buffer, Field{}};
 
   // The first byte of a proto field is structured as follows:
   // The least 3 significant bits determine the field type.
@@ -73,7 +75,7 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
   auto field_type = static_cast<uint8_t>(preamble & kFieldTypeMask);
   const uint8_t* new_pos = pos;
   uint64_t int_value = 0;
-  uint32_t size = 0;
+  uint64_t size = 0;
 
   switch (field_type) {
     case static_cast<uint8_t>(ProtoWireType::kVarInt): {
@@ -99,13 +101,9 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
       if (payload_length > static_cast<uint64_t>(end - new_pos))
         return res;
 
-      // If the message is larger than 256 MiB silently skip it.
-      if (PERFETTO_LIKELY(payload_length <= proto_utils::kMaxMessageLength)) {
-        const uintptr_t payload_start = reinterpret_cast<uintptr_t>(new_pos);
-        int_value = payload_start;
-        size = static_cast<uint32_t>(payload_length);
-      }
-
+      const uintptr_t payload_start = reinterpret_cast<uintptr_t>(new_pos);
+      int_value = payload_start;
+      size = payload_length;
       new_pos += payload_length;
       break;
     }
@@ -131,14 +129,26 @@ ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
       return res;
   }
 
+  res.next = new_pos;
+
   if (PERFETTO_UNLIKELY(field_id > std::numeric_limits<uint16_t>::max())) {
-    // PERFETTO_DFATAL("Cannot parse proto field ids > 0xFFFF");
+    PERFETTO_DLOG("Skipping field %" PRIu32 " because its id > 0xFFFF",
+                  field_id);
+    res.parse_res = ParseFieldResult::kSkip;
     return res;
   }
 
+  if (PERFETTO_UNLIKELY(size > proto_utils::kMaxMessageLength)) {
+    PERFETTO_DLOG("Skipping field %" PRIu32 " because it's too big (%" PRIu64
+                  " KB)",
+                  field_id, size / 1024);
+    res.parse_res = ParseFieldResult::kSkip;
+    return res;
+  }
+
+  res.parse_res = ParseFieldResult::kOk;
   res.field.initialize(static_cast<uint16_t>(field_id), field_type, int_value,
-                       size);
-  res.next = new_pos;
+                       static_cast<uint32_t>(size));
   return res;
 }
 
@@ -160,8 +170,11 @@ Field ProtoDecoder::FindField(uint32_t field_id) {
 
 PERFETTO_ALWAYS_INLINE
 Field ProtoDecoder::ReadField() {
-  ParseFieldResult res = ParseOneField(read_ptr_, end_);
-  read_ptr_ = res.next;
+  ParseFieldResult res;
+  do {
+    res = ParseOneField(read_ptr_, end_);
+    read_ptr_ = res.next;
+  } while (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kSkip));
   return res.field;
 }
 
@@ -170,11 +183,15 @@ void TypedProtoDecoderBase::ParseAllFields() {
   ParseFieldResult res;
   for (;;) {
     res = ParseOneField(cur, end_);
-    if (res.next == cur)
-      break;
-    PERFETTO_DCHECK(res.field.valid());
+    PERFETTO_DCHECK(res.parse_res != ParseFieldResult::kOk || res.next != cur);
     cur = res.next;
-
+    if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kSkip)) {
+      continue;
+    } else if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kAbort)) {
+      break;
+    }
+    PERFETTO_DCHECK(res.parse_res == ParseFieldResult::kOk);
+    PERFETTO_DCHECK(res.field.valid());
     auto field_id = res.field.id();
     if (PERFETTO_UNLIKELY(field_id >= num_fields_))
       continue;
