@@ -145,6 +145,7 @@ class TraceSorter {
   // Extract all events ignoring the window.
   void ExtractEventsForced() {
     SortAndExtractEventsBeyondWindow(/*window_size_ns=*/0);
+    queues_.resize(0);
   }
 
   // Sets the window size to be the size specified (which should be lower than
