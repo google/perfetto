@@ -362,7 +362,7 @@ function HeapSettings(cssClass: string) {
         set: (cfg, val) => cfg.hpSharedMemoryBuffer = val,
         get: (cfg) => cfg.hpSharedMemoryBuffer
       } as SliderAttrs)
-      // TODO(tneda): Add advanced options.
+      // TODO(taylori): Add advanced options.
   );
 }
 
