@@ -82,8 +82,6 @@ export class HeapProfileController extends Controller<'main'> {
 
         const key = `${selectedUpid};${selectedTs}`;
 
-        // TODO(tneda): Prevent lots of flamegraph queries being queued if a
-        // user clicks lots of the markers quickly.
         this.getFlamegraphData(
                 key, lastSelectedViewingOption, selection.ts, selectedUpid)
             .then(flamegraphData => {
@@ -123,7 +121,7 @@ export class HeapProfileController extends Controller<'main'> {
     if (this.flamegraphDatasets.has(key)) {
       currentData = this.flamegraphDatasets.get(key)!;
     } else {
-      // TODO(tneda): Show loading state.
+      // TODO(taylori): Show loading state.
 
       // Collecting data for drawing flamegraph for selected heap profile.
       // Data needs to be in following format:
@@ -203,7 +201,7 @@ export class HeapProfileController extends Controller<'main'> {
         this.tableName(`grouped_callsites_for_flamegraph`);
     // Joining the callsite table with frame table then with alloc table to get
     // the size and name for each callsite.
-    // TODO(tneda): Make frame name nullable in the trace processor for
+    // TODO(taylori): Make frame name nullable in the trace processor for
     // consistency with the other columns.
     await this.args.engine.query(
         `create view if not exists ${tableNameCallsiteNameSize} as
