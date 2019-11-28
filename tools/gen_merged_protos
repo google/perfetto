@@ -46,6 +46,7 @@ CONFIG_PROTOS = (
     'protos/perfetto/config/profiling/java_hprof_config.proto',
     'protos/perfetto/config/profiling/perf_event_config.proto',
     'protos/perfetto/config/gpu/gpu_counter_config.proto',
+    'protos/perfetto/config/gpu/vulkan_memory_config.proto',
     'protos/perfetto/config/android/packages_list_config.proto',
 )
 
