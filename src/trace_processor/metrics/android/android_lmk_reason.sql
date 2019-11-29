@@ -14,6 +14,7 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/android_ion.sql');
 SELECT RUN_METRIC('android/android_lmk.sql');
 
 CREATE VIEW IF NOT EXISTS android_lmk_reason_output AS
@@ -23,17 +24,31 @@ lmk_ooms AS (
   lmk_events.ts,
   oom_score_val
   FROM lmk_events
-  LEFT JOIN oom_score_span USING (upid)
-  WHERE oom_score_span.ts <= lmk_events.ts
-  AND (oom_score_span.ts + oom_score_span.dur) > lmk_events.ts
+  JOIN oom_score_span USING (upid)
+  WHERE lmk_events.ts
+    BETWEEN oom_score_span.ts
+    AND oom_score_span.ts + MAX(oom_score_span.dur - 1, 0)
+),
+lmk_ion_sizes AS (
+  SELECT
+  lmk_events.ts,
+  CAST(ion_timeline.value as int) system_ion_heap_size
+  FROM lmk_events
+  JOIN ion_timeline
+  WHERE ion_timeline.heap_name = 'system'
+  AND lmk_events.ts
+    BETWEEN ion_timeline.ts
+    AND ion_timeline.ts + MAX(ion_timeline.dur - 1, 0)
 )
 SELECT AndroidLmkReasonMetric(
   'lmks', (
     SELECT RepeatedField(AndroidLmkReasonMetric_Lmk(
-      'oom_score_adj', oom_score_val
+      'oom_score_adj', oom_score_val,
+      'system_ion_heap_size', system_ion_heap_size
     ))
     FROM lmk_events
-    JOIN lmk_ooms USING (ts)
+    LEFT JOIN lmk_ooms USING (ts)
+    LEFT JOIN lmk_ion_sizes USING (ts)
     ORDER BY ts
   )
 );
