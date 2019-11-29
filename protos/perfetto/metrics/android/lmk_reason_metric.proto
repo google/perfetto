@@ -24,6 +24,9 @@ message AndroidLmkReasonMetric {
   message Lmk {
     // OOM score adj of the LMK'ed process.
     optional int32 oom_score_adj = 1;
+
+    // Total size of the system ION heap in bytes.
+    optional int64 system_ion_heap_size = 2;
   }
 
   repeated Lmk lmks = 1;
