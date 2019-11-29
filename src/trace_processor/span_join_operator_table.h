@@ -187,6 +187,8 @@ class SpanJoinOperatorTable : public SqliteTable {
       return sqlite3_column_int64(stmt_.get(), partition_idx);
     }
 
+    bool CursorEof() const { return cursor_eof_; }
+
    private:
     enum Mode {
       kRealSlice,
