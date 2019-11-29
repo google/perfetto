@@ -131,7 +131,9 @@ Usage: %s
                              background
   --config         -c      : /path/to/trace/config/file or - for stdin
   --out            -o      : /path/to/out/trace/file or - for stdout
-  --dropbox           TAG  : Upload trace into DropBox using tag TAG
+  --upload                 : Upload field trace (Android only)
+  --dropbox        TAG     : DEPRECATED: Use --upload instead
+                             TAG should always be set to 'perfetto'
   --no-guardrails          : Ignore guardrails triggered when using --dropbox
                              (for testing).
   --txt                    : Parse config as pbtxt. Not for production use.
@@ -180,6 +182,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_RESET_GUARDRAILS,
     OPT_PBTXT_CONFIG,
     OPT_DROPBOX,
+    OPT_UPLOAD,
     OPT_ATRACE_APP,
     OPT_IGNORE_GUARDRAILS,
     OPT_DETACH,
@@ -199,6 +202,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"size", required_argument, nullptr, 's'},
       {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
       {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
+      {"upload", no_argument, nullptr, OPT_UPLOAD},
       {"dropbox", required_argument, nullptr, OPT_DROPBOX},
       {"alert-id", required_argument, nullptr, OPT_ALERT_ID},
       {"config-id", required_argument, nullptr, OPT_CONFIG_ID},
@@ -287,13 +291,23 @@ int PerfettoCmd::Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_UPLOAD) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      dropbox_tag_ = "perfetto";
+      continue;
+#else
+      PERFETTO_ELOG("--upload is only supported on Android");
+      return 1;
+#endif
+    }
+
     if (option == OPT_DROPBOX) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
       PERFETTO_CHECK(optarg);
       dropbox_tag_ = optarg;
       continue;
 #else
-      PERFETTO_ELOG("--dropbox is supported only on Android");
+      PERFETTO_ELOG("--dropbox is only supported on Android");
       return 1;
 #endif
     }
