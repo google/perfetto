@@ -2,4 +2,8 @@ android_lmk_reason {
   lmks: {
     oom_score_adj: 0
   }
+  lmks: {
+    oom_score_adj: 100
+    system_ion_heap_size: 1000
+  }
 }
