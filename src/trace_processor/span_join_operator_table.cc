@@ -425,8 +425,15 @@ int SpanJoinOperatorTable::Cursor::FindOverlappingSpan() {
       auto t2_partition =
           t2_.IsPartitioned() ? t2_.CursorPartition() : t2_.partition();
 
+      // If either cusor has finished, be sure to not forward that one as it
+      // will have a pending full partition shadow slice which needs to be
+      // retained.
       Query* stepped;
-      if (t1_partition == t2_partition) {
+      if (t1_.CursorEof()) {
+        stepped = &t2_;
+      } else if (t2_.CursorEof()) {
+        stepped = &t1_;
+      } else if (t1_partition == t2_partition) {
         stepped = t1_.ts_end() <= t2_.ts_end() ? &t1_ : &t2_;
       } else {
         stepped = t1_partition <= t2_partition ? &t1_ : &t2_;
