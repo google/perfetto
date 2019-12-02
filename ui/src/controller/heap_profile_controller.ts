@@ -24,6 +24,8 @@ import {
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
 } from '../common/flamegraph_util';
 import {CallsiteInfo, HeapProfileFlamegraph} from '../common/state';
+import {fromNs} from '../common/time';
+import {HeapProfileDetails} from '../frontend/globals';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -36,6 +38,9 @@ const MIN_PIXEL_DISPLAYED = 1;
 export class HeapProfileController extends Controller<'main'> {
   private flamegraphDatasets: Map<string, CallsiteInfo[]> = new Map();
   private lastSelectedHeapProfile?: HeapProfileFlamegraph;
+  private requestingData = false;
+  private queuedRequest = false;
+  private heapProfileDetails: HeapProfileDetails = {};
 
   constructor(private args: HeapProfileControllerArgs) {
     super('main');
@@ -46,59 +51,90 @@ export class HeapProfileController extends Controller<'main'> {
 
     if (!selection) return;
 
-    if (selection.kind === 'HEAP_PROFILE_FLAMEGRAPH') {
-      if (this.lastSelectedHeapProfile === undefined ||
-          (this.lastSelectedHeapProfile !== undefined &&
-           (this.lastSelectedHeapProfile.id !== selection.id ||
-            this.lastSelectedHeapProfile.ts !== selection.ts ||
-            this.lastSelectedHeapProfile.upid !== selection.upid ||
-            this.lastSelectedHeapProfile.viewingOption !==
-                selection.viewingOption ||
-            this.lastSelectedHeapProfile.expandedCallsite !==
-                selection.expandedCallsite))) {
-        const selectedId = selection.id;
-        const selectedUpid = selection.upid;
-        const selectedKind = selection.kind;
-        const selectedTs = selection.ts;
-        const selectedExpandedCallsite = selection.expandedCallsite;
-        const lastSelectedViewingOption = selection.viewingOption ?
-            selection.viewingOption :
-            DEFAULT_VIEWING_OPTION;
+    if (this.shouldRequestData(selection)) {
+      if (this.requestingData) {
+        this.queuedRequest = true;
+      } else {
+        this.requestingData = true;
+        const selectedHeapProfile: HeapProfileFlamegraph =
+            this.copyHeapProfile(selection);
 
-        this.lastSelectedHeapProfile = {
-          kind: selectedKind,
-          id: selectedId,
-          upid: selectedUpid,
-          ts: selectedTs,
-          expandedCallsite: selectedExpandedCallsite,
-          viewingOption: lastSelectedViewingOption
-        };
-
-        const expandedId =
-            selectedExpandedCallsite ? selectedExpandedCallsite.id : -1;
-        const rootSize = selectedExpandedCallsite === undefined ?
-            undefined :
-            selectedExpandedCallsite.totalSize;
-
-        const key = `${selectedUpid};${selectedTs}`;
-
-        this.getFlamegraphData(
-                key, lastSelectedViewingOption, selection.ts, selectedUpid)
-            .then(flamegraphData => {
-              if (flamegraphData !== undefined && selection &&
-                  selection.kind === selectedKind &&
-                  selection.id === selectedId && selection.ts === selectedTs) {
-                const expandedFlamegraphData =
-                    expandCallsites(flamegraphData, expandedId);
-                this.prepareAndMergeCallsites(
-                    expandedFlamegraphData,
-                    this.lastSelectedHeapProfile!.viewingOption,
-                    rootSize,
-                    this.lastSelectedHeapProfile!.expandedCallsite);
+        this.getHeapProfileMetadata(
+                selectedHeapProfile.ts, selectedHeapProfile.upid)
+            .then(result => {
+              if (result !== undefined) {
+                Object.assign(this.heapProfileDetails, result);
               }
+
+              this.lastSelectedHeapProfile = this.copyHeapProfile(selection);
+
+              const expandedId = selectedHeapProfile.expandedCallsite ?
+                  selectedHeapProfile.expandedCallsite.id :
+                  -1;
+              const rootSize =
+                  selectedHeapProfile.expandedCallsite === undefined ?
+                  undefined :
+                  selectedHeapProfile.expandedCallsite.totalSize;
+
+              const key =
+                  `${selectedHeapProfile.upid};${selectedHeapProfile.ts}`;
+
+              this.getFlamegraphData(
+                      key,
+                      selectedHeapProfile.viewingOption ?
+                          selectedHeapProfile.viewingOption :
+                          DEFAULT_VIEWING_OPTION,
+                      selection.ts,
+                      selectedHeapProfile.upid)
+                  .then(flamegraphData => {
+                    if (flamegraphData !== undefined && selection &&
+                        selection.kind === selectedHeapProfile.kind &&
+                        selection.id === selectedHeapProfile.id &&
+                        selection.ts === selectedHeapProfile.ts) {
+                      const expandedFlamegraphData =
+                          expandCallsites(flamegraphData, expandedId);
+                      this.prepareAndMergeCallsites(
+                          expandedFlamegraphData,
+                          this.lastSelectedHeapProfile!.viewingOption,
+                          rootSize,
+                          this.lastSelectedHeapProfile!.expandedCallsite);
+                    }
+                  })
+                  .finally(() => {
+                    this.requestingData = false;
+                    if (this.queuedRequest) {
+                      this.queuedRequest = false;
+                      this.run();
+                    }
+                  });
             });
       }
     }
+  }
+
+  private copyHeapProfile(heapProfile: HeapProfileFlamegraph):
+      HeapProfileFlamegraph {
+    return {
+      kind: heapProfile.kind,
+      id: heapProfile.id,
+      upid: heapProfile.upid,
+      ts: heapProfile.ts,
+      expandedCallsite: heapProfile.expandedCallsite,
+      viewingOption: heapProfile.viewingOption
+    };
+  }
+
+  private shouldRequestData(selection: HeapProfileFlamegraph) {
+    return selection.kind === 'HEAP_PROFILE_FLAMEGRAPH' &&
+        (this.lastSelectedHeapProfile === undefined ||
+         (this.lastSelectedHeapProfile !== undefined &&
+          (this.lastSelectedHeapProfile.id !== selection.id ||
+           this.lastSelectedHeapProfile.ts !== selection.ts ||
+           this.lastSelectedHeapProfile.upid !== selection.upid ||
+           this.lastSelectedHeapProfile.viewingOption !==
+               selection.viewingOption ||
+           this.lastSelectedHeapProfile.expandedCallsite !==
+               selection.expandedCallsite)));
   }
 
   private prepareAndMergeCallsites(
@@ -107,9 +143,10 @@ export class HeapProfileController extends Controller<'main'> {
       rootSize?: number, expandedCallsite?: CallsiteInfo) {
     const mergedFlamegraphData = mergeCallsites(
         flamegraphData, this.getMinSizeDisplayed(flamegraphData, rootSize));
-    globals.publish(
-        'HeapProfileFlamegraph',
-        {flamegraph: mergedFlamegraphData, expandedCallsite, viewingOption});
+    this.heapProfileDetails.flamegraph = mergedFlamegraphData;
+    this.heapProfileDetails.expandedCallsite = expandedCallsite;
+    this.heapProfileDetails.viewingOption = viewingOption;
+    globals.publish('HeapProfileDetails', this.heapProfileDetails);
   }
 
 
@@ -307,5 +344,30 @@ export class HeapProfileController extends Controller<'main'> {
       rootSize = findRootSize(flamegraphData);
     }
     return MIN_PIXEL_DISPLAYED * rootSize / width;
+  }
+
+  async getHeapProfileMetadata(ts: number, upid: number) {
+    // Don't do anything if selection of the marker stayed the same.
+    if ((this.lastSelectedHeapProfile !== undefined &&
+         ((this.lastSelectedHeapProfile.ts === ts &&
+           this.lastSelectedHeapProfile.upid === upid)))) {
+      return undefined;
+    }
+
+    // Collecting data for more information about heap profile, such as:
+    // total memory allocated, memory that is allocated and not freed.
+    const pidValue = await this.args.engine.query(
+        `select pid from process where upid = ${upid}`);
+    const pid = pidValue.columns[0].longValues![0];
+    const allocatedMemory = await this.args.engine.query(
+        `select sum(size) from heap_profile_allocation where ts <= ${
+            ts} and size > 0 and upid = ${upid}`);
+    const allocated = allocatedMemory.columns[0].longValues![0];
+    const allocatedNotFreedMemory = await this.args.engine.query(
+        `select sum(size) from heap_profile_allocation where ts <= ${
+            ts} and upid = ${upid}`);
+    const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
+    const startTime = fromNs(ts) - globals.state.traceTime.startSec;
+    return {ts: startTime, allocated, allocatedNotFreed, tsNs: ts, pid, upid};
   }
 }

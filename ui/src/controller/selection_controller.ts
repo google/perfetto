@@ -14,12 +14,7 @@
 
 import {Engine} from '../common/engine';
 import {fromNs, toNs} from '../common/time';
-import {
-  CounterDetails,
-  HeapProfileDetails,
-  SliceDetails
-} from '../frontend/globals';
-
+import {CounterDetails, SliceDetails} from '../frontend/globals';
 import {Controller} from './controller';
 import {globals} from './globals';
 
@@ -65,18 +60,7 @@ export class SelectionController extends Controller<'main'> {
 
     if (selectedId === undefined) return;
 
-    if (selection.kind === 'HEAP_PROFILE') {
-      const selected: HeapProfileDetails = {};
-      const ts = selection.ts;
-      const upid = selection.upid;
-      this.heapDumpDetails(ts, upid).then(results => {
-        if (results !== undefined && selection &&
-            selection.kind === selectedKind && selection.id === selectedId) {
-          Object.assign(selected, results);
-          globals.publish('HeapProfileDetails', selected);
-        }
-      });
-    } else if (selection.kind === 'COUNTER') {
+    if (selection.kind === 'COUNTER') {
       const selected: CounterDetails = {};
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
           .then(results => {
@@ -137,24 +121,6 @@ export class SelectionController extends Controller<'main'> {
         });
       }
     });
-  }
-
-  async heapDumpDetails(ts: number, upid: number) {
-    // Collecting data for more information about heap profile, such as:
-    // total memory allocated, memory that is allocated and not freed.
-    const pidValue = await this.args.engine.query(
-        `select pid from process where upid = ${upid}`);
-    const pid = pidValue.columns[0].longValues![0];
-    const allocatedMemory = await this.args.engine.query(
-        `select sum(size) from heap_profile_allocation where ts <= ${
-            ts} and size > 0 and upid = ${upid}`);
-    const allocated = allocatedMemory.columns[0].longValues![0];
-    const allocatedNotFreedMemory = await this.args.engine.query(
-        `select sum(size) from heap_profile_allocation where ts <= ${
-            ts} and upid = ${upid}`);
-    const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
-    const startTime = fromNs(ts) - globals.state.traceTime.startSec;
-    return {ts: startTime, allocated, allocatedNotFreed, tsNs: ts, pid, upid};
   }
 
   async counterDetails(ts: number, rightTs: number, id: number) {
