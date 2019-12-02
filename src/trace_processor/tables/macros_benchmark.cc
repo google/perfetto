@@ -117,7 +117,7 @@ static void BM_TableFilterIdColumn(benchmark::State& state) {
     root.Insert({});
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.Filter({root.id().eq(SqlValue::Long(30))}));
+    benchmark::DoNotOptimize(root.Filter({root.id().eq(30)}));
   }
 }
 BENCHMARK(BM_TableFilterIdColumn)->Apply(TableFilterArgs);
@@ -136,8 +136,7 @@ static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        root.Filter({root.root_non_null().eq(SqlValue::Long(0))}));
+    benchmark::DoNotOptimize(root.Filter({root.root_non_null().eq(0)}));
   }
 }
 BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)->Apply(TableFilterArgs);
@@ -160,8 +159,7 @@ static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        root.Filter({root.root_nullable().eq(SqlValue::Long(1))}));
+    benchmark::DoNotOptimize(root.Filter({root.root_nullable().eq(1)}));
   }
 }
 BENCHMARK(BM_TableFilterRootNullableEqMatchMany)->Apply(TableFilterArgs);
@@ -183,8 +181,7 @@ static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        child.Filter({child.child_non_null().eq(SqlValue::Long(0))}));
+    benchmark::DoNotOptimize(child.Filter({child.child_non_null().eq(0)}));
   }
 }
 BENCHMARK(BM_TableFilterChildNonNullEqMatchMany)->Apply(TableFilterArgs);
@@ -209,8 +206,7 @@ static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        child.Filter({child.child_nullable().eq(SqlValue::Long(1))}));
+    benchmark::DoNotOptimize(child.Filter({child.child_nullable().eq(1)}));
   }
 }
 BENCHMARK(BM_TableFilterChildNullableEqMatchMany)->Apply(TableFilterArgs);
@@ -233,8 +229,7 @@ static void BM_TableFilterChildNonNullEqMatchManyInParent(
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        child.Filter({child.root_non_null().eq(SqlValue::Long(0))}));
+    benchmark::DoNotOptimize(child.Filter({child.root_non_null().eq(0)}));
   }
 }
 BENCHMARK(BM_TableFilterChildNonNullEqMatchManyInParent)
@@ -258,8 +253,7 @@ static void BM_TableFilterChildNullableEqMatchManyInParent(
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        child.Filter({child.root_nullable().eq(SqlValue::Long(1))}));
+    benchmark::DoNotOptimize(child.Filter({child.root_nullable().eq(1)}));
   }
 }
 BENCHMARK(BM_TableFilterChildNullableEqMatchManyInParent)
@@ -278,8 +272,7 @@ static void BM_TableFilterParentSortedEq(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        root.Filter({root.root_sorted().eq(SqlValue::Long(22))}));
+    benchmark::DoNotOptimize(root.Filter({root.root_sorted().eq(22)}));
   }
 }
 BENCHMARK(BM_TableFilterParentSortedEq)->Apply(TableFilterArgs);
@@ -299,8 +292,7 @@ static void BM_TableFilterChildSortedEq(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        child.Filter({child.child_sorted().eq(SqlValue::Long(22))}));
+    benchmark::DoNotOptimize(child.Filter({child.child_sorted().eq(22)}));
   }
 }
 BENCHMARK(BM_TableFilterChildSortedEq)->Apply(TableFilterArgs);
@@ -323,8 +315,7 @@ static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(
-        child.Filter({child.root_sorted().eq(SqlValue::Long(22))}));
+    benchmark::DoNotOptimize(child.Filter({child.root_sorted().eq(22)}));
   }
 }
 BENCHMARK(BM_TableFilterChildSortedEqInParent)->Apply(TableFilterArgs);
