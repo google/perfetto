@@ -148,34 +148,34 @@ TEST_F(TableMacrosUnittest, NullableLongComparision) {
   ASSERT_EQ(dur->Get(1).long_value, 101);
   ASSERT_EQ(dur->Get(2).long_value, 200);
 
-  out = slice_.Filter({slice_.dur().lt(SqlValue::Long(101))});
+  out = slice_.Filter({slice_.dur().lt(101)});
   dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
 
-  out = slice_.Filter({slice_.dur().eq(SqlValue::Long(101))});
+  out = slice_.Filter({slice_.dur().eq(101)});
   dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
 
-  out = slice_.Filter({slice_.dur().gt(SqlValue::Long(101))});
+  out = slice_.Filter({slice_.dur().gt(101)});
   dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 200);
 
-  out = slice_.Filter({slice_.dur().ne(SqlValue::Long(100))});
+  out = slice_.Filter({slice_.dur().ne(100)});
   dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
   ASSERT_EQ(dur->Get(1).long_value, 200);
 
-  out = slice_.Filter({slice_.dur().le(SqlValue::Long(101))});
+  out = slice_.Filter({slice_.dur().le(101)});
   dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
   ASSERT_EQ(dur->Get(1).long_value, 101);
 
-  out = slice_.Filter({slice_.dur().ge(SqlValue::Long(101))});
+  out = slice_.Filter({slice_.dur().ge(101)});
   dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
@@ -197,13 +197,13 @@ TEST_F(TableMacrosUnittest, NullableLongCompareWrongType) {
 
   slice_.Insert({});
 
-  Table out = slice_.Filter({slice_.dur().ne(SqlValue())});
+  Table out = slice_.Filter({slice_.dur().ne_value(SqlValue())});
   ASSERT_EQ(out.size(), 0u);
 
-  out = slice_.Filter({slice_.dur().eq(SqlValue::String("100"))});
+  out = slice_.Filter({slice_.dur().eq_value(SqlValue::String("100"))});
   ASSERT_EQ(out.size(), 0u);
 
-  out = slice_.Filter({slice_.dur().eq(SqlValue::Double(100.0))});
+  out = slice_.Filter({slice_.dur().eq_value(SqlValue::Double(100.0))});
   ASSERT_EQ(out.size(), 0u);
 }
 
@@ -231,33 +231,33 @@ TEST_F(TableMacrosUnittest, StringComparision) {
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 
-  out = cpu_slice_.Filter({cpu_slice_.end_state().lt(SqlValue::String("R"))});
+  out = cpu_slice_.Filter({cpu_slice_.end_state().lt("R")});
   end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 
-  out = cpu_slice_.Filter({cpu_slice_.end_state().eq(SqlValue::String("D"))});
+  out = cpu_slice_.Filter({cpu_slice_.end_state().eq("D")});
   end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 
-  out = cpu_slice_.Filter({cpu_slice_.end_state().gt(SqlValue::String("D"))});
+  out = cpu_slice_.Filter({cpu_slice_.end_state().gt("D")});
   end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
 
-  out = cpu_slice_.Filter({cpu_slice_.end_state().ne(SqlValue::String("D"))});
+  out = cpu_slice_.Filter({cpu_slice_.end_state().ne("D")});
   end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
 
-  out = cpu_slice_.Filter({cpu_slice_.end_state().le(SqlValue::String("R"))});
+  out = cpu_slice_.Filter({cpu_slice_.end_state().le("R")});
   end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
   ASSERT_EQ(out.size(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 
-  out = cpu_slice_.Filter({cpu_slice_.end_state().ge(SqlValue::String("D"))});
+  out = cpu_slice_.Filter({cpu_slice_.end_state().ge("D")});
   end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
   ASSERT_EQ(out.size(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
@@ -274,9 +274,8 @@ TEST_F(TableMacrosUnittest, FilterIdThenOther) {
   cpu_slice_.Insert(row);
 
   auto out =
-      cpu_slice_.Filter({cpu_slice_.id().eq(SqlValue::Long(0)),
-                         cpu_slice_.end_state().eq(SqlValue::String("D")),
-                         cpu_slice_.cpu().eq(SqlValue::Long(1))});
+      cpu_slice_.Filter({cpu_slice_.id().eq(0), cpu_slice_.end_state().eq("D"),
+                         cpu_slice_.cpu().eq(1)});
   const auto& end_state = out.GetColumn(*out.FindColumnIdxByName("end_state"));
   const auto& cpu = out.GetColumn(*out.FindColumnIdxByName("cpu"));
 
