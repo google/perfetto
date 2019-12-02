@@ -269,22 +269,22 @@ class Column {
   }
 
   // Returns a Constraint for each type of filter operation for this Column.
-  Constraint eq(SqlValue value) const {
+  Constraint eq_value(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kEq, value};
   }
-  Constraint gt(SqlValue value) const {
+  Constraint gt_value(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kGt, value};
   }
-  Constraint lt(SqlValue value) const {
+  Constraint lt_value(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kLt, value};
   }
-  Constraint ne(SqlValue value) const {
+  Constraint ne_value(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kNe, value};
   }
-  Constraint ge(SqlValue value) const {
+  Constraint ge_value(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kGe, value};
   }
-  Constraint le(SqlValue value) const {
+  Constraint le_value(SqlValue value) const {
     return Constraint{col_idx_, FilterOp::kLe, value};
   }
   Constraint is_not_null() const {
@@ -316,6 +316,16 @@ class Column {
   const SparseVector<T>& sparse_vector() const {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
     return *static_cast<const SparseVector<T>*>(sparse_vector_);
+  }
+
+  template <typename T>
+  static SqlValue NumericToSqlValue(T value) {
+    if (std::is_same<T, double>::value) {
+      return SqlValue::Double(value);
+    } else if (std::is_convertible<T, int64_t>::value) {
+      return SqlValue::Long(value);
+    }
+    PERFETTO_FATAL("Invalid type");
   }
 
  private:
