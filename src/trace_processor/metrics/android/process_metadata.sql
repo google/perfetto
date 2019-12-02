@@ -50,6 +50,18 @@ ON (
 DROP VIEW IF EXISTS process_metadata;
 
 CREATE VIEW process_metadata AS
+WITH upid_packages AS (
+  SELECT
+  upid,
+  RepeatedField(AndroidProcessMetadata_Package(
+    'package_name', package_list.package_name,
+    'apk_version_code', package_list.version_code,
+    'debuggable', package_list.debuggable
+  )) packages_for_uid
+  FROM process
+  LEFT JOIN package_list USING (uid)
+  GROUP BY upid
+)
 SELECT
   upid,
   AndroidProcessMetadata(
@@ -58,6 +70,13 @@ SELECT
     'shared_uid', shared_uid,
     'package_name', package_name,
     'apk_version_code', version_code,
-    'debuggable', debuggable
+    'debuggable', debuggable,
+    'package', AndroidProcessMetadata_Package(
+      'package_name', package_name,
+      'apk_version_code', version_code,
+      'debuggable', debuggable
+    ),
+    'packages_for_uid', packages_for_uid
   ) AS metadata
-FROM process_metadata_table;
+FROM process_metadata_table
+LEFT JOIN upid_packages USING (upid);
