@@ -25,6 +25,10 @@ SELECT RUN_METRIC('android/upid_span_view.sql',
   'table_name', 'file_rss',
   'counter_name', 'mem.rss.file');
 
+SELECT RUN_METRIC('android/upid_span_view.sql',
+  'table_name', 'shmem_rss',
+  'counter_name', 'mem.rss.shmem');
+
 -- Swap
 SELECT RUN_METRIC('android/upid_span_view.sql',
   'table_name', 'swap',
@@ -46,6 +50,34 @@ SELECT
   ts, dur, upid,
   IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) AS anon_and_swap_val
 FROM anon_and_swap_join;
+
+-- Anon RSS + file RSS + Swap
+DROP TABLE IF EXISTS anon_and_file_and_swap_join;
+
+CREATE VIRTUAL TABLE anon_and_file_and_swap_join
+USING SPAN_OUTER_JOIN(
+  anon_and_swap_join PARTITIONED upid,
+  file_rss_span PARTITIONED upid
+);
+
+-- RSS + Swap
+
+DROP TABLE IF EXISTS rss_and_swap_join;
+
+CREATE VIRTUAL TABLE rss_and_swap_join
+USING SPAN_OUTER_JOIN(
+  anon_and_file_and_swap_join PARTITIONED upid,
+  shmem_rss_span PARTITIONED upid
+);
+
+DROP VIEW IF EXISTS rss_and_swap_span;
+
+CREATE VIEW rss_and_swap_span AS
+SELECT
+ts, dur, upid,
+CAST(IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) + IFNULL(file_rss_val, 0) +
+  IFNULL(shmem_rss_val, 0) AS int) AS rss_and_swap_val
+FROM rss_and_swap_join;
 
 -- If we have dalvik events enabled (for ART trace points) we can construct the java heap timeline.
 SELECT RUN_METRIC('android/upid_span_view.sql',
