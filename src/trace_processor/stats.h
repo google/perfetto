@@ -124,7 +124,8 @@ namespace stats {
   F(misplaced_end_event,                      kSingle,  kDataLoss, kAnalysis), \
   F(sched_waking_out_of_order,                kSingle,  kError,    kAnalysis), \
   F(compact_sched_switch_skipped,             kSingle,  kInfo,     kAnalysis), \
-  F(compact_sched_waking_skipped,             kSingle,  kInfo,     kAnalysis)
+  F(compact_sched_waking_skipped,             kSingle,  kInfo,     kAnalysis), \
+  F(empty_chrome_metadata,                    kSingle,  kError,    kTrace)
 // clang-format on
 
 enum Type {
