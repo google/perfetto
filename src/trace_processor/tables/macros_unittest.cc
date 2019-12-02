@@ -136,47 +136,47 @@ TEST_F(TableMacrosUnittest, NullableLongComparision) {
   slice_.Insert({});
 
   Table out = slice_.Filter({slice_.dur().is_null()});
-  const auto* dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  const auto* dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).type, SqlValue::kNull);
   ASSERT_EQ(dur->Get(1).type, SqlValue::kNull);
 
   out = slice_.Filter({slice_.dur().is_not_null()});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 3u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
   ASSERT_EQ(dur->Get(1).long_value, 101);
   ASSERT_EQ(dur->Get(2).long_value, 200);
 
   out = slice_.Filter({slice_.dur().lt(101)});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
 
   out = slice_.Filter({slice_.dur().eq(101)});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
 
   out = slice_.Filter({slice_.dur().gt(101)});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 200);
 
   out = slice_.Filter({slice_.dur().ne(100)});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
   ASSERT_EQ(dur->Get(1).long_value, 200);
 
   out = slice_.Filter({slice_.dur().le(101)});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
   ASSERT_EQ(dur->Get(1).long_value, 101);
 
   out = slice_.Filter({slice_.dur().ge(101)});
-  dur = &out.GetColumn(*out.FindColumnIdxByName("dur"));
+  dur = out.GetColumnByName("dur");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
   ASSERT_EQ(dur->Get(1).long_value, 200);
@@ -220,45 +220,45 @@ TEST_F(TableMacrosUnittest, StringComparision) {
   cpu_slice_.Insert({});
 
   Table out = cpu_slice_.Filter({cpu_slice_.end_state().is_null()});
-  const auto* end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  const auto* end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_EQ(end_state->Get(0).type, SqlValue::kNull);
   ASSERT_EQ(end_state->Get(1).type, SqlValue::kNull);
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().is_not_null()});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().lt("R")});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().eq("D")});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().gt("D")});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().ne("D")});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().le("R")});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().ge("D")});
-  end_state = &out.GetColumn(*out.FindColumnIdxByName("end_state"));
+  end_state = out.GetColumnByName("end_state");
   ASSERT_EQ(out.size(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
@@ -276,12 +276,12 @@ TEST_F(TableMacrosUnittest, FilterIdThenOther) {
   auto out =
       cpu_slice_.Filter({cpu_slice_.id().eq(0), cpu_slice_.end_state().eq("D"),
                          cpu_slice_.cpu().eq(1)});
-  const auto& end_state = out.GetColumn(*out.FindColumnIdxByName("end_state"));
-  const auto& cpu = out.GetColumn(*out.FindColumnIdxByName("cpu"));
+  const auto* end_state = out.GetColumnByName("end_state");
+  const auto* cpu = out.GetColumnByName("cpu");
 
   ASSERT_EQ(out.size(), 1u);
-  ASSERT_EQ(cpu.Get(0).long_value, 1u);
-  ASSERT_STREQ(end_state.Get(0).string_value, "D");
+  ASSERT_EQ(cpu->Get(0).long_value, 1u);
+  ASSERT_STREQ(end_state->Get(0).string_value, "D");
 }
 
 TEST_F(TableMacrosUnittest, Sort) {
@@ -292,16 +292,15 @@ TEST_F(TableMacrosUnittest, Sort) {
   event_.Insert(TestEventTable::Row(2 /* ts */, 3 /* arg_set_id */));
 
   Table out = event_.Sort({event_.arg_set_id().ascending()});
-  const auto& ts = out.GetColumn(*out.FindColumnIdxByName("ts"));
-  const auto& arg_set_id =
-      out.GetColumn(*out.FindColumnIdxByName("arg_set_id"));
+  const auto* ts = out.GetColumnByName("ts");
+  const auto* arg_set_id = out.GetColumnByName("arg_set_id");
 
-  ASSERT_FALSE(ts.IsSorted());
-  ASSERT_TRUE(arg_set_id.IsSorted());
+  ASSERT_FALSE(ts->IsSorted());
+  ASSERT_TRUE(arg_set_id->IsSorted());
 
-  ASSERT_EQ(arg_set_id.Get(0).long_value, 1);
-  ASSERT_EQ(arg_set_id.Get(1).long_value, 3);
-  ASSERT_EQ(arg_set_id.Get(2).long_value, 100);
+  ASSERT_EQ(arg_set_id->Get(0).long_value, 1);
+  ASSERT_EQ(arg_set_id->Get(1).long_value, 3);
+  ASSERT_EQ(arg_set_id->Get(2).long_value, 100);
 }
 
 }  // namespace

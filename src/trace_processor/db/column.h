@@ -90,13 +90,13 @@ class Column {
          SparseVector<T>* storage,
          /* Flag */ uint32_t flags,
          Table* table,
-         uint32_t col_idx,
+         uint32_t col_idx_in_table,
          uint32_t row_map_idx)
       : Column(name,
                ToColumnType<T>(),
                flags,
                table,
-               col_idx,
+               col_idx_in_table,
                row_map_idx,
                storage) {}
 
@@ -104,7 +104,7 @@ class Column {
   // |column| but is associated to a different table.
   Column(const Column& column,
          Table* table,
-         uint32_t col_idx,
+         uint32_t col_idx_in_table,
          uint32_t row_map_idx);
 
   // Columns are movable but not copyable.
@@ -112,7 +112,9 @@ class Column {
   Column& operator=(Column&&) = default;
 
   // Creates a Column which returns the index as the value of the row.
-  static Column IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx);
+  static Column IdColumn(Table* table,
+                         uint32_t col_idx_in_table,
+                         uint32_t row_map_idx);
 
   // Gets the value of the Column at the given |row|.
   SqlValue Get(uint32_t row) const { return GetAtIdx(row_map().Get(row)); }
@@ -268,38 +270,41 @@ class Column {
     PERFETTO_FATAL("For GCC");
   }
 
+  // Returns the index of the current column in the containing table.
+  uint32_t index_in_table() const { return col_idx_in_table_; }
+
   // Returns a Constraint for each type of filter operation for this Column.
   Constraint eq_value(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kEq, value};
+    return Constraint{col_idx_in_table_, FilterOp::kEq, value};
   }
   Constraint gt_value(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kGt, value};
+    return Constraint{col_idx_in_table_, FilterOp::kGt, value};
   }
   Constraint lt_value(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kLt, value};
+    return Constraint{col_idx_in_table_, FilterOp::kLt, value};
   }
   Constraint ne_value(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kNe, value};
+    return Constraint{col_idx_in_table_, FilterOp::kNe, value};
   }
   Constraint ge_value(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kGe, value};
+    return Constraint{col_idx_in_table_, FilterOp::kGe, value};
   }
   Constraint le_value(SqlValue value) const {
-    return Constraint{col_idx_, FilterOp::kLe, value};
+    return Constraint{col_idx_in_table_, FilterOp::kLe, value};
   }
   Constraint is_not_null() const {
-    return Constraint{col_idx_, FilterOp::kIsNotNull, SqlValue()};
+    return Constraint{col_idx_in_table_, FilterOp::kIsNotNull, SqlValue()};
   }
   Constraint is_null() const {
-    return Constraint{col_idx_, FilterOp::kIsNull, SqlValue()};
+    return Constraint{col_idx_in_table_, FilterOp::kIsNull, SqlValue()};
   }
 
   // Returns an Order for each Order type for this Column.
-  Order ascending() const { return Order{col_idx_, false}; }
-  Order descending() const { return Order{col_idx_, true}; }
+  Order ascending() const { return Order{col_idx_in_table_, false}; }
+  Order descending() const { return Order{col_idx_in_table_, true}; }
 
   // Returns the JoinKey for this Column.
-  JoinKey join_key() const { return JoinKey{col_idx_}; }
+  JoinKey join_key() const { return JoinKey{col_idx_in_table_}; }
 
  protected:
   NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
@@ -389,7 +394,7 @@ class Column {
          ColumnType type,
          uint32_t flags,
          Table* table,
-         uint32_t col_idx,
+         uint32_t col_idx_in_table,
          uint32_t row_map_idx,
          void* sparse_vector);
 
@@ -711,7 +716,7 @@ class Column {
   const char* name_ = nullptr;
   uint32_t flags_ = Flag::kNoFlag;
   const Table* table_ = nullptr;
-  uint32_t col_idx_ = 0;
+  uint32_t col_idx_in_table_ = 0;
   uint32_t row_map_idx_ = 0;
   const StringPool* string_pool_ = nullptr;
 };
