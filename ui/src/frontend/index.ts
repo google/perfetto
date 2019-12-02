@@ -28,7 +28,6 @@ import {
   LogExistsKey
 } from '../common/logs';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {CallsiteInfo} from '../common/state';
 
 import {maybeShowErrorDialog} from './error_dialog';
 import {
@@ -127,17 +126,6 @@ class FrontendApi {
 
   publishHeapProfileDetails(click: HeapProfileDetails) {
     globals.heapProfileDetails = click;
-    this.redraw();
-  }
-
-  publishHeapProfileFlamegraph(args: {
-    flamegraph: CallsiteInfo[],
-    expandedCallsite?: CallsiteInfo,
-    viewingOption?: string
-  }) {
-    globals.heapProfileDetails.flamegraph = args.flamegraph;
-    globals.heapProfileDetails.expandedCallsite = args.expandedCallsite;
-    globals.heapProfileDetails.viewingOption = args.viewingOption;
     this.redraw();
   }
 
