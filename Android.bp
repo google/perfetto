@@ -1511,6 +1511,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_gpu_cpp_gen",
   srcs: [
     "protos/perfetto/config/gpu/gpu_counter_config.proto",
+    "protos/perfetto/config/gpu/vulkan_memory_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1519,6 +1520,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.gen.cc",
+    "external/perfetto/protos/perfetto/config/gpu/vulkan_memory_config.gen.cc",
   ],
 }
 
@@ -1527,6 +1529,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_gpu_cpp_gen_headers",
   srcs: [
     "protos/perfetto/config/gpu/gpu_counter_config.proto",
+    "protos/perfetto/config/gpu/vulkan_memory_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1535,6 +1538,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.gen.h",
+    "external/perfetto/protos/perfetto/config/gpu/vulkan_memory_config.gen.h",
   ],
   export_include_dirs: [
     ".",
@@ -1547,6 +1551,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_gpu_lite_gen",
   srcs: [
     "protos/perfetto/config/gpu/gpu_counter_config.proto",
+    "protos/perfetto/config/gpu/vulkan_memory_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1554,6 +1559,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pb.cc",
+    "external/perfetto/protos/perfetto/config/gpu/vulkan_memory_config.pb.cc",
   ],
 }
 
@@ -1562,6 +1568,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_gpu_lite_gen_headers",
   srcs: [
     "protos/perfetto/config/gpu/gpu_counter_config.proto",
+    "protos/perfetto/config/gpu/vulkan_memory_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1569,6 +1576,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pb.h",
+    "external/perfetto/protos/perfetto/config/gpu/vulkan_memory_config.pb.h",
   ],
   export_include_dirs: [
     ".",
@@ -1581,6 +1589,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_gpu_zero_gen",
   srcs: [
     "protos/perfetto/config/gpu/gpu_counter_config.proto",
+    "protos/perfetto/config/gpu/vulkan_memory_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1589,6 +1598,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/gpu/vulkan_memory_config.pbzero.cc",
   ],
 }
 
@@ -1597,6 +1607,7 @@ genrule {
   name: "perfetto_protos_perfetto_config_gpu_zero_gen_headers",
   srcs: [
     "protos/perfetto/config/gpu/gpu_counter_config.proto",
+    "protos/perfetto/config/gpu/vulkan_memory_config.proto",
   ],
   tools: [
     "aprotoc",
@@ -1605,6 +1616,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/config/gpu/gpu_counter_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/gpu/vulkan_memory_config.pbzero.h",
   ],
   export_include_dirs: [
     ".",
