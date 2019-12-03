@@ -55,8 +55,9 @@ source_set("perfetto_cmd") {
     ":trigger_producer",
     "../../gn:default_deps",
     "../../gn:zlib",
-    "../../protos/perfetto/common:lite",
-    "../../protos/perfetto/config:lite",
+    "../../protos/perfetto/common:cpp",
+    "../../protos/perfetto/config:cpp",
+    "../../protos/perfetto/config/ftrace:cpp",
     "../android_internal:lazy_library_loader",
     "../base",
     "../protozero",
@@ -103,7 +104,6 @@ source_set("trigger_producer") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../protos/perfetto/config:lite",
     "../base",
     "../tracing:ipc",
   ]
@@ -127,7 +127,8 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:zlib",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
-    "../../protos/perfetto/config:lite",
+    "../../protos/perfetto/config:cpp",
+    "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:lite",
     "../protozero",
     "../tracing",
