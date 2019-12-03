@@ -46,7 +46,6 @@
 #include "src/trace_processor/window_operator_table.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
-#include "src/trace_processor/metrics/descriptors.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql_metrics.h"

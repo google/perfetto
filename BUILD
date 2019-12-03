@@ -620,8 +620,6 @@ genrule(
 filegroup(
     name = "src_trace_processor_metrics_lib",
     srcs = [
-        "src/trace_processor/metrics/descriptors.cc",
-        "src/trace_processor/metrics/descriptors.h",
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.descriptor.h",
         "src/trace_processor/metrics/metrics.h",
@@ -682,6 +680,15 @@ filegroup(
         "src/trace_processor/null_term_string_view.h",
         "src/trace_processor/string_pool.cc",
         "src/trace_processor/string_pool.h",
+    ],
+)
+
+# GN target: //src/trace_processor:descriptors
+filegroup(
+    name = "src_trace_processor_descriptors",
+    srcs = [
+        "src/trace_processor/descriptors.cc",
+        "src/trace_processor/descriptors.h",
     ],
 )
 
@@ -800,6 +807,9 @@ filegroup(
         "src/trace_processor/importers/proto/android_probes_module.h",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
         "src/trace_processor/importers/proto/android_probes_parser.h",
+        "src/trace_processor/importers/proto/args_table_utils.cc",
+        "src/trace_processor/importers/proto/args_table_utils.h",
+        "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h",
         "src/trace_processor/importers/proto/graphics_event_module.h",
         "src/trace_processor/importers/proto/graphics_event_parser.cc",
         "src/trace_processor/importers/proto/graphics_event_parser.h",
@@ -2487,6 +2497,7 @@ perfetto_cc_library(
         ":src_protozero_protozero",
         ":src_trace_processor_common",
         ":src_trace_processor_db_lib",
+        ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
@@ -2563,6 +2574,7 @@ perfetto_cc_binary(
         ":src_protozero_protozero",
         ":src_trace_processor_common",
         ":src_trace_processor_db_lib",
+        ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
@@ -2714,6 +2726,7 @@ perfetto_cc_binary(
         ":src_protozero_protozero",
         ":src_trace_processor_common",
         ":src_trace_processor_db_lib",
+        ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",

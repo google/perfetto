@@ -20,11 +20,14 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/importers/proto/args_table_utils.h"
+#include "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/track_tracker.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
@@ -41,6 +44,43 @@ using protozero::ConstBytes;
 // with these placeholder values.
 constexpr int64_t kPendingThreadDuration = -1;
 constexpr int64_t kPendingThreadInstructionDelta = -1;
+
+void AddStringToArgsTable(const char* field,
+                          const protozero::ConstChars& str,
+                          const ProtoToArgsTable::ParsingOverrideState& state) {
+  auto val = state.context->storage->InternString(base::StringView(str));
+  auto key = state.context->storage->InternString(base::StringView(field));
+  state.args_tracker->AddArg(state.row_id, key, key, Variadic::String(val));
+}
+
+bool MaybeParseSourceLocation(
+    std::string prefix,
+    const ProtoToArgsTable::ParsingOverrideState& state,
+    const protozero::Field& field) {
+  auto* decoder = state.sequence_state->LookupInternedMessage<
+      protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+      protos::pbzero::SourceLocation>(state.sequence_generation,
+                                      field.as_uint64());
+  if (!decoder) {
+    // Lookup failed fall back on default behaviour which will just put
+    // the source_location_iid into the args table.
+    return false;
+  }
+  {
+    ProtoToArgsTable::ScopedStringAppender scoped("file_name", &prefix);
+    AddStringToArgsTable(prefix.c_str(), decoder->file_name(), state);
+  }
+  {
+    ProtoToArgsTable::ScopedStringAppender scoped("function_name", &prefix);
+    AddStringToArgsTable(prefix.c_str(), decoder->function_name(), state);
+  }
+  ProtoToArgsTable::ScopedStringAppender scoped("line_number", &prefix);
+  auto key = state.context->storage->InternString(base::StringView(prefix));
+  state.args_tracker->AddArg(state.row_id, key, key,
+                             Variadic::Integer(decoder->line_number()));
+  // By returning false we expect this field to be handled like regular.
+  return true;
+}
 }  // namespace
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context)
@@ -365,6 +405,10 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       ParseLogMessage(event.log_message(), sequence_state,
                       sequence_state_generation, ts, utid, args_tracker,
                       row_id);
+    }
+    if (event.has_cc_scheduler_state()) {
+      ParseCcScheduler(event.cc_scheduler_state(), sequence_state,
+                       sequence_state_generation, row_id);
     }
 
     if (legacy_tid) {
@@ -910,6 +954,47 @@ void TrackEventParser::ParseLogMessage(ConstBytes blob,
   args_tracker->AddArg(row, log_message_body_key_id_, log_message_body_key_id_,
                        Variadic::String(log_message_id));
   // TODO(nicomazz): Add the source location as an argument.
+}
+
+void TrackEventParser::ParseCcScheduler(ConstBytes cc,
+                                        PacketSequenceState* sequence_state,
+                                        size_t sequence_state_generation,
+                                        RowId row) {
+  // The 79 decides the initial amount of memory reserved in the prefix. This
+  // was determined my manually counting the length of the longest column.
+  constexpr size_t kCcSchedulerStateMaxColumnLength = 79;
+  ProtoToArgsTable helper(sequence_state, sequence_state_generation, context_,
+                          /* starting_prefix = */ "",
+                          kCcSchedulerStateMaxColumnLength);
+  auto status = helper.AddProtoFileDescriptor(
+      kChromeCompositorSchedulerStateDescriptor.data(),
+      kChromeCompositorSchedulerStateDescriptor.size());
+  PERFETTO_DCHECK(status.ok());
+
+  // Switch |source_location_iid| into its interned data variant.
+  helper.AddParsingOverride(
+      "begin_impl_frame_args.current_args.source_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field) {
+        return MaybeParseSourceLocation("begin_impl_frame_args.current_args",
+                                        state, field);
+      });
+  helper.AddParsingOverride(
+      "begin_impl_frame_args.last_args.source_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field) {
+        return MaybeParseSourceLocation("begin_impl_frame_args.last_args",
+                                        state, field);
+      });
+  helper.AddParsingOverride(
+      "begin_frame_observer_state.last_begin_frame_args.source_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field) {
+        return MaybeParseSourceLocation(
+            "begin_frame_observer_state.last_begin_frame_args", state, field);
+      });
+  helper.InternProtoIntoArgsTable(
+      cc, ".perfetto.protos.ChromeCompositorSchedulerState", row);
 }
 
 }  // namespace trace_processor
