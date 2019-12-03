@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {Animation} from './animation';
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {handleKey} from './keyboard_event_handler';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 
 // When first starting to pan or zoom, move at least this many units.
 const INITIAL_PAN_STEP_PX = 50;
@@ -81,7 +81,6 @@ export class PanAndZoomHandler {
   private boundOnKeyDown = this.onKeyDown.bind(this);
   private boundOnKeyUp = this.onKeyUp.bind(this);
   private shiftDown = false;
-  private dragStartPx = -1;
   private panning: Pan = Pan.None;
   private panOffsetPx = 0;
   private targetPanOffsetPx = 0;
@@ -97,8 +96,8 @@ export class PanAndZoomHandler {
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
   private shouldDrag: (currentPx: number) => boolean;
   private onDrag:
-      (dragStartPx: number, prevPx: number, currentPx: number,
-       editing: boolean) => void;
+      (dragStartX: number, dragStartY: number, prevX: number, currentX: number,
+       currentY: number, editing: boolean) => void;
 
   constructor(
       {element, contentOffsetX, onPanned, onZoomed, shouldDrag, onDrag}: {
@@ -108,8 +107,8 @@ export class PanAndZoomHandler {
         onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
         shouldDrag: (currentPx: number) => boolean,
         onDrag:
-            (dragStartPx: number, prevPx: number, currentPx: number,
-             editing: boolean) => void,
+            (dragStartX: number, dragStartY: number, prevX: number,
+             currentX: number, currentY: number, editing: boolean) => void,
       }) {
     this.element = element;
     this.contentOffsetX = contentOffsetX;
@@ -123,23 +122,26 @@ export class PanAndZoomHandler {
     this.element.addEventListener('mousemove', this.boundOnMouseMove);
     this.element.addEventListener('wheel', this.boundOnWheel, {passive: true});
 
-    let lastX = -1;
+    let prevX = -1;
+    let dragStartX = -1;
+    let dragStartY = -1;
     let drag = false;
     new DragGestureHandler(
         this.element,
-        x => {
+        (x, y) => {
           // If we started our drag on a time range boundary or shift is down
           // then we are drag selecting rather than panning.
           if (drag || this.shiftDown) {
-            this.onDrag(this.dragStartPx, lastX, x, !this.shiftDown);
+            this.onDrag(dragStartX, dragStartY, prevX, x, y, !this.shiftDown);
           } else {
-            this.onPanned(lastX - x);
+            this.onPanned(prevX - x);
           }
-          lastX = x;
+          prevX = x;
         },
-        x => {
-          lastX = x;
-          this.dragStartPx = x;
+        (x, y) => {
+          prevX = x;
+          dragStartX = x;
+          dragStartY = y;
           drag = this.shouldDrag(x);
           // Set the cursor style based on where the cursor is when the drag
           // starts.
@@ -153,7 +155,8 @@ export class PanAndZoomHandler {
           // Reset the cursor now the drag has ended.
           this.element.style.cursor =
               this.shiftDown ? SHIFT_CURSOR : DEFAULT_CURSOR;
-          this.dragStartPx = -1;
+          dragStartX = -1;
+          dragStartY = -1;
         });
   }
 

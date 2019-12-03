@@ -30,7 +30,7 @@ import {TrackContent} from './track_panel';
 import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
-  drawVerticalSelection
+  drawVerticalSelection,
 } from './vertical_line_helper';
 
 
@@ -80,6 +80,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
       }
     }
 
+    const selectedArea = globals.frontendLocalState.selectedArea.area;
+    const markSelectedClass =
+        selectedArea && selectedArea.tracks.includes(attrs.trackGroupId) ?
+        'selected' :
+        '';
+
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         {id: 'track_' + this.trackGroupId},
@@ -91,7 +97,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
               })),
                   e.stopPropagation();
             },
-            class: `${highlightClass}`,
+            class: `${highlightClass} ${markSelectedClass}`,
           },
           m('h1',
             {
@@ -154,13 +160,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
                             size.height,
                             `rgb(52,69,150)`);
     }
-    if (globals.frontendLocalState.selectedTimeRange.startSec !== undefined &&
-        globals.frontendLocalState.selectedTimeRange.endSec !== undefined) {
+    if (localState.selectedArea.area !== undefined) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
-          globals.frontendLocalState.selectedTimeRange.startSec,
-          globals.frontendLocalState.selectedTimeRange.endSec,
+          localState.selectedArea.area.startSec,
+          localState.selectedArea.area.endSec,
           size.height,
           `rgba(0,0,0,0.5)`);
     }

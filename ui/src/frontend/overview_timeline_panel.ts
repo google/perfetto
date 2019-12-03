@@ -18,11 +18,11 @@ import {assertExists} from '../base/logging';
 import {TimeSpan, timeToString} from '../common/time';
 
 import {hueForCpu} from './colorizer';
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 import {TimeScale} from './time_scale';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 
 export class OverviewTimelinePanel extends Panel {
   private width = 0;

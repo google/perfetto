@@ -19,6 +19,7 @@ import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
 import {copyToClipboard} from './clipboard';
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DetailsPanel} from './details_panel';
 import {globals} from './globals';
 import {NotesPanel} from './notes_panel';
@@ -31,7 +32,6 @@ import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {computeZoom} from './time_scale';
 import {TimeSelectionPanel} from './time_selection_panel';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {VideoPanel} from './video_panel';
@@ -101,11 +101,10 @@ class QueryTable extends Panel {
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
 function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
-  const startSec = globals.frontendLocalState.selectedTimeRange.startSec;
-  const endSec = globals.frontendLocalState.selectedTimeRange.endSec;
-  if (startSec !== undefined && endSec !== undefined) {
-    const start = globals.frontendLocalState.timeScale.timeToPx(startSec);
-    const end = globals.frontendLocalState.timeScale.timeToPx(endSec);
+  const area = globals.frontendLocalState.selectedArea.area;
+  if (area !== undefined) {
+    const start = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
+    const end = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
     const startDrag = mousePos - TRACK_SHELL_WIDTH;
     const startDistance = Math.abs(start - startDrag);
     const endDistance = Math.abs(end - startDrag);
@@ -184,34 +183,40 @@ class TraceViewer implements m.ClassComponent {
         return onTimeRangeBoundary(currentPx) !== null;
       },
       onDrag: (
-          dragStartPx: number,
-          prevPx: number,
-          currentPx: number,
+          dragStartX: number,
+          dragStartY: number,
+          prevX: number,
+          currentX: number,
+          currentY: number,
           editing: boolean) => {
         const traceTime = globals.state.traceTime;
         const scale = frontendLocalState.timeScale;
         this.keepCurrentSelection = true;
         if (editing) {
-          const startSec = frontendLocalState.selectedTimeRange.startSec;
-          const endSec = frontendLocalState.selectedTimeRange.endSec;
-          if (startSec !== undefined && endSec !== undefined) {
-            const newTime = scale.pxToTime(currentPx - TRACK_SHELL_WIDTH);
+          const selectedArea = frontendLocalState.selectedArea.area;
+          if (selectedArea !== undefined) {
+            const newTime = scale.pxToTime(currentX - TRACK_SHELL_WIDTH);
             // Have to check again for when one boundary crosses over the other.
-            const curBoundary = onTimeRangeBoundary(prevPx);
+            const curBoundary = onTimeRangeBoundary(prevX);
             if (curBoundary == null) return;
-            const keepTime = curBoundary === 'START' ? endSec : startSec;
-            frontendLocalState.selectTimeRange(
+            const keepTime = curBoundary === 'START' ? selectedArea.endSec :
+                                                       selectedArea.startSec;
+            frontendLocalState.selectArea(
                 Math.max(Math.min(keepTime, newTime), traceTime.startSec),
-                Math.min(Math.max(keepTime, newTime), traceTime.endSec));
+                Math.min(Math.max(keepTime, newTime), traceTime.endSec),
+            );
           }
         } else {
           frontendLocalState.setShowTimeSelectPreview(false);
-          const dragStartTime = scale.pxToTime(dragStartPx - TRACK_SHELL_WIDTH);
-          const dragEndTime = scale.pxToTime(currentPx - TRACK_SHELL_WIDTH);
-          frontendLocalState.selectTimeRange(
+          const dragStartTime = scale.pxToTime(dragStartX - TRACK_SHELL_WIDTH);
+          const dragEndTime = scale.pxToTime(currentX - TRACK_SHELL_WIDTH);
+          frontendLocalState.selectArea(
               Math.max(
                   Math.min(dragStartTime, dragEndTime), traceTime.startSec),
-              Math.min(Math.max(dragStartTime, dragEndTime), traceTime.endSec));
+              Math.min(Math.max(dragStartTime, dragEndTime), traceTime.endSec),
+          );
+          frontendLocalState.areaY.start = dragStartY;
+          frontendLocalState.areaY.end = currentY;
         }
         globals.rafScheduler.scheduleRedraw();
       }

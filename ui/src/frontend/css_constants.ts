@@ -33,5 +33,13 @@ function getTrackBorderColor(): string {
   return readCssVarSlow('--track-border-color', '#ffc0cb');
 }
 
+function getTopbarHeight(): number {
+  const width = readCssVarSlow('--topbar-height', '48px');
+  const match = width.match(/^\W*(\d+)px$/);
+  if (!match) throw Error(`Could not parse topbar height as number (${width})`);
+  return Number(match[1]);
+}
+
 export const TRACK_SHELL_WIDTH = getTrackShellWidth();
 export const TRACK_BORDER_COLOR = getTrackBorderColor();
+export const TOPBAR_HEIGHT = getTopbarHeight();

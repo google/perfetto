@@ -29,8 +29,15 @@ export type OmniboxState =
 export type VisibleState =
     Timestamped<{startSec: number; endSec: number; resolution: number;}>;
 
-export type SelectedTimeRange =
-    Timestamped<{startSec?: number; endSec?: number;}>;
+export type TimestampedAreaSelection = Timestamped<AreaSelection>;
+export interface AreaSelection {
+  area?: Area;
+}
+export interface Area {
+  startSec: number;
+  endSec: number;
+  tracks: string[];
+}
 
 export const MAX_TIME = 180;
 
@@ -118,7 +125,7 @@ export interface TraceTime {
 export interface FrontendLocalState {
   omniboxState: OmniboxState;
   visibleState: VisibleState;
-  selectedTimeRange: SelectedTimeRange;
+  selectedArea: TimestampedAreaSelection;
 }
 
 export interface Status {
@@ -448,7 +455,7 @@ export function createEmptyState(): State {
         lastUpdate: 0,
         resolution: 0,
       },
-      selectedTimeRange: {
+      selectedArea: {
         lastUpdate: 0,
       },
     },
