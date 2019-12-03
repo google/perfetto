@@ -79,8 +79,12 @@ function findTimeRangeOfSelection() {
 
 function selectSliceSpan() {
   const range = findTimeRangeOfSelection();
-  if (range.startTs !== -1 && range.endTs !== -1) {
-    globals.frontendLocalState.selectTimeRange(range.startTs, range.endTs);
+  if (range.startTs !== -1 && range.endTs !== -1 &&
+      globals.state.currentSelection) {
+    const tracks = globals.state.currentSelection.trackId ?
+        [globals.state.currentSelection.trackId] :
+        [];
+    globals.frontendLocalState.selectArea(range.startTs, range.endTs, tracks);
   }
 }
 

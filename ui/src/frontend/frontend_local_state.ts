@@ -17,8 +17,8 @@ import {HttpRpcState} from '../common/http_rpc_engine';
 import {
   FrontendLocalState as FrontendState,
   OmniboxState,
-  SelectedTimeRange,
   Timestamped,
+  TimestampedAreaSelection,
   VisibleState,
 } from '../common/state';
 import {TimeSpan} from '../common/time';
@@ -26,6 +26,11 @@ import {TimeSpan} from '../common/time';
 import {Tab} from './details_panel';
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
+
+interface Range {
+  start?: number;
+  end?: number;
+}
 
 function chooseLatest<T extends Timestamped<{}>>(current: T, next: T): T {
   if (next !== current && next.lastUpdate > current.lastUpdate) {
@@ -94,6 +99,8 @@ export class FrontendLocalState {
   showNotePreview = false;
   localOnlyMode = false;
   sidebarVisible = true;
+  // This is used to calculate the tracks within a Y range for area selection.
+  areaY: Range = {};
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
@@ -115,7 +122,7 @@ export class FrontendLocalState {
     resolution: 1,
   };
 
-  private _selectedTimeRange: SelectedTimeRange = {
+  private _selectedArea: TimestampedAreaSelection = {
     lastUpdate: 0,
   };
 
@@ -202,38 +209,39 @@ export class FrontendLocalState {
   mergeState(state: FrontendState): void {
     this._omniboxState = chooseLatest(this._omniboxState, state.omniboxState);
     this._visibleState = chooseLatest(this._visibleState, state.visibleState);
-    this._selectedTimeRange =
-        chooseLatest(this._selectedTimeRange, state.selectedTimeRange);
+    this._selectedArea = chooseLatest(this._selectedArea, state.selectedArea);
     if (this._visibleState === state.visibleState) {
       this.updateLocalTime(
           new TimeSpan(this._visibleState.startSec, this._visibleState.endSec));
     }
   }
 
-  private selectTimeRangeDebounced = debounce(() => {
-    globals.dispatch(Actions.selectTimeRange(this._selectedTimeRange));
+  private selectAreaDebounced = debounce(() => {
+    globals.dispatch(Actions.selectArea(this._selectedArea));
   }, 20);
 
-  selectTimeRange(startSec: number, endSec: number) {
-    this._selectedTimeRange = {startSec, endSec, lastUpdate: Date.now() / 1000};
-    this.selectTimeRangeDebounced();
+
+  selectArea(
+      startSec: number, endSec: number,
+      tracks = this._selectedArea.area ? this._selectedArea.area.tracks : []) {
+    this._selectedArea = {
+      area: {startSec, endSec, tracks},
+      lastUpdate: Date.now() / 1000
+    };
+    this.selectAreaDebounced();
     globals.frontendLocalState.currentTab = 'time_range';
     globals.rafScheduler.scheduleFullRedraw();
   }
 
-  removeTimeRange() {
-    this._selectedTimeRange = {
-      startSec: undefined,
-      endSec: undefined,
-      lastUpdate: Date.now() / 1000
-    };
-    this.selectTimeRangeDebounced();
+  deselectArea() {
+    this._selectedArea = {lastUpdate: Date.now() / 1000};
+    this.selectAreaDebounced();
     globals.frontendLocalState.currentTab = undefined;
     globals.rafScheduler.scheduleFullRedraw();
   }
 
-  get selectedTimeRange(): SelectedTimeRange {
-    return this._selectedTimeRange;
+  get selectedArea(): TimestampedAreaSelection {
+    return this._selectedArea;
   }
 
   private setOmniboxDebounced = debounce(() => {

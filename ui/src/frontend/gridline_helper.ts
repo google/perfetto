@@ -14,8 +14,8 @@
 
 import {TimeSpan} from '../common/time';
 
+import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {TimeScale} from './time_scale';
-import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './track_constants';
 
 export const DESIRED_PX_PER_STEP = 80;
 

@@ -17,12 +17,12 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
 
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {Track} from './track';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
@@ -63,10 +63,16 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
     const dragClass = this.dragging ? `drag` : '';
     const dropClass = this.dropping ? `drop-${this.dropping}` : '';
+    const selectedArea = globals.frontendLocalState.selectedArea.area;
+    const markSelectedClass =
+        selectedArea && selectedArea.tracks.includes(attrs.trackState.id) ?
+        'selected' :
+        '';
     return m(
         `.track-shell[draggable=true]`,
         {
-          class: `${highlightClass} ${dragClass} ${dropClass}`,
+          class: `${highlightClass} ${markSelectedClass} ${dragClass} ${
+              dropClass}`,
           onmousedown: this.onmousedown.bind(this),
           ondragstart: this.ondragstart.bind(this),
           ondragend: this.ondragend.bind(this),
@@ -167,11 +173,10 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         // If the click is outside of the current time range, clear it.
         const clickTime = globals.frontendLocalState.timeScale.pxToTime(
             e.layerX - TRACK_SHELL_WIDTH);
-        const start = globals.frontendLocalState.selectedTimeRange.startSec;
-        const end = globals.frontendLocalState.selectedTimeRange.endSec;
-        if (start !== undefined && end !== undefined &&
-            (clickTime < start || clickTime > end)) {
-          globals.frontendLocalState.removeTimeRange();
+        const area = globals.frontendLocalState.selectedArea.area;
+        if (area !== undefined &&
+            (clickTime < area.startSec || clickTime > area.endSec)) {
+          globals.frontendLocalState.deselectArea();
           e.stopPropagation();
         } else if (attrs.track.onMouseClick(
                        {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
@@ -266,11 +271,12 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     const localState = globals.frontendLocalState;
     // Draw vertical line when hovering on the notes panel.
     if (localState.showNotePreview) {
-      drawVerticalLineAtTime(ctx,
-                             localState.timeScale,
-                             localState.hoveredTimestamp,
-                             size.height,
-                             `#aaa`);
+      drawVerticalLineAtTime(
+          ctx,
+          localState.timeScale,
+          localState.hoveredTimestamp,
+          size.height,
+          `#aaa`);
     }
     // Draw vertical line when shift is pressed.
     if (localState.showTimeSelectPreview) {
@@ -280,13 +286,12 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                              size.height,
                              `rgb(52,69,150)`);
     }
-    if (globals.frontendLocalState.selectedTimeRange.startSec !== undefined &&
-        globals.frontendLocalState.selectedTimeRange.endSec !== undefined) {
+    if (localState.selectedArea.area !== undefined) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
-          globals.frontendLocalState.selectedTimeRange.startSec,
-          globals.frontendLocalState.selectedTimeRange.endSec,
+          localState.selectedArea.area.startSec,
+          localState.selectedArea.area.endSec,
           size.height,
           `rgba(0,0,0,0.5)`);
     }

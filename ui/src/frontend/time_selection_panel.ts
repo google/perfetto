@@ -17,10 +17,10 @@ import * as m from 'mithril';
 import {timeToString} from '../common/time';
 import {TimeSpan} from '../common/time';
 
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 
 export interface BBox {
   x: number;
@@ -124,13 +124,10 @@ export class TimeSelectionPanel extends Panel {
       ctx.fillRect(xAndTime[0], 0, 1, size.height);
     }
 
-    const selectedTimeRange = globals.frontendLocalState.selectedTimeRange;
-    if (selectedTimeRange.startSec !== undefined &&
-        selectedTimeRange.endSec !== undefined) {
-      const start =
-          Math.min(selectedTimeRange.startSec, selectedTimeRange.endSec);
-      const end =
-          Math.max(selectedTimeRange.startSec, selectedTimeRange.endSec);
+    const selectedArea = globals.frontendLocalState.selectedArea.area;
+    if (selectedArea !== undefined) {
+      const start = Math.min(selectedArea.startSec, selectedArea.endSec);
+      const end = Math.max(selectedArea.startSec, selectedArea.endSec);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     } else if (globals.frontendLocalState.showTimeSelectPreview) {
       this.renderHover(ctx, size, globals.frontendLocalState.hoveredTimestamp);
