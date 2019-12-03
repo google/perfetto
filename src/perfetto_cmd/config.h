@@ -18,9 +18,9 @@
 #define SRC_PERFETTO_CMD_CONFIG_H_
 
 #include <string>
-#include <utility>
+#include <vector>
 
-#include "protos/perfetto/config/trace_config.pb.h"
+#include "perfetto/tracing/core/forward_decls.h"
 
 namespace perfetto {
 
@@ -37,7 +37,7 @@ struct ConfigOptions {
 };
 
 bool CreateConfigFromOptions(const ConfigOptions& options,
-                             perfetto::protos::TraceConfig* trace_config_proto);
+                             TraceConfig* trace_config_proto);
 
 }  // namespace perfetto
 

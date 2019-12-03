@@ -15,6 +15,8 @@
  */
 
 #include <ctype.h>
+
+#include <map>
 #include <set>
 #include <stack>
 #include <string>
@@ -30,17 +32,18 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/common/descriptor.pb.h"
 #include "src/perfetto_cmd/perfetto_config.descriptor.h"
+
+#include "protos/perfetto/common/descriptor.gen.h"
 
 namespace perfetto {
 constexpr char kConfigProtoName[] = ".perfetto.protos.TraceConfig";
 
-using protos::DescriptorProto;
-using protos::EnumDescriptorProto;
-using protos::EnumValueDescriptorProto;
-using protos::FieldDescriptorProto;
-using protos::FileDescriptorSet;
+using protos::gen::DescriptorProto;
+using protos::gen::EnumDescriptorProto;
+using protos::gen::EnumValueDescriptorProto;
+using protos::gen::FieldDescriptorProto;
+using protos::gen::FileDescriptorSet;
 
 namespace {
 

@@ -21,8 +21,11 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-#include "protos/perfetto/config/trace_config.pb.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/trace_config.h"
+
+#include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
+#include "protos/perfetto/config/test_config.gen.h"
 
 namespace perfetto {
 namespace {
@@ -30,8 +33,6 @@ namespace {
 using ::testing::StrictMock;
 using ::testing::Contains;
 using ::testing::ElementsAre;
-using ::google::protobuf::io::ZeroCopyInputStream;
-using ::google::protobuf::io::ArrayInputStream;
 
 class MockErrorReporter : public ErrorReporter {
  public:
@@ -44,12 +45,12 @@ class MockErrorReporter : public ErrorReporter {
                     const std::string& message));
 };
 
-protos::TraceConfig ToProto(const std::string& input) {
+TraceConfig ToProto(const std::string& input) {
   StrictMock<MockErrorReporter> reporter;
   std::vector<uint8_t> output = PbtxtToPb(input, &reporter);
   EXPECT_FALSE(output.empty());
-  protos::TraceConfig config;
-  config.ParseFromArray(output.data(), static_cast<int>(output.size()));
+  TraceConfig config;
+  config.ParseFromArray(output.data(), output.size());
   return config;
 }
 
@@ -58,14 +59,14 @@ void ToErrors(const std::string& input, MockErrorReporter* reporter) {
 }
 
 TEST(PbtxtToPb, OneField) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     duration_ms: 1234
   )");
   EXPECT_EQ(config.duration_ms(), 1234u);
 }
 
 TEST(PbtxtToPb, TwoFields) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     duration_ms: 1234
     file_write_period_ms: 5678
   )");
@@ -74,7 +75,7 @@ TEST(PbtxtToPb, TwoFields) {
 }
 
 TEST(PbtxtToPb, Enum) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
 compression_type: COMPRESSION_TYPE_DEFLATE
 )");
   EXPECT_EQ(config.compression_type(), 1);
@@ -119,7 +120,7 @@ compression_type: COMPRESSION_TYPE_DEFLATE
 }
 
 TEST(PbtxtToPb, Semicolons) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     duration_ms: 1234;
     file_write_period_ms: 5678;
   )");
@@ -128,17 +129,17 @@ TEST(PbtxtToPb, Semicolons) {
 }
 
 TEST(PbtxtToPb, NestedMessage) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     buffers: {
       size_kb: 123
     }
   )");
-  ASSERT_EQ(config.buffers().size(), 1);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 123u);
+  ASSERT_EQ(config.buffers().size(), 1u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 123u);
 }
 
 TEST(PbtxtToPb, SplitNested) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     buffers: {
       size_kb: 1
     }
@@ -147,14 +148,14 @@ TEST(PbtxtToPb, SplitNested) {
       size_kb: 2
     }
   )");
-  ASSERT_EQ(config.buffers().size(), 2);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 1u);
-  EXPECT_EQ(config.buffers().Get(1).size_kb(), 2u);
+  ASSERT_EQ(config.buffers().size(), 2u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 1u);
+  EXPECT_EQ(config.buffers()[1].size_kb(), 2u);
   EXPECT_EQ(config.duration_ms(), 1000u);
 }
 
 TEST(PbtxtToPb, MultipleNestedMessage) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     buffers: {
       size_kb: 1
     }
@@ -162,13 +163,13 @@ TEST(PbtxtToPb, MultipleNestedMessage) {
       size_kb: 2
     }
   )");
-  ASSERT_EQ(config.buffers().size(), 2);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 1u);
-  EXPECT_EQ(config.buffers().Get(1).size_kb(), 2u);
+  ASSERT_EQ(config.buffers().size(), 2u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 1u);
+  EXPECT_EQ(config.buffers()[1].size_kb(), 2u);
 }
 
 TEST(PbtxtToPb, NestedMessageCrossFile) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
 data_sources {
   config {
     ftrace_config {
@@ -177,13 +178,14 @@ data_sources {
   }
 }
   )");
-  ASSERT_EQ(
-      config.data_sources().Get(0).config().ftrace_config().drain_period_ms(),
-      42u);
+  protos::gen::FtraceConfig ftrace_config;
+  ASSERT_TRUE(ftrace_config.ParseFromString(
+      config.data_sources()[0].config().ftrace_config_raw()));
+  ASSERT_EQ(ftrace_config.drain_period_ms(), 42u);
 }
 
 TEST(PbtxtToPb, Booleans) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     write_into_file: false; deferred_start: true;
   )");
   EXPECT_EQ(config.write_into_file(), false);
@@ -191,7 +193,7 @@ TEST(PbtxtToPb, Booleans) {
 }
 
 TEST(PbtxtToPb, Comments) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     write_into_file: false # deferred_start: true;
     buffers# 1
     # 2
@@ -215,17 +217,17 @@ TEST(PbtxtToPb, Comments) {
 }
 
 TEST(PbtxtToPb, Enums) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
     buffers: {
       fill_policy: RING_BUFFER
     }
   )");
-  EXPECT_EQ(config.buffers().Get(0).fill_policy(),
-            protos::TraceConfig::BufferConfig::RING_BUFFER);
+  const auto kRingBuffer = TraceConfig::BufferConfig::RING_BUFFER;
+  EXPECT_EQ(config.buffers()[0].fill_policy(), kRingBuffer);
 }
 
 TEST(PbtxtToPb, AllFieldTypes) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
 data_sources {
   config {
     for_testing {
@@ -250,7 +252,7 @@ data_sources {
 }
   )");
   const auto& fields =
-      config.data_sources().Get(0).config().for_testing().dummy_fields();
+      config.data_sources()[0].config().for_testing().dummy_fields();
   ASSERT_EQ(fields.field_uint32(), 1u);
   ASSERT_EQ(fields.field_uint64(), 2u);
   ASSERT_EQ(fields.field_int32(), 3);
@@ -268,7 +270,7 @@ data_sources {
 }
 
 TEST(PbtxtToPb, NegativeNumbers) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
 data_sources {
   config {
     for_testing {
@@ -289,7 +291,7 @@ data_sources {
 }
   )");
   const auto& fields =
-      config.data_sources().Get(0).config().for_testing().dummy_fields();
+      config.data_sources()[0].config().for_testing().dummy_fields();
   ASSERT_EQ(fields.field_int32(), -1);
   ASSERT_EQ(fields.field_int64(), -2);
   ASSERT_EQ(fields.field_fixed64(), static_cast<uint64_t>(-3));
@@ -303,17 +305,17 @@ data_sources {
 }
 
 TEST(PbtxtToPb, EofEndsNumeric) {
-  protos::TraceConfig config = ToProto(R"(duration_ms: 1234)");
+  TraceConfig config = ToProto(R"(duration_ms: 1234)");
   EXPECT_EQ(config.duration_ms(), 1234u);
 }
 
 TEST(PbtxtToPb, EofEndsIdentifier) {
-  protos::TraceConfig config = ToProto(R"(enable_extra_guardrails: true)");
+  TraceConfig config = ToProto(R"(enable_extra_guardrails: true)");
   EXPECT_EQ(config.enable_extra_guardrails(), true);
 }
 
 TEST(PbtxtToPb, ExampleConfig) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
 buffers {
   size_kb: 100024
   fill_policy: RING_BUFFER
@@ -365,15 +367,14 @@ producers {
 duration_ms: 10000
 )");
   EXPECT_EQ(config.duration_ms(), 10000u);
-  EXPECT_EQ(config.buffers().Get(0).size_kb(), 100024u);
-  EXPECT_EQ(config.data_sources().Get(0).config().name(), "linux.ftrace");
-  EXPECT_EQ(config.data_sources().Get(0).config().target_buffer(), 0u);
-  EXPECT_EQ(config.producers().Get(0).producer_name(),
-            "perfetto.traced_probes");
+  EXPECT_EQ(config.buffers()[0].size_kb(), 100024u);
+  EXPECT_EQ(config.data_sources()[0].config().name(), "linux.ftrace");
+  EXPECT_EQ(config.data_sources()[0].config().target_buffer(), 0u);
+  EXPECT_EQ(config.producers()[0].producer_name(), "perfetto.traced_probes");
 }
 
 TEST(PbtxtToPb, Strings) {
-  protos::TraceConfig config = ToProto(R"(
+  TraceConfig config = ToProto(R"(
 data_sources {
   config {
     ftrace_config {
@@ -387,8 +388,10 @@ data_sources {
   }
 }
 )");
-  auto events =
-      config.data_sources().Get(0).config().ftrace_config().ftrace_events();
+  protos::gen::FtraceConfig ftrace_config;
+  ASSERT_TRUE(ftrace_config.ParseFromString(
+      config.data_sources()[0].config().ftrace_config_raw()));
+  const auto& events = ftrace_config.ftrace_events();
   EXPECT_THAT(events, Contains("binder_lock"));
   EXPECT_THAT(events, Contains("foo/bar"));
   EXPECT_THAT(events, Contains("foo\\bar"));
