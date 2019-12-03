@@ -28,9 +28,9 @@ import {
   RecordConfig,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
-  SelectedTimeRange,
   State,
   Status,
+  TimestampedAreaSelection,
   TraceSource,
   TraceTime,
   TrackState,
@@ -525,8 +525,8 @@ export const StateActions = {
     state.frontendLocalState.omniboxState = args;
   },
 
-  selectTimeRange(state: StateDraft, args: SelectedTimeRange): void {
-    state.frontendLocalState.selectedTimeRange = args;
+  selectArea(state: StateDraft, args: TimestampedAreaSelection): void {
+    state.frontendLocalState.selectedArea = args;
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {

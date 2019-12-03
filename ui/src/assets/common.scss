@@ -309,6 +309,10 @@ button.close {
           box-shadow: 0 -4px 2px -1px hsl(213, 40%, 50%) inset;
         }
 
+        &.selected {
+          background-color: #ebeef9;
+        }
+
         h1 {
             grid-area: title;
             margin: 0;
@@ -564,6 +568,9 @@ button.query-ctrl {
     }
     &.flash {
       background-color: #ffe263;
+    }
+    &.selected {
+      background-color: #ebeef9;
     }
   }
 }

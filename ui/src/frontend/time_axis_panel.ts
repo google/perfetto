@@ -16,10 +16,10 @@ import * as m from 'mithril';
 
 import {timeToString} from '../common/time';
 
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 
 export class TimeAxisPanel extends Panel {
   view() {
