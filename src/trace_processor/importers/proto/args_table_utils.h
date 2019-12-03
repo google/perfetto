@@ -103,15 +103,15 @@ class ProtoToArgsTable {
   // |sequence_state| and |sequence_state_generation| provide access to
   // interning data. |context| provides access to storage.
   //
-  // |proto_descriptor_array| and |proto_descriptor_array_size| define the
-  // compile time reflection of the proto we are outputing.
-  // |args_tracker| is the access to the Args table.
+  // |args_tracker| is the access to the Args table, if nullptr then we will use
+  // the tracker inside |context|.
   // |starting_prefix| will be prepended to all columns.
   // |prefix_size_hint| allows the class to upfront reserve the expected string
   // size needed.
   ProtoToArgsTable(PacketSequenceState* sequence_state,
                    size_t sequence_state_generation,
                    TraceProcessorContext* context,
+                   ArgsTracker* args_tracker = nullptr,
                    std::string starting_prefix = "",
                    size_t prefix_size_hint = 64);
 
