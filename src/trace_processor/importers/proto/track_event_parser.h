@@ -75,6 +75,10 @@ class TrackEventParser {
                        base::Optional<UniqueTid>,
                        ArgsTracker*,
                        RowId);
+  void ParseCcScheduler(protozero::ConstBytes cc_scheduler,
+                        PacketSequenceState*,
+                        size_t sequence_state_generation,
+                        RowId row);
 
  private:
   TraceProcessorContext* context_;

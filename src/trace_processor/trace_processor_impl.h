@@ -32,7 +32,7 @@
 #include "src/trace_processor/trace_processor_storage_impl.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
-#include "src/trace_processor/metrics/descriptors.h"
+#include "src/trace_processor/descriptors.h"
 #include "src/trace_processor/metrics/metrics.h"
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
@@ -80,7 +80,7 @@ class TraceProcessorImpl : public TraceProcessor,
   ScopedDb db_;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
-  metrics::DescriptorPool pool_;
+  DescriptorPool pool_;
   std::vector<metrics::SqlMetricFile> sql_metrics_;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
