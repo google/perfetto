@@ -202,8 +202,7 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.set('android_logs', m(LogPanel, {}));
     }
 
-    if (globals.frontendLocalState.selectedTimeRange.startSec !== undefined &&
-        globals.frontendLocalState.selectedTimeRange.endSec !== undefined) {
+    if (globals.frontendLocalState.selectedArea.area !== undefined) {
       detailsPanels.set('time_range', m(AggregationPanel));
     }
 

@@ -15,10 +15,10 @@
 import * as m from 'mithril';
 import {fromNs} from '../common/time';
 
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 
 // This is used to display the summary of search results.
 export class TickmarkPanel extends Panel {
