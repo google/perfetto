@@ -64,8 +64,6 @@ action("gen_merged_sql_metrics") {
 if (enable_perfetto_trace_processor_metrics) {
   source_set("lib") {
     sources = [
-      "descriptors.cc",
-      "descriptors.h",
       "metrics.cc",
       "metrics.descriptor.h",
       "metrics.h",
@@ -84,6 +82,7 @@ if (enable_perfetto_trace_processor_metrics) {
     ]
     public_deps = [
       ":gen_merged_sql_metrics",
+      "../../trace_processor:descriptors",
     ]
   }
 

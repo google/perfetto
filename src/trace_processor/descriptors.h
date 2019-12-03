@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_METRICS_DESCRIPTORS_H_
-#define SRC_TRACE_PROCESSOR_METRICS_DESCRIPTORS_H_
+#ifndef SRC_TRACE_PROCESSOR_DESCRIPTORS_H_
+#define SRC_TRACE_PROCESSOR_DESCRIPTORS_H_
 
 #include <algorithm>
 #include <string>
@@ -31,7 +31,6 @@ struct ConstBytes;
 
 namespace perfetto {
 namespace trace_processor {
-namespace metrics {
 
 class FieldDescriptor {
  public:
@@ -63,20 +62,53 @@ class FieldDescriptor {
 
 class ProtoDescriptor {
  public:
+  enum class Type { kEnum = 0, kMessage = 1 };
+
   ProtoDescriptor(std::string package_name,
                   std::string full_name,
+                  Type type,
                   base::Optional<uint32_t> parent_id);
 
   void AddField(FieldDescriptor descriptor) {
+    PERFETTO_DCHECK(type_ == Type::kMessage);
     fields_.emplace_back(std::move(descriptor));
   }
 
-  base::Optional<uint32_t> FindFieldIdx(const std::string& name) const {
+  void AddEnumValue(int32_t integer_representation,
+                    std::string string_representation) {
+    PERFETTO_DCHECK(type_ == Type::kEnum);
+    enum_values_.emplace_back(integer_representation,
+                              std::move(string_representation));
+  }
+
+  base::Optional<uint32_t> FindFieldIdxByName(const std::string& name) const {
+    PERFETTO_DCHECK(type_ == Type::kMessage);
     auto it = std::find_if(
         fields_.begin(), fields_.end(),
         [name](const FieldDescriptor& desc) { return desc.name() == name; });
     auto idx = static_cast<uint32_t>(std::distance(fields_.begin(), it));
     return idx < fields_.size() ? base::Optional<uint32_t>(idx) : base::nullopt;
+  }
+
+  base::Optional<uint32_t> FindFieldIdxByTag(const uint16_t tag_number) const {
+    PERFETTO_DCHECK(type_ == Type::kMessage);
+    auto it = std::find_if(fields_.begin(), fields_.end(),
+                           [tag_number](const FieldDescriptor& desc) {
+                             return desc.number() == tag_number;
+                           });
+    auto idx = static_cast<uint32_t>(std::distance(fields_.begin(), it));
+    return idx < fields_.size() ? base::Optional<uint32_t>(idx) : base::nullopt;
+  }
+
+  base::Optional<std::string> FindEnumString(const int32_t value) const {
+    PERFETTO_DCHECK(type_ == Type::kEnum);
+    auto it =
+        std::find_if(enum_values_.begin(), enum_values_.end(),
+                     [value](const std::pair<int32_t, std::string>& enum_val) {
+                       return enum_val.first == value;
+                     });
+    return it == enum_values_.end() ? base::nullopt
+                                    : base::Optional<std::string>(it->second);
   }
 
   const std::string& package_name() const { return package_name_; }
@@ -89,8 +121,10 @@ class ProtoDescriptor {
  private:
   std::string package_name_;
   std::string full_name_;
+  const Type type_;
   base::Optional<uint32_t> parent_id_;
   std::vector<FieldDescriptor> fields_;
+  std::vector<std::pair<int32_t, std::string>> enum_values_;
 };
 
 class DescriptorPool {
@@ -110,6 +144,9 @@ class DescriptorPool {
   void AddNestedProtoDescriptors(const std::string& package_name,
                                  base::Optional<uint32_t> parent_idx,
                                  protozero::ConstBytes descriptor_proto);
+  void AddEnumProtoDescriptors(const std::string& package_name,
+                               base::Optional<uint32_t> parent_idx,
+                               protozero::ConstBytes descriptor_proto);
 
   util::Status AddExtensionField(const std::string& package_name,
                                  protozero::ConstBytes field_desc_proto);
@@ -122,8 +159,7 @@ class DescriptorPool {
   std::vector<ProtoDescriptor> descriptors_;
 };
 
-}  // namespace metrics
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_METRICS_DESCRIPTORS_H_
+#endif  // SRC_TRACE_PROCESSOR_DESCRIPTORS_H_

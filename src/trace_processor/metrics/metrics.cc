@@ -96,7 +96,7 @@ util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
 util::Status ProtoBuilder::AppendLong(const std::string& field_name,
                                       int64_t value,
                                       bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
@@ -141,7 +141,7 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
 util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
                                         double value,
                                         bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
@@ -179,7 +179,7 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
 util::Status ProtoBuilder::AppendString(const std::string& field_name,
                                         base::StringView data,
                                         bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
@@ -213,7 +213,7 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
                                        const uint8_t* ptr,
                                        size_t size,
                                        bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdx(field_name);
+  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
   if (!field_idx.has_value()) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
