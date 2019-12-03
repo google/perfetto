@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/metrics/descriptors.h"
+#include "src/trace_processor/descriptors.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 
@@ -22,7 +22,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace metrics {
 
 namespace {
 
@@ -97,7 +96,8 @@ void DescriptorPool::AddNestedProtoDescriptors(
       parent_name + "." + base::StringView(decoder.name()).ToStdString();
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  ProtoDescriptor proto_descriptor(package_name, full_name, parent_idx);
+  ProtoDescriptor proto_descriptor(package_name, full_name,
+                                   ProtoDescriptor::Type::kMessage, parent_idx);
   for (auto it = decoder.field(); it; ++it) {
     FieldDescriptorProto::Decoder f_decoder(*it);
     proto_descriptor.AddField(CreateFieldFromDecoder(f_decoder));
@@ -105,9 +105,34 @@ void DescriptorPool::AddNestedProtoDescriptors(
   descriptors_.emplace_back(std::move(proto_descriptor));
 
   auto idx = static_cast<uint32_t>(descriptors_.size()) - 1;
+  for (auto it = decoder.enum_type(); it; ++it) {
+    AddEnumProtoDescriptors(package_name, idx, *it);
+  }
   for (auto it = decoder.nested_type(); it; ++it) {
     AddNestedProtoDescriptors(package_name, idx, *it);
   }
+}
+
+void DescriptorPool::AddEnumProtoDescriptors(
+    const std::string& package_name,
+    base::Optional<uint32_t> parent_idx,
+    protozero::ConstBytes descriptor_proto) {
+  protos::pbzero::EnumDescriptorProto::Decoder decoder(descriptor_proto);
+
+  auto parent_name =
+      parent_idx ? descriptors_[*parent_idx].full_name() : package_name;
+  auto full_name =
+      parent_name + "." + base::StringView(decoder.name()).ToStdString();
+
+  ProtoDescriptor proto_descriptor(package_name, full_name,
+                                   ProtoDescriptor::Type::kEnum, base::nullopt);
+  for (auto it = decoder.value(); it; ++it) {
+    protos::pbzero::EnumValueDescriptorProto::Decoder enum_value(it->data(),
+                                                                 it->size());
+    proto_descriptor.AddEnumValue(enum_value.number(),
+                                  enum_value.name().ToStdString());
+  }
+  descriptors_.emplace_back(std::move(proto_descriptor));
 }
 
 util::Status DescriptorPool::AddFromFileDescriptorSet(
@@ -122,6 +147,9 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
     std::string package = "." + base::StringView(file.package()).ToStdString();
     for (auto message_it = file.message_type(); message_it; ++message_it) {
       AddNestedProtoDescriptors(package, base::nullopt, *message_it);
+    }
+    for (auto enum_it = file.enum_type(); enum_it; ++enum_it) {
+      AddEnumProtoDescriptors(package, base::nullopt, *enum_it);
     }
   }
 
@@ -180,9 +208,11 @@ base::Optional<uint32_t> DescriptorPool::FindDescriptorIdx(
 
 ProtoDescriptor::ProtoDescriptor(std::string package_name,
                                  std::string full_name,
+                                 Type type,
                                  base::Optional<uint32_t> parent_id)
     : package_name_(std::move(package_name)),
       full_name_(std::move(full_name)),
+      type_(type),
       parent_id_(parent_id) {}
 
 FieldDescriptor::FieldDescriptor(std::string name,
@@ -196,6 +226,5 @@ FieldDescriptor::FieldDescriptor(std::string name,
       raw_type_name_(std::move(raw_type_name)),
       is_repeated_(is_repeated) {}
 
-}  // namespace metrics
 }  // namespace trace_processor
 }  // namespace perfetto
