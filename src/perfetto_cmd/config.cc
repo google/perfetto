@@ -19,6 +19,10 @@
 #include <stdlib.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/trace_config.h"
+
+#include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 
 namespace perfetto {
 namespace {
@@ -83,7 +87,7 @@ bool ConvertSizeToKb(const std::string& arg, uint64_t* out) {
 }  // namespace
 
 bool CreateConfigFromOptions(const ConfigOptions& options,
-                             protos::TraceConfig* config) {
+                             TraceConfig* config) {
   uint64_t duration_ms = 0;
   if (!ConvertTimeToMs(options.time, &duration_ms)) {
     PERFETTO_ELOG("--time argument is invalid");
@@ -122,12 +126,14 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   config->add_buffers()->set_size_kb(static_cast<unsigned int>(buffer_size_kb));
   auto* ds_config = config->add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
+  protos::gen::FtraceConfig ftrace_cfg;
   for (const auto& evt : ftrace_events)
-    ds_config->mutable_ftrace_config()->add_ftrace_events(evt);
+    ftrace_cfg.add_ftrace_events(evt);
   for (const auto& cat : atrace_categories)
-    ds_config->mutable_ftrace_config()->add_atrace_categories(cat);
+    ftrace_cfg.add_atrace_categories(cat);
   for (const auto& app : atrace_apps)
-    ds_config->mutable_ftrace_config()->add_atrace_apps(app);
+    ftrace_cfg.add_atrace_apps(app);
+  ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
 
   auto* ps_config = config->add_data_sources()->mutable_config();
   ps_config->set_name("linux.process_stats");
