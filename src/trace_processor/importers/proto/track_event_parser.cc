@@ -408,7 +408,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     }
     if (event.has_cc_scheduler_state()) {
       ParseCcScheduler(event.cc_scheduler_state(), sequence_state,
-                       sequence_state_generation, row_id);
+                       sequence_state_generation, args_tracker, row_id);
     }
 
     if (legacy_tid) {
@@ -959,13 +959,14 @@ void TrackEventParser::ParseLogMessage(ConstBytes blob,
 void TrackEventParser::ParseCcScheduler(ConstBytes cc,
                                         PacketSequenceState* sequence_state,
                                         size_t sequence_state_generation,
+                                        ArgsTracker* args_tracker,
                                         RowId row) {
   // The 79 decides the initial amount of memory reserved in the prefix. This
   // was determined my manually counting the length of the longest column.
   constexpr size_t kCcSchedulerStateMaxColumnLength = 79;
-  ProtoToArgsTable helper(sequence_state, sequence_state_generation, context_,
-                          /* starting_prefix = */ "",
-                          kCcSchedulerStateMaxColumnLength);
+  ProtoToArgsTable helper(
+      sequence_state, sequence_state_generation, context_, args_tracker,
+      /* starting_prefix = */ "", kCcSchedulerStateMaxColumnLength);
   auto status = helper.AddProtoFileDescriptor(
       kChromeCompositorSchedulerStateDescriptor.data(),
       kChromeCompositorSchedulerStateDescriptor.size());
