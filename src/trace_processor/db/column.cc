@@ -37,7 +37,7 @@ Column::Column(const char* name,
                ColumnType type,
                uint32_t flags,
                Table* table,
-               uint32_t col_idx,
+               uint32_t col_idx_in_table,
                uint32_t row_map_idx,
                void* sparse_vector)
     : type_(type),
@@ -45,7 +45,7 @@ Column::Column(const char* name,
       name_(name),
       flags_(flags),
       table_(table),
-      col_idx_(col_idx),
+      col_idx_in_table_(col_idx_in_table),
       row_map_idx_(row_map_idx),
       string_pool_(table->string_pool_) {}
 

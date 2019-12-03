@@ -98,8 +98,8 @@ util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   }
   // TODO(lalitm): this is hardcoded to be the id column but change this to be
   // more generic in the future.
-  auto opt_idx = table_->FindColumnIdxByName("id");
-  if (!opt_idx) {
+  const auto* col = table_->GetColumnByName("id");
+  if (!col) {
     PERFETTO_FATAL(
         "id column not found in %s. Currently all db Tables need to contain an "
         "id column; this constraint will be relaxed in the future.",
@@ -107,7 +107,7 @@ util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   }
 
   std::vector<size_t> primary_keys;
-  primary_keys.emplace_back(*opt_idx);
+  primary_keys.emplace_back(col->index_in_table());
 
   *schema = Schema(std::move(schema_cols), std::move(primary_keys));
   return util::OkStatus();
