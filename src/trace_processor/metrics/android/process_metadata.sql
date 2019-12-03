@@ -67,10 +67,6 @@ SELECT
   AndroidProcessMetadata(
     'name', process_name,
     'uid', uid,
-    'shared_uid', shared_uid,
-    'package_name', package_name,
-    'apk_version_code', version_code,
-    'debuggable', debuggable,
     'package', AndroidProcessMetadata_Package(
       'package_name', package_name,
       'apk_version_code', version_code,
