@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {TimeScale} from './time_scale';
-import {TRACK_SHELL_WIDTH} from './track_constants';
 
 export function drawVerticalLineAtTime(ctx: CanvasRenderingContext2D,
                                        timeScale: TimeScale,
@@ -41,6 +41,8 @@ function drawVerticalLine(ctx: CanvasRenderingContext2D,
     ctx.lineWidth = prevLineWidth;
 }
 
+// This draws two shaded rectangles outside of the area of interest. Effectivly
+// highlighting an area by colouring/darkening the outside areas.
 export function drawVerticalSelection(
     ctx: CanvasRenderingContext2D,
     timeScale: TimeScale,
