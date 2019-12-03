@@ -25,11 +25,6 @@ message AndroidProcessMetadata {
   // User id under which this process runs.
   optional int64 uid = 2;
 
-  optional string package_name = 3 [deprecated = true];
-  optional int64 apk_version_code = 4 [deprecated = true];
-  optional bool debuggable = 5 [deprecated = true];
-  optional bool shared_uid = 6 [deprecated = true];
-
   // Package metadata from Android package list.
   message Package {
     optional string package_name = 1;
@@ -37,8 +32,11 @@ message AndroidProcessMetadata {
     optional bool debuggable = 3;
   }
 
-  // Best match package that if this process belongs to an APK.
-  // The match is determined based on the uid and name.
+  // Package that this process belongs to.
+  //
+  // If this process shares its uid (see `packages_for_uid` field), the package
+  // is determined based on the process name and package name. If there is no
+  // match this field is empty.
   optional Package package = 7;
 
   // All packages using this uid.
@@ -46,4 +44,6 @@ message AndroidProcessMetadata {
   // Shared uid documentation:
   // https://developer.android.com/guide/topics/manifest/manifest-element#uid
   repeated Package packages_for_uid = 8;
+
+  reserved 3, 4, 5, 6;
 }
