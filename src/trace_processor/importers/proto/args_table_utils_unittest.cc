@@ -78,8 +78,8 @@ class ArgsTableUtilsTest : public ::testing::Test {
 
 TEST_F(ArgsTableUtilsTest, EnsureChromeCompositorStateDescriptorParses) {
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(
       kChromeCompositorSchedulerStateDescriptor.data(),
       kChromeCompositorSchedulerStateDescriptor.size());
@@ -90,8 +90,8 @@ TEST_F(ArgsTableUtilsTest, EnsureChromeCompositorStateDescriptorParses) {
 
 TEST_F(ArgsTableUtilsTest, EnsureTestMessageProtoParses) {
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
@@ -128,8 +128,8 @@ TEST_F(ArgsTableUtilsTest, BasicSingleLayerProto) {
 
   storage_->mutable_track_table()->Insert({});
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
@@ -201,8 +201,8 @@ TEST_F(ArgsTableUtilsTest, NestedProto) {
 
   storage_->mutable_track_table()->Insert({});
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
@@ -230,8 +230,8 @@ TEST_F(ArgsTableUtilsTest, CamelCaseFieldsProto) {
 
   storage_->mutable_track_table()->Insert({});
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
@@ -259,8 +259,8 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideHandled) {
 
   storage_->mutable_track_table()->Insert({});
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
@@ -302,8 +302,8 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideSkipped) {
 
   storage_->mutable_track_table()->Insert({});
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
@@ -358,8 +358,8 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
       std::move(blob));
 
   ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
-                          0);
+                          sequence_state_->current_generation(), &context_,
+                          nullptr, "", 0);
   // Now we override the behaviour of |value_c| so we can expand the iid into
   // multiple args rows.
   helper.AddParsingOverride(
