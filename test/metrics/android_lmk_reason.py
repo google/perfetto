@@ -18,6 +18,8 @@ from os import sys, path
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import synth_common
 
+anon_member = 1
+
 trace = synth_common.create_trace()
 
 trace.add_process_tree_packet()
@@ -26,6 +28,8 @@ trace.add_process(2, 1, 'system_server')
 trace.add_process(3, 1, 'lmk_victim:no_data:ignored')
 trace.add_process(4, 1, 'lmk_victim:no_ion')
 trace.add_process(5, 1, 'lmk_victim:with_ion')
+trace.add_process(6, 1, 'app')
+trace.add_process(7, 1, 'lmk_victim:with_app')
 
 trace.add_ftrace_packet(cpu=0)
 trace.add_kernel_lmk(ts=101, tid=3)
@@ -38,6 +42,12 @@ trace.add_ftrace_packet(cpu=0)
 trace.add_ion_event(ts=301, tid=5, heap_name='system', size=1000)
 trace.add_oom_score_update(ts=302, oom_score_adj=100, pid=5)
 trace.add_kernel_lmk(ts=303, tid=5)
+
+trace.add_ftrace_packet(cpu=0)
+trace.add_oom_score_update(ts=401, oom_score_adj=0, pid=6)
+trace.add_oom_score_update(ts=402, oom_score_adj=200, pid=7)
+trace.add_rss_stat(ts=403, tid=6, member=anon_member, size=2000)
+trace.add_kernel_lmk(ts=404, tid=7)
 
 # Dummy trace event to ensure the trace does not end on an LMK.
 trace.add_ftrace_packet(cpu=0)
