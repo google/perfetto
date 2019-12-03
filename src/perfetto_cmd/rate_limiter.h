@@ -25,6 +25,7 @@ namespace perfetto {
 class RateLimiter {
  public:
   struct Args {
+    bool is_user_build = false;
     bool is_dropbox = false;
     bool ignore_guardrails = false;
     bool allow_user_build_tracing = false;

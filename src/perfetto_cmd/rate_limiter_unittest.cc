@@ -267,9 +267,7 @@ TEST(RateLimiterTest, DropBox_TooSoon) {
   ASSERT_FALSE(limiter.ShouldTrace(args));
 }
 
-// TODO(hjd): Undisable when is it possible to unittest
-// user vs. non-user behaviour.
-TEST(RateLimiterTest, DISABLED_DropBox_TooMuch) {
+TEST(RateLimiterTest, DropBox_TooMuch_User) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
@@ -277,6 +275,7 @@ TEST(RateLimiterTest, DISABLED_DropBox_TooMuch) {
   input.set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
 
+  args.is_user_build = true;
   args.allow_user_build_tracing = true;
   args.is_dropbox = true;
   args.current_time = base::TimeSeconds(60 * 60);
@@ -362,21 +361,26 @@ TEST(RateLimiterTest, DropBox_CantTraceOnUser) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
+  args.is_user_build = true;
+  args.allow_user_build_tracing = false;
+  args.is_dropbox = true;
+  args.current_time = base::TimeSeconds(10000);
+
+  ASSERT_FALSE(limiter.ShouldTrace(args));
+}
+
+TEST(RateLimiterTest, DropBox_CanTraceOnUser) {
+  StrictMock<MockRateLimiter> limiter;
+  RateLimiter::Args args;
+
+  args.is_user_build = false;
   args.allow_user_build_tracing = false;
   args.is_dropbox = true;
   args.current_time = base::TimeSeconds(10000);
 
   EXPECT_CALL(limiter, SaveState(_));
   EXPECT_CALL(limiter, LoadState(_));
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_USERDEBUG_BUILD) || \
-    PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
   ASSERT_TRUE(limiter.ShouldTrace(args));
-#else
-  // Assuming the only way to test on a userbuild is to build the tests in tree
-  // targeting a user build.
-  ASSERT_FALSE(limiter.ShouldTrace(args));
-#endif
 }
 
 }  // namespace
