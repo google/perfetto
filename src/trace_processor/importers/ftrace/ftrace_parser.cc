@@ -582,13 +582,11 @@ void FtraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
   context_->event_tracker->PushCounter(ts, total_bytes, track);
 
   // Push the change counter.
-  // TODO(b/121331269): these should really be instant events. For now we
-  // manually reset them to 0 after 1ns.
+  // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   track =
       context_->track_tracker->InternThreadCounterTrack(change_name_id, utid);
   context_->event_tracker->PushCounter(ts, change_bytes, track);
-  context_->event_tracker->PushCounter(ts + 1, 0, track);
 
   // We are reusing the same function for ion_heap_grow and ion_heap_shrink.
   // It is fine as the arguments are the same, but we need to be sure that the
