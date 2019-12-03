@@ -100,15 +100,14 @@ class Table {
   // Returns the column at index |idx| in the Table.
   const Column& GetColumn(uint32_t idx) const { return columns_[idx]; }
 
-  // Retuns the index of the column with the given name, if one exists, or
-  // nullptr otherwise.
-  base::Optional<uint32_t> FindColumnIdxByName(const char* name) const {
+  // Returns the column with the given name or nullptr otherwise.
+  const Column* GetColumnByName(const char* name) const {
     auto it = std::find_if(
         columns_.begin(), columns_.end(),
         [name](const Column& col) { return strcmp(col.name(), name) == 0; });
-    return it == columns_.end() ? base::nullopt
-                                : base::make_optional(static_cast<uint32_t>(
-                                      std::distance(columns_.begin(), it)));
+    if (it == columns_.end())
+      return nullptr;
+    return &*it;
   }
 
   // Returns the number of columns in the Table.

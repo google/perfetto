@@ -55,7 +55,8 @@ Table Table::CopyExceptRowMaps() const {
   Table table(string_pool_, nullptr);
   table.size_ = size_;
   for (const Column& col : columns_) {
-    table.columns_.emplace_back(col, &table, col.col_idx_, col.row_map_idx_);
+    table.columns_.emplace_back(col, &table, col.index_in_table(),
+                                col.row_map_idx_);
   }
   return table;
 }
