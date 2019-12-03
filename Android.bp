@@ -628,7 +628,6 @@ cc_binary {
   ],
   shared_libs: [
     "liblog",
-    "libprotobuf-cpp-lite",
     "libz",
   ],
   generated_headers: [
@@ -4220,10 +4219,11 @@ genrule {
   ],
   tools: [
     "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
-    "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.cc",
+    "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.gen.cc",
   ],
 }
 
@@ -4235,10 +4235,11 @@ genrule {
   ],
   tools: [
     "aprotoc",
+    "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
   ],
-  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
-    "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.pb.h",
+    "external/perfetto/src/perfetto_cmd/perfetto_cmd_state.gen.h",
   ],
   export_include_dirs: [
     ".",
@@ -6140,7 +6141,6 @@ cc_binary {
   ],
   shared_libs: [
     "liblog",
-    "libprotobuf-cpp-lite",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",

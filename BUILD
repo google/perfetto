@@ -2315,7 +2315,7 @@ perfetto_cc_protozero_library(
 )
 
 # GN target: //src/perfetto_cmd:protos
-perfetto_cc_proto_library(
+perfetto_cc_protocpp_library(
     name = "src_perfetto_cmd_protos",
     deps = [
         ":src_perfetto_cmd_protos_protos",
