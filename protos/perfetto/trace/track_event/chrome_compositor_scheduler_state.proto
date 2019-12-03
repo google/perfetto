@@ -37,29 +37,31 @@ package perfetto.protos;
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
 
 enum ChromeCompositorSchedulerAction {
-  CC_SCHEDULER_ACTION_NONE = 0;
-  CC_SCHEDULER_ACTION_SEND_BEGIN_MAIN_FRAME = 1;
-  CC_SCHEDULER_ACTION_COMMIT = 2;
-  CC_SCHEDULER_ACTION_ACTIVATE_SYNC_TREE = 3;
-  CC_SCHEDULER_ACTION_DRAW_IF_POSSIBLE = 4;
-  CC_SCHEDULER_ACTION_DRAW_FORCED = 5;
-  CC_SCHEDULER_ACTION_DRAW_ABORT = 6;
-  CC_SCHEDULER_ACTION_BEGIN_LAYER_TREE_FRAME_SINK_CREATION = 7;
-  CC_SCHEDULER_ACTION_PREPARE_TILES = 8;
-  CC_SCHEDULER_ACTION_INVALIDATE_LAYER_TREE_FRAME_SINK = 9;
-  CC_SCHEDULER_ACTION_PERFORM_IMPL_SIDE_INVALIDATION = 10;
-  CC_SCHEDULER_ACTION_NOTIFY_BEGIN_MAIN_FRAME_NOT_EXPECTED_UNTIL = 11;
-  CC_SCHEDULER_ACTION_NOTIFY_BEGIN_MAIN_FRAME_NOT_EXPECTED_SOON = 12;
+  CC_SCHEDULER_ACTION_UNSPECIFIED = 0;
+  CC_SCHEDULER_ACTION_NONE = 1;
+  CC_SCHEDULER_ACTION_SEND_BEGIN_MAIN_FRAME = 2;
+  CC_SCHEDULER_ACTION_COMMIT = 3;
+  CC_SCHEDULER_ACTION_ACTIVATE_SYNC_TREE = 4;
+  CC_SCHEDULER_ACTION_DRAW_IF_POSSIBLE = 5;
+  CC_SCHEDULER_ACTION_DRAW_FORCED = 6;
+  CC_SCHEDULER_ACTION_DRAW_ABORT = 7;
+  CC_SCHEDULER_ACTION_BEGIN_LAYER_TREE_FRAME_SINK_CREATION = 8;
+  CC_SCHEDULER_ACTION_PREPARE_TILES = 9;
+  CC_SCHEDULER_ACTION_INVALIDATE_LAYER_TREE_FRAME_SINK = 10;
+  CC_SCHEDULER_ACTION_PERFORM_IMPL_SIDE_INVALIDATION = 11;
+  CC_SCHEDULER_ACTION_NOTIFY_BEGIN_MAIN_FRAME_NOT_EXPECTED_UNTIL = 12;
+  CC_SCHEDULER_ACTION_NOTIFY_BEGIN_MAIN_FRAME_NOT_EXPECTED_SOON = 13;
 }
 
 // Next id: 18
 message ChromeCompositorSchedulerState {
   enum BeginImplFrameDeadlineMode {
-    DEADLINE_MODE_NONE = 0;
-    DEADLINE_MODE_IMMEDIATE = 1;
-    DEADLINE_MODE_REGULAR = 2;
-    DEADLINE_MODE_LATE = 3;
-    DEADLINE_MODE_BLOCKED = 4;
+    DEADLINE_MODE_UNSPECIFIED = 0;
+    DEADLINE_MODE_NONE = 1;
+    DEADLINE_MODE_IMMEDIATE = 2;
+    DEADLINE_MODE_REGULAR = 3;
+    DEADLINE_MODE_LATE = 4;
+    DEADLINE_MODE_BLOCKED = 5;
   }
   optional ChromeCompositorStateMachine state_machine = 1;
   optional bool observing_begin_frame_source = 2;
@@ -86,26 +88,35 @@ message ChromeCompositorStateMachine {
   // Next id: 6
   message MajorState {
     enum BeginImplFrameState {
-      BEGIN_FRAME_IDLE = 0;
-      BEGIN_FRAME_INSIDE_BEGIN_FRAME = 1;
-      BEGIN_FRAME_INSIDE_DEADLINE = 2;
+      BEGIN_IMPL_FRAME_UNSPECIFIED = 0;
+      BEGIN_IMPL_FRAME_IDLE = 1;
+      BEGIN_IMPL_FRAME_INSIDE_BEGIN_FRAME = 2;
+      BEGIN_IMPL_FRAME_INSIDE_DEADLINE = 3;
+    }
+    enum BeginMainFrameState {
+      BEGIN_MAIN_FRAME_UNSPECIFIED = 0;
+      BEGIN_MAIN_FRAME_IDLE = 1;
+      BEGIN_MAIN_FRAME_SENT = 2;
+      BEGIN_MAIN_FRAME_READY_TO_COMMIT = 3;
     }
     enum LayerTreeFrameSinkState {
-      LAYER_TREE_FRAME_NONE = 0;
-      LAYER_TREE_FRAME_ACTIVE = 1;
-      LAYER_TREE_FRAME_CREATING = 2;
-      LAYER_TREE_FRAME_WAITING_FOR_FIRST_COMMIT = 3;
-      LAYER_TREE_FRAME_WAITING_FOR_FIRST_ACTIVATION = 4;
+      LAYER_TREE_FRAME_UNSPECIFIED = 0;
+      LAYER_TREE_FRAME_NONE = 1;
+      LAYER_TREE_FRAME_ACTIVE = 2;
+      LAYER_TREE_FRAME_CREATING = 3;
+      LAYER_TREE_FRAME_WAITING_FOR_FIRST_COMMIT = 4;
+      LAYER_TREE_FRAME_WAITING_FOR_FIRST_ACTIVATION = 5;
     }
     enum ForcedRedrawOnTimeoutState {
-      FORCED_REDRAW_IDLE = 0;
-      FORCED_REDRAW_WAITING_FOR_COMMIT = 1;
-      FORCED_REDRAW_WAITING_FOR_ACTIVATION = 2;
-      FORCED_REDRAW_WAITING_FOR_DRAW = 3;
+      FORCED_REDRAW_UNSPECIFIED = 0;
+      FORCED_REDRAW_IDLE = 1;
+      FORCED_REDRAW_WAITING_FOR_COMMIT = 2;
+      FORCED_REDRAW_WAITING_FOR_ACTIVATION = 3;
+      FORCED_REDRAW_WAITING_FOR_DRAW = 4;
     }
     optional ChromeCompositorSchedulerAction next_action = 1;
     optional BeginImplFrameState begin_impl_frame_state = 2;
-    optional BeginImplFrameState begin_main_frame_state = 3;
+    optional BeginMainFrameState begin_main_frame_state = 3;
     optional LayerTreeFrameSinkState layer_tree_frame_sink_state = 4;
     optional ForcedRedrawOnTimeoutState forced_redraw_state = 5;
   }
@@ -114,14 +125,15 @@ message ChromeCompositorStateMachine {
   // Next id: 47
   message MinorState {
     enum TreePriority {
-      TREE_PRIORITY_UNKNOWN = 0;
+      TREE_PRIORITY_UNSPECIFIED = 0;
       TREE_PRIORITY_SAME_PRIORITY_FOR_BOTH_TREES = 1;
       TREE_PRIORITY_SMOOTHNESS_TAKES_PRIORITY = 2;
       TREE_PRIORITY_NEW_CONTENT_TAKES_PRIORITY = 3;
     }
     enum ScrollHandlerState {
-      SCROLL_AFFECTS_SCROLL_HANDLER = 0;
-      SCROLL_DOES_NOT_AFFECT_SCROLL_HANDLER = 1;
+      SCROLL_HANDLER_UNSPECIFIED = 0;
+      SCROLL_AFFECTS_SCROLL_HANDLER = 1;
+      SCROLL_DOES_NOT_AFFECT_SCROLL_HANDLER = 2;
     }
     optional int32 commit_count = 1;
     optional int32 current_frame_number = 2;
@@ -179,9 +191,10 @@ message BeginFrameArgs {
   // drop this in the proto representation, and instead make the JSON format
   // "subtype" field become the type field.
   enum BeginFrameArgsType {
-    BEGIN_FRAME_ARGS_TYPE_INVALID = 0;
-    BEGIN_FRAME_ARGS_TYPE_NORMAL = 1;
-    BEGIN_FRAME_ARGS_TYPE_MISSED = 2;
+    BEGIN_FRAME_ARGS_TYPE_UNSPECIFIED = 0;
+    BEGIN_FRAME_ARGS_TYPE_INVALID = 1;
+    BEGIN_FRAME_ARGS_TYPE_NORMAL = 2;
+    BEGIN_FRAME_ARGS_TYPE_MISSED = 3;
   }
   optional BeginFrameArgsType type = 1;
   optional uint64 source_id = 2;
@@ -237,6 +250,9 @@ message BeginFrameObserverState {
 
 message BeginFrameSourceState {
   optional uint32 source_id = 1;
+  optional bool paused = 2;
+  optional uint32 num_observers = 3;
+  optional BeginFrameArgs last_begin_frame_args = 4;
 }
 
 message CompositorTimingHistory {
