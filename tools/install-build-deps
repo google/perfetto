@@ -75,10 +75,10 @@ BUILD_DEPS_HOST = [
      'https://github.com/google/googletest/archive/3f05f651ae3621db58468153e32016bc1397800b.zip',
      '86384688f7c533ad325a505efc917e0cdf39a0ce', 'all'),
 
-    # Keep in sync with Android's //external/protobuf/README.version.
+    # Keep in sync with Chromium's //third_party/protobuf.
     ('buildtools/protobuf.zip',
-     'https://github.com/google/protobuf/releases/download/v3.0.0-beta-3/protobuf-cpp-3.0.0-beta-3.zip',
-     '3caec60aa9d8eefc8c3c3201b6b8ca19935edb89', 'all'),
+     'https://github.com/protocolbuffers/protobuf/releases/download/v3.9.0/protobuf-cpp-3.9.0.zip',
+     'c975536dffe9d9a3d362928aef4fb9f199012b98', 'all'),
 
     # libc++, libc++abi and libunwind for Linux where we need to rebuild the C++
     # lib from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
