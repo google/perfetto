@@ -6,4 +6,15 @@ android_lmk_reason {
     oom_score_adj: 100
     system_ion_heap_size: 1000
   }
+  lmks: {
+    oom_score_adj: 200
+    system_ion_heap_size: 1000
+    processes: {
+      process: {
+        name: "app"
+      }
+      oom_score_adj: 0
+      size: 2000
+    }
+  }
 }
