@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/tracing.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.pb.h"
@@ -596,8 +597,9 @@ TEST_F(PerfettoApiTest, TrackEvent) {
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     EXPECT_FALSE(packet.has_timestamp_clock_id());
 #else
-    EXPECT_EQ(packet.timestamp_clock_id(),
-              protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+    constexpr auto kClockMonotonic =
+        perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
+    EXPECT_EQ(packet.timestamp_clock_id(), kClockMonotonic);
 #endif
     EXPECT_EQ(track_event.category_iids().size(), 1);
     EXPECT_GE(track_event.category_iids().Get(0), 1u);
