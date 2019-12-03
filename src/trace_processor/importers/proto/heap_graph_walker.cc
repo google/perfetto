@@ -93,10 +93,17 @@ void HeapGraphWalker::CalculateRetained() {
 void HeapGraphWalker::ReachableNode(Node* node) {
   if (node->reachable)
     return;
-  delegate_->MarkReachable(node->row);
-  node->reachable = true;
-  for (Node* child : node->children)
-    ReachableNode(child);
+  std::vector<Node*> reachable_nodes{node};
+  while (!reachable_nodes.empty()) {
+    Node* cur_node = reachable_nodes.back();
+    reachable_nodes.pop_back();
+    if (!cur_node->reachable) {
+      delegate_->MarkReachable(cur_node->row);
+      cur_node->reachable = true;
+      reachable_nodes.insert(reachable_nodes.end(), cur_node->children.cbegin(),
+                             cur_node->children.cend());
+    }
+  }
 }
 
 int64_t HeapGraphWalker::RetainedSize(const Component& component) {
