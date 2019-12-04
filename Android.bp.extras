@@ -83,38 +83,3 @@ cc_binary {
     "perfetto_defaults",
   ],
 }
-
-cc_library_static {
-    name: "libstatslog_perfetto",
-    generated_sources: ["statslog_perfetto.cpp"],
-    generated_headers: ["statslog_perfetto.h"],
-    cflags: [
-        "-Wall",
-        "-Werror",
-    ],
-    export_generated_headers: ["statslog_perfetto.h"],
-    shared_libs: [
-        "libcutils",
-        "liblog",
-        "libstatssocket",
-        "libutils",
-    ],
-}
-
-genrule {
-    name: "statslog_perfetto.h",
-    tools: ["stats-log-api-gen"],
-    cmd: "$(location stats-log-api-gen) --header $(genDir)/statslog_perfetto.h --module perfetto --namespace perfetto,android_internal",
-    out: [
-        "statslog_perfetto.h",
-    ],
-}
-
-genrule {
-    name: "statslog_perfetto.cpp",
-    tools: ["stats-log-api-gen"],
-    cmd: "$(location stats-log-api-gen) --cpp $(genDir)/statslog_perfetto.cpp --module perfetto --namespace perfetto,android_internal --importHeader statslog_perfetto.h",
-    out: [
-        "statslog_perfetto.cpp",
-    ],
-}
