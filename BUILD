@@ -119,7 +119,6 @@ perfetto_cc_library(
         ":src_base_base",
         ":src_base_unix_socket",
         ":src_ipc_ipc",
-        ":src_perfetto_cmd_perfetto_atoms",
         ":src_protozero_protozero",
         ":src_traced_probes_android_log_android_log",
         ":src_traced_probes_data_source",
@@ -448,7 +447,6 @@ filegroup(
         "src/android_internal/health_hal.h",
         "src/android_internal/incident_service.h",
         "src/android_internal/power_stats_hal.h",
-        "src/android_internal/statsd_logging.h",
     ],
 )
 
@@ -506,14 +504,6 @@ filegroup(
         "src/ipc/host_impl.h",
         "src/ipc/service_proxy.cc",
         "src/ipc/virtual_destructors.cc",
-    ],
-)
-
-# GN target: //src/perfetto_cmd:perfetto_atoms
-filegroup(
-    name = "src_perfetto_cmd_perfetto_atoms",
-    srcs = [
-        "src/perfetto_cmd/perfetto_atoms.h",
     ],
 )
 
@@ -2437,7 +2427,6 @@ perfetto_cc_binary(
         ":src_base_base",
         ":src_base_unix_socket",
         ":src_ipc_ipc",
-        ":src_perfetto_cmd_perfetto_atoms",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
         ":src_protozero_protozero",
