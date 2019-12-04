@@ -29,8 +29,14 @@
 
 namespace perfetto {
 
-std::string EventNameToProtoName(const std::string&);
-std::string EventNameToProtoFieldName(const std::string&);
+bool GenerateProto(const std::string& group,
+                   const FtraceEvent& format,
+                   Proto* proto_out);
+
+std::string EventNameToProtoName(const std::string& group,
+                                 const std::string& name);
+std::string EventNameToProtoFieldName(const std::string& group,
+                                      const std::string& name);
 
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename);
 void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,

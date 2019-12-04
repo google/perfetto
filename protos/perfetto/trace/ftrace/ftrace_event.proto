@@ -27,6 +27,7 @@ import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/raw_syscalls.proto";
 import "protos/perfetto/trace/ftrace/regulator.proto";
 import "protos/perfetto/trace/ftrace/sched.proto";
+import "protos/perfetto/trace/ftrace/sde.proto";
 import "protos/perfetto/trace/ftrace/signal.proto";
 import "protos/perfetto/trace/ftrace/sync.proto";
 import "protos/perfetto/trace/ftrace/systrace.proto";
@@ -395,5 +396,6 @@ message FtraceEvent {
     SysExitFtraceEvent sys_exit = 330;
     ZeroFtraceEvent zero = 331;
     GpuFrequencyFtraceEvent gpu_frequency = 332;
+    SdeTracingMarkWriteFtraceEvent sde_tracing_mark_write = 333;
   }
 }
