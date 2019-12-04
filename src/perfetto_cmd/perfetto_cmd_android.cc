@@ -21,46 +21,55 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_internal/dropbox_service.h"
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
+#include "src/android_internal/statsd_logging.h"
 
 namespace perfetto {
 
 void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
   PERFETTO_CHECK(!dropbox_tag_.empty());
 
+  bool use_dropbox = !trace_config_->incident_report_config().skip_dropbox();
+  bool use_incident =
+      !trace_config_->incident_report_config().destination_package().empty();
+
+  if (bytes_written_ == 0) {
+    LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
+    if (use_dropbox)
+      PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
+    if (use_incident)
+      PERFETTO_LOG("Skipping write to incident. Empty trace.");
+    return;
+  }
+
   // Otherwise, write to Dropbox unless there's a special override in the
   // incident report config.
-  if (!trace_config_->incident_report_config().skip_dropbox()) {
-    if (bytes_written_ == 0) {
-      PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
-    } else {
-      SaveOutputToDropboxOrCrash();
-    }
+  if (use_dropbox) {
+    SaveOutputToDropboxOrCrash();
   }
 
   // Optionally save the trace as an incident. This is either in addition to, or
   // instead of, the Dropbox write.
-  if (!trace_config_->incident_report_config().destination_package().empty()) {
-    if (bytes_written_ == 0) {
-      PERFETTO_LOG("Skipping incident report. Empty trace.");
-    } else {
-      SaveOutputToIncidentTraceOrCrash();
+  if (use_incident) {
+    SaveOutputToIncidentTraceOrCrash();
 
-      // Ask incidentd to create a report, which will read the file we just
-      // wrote.
-      const auto& cfg = trace_config_->incident_report_config();
-      PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
-      PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
-                                 cfg.destination_class().c_str(),
-                                 cfg.privacy_level()));
-    }
+    // Ask incidentd to create a report, which will read the file we just
+    // wrote.
+    const auto& cfg = trace_config_->incident_report_config();
+    PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
+    PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
+                               cfg.destination_class().c_str(),
+                               cfg.privacy_level()));
   }
 }
 
 void PerfettoCmd::SaveOutputToDropboxOrCrash() {
+  LogUploadEvent(PerfettoStatsdAtom::kUploadDropboxBegin);
+
   PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
 
   // DropBox takes ownership of the file descriptor, so give it a duplicate.
@@ -73,10 +82,12 @@ void PerfettoCmd::SaveOutputToDropboxOrCrash() {
 
   PERFETTO_LAZY_LOAD(android_internal::SaveIntoDropbox, dropbox_fn);
   if (dropbox_fn(dropbox_tag_.c_str(), read_only_fd.release())) {
+    LogUploadEvent(PerfettoStatsdAtom::kUploadDropboxSuccess);
     PERFETTO_LOG("Wrote %" PRIu64
                  " bytes (before compression) into DropBox with tag %s",
                  bytes_written_, dropbox_tag_.c_str());
   } else {
+    LogUploadEvent(PerfettoStatsdAtom::kUploadDropboxFailure);
     PERFETTO_FATAL("DropBox upload failed");
   }
 }
@@ -87,6 +98,7 @@ void PerfettoCmd::SaveOutputToDropboxOrCrash() {
 // unique filenames to avoid creating an unbounded amount of files in case of
 // errors.
 void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
+  LogUploadEvent(PerfettoStatsdAtom::kUploadIncidentBegin);
   char kIncidentTracePath[256];
   sprintf(kIncidentTracePath, "%s/incident-trace", kStateDir);
 
@@ -107,6 +119,7 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   PERFETTO_CHECK(rename(kTempIncidentTracePath, kIncidentTracePath) == 0);
   // Note: not calling fsync(2), as we're not interested in the file being
   // consistent in case of a crash.
+  LogUploadEvent(PerfettoStatsdAtom::kUploadIncidentSuccess);
 }
 
 // static
@@ -117,6 +130,14 @@ base::ScopedFile PerfettoCmd::OpenDropboxTmpFile() {
   if (!fd)
     PERFETTO_PLOG("Could not create a temporary trace file in %s", kStateDir);
   return fd;
+}
+
+void PerfettoCmd::LogUploadEventAndroid(PerfettoStatsdAtom atom) {
+  if (dropbox_tag_.empty())
+    return;
+  PERFETTO_LAZY_LOAD(android_internal::StatsdLogEvent, log_event_fn);
+  base::Uuid uuid(uuid_);
+  log_event_fn(atom, uuid.lsb(), uuid.msb());
 }
 
 }  // namespace perfetto
