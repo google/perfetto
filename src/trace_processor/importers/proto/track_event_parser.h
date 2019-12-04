@@ -80,6 +80,15 @@ class TrackEventParser {
                         size_t sequence_state_generation,
                         ArgsTracker*,
                         RowId row);
+  void ParseChromeUserEvent(protozero::ConstBytes chrome_user_event,
+                            ArgsTracker*,
+                            RowId);
+  void ParseChromeLegacyIpc(protozero::ConstBytes chrome_legacy_ipc,
+                            ArgsTracker*,
+                            RowId);
+  void ParseChromeKeyedService(protozero::ConstBytes chrome_keyed_service,
+                               ArgsTracker*,
+                               RowId);
 
  private:
   TraceProcessorContext* context_;
@@ -109,6 +118,12 @@ class TrackEventParser {
   const StringId flow_direction_value_in_id_;
   const StringId flow_direction_value_out_id_;
   const StringId flow_direction_value_inout_id_;
+  const StringId chrome_user_event_action_args_key_id_;
+  const StringId chrome_legacy_ipc_class_args_key_id_;
+  const StringId chrome_legacy_ipc_line_args_key_id_;
+  const StringId chrome_keyed_service_name_args_key_id_;
+
+  std::array<StringId, 38> chrome_legacy_ipc_class_ids_;
 };
 
 }  // namespace trace_processor
