@@ -24,6 +24,9 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 #include <fstream>
 #include <iostream>
@@ -113,6 +116,19 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
   if (!config->ParseFromArray(buf.data(), buf.size()))
     return false;
   return true;
+}
+
+bool IsUserBuild() {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  char value[PROP_VALUE_MAX];
+  if (!__system_property_get("ro.build.type", value)) {
+    PERFETTO_ELOG("Unable to read ro.build.type: assuming user build");
+    return true;
+  }
+  return strcmp(value, "user") == 0;
+#else
+  return false;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 }
 
 }  // namespace
@@ -583,6 +599,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   }
 
   RateLimiter::Args args{};
+  args.is_user_build = IsUserBuild();
   args.is_dropbox = !dropbox_tag_.empty();
   args.current_time = base::GetWallTimeS();
   args.ignore_guardrails = ignore_guardrails;
