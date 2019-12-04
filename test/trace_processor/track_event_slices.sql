@@ -1,1 +1,1 @@
-select ts, dur, category, name from slice order by ts asc;
+select ts, dur, category, name, arg_set_id from slice order by ts asc;

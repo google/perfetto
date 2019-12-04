@@ -28,6 +28,9 @@
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_user_event.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
@@ -133,7 +136,54 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
           context->storage->InternString("legacy_event.flow_direction")),
       flow_direction_value_in_id_(context->storage->InternString("in")),
       flow_direction_value_out_id_(context->storage->InternString("out")),
-      flow_direction_value_inout_id_(context->storage->InternString("inout")) {}
+      flow_direction_value_inout_id_(context->storage->InternString("inout")),
+      chrome_user_event_action_args_key_id_(
+          context->storage->InternString("user_event.action")),
+      chrome_legacy_ipc_class_args_key_id_(
+          context->storage->InternString("legacy_ipc.class")),
+      chrome_legacy_ipc_line_args_key_id_(
+          context->storage->InternString("legacy_ipc.line")),
+      chrome_keyed_service_name_args_key_id_(
+          context->storage->InternString("keyed_service.name")),
+      chrome_legacy_ipc_class_ids_{
+          {context->storage->InternString("UNSPECIFIED"),
+           context->storage->InternString("AUTOMATION"),
+           context->storage->InternString("FRAME"),
+           context->storage->InternString("PAGE"),
+           context->storage->InternString("VIEW"),
+           context->storage->InternString("WIDGET"),
+           context->storage->InternString("INPUT"),
+           context->storage->InternString("TEST"),
+           context->storage->InternString("WORKER"),
+           context->storage->InternString("NACL"),
+           context->storage->InternString("GPU_CHANNEL"),
+           context->storage->InternString("MEDIA"),
+           context->storage->InternString("PPAPI"),
+           context->storage->InternString("CHROME"),
+           context->storage->InternString("DRAG"),
+           context->storage->InternString("PRINT"),
+           context->storage->InternString("EXTENSION"),
+           context->storage->InternString("TEXT_INPUT_CLIENT"),
+           context->storage->InternString("BLINK_TEST"),
+           context->storage->InternString("ACCESSIBILITY"),
+           context->storage->InternString("PRERENDER"),
+           context->storage->InternString("CHROMOTING"),
+           context->storage->InternString("BROWSER_PLUGIN"),
+           context->storage->InternString("ANDROID_WEB_VIEW"),
+           context->storage->InternString("NACL_HOST"),
+           context->storage->InternString("ENCRYPTED_MEDIA"),
+           context->storage->InternString("CAST"),
+           context->storage->InternString("GIN_JAVA_BRIDGE"),
+           context->storage->InternString("CHROME_UTILITY_PRINTING"),
+           context->storage->InternString("OZONE_GPU"),
+           context->storage->InternString("WEB_TEST"),
+           context->storage->InternString("NETWORK_HINTS"),
+           context->storage->InternString("EXTENSIONS_GUEST_VIEW"),
+           context->storage->InternString("GUEST_VIEW"),
+           context->storage->InternString("MEDIA_PLAYER_DELEGATE"),
+           context->storage->InternString("EXTENSION_WORKER"),
+           context->storage->InternString("SUBRESOURCE_FILTER"),
+           context->storage->InternString("UNFREEZABLE_FRAME")}} {}
 
 void TrackEventParser::ParseTrackEvent(int64_t ts,
                                        int64_t tts,
@@ -409,6 +459,16 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     if (event.has_cc_scheduler_state()) {
       ParseCcScheduler(event.cc_scheduler_state(), sequence_state,
                        sequence_state_generation, args_tracker, row_id);
+    }
+    if (event.has_chrome_user_event()) {
+      ParseChromeUserEvent(event.chrome_user_event(), args_tracker, row_id);
+    }
+    if (event.has_chrome_legacy_ipc()) {
+      ParseChromeLegacyIpc(event.chrome_legacy_ipc(), args_tracker, row_id);
+    }
+    if (event.has_chrome_keyed_service()) {
+      ParseChromeKeyedService(event.chrome_keyed_service(), args_tracker,
+                              row_id);
     }
 
     if (legacy_tid) {
@@ -996,6 +1056,56 @@ void TrackEventParser::ParseCcScheduler(ConstBytes cc,
       });
   helper.InternProtoIntoArgsTable(
       cc, ".perfetto.protos.ChromeCompositorSchedulerState", row);
+}
+
+void TrackEventParser::ParseChromeUserEvent(
+    protozero::ConstBytes chrome_user_event,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::ChromeUserEvent::Decoder event(chrome_user_event.data,
+                                                 chrome_user_event.size);
+  if (event.has_action()) {
+    StringId action_id = context_->storage->InternString(event.action());
+    args_tracker->AddArg(row, chrome_user_event_action_args_key_id_,
+                         chrome_user_event_action_args_key_id_,
+                         Variadic::String(action_id));
+  }
+}
+
+void TrackEventParser::ParseChromeLegacyIpc(
+    protozero::ConstBytes chrome_legacy_ipc,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::ChromeLegacyIpc::Decoder event(chrome_legacy_ipc.data,
+                                                 chrome_legacy_ipc.size);
+  if (event.has_message_class()) {
+    size_t message_class_index = static_cast<size_t>(event.message_class());
+    if (message_class_index >= chrome_legacy_ipc_class_ids_.size())
+      message_class_index = 0;
+    args_tracker->AddArg(
+        row, chrome_legacy_ipc_class_args_key_id_,
+        chrome_legacy_ipc_class_args_key_id_,
+        Variadic::String(chrome_legacy_ipc_class_ids_[message_class_index]));
+  }
+  if (event.has_message_line()) {
+    args_tracker->AddArg(row, chrome_legacy_ipc_line_args_key_id_,
+                         chrome_legacy_ipc_line_args_key_id_,
+                         Variadic::Integer(event.message_line()));
+  }
+}
+
+void TrackEventParser::ParseChromeKeyedService(
+    protozero::ConstBytes chrome_keyed_service,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::ChromeKeyedService::Decoder event(chrome_keyed_service.data,
+                                                    chrome_keyed_service.size);
+  if (event.has_name()) {
+    StringId action_id = context_->storage->InternString(event.name());
+    args_tracker->AddArg(row, chrome_keyed_service_name_args_key_id_,
+                         chrome_keyed_service_name_args_key_id_,
+                         Variadic::String(action_id));
+  }
 }
 
 }  // namespace trace_processor

@@ -3986,6 +3986,87 @@ message CompositorTimingHistory {
 
 // End of protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_keyed_service.proto
+
+// Details about one of Chrome's keyed services associated with the event.
+message ChromeKeyedService {
+  // Name of the service, e.g. "MediaRouter", "PreviewsService", etc. (in
+  // Chrome, these are static strings known at compile time).
+  optional string name = 1;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_keyed_service.proto
+
+// Begin of protos/perfetto/trace/track_event/chrome_legacy_ipc.proto
+
+// Details about a legacy Chrome IPC message that is either sent by the event.
+// TODO(eseckler): Also use this message on the receiving side?
+message ChromeLegacyIpc {
+  enum MessageClass {
+    CLASS_UNSPECIFIED = 0;
+    CLASS_AUTOMATION = 1;
+    CLASS_FRAME = 2;
+    CLASS_PAGE = 3;
+    CLASS_VIEW = 4;
+    CLASS_WIDGET = 5;
+    CLASS_INPUT = 6;
+    CLASS_TEST = 7;
+    CLASS_WORKER = 8;
+    CLASS_NACL = 9;
+    CLASS_GPU_CHANNEL = 10;
+    CLASS_MEDIA = 11;
+    CLASS_PPAPI = 12;
+    CLASS_CHROME = 13;
+    CLASS_DRAG = 14;
+    CLASS_PRINT = 15;
+    CLASS_EXTENSION = 16;
+    CLASS_TEXT_INPUT_CLIENT = 17;
+    CLASS_BLINK_TEST = 18;
+    CLASS_ACCESSIBILITY = 19;
+    CLASS_PRERENDER = 20;
+    CLASS_CHROMOTING = 21;
+    CLASS_BROWSER_PLUGIN = 22;
+    CLASS_ANDROID_WEB_VIEW = 23;
+    CLASS_NACL_HOST = 24;
+    CLASS_ENCRYPTED_MEDIA = 25;
+    CLASS_CAST = 26;
+    CLASS_GIN_JAVA_BRIDGE = 27;
+    CLASS_CHROME_UTILITY_PRINTING = 28;
+    CLASS_OZONE_GPU = 29;
+    CLASS_WEB_TEST = 30;
+    CLASS_NETWORK_HINTS = 31;
+    CLASS_EXTENSIONS_GUEST_VIEW = 32;
+    CLASS_GUEST_VIEW = 33;
+    CLASS_MEDIA_PLAYER_DELEGATE = 34;
+    CLASS_EXTENSION_WORKER = 35;
+    CLASS_SUBRESOURCE_FILTER = 36;
+    CLASS_UNFREEZABLE_FRAME = 37;
+  }
+
+  // Corresponds to the message class type defined in Chrome's IPCMessageStart
+  // enum, e.g. FrameMsgStart,
+  optional MessageClass message_class = 1;
+
+  // Line number of the message definition. See Chrome's IPC_MESSAGE_ID and
+  // IPC_MESSAGE_START macros.
+  optional uint32 message_line = 2;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_legacy_ipc.proto
+
+// Begin of protos/perfetto/trace/track_event/chrome_user_event.proto
+
+// Details about a UI interaction initiated by the user, such as opening or
+// closing a tab or a context menu.
+message ChromeUserEvent {
+  // Name of the action, e.g. "NewTab", "ShowBookmarkManager", etc. (in
+  // Chrome, these are usually static strings known at compile time, or
+  // concatenations of multiple such static strings).
+  optional string action = 1;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_user_event.proto
+
 // Begin of protos/perfetto/trace/track_event/debug_annotation.proto
 
 // Key/value annotations provided in untyped TRACE_EVENT macros. These
@@ -4278,7 +4359,7 @@ message TrackDescriptor {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 12 (up to 15). Next id: 25.
+// Next reserved id: 12 (up to 15). Next id: 28.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -4374,6 +4455,9 @@ message TrackEvent {
   optional TaskExecution task_execution = 5;
   optional LogMessage log_message = 21;
   optional ChromeCompositorSchedulerState cc_scheduler_state = 24;
+  optional ChromeUserEvent chrome_user_event = 25;
+  optional ChromeKeyedService chrome_keyed_service = 26;
+  optional ChromeLegacyIpc chrome_legacy_ipc = 27;
   // New argument types go here :)
 
   // ---------------------------------------------------------------------------

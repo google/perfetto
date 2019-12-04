@@ -1,0 +1,5 @@
+"arg_set_id","flat_key","key","int_value","string_value"
+2,"user_event.action","user_event.action","[NULL]","NewTab"
+3,"legacy_ipc.class","legacy_ipc.class","[NULL]","AUTOMATION"
+3,"legacy_ipc.line","legacy_ipc.line",10,"[NULL]"
+4,"keyed_service.name","keyed_service.name","[NULL]","MediaRouter"
