@@ -49,7 +49,7 @@ namespace trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.config = cfg;
-  context_.storage.reset(new TraceStorage());
+  context_.storage.reset(new TraceStorage(context_.config));
   context_.track_tracker.reset(new TrackTracker(&context_));
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
