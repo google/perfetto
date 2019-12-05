@@ -2161,7 +2161,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 
   // Set the guard rail to 32MB + the sum of all the buffers over a 30 second
   // interval.
-  uint64_t guardrail = 32 * 1024 * 1024 + total_buffer_bytes;
+  uint64_t guardrail = base::kWatchdogDefaultMemorySlack + total_buffer_bytes;
   base::Watchdog::GetInstance()->SetMemoryLimit(guardrail, 30 * 1000);
 #endif
 }
