@@ -4054,6 +4054,7 @@ filegroup {
   srcs: [
     "src/base/event_fd.cc",
     "src/base/file_utils.cc",
+    "src/base/logging.cc",
     "src/base/metatrace.cc",
     "src/base/paged_memory.cc",
     "src/base/pipe.cc",
