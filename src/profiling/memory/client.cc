@@ -248,6 +248,20 @@ Client::Client(base::UnixSocketRaw sock,
       shmem_(std::move(shmem)),
       pid_at_creation_(pid_at_creation) {}
 
+Client::~Client() {
+  // This is work-around for code like the following:
+  // https://android.googlesource.com/platform/libcore/+/4ecb71f94378716f88703b9f7548b5d24839262f/ojluni/src/main/native/UNIXProcess_md.c#427
+  // They fork, close all fds by iterating over /proc/self/fd using opendir.
+  // Unfortunately closedir calls free, which detects the fork, and then tries
+  // to destruct this Client.
+  //
+  // ScopedResource crashes on failure to close, so we explicitly ignore
+  // failures here.
+  int fd = sock_.ReleaseFd().release();
+  if (fd != -1)
+    close(fd);
+}
+
 const char* Client::GetStackBase() {
   if (IsMainThread()) {
     if (!main_thread_stack_base_)
