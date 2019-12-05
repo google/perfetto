@@ -194,7 +194,7 @@ void InodeFileDataSource::Flush(FlushRequestID,
 }
 
 void InodeFileDataSource::OnInodes(
-    const std::vector<std::pair<Inode, BlockDeviceID>>& inodes) {
+    const base::FlatSet<InodeBlockPair>& inodes) {
   if (mount_points_.empty()) {
     mount_points_ = ParseMounts();
   }

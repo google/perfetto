@@ -46,6 +46,7 @@ using testing::Mock;
 using testing::NiceMock;
 using testing::Pair;
 using testing::Return;
+using testing::UnorderedElementsAre;
 
 using Table = perfetto::ProtoTranslationTable;
 using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
@@ -473,8 +474,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
 TEST(FtraceMetadataTest, Clear) {
   FtraceMetadata metadata;
-  metadata.inode_and_device.push_back(std::make_pair(1, 1));
-  metadata.pids.push_back(2);
+  metadata.inode_and_device.insert(std::make_pair(1, 1));
+  metadata.pids.insert(2);
   metadata.last_seen_device_id = 100;
   metadata.Clear();
   EXPECT_THAT(metadata.inode_and_device, IsEmpty());
@@ -506,7 +507,7 @@ TEST(FtraceMetadataTest, AddInode) {
   metadata.AddInode(5);
 
   EXPECT_THAT(metadata.inode_and_device,
-              ElementsAre(Pair(2, 3), Pair(1, 3), Pair(3, 4)));
+              UnorderedElementsAre(Pair(2, 3), Pair(1, 3), Pair(3, 4)));
 }
 
 TEST(FtraceMetadataTest, AddPid) {

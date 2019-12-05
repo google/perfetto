@@ -136,7 +136,6 @@ source_set("ftrace") {
     "ftrace_controller.h",
     "ftrace_data_source.cc",
     "ftrace_data_source.h",
-    "ftrace_metadata.cc",
     "ftrace_metadata.h",
     "ftrace_procfs.cc",
     "ftrace_procfs.h",
