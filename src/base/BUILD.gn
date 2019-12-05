@@ -29,6 +29,7 @@ source_set("base") {
   ]
   sources = [
     "file_utils.cc",
+    "logging.cc",
     "metatrace.cc",
     "paged_memory.cc",
     "string_splitter.cc",

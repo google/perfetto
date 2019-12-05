@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing.h"
 
+#include <chrono>
 #include <thread>
 
 #include "protos/perfetto/config/gpu/gpu_counter_config.pbzero.h"
@@ -100,6 +101,6 @@ int main() {
       auto* cnt = gpu_packet->add_counters();
       cnt->set_counter_id(1);
     });
-    sleep(1);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 }
