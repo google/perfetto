@@ -53,14 +53,11 @@ class FtraceParser {
   void ParseCpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseGpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuIdle(int64_t timestamp, protozero::ConstBytes);
-  void ParsePrint(uint32_t cpu,
-                  int64_t timestamp,
-                  uint32_t pid,
-                  protozero::ConstBytes);
-  void ParseZero(uint32_t cpu,
-                 int64_t timestamp,
-                 uint32_t pid,
-                 protozero::ConstBytes);
+  void ParsePrint(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseZero(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseSdeTracingMarkWrite(int64_t timestamp,
+                                uint32_t pid,
+                                protozero::ConstBytes);
   void ParseRssStat(int64_t ts, uint32_t pid, protozero::ConstBytes);
   void ParseIonHeapGrowOrShrink(int64_t ts,
                                 uint32_t pid,

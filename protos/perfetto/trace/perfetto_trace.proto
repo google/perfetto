@@ -2295,6 +2295,7 @@ message FtraceEvent {
     SysExitFtraceEvent sys_exit = 330;
     ZeroFtraceEvent zero = 331;
     GpuFrequencyFtraceEvent gpu_frequency = 332;
+    // removed field with id 333
   }
 }
 
