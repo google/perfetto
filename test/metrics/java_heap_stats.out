@@ -4,6 +4,8 @@ java_heap_stats {
     process {
       name: "system_server"
       uid: 1000
+      packages_for_uid {
+      }
     }
     samples {
       ts: 10
