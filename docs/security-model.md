@@ -63,8 +63,3 @@ that because doing so would imply that the service knows about all the possible
 types of packets, which doesn't scale.  
 However, the service appends the POSIX uid of the producer to each `TracePacket`
 to perform offline attestation of the contents of the trace.
-
-Internal docs
--------------
-* [Android security review doc](http://go/perfetto-asec)
-* [Chromium security review doc](http://go/perfetto-csec)
