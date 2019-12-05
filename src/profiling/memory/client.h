@@ -91,6 +91,8 @@ class Client {
          pid_t pid_at_creation,
          const char* main_thread_stack_base);
 
+  ~Client();
+
   ClientConfiguration client_config_for_testing() { return client_config_; }
 
  private:
