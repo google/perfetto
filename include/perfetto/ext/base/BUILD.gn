@@ -20,6 +20,7 @@ source_set("base") {
     "container_annotations.h",
     "event_fd.h",
     "file_utils.h",
+    "flat_set.h",
     "hash.h",
     "lookup_set.h",
     "metatrace.h",
