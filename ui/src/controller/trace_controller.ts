@@ -799,6 +799,7 @@ export class TraceController extends Controller<States> {
 
   async initaliseHelperViews() {
     const engine = assertExists<Engine>(this.engine);
+    this.updateStatus('Creating helper views');
     let event = 'sched_waking';
     const waking = await engine.query(
         `select * from instants where name = 'sched_waking' limit 1`);
