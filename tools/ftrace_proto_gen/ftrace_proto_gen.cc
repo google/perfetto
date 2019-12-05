@@ -56,12 +56,18 @@ const char kCopyrightHeader[] = R"(/*
 using base::Contains;
 using base::StartsWith;
 
-std::string EventNameToProtoFieldName(const std::string& name) {
-  return (name == "0") ? "zero" : name;
+std::string EventNameToProtoFieldName(const std::string& group,
+                                      const std::string& name) {
+  std::string event_name = (name == "0") ? "zero" : name;
+  if (group == "sde") {
+    event_name = "sde_" + event_name;
+  }
+  return event_name;
 }
 
-std::string EventNameToProtoName(const std::string& name) {
-  return ToCamelCase(EventNameToProtoFieldName(name)) + "FtraceEvent";
+std::string EventNameToProtoName(const std::string& group,
+                                 const std::string& name) {
+  return ToCamelCase(EventNameToProtoFieldName(group, name)) + "FtraceEvent";
 }
 
 std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
@@ -79,8 +85,10 @@ std::vector<FtraceEventName> ReadWhitelist(const std::string& filename) {
   return lines;
 }
 
-bool GenerateProto(const FtraceEvent& format, Proto* proto_out) {
-  proto_out->name = EventNameToProtoName(format.name);
+bool GenerateProto(const std::string& group,
+                   const FtraceEvent& format,
+                   Proto* proto_out) {
+  proto_out->name = EventNameToProtoName(group, format.name);
   proto_out->event_name = format.name;
   std::set<std::string> seen;
   // TODO(hjd): We should be cleverer about id assignment.
@@ -148,8 +156,9 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
       continue;
     }
 
-    std::string field_name = EventNameToProtoFieldName(event.name());
-    std::string type_name = EventNameToProtoName(event.name());
+    std::string field_name =
+        EventNameToProtoFieldName(event.group(), event.name());
+    std::string type_name = EventNameToProtoName(event.group(), event.name());
 
     // "    " (indent) + TypeName + " " + field_name + " = " + 123 + ";"
     if (4 + type_name.size() + 1 + field_name.size() + 3 + 3 + 1 <= 80) {

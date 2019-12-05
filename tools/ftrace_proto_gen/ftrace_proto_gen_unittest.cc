@@ -62,7 +62,7 @@ TEST(FtraceEventParserTest, GenerateProtoName) {
   Proto output;
   input.name = "the_snake_case_name";
 
-  GenerateProto(input, &output);
+  GenerateProto("group", input, &output);
 
   EXPECT_EQ(output.name, "TheSnakeCaseNameFtraceEvent");
 }
