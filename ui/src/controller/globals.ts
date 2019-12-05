@@ -72,8 +72,14 @@ class Globals implements App {
       if (iter > 100) throw new Error('Controllers are stuck in a livelock');
       const actions = this._queuedActions;
       this._queuedActions = new Array<DeferredAction>();
+
       for (const action of actions) {
-        patches.push(...this.applyAction(action));
+        const originalLength = patches.length;
+        const morePatches = this.applyAction(action);
+        patches.length += morePatches.length;
+        for (let i = 0; i < morePatches.length; ++i) {
+          patches[i + originalLength] = morePatches[i];
+        }
       }
       this._runningControllers = true;
       try {
@@ -109,7 +115,11 @@ class Globals implements App {
           (StateActions as any)[action.type](draft, action.args);
         },
         (morePatches, _) => {
-          patches.push(...morePatches);
+          const originalLength = patches.length;
+          patches.length += morePatches.length;
+          for (let i = 0; i < morePatches.length; ++i) {
+            patches[i + originalLength] = morePatches[i];
+          }
         });
     return patches;
   }
