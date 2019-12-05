@@ -3987,6 +3987,19 @@ message CompositorTimingHistory {
 
 // End of protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
+
+// An individual histogram sample logged via Chrome's UMA metrics system.
+message ChromeHistogramSample {
+  // MD5 hash of the metric name. Either |name_hash| or |name| or both
+  // must be present.
+  optional uint64 name_hash = 1;
+  optional string name = 2;
+  optional int64 sample = 3;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_keyed_service.proto
 
 // Details about one of Chrome's keyed services associated with the event.
@@ -4360,7 +4373,7 @@ message TrackDescriptor {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 12 (up to 15). Next id: 28.
+// Next reserved id: 12 (up to 15). Next id: 29.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -4459,6 +4472,7 @@ message TrackEvent {
   optional ChromeUserEvent chrome_user_event = 25;
   optional ChromeKeyedService chrome_keyed_service = 26;
   optional ChromeLegacyIpc chrome_legacy_ipc = 27;
+  optional ChromeHistogramSample chrome_histogram_sample = 28;
   // New argument types go here :)
 
   // ---------------------------------------------------------------------------
