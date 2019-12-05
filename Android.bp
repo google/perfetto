@@ -4905,7 +4905,6 @@ filegroup {
     "src/traced/probes/ftrace/ftrace_config_utils.cc",
     "src/traced/probes/ftrace/ftrace_controller.cc",
     "src/traced/probes/ftrace/ftrace_data_source.cc",
-    "src/traced/probes/ftrace/ftrace_metadata.cc",
     "src/traced/probes/ftrace/ftrace_procfs.cc",
     "src/traced/probes/ftrace/ftrace_stats.cc",
     "src/traced/probes/ftrace/proto_translation_table.cc",

@@ -937,7 +937,6 @@ filegroup(
         "src/traced/probes/ftrace/ftrace_controller.h",
         "src/traced/probes/ftrace/ftrace_data_source.cc",
         "src/traced/probes/ftrace/ftrace_data_source.h",
-        "src/traced/probes/ftrace/ftrace_metadata.cc",
         "src/traced/probes/ftrace/ftrace_metadata.h",
         "src/traced/probes/ftrace/ftrace_procfs.cc",
         "src/traced/probes/ftrace/ftrace_procfs.h",

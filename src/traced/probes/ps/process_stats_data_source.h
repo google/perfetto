@@ -23,12 +23,14 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/flat_set.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/probes_data_source.h"
+
 namespace perfetto {
 
 namespace base {
@@ -56,8 +58,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
 
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
-  void OnPids(const std::vector<int32_t>& pids);
-  void OnRenamePids(const std::vector<int32_t>& pids);
+  void OnPids(const base::FlatSet<int32_t>& pids);
+  void OnRenamePids(const base::FlatSet<int32_t>& pids);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -105,7 +107,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
 
   // Scans /proc/pid/status and writes the ProcessTree packet for input pids.
-  void WriteProcessTree(const std::vector<int32_t>& pids);
+  void WriteProcessTree(const base::FlatSet<int32_t>&);
 
   // Read and "latch" the current procfs scan-start timestamp, which
   // we reset only in FinalizeCurPacket.
@@ -136,7 +138,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
   // seen, not just the main thread id (aka thread group ID).
-  std::set<int32_t> seen_pids_;
+  base::FlatSet<int32_t> seen_pids_;
 
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;
