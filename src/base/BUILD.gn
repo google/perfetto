@@ -123,6 +123,7 @@ perfetto_unittest_source_set("unittests") {
 
   sources = [
     "circular_queue_unittest.cc",
+    "flat_set_unittest.cc",
     "no_destructor_unittest.cc",
     "optional_unittest.cc",
     "paged_memory_unittest.cc",
@@ -153,5 +154,19 @@ perfetto_unittest_source_set("unittests") {
     if (is_linux || is_android) {
       sources += [ "watchdog_unittest.cc" ]
     }
+  }
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":base",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+    ]
+    sources = [
+      "flat_set_benchmark.cc",
+    ]
   }
 }

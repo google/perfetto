@@ -16,6 +16,7 @@ import("perfetto.gni")
 
 perfetto_benchmarks_targets = [
   "gn:default_deps",
+  "src/base:benchmarks",
   "src/traced/probes/ftrace:benchmarks",
   "src/trace_processor/db:benchmarks",
   "src/trace_processor/tables:benchmarks",

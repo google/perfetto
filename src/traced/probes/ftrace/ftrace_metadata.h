@@ -21,10 +21,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <utility>
-#include <vector>
-
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_set.h"
+#include "perfetto/ext/traced/data_source_types.h"
 
 namespace perfetto {
 
@@ -34,7 +33,71 @@ using Inode = decltype(stat::st_ino);
 // Container for tracking miscellaneous information while parsing ftrace events,
 // scoped to an individual data source.
 struct FtraceMetadata {
-  FtraceMetadata();
+  FtraceMetadata() {
+    // A sched_switch is 64 bytes, a page is 4096 bytes and we expect
+    // 2 pid's per sched_switch. 4096/64*2=128. Give it a 2x margin.
+    pids.reserve(256);
+
+    // We expect to see only a small number of task rename events.
+    rename_pids.reserve(32);
+  }
+
+  void AddDevice(BlockDeviceID device_id) {
+    last_seen_device_id = device_id;
+#if PERFETTO_DCHECK_IS_ON()
+    seen_device_id = true;
+#endif
+  }
+
+  void AddInode(Inode inode_number) {
+#if PERFETTO_DCHECK_IS_ON()
+    PERFETTO_DCHECK(seen_device_id);
+#endif
+    static int32_t cached_pid = 0;
+    if (!cached_pid)
+      cached_pid = getpid();
+
+    PERFETTO_DCHECK(last_seen_common_pid);
+    PERFETTO_DCHECK(cached_pid == getpid());
+    // Ignore own scanning activity.
+    if (cached_pid != last_seen_common_pid) {
+      inode_and_device.insert(
+          std::make_pair(inode_number, last_seen_device_id));
+    }
+  }
+
+  void AddRenamePid(int32_t pid) { rename_pids.insert(pid); }
+
+  void AddPid(int32_t pid) {
+    const size_t pid_bit = static_cast<size_t>(pid);
+    if (PERFETTO_LIKELY(pid_bit < pids_cache.size())) {
+      if (pids_cache.test(pid_bit))
+        return;
+      pids_cache.set(pid_bit);
+    }
+    pids.insert(pid);
+  }
+
+  void AddCommonPid(int32_t pid) {
+    last_seen_common_pid = pid;
+    AddPid(pid);
+  }
+
+  void Clear() {
+    inode_and_device.clear();
+    rename_pids.clear();
+    pids.clear();
+    pids_cache.reset();
+    FinishEvent();
+  }
+
+  void FinishEvent() {
+    last_seen_device_id = 0;
+    last_seen_common_pid = 0;
+#if PERFETTO_DCHECK_IS_ON()
+    seen_device_id = false;
+#endif
+  }
 
   BlockDeviceID last_seen_device_id = 0;
 #if PERFETTO_DCHECK_IS_ON()
@@ -42,18 +105,14 @@ struct FtraceMetadata {
 #endif
   int32_t last_seen_common_pid = 0;
 
-  // A vector not a set to keep the writer_fast.
-  std::vector<std::pair<Inode, BlockDeviceID>> inode_and_device;
-  std::vector<int32_t> pids;
-  std::vector<int32_t> rename_pids;
+  base::FlatSet<InodeBlockPair> inode_and_device;
+  base::FlatSet<int32_t> rename_pids;
+  base::FlatSet<int32_t> pids;
 
-  void AddDevice(BlockDeviceID);
-  void AddInode(Inode);
-  void AddPid(int32_t);
-  void AddCommonPid(int32_t);
-  void AddRenamePid(int32_t);
-  void Clear();
-  void FinishEvent();
+  // This bitmap is a cache for |pids|. It speculates on the fact that on most
+  // Android kernels, PID_MAX=32768. It saves ~1-2% cpu time on high load
+  // scenarios, as AddPid() is a very hot path.
+  std::bitset<32768> pids_cache;
 };
 
 }  // namespace perfetto
