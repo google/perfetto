@@ -327,3 +327,4 @@ raw_syscalls/sys_enter
 raw_syscalls/sys_exit
 systrace/0
 power/gpu_frequency
+sde/tracing_mark_write
