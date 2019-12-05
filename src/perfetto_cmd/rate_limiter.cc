@@ -158,7 +158,7 @@ bool RateLimiter::StateFileExists() {
 }
 
 bool RateLimiter::ClearState() {
-  PerfettoCmdState zero{};
+  gen::PerfettoCmdState zero{};
   zero.set_total_bytes_uploaded(0);
   zero.set_last_trace_timestamp(0);
   zero.set_first_trace_timestamp(0);
@@ -168,7 +168,7 @@ bool RateLimiter::ClearState() {
   return success;
 }
 
-bool RateLimiter::LoadState(PerfettoCmdState* state) {
+bool RateLimiter::LoadState(gen::PerfettoCmdState* state) {
   base::ScopedFile in_fd(base::OpenFile(GetStateFilePath(), O_RDONLY));
 
   if (!in_fd)
@@ -177,27 +177,23 @@ bool RateLimiter::LoadState(PerfettoCmdState* state) {
   ssize_t bytes = PERFETTO_EINTR(read(in_fd.get(), &buf, sizeof(buf)));
   if (bytes <= 0)
     return false;
-  return state->ParseFromArray(&buf, static_cast<int>(bytes));
+  return state->ParseFromArray(&buf, static_cast<size_t>(bytes));
 }
 
-bool RateLimiter::SaveState(const PerfettoCmdState& state) {
+bool RateLimiter::SaveState(const gen::PerfettoCmdState& state) {
   // Rationale for 0666: the cmdline client can be executed under two
   // different Unix UIDs: shell and statsd. If we run one after the
   // other and the file has 0600 permissions, then the 2nd run won't
   // be able to read the file and will clear it, aborting the trace.
   // SELinux still prevents that anything other than the perfetto
   // executable can change the guardrail file.
+  std::vector<uint8_t> buf = state.SerializeAsArray();
   base::ScopedFile out_fd(
       base::OpenFile(GetStateFilePath(), O_WRONLY | O_CREAT | O_TRUNC, 0666));
   if (!out_fd)
     return false;
-  char buf[1024];
-  size_t size = static_cast<size_t>(state.ByteSize());
-  PERFETTO_CHECK(size < sizeof(buf));
-  if (!state.SerializeToArray(&buf, static_cast<int>(size)))
-    return false;
-  ssize_t written = base::WriteAll(out_fd.get(), &buf, size);
-  return written >= 0 && static_cast<size_t>(written) == size;
+  ssize_t written = base::WriteAll(out_fd.get(), buf.data(), buf.size());
+  return written >= 0 && static_cast<size_t>(written) == buf.size();
 }
 
 }  // namespace perfetto
