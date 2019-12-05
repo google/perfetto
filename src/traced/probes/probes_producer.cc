@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -359,7 +360,14 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   watchdogs_.erase(id);
 }
 
-void ProbesProducer::OnTracingSetup() {}
+void ProbesProducer::OnTracingSetup() {
+  // shared_memory() can be null in test environments when running in-process.
+  if (endpoint_->shared_memory()) {
+    base::Watchdog::GetInstance()->SetMemoryLimit(
+        endpoint_->shared_memory()->size() + base::kWatchdogDefaultMemorySlack,
+        base::kWatchdogDefaultMemoryWindow);
+  }
+}
 
 void ProbesProducer::Flush(FlushRequestID flush_request_id,
                            const DataSourceInstanceID* data_source_ids,
