@@ -11,7 +11,7 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "*" : ["*", "./types/*"]
+      "*" : ["*", "./node_modules/@tsundoku/micromodal_types/*"]
     },
     "target": "es6",
     "module": "commonjs",
