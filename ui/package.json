@@ -17,6 +17,7 @@
     "@types/pako": "^1.0.1",
     "@types/uuid": "^3.4.4",
     "@types/w3c-web-usb": "^1.0.3",
+    "@tsundoku/micromodal_types": "^0.0.1",
     "color-convert": "^2.0.0",
     "custom_utils": "file:src/base/utils",
     "devtools-protocol": "0.0.681549",
