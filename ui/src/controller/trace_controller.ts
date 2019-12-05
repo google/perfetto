@@ -534,9 +534,13 @@ export class TraceController extends Controller<States> {
           pid,
           thread.name as threadName,
           process.name as processName,
-          total_dur as totalDur
+          total_dur as totalDur,
+          ifnull(has_sched, false) as hasSched
         from
           thread
+          left join (select utid, count(1), true as has_sched
+              from sched group by utid
+          ) using(utid)
           left join process using(upid)
           left join (select upid, sum(dur) as total_dur
               from sched join thread using(utid)
@@ -558,6 +562,7 @@ export class TraceController extends Controller<States> {
            threadName: STR_NULL,
            processName: STR_NULL,
            totalDur: NUM_NULL,
+           hasSched: NUM,
          })) {
       const utid = row.utid;
       const tid = row.tid;
@@ -566,9 +571,7 @@ export class TraceController extends Controller<States> {
       const threadName = row.threadName;
       const processName = row.processName;
       const hasSchedEvents = !!row.totalDur;
-      const threadSched =
-          await engine.query(`select count(1) from sched where utid = ${utid}`);
-      const threadHasSched = threadSched.columns[0].longValues![0] > 0;
+      const threadHasSched = !!row.hasSched;
 
       const threadTrack =
           utid === null ? undefined : utidToThreadTrack.get(utid);
