@@ -214,6 +214,7 @@ filegroup(
         "include/perfetto/ext/base/container_annotations.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
+        "include/perfetto/ext/base/flat_set.h",
         "include/perfetto/ext/base/hash.h",
         "include/perfetto/ext/base/lookup_set.h",
         "include/perfetto/ext/base/metatrace.h",

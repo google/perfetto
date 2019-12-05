@@ -4080,6 +4080,7 @@ filegroup {
   name: "perfetto_src_base_unittests",
   srcs: [
     "src/base/circular_queue_unittest.cc",
+    "src/base/flat_set_unittest.cc",
     "src/base/metatrace_unittest.cc",
     "src/base/no_destructor_unittest.cc",
     "src/base/optional_unittest.cc",
