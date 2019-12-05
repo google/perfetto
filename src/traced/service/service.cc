@@ -55,9 +55,10 @@ int __attribute__((visibility("default"))) ServiceMain(int, char**) {
 
   // Set the CPU limit and start the watchdog running. The memory limit will
   // be set inside the service code as it relies on the size of buffers.
-  // The CPU limit is 75% over a 30 second interval.
+  // The CPU limit is the generic one defined in watchdog.h.
   base::Watchdog* watchdog = base::Watchdog::GetInstance();
-  watchdog->SetCpuLimit(75, 30 * 1000);
+  watchdog->SetCpuLimit(base::kWatchdogDefaultCpuLimit,
+                        base::kWatchdogDefaultCpuWindow);
   watchdog->Start();
 
   PERFETTO_ILOG("Started traced, listening on %s %s", GetProducerSocket(),
