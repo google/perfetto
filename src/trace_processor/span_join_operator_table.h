@@ -70,29 +70,19 @@ namespace trace_processor {
 // are passed through unchanged.
 class SpanJoinOperatorTable : public SqliteTable {
  public:
-  // Columns of the span operator table.
-  enum Column {
-    kTimestamp = 0,
-    kDuration = 1,
-    kPartition = 2,
-    // All other columns are dynamic depending on the joined tables.
-  };
+  // Enum indicating whether the queries on the two inner tables should
+  // emit shadows.
+  enum class EmitShadowType {
+    // Used when the table should emit all shadow slices (both present and
+    // missing partition shadows).
+    kAll,
 
-  enum class PartitioningType {
-    kNoPartitioning = 0,
-    kSamePartitioning = 1,
-    kMixedPartitioning = 2
-  };
+    // Used when the table should only emit shadows for partitions which are
+    // present.
+    kPresentPartitionOnly,
 
-  // Parsed version of a table descriptor.
-  struct TableDescriptor {
-    static util::Status Parse(const std::string& raw_descriptor,
-                              TableDescriptor* descriptor);
-
-    bool IsPartitioned() const { return !partition_col.empty(); }
-
-    std::string name;
-    std::string partition_col;
+    // Used when the table should emit no shadow slices.
+    kNone,
   };
 
   // Contains the definition of the child tables.
@@ -103,120 +93,213 @@ class SpanJoinOperatorTable : public SqliteTable {
     TableDefinition(std::string name,
                     std::string partition_col,
                     std::vector<SqliteTable::Column> cols,
-                    bool emit_shadow_slices,
+                    EmitShadowType emit_shadow_type,
                     uint32_t ts_idx,
                     uint32_t dur_idx,
                     uint32_t partition_idx);
+
+    // Returns whether this table should emit present partition shadow slices.
+    bool ShouldEmitPresentPartitionShadow() const {
+      return emit_shadow_type_ == EmitShadowType::kAll ||
+             emit_shadow_type_ == EmitShadowType::kPresentPartitionOnly;
+    }
+
+    // Returns whether this table should emit missing partition shadow slices.
+    bool ShouldEmitMissingPartitionShadow() const {
+      return emit_shadow_type_ == EmitShadowType::kAll;
+    }
+
+    // Returns whether the table is partitioned.
+    bool IsPartitioned() const { return !partition_col_.empty(); }
 
     const std::string& name() const { return name_; }
     const std::string& partition_col() const { return partition_col_; }
     const std::vector<SqliteTable::Column>& columns() const { return cols_; }
 
-    bool emit_shadow_slices() const { return emit_shadow_slices_; }
     uint32_t ts_idx() const { return ts_idx_; }
     uint32_t dur_idx() const { return dur_idx_; }
     uint32_t partition_idx() const { return partition_idx_; }
 
-    bool IsPartitioned() const { return !partition_col_.empty(); }
-
    private:
+    EmitShadowType emit_shadow_type_ = EmitShadowType::kNone;
+
     std::string name_;
     std::string partition_col_;
     std::vector<SqliteTable::Column> cols_;
-    bool emit_shadow_slices_;
+
     uint32_t ts_idx_ = std::numeric_limits<uint32_t>::max();
     uint32_t dur_idx_ = std::numeric_limits<uint32_t>::max();
     uint32_t partition_idx_ = std::numeric_limits<uint32_t>::max();
   };
 
+  // Stores information about a single subquery into one of the two child
+  // tables.
+  //
+  // This class is implemented as a state machine which steps from one slice to
+  // the next.
   class Query {
    public:
-    struct StepRet {
-      enum Code {
-        kRow,
-        kEof,
-        kError,
-      };
+    // Enum encoding the current state of the query in the state machine.
+    enum class State {
+      // Encodes that the current slice is a real slice (i.e. comes directly
+      // from the cursor).
+      kReal,
 
-      StepRet(Code c, int e = SQLITE_OK) : code(c), err_code(e) {}
+      // Encodes that the current slice is on a partition for which there is a
+      // real slice present.
+      kPresentPartitionShadow,
 
-      bool is_row() const { return code == Code::kRow; }
-      bool is_eof() const { return code == Code::kEof; }
-      bool is_err() const { return code == Code::kError; }
+      // Encodes that the current slice is on a paritition(s) for which there is
+      // no real slice for those partition(s).
+      kMissingPartitionShadow,
 
-      Code code = Code::kEof;
-      int err_code = SQLITE_OK;
+      // Encodes that this query has reached the end.
+      kEof,
     };
 
     Query(SpanJoinOperatorTable*, const TableDefinition*, sqlite3* db);
     virtual ~Query();
 
-    Query(Query&) = delete;
-    Query& operator=(const Query&) = delete;
-
     Query(Query&&) noexcept = default;
     Query& operator=(Query&&) = default;
 
-    int Initialize(const QueryConstraints& qc, sqlite3_value** argv);
+    // Initializes the query with the given constraints and query parameters.
+    util::Status Initialize(const QueryConstraints& qc, sqlite3_value** argv);
 
-    StepRet Step();
-    StepRet StepToNextPartition();
-    StepRet StepToPartition(int64_t target_partition);
-    StepRet StepUntil(int64_t timestamp);
+    // Forwards the query to the next valid slice.
+    util::Status Next();
 
+    // Rewinds the query to the first valid slice
+    // This is used in the mixed partitioning case where the query with no
+    // partitions is rewound to the start on every new partition.
+    util::Status Rewind();
+
+    // Reports the column at the given index to given context.
     void ReportSqliteResult(sqlite3_context* context, size_t index);
 
-    int64_t ts_start() const { return ts_start_; }
-    int64_t ts_end() const { return ts_end_; }
-    int64_t partition() const { return partition_; }
+    // Returns whether the cursor has reached eof.
+    bool IsEof() const { return state_ == State::kEof; }
+
+    // Returns whether the current slice pointed to is a real slice.
+    bool IsReal() const { return state_ == State::kReal; }
+
+    // Returns the first partition this slice covers (for real/single partition
+    // shadows, this is the same as partition()).
+    // This partition encodes a [start, end] (closed at start and at end) range
+    // of partitions which works as the partitions are integers.
+    int64_t FirstPartition() const {
+      PERFETTO_DCHECK(!IsEof());
+      return IsMissingPartitionShadow() ? missing_partition_start_
+                                        : partition();
+    }
+
+    // Returns the last partition this slice covers (for real/single partition
+    // shadows, this is the same as partition()).
+    // This partition encodes a [start, end] (closed at start and at end) range
+    // of partitions which works as the partitions are integers.
+    int64_t LastPartition() const {
+      PERFETTO_DCHECK(!IsEof());
+      return IsMissingPartitionShadow() ? missing_partition_end_ - 1
+                                        : partition();
+    }
+
+    // Returns the end timestamp of this slice adjusted to ensure that -1
+    // duration slices always returns ts.
+    int64_t AdjustedTsEnd() const {
+      PERFETTO_DCHECK(!IsEof());
+      return ts_end_ - ts() == -1 ? ts() : ts_end_;
+    }
+
+    int64_t ts() const {
+      PERFETTO_DCHECK(!IsEof());
+      return ts_;
+    }
+    int64_t partition() const {
+      PERFETTO_DCHECK(!IsEof() && defn_->IsPartitioned());
+      return partition_;
+    }
+
+    int64_t raw_ts_end() const {
+      PERFETTO_DCHECK(!IsEof());
+      return ts_end_;
+    }
 
     const TableDefinition* definition() const { return defn_; }
 
-    bool Eof() const { return cursor_eof_ && mode_ == Mode::kRealSlice; }
-    bool IsPartitioned() const { return defn_->IsPartitioned(); }
-    bool IsRealSlice() const { return mode_ == Mode::kRealSlice; }
-
-    bool IsFullPartitionShadowSlice() const {
-      return mode_ == Mode::kShadowSlice && ts_start_ == 0 &&
-             ts_end_ == std::numeric_limits<int64_t>::max();
-    }
-
-    int64_t CursorPartition() const {
-      PERFETTO_DCHECK(defn_->IsPartitioned());
-      auto partition_idx = static_cast<int>(defn_->partition_idx());
-      return sqlite3_column_int64(stmt_.get(), partition_idx);
-    }
-
-    bool CursorEof() const { return cursor_eof_; }
-
    private:
-    enum Mode {
-      kRealSlice,
-      kShadowSlice,
-    };
+    Query(Query&) = delete;
+    Query& operator=(const Query&) = delete;
 
-    int PrepareRawStmt();
+    // Returns whether the current slice pointed to is a valid slice.
+    bool IsValidSlice();
+
+    // Forwards the query to the next valid slice.
+    util::Status FindNextValidSlice();
+
+    // Advances the query state machine by one slice.
+    util::Status NextSliceState();
+
+    // Forwards the cursor to point to the next real slice.
+    util::Status CursorNext();
+
+    // Creates an SQL query from the given set of constraint strings.
     std::string CreateSqlQuery(const std::vector<std::string>& cs) const;
 
+    // Returns whether the current slice pointed to is a present partition
+    // shadow.
+    bool IsPresentPartitionShadow() const {
+      return state_ == State::kPresentPartitionShadow;
+    }
+
+    // Returns whether the current slice pointed to is a missing partition
+    // shadow.
+    bool IsMissingPartitionShadow() const {
+      return state_ == State::kMissingPartitionShadow;
+    }
+
+    // Returns whether the current slice pointed to is an empty shadow.
+    bool IsEmptyShadow() const {
+      PERFETTO_DCHECK(!IsEof());
+      return (!IsReal() && ts_ == ts_end_) ||
+             (IsMissingPartitionShadow() &&
+              missing_partition_start_ == missing_partition_end_);
+    }
+
     int64_t CursorTs() const {
+      PERFETTO_DCHECK(!cursor_eof_);
       auto ts_idx = static_cast<int>(defn_->ts_idx());
       return sqlite3_column_int64(stmt_.get(), ts_idx);
     }
 
     int64_t CursorDur() const {
+      PERFETTO_DCHECK(!cursor_eof_);
       auto dur_idx = static_cast<int>(defn_->dur_idx());
       return sqlite3_column_int64(stmt_.get(), dur_idx);
     }
 
+    int64_t CursorPartition() const {
+      PERFETTO_DCHECK(!cursor_eof_);
+      PERFETTO_DCHECK(defn_->IsPartitioned());
+      auto partition_idx = static_cast<int>(defn_->partition_idx());
+      return sqlite3_column_int64(stmt_.get(), partition_idx);
+    }
+
+    State state_ = State::kMissingPartitionShadow;
+    bool cursor_eof_ = false;
+
+    // Only valid when |state_| != kEof.
+    int64_t ts_ = 0;
+    int64_t ts_end_ = std::numeric_limits<int64_t>::max();
+
+    // Only valid when |state_| == kReal or |state_| == kPresentPartitionShadow.
+    int64_t partition_ = std::numeric_limits<int64_t>::min();
+
+    // Only valid when |state_| == kMissingPartitionShadow.
+    int64_t missing_partition_start_ = 0;
+    int64_t missing_partition_end_ = 0;
+
     std::string sql_query_;
     ScopedStmt stmt_;
-
-    int64_t ts_start_ = 0;
-    int64_t ts_end_ = 0;
-    int64_t partition_ = std::numeric_limits<int64_t>::lowest();
-
-    bool cursor_eof_ = false;
-    Mode mode_ = Mode::kRealSlice;
 
     const TableDefinition* defn_ = nullptr;
     sqlite3* db_ = nullptr;
@@ -243,14 +326,19 @@ class SpanJoinOperatorTable : public SqliteTable {
     Cursor(Cursor&&) noexcept = default;
     Cursor& operator=(Cursor&&) = default;
 
-    int FindOverlappingSpan();
-
     bool IsOverlappingSpan();
-    Query::StepRet StepUntilRealSlice();
+
+    util::Status FindOverlappingSpan();
+
+    Query* FindEarliestFinishQuery();
 
     Query t1_;
     Query t2_;
-    Query* next_stepped_ = nullptr;
+
+    Query* next_query_ = nullptr;
+
+    // Only valid for kMixedPartition.
+    int64_t last_mixed_partition_ = std::numeric_limits<int64_t>::min();
 
     SpanJoinOperatorTable* table_;
   };
@@ -265,6 +353,37 @@ class SpanJoinOperatorTable : public SqliteTable {
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
  private:
+  // Columns of the span operator table.
+  enum Column {
+    kTimestamp = 0,
+    kDuration = 1,
+    kPartition = 2,
+    // All other columns are dynamic depending on the joined tables.
+  };
+
+  // Enum indicating the possible partitionings of the two tables in span join.
+  enum class PartitioningType {
+    // Used when both tables don't have a partition specified.
+    kNoPartitioning = 0,
+
+    // Used when both tables have the same partition specified.
+    kSamePartitioning = 1,
+
+    // Used when one table has a partition and the other table doesn't.
+    kMixedPartitioning = 2
+  };
+
+  // Parsed version of a table descriptor.
+  struct TableDescriptor {
+    static util::Status Parse(const std::string& raw_descriptor,
+                              TableDescriptor* descriptor);
+
+    bool IsPartitioned() const { return !partition_col.empty(); }
+
+    std::string name;
+    std::string partition_col;
+  };
+
   // Identifier for a column by index in a given table.
   struct ColumnLocator {
     const TableDefinition* defn;
@@ -281,7 +400,7 @@ class SpanJoinOperatorTable : public SqliteTable {
 
   util::Status CreateTableDefinition(
       const TableDescriptor& desc,
-      bool emit_shadow_slices,
+      EmitShadowType emit_shadow_type,
       SpanJoinOperatorTable::TableDefinition* defn);
 
   std::vector<std::string> ComputeSqlConstraintsForDefinition(
