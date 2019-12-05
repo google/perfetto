@@ -16,6 +16,7 @@
 
 #include <fcntl.h>
 #include <getopt.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -27,21 +28,39 @@
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
+#include "perfetto_version.gen.h"
+#else
+#define PERFETTO_GET_GIT_REVISION() "unknown"
+#endif
+
 namespace perfetto {
 
 int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
-  static struct option long_options[] = {
-      {"cleanup-after-crash", no_argument, nullptr, 'd'},
+  enum LongOption {
+    OPT_CLEANUP_AFTER_CRASH = 1000,
+    OPT_VERSION,
+  };
+
+  static const struct option long_options[] = {
+      {"cleanup-after-crash", no_argument, nullptr, OPT_CLEANUP_AFTER_CRASH},
+      {"version", no_argument, nullptr, OPT_VERSION},
       {nullptr, 0, nullptr, 0}};
+
   int option_index;
-  int c;
-  while ((c = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
-    switch (c) {
-      case 'd':
+  for (;;) {
+    int option = getopt_long(argc, argv, "", long_options, &option_index);
+    if (option == -1)
+      break;
+    switch (option) {
+      case OPT_CLEANUP_AFTER_CRASH:
         HardResetFtraceState();
         return 0;
+      case OPT_VERSION:
+        printf("%s\n", PERFETTO_GET_GIT_REVISION());
+        return 0;
       default:
-        PERFETTO_ELOG("Usage: %s [--cleanup-after-crash]", argv[0]);
+        PERFETTO_ELOG("Usage: %s [--cleanup-after-crash|--version]", argv[0]);
         return 1;
     }
   }
