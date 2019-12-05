@@ -47,6 +47,13 @@
   static_assert(false, "Not implemented for this compiler")
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_PRINTF_FORMAT(x, y) \
+  __attribute__((__format__(__printf__, x, y)))
+#else
+#defien PERFETTO_PRINTF_FORMAT(x, y)
+#endif
+
 namespace perfetto {
 namespace base {
 
