@@ -3834,6 +3834,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_lite_gen",
   srcs: [
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
     "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
     "protos/perfetto/trace/track_event/chrome_user_event.proto",
@@ -3852,6 +3853,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pb.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_legacy_ipc.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_user_event.pb.cc",
@@ -3871,6 +3873,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
   srcs: [
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
     "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
     "protos/perfetto/trace/track_event/chrome_user_event.proto",
@@ -3889,6 +3892,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pb.h",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_legacy_ipc.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_user_event.pb.h",
@@ -3912,6 +3916,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_zero_gen",
   srcs: [
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
     "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
     "protos/perfetto/trace/track_event/chrome_user_event.proto",
@@ -3931,6 +3936,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_user_event.pbzero.cc",
@@ -3950,6 +3956,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
   srcs: [
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
     "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
     "protos/perfetto/trace/track_event/chrome_user_event.proto",
@@ -3969,6 +3976,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_user_event.pbzero.h",
