@@ -10,7 +10,7 @@ through SQL queries. The trace processor is used:
   Web Assembly module.
 * Standalone, using the `trace_processor_shell` target
   (`ninja -C out/xxx trace_processor_shell`).
-* In internal google3 pipelines for batch processing.
+* In internal pipelines for batch processing.
 
 Supported input formats:
  * Perfetto .proto traces
