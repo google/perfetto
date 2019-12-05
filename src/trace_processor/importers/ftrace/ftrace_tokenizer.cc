@@ -46,8 +46,8 @@ void FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle) {
   }
 
   uint32_t cpu = decoder.cpu();
-  if (PERFETTO_UNLIKELY(cpu > base::kMaxCpus)) {
-    PERFETTO_ELOG("CPU larger than kMaxCpus (%u > %zu)", cpu, base::kMaxCpus);
+  if (PERFETTO_UNLIKELY(cpu > kMaxCpus)) {
+    PERFETTO_ELOG("CPU larger than kMaxCpus (%u > %zu)", cpu, kMaxCpus);
     return;
   }
 
