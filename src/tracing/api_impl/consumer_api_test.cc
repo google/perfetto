@@ -18,6 +18,8 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
+#include <thread>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/consumer_api.h"
@@ -92,12 +94,12 @@ void TestSingle() {
   auto handle = Create(cfg.data(), cfg.size(), &OnStateChanged, &g_pointer);
   PERFETTO_ILOG("Starting, handle=%" PRId64 " state=%d", handle,
                 static_cast<int>(PollState(handle)));
-  usleep(100000);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   StartTracing(handle);
   // Wait for either completion or error.
   while (static_cast<int>(PollState(handle)) > 0 &&
          PollState(handle) != State::kTraceEnded) {
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   if (PollState(handle) == State::kTraceEnded) {
@@ -130,14 +132,14 @@ void TestMany() {
         all_connected = false;
       }
     }
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   // Start only 3 out of 5 sessions, scattering them with 1 second delay.
   for (size_t i = 0; i < handles.size(); i++) {
     if (i % 2 == 0) {
       StartTracing(handles[i]);
-      sleep(1);
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
 
@@ -149,7 +151,7 @@ void TestMany() {
         num_complete++;
       }
     }
-    usleep(10000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   // Read the trace buffers.

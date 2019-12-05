@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
+
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -32,6 +34,10 @@
 #include "perfetto_version.gen.h"
 #else
 #define PERFETTO_GET_GIT_REVISION() "unknown"
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>
 #endif
 
 namespace perfetto {
