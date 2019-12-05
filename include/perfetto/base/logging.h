@@ -22,6 +22,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/export.h"
 
 // TODO(primiano): move this to base/build_config.h, turn into
 // PERFETTO_BUILDFLAG(DCHECK_IS_ON) and update call sites to use that instead.
@@ -74,8 +75,11 @@ constexpr const char* Basename(const char* str) {
 
 enum LogLev { kLogDebug = 0, kLogInfo, kLogImportant, kLogError };
 
-void LogMessage(LogLev, const char* fname, int line, const char* fmt, ...)
-    PERFETTO_PRINTF_FORMAT(4, 5);
+PERFETTO_EXPORT void LogMessage(LogLev,
+                                const char* fname,
+                                int line,
+                                const char* fmt,
+                                ...) PERFETTO_PRINTF_FORMAT(4, 5);
 
 #if defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
 #define PERFETTO_XLOG(level, fmt, ...)                                        \
