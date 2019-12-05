@@ -53,16 +53,16 @@ class MockRateLimiter : public RateLimiter {
       remove(GetStateFilePath().c_str());
   }
 
-  bool LoadStateConcrete(PerfettoCmdState* state) {
+  bool LoadStateConcrete(gen::PerfettoCmdState* state) {
     return RateLimiter::LoadState(state);
   }
 
-  bool SaveStateConcrete(const PerfettoCmdState& state) {
+  bool SaveStateConcrete(const gen::PerfettoCmdState& state) {
     return RateLimiter::SaveState(state);
   }
 
-  MOCK_METHOD1(LoadState, bool(PerfettoCmdState*));
-  MOCK_METHOD1(SaveState, bool(const PerfettoCmdState&));
+  MOCK_METHOD1(LoadState, bool(gen::PerfettoCmdState*));
+  MOCK_METHOD1(SaveState, bool(const gen::PerfettoCmdState&));
 
  private:
   base::TempDir dir_;
@@ -78,8 +78,8 @@ void WriteGarbageToFile(const std::string& path) {
 TEST(RateLimiterTest, RoundTripState) {
   NiceMock<MockRateLimiter> limiter;
 
-  PerfettoCmdState input{};
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState input{};
+  gen::PerfettoCmdState output{};
 
   input.set_total_bytes_uploaded(42);
   ASSERT_TRUE(limiter.SaveState(input));
@@ -90,11 +90,11 @@ TEST(RateLimiterTest, RoundTripState) {
 TEST(RateLimiterTest, LoadFromEmpty) {
   NiceMock<MockRateLimiter> limiter;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_total_bytes_uploaded(0);
   input.set_last_trace_timestamp(0);
   input.set_first_trace_timestamp(0);
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
 
   ASSERT_TRUE(limiter.SaveState(input));
   ASSERT_TRUE(limiter.LoadState(&output));
@@ -103,7 +103,7 @@ TEST(RateLimiterTest, LoadFromEmpty) {
 
 TEST(RateLimiterTest, LoadFromNoFileFails) {
   NiceMock<MockRateLimiter> limiter;
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_FALSE(limiter.LoadState(&output));
   ASSERT_EQ(output.total_bytes_uploaded(), 0u);
 }
@@ -113,7 +113,7 @@ TEST(RateLimiterTest, LoadFromGarbageFails) {
 
   WriteGarbageToFile(limiter.GetStateFilePath().c_str());
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_FALSE(limiter.LoadState(&output));
   ASSERT_EQ(output.total_bytes_uploaded(), 0u);
 }
@@ -149,7 +149,7 @@ TEST(RateLimiterTest, DropBox_IgnoreGuardrails) {
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 42u));
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
   ASSERT_EQ(output.first_trace_timestamp(), 41u);
   ASSERT_EQ(output.last_trace_timestamp(), 41u);
@@ -171,7 +171,7 @@ TEST(RateLimiterTest, DropBox_EmptyState) {
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
   EXPECT_EQ(output.total_bytes_uploaded(), 1024u * 1024u);
   EXPECT_EQ(output.first_trace_timestamp(), 10000u);
@@ -182,7 +182,7 @@ TEST(RateLimiterTest, DropBox_NormalUpload) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_first_trace_timestamp(10000);
   input.set_last_trace_timestamp(10000 + 60 * 10);
   input.set_total_bytes_uploaded(1024 * 1024 * 2);
@@ -198,7 +198,7 @@ TEST(RateLimiterTest, DropBox_NormalUpload) {
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
   EXPECT_EQ(output.total_bytes_uploaded(), 1024u * 1024u * 3);
   EXPECT_EQ(output.first_trace_timestamp(), input.first_trace_timestamp());
@@ -219,7 +219,7 @@ TEST(RateLimiterTest, DropBox_FailedToLoadState) {
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_FALSE(limiter.ShouldTrace(args));
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
   EXPECT_EQ(output.total_bytes_uploaded(), 0u);
   EXPECT_EQ(output.first_trace_timestamp(), 0u);
@@ -230,7 +230,7 @@ TEST(RateLimiterTest, DropBox_NoTimeTravel) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_first_trace_timestamp(100);
   input.set_last_trace_timestamp(100);
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
@@ -243,7 +243,7 @@ TEST(RateLimiterTest, DropBox_NoTimeTravel) {
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_FALSE(limiter.ShouldTrace(args));
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
   EXPECT_EQ(output.total_bytes_uploaded(), 0u);
   EXPECT_EQ(output.first_trace_timestamp(), 0u);
@@ -254,7 +254,7 @@ TEST(RateLimiterTest, DropBox_TooSoon) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_first_trace_timestamp(10000);
   input.set_last_trace_timestamp(10000);
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
@@ -271,7 +271,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_User) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
 
@@ -288,7 +288,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_Override) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
 
@@ -305,7 +305,7 @@ TEST(RateLimiterTest, DropBox_TooMuchWasUploaded) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
-  PerfettoCmdState input{};
+  gen::PerfettoCmdState input{};
   input.set_first_trace_timestamp(1);
   input.set_last_trace_timestamp(1);
   input.set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
@@ -320,7 +320,7 @@ TEST(RateLimiterTest, DropBox_TooMuchWasUploaded) {
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
 
-  PerfettoCmdState output{};
+  gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
   EXPECT_EQ(output.total_bytes_uploaded(), 1024u * 1024u);
   EXPECT_EQ(output.first_trace_timestamp(),
