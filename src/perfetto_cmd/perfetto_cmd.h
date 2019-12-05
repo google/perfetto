@@ -33,8 +33,6 @@
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "src/perfetto_cmd/rate_limiter.h"
 
-#include "src/perfetto_cmd/perfetto_cmd_state.pb.h"
-
 namespace perfetto {
 
 class PacketWriter;
