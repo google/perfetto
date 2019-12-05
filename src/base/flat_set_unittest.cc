@@ -21,8 +21,8 @@
 
 #include "test/gtest_and_gmock.h"
 
+using testing::ElementsAre;
 using testing::ElementsAreArray;
-using testing::UnorderedElementsAre;
 
 namespace perfetto {
 namespace base {
@@ -70,14 +70,19 @@ TEST(FlatSetTest, InsertAndLookup) {
     EXPECT_TRUE(flat_set.count(-4));
     EXPECT_TRUE(flat_set.count(11));
     EXPECT_TRUE(flat_set.count(-13));
-    EXPECT_THAT(flat_set, UnorderedElementsAre(-13, -4, 7, 11));
+    EXPECT_THAT(flat_set, ElementsAre(-13, -4, 7, 11));
 
     EXPECT_TRUE(flat_set.erase(-4));
     EXPECT_TRUE(flat_set.erase(7));
-    EXPECT_THAT(flat_set, UnorderedElementsAre(-13, 11));
+    EXPECT_THAT(flat_set, ElementsAre(-13, 11));
 
     flat_set.clear();
   }
+
+  // Test that the initializer-ctor dedupes entries.
+  flat_set = FlatSet<long>({1, 2, 1, 2, 3});
+  EXPECT_EQ(flat_set.size(), 3u);
+  EXPECT_THAT(flat_set, ElementsAre(1, 2, 3));
 }
 
 TEST(FlatSetTest, GoldenTest) {
