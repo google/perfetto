@@ -38,7 +38,7 @@ namespace {
 
 std::string ReadFile(FILE* input) {
   fseek(input, 0, SEEK_SET);
-  const int kBufSize = 1000;
+  const int kBufSize = 10000;
   char buffer[kBufSize];
   size_t ret = fread(buffer, sizeof(char), kBufSize, input);
   EXPECT_GT(ret, 0u);
@@ -83,7 +83,7 @@ class ExportJsonTest : public ::testing::Test {
   Json::Value ToJsonValue(const std::string& json) {
     Json::Reader reader;
     Json::Value result;
-    EXPECT_TRUE(reader.parse(json, result));
+    EXPECT_TRUE(reader.parse(json, result)) << json;
     return result;
   }
 
@@ -328,12 +328,15 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   int64_t kProducers = 10;
   int64_t kBufferSize0 = 1000;
   int64_t kBufferSize1 = 2000;
+  int64_t kFtraceBegin = 3000;
 
   context_.storage->SetStats(stats::traced_producers_connected, kProducers);
   context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 0,
                                     kBufferSize0);
   context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 1,
                                     kBufferSize1);
+  context_.storage->SetIndexedStats(stats::ftrace_cpu_bytes_read_begin, 0,
+                                    kFtraceBegin);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -343,13 +346,15 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   Json::Value result = ToJsonValue(ReadFile(output));
 
   EXPECT_TRUE(result.isMember("metadata"));
-  EXPECT_TRUE(result["metadata"].isMember("perfetto_trace_stats"));
-  Json::Value stats = result["metadata"]["perfetto_trace_stats"];
+  EXPECT_TRUE(result["metadata"].isMember("trace_processor_stats"));
+  Json::Value stats = result["metadata"]["trace_processor_stats"];
 
-  EXPECT_EQ(stats["producers_connected"].asInt(), kProducers);
-  EXPECT_EQ(stats["buffer_stats"].size(), 2u);
-  EXPECT_EQ(stats["buffer_stats"][0]["buffer_size"].asInt(), kBufferSize0);
-  EXPECT_EQ(stats["buffer_stats"][1]["buffer_size"].asInt(), kBufferSize1);
+  EXPECT_EQ(stats["traced_producers_connected"].asInt(), kProducers);
+  EXPECT_EQ(stats["traced_buf"].size(), 2u);
+  EXPECT_EQ(stats["traced_buf"][0]["buffer_size"].asInt(), kBufferSize0);
+  EXPECT_EQ(stats["traced_buf"][1]["buffer_size"].asInt(), kBufferSize1);
+  EXPECT_EQ(stats["ftrace_cpu_bytes_read_begin"].size(), 1u);
+  EXPECT_EQ(stats["ftrace_cpu_bytes_read_begin"][0].asInt(), kFtraceBegin);
 }
 
 TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
