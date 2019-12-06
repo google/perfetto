@@ -5,6 +5,8 @@ heap_profile_callsites {
     process {
       name: "system_server"
       uid: 1000
+      packages_for_uid {
+      }
     }
     callsites {
       hash: -2067767828047084124
