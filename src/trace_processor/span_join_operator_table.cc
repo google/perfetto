@@ -114,12 +114,36 @@ util::Status SpanJoinOperatorTable::Init(int argc,
     partitioning_ = PartitioningType::kMixedPartitioning;
   }
 
-  status = CreateTableDefinition(t1_desc, IsOuterJoin(), &t1_defn_);
+  bool t1_part_mixed = t1_desc.IsPartitioned() &&
+                       partitioning_ == PartitioningType::kMixedPartitioning;
+  bool t2_part_mixed = t2_desc.IsPartitioned() &&
+                       partitioning_ == PartitioningType::kMixedPartitioning;
+
+  EmitShadowType t1_shadow_type;
+  if (IsOuterJoin()) {
+    if (t1_part_mixed || partitioning_ == PartitioningType::kNoPartitioning) {
+      t1_shadow_type = EmitShadowType::kPresentPartitionOnly;
+    } else {
+      t1_shadow_type = EmitShadowType::kAll;
+    }
+  } else {
+    t1_shadow_type = EmitShadowType::kNone;
+  }
+  status = CreateTableDefinition(t1_desc, t1_shadow_type, &t1_defn_);
   if (!status.ok())
     return status;
 
-  status =
-      CreateTableDefinition(t2_desc, IsOuterJoin() || IsLeftJoin(), &t2_defn_);
+  EmitShadowType t2_shadow_type;
+  if (IsOuterJoin() || IsLeftJoin()) {
+    if (t2_part_mixed || partitioning_ == PartitioningType::kNoPartitioning) {
+      t2_shadow_type = EmitShadowType::kPresentPartitionOnly;
+    } else {
+      t2_shadow_type = EmitShadowType::kAll;
+    }
+  } else {
+    t2_shadow_type = EmitShadowType::kNone;
+  }
+  status = CreateTableDefinition(t2_desc, t2_shadow_type, &t2_defn_);
   if (!status.ok())
     return status;
 
@@ -206,7 +230,7 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
 
 util::Status SpanJoinOperatorTable::CreateTableDefinition(
     const TableDescriptor& desc,
-    bool emit_shadow_slices,
+    EmitShadowType emit_shadow_type,
     SpanJoinOperatorTable::TableDefinition* defn) {
   if (desc.partition_col == kTsColumnName ||
       desc.partition_col == kDurColumnName) {
@@ -254,7 +278,7 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
   PERFETTO_DCHECK(dur_idx < cols.size());
 
   *defn = TableDefinition(desc.name, desc.partition_col, std::move(cols),
-                          emit_shadow_slices, ts_idx, dur_idx, partition_idx);
+                          emit_shadow_type, ts_idx, dur_idx, partition_idx);
   return util::OkStatus();
 }
 
@@ -285,205 +309,184 @@ SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
 int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                           sqlite3_value** argv,
                                           FilterHistory) {
-  int err = t1_.Initialize(qc, argv);
-  if (err != SQLITE_OK)
-    return err;
+  util::Status status = t1_.Initialize(qc, argv);
+  if (!status.ok())
+    return SQLITE_ERROR;
 
-  err = t2_.Initialize(qc, argv);
-  if (err != SQLITE_OK)
-    return err;
+  status = t2_.Initialize(qc, argv);
+  if (!status.ok())
+    return SQLITE_ERROR;
 
-  // Step the partitioned table to allow for us to look into it below.
-  Query* step_now = t1_.IsPartitioned() ? &t1_ : &t2_;
-  next_stepped_ = step_now == &t1_ ? &t2_ : &t1_;
+  status = FindOverlappingSpan();
+  return status.ok() ? SQLITE_OK : SQLITE_ERROR;
+}
 
-  auto res = step_now->Step();
-  if (PERFETTO_UNLIKELY(res.is_err()))
-    return res.err_code;
+int SpanJoinOperatorTable::Cursor::Next() {
+  util::Status status = next_query_->Next();
+  if (!status.ok())
+    return SQLITE_ERROR;
 
-  // Forward the unpartitioned table to reflect the partition of the partitoined
-  // table.
-  if (table_->partitioning_ == PartitioningType::kMixedPartitioning) {
-    PERFETTO_DCHECK(step_now->IsPartitioned());
-
-    // If we emit shadow slices, we need to step because the first slice will
-    // be a full partition shadow slice that we need to skip.
-    if (step_now->definition()->emit_shadow_slices()) {
-      PERFETTO_DCHECK(step_now->IsFullPartitionShadowSlice());
-      res = step_now->StepToNextPartition();
-      if (PERFETTO_UNLIKELY(res.is_err()))
-        return res.err_code;
-    }
-
-    res = next_stepped_->StepToPartition(step_now->partition());
-    if (PERFETTO_UNLIKELY(res.is_err()))
-      return res.err_code;
-  } else {
-    res = next_stepped_->Step();
-    if (PERFETTO_UNLIKELY(res.is_err()))
-      return res.err_code;
-  }
-
-  // Otherwise, find an overlapping span.
-  return FindOverlappingSpan();
+  status = FindOverlappingSpan();
+  return status.ok() ? SQLITE_OK : SQLITE_ERROR;
 }
 
 bool SpanJoinOperatorTable::Cursor::IsOverlappingSpan() {
-  if (!t1_.IsRealSlice() && !t2_.IsRealSlice()) {
+  // If either of the tables are eof, then we cannot possibly have an
+  // overlapping span.
+  if (t1_.IsEof() || t2_.IsEof())
     return false;
-  } else if (t1_.partition() != t2_.partition()) {
+
+  // One of the tables always needs to have a real span to have a valid
+  // overlapping span.
+  if (!t1_.IsReal() && !t2_.IsReal())
     return false;
+
+  if (table_->partitioning_ == PartitioningType::kSamePartitioning) {
+    // If both tables are partitioned, then ensure that the partitions overlap.
+    bool partition_in_bounds = (t1_.FirstPartition() >= t2_.FirstPartition() &&
+                                t1_.FirstPartition() <= t2_.LastPartition()) ||
+                               (t2_.FirstPartition() >= t1_.FirstPartition() &&
+                                t2_.FirstPartition() <= t1_.LastPartition());
+    if (!partition_in_bounds)
+      return false;
   }
 
   // We consider all slices to be [start, end) - that is the range of
   // timestamps has an open interval at the start but a closed interval
   // at the end. (with the exception of dur == -1 which we treat as if
   // end == start for the purpose of this function).
-  int64_t t1_start = t1_.ts_start();
-  int64_t t1_end = t1_.ts_end() - t1_start == -1 ? t1_start : t1_.ts_end();
-  int64_t t2_start = t2_.ts_start();
-  int64_t t2_end = t2_.ts_end() - t2_start == -1 ? t2_start : t2_.ts_end();
-  return (t1_start == t2_start && t1_.IsRealSlice() && t2_.IsRealSlice()) ||
-         (t1_start >= t2_start && t1_start < t2_end) ||
-         (t2_start >= t1_start && t2_start < t1_end);
+  return (t1_.ts() == t2_.ts() && t1_.IsReal() && t2_.IsReal()) ||
+         (t1_.ts() >= t2_.ts() && t1_.ts() < t2_.AdjustedTsEnd()) ||
+         (t2_.ts() >= t1_.ts() && t2_.ts() < t1_.AdjustedTsEnd());
 }
 
-int SpanJoinOperatorTable::Cursor::Next() {
-  // TODO: Propagate error msg to the table.
-  auto res = next_stepped_->Step();
-  if (res.is_err())
-    return res.err_code;
-  return FindOverlappingSpan();
-}
-
-int SpanJoinOperatorTable::Cursor::FindOverlappingSpan() {
+util::Status SpanJoinOperatorTable::Cursor::FindOverlappingSpan() {
+  // We loop until we find a slice which overlaps from the two tables.
   while (true) {
-    if (t1_.Eof() || t2_.Eof()) {
-      if (table_->partitioning_ != PartitioningType::kMixedPartitioning)
-        return SQLITE_OK;
+    if (table_->partitioning_ == PartitioningType::kMixedPartitioning) {
+      // If we have a mixed partition setup, we need to have special checks
+      // for eof and to reset the unpartitioned cursor every time the partition
+      // changes in the partitioned table.
+      auto* partitioned = t1_.definition()->IsPartitioned() ? &t1_ : &t2_;
+      auto* unpartitioned = t1_.definition()->IsPartitioned() ? &t2_ : &t1_;
 
-      auto* partitioned = t1_.IsPartitioned() ? &t1_ : &t2_;
-      auto* unpartitioned = t1_.IsPartitioned() ? &t2_ : &t1_;
-      if (partitioned->Eof())
-        return SQLITE_OK;
+      // If the partitioned table reaches eof, then we are really done.
+      if (partitioned->IsEof())
+        break;
 
-      auto res = partitioned->StepToNextPartition();
-      if (PERFETTO_UNLIKELY(res.is_err()))
-        return res.err_code;
-      else if (PERFETTO_UNLIKELY(res.is_eof()))
-        continue;
-
-      res = unpartitioned->StepToPartition(partitioned->partition());
-      if (PERFETTO_UNLIKELY(res.is_err()))
-        return res.err_code;
-      else if (PERFETTO_UNLIKELY(res.is_eof()))
-        continue;
-    }
-
-    int64_t partition = std::max(t1_.partition(), t2_.partition());
-    auto res = t1_.StepToPartition(partition);
-    if (PERFETTO_UNLIKELY(res.is_err()))
-      return res.err_code;
-    else if (PERFETTO_UNLIKELY(res.is_eof()))
-      continue;
-
-    res = t2_.StepToPartition(t1_.partition());
-    if (PERFETTO_UNLIKELY(res.is_err()))
-      return res.err_code;
-    else if (PERFETTO_UNLIKELY(res.is_eof()))
-      continue;
-
-    if (t1_.partition() != t2_.partition())
-      continue;
-
-    auto ts = std::max(t1_.ts_start(), t2_.ts_start());
-    res = t1_.StepUntil(ts);
-    if (PERFETTO_UNLIKELY(res.is_err()))
-      return res.err_code;
-    else if (PERFETTO_UNLIKELY(res.is_eof()))
-      continue;
-
-    res = t2_.StepUntil(t1_.ts_start());
-    if (PERFETTO_UNLIKELY(res.is_err()))
-      return res.err_code;
-    else if (PERFETTO_UNLIKELY(res.is_eof()))
-      continue;
-
-    // If we're in the case where we have shadow slices on both tables, try
-    // and forward the earliest table and see what happens. IsOverlappingSpan()
-    // will double check that we have at least one non-real slice now.
-    // Note: if we don't do this, we end up in an infinite loop because all
-    // the code above will not change anything because these shadow slices will
-    // be overlapping.
-    if (!t1_.IsRealSlice() && !t2_.IsRealSlice()) {
-      PERFETTO_DCHECK(t1_.partition() == t2_.partition());
-
-      // If the table is not partitioned, partition() will return the partition
-      // the table was set to have by StepToPartition().
-      auto t1_partition =
-          t1_.IsPartitioned() ? t1_.CursorPartition() : t1_.partition();
-      auto t2_partition =
-          t2_.IsPartitioned() ? t2_.CursorPartition() : t2_.partition();
-
-      // If either cusor has finished, be sure to not forward that one as it
-      // will have a pending full partition shadow slice which needs to be
-      // retained.
-      Query* stepped;
-      if (t1_.CursorEof()) {
-        stepped = &t2_;
-      } else if (t2_.CursorEof()) {
-        stepped = &t1_;
-      } else if (t1_partition == t2_partition) {
-        stepped = t1_.ts_end() <= t2_.ts_end() ? &t1_ : &t2_;
-      } else {
-        stepped = t1_partition <= t2_partition ? &t1_ : &t2_;
+      // If the partition has changed from the previous one, reset the cursor
+      // and keep a lot of the new partition.
+      if (last_mixed_partition_ != partitioned->partition()) {
+        util::Status status = unpartitioned->Rewind();
+        if (!status.ok())
+          return status;
+        last_mixed_partition_ = partitioned->partition();
       }
-
-      res = stepped->Step();
-      if (PERFETTO_UNLIKELY(res.is_err()))
-        return res.err_code;
-      else if (PERFETTO_UNLIKELY(res.is_eof()))
-        continue;
+    } else if (t1_.IsEof() || t2_.IsEof()) {
+      // For both no partition and same partition cases, either cursor ending
+      // ends the whole span join.
+      break;
     }
 
+    // Find which slice finishes first.
+    next_query_ = FindEarliestFinishQuery();
+
+    // If the current span is overlapping, just finsh there to emit the current
+    // slice.
     if (IsOverlappingSpan())
       break;
-  }
-  next_stepped_ = t1_.ts_end() <= t2_.ts_end() ? &t1_ : &t2_;
 
-  return SQLITE_OK;
+    // Otherwise, step to the next row.
+    util::Status status = next_query_->Next();
+    if (!status.ok())
+      return status;
+  }
+  return util::OkStatus();
+}
+
+SpanJoinOperatorTable::Query*
+SpanJoinOperatorTable::Cursor::FindEarliestFinishQuery() {
+  int64_t t1_part;
+  int64_t t2_part;
+
+  switch (table_->partitioning_) {
+    case PartitioningType::kMixedPartitioning: {
+      // If either table is EOF, forward the other table to try and make
+      // the partitions not match anymore.
+      if (t1_.IsEof())
+        return &t2_;
+      if (t2_.IsEof())
+        return &t1_;
+
+      // Otherwise, just make the partition equal from both tables.
+      t1_part = last_mixed_partition_;
+      t2_part = last_mixed_partition_;
+      break;
+    }
+    case PartitioningType::kSamePartitioning: {
+      // Get the partition values from the cursor.
+      t1_part = t1_.LastPartition();
+      t2_part = t2_.LastPartition();
+      break;
+    }
+    case PartitioningType::kNoPartitioning: {
+      t1_part = 0;
+      t2_part = 0;
+      break;
+    }
+  }
+
+  // Prefer to forward the earliest cursors based on the following
+  // lexiographical ordering:
+  // 1. partition
+  // 2. end timestamp
+  // 3. whether the slice is real or shadow (shadow < real)
+  bool t1_less = std::make_tuple(t1_part, t1_.AdjustedTsEnd(), t1_.IsReal()) <
+                 std::make_tuple(t2_part, t2_.AdjustedTsEnd(), t2_.IsReal());
+  return t1_less ? &t1_ : &t2_;
 }
 
 int SpanJoinOperatorTable::Cursor::Eof() {
-  return t1_.Eof() || t2_.Eof();
+  return t1_.IsEof() || t2_.IsEof();
 }
 
 int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
-  PERFETTO_DCHECK(!t1_.Eof());
-  PERFETTO_DCHECK(!t2_.Eof());
+  PERFETTO_DCHECK(t1_.IsReal() || t2_.IsReal());
 
-  if (N == Column::kTimestamp) {
-    auto max_ts = std::max(t1_.ts_start(), t2_.ts_start());
-    sqlite3_result_int64(context, static_cast<sqlite3_int64>(max_ts));
-  } else if (N == Column::kDuration) {
-    auto max_start = std::max(t1_.ts_start(), t2_.ts_start());
-    auto min_end = std::min(t1_.ts_end(), t2_.ts_end());
-    auto dur = min_end - max_start;
-    sqlite3_result_int64(context, static_cast<sqlite3_int64>(dur));
-  } else if (N == Column::kPartition &&
-             table_->partitioning_ != PartitioningType::kNoPartitioning) {
-    PERFETTO_DCHECK(table_->partitioning_ ==
-                        PartitioningType::kMixedPartitioning ||
-                    t1_.partition() == t2_.partition());
-    auto partition = t1_.IsPartitioned() ? t1_.partition() : t2_.partition();
-    sqlite3_result_int64(context, static_cast<sqlite3_int64>(partition));
-  } else {
-    size_t index = static_cast<size_t>(N);
-    const auto& locator = table_->global_index_to_column_locator_[index];
-    if (locator.defn == t1_.definition())
-      t1_.ReportSqliteResult(context, locator.col_index);
-    else
-      t2_.ReportSqliteResult(context, locator.col_index);
+  switch (N) {
+    case Column::kTimestamp: {
+      auto max_ts = std::max(t1_.ts(), t2_.ts());
+      sqlite3_result_int64(context, static_cast<sqlite3_int64>(max_ts));
+      break;
+    }
+    case Column::kDuration: {
+      auto max_start = std::max(t1_.ts(), t2_.ts());
+      auto min_end = std::min(t1_.raw_ts_end(), t2_.raw_ts_end());
+      auto dur = min_end - max_start;
+      sqlite3_result_int64(context, static_cast<sqlite3_int64>(dur));
+      break;
+    }
+    case Column::kPartition: {
+      if (table_->partitioning_ != PartitioningType::kNoPartitioning) {
+        int64_t partition;
+        if (table_->partitioning_ == PartitioningType::kMixedPartitioning) {
+          partition = last_mixed_partition_;
+        } else {
+          partition = t1_.IsReal() ? t1_.partition() : t2_.partition();
+        }
+        sqlite3_result_int64(context, static_cast<sqlite3_int64>(partition));
+        break;
+      }
+      [[clang::fallthrough]];
+    }
+    default: {
+      size_t index = static_cast<size_t>(N);
+      const auto& locator = table_->global_index_to_column_locator_[index];
+      if (locator.defn == t1_.definition())
+        t1_.ReportSqliteResult(context, locator.col_index);
+      else
+        t2_.ReportSqliteResult(context, locator.col_index);
+    }
   }
   return SQLITE_OK;
 }
@@ -498,153 +501,184 @@ SpanJoinOperatorTable::Query::Query(SpanJoinOperatorTable* table,
 
 SpanJoinOperatorTable::Query::~Query() = default;
 
-int SpanJoinOperatorTable::Query::Initialize(const QueryConstraints& qc,
-                                             sqlite3_value** argv) {
+util::Status SpanJoinOperatorTable::Query::Initialize(
+    const QueryConstraints& qc,
+    sqlite3_value** argv) {
   *this = Query(table_, definition(), db_);
   sql_query_ = CreateSqlQuery(
       table_->ComputeSqlConstraintsForDefinition(*defn_, qc, argv));
-  return PrepareRawStmt();
+  return Rewind();
 }
 
-SpanJoinOperatorTable::Query::StepRet SpanJoinOperatorTable::Query::Step() {
-  PERFETTO_DCHECK(!Eof());
-  sqlite3_stmt* stmt = stmt_.get();
+util::Status SpanJoinOperatorTable::Query::Next() {
+  util::Status status = NextSliceState();
+  if (!status.ok())
+    return status;
+  return FindNextValidSlice();
+}
 
-  // In this loop, we will try and find the slice to from the cursor.
-  // Terminology: "Shadow slices" are slices which fill in the gaps between real
-  // slices from the underlying cursor in each partition (if any).
-  // For queries which don't need "shadow slices", we simply return non-zero
-  // duration slices from the underlying cursor.
-  do {
-    if (mode_ == Mode::kShadowSlice) {
-      PERFETTO_DCHECK(defn_->emit_shadow_slices());
+bool SpanJoinOperatorTable::Query::IsValidSlice() {
+  // Disallow any single partition shadow slices if the definition doesn't allow
+  // them.
+  if (IsPresentPartitionShadow() && !defn_->ShouldEmitPresentPartitionShadow())
+    return false;
 
-      // If we're out of slices in the cursor, this shadow slice will be the
-      // final slice.
-      if (cursor_eof_) {
-        mode_ = Mode::kRealSlice;
-        return StepRet(StepRet::Code::kEof);
-      }
+  // Disallow any missing partition shadow slices if the definition doesn't
+  // allow them.
+  if (IsMissingPartitionShadow() && !defn_->ShouldEmitMissingPartitionShadow())
+    return false;
 
-      // Look ahead to see if the cursor changes partition (if the cursor is
-      // partitioned). If so, then we need to fill the gap between the ts == 0
-      // and the start of that slice. Otherwise after this slice, we have the
-      // real slice from the cursor.
-      if (!defn_->IsPartitioned() || partition_ == CursorPartition()) {
-        mode_ = Mode::kRealSlice;
-        ts_start_ = CursorTs();
-        ts_end_ = ts_start_ + CursorDur();
-      } else if (IsFullPartitionShadowSlice()) {
-        mode_ = Mode::kShadowSlice;
-        ts_start_ = 0;
-        ts_end_ = CursorTs();
-        partition_ = CursorPartition();
-      } else {
-        mode_ = Mode::kShadowSlice;
-        ts_start_ = 0;
+  // Disallow any "empty" shadows; these are shadows which either have the same
+  // start and end time or missing-partition shadows which have the same start
+  // and end partition.
+  if (IsEmptyShadow())
+    return false;
+
+  return true;
+}
+
+util::Status SpanJoinOperatorTable::Query::FindNextValidSlice() {
+  // The basic idea of this function is that |NextSliceState()| always emits
+  // all possible slices (including shadows for any gaps inbetween the real
+  // slices) and we filter out the invalid slices (as defined by the table
+  // definition) using |IsValidSlice()|.
+  //
+  // This has proved to be a lot cleaner to implement than trying to choose
+  // when to emit and not emit shadows directly.
+  while (!IsEof() && !IsValidSlice()) {
+    util::Status status = NextSliceState();
+    if (!status.ok())
+      return status;
+  }
+  return util::OkStatus();
+}
+
+util::Status SpanJoinOperatorTable::Query::NextSliceState() {
+  switch (state_) {
+    case State::kReal: {
+      // Forward the cursor to figure out where the next slice should be.
+      util::Status status = CursorNext();
+      if (!status.ok())
+        return status;
+
+      // Depending on the next slice, we can do two things here:
+      // 1. If the next slice is on the same partition, we can just emit a
+      //    single shadow until the start of the next slice.
+      // 2. If the next slice is on another partition or we hit eof, just emit
+      //    a shadow to the end of the whole partition.
+      bool shadow_to_end = cursor_eof_ || (defn_->IsPartitioned() &&
+                                           partition_ != CursorPartition());
+      state_ = State::kPresentPartitionShadow;
+      ts_ = AdjustedTsEnd();
+      ts_end_ =
+          shadow_to_end ? std::numeric_limits<int64_t>::max() : CursorTs();
+      return util::OkStatus();
+    }
+    case State::kPresentPartitionShadow: {
+      if (ts_end_ == std::numeric_limits<int64_t>::max()) {
+        // If the shadow is to the end of the slice, create a missing partition
+        // shadow to the start of the partition of the next slice or to the max
+        // partition if we hit eof.
+        state_ = State::kMissingPartitionShadow;
+        ts_ = 0;
         ts_end_ = std::numeric_limits<int64_t>::max();
-      }
-      continue;
-    }
 
-    int res;
-    if (defn_->IsPartitioned()) {
-      auto partition_idx = static_cast<int>(defn_->partition_idx());
-      // Fastforward through any rows with null partition keys.
-      int row_type;
-      do {
-        res = sqlite3_step(stmt);
-        row_type = sqlite3_column_type(stmt, partition_idx);
-      } while (res == SQLITE_ROW && row_type == SQLITE_NULL);
-    } else {
-      res = sqlite3_step(stmt);
-    }
-
-    if (res == SQLITE_ROW) {
-      // After every row, there will be a shadow slice so emit that if we need
-      // to do so. Otherwise, just emit the underlying slice.
-      if (defn_->emit_shadow_slices()) {
-        mode_ = Mode::kShadowSlice;
-        ts_start_ = ts_end_ - ts_start_ == -1 ? ts_start_ : ts_end_;
-        ts_end_ = !defn_->IsPartitioned() || partition_ == CursorPartition()
-                      ? CursorTs()
-                      : std::numeric_limits<int64_t>::max();
+        missing_partition_start_ = partition_ + 1;
+        missing_partition_end_ = cursor_eof_
+                                     ? std::numeric_limits<int64_t>::max()
+                                     : CursorPartition();
       } else {
-        mode_ = Mode::kRealSlice;
-        ts_start_ = CursorTs();
-        ts_end_ = ts_start_ + CursorDur();
-        if (defn_->IsPartitioned())
-          partition_ = CursorPartition();
+        // If the shadow is not to the end, we must have another slice on the
+        // current partition.
+        state_ = State::kReal;
+        ts_ = CursorTs();
+        ts_end_ = ts_ + CursorDur();
+
+        PERFETTO_DCHECK(!defn_->IsPartitioned() ||
+                        partition_ == CursorPartition());
       }
-    } else if (res == SQLITE_DONE) {
-      cursor_eof_ = true;
-      if (!defn_->emit_shadow_slices())
-        return StepRet(StepRet::Code::kEof);
-
-      // Close off the remainder of this partition with a shadow slice.
-      mode_ = Mode::kShadowSlice;
-      ts_start_ = ts_end_ - ts_start_ == -1 ? ts_start_ : ts_end_;
-      ts_end_ = std::numeric_limits<int64_t>::max();
-    } else {
-      return StepRet(StepRet::Code::kError, res);
+      return util::OkStatus();
     }
-  } while (ts_start_ == ts_end_ && !IsRealSlice());
+    case State::kMissingPartitionShadow: {
+      if (missing_partition_end_ == std::numeric_limits<int64_t>::max()) {
+        PERFETTO_DCHECK(cursor_eof_);
 
-  return StepRet(StepRet::Code::kRow);
-}
+        // If we have a missing partition to the max partition, we must have hit
+        // eof.
+        state_ = State::kEof;
+      } else {
+        PERFETTO_DCHECK(!defn_->IsPartitioned() ||
+                        CursorPartition() == missing_partition_end_);
 
-SpanJoinOperatorTable::Query::StepRet
-SpanJoinOperatorTable::Query::StepToNextPartition() {
-  PERFETTO_DCHECK(defn_->IsPartitioned());
-  PERFETTO_DCHECK(!Eof());
-
-  auto current_partition = partition_;
-  while (partition_ <= current_partition) {
-    auto res = Step();
-    if (!res.is_row())
-      return res;
+        // Otherwise, setup a single partition slice on the end partition to the
+        // start of the next slice.
+        state_ = State::kPresentPartitionShadow;
+        ts_ = 0;
+        ts_end_ = CursorTs();
+        partition_ = missing_partition_end_;
+      }
+      return util::OkStatus();
+    }
+    case State::kEof: {
+      PERFETTO_DFATAL("Called Next when EOF");
+      return util::ErrStatus("Called Next when EOF");
+    }
   }
-  return StepRet(StepRet::Code::kRow);
+  PERFETTO_FATAL("For GCC");
 }
 
-SpanJoinOperatorTable::Query::StepRet
-SpanJoinOperatorTable::Query::StepToPartition(int64_t target_partition) {
-  PERFETTO_DCHECK(partition_ <= target_partition);
+util::Status SpanJoinOperatorTable::Query::Rewind() {
+  sqlite3_stmt* stmt = nullptr;
+  int res =
+      sqlite3_prepare_v2(db_, sql_query_.c_str(),
+                         static_cast<int>(sql_query_.size()), &stmt, nullptr);
+  stmt_.reset(stmt);
+
+  cursor_eof_ = res != SQLITE_OK;
+  if (res != SQLITE_OK)
+    return util::ErrStatus("%s", sqlite3_errmsg(db_));
+
+  util::Status status = CursorNext();
+  if (!status.ok())
+    return status;
+
+  // Setup the first slice as a missing partition shadow from the lowest
+  // partition until the first slice partition. We will handle finding the real
+  // slice in |FindNextValidSlice()|.
+  state_ = State::kMissingPartitionShadow;
+  ts_ = 0;
+  ts_end_ = std::numeric_limits<int64_t>::max();
+  missing_partition_start_ = std::numeric_limits<int64_t>::min();
+
   if (defn_->IsPartitioned()) {
-    while (partition_ < target_partition) {
-      if (IsFullPartitionShadowSlice() &&
-          (cursor_eof_ || target_partition < CursorPartition())) {
-        partition_ = target_partition;
-        return StepRet(StepRet::Code::kRow);
-      }
-
-      auto res = Step();
-      if (!res.is_row())
-        return res;
-    }
-  } else if (/* !defn_->IsPartitioned() && */ partition_ < target_partition) {
-    int res = PrepareRawStmt();
-    if (res != SQLITE_OK)
-      return StepRet(StepRet::Code::kError, res);
-    auto ret = Step();
-    if (!ret.is_row())
-      return ret;
-    partition_ = target_partition;
+    missing_partition_end_ =
+        cursor_eof_ ? std::numeric_limits<int64_t>::max() : CursorPartition();
+  } else {
+    missing_partition_end_ = std::numeric_limits<int64_t>::min();
   }
-  return StepRet(StepRet::Code::kRow);
+
+  // Actually compute the first valid slice.
+  return FindNextValidSlice();
 }
 
-SpanJoinOperatorTable::Query::StepRet SpanJoinOperatorTable::Query::StepUntil(
-    int64_t timestamp) {
-  PERFETTO_DCHECK(!Eof());
-  auto partition = partition_;
-  while (partition_ == partition && ts_start_ < timestamp &&
-         ts_end_ <= timestamp) {
-    auto res = Step();
-    if (!res.is_row())
-      return res;
+util::Status SpanJoinOperatorTable::Query::CursorNext() {
+  auto* stmt = stmt_.get();
+  int res;
+  if (defn_->IsPartitioned()) {
+    auto partition_idx = static_cast<int>(defn_->partition_idx());
+    // Fastforward through any rows with null partition keys.
+    int row_type;
+    do {
+      res = sqlite3_step(stmt);
+      row_type = sqlite3_column_type(stmt, partition_idx);
+    } while (res == SQLITE_ROW && row_type == SQLITE_NULL);
+  } else {
+    res = sqlite3_step(stmt);
   }
-  return StepRet(StepRet::Code::kRow);
+  cursor_eof_ = res != SQLITE_ROW;
+  return res == SQLITE_ROW || res == SQLITE_DONE
+             ? util::OkStatus()
+             : util::ErrStatus("%s", sqlite3_errmsg(db_));
 }
 
 std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
@@ -668,25 +702,9 @@ std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
   return sql;
 }
 
-int SpanJoinOperatorTable::Query::PrepareRawStmt() {
-  sqlite3_stmt* stmt = nullptr;
-  int err =
-      sqlite3_prepare_v2(db_, sql_query_.c_str(),
-                         static_cast<int>(sql_query_.size()), &stmt, nullptr);
-  stmt_.reset(stmt);
-
-  ts_start_ = 0;
-  ts_end_ = 0;
-  partition_ = std::numeric_limits<int64_t>::lowest();
-  cursor_eof_ = false;
-  mode_ = Mode::kRealSlice;
-
-  return err;
-}
-
 void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
                                                       size_t index) {
-  if (mode_ != Mode::kRealSlice) {
+  if (state_ != State::kReal) {
     sqlite3_result_null(context);
     return;
   }
@@ -717,14 +735,14 @@ SpanJoinOperatorTable::TableDefinition::TableDefinition(
     std::string name,
     std::string partition_col,
     std::vector<SqliteTable::Column> cols,
-    bool emit_shadow_slices,
+    EmitShadowType emit_shadow_type,
     uint32_t ts_idx,
     uint32_t dur_idx,
     uint32_t partition_idx)
-    : name_(std::move(name)),
+    : emit_shadow_type_(emit_shadow_type),
+      name_(std::move(name)),
       partition_col_(std::move(partition_col)),
       cols_(std::move(cols)),
-      emit_shadow_slices_(emit_shadow_slices),
       ts_idx_(ts_idx),
       dur_idx_(dur_idx),
       partition_idx_(partition_idx) {}
