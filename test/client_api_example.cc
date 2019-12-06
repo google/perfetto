@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing.h"
 
 #include <chrono>
 #include <thread>
 
+// This source file is built in two ways:
+// 1. As part of the regular GN build, against standard includes.
+// 2. To test that the amalgmated SDK works, against the perfetto.h source.
+
+#ifdef PERFETTO_AMALGAMATED_SDK_TEST
+#include "perfetto.h"
+#else
+#include "perfetto/tracing.h"
 #include "protos/perfetto/config/gpu/gpu_counter_config.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#endif
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
 // header public -> non-public dependency while building this file.
