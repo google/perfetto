@@ -59,7 +59,7 @@ WITH upid_packages AS (
     'debuggable', package_list.debuggable
   )) packages_for_uid
   FROM process
-  LEFT JOIN package_list USING (uid)
+  JOIN package_list USING (uid)
   GROUP BY upid
 )
 SELECT
