@@ -294,6 +294,16 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   if (!res.ignored())
     return res.ToStatus();
 
+  auto& modules = context_->modules_by_field;
+  for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
+    if (modules[field_id] && decoder.Get(field_id).valid()) {
+      modules[field_id]->TokenizePacket(decoder, &packet, timestamp, state,
+                                        field_id);
+      if (!res.ignored())
+        return res.ToStatus();
+    }
+  }
+
   if (decoder.has_compressed_packets()) {
     protozero::ConstBytes field = decoder.compressed_packets();
     const size_t field_off = packet.offset_of(field.data);

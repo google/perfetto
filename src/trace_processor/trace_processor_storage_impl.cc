@@ -78,8 +78,10 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
       new ProtoImporterModule<AndroidProbesModule>(&context_));
   context_.heap_graph_module.reset(
       new ProtoImporterModule<HeapGraphModule>(&context_));
-  context_.graphics_event_module.reset(
-      new ProtoImporterModule<GraphicsEventModule>(&context_));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
+  context_.modules.emplace_back(new GraphicsEventModule(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
 }
 
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}

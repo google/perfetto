@@ -194,6 +194,48 @@ class ProtoImporterModuleBase {
   TraceProcessorContext* context_;
 };
 
+// This is a new module superclass that allows registering modules at runtime.
+// To add and integrate a new module:
+// (1) Add MyModule as a subclass of NewProtoImporterModule,
+//     overriding the TokenizePacket(), ParsePacket() and/or ParseTraceConfig()
+//     methods.
+// (2) In the constructor call the RegisterForField method for every field
+//     that the module knows how to handle.
+// See GraphicsEventModule for an example.
+// TODO(b/141459049): Rename this to ProtoImporterModule after all modules
+// are based on it.
+class NewProtoImporterModule {
+ public:
+  NewProtoImporterModule();
+
+  virtual ~NewProtoImporterModule();
+
+  // Called by ProtoTraceTokenizer during the tokenization stage, i.e. before
+  // sorting. It's called for each TracePacket that contains fields for which
+  // the module was registered. If this returns a result other than
+  // ModuleResult::Ignored(), tokenization of the packet will be aborted after
+  // the module.
+  virtual ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket_Decoder&,
+      TraceBlobView* packet,
+      int64_t packet_timestamp,
+      PacketSequenceState*,
+      uint32_t field_id);
+
+  // Called by ProtoTraceParser after the sorting stage for each non-ftrace
+  // TracePacket that contains fields for which the module was registered.
+  virtual void ParsePacket(const protos::pbzero::TracePacket_Decoder&,
+                           const TimestampedTracePiece&,
+                           uint32_t field_id);
+
+  // Called by ProtoTraceParser for trace config packets after the sorting
+  // stage, on all existing modules.
+  virtual void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&);
+
+ protected:
+  void RegisterForField(uint32_t field_id, TraceProcessorContext*);
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 

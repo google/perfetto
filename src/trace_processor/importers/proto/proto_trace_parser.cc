@@ -34,7 +34,6 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
-#include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
@@ -219,8 +218,13 @@ void ProtoTraceParser::ParseTracePacketImpl(
   if (!context_->heap_graph_module->ParsePacket(packet, ttp).ignored())
     return;
 
-  if (!context_->graphics_event_module->ParsePacket(packet, ttp).ignored())
-    return;
+  auto& modules = context_->modules_by_field;
+  for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
+    if (modules[field_id] && packet.Get(field_id).valid()) {
+      modules[field_id]->ParsePacket(packet, ttp, field_id);
+      return;
+    }
+  }
 
   if (packet.has_trace_stats())
     ParseTraceStats(packet.trace_stats());
@@ -602,6 +606,10 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
 
   // TODO(eseckler): Propagate statuses from modules.
   context_->android_probes_module->ParseTraceConfig(trace_config);
+
+  for (auto& module : context_->modules) {
+    module->ParseTraceConfig(trace_config);
+  }
 
   int64_t uuid_msb = trace_config.trace_uuid_msb();
   int64_t uuid_lsb = trace_config.trace_uuid_lsb();
