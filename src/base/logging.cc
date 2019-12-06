@@ -23,6 +23,8 @@
 #include <unistd.h>  // For isatty()
 #endif
 
+#include <memory>
+
 #include "perfetto/base/time.h"
 
 namespace perfetto {
@@ -43,11 +45,35 @@ void LogMessage(LogLev level,
                 int line,
                 const char* fmt,
                 ...) {
-  va_list args;
-  va_start(args, fmt);
-  char log_msg[1024];
-  vsnprintf(log_msg, sizeof(log_msg), fmt, args);
-  va_end(args);
+  char stack_buf[512];
+  std::unique_ptr<char[]> large_buf;
+  char* log_msg = &stack_buf[0];
+
+  // By default use a stack allocated buffer because most log messages are quite
+  // short. In rare cases they can be larger (e.g. --help). In those cases we
+  // pay the cost of allocating the buffer on the heap.
+  for (size_t max_len = sizeof(stack_buf);;) {
+    va_list args;
+    va_start(args, fmt);
+    int res = vsnprintf(log_msg, max_len, fmt, args);
+    va_end(args);
+
+    // If for any reason the print fails, overwrite the message but still print
+    // it. The code below will attach the filename and line, which is still
+    // useful.
+    if (res < 0) {
+      strncpy(log_msg, "[printf format error]", max_len);
+      break;
+    }
+
+    // if res == max_len, vsnprintf saturated the input buffer. Retry with a
+    // larger buffer in that case (within reasonable limits).
+    if (res < static_cast<int>(max_len) || max_len >= 128 * 1024)
+      break;
+    max_len *= 4;
+    large_buf.reset(new char[max_len]);
+    log_msg = &large_buf[0];
+  }
 
   const char* color = kDefault;
   switch (level) {
