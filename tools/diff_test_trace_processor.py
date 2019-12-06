@@ -20,6 +20,7 @@ import glob
 import importlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -274,6 +275,17 @@ def main():
   parser.add_argument('--metrics-descriptor', type=str)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
+      '--query-metric-filter',
+      default='.*',
+      type=str,
+      help=
+      'Filter the name of query files or metrics to diff test (regex syntax)')
+  parser.add_argument(
+      '--trace-filter',
+      default='.*',
+      type=str,
+      help='Filter the name of trace files to diff test (regex syntax)')
+  parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
@@ -311,6 +323,9 @@ def main():
   metrics_message_factory = create_metrics_message_factory(
       metrics_descriptor_path)
 
+  query_metric_pattern = re.compile(args.query_metric_filter)
+  trace_pattern = re.compile(args.trace_filter)
+
   tests = []
   for line in index_lines:
     stripped = line.strip()
@@ -320,6 +335,12 @@ def main():
       continue
 
     [trace_fname, query_fname_or_metric, expected_fname] = stripped.split(' ')
+    if not query_metric_pattern.match(os.path.basename(query_fname_or_metric)):
+      continue
+
+    if not trace_pattern.match(os.path.basename(trace_fname)):
+      continue
+
     tests.append(Test(trace_fname, query_fname_or_metric, expected_fname))
 
   sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
