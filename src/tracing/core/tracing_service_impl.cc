@@ -573,9 +573,10 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   tracing_session->state = TracingSession::CONFIGURED;
   PERFETTO_LOG(
       "Configured tracing, #sources:%zu, duration:%d ms, #buffers:%d, total "
-      "buffer size:%zu KB, total sessions:%zu",
+      "buffer size:%zu KB, total sessions:%zu session name: %s",
       cfg.data_sources().size(), tracing_session->config.duration_ms(),
-      cfg.buffers_size(), total_buf_size_kb, tracing_sessions_.size());
+      cfg.buffers_size(), total_buf_size_kb, tracing_sessions_.size(),
+      cfg.unique_session_name().c_str());
 
   // Start the data sources, unless this is a case of early setup + fast
   // triggering, either through TraceConfig.deferred_start or
