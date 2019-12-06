@@ -64,6 +64,10 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
            context->storage->InternString("Detach") /* DETACH */,
            context->storage->InternString("Attach") /* ATTACH */,
            context->storage->InternString("Cancel") /* CANCEL */}},
+      present_frame_name_(base::StringWriter(present_frame_,
+                                            sizeof(present_frame_))),
+      present_frame_layer_name_(base::StringWriter(present_frame_layer_,
+                                                  sizeof(present_frame_layer_))),
       gpu_log_track_name_id_(context_->storage->InternString("GPU Log")),
       gpu_log_scope_id_(context_->storage->InternString("gpu_log")),
       tag_id_(context_->storage->InternString("tag")),
@@ -303,6 +307,78 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
     row.slice_id = slice_id.value();
     row.frame_id = frame_number;
     context_->storage->mutable_gpu_slice_table()->Insert(row);
+  }
+
+  /* Displayed Frame track */
+  if (event.type() == protos::pbzero::GraphicsFrameEvent::PRESENT_FENCE) {
+    if (previous_timestamp_ == 0) {
+      const StringId present_track_name_id =
+          context_->storage->InternString("Displayed Frame");
+      tables::GpuTrackTable::Row present_track(present_track_name_id.id);
+      present_track.scope = graphics_event_scope_id_;
+      present_track_id_ =
+          context_->track_tracker->InternGpuTrack(present_track);
+    }
+
+    // The displayed frame is a slice from one present fence to another present
+    // fence. If multiple buffers have present fence at the same time, they all
+    // are shown on screen at the same time. So that particular displayed frame
+    // slice should include info from all those buffers in it.
+    // Since the events are parsed one by one, the following bookkeeping is
+    // needed to create the slice properly.
+    if (previous_timestamp_ == timestamp && previous_timestamp_ != 0) {
+      // Same timestamp as previous present fence. This buffer should also
+      // contribute to this slice.
+      present_frame_name_.AppendLiteral(", ");
+      present_frame_name_.AppendUnsignedInt(buffer_id);
+
+      // Layer name is added as args while finishing the slice
+      present_frame_layer_name_.AppendLiteral(", ");
+      present_frame_layer_name_.AppendString(event.layer_name());
+    } else {
+
+      if (previous_timestamp_ != 0) {
+        StringId present_frame_layer_name_id = context_->storage->InternString(
+            present_frame_layer_name_.GetStringView());
+        // End the current slice that's being tracked.
+        const auto present_slice_id_end = context_->slice_tracker->End(
+            timestamp, present_track_id_, 0, present_event_name_id_,
+            [this, present_frame_layer_name_id](ArgsTracker* args_tracker,
+                                                RowId row_id) {
+              args_tracker->AddArg(row_id, layer_name_key_id_, layer_name_key_id_,
+                                  Variadic::String(present_frame_layer_name_id));
+            });
+
+        if (present_slice_id_end) {
+          // The slice could have had additional buffers in it, so we need to
+          // update the name.
+          context_->storage->mutable_nestable_slices()->set_name(
+              present_slice_id_end.value(),
+              context_->storage->InternString(
+                  present_frame_name_.GetStringView()));
+        }
+
+        present_frame_layer_name_.reset();
+        present_frame_name_.reset();
+      }
+
+      // Start a new slice
+      present_frame_name_.AppendUnsignedInt(buffer_id);
+      previous_timestamp_ = timestamp;
+      present_frame_layer_name_.AppendString(event.layer_name());
+      present_event_name_id_ =
+          context_->storage->InternString(present_frame_name_.GetStringView());
+      const auto present_slice_id = context_->slice_tracker->Begin(
+          timestamp, present_track_id_, present_track_id_, RefType::kRefTrack,
+          0 /* cat */, present_event_name_id_);
+
+      if (present_slice_id) {
+        tables::GpuSliceTable::Row row;
+        row.slice_id = present_slice_id.value();
+        row.frame_id = frame_number;
+        context_->storage->mutable_gpu_slice_table()->Insert(row);
+      }
+    }
   }
 }
 
