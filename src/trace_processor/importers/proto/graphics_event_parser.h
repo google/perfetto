@@ -71,6 +71,13 @@ class GraphicsEventParser {
   const StringId no_layer_name_name_id_;
   const StringId layer_name_key_id_;
   std::array<StringId, 14> event_type_name_ids_;
+  int64_t previous_timestamp_ = 0;
+  char present_frame_[4096];
+  char present_frame_layer_[4096];
+  StringId present_event_name_id_;
+  base::StringWriter present_frame_name_;
+  base::StringWriter present_frame_layer_name_;
+  TrackId present_track_id_;
   // For VulkanMemoryEvent
   std::unordered_map<VulkanMemoryEvent::AllocationScope,
                      int64_t /*counter_value*/,
