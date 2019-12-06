@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
-#include "src/trace_processor/counter_values_table.h"
 #include "src/trace_processor/cpu_profile_stack_sample_table.h"
 #include "src/trace_processor/heap_profile_allocation_table.h"
 #include "src/trace_processor/instants_table.h"
@@ -380,7 +379,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   SliceTable::RegisterTable(*db_, context_.storage.get());
   SqlStatsTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
-  CounterValuesTable::RegisterTable(*db_, context_.storage.get());
   SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
   InstantsTable::RegisterTable(*db_, context_.storage.get());
@@ -406,6 +404,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                storage->gpu_slice_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->gpu_track_table(),
                                storage->gpu_track_table().table_name());
+
+  DbSqliteTable::RegisterTable(*db_, &storage->counter_table(),
+                               storage->counter_table().table_name());
 
   DbSqliteTable::RegisterTable(*db_, &storage->counter_track_table(),
                                storage->counter_track_table().table_name());

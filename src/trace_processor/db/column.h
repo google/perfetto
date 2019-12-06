@@ -128,6 +128,7 @@ class Column {
       case ColumnType::kInt32:
       case ColumnType::kUint32:
       case ColumnType::kInt64:
+      case ColumnType::kDouble:
       case ColumnType::kString: {
         for (uint32_t i = 0; i < row_map().size(); i++) {
           if (Get(i) == value)
@@ -235,6 +236,14 @@ class Column {
         }
         break;
       }
+      case ColumnType::kDouble: {
+        if (IsNullable()) {
+          FilterIntoDoubleSlow<true /* is_nullable */>(op, value, rm);
+        } else {
+          FilterIntoDoubleSlow<false /* is_nullable */>(op, value, rm);
+        }
+        break;
+      }
       case ColumnType::kString: {
         FilterIntoStringSlow(op, value, rm);
         break;
@@ -264,6 +273,8 @@ class Column {
       case ColumnType::kInt64:
       case ColumnType::kId:
         return SqlValue::Type::kLong;
+      case ColumnType::kDouble:
+        return SqlValue::Type::kDouble;
       case ColumnType::kString:
         return SqlValue::Type::kString;
     }
@@ -339,6 +350,7 @@ class Column {
     kInt32,
     kUint32,
     kInt64,
+    kDouble,
     kString,
 
     // Types generated on the fly.
@@ -415,6 +427,10 @@ class Column {
       case ColumnType::kInt64: {
         auto opt_value = sparse_vector<int64_t>().Get(idx);
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
+      }
+      case ColumnType::kDouble: {
+        auto opt_value = sparse_vector<double>().Get(idx);
+        return opt_value ? SqlValue::Double(*opt_value) : SqlValue();
       }
       case ColumnType::kString: {
         auto str = GetStringPoolStringAtIdx(idx).c_str();
@@ -507,6 +523,102 @@ class Column {
             return opt_value && opt_value >= long_value;
           }
           return sparse_vector<T>().GetNonNull(idx) >= long_value;
+        });
+        break;
+      case FilterOp::kLike:
+        rm->Intersect(RowMap());
+        break;
+      case FilterOp::kIsNull:
+      case FilterOp::kIsNotNull:
+        PERFETTO_FATAL("Should be handled above");
+    }
+  }
+
+  template <bool is_nullable>
+  void FilterIntoDoubleSlow(FilterOp op, SqlValue value, RowMap* rm) const {
+    if (op == FilterOp::kIsNull) {
+      PERFETTO_DCHECK(value.is_null());
+      if (is_nullable) {
+        row_map().FilterInto(rm, [this](uint32_t row) {
+          return !sparse_vector<double>().Get(row).has_value();
+        });
+      } else {
+        rm->Intersect(RowMap());
+      }
+      return;
+    } else if (op == FilterOp::kIsNotNull) {
+      PERFETTO_DCHECK(value.is_null());
+      if (is_nullable) {
+        row_map().FilterInto(rm, [this](uint32_t row) {
+          return sparse_vector<double>().Get(row).has_value();
+        });
+      }
+      return;
+    }
+
+    if (value.type != SqlValue::Type::kDouble) {
+      rm->Intersect(RowMap());
+      return;
+    }
+
+    double double_value = value.double_value;
+    switch (op) {
+      case FilterOp::kLt:
+        row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+          if (is_nullable) {
+            auto opt_value = sparse_vector<double>().Get(idx);
+            return opt_value && opt_value < double_value;
+          }
+          return sparse_vector<double>().GetNonNull(idx) < double_value;
+        });
+        break;
+      case FilterOp::kEq:
+        row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+          if (is_nullable) {
+            auto opt_value = sparse_vector<double>().Get(idx);
+            return opt_value &&
+                   std::equal_to<double>()(*opt_value, double_value);
+          }
+          auto v = sparse_vector<double>().GetNonNull(idx);
+          return std::equal_to<double>()(v, double_value);
+        });
+        break;
+      case FilterOp::kGt:
+        row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+          if (is_nullable) {
+            auto opt_value = sparse_vector<double>().Get(idx);
+            return opt_value && opt_value > double_value;
+          }
+          return sparse_vector<double>().GetNonNull(idx) > double_value;
+        });
+        break;
+      case FilterOp::kNe:
+        row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+          if (is_nullable) {
+            auto opt_value = sparse_vector<double>().Get(idx);
+            return opt_value &&
+                   std::not_equal_to<double>()(*opt_value, double_value);
+          }
+          auto v = sparse_vector<double>().GetNonNull(idx);
+          return std::not_equal_to<double>()(v, double_value);
+        });
+        break;
+      case FilterOp::kLe:
+        row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+          if (is_nullable) {
+            auto opt_value = sparse_vector<double>().Get(idx);
+            return opt_value && opt_value <= double_value;
+          }
+          return sparse_vector<double>().GetNonNull(idx) <= double_value;
+        });
+        break;
+      case FilterOp::kGe:
+        row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+          if (is_nullable) {
+            auto opt_value = sparse_vector<double>().Get(idx);
+            return opt_value && opt_value >= double_value;
+          }
+          return sparse_vector<double>().GetNonNull(idx) >= double_value;
         });
         break;
       case FilterOp::kLike:
@@ -664,6 +776,14 @@ class Column {
         }
         break;
       }
+      case ColumnType::kDouble: {
+        if (IsNullable()) {
+          StableSort<desc, double, true /* is_nullable */>(out);
+        } else {
+          StableSort<desc, double, false /* is_nullable */>(out);
+        }
+        break;
+      }
       case ColumnType::kString: {
         row_map().StableSort(out, [this](uint32_t a_idx, uint32_t b_idx) {
           auto a_str = GetStringPoolStringAtIdx(a_idx);
@@ -704,6 +824,8 @@ class Column {
       return ColumnType::kInt32;
     } else if (std::is_same<T, StringPool::Id>::value) {
       return ColumnType::kString;
+    } else if (std::is_same<T, double>::value) {
+      return ColumnType::kDouble;
     } else {
       PERFETTO_FATAL("Unsupported type of column");
     }
