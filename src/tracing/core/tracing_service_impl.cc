@@ -75,7 +75,7 @@ namespace {
 constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
-constexpr int kMaxConcurrentTracingSessions = 5;
+constexpr int kMaxConcurrentTracingSessions = 15;
 
 constexpr uint32_t kMillisPerHour = 3600000;
 constexpr uint32_t kMaxTracingDurationMillis = 7 * 24 * kMillisPerHour;
