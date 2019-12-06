@@ -12,8 +12,6 @@ android_lmk_reason {
     processes: {
       process: {
         name: "process"
-        packages_for_uid {
-        }
       }
       oom_score_adj: 0
       size: 2000
