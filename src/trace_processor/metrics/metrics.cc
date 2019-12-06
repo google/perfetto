@@ -225,11 +225,6 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
   if (field.is_repeated() && !is_inside_repeated)
     return AppendRepeated(field, ptr, size);
 
-  // If we're inside a repeated field and we get a 0 sized message, this must
-  // be a silent null which we ignore.
-  if (size == 0)
-    return util::OkStatus();
-
   switch (field.type()) {
     case FieldDescriptorProto::TYPE_MESSAGE:
       return AppendSingleMessage(field, ptr, size);
@@ -246,6 +241,14 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
 util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
                                                const uint8_t* ptr,
                                                size_t size) {
+  if (size == 0) {
+    // If we have an zero sized bytes, we still want to propogate that it the
+    // message was set but empty. Just set the field with that id to an
+    // empty bytes.
+    message_->AppendBytes(field.number(), ptr, size);
+    return util::OkStatus();
+  }
+
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (decoder.is_repeated()) {
     return util::ErrStatus("Cannot handle nested repeated messages in field %s",
@@ -296,6 +299,7 @@ util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
 
   const auto& rep = decoder.repeated();
   protos::pbzero::RepeatedBuilderResult::Decoder repeated(rep.data, rep.size);
+
   for (auto it = repeated.value(); it; ++it) {
     protos::pbzero::RepeatedBuilderResult::Value::Decoder value(*it);
     util::Status status;
