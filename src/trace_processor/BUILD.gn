@@ -254,8 +254,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "android_logs_table.h",
       "args_table.cc",
       "args_table.h",
-      "counter_values_table.cc",
-      "counter_values_table.h",
       "cpu_profile_stack_sample_table.cc",
       "cpu_profile_stack_sample_table.h",
       "filtered_row_index.cc",

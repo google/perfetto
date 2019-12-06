@@ -677,6 +677,7 @@ filegroup(
 filegroup(
     name = "src_trace_processor_tables_tables",
     srcs = [
+        "src/trace_processor/tables/counter_tables.h",
         "src/trace_processor/tables/macros.h",
         "src/trace_processor/tables/macros_internal.h",
         "src/trace_processor/tables/profiler_tables.h",
@@ -721,8 +722,6 @@ filegroup(
         "src/trace_processor/android_logs_table.h",
         "src/trace_processor/args_table.cc",
         "src/trace_processor/args_table.h",
-        "src/trace_processor/counter_values_table.cc",
-        "src/trace_processor/counter_values_table.h",
         "src/trace_processor/cpu_profile_stack_sample_table.cc",
         "src/trace_processor/cpu_profile_stack_sample_table.h",
         "src/trace_processor/filtered_row_index.cc",

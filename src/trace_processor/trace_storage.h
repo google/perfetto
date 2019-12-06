@@ -36,6 +36,7 @@
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/string_pool.h"
+#include "src/trace_processor/tables/counter_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
@@ -515,64 +516,6 @@ class TraceStorage {
     std::deque<int64_t> thread_duration_ns_;
     std::deque<int64_t> thread_instruction_counts_;
     std::deque<int64_t> thread_instruction_deltas_;
-  };
-
-  class CounterValues {
-   public:
-    inline uint32_t AddCounterValue(TrackId track_id,
-                                    int64_t timestamp,
-                                    double value) {
-      track_id_.emplace_back(track_id);
-      timestamps_.emplace_back(timestamp);
-      values_.emplace_back(value);
-      arg_set_ids_.emplace_back(kInvalidArgSetId);
-
-      if (track_id != kInvalidTrackId) {
-        if (track_id >= rows_for_track_id_.size()) {
-          rows_for_track_id_.resize(track_id + 1);
-        }
-        rows_for_track_id_[track_id].emplace_back(size() - 1);
-      }
-      return size() - 1;
-    }
-
-    void set_track_id(uint32_t index, TrackId track_id) {
-      PERFETTO_DCHECK(track_id_[index] == kInvalidTrackId);
-
-      track_id_[index] = track_id;
-      if (track_id >= rows_for_track_id_.size()) {
-        rows_for_track_id_.resize(track_id + 1);
-      }
-
-      auto* new_rows = &rows_for_track_id_[track_id];
-      new_rows->insert(
-          std::upper_bound(new_rows->begin(), new_rows->end(), index), index);
-    }
-
-    void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
-
-    uint32_t size() const { return static_cast<uint32_t>(track_id_.size()); }
-
-    const std::deque<TrackId>& track_ids() const { return track_id_; }
-
-    const std::deque<int64_t>& timestamps() const { return timestamps_; }
-
-    const std::deque<double>& values() const { return values_; }
-
-    const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
-
-    const std::deque<std::vector<uint32_t>>& rows_for_track_id() const {
-      return rows_for_track_id_;
-    }
-
-   private:
-    std::deque<TrackId> track_id_;
-    std::deque<int64_t> timestamps_;
-    std::deque<double> values_;
-    std::deque<ArgSetId> arg_set_ids_;
-
-    // Indexed by track_id and contains the row numbers corresponding to it.
-    std::deque<std::vector<uint32_t>> rows_for_track_id_;
   };
 
   class SqlStats {
@@ -1190,8 +1133,8 @@ class TraceStorage {
   }
   tables::GpuSliceTable* mutable_gpu_slice_table() { return &gpu_slice_table_; }
 
-  const CounterValues& counter_values() const { return counter_values_; }
-  CounterValues* mutable_counter_values() { return &counter_values_; }
+  const tables::CounterTable& counter_table() const { return counter_table_; }
+  tables::CounterTable* mutable_counter_table() { return &counter_table_; }
 
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
@@ -1376,7 +1319,7 @@ class TraceStorage {
 
   // The values from the Counter events from the trace. This includes CPU
   // frequency events as well systrace trace_marker counter events.
-  CounterValues counter_values_;
+  tables::CounterTable counter_table_{&string_pool_, nullptr};
 
   SqlStats sql_stats_;
 
