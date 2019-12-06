@@ -91,6 +91,11 @@ enum Counters : uint16_t {
 constexpr char const* kCounterNames[] = {
     PERFETTO_METATRACE_COUNTERS(PERFETTO_METATRACE_TOSTRING)};
 
+inline void SuppressUnusedVarsInAmalgamatedBuild() {
+  (void)kCounterNames;
+  (void)kEventNames;
+}
+
 }  // namespace metatrace
 }  // namespace perfetto
 

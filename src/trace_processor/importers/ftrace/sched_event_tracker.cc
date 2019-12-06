@@ -78,7 +78,7 @@ void SchedEventTracker::PushSchedSwitch(uint32_t cpu,
     return;
   }
   context_->event_tracker->UpdateMaxTimestamp(ts);
-  PERFETTO_DCHECK(cpu < base::kMaxCpus);
+  PERFETTO_DCHECK(cpu < kMaxCpus);
 
   StringId next_comm_id = context_->storage->InternString(next_comm);
   auto next_utid =
@@ -130,7 +130,7 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     return;
   }
   context_->event_tracker->UpdateMaxTimestamp(ts);
-  PERFETTO_DCHECK(cpu < base::kMaxCpus);
+  PERFETTO_DCHECK(cpu < kMaxCpus);
 
   auto next_utid =
       context_->process_tracker->UpdateThreadName(next_pid, next_comm_id);
@@ -256,7 +256,7 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
     return;
   }
   context_->event_tracker->UpdateMaxTimestamp(ts);
-  PERFETTO_DCHECK(cpu < base::kMaxCpus);
+  PERFETTO_DCHECK(cpu < kMaxCpus);
 
   // We infer the task that emitted the event (i.e. common_pid) from the
   // scheduling slices. Drop the event if we haven't seen any sched_switch

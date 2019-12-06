@@ -56,6 +56,12 @@ inline void RunTaskWithWatchdogGuard(const std::function<void()>& task) {
   Watchdog::Timer handle =
       base::Watchdog::GetInstance()->CreateFatalTimer(kWatchdogMillis);
   task();
+
+  // Suppress unused variable warnings in the client library amalgamated build.
+  (void)kWatchdogDefaultCpuLimit;
+  (void)kWatchdogDefaultCpuWindow;
+  (void)kWatchdogDefaultMemorySlack;
+  (void)kWatchdogDefaultMemoryWindow;
 }
 
 }  // namespace base

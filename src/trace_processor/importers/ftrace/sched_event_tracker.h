@@ -103,7 +103,7 @@ class SchedEventTracker {
   void ClosePendingSlice(size_t slice_idx, int64_t ts, int64_t prev_state);
 
   // Infromation retained from the preceding sched_switch seen on a given cpu.
-  std::array<PendingSchedInfo, base::kMaxCpus> pending_sched_per_cpu_{};
+  std::array<PendingSchedInfo, kMaxCpus> pending_sched_per_cpu_{};
 
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
