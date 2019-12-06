@@ -76,7 +76,6 @@ class TraceProcessorContext {
   std::unique_ptr<BinderTracker> binder_tracker;
 
   std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
-  std::unique_ptr<ProtoImporterModule<TrackEventModule>> track_event_module;
   std::unique_ptr<ProtoImporterModule<SystemProbesModule>> system_probes_module;
   std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
       android_probes_module;

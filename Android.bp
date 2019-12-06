@@ -4801,6 +4801,7 @@ filegroup {
     "src/trace_processor/importers/proto/proto_trace_parser.cc",
     "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",
     "src/trace_processor/importers/proto/system_probes_parser.cc",
+    "src/trace_processor/importers/proto/track_event_module.cc",
     "src/trace_processor/importers/proto/track_event_parser.cc",
     "src/trace_processor/importers/proto/track_event_tokenizer.cc",
     "src/trace_processor/importers/systrace/systrace_parser.cc",

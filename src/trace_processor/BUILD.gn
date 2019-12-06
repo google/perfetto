@@ -102,6 +102,7 @@ source_set("storage") {
     "importers/proto/proto_trace_tokenizer.h",
     "importers/proto/system_probes_module.h",
     "importers/proto/system_probes_parser.h",
+    "importers/proto/track_event_module.cc",
     "importers/proto/track_event_module.h",
     "importers/proto/track_event_parser.cc",
     "importers/proto/track_event_parser.h",

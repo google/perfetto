@@ -37,7 +37,6 @@
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -204,9 +203,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
     const protos::pbzero::TracePacket::Decoder& packet) {
   // TODO(eseckler): Propagate statuses from modules.
   if (!context_->ftrace_module->ParsePacket(packet, ttp).ignored())
-    return;
-
-  if (!context_->track_event_module->ParsePacket(packet, ttp).ignored())
     return;
 
   if (!context_->system_probes_module->ParsePacket(packet, ttp).ignored())
