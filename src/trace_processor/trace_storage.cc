@@ -40,6 +40,17 @@ void MaybeUpdateMinMax(T begin_it,
   *max_value = std::max(*max_value, *minmax.second);
 }
 
+void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& column,
+                              int64_t* min_value,
+                              int64_t* max_value) {
+  if (column.row_map().size() == 0)
+    return;
+
+  PERFETTO_CHECK(column.IsSorted());
+  *min_value = std::min(*min_value, column[0]);
+  *max_value = std::max(*max_value, column[column.row_map().size() - 1]);
+}
+
 std::vector<const char*> CreateRefTypeStringMap() {
   std::vector<const char*> map(static_cast<size_t>(RefType::kRefMax));
   map[static_cast<size_t>(RefType::kRefNoRef)] = nullptr;
@@ -115,8 +126,6 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   int64_t end_ns = std::numeric_limits<int64_t>::min();
   MaybeUpdateMinMax(slices_.start_ns().begin(), slices_.start_ns().end(),
                     &start_ns, &end_ns);
-  MaybeUpdateMinMax(counter_values_.timestamps().begin(),
-                    counter_values_.timestamps().end(), &start_ns, &end_ns);
   MaybeUpdateMinMax(instants_.timestamps().begin(),
                     instants_.timestamps().end(), &start_ns, &end_ns);
   MaybeUpdateMinMax(nestable_slices_.start_ns().begin(),
@@ -128,6 +137,8 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   MaybeUpdateMinMax(heap_profile_allocations_.timestamps().begin(),
                     heap_profile_allocations_.timestamps().end(), &start_ns,
                     &end_ns);
+
+  DbTableMaybeUpdateMinMax(counter_table_.ts(), &start_ns, &end_ns);
 
   if (start_ns == std::numeric_limits<int64_t>::max()) {
     return std::make_pair(0, 0);

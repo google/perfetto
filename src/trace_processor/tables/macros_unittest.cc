@@ -29,6 +29,12 @@ namespace {
   C(int64_t, arg_set_id)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 
+#define PERFETTO_TP_TEST_COUNTER_TABLE_DEF(NAME, PARENT, C) \
+  NAME(TestCounterTable, "counter")                         \
+  PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)               \
+  C(base::Optional<double>, value)
+PERFETTO_TP_TABLE(PERFETTO_TP_TEST_COUNTER_TABLE_DEF);
+
 #define PERFETTO_TP_TEST_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestSliceTable, "slice")                           \
   PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)             \
@@ -49,6 +55,7 @@ class TableMacrosUnittest : public ::testing::Test {
   StringPool pool_;
 
   TestEventTable event_{&pool_, nullptr};
+  TestCounterTable counter_{&pool_, &event_};
   TestSliceTable slice_{&pool_, &event_};
   TestCpuSliceTable cpu_slice_{&pool_, &slice_};
 };
@@ -282,6 +289,68 @@ TEST_F(TableMacrosUnittest, FilterIdThenOther) {
   ASSERT_EQ(out.size(), 1u);
   ASSERT_EQ(cpu->Get(0).long_value, 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
+}
+
+TEST_F(TableMacrosUnittest, NullableDoubleComparision) {
+  counter_.Insert({});
+
+  TestCounterTable::Row row;
+  row.value = 100.0;
+  counter_.Insert(row);
+
+  row.value = 101.0;
+  counter_.Insert(row);
+
+  row.value = 200.0;
+  counter_.Insert(row);
+
+  counter_.Insert({});
+
+  Table out = counter_.Filter({counter_.value().is_null()});
+  const auto* value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(value->Get(0).type, SqlValue::kNull);
+  ASSERT_EQ(value->Get(1).type, SqlValue::kNull);
+
+  out = counter_.Filter({counter_.value().is_not_null()});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 3u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100);
+  ASSERT_DOUBLE_EQ(value->Get(1).double_value, 101);
+  ASSERT_DOUBLE_EQ(value->Get(2).double_value, 200);
+
+  out = counter_.Filter({counter_.value().lt(101)});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 1u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100);
+
+  out = counter_.Filter({counter_.value().eq(101)});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 1u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 101);
+
+  out = counter_.Filter({counter_.value().gt(101)});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 1u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 200);
+
+  out = counter_.Filter({counter_.value().ne(100)});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 2u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 101);
+  ASSERT_DOUBLE_EQ(value->Get(1).double_value, 200);
+
+  out = counter_.Filter({counter_.value().le(101)});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 2u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100);
+  ASSERT_DOUBLE_EQ(value->Get(1).double_value, 101);
+
+  out = counter_.Filter({counter_.value().ge(101)});
+  value = out.GetColumnByName("value");
+  ASSERT_EQ(out.size(), 2u);
+  ASSERT_DOUBLE_EQ(value->Get(0).double_value, 101);
+  ASSERT_DOUBLE_EQ(value->Get(1).double_value, 200);
 }
 
 TEST_F(TableMacrosUnittest, Sort) {

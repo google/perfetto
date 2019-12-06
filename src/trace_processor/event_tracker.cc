@@ -63,10 +63,9 @@ RowId EventTracker::PushCounter(int64_t timestamp,
   }
   max_timestamp_ = timestamp;
 
-  auto* counter_values = context_->storage->mutable_counter_values();
-  uint32_t idx = counter_values->AddCounterValue(track_id, timestamp, value);
-  return TraceStorage::CreateRowId(TableId::kCounterValues,
-                                   static_cast<uint32_t>(idx));
+  auto* counter_values = context_->storage->mutable_counter_table();
+  uint32_t id = counter_values->Insert({timestamp, track_id, value});
+  return TraceStorage::CreateRowId(TableId::kCounterValues, id);
 }
 
 RowId EventTracker::PushInstant(int64_t timestamp,
@@ -99,7 +98,7 @@ void EventTracker::FlushPendingEvents() {
     UniquePid upid = thread.upid.value_or(0);
     auto id = context_->track_tracker->InternProcessCounterTrack(
         pending_counter.name_id, upid);
-    context_->storage->mutable_counter_values()->set_track_id(
+    context_->storage->mutable_counter_table()->mutable_track_id()->Set(
         pending_counter.row, id);
   }
 
