@@ -54,7 +54,6 @@ constexpr pid_t kInvalidPid = static_cast<pid_t>(-1);
 #endif
 
 constexpr size_t kPageSize = 4096;
-constexpr size_t kMaxCpus = 128;
 
 template <typename T>
 constexpr size_t ArraySize(const T& array) {
