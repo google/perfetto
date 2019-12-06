@@ -93,6 +93,7 @@ source_set("storage") {
     "importers/proto/heap_graph_tracker.h",
     "importers/proto/heap_graph_walker.h",
     "importers/proto/packet_sequence_state.h",
+    "importers/proto/proto_importer_module.cc",
     "importers/proto/proto_importer_module.h",
     "importers/proto/proto_incremental_state.h",
     "importers/proto/proto_trace_parser.cc",
@@ -203,6 +204,7 @@ source_set("storage") {
   }
   if (enable_perfetto_trace_processor_graphics) {
     sources += [
+      "importers/proto/graphics_event_module.cc",
       "importers/proto/graphics_event_parser.cc",
       "vulkan_memory_tracker.cc",
     ]

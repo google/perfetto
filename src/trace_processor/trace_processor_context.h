@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_CONTEXT_H_
 
 #include <memory>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -80,8 +81,11 @@ class TraceProcessorContext {
   std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
       android_probes_module;
   std::unique_ptr<ProtoImporterModule<HeapGraphModule>> heap_graph_module;
-  std::unique_ptr<ProtoImporterModule<GraphicsEventModule>>
-      graphics_event_module;
+
+  // The module at the index N is registered to handle field id N in
+  // TracePacket.
+  std::vector<NewProtoImporterModule*> modules_by_field;
+  std::vector<std::unique_ptr<NewProtoImporterModule>> modules;
 };
 
 }  // namespace trace_processor
