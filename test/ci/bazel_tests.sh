@@ -29,3 +29,12 @@ kill $(jobs -p)
 
 # Check the amalgamated build here to avoid slowing down all the Linux bots.
 tools/test_gen_amalgamated.py
+SDK_DIR=out/amalgamated
+clang++ \
+  -std=c++11 \
+  -Werror -Wall -Wextra \
+  -DPERFETTO_AMALGAMATED_SDK_TEST \
+  -I${SDK_DIR} \
+  ${SDK_DIR}/perfetto.cc \
+  perfetto/test/client_api_example.cc \
+  -o ${SDK_DIR}/test

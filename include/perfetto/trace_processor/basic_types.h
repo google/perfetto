@@ -30,6 +30,10 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Various places in trace processor assume a max number of CPUs to keep code
+// simpler (e.g. use arrays instead of vectors).
+constexpr size_t kMaxCpus = 128;
+
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT Config {
   // When set to true, this option forces trace processor to perform a full

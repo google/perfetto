@@ -294,6 +294,7 @@ class UnixSocket {
   // the last peer.
   uid_t peer_uid() const {
     PERFETTO_DCHECK(!is_listening() && peer_uid_ != kInvalidUid);
+    ignore_result(kInvalidPid);  // Silence warnings in amalgamated builds.
     return peer_uid_;
   }
 
