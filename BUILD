@@ -815,6 +815,7 @@ filegroup(
         "src/trace_processor/importers/json/json_trace_tokenizer.h",
         "src/trace_processor/importers/json/json_trace_utils.cc",
         "src/trace_processor/importers/json/json_trace_utils.h",
+        "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_module.h",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
         "src/trace_processor/importers/proto/android_probes_parser.h",

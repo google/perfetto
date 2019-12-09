@@ -197,7 +197,10 @@ source_set("storage") {
     deps += [ "../../include/perfetto/ext/traced:sys_stats_counters" ]
   }
   if (enable_perfetto_trace_processor_android_probes) {
-    sources += [ "importers/proto/android_probes_parser.cc" ]
+    sources += [
+      "importers/proto/android_probes_module.cc",
+      "importers/proto/android_probes_parser.cc",
+    ]
   }
   if (enable_perfetto_trace_processor_heap_graphs) {
     sources += [

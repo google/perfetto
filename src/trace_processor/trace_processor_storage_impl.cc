@@ -70,11 +70,12 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
   context_.ftrace_module.reset(
       new ProtoImporterModule<FtraceModule>(&context_));
-  context_.android_probes_module.reset(
-      new ProtoImporterModule<AndroidProbesModule>(&context_));
   context_.heap_graph_module.reset(
       new ProtoImporterModule<HeapGraphModule>(&context_));
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
+  context_.modules.emplace_back(new AndroidProbesModule(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
   context_.modules.emplace_back(new SystemProbesModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)

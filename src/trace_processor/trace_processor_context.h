@@ -26,7 +26,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-class AndroidProbesModule;
 class ArgsTracker;
 class BinderTracker;
 class ChunkedTraceReader;
@@ -73,8 +72,6 @@ class TraceProcessorContext {
   std::unique_ptr<BinderTracker> binder_tracker;
 
   std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
-  std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
-      android_probes_module;
   std::unique_ptr<ProtoImporterModule<HeapGraphModule>> heap_graph_module;
 
   // The module at the index N is registered to handle field id N in
