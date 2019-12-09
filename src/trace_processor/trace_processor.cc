@@ -47,7 +47,7 @@ SqlValue TraceProcessor::Iterator::Get(uint32_t col) {
   return iterator_->Get(col);
 }
 
-std::string TraceProcessor::Iterator::GetColumName(uint32_t col) {
+std::string TraceProcessor::Iterator::GetColumnName(uint32_t col) {
   return iterator_->GetColumnName(col);
 }
 
