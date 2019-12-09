@@ -88,7 +88,7 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
     StringId name,
     SetArgsCallback args_callback) {
   auto* stack = &stacks_[track_id];
-  auto* slices = context_->storage->mutable_nestable_slices();
+  auto* slices = context_->storage->mutable_slice_table();
 
   const uint8_t depth = static_cast<uint8_t>(stack->size());
   if (depth >= std::numeric_limits<uint8_t>::max()) {
@@ -96,10 +96,14 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
     return base::nullopt;
   }
   int64_t parent_stack_id =
-      depth == 0 ? 0 : slices->stack_ids()[stack->back().first];
-  uint32_t slice_idx =
-      slices->AddSlice(timestamp, duration, track_id, ref, ref_type, category,
-                       name, depth, 0, parent_stack_id);
+      depth == 0 ? 0 : slices->stack_id()[stack->back().first];
+
+  StringId ref_type_id = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<uint32_t>(ref_type)]);
+
+  tables::SliceTable::Row row(timestamp, duration, track_id, ref, ref_type_id,
+                              category, name, depth, 0, parent_stack_id);
+  uint32_t slice_idx = slices->Insert(row);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 
   if (args_callback) {
@@ -107,7 +111,7 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
         &stack->back().second,
         TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
   }
-  slices->set_stack_id(slice_idx, GetStackHash(*stack));
+  slices->mutable_stack_id()->Set(slice_idx, GetStackHash(*stack));
   return slice_idx;
 }
 
@@ -118,16 +122,16 @@ base::Optional<size_t> SliceTracker::MatchingIncompleteSliceIndex(
     SlicesStack& stack,
     StringId name,
     StringId category) {
-  auto* slices = context_->storage->mutable_nestable_slices();
+  auto* slices = context_->storage->mutable_slice_table();
   for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
     uint32_t slice_idx = stack[static_cast<size_t>(i)].first;
-    if (slices->durations()[slice_idx] != kPendingDuration)
+    if (slices->dur()[slice_idx] != kPendingDuration)
       continue;
-    const StringId& other_category = slices->categories()[slice_idx];
+    const StringId& other_category = slices->category()[slice_idx];
     if (!category.is_null() && !other_category.is_null() &&
         category != other_category)
       continue;
-    const StringId& other_name = slices->names()[slice_idx];
+    const StringId& other_name = slices->name()[slice_idx];
     if (!name.is_null() && !other_name.is_null() && name != other_name)
       continue;
     return static_cast<size_t>(i);
@@ -153,7 +157,7 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
   if (stack.empty())
     return base::nullopt;
 
-  auto* slices = context_->storage->mutable_nestable_slices();
+  auto* slices = context_->storage->mutable_slice_table();
   base::Optional<size_t> stack_idx =
       MatchingIncompleteSliceIndex(stack, name, category);
 
@@ -178,8 +182,8 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
 
   uint32_t slice_idx = stack[stack_idx.value()].first;
 
-  PERFETTO_DCHECK(slices->durations()[slice_idx] == kPendingDuration);
-  slices->set_duration(slice_idx, timestamp - slices->start_ns()[slice_idx]);
+  PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
+  slices->mutable_dur()->Set(slice_idx, timestamp - slices->ts()[slice_idx]);
 
   if (args_callback) {
     args_callback(
@@ -210,13 +214,13 @@ base::Optional<uint32_t> SliceTracker::CompleteSlice(TrackId track_id) {
 }
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
-  const auto& slices = context_->storage->nestable_slices();
+  const auto& slices = context_->storage->slice_table();
   bool pending_dur_descendent = false;
   for (int i = static_cast<int>(stack->size()) - 1; i >= 0; i--) {
     uint32_t slice_idx = (*stack)[static_cast<size_t>(i)].first;
 
-    int64_t start_ts = slices.start_ns()[slice_idx];
-    int64_t dur = slices.durations()[slice_idx];
+    int64_t start_ts = slices.ts()[slice_idx];
+    int64_t dur = slices.dur()[slice_idx];
     int64_t end_ts = start_ts + dur;
     if (dur == kPendingDuration) {
       pending_dur_descendent = true;
@@ -248,19 +252,15 @@ void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
 int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
   PERFETTO_DCHECK(!stack.empty());
 
-  const auto& slices = context_->storage->nestable_slices();
+  const auto& slices = context_->storage->slice_table();
 
-  std::string s;
-  s.reserve(stack.size() * sizeof(uint64_t) * 2);
+  base::Hash hash;
   for (size_t i = 0; i < stack.size(); i++) {
     uint32_t slice_idx = stack[i].first;
-    s.append(reinterpret_cast<const char*>(&slices.categories()[slice_idx]),
-             sizeof(slices.categories()[slice_idx]));
-    s.append(reinterpret_cast<const char*>(&slices.names()[slice_idx]),
-             sizeof(slices.names()[slice_idx]));
+    hash.Update(slices.category()[slice_idx]);
+    hash.Update(slices.name()[slice_idx]);
   }
-  constexpr uint64_t kMask = uint64_t(-1) >> 1;
-  return static_cast<int64_t>((std::hash<std::string>{}(s)) & kMask);
+  return static_cast<int64_t>(hash.digest());
 }
 
 }  // namespace trace_processor

@@ -442,19 +442,19 @@ util::Status ExportProcessNames(const TraceStorage* storage,
 util::Status ExportSlices(const TraceStorage* storage,
                           const ArgsBuilder& args_builder,
                           TraceFormatWriter* writer) {
-  const auto& slices = storage->nestable_slices();
-  for (uint32_t i = 0; i < slices.slice_count(); ++i) {
+  const auto& slices = storage->slice_table();
+  for (uint32_t i = 0; i < slices.size(); ++i) {
     Json::Value event;
-    event["ts"] = Json::Int64(slices.start_ns()[i] / 1000);
-    event["cat"] = GetNonNullString(storage, slices.categories()[i]);
-    event["name"] = GetNonNullString(storage, slices.names()[i]);
+    event["ts"] = Json::Int64(slices.ts()[i] / 1000);
+    event["cat"] = GetNonNullString(storage, slices.category()[i]);
+    event["name"] = GetNonNullString(storage, slices.name()[i]);
     event["pid"] = 0;
     event["tid"] = 0;
 
     int32_t legacy_tid = 0;
 
     event["args"] =
-        args_builder.GetArgs(slices.arg_set_ids()[i]);  // Makes a copy.
+        args_builder.GetArgs(slices.arg_set_id()[i]);  // Makes a copy.
     if (event["args"].isMember(kLegacyEventArgsKey)) {
       ConvertLegacyFlowEventArgs(event["args"][kLegacyEventArgsKey], &event);
 
@@ -489,7 +489,7 @@ util::Status ExportSlices(const TraceStorage* storage,
     const auto& thread_slices = storage->thread_slices();
     const auto& virtual_track_slices = storage->virtual_track_slices();
 
-    int64_t duration_ns = slices.durations()[i];
+    int64_t duration_ns = slices.dur()[i];
     int64_t thread_ts_ns = 0;
     int64_t thread_duration_ns = 0;
     int64_t thread_instruction_count = 0;
@@ -637,8 +637,7 @@ util::Status ExportSlices(const TraceStorage* storage,
         // write the end event in this case.
         if (duration_ns > 0) {
           event["ph"] = "e";
-          event["ts"] =
-              Json::Int64((slices.start_ns()[i] + duration_ns) / 1000);
+          event["ts"] = Json::Int64((slices.ts()[i] + duration_ns) / 1000);
           if (thread_ts_ns > 0) {
             event["tts"] =
                 Json::Int64((thread_ts_ns + thread_duration_ns) / 1000);
