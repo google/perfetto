@@ -199,9 +199,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
     TimestampedTracePiece ttp,
     const protos::pbzero::TracePacket::Decoder& packet) {
   // TODO(eseckler): Propagate statuses from modules.
-  if (!context_->ftrace_module->ParsePacket(packet, ttp).ignored())
-    return;
-
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (modules[field_id] && packet.Get(field_id).valid()) {
@@ -250,13 +247,8 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
                                          int64_t /*ts*/,
                                          TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
-
-  ModuleResult res = context_->ftrace_module->ParseFtracePacket(cpu, ttp);
-  PERFETTO_DCHECK(!res.ignored());
-  // TODO(eseckler): Propagate status.
-  if (!res.ok()) {
-    PERFETTO_ELOG("%s", res.message().c_str());
-  }
+  PERFETTO_DCHECK(context_->ftrace_module);
+  context_->ftrace_module->ParseFtracePacket(cpu, ttp);
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so

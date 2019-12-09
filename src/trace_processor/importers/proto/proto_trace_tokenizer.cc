@@ -282,17 +282,11 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     ParseInternedData(decoder, packet.slice(offset, field.size));
   }
 
-  ModuleResult res = ModuleResult::Ignored();
-  res = context_->ftrace_module->TokenizePacket(decoder, &packet, timestamp,
-                                                state);
-  if (!res.ignored())
-    return res.ToStatus();
-
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (modules[field_id] && decoder.Get(field_id).valid()) {
-      res = modules[field_id]->TokenizePacket(decoder, &packet, timestamp,
-                                              state, field_id);
+      ModuleResult res = modules[field_id]->TokenizePacket(
+          decoder, &packet, timestamp, state, field_id);
       if (!res.ignored())
         return res.ToStatus();
     }

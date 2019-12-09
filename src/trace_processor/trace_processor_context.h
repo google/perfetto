@@ -70,12 +70,11 @@ class TraceProcessorContext {
   std::unique_ptr<VulkanMemoryTracker> vulkan_memory_tracker;
   std::unique_ptr<BinderTracker> binder_tracker;
 
-  std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
-
   // The module at the index N is registered to handle field id N in
   // TracePacket.
   std::vector<NewProtoImporterModule*> modules_by_field;
   std::vector<std::unique_ptr<NewProtoImporterModule>> modules;
+  FtraceModule* ftrace_module;
 };
 
 }  // namespace trace_processor

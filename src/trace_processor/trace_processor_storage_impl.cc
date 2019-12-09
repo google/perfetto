@@ -68,8 +68,16 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
   context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
-  context_.ftrace_module.reset(
-      new ProtoImporterModule<FtraceModule>(&context_));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+  context_.modules.emplace_back(new FtraceModuleImpl(&context_));
+#else
+  context_.modules.emplace_back(new FtraceModule());
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+  // Ftrace module is special, because it has one extra method for parsing
+  // ftrace packets. So we need to store a pointer to it separately.
+  context_.ftrace_module =
+      static_cast<FtraceModule*>(context_.modules.back().get());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
   context_.modules.emplace_back(new HeapGraphModule(&context_));
