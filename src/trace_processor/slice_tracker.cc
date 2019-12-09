@@ -38,19 +38,6 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
 
 SliceTracker::~SliceTracker() = default;
 
-base::Optional<uint32_t> SliceTracker::BeginAndroid(int64_t timestamp,
-                                                    uint32_t ftrace_tid,
-                                                    uint32_t atrace_tgid,
-                                                    StringId category,
-                                                    StringId name) {
-  UniqueTid utid =
-      context_->process_tracker->UpdateThread(ftrace_tid, atrace_tgid);
-  ftrace_to_atrace_tgid_[ftrace_tid] = atrace_tgid;
-
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  return Begin(timestamp, track_id, utid, RefType::kRefUtid, category, name);
-}
-
 base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
                                              TrackId track_id,
                                              int64_t ref,
@@ -122,35 +109,6 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   }
   slices->set_stack_id(slice_idx, GetStackHash(*stack));
   return slice_idx;
-}
-
-base::Optional<uint32_t> SliceTracker::EndAndroid(int64_t timestamp,
-                                                  uint32_t ftrace_tid,
-                                                  uint32_t atrace_tgid) {
-  auto map_tgid_it = ftrace_to_atrace_tgid_.find(ftrace_tid);
-  bool has_map_tgid = map_tgid_it != ftrace_to_atrace_tgid_.end();
-
-  // atrace_tgid can be 0 in older android versions where the end event would
-  // not contain the value.
-  if (atrace_tgid == 0) {
-    if (!has_map_tgid) {
-      // This is possible if we start tracing after a begin slice.
-      PERFETTO_DLOG("Unknown tgid for ftrace tid %u", ftrace_tid);
-      return base::nullopt;
-    }
-  } else {
-    if (has_map_tgid && atrace_tgid != map_tgid_it->second) {
-      PERFETTO_DLOG("Mismatched atrace pid %u and looked up pid %u",
-                    atrace_tgid, map_tgid_it->second);
-      context_->storage->IncrementStats(stats::atrace_tgid_mismatch);
-    }
-  }
-
-  uint32_t actual_tgid = atrace_tgid == 0 ? map_tgid_it->second : atrace_tgid;
-  UniqueTid utid =
-      context_->process_tracker->UpdateThread(ftrace_tid, actual_tgid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  return End(timestamp, track_id);
 }
 
 // Returns the first incomplete slice in the stack with matching name and
