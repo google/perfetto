@@ -171,7 +171,7 @@ bool PrintStats() {
       fprintf(stderr, "Error stats for this trace:\n");
 
       for (uint32_t i = 0; i < it.ColumnCount(); i++)
-        fprintf(stderr, "%40s ", it.GetColumName(i).c_str());
+        fprintf(stderr, "%40s ", it.GetColumnName(i).c_str());
       fprintf(stderr, "\n");
 
       for (uint32_t i = 0; i < it.ColumnCount(); i++)
@@ -398,7 +398,7 @@ void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
       }
       for (uint32_t i = 0; i < it->ColumnCount(); i++)
         printf("%-*.*s ", column_width, column_width,
-               it->GetColumName(i).c_str());
+               it->GetColumnName(i).c_str());
       printf("\n");
 
       std::string divider(column_width, '-');
@@ -489,7 +489,7 @@ util::Status PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
     if (c > 0)
       fprintf(output, ",");
-    fprintf(output, "\"%s\"", it->GetColumName(c).c_str());
+    fprintf(output, "\"%s\"", it->GetColumnName(c).c_str());
   }
   fprintf(output, "\n");
 

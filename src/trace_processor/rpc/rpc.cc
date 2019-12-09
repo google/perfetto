@@ -190,7 +190,7 @@ std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
   // Write the column descriptors.
   for (uint32_t col_idx = 0; col_idx < it.ColumnCount(); ++col_idx) {
     auto* descriptor = result->add_column_descriptors();
-    std::string col_name = it.GetColumName(col_idx);
+    std::string col_name = it.GetColumnName(col_idx);
     descriptor->set_name(col_name.data(), col_name.size());
     descriptor->set_type(col_types[col_idx]);
   }
