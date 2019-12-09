@@ -60,7 +60,7 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
 
     // Returns the name of the column at index |col|. Can be called even before
     // calling |Next()|.
-    std::string GetColumName(uint32_t col);
+    std::string GetColumnName(uint32_t col);
 
     // Returns the number of columns in this iterator's query. Can be called
     // even before calling |Next()|.
