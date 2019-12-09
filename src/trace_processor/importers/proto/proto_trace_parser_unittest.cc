@@ -263,13 +263,12 @@ class ProtoTraceParserTest : public ::testing::Test {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.ftrace_module.reset(
         new ProtoImporterModule<FtraceModule>(&context_));
-    context_.system_probes_module.reset(
-        new ProtoImporterModule<SystemProbesModule>(&context_));
     context_.android_probes_module.reset(
         new ProtoImporterModule<AndroidProbesModule>(&context_));
     context_.heap_graph_module.reset(
         new ProtoImporterModule<HeapGraphModule>(&context_));
 
+    context_.modules.emplace_back(new SystemProbesModule(&context_));
     context_.modules.emplace_back(new TrackEventModule(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.modules.emplace_back(new GraphicsEventModule(&context_));
