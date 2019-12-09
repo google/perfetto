@@ -101,6 +101,7 @@ perfetto_cc_binary(
 perfetto_cc_library(
     name = "libprotozero",
     srcs = [
+        ":src_base_base",
         ":src_protozero_protozero",
     ],
     hdrs = [
