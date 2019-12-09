@@ -34,12 +34,6 @@ class SliceTracker {
   explicit SliceTracker(TraceProcessorContext*);
   virtual ~SliceTracker();
 
-  base::Optional<uint32_t> BeginAndroid(int64_t timestamp,
-                                        uint32_t ftrace_tid,
-                                        uint32_t atrace_tgid,
-                                        StringId category,
-                                        StringId name);
-
   // virtual for testing
   virtual base::Optional<uint32_t> Begin(
       int64_t timestamp,
@@ -60,10 +54,6 @@ class SliceTracker {
       StringId name,
       int64_t duration,
       SetArgsCallback args_callback = SetArgsCallback());
-
-  base::Optional<uint32_t> EndAndroid(int64_t timestamp,
-                                      uint32_t ftrace_tid,
-                                      uint32_t atrace_tgid);
 
   // virtual for testing
   virtual base::Optional<uint32_t> End(
@@ -101,7 +91,6 @@ class SliceTracker {
 
   TraceProcessorContext* const context_;
   StackMap stacks_;
-  std::unordered_map<uint32_t, uint32_t> ftrace_to_atrace_tgid_;
 };
 
 }  // namespace trace_processor
