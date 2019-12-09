@@ -20,12 +20,12 @@ import("../../gn/test.gni")
 source_set("protozero") {
   public_configs = [ "../../gn:default_config" ]
   public_deps = [
+    "../../include/perfetto/base",
     "../../include/perfetto/protozero",
   ]
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/base",  # TODO(primiano): remove this
+    "../base",
   ]
   sources = [
     "field.cc",
