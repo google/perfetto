@@ -29,44 +29,29 @@
 namespace perfetto {
 namespace trace_processor {
 
-class FtraceModule
-    : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)> {
+class FtraceModule : public ProtoImporterModule {
  public:
-  explicit FtraceModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context),
-        tokenizer_(context),
-        parser_(context) {}
+  virtual void ParseFtracePacket(uint32_t cpu,
+                                 const TimestampedTracePiece& ttp);
+};
+
+class FtraceModuleImpl : public FtraceModule {
+ public:
+  FtraceModuleImpl(TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
-      int64_t /*packet_timestamp*/,
-      PacketSequenceState* /*state*/) {
-    if (decoder.has_ftrace_events()) {
-      auto ftrace_field = decoder.ftrace_events();
-      const size_t fld_off = packet->offset_of(ftrace_field.data);
-      tokenizer_.TokenizeFtraceBundle(
-          packet->slice(fld_off, ftrace_field.size));
-      return ModuleResult::Handled();
-    }
-    return ModuleResult::Ignored();
-  }
+      int64_t packet_timestamp,
+      PacketSequenceState* state,
+      uint32_t field_id) override;
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                           const TimestampedTracePiece&) {
-    // TODO(eseckler): implement.
-    if (decoder.has_ftrace_stats()) {
-      parser_.ParseFtraceStats(decoder.ftrace_stats());
-      return ModuleResult::Handled();
-    }
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                   const TimestampedTracePiece&,
+                   uint32_t field_id) override;
 
-    return ModuleResult::Ignored();
-  }
-
-  ModuleResult ParseFtracePacket(uint32_t cpu,
-                                 const TimestampedTracePiece& ttp) {
-    return parser_.ParseFtraceEvent(cpu, ttp);
-  }
+  void ParseFtracePacket(uint32_t cpu,
+                         const TimestampedTracePiece& ttp) override;
 
  private:
   FtraceTokenizer tokenizer_;

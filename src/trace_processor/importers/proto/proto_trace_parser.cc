@@ -33,11 +33,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
-#include "src/trace_processor/importers/proto/android_probes_module.h"
-#include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -203,21 +199,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
     TimestampedTracePiece ttp,
     const protos::pbzero::TracePacket::Decoder& packet) {
   // TODO(eseckler): Propagate statuses from modules.
-  if (!context_->ftrace_module->ParsePacket(packet, ttp).ignored())
-    return;
-
-  if (!context_->track_event_module->ParsePacket(packet, ttp).ignored())
-    return;
-
-  if (!context_->system_probes_module->ParsePacket(packet, ttp).ignored())
-    return;
-
-  if (!context_->android_probes_module->ParsePacket(packet, ttp).ignored())
-    return;
-
-  if (!context_->heap_graph_module->ParsePacket(packet, ttp).ignored())
-    return;
-
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (modules[field_id] && packet.Get(field_id).valid()) {
@@ -266,13 +247,8 @@ void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
                                          int64_t /*ts*/,
                                          TimestampedTracePiece ttp) {
   PERFETTO_DCHECK(ttp.json_value == nullptr);
-
-  ModuleResult res = context_->ftrace_module->ParseFtracePacket(cpu, ttp);
-  PERFETTO_DCHECK(!res.ignored());
-  // TODO(eseckler): Propagate status.
-  if (!res.ok()) {
-    PERFETTO_ELOG("%s", res.message().c_str());
-  }
+  PERFETTO_DCHECK(context_->ftrace_module);
+  context_->ftrace_module->ParseFtracePacket(cpu, ttp);
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
@@ -605,8 +581,6 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
   protos::pbzero::TraceConfig::Decoder trace_config(blob.data, blob.size);
 
   // TODO(eseckler): Propagate statuses from modules.
-  context_->android_probes_module->ParseTraceConfig(trace_config);
-
   for (auto& module : context_->modules) {
     module->ParseTraceConfig(trace_config);
   }

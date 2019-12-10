@@ -261,17 +261,14 @@ class ProtoTraceParserTest : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
-    context_.ftrace_module.reset(
-        new ProtoImporterModule<FtraceModule>(&context_));
-    context_.track_event_module.reset(
-        new ProtoImporterModule<TrackEventModule>(&context_));
-    context_.system_probes_module.reset(
-        new ProtoImporterModule<SystemProbesModule>(&context_));
-    context_.android_probes_module.reset(
-        new ProtoImporterModule<AndroidProbesModule>(&context_));
-    context_.heap_graph_module.reset(
-        new ProtoImporterModule<HeapGraphModule>(&context_));
+    context_.modules.emplace_back(new FtraceModuleImpl(&context_));
+    context_.ftrace_module =
+        static_cast<FtraceModule*>(context_.modules.back().get());
 
+    context_.modules.emplace_back(new HeapGraphModule(&context_));
+    context_.modules.emplace_back(new AndroidProbesModule(&context_));
+    context_.modules.emplace_back(new SystemProbesModule(&context_));
+    context_.modules.emplace_back(new TrackEventModule(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.modules.emplace_back(new GraphicsEventModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
