@@ -19,7 +19,7 @@ import re
 import webapp2
 
 MEMCACHE_TTL_SEC = 60 * 60 * 24
-BASE = 'https://catapult-project.github.io/perfetto/%s'
+BASE = 'https://google.github.io/perfetto/%s'
 HEADERS = {
     'last-modified', 'content-type', 'content-length', 'content-encoding',
     'etag'
