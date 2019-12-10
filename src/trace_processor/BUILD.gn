@@ -77,6 +77,7 @@ source_set("storage") {
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
     "importers/ftrace/ftrace_descriptors.h",
+    "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
     "importers/ftrace/ftrace_parser.h",
     "importers/ftrace/ftrace_tokenizer.h",
@@ -102,6 +103,7 @@ source_set("storage") {
     "importers/proto/proto_trace_tokenizer.h",
     "importers/proto/system_probes_module.h",
     "importers/proto/system_probes_parser.h",
+    "importers/proto/track_event_module.cc",
     "importers/proto/track_event_module.h",
     "importers/proto/track_event_parser.cc",
     "importers/proto/track_event_parser.h",
@@ -177,6 +179,7 @@ source_set("storage") {
   if (enable_perfetto_trace_processor_ftrace) {
     sources += [
       "importers/ftrace/ftrace_descriptors.cc",
+      "importers/ftrace/ftrace_module_impl.cc",
       "importers/ftrace/ftrace_parser.cc",
       "importers/ftrace/ftrace_tokenizer.cc",
       "importers/ftrace/sched_event_tracker.cc",
@@ -189,11 +192,17 @@ source_set("storage") {
     sources += [ "ftrace_utils.cc" ]
   }
   if (enable_perfetto_trace_processor_system_probes) {
-    sources += [ "importers/proto/system_probes_parser.cc" ]
+    sources += [
+      "importers/proto/system_probes_module.cc",
+      "importers/proto/system_probes_parser.cc",
+    ]
     deps += [ "../../include/perfetto/ext/traced:sys_stats_counters" ]
   }
   if (enable_perfetto_trace_processor_android_probes) {
-    sources += [ "importers/proto/android_probes_parser.cc" ]
+    sources += [
+      "importers/proto/android_probes_module.cc",
+      "importers/proto/android_probes_parser.cc",
+    ]
   }
   if (enable_perfetto_trace_processor_heap_graphs) {
     sources += [

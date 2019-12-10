@@ -89,6 +89,29 @@ bool ForEachVarInt(const T& decoder, F fn) {
 
 }  // namespace
 
+using perfetto::protos::pbzero::TracePacket;
+
+HeapGraphModule::HeapGraphModule(TraceProcessorContext* context)
+    : context_(context) {
+  context_->heap_graph_tracker.reset(new HeapGraphTracker(context_));
+  RegisterForField(TracePacket::kHeapGraphFieldNumber, context);
+  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
+}
+
+void HeapGraphModule::ParsePacket(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    const TimestampedTracePiece& ttp,
+    uint32_t field_id) {
+  switch (field_id) {
+    case TracePacket::kHeapGraphFieldNumber:
+      ParseHeapGraph(ttp.timestamp, decoder.heap_graph());
+      return;
+    case TracePacket::kDeobfuscationMappingFieldNumber:
+      ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
+      return;
+  }
+}
+
 void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(

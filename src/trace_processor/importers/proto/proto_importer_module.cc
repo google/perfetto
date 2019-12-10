@@ -20,11 +20,11 @@
 namespace perfetto {
 namespace trace_processor {
 
-NewProtoImporterModule::NewProtoImporterModule() {}
+ProtoImporterModule::ProtoImporterModule() {}
 
-NewProtoImporterModule::~NewProtoImporterModule() {}
+ProtoImporterModule::~ProtoImporterModule() {}
 
-ModuleResult NewProtoImporterModule::TokenizePacket(
+ModuleResult ProtoImporterModule::TokenizePacket(
     const protos::pbzero::TracePacket_Decoder&,
     TraceBlobView* /*packet*/,
     int64_t /*packet_timestamp*/,
@@ -33,16 +33,16 @@ ModuleResult NewProtoImporterModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void NewProtoImporterModule::ParsePacket(
+void ProtoImporterModule::ParsePacket(
     const protos::pbzero::TracePacket_Decoder&,
     const TimestampedTracePiece&,
     uint32_t /*field_id*/) {}
 
-void NewProtoImporterModule::ParseTraceConfig(
+void ProtoImporterModule::ParseTraceConfig(
     const protos::pbzero::TraceConfig_Decoder&) {}
 
-void NewProtoImporterModule::RegisterForField(uint32_t field_id,
-                                              TraceProcessorContext* context) {
+void ProtoImporterModule::RegisterForField(uint32_t field_id,
+                                           TraceProcessorContext* context) {
   if (context->modules_by_field.size() <= field_id) {
     context->modules_by_field.resize(field_id + 1, nullptr);
   }

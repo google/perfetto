@@ -26,27 +26,22 @@
 namespace perfetto {
 namespace trace_processor {
 
-class AndroidProbesModule;
 class ArgsTracker;
 class BinderTracker;
 class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
 class FtraceModule;
-class GraphicsEventModule;
-class HeapGraphModule;
 class HeapGraphTracker;
 class HeapProfileTracker;
 class ProcessTracker;
 class SchedEventTracker;
 class SliceTracker;
 class SyscallTracker;
-class SystemProbesModule;
 class SystraceParser;
 class TraceParser;
 class TraceSorter;
 class TraceStorage;
-class TrackEventModule;
 class TrackTracker;
 class VulkanMemoryTracker;
 
@@ -75,17 +70,11 @@ class TraceProcessorContext {
   std::unique_ptr<VulkanMemoryTracker> vulkan_memory_tracker;
   std::unique_ptr<BinderTracker> binder_tracker;
 
-  std::unique_ptr<ProtoImporterModule<FtraceModule>> ftrace_module;
-  std::unique_ptr<ProtoImporterModule<TrackEventModule>> track_event_module;
-  std::unique_ptr<ProtoImporterModule<SystemProbesModule>> system_probes_module;
-  std::unique_ptr<ProtoImporterModule<AndroidProbesModule>>
-      android_probes_module;
-  std::unique_ptr<ProtoImporterModule<HeapGraphModule>> heap_graph_module;
-
   // The module at the index N is registered to handle field id N in
   // TracePacket.
-  std::vector<NewProtoImporterModule*> modules_by_field;
-  std::vector<std::unique_ptr<NewProtoImporterModule>> modules;
+  std::vector<ProtoImporterModule*> modules_by_field;
+  std::vector<std::unique_ptr<ProtoImporterModule>> modules;
+  FtraceModule* ftrace_module;
 };
 
 }  // namespace trace_processor
