@@ -117,6 +117,7 @@ message GpuCounterDescriptor {
     FAHRENHEIT = 35;
     KELVIN = 36;
 
+    // Values should be out of 100.
     PERCENT = 37;
 
     INSTRUCTION = 40;
