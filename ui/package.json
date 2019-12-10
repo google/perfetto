@@ -4,10 +4,6 @@
   "description": "Perfetto UI",
   "repository": "https://android.googlesource.com/platform/external/perfetto",
   "main": "main.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "lite-server --baseDir=dist"
-  },
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
@@ -37,7 +33,6 @@
     "@types/puppeteer": "^1.12.4",
     "dingusjs": "^0.0.3",
     "jest": "^23.6.0",
-    "lite-server": "^2.4.0",
     "node-sass": "^4.12.0",
     "puppeteer": "^1.16.0",
     "rollup": "^1.17.0",
