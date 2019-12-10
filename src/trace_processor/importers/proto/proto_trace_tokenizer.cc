@@ -32,7 +32,6 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
@@ -283,22 +282,11 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     ParseInternedData(decoder, packet.slice(offset, field.size));
   }
 
-  ModuleResult res = ModuleResult::Ignored();
-  res = context_->ftrace_module->TokenizePacket(decoder, &packet, timestamp,
-                                                state);
-  if (!res.ignored())
-    return res.ToStatus();
-
-  res = context_->track_event_module->TokenizePacket(decoder, &packet,
-                                                     timestamp, state);
-  if (!res.ignored())
-    return res.ToStatus();
-
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (modules[field_id] && decoder.Get(field_id).valid()) {
-      modules[field_id]->TokenizePacket(decoder, &packet, timestamp, state,
-                                        field_id);
+      ModuleResult res = modules[field_id]->TokenizePacket(
+          decoder, &packet, timestamp, state, field_id);
       if (!res.ignored())
         return res.ToStatus();
     }
