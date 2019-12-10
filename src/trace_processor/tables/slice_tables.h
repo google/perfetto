@@ -23,6 +23,23 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+#define PERFETTO_TP_SLICE_TABLE_DEF(NAME, PARENT, C) \
+  NAME(SliceTable, "internal_slice")                 \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
+  C(int64_t, ts, Column::Flag::kSorted)              \
+  C(int64_t, dur)                                    \
+  C(uint32_t, track_id)                              \
+  C(int64_t, ref)                                    \
+  C(StringPool::Id, ref_type)                        \
+  C(StringPool::Id, category)                        \
+  C(StringPool::Id, name)                            \
+  C(uint32_t, depth)                                 \
+  C(int64_t, stack_id)                               \
+  C(int64_t, parent_stack_id)                        \
+  C(uint32_t, arg_set_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
+
 #define PERFETTO_TP_GPU_SLICES_DEF(NAME, PARENT, C) \
   NAME(GpuSliceTable, "internal_gpu_slice")         \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                 \
