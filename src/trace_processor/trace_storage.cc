@@ -51,9 +51,9 @@ void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& column,
   *max_value = std::max(*max_value, column[column.row_map().size() - 1]);
 }
 
-std::vector<const char*> CreateRefTypeStringMap() {
-  std::vector<const char*> map(static_cast<size_t>(RefType::kRefMax));
-  map[static_cast<size_t>(RefType::kRefNoRef)] = nullptr;
+std::vector<NullTermStringView> CreateRefTypeStringMap() {
+  std::vector<NullTermStringView> map(static_cast<size_t>(RefType::kRefMax));
+  map[static_cast<size_t>(RefType::kRefNoRef)] = NullTermStringView();
   map[static_cast<size_t>(RefType::kRefUtid)] = "utid";
   map[static_cast<size_t>(RefType::kRefCpuId)] = "cpu";
   map[static_cast<size_t>(RefType::kRefGpuId)] = "gpu";
@@ -66,8 +66,8 @@ std::vector<const char*> CreateRefTypeStringMap() {
 
 }  // namespace
 
-const std::vector<const char*>& GetRefTypeStringMap() {
-  static const base::NoDestructor<std::vector<const char*>> map(
+const std::vector<NullTermStringView>& GetRefTypeStringMap() {
+  static const base::NoDestructor<std::vector<NullTermStringView>> map(
       CreateRefTypeStringMap());
   return map.ref();
 }
