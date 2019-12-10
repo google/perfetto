@@ -27,6 +27,15 @@
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+
+class GpuRenderStageEvent_Decoder;
+
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 class TraceProcessorContext;
@@ -57,7 +66,12 @@ class GraphicsEventParser {
   void UpdateVulkanMemoryAllocationCounters(UniquePid,
                                             const VulkanMemoryEvent::Decoder&);
 
+  void ParseVulkanApiEvent(ConstBytes);
+
  private:
+  const StringId GetFullStageName(
+      const protos::pbzero::GpuRenderStageEvent_Decoder& event);
+
   TraceProcessorContext* const context_;
   // For GpuCounterEvent
   std::unordered_map<uint32_t, TrackId> gpu_counter_track_ids_;
@@ -93,6 +107,8 @@ class GraphicsEventParser {
   const StringId tag_id_;
   const StringId log_message_id_;
   std::array<StringId, 7> log_severity_ids_;
+  // For Vulkan events.
+  std::unordered_map<uint64_t, ::protozero::ConstChars> debug_marker_names_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
