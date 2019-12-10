@@ -23,6 +23,6 @@ export interface CurrentSearchResults {
   tsStarts: Float64Array;
   utids: Float64Array;
   trackIds: string[];
-  refTypes: string[];
+  sources: string[];
   totalResults: number;
 }
