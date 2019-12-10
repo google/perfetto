@@ -98,7 +98,7 @@ enum class RefType {
   kRefMax
 };
 
-const std::vector<const char*>& GetRefTypeStringMap();
+const std::vector<NullTermStringView>& GetRefTypeStringMap();
 
 // Stores a data inside a trace file in a columnar form. This makes it efficient
 // to read or search across a single field of the trace (e.g. all the thread
