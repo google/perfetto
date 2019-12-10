@@ -426,13 +426,16 @@ class Column {
   // Slow path filter method which will perform a full table scan.
   void FilterIntoSlow(FilterOp op, SqlValue value, RowMap* rm) const;
 
-  // Slow path filter method for integers which will perform a full table scan.
+  // Slow path filter method for numerics which will perform a full table scan.
   template <typename T, bool is_nullable>
-  void FilterIntoLongSlow(FilterOp op, SqlValue value, RowMap* rm) const;
+  void FilterIntoNumericSlow(FilterOp op, SqlValue value, RowMap* rm) const;
 
-  // Slow path filter method for doubles which will perform a full table scan.
-  template <bool is_nullable>
-  void FilterIntoDoubleSlow(FilterOp op, SqlValue value, RowMap* rm) const;
+  // Slow path filter method for numerics with a comparator which will perform a
+  // full table scan.
+  template <typename T, bool is_nullable, typename Comparator = int(T)>
+  void FilterIntoNumericWithComparatorSlow(FilterOp op,
+                                           RowMap* rm,
+                                           Comparator cmp) const;
 
   // Slow path filter method for strings which will perform a full table scan.
   void FilterIntoStringSlow(FilterOp op, SqlValue value, RowMap* rm) const;
