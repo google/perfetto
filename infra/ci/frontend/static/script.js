@@ -130,7 +130,7 @@ function renderHeader() {
   const logUrl = 'https://goto.google.com/perfetto-ci-logs-';
   const docsUrl = 'https://docs.perfetto.dev/#/continuous-integration';
   return m('header',
-    m('h1', 'Perfetto ', m('span', 'CI')),
+    m('a[href=/#!/cls]', m('h1', 'Perfetto ', m('span', 'CI'))),
     m('nav',
       m(`div${active('cls')}`, m('a[href=/#!/cls]', 'CLs')),
       m(`div${active('jobs')}`, m('a[href=/#!/jobs]', 'Jobs')),
