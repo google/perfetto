@@ -22,6 +22,7 @@ perfetto_proto_library("@TYPE@") {
     "gpu_counter_event.proto",
     "gpu_log.proto",
     "gpu_render_stage_event.proto",
+    "vulkan_api_event.proto",
     "vulkan_memory_event.proto",
   ]
 }
