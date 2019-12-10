@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
@@ -357,6 +358,17 @@ void ProtoTraceParser::ParseProfilePacket(int64_t,
   for (auto it = packet.process_dumps(); it; ++it) {
     protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
 
+    auto maybe_timestamp = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE,
+        static_cast<int64_t>(entry.timestamp()));
+
+    if (!maybe_timestamp) {
+      context_->storage->IncrementStats(stats::clock_sync_failure);
+      continue;
+    }
+
+    int64_t timestamp = *maybe_timestamp;
+
     int pid = static_cast<int>(entry.pid());
 
     if (entry.buffer_corrupted())
@@ -374,7 +386,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t,
 
       HeapProfileTracker::SourceAllocation src_allocation;
       src_allocation.pid = entry.pid();
-      src_allocation.timestamp = static_cast<int64_t>(entry.timestamp());
+      src_allocation.timestamp = timestamp;
       src_allocation.callstack_id = sample.callstack_id();
       src_allocation.self_allocated = sample.self_allocated();
       src_allocation.self_freed = sample.self_freed();
