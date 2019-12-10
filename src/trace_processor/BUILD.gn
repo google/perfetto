@@ -276,8 +276,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "row_iterators.cc",
       "row_iterators.h",
       "sched_slice_table.h",
-      "slice_table.cc",
-      "slice_table.h",
       "span_join_operator_table.cc",
       "span_join_operator_table.h",
       "sql_stats_table.cc",

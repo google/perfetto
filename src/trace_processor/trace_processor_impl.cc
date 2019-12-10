@@ -32,7 +32,6 @@
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/raw_table.h"
 #include "src/trace_processor/sched_slice_table.h"
-#include "src/trace_processor/slice_table.h"
 #include "src/trace_processor/span_join_operator_table.h"
 #include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
@@ -178,6 +177,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "SELECT "
                "  *, "
                "  category AS cat, "
+               "  id AS slice_id, "
                "  CASE ref_type "
                "    WHEN 'utid' THEN ref "
                "    ELSE NULL "
@@ -193,7 +193,8 @@ void CreateBuiltinViews(sqlite3* db) {
                "CREATE VIEW gpu_slice AS "
                "SELECT "
                "* "
-               "FROM internal_gpu_slice join internal_slice using(slice_id);",
+               "FROM internal_gpu_slice join internal_slice "
+               "ON internal_gpu_slice.slice_id = internal_slice.id;",
                0, 0, &error);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
@@ -376,7 +377,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   SchedSliceTable::RegisterTable(*db_, context_.storage.get());
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  SliceTable::RegisterTable(*db_, context_.storage.get());
   SqlStatsTable::RegisterTable(*db_, context_.storage.get());
   ThreadTable::RegisterTable(*db_, context_.storage.get());
   SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
@@ -394,14 +394,17 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // New style db-backed tables.
   const TraceStorage* storage = context_.storage.get();
 
+  DbSqliteTable::RegisterTable(*db_, &storage->slice_table(),
+                               storage->slice_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->gpu_slice_table(),
+                               storage->gpu_slice_table().table_name());
+
   DbSqliteTable::RegisterTable(*db_, &storage->track_table(),
                                storage->track_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->thread_track_table(),
                                storage->thread_track_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->process_track_table(),
                                storage->process_track_table().table_name());
-  DbSqliteTable::RegisterTable(*db_, &storage->gpu_slice_table(),
-                               storage->gpu_slice_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->gpu_track_table(),
                                storage->gpu_track_table().table_name());
 
