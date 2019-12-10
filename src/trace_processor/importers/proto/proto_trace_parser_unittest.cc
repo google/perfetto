@@ -261,13 +261,24 @@ class ProtoTraceParserTest : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.modules.emplace_back(new FtraceModuleImpl(&context_));
+#else
+    context_.modules.emplace_back(new FtraceModule());
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.ftrace_module =
         static_cast<FtraceModule*>(context_.modules.back().get());
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
     context_.modules.emplace_back(new HeapGraphModule(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
     context_.modules.emplace_back(new AndroidProbesModule(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
     context_.modules.emplace_back(new SystemProbesModule(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
     context_.modules.emplace_back(new TrackEventModule(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
     context_.modules.emplace_back(new GraphicsEventModule(&context_));
