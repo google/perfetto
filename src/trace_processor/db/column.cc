@@ -21,6 +21,35 @@
 namespace perfetto {
 namespace trace_processor {
 
+namespace {
+
+// This code mathces the behaviour of sqlite3IntFloatCompare to ensure that
+// we are consistent with SQLite.
+int CompareIntToDouble(int64_t i, double d) {
+  // First check if we are out of range for a int64_t. We use the constants
+  // directly instead of using numeric_limits as the casts introduces rounding
+  // in the doubles as a double cannot exactly represent int64::max().
+  if (d >= 9223372036854775808.0)
+    return -1;
+  if (d < -9223372036854775808.0)
+    return 1;
+
+  // Then, try to compare in int64 space to try and keep as much precision as
+  // possible.
+  int64_t d_i = static_cast<int64_t>(d);
+  if (i < d_i)
+    return -1;
+  if (i > d_i)
+    return 1;
+
+  // Finally, try and compare in double space, sacrificing precision if
+  // necessary.
+  double i_d = static_cast<double>(i);
+  return (i_d < d) ? -1 : (i_d > d ? 1 : 0);
+}
+
+}  // namespace
+
 Column::Column(const Column& column,
                Table* table,
                uint32_t col_idx,
@@ -66,33 +95,33 @@ void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* rm) const {
   switch (type_) {
     case ColumnType::kInt32: {
       if (IsNullable()) {
-        FilterIntoLongSlow<int32_t, true /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<int32_t, true /* is_nullable */>(op, value, rm);
       } else {
-        FilterIntoLongSlow<int32_t, false /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<int32_t, false /* is_nullable */>(op, value, rm);
       }
       break;
     }
     case ColumnType::kUint32: {
       if (IsNullable()) {
-        FilterIntoLongSlow<uint32_t, true /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<uint32_t, true /* is_nullable */>(op, value, rm);
       } else {
-        FilterIntoLongSlow<uint32_t, false /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<uint32_t, false /* is_nullable */>(op, value, rm);
       }
       break;
     }
     case ColumnType::kInt64: {
       if (IsNullable()) {
-        FilterIntoLongSlow<int64_t, true /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<int64_t, true /* is_nullable */>(op, value, rm);
       } else {
-        FilterIntoLongSlow<int64_t, false /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<int64_t, false /* is_nullable */>(op, value, rm);
       }
       break;
     }
     case ColumnType::kDouble: {
       if (IsNullable()) {
-        FilterIntoDoubleSlow<true /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<double, true /* is_nullable */>(op, value, rm);
       } else {
-        FilterIntoDoubleSlow<false /* is_nullable */>(op, value, rm);
+        FilterIntoNumericSlow<double, false /* is_nullable */>(op, value, rm);
       }
       break;
     }
@@ -108,9 +137,12 @@ void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* rm) const {
 }
 
 template <typename T, bool is_nullable>
-void Column::FilterIntoLongSlow(FilterOp op, SqlValue value, RowMap* rm) const {
+void Column::FilterIntoNumericSlow(FilterOp op,
+                                   SqlValue value,
+                                   RowMap* rm) const {
   PERFETTO_DCHECK(IsNullable() == is_nullable);
   PERFETTO_DCHECK(type_ == ToColumnType<T>());
+  PERFETTO_DCHECK(std::is_arithmetic<T>::value);
 
   if (op == FilterOp::kIsNull) {
     PERFETTO_DCHECK(value.is_null());
@@ -132,165 +164,101 @@ void Column::FilterIntoLongSlow(FilterOp op, SqlValue value, RowMap* rm) const {
     return;
   }
 
-  if (value.type != SqlValue::Type::kLong) {
+  if (value.type == SqlValue::Type::kDouble) {
+    double double_value = value.double_value;
+    if (std::is_same<T, double>::value) {
+      auto fn = [double_value](T v) {
+        return v < double_value ? -1 : (v > double_value ? 1 : 0);
+      };
+      FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
+    } else {
+      auto fn = [double_value](T v) {
+        // We static cast here as this code will be compiled even when T ==
+        // double as we don't have if constexpr in C++11. In reality the cast is
+        // a noop but we cannot statically verify that for the compiler.
+        return CompareIntToDouble(static_cast<int64_t>(v), double_value);
+      };
+      FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
+    }
+  } else if (value.type == SqlValue::Type::kLong) {
+    int64_t long_value = value.long_value;
+    if (std::is_same<T, double>::value) {
+      auto fn = [long_value](T v) {
+        // We negate the return value as the long is always the first parameter
+        // for this function even though the LHS of the comparator should
+        // actually be |v|. This saves us having a duplicate implementation of
+        // the comparision function.
+        return -CompareIntToDouble(long_value, v);
+      };
+      FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
+    } else {
+      auto fn = [long_value](T v) {
+        return v < long_value ? -1 : (v > long_value ? 1 : 0);
+      };
+      FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
+    }
+  } else {
     rm->Intersect(RowMap());
-    return;
-  }
-
-  int64_t long_value = value.long_value;
-  switch (op) {
-    case FilterOp::kLt:
-      row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-        if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
-          return opt_value && *opt_value < long_value;
-        }
-        return sparse_vector<T>().GetNonNull(idx) < long_value;
-      });
-      break;
-    case FilterOp::kEq:
-      row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-        if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
-          return opt_value && opt_value == long_value;
-        }
-        return sparse_vector<T>().GetNonNull(idx) == long_value;
-      });
-      break;
-    case FilterOp::kGt:
-      row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-        if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
-          return opt_value && opt_value > long_value;
-        }
-        return sparse_vector<T>().GetNonNull(idx) > long_value;
-      });
-      break;
-    case FilterOp::kNe:
-      row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-        if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
-          return opt_value && opt_value != long_value;
-        }
-        return sparse_vector<T>().GetNonNull(idx) != long_value;
-      });
-      break;
-    case FilterOp::kLe:
-      row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-        if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
-          return opt_value && opt_value <= long_value;
-        }
-        return sparse_vector<T>().GetNonNull(idx) <= long_value;
-      });
-      break;
-    case FilterOp::kGe:
-      row_map().FilterInto(rm, [this, long_value](uint32_t idx) {
-        if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
-          return opt_value && opt_value >= long_value;
-        }
-        return sparse_vector<T>().GetNonNull(idx) >= long_value;
-      });
-      break;
-    case FilterOp::kLike:
-      rm->Intersect(RowMap());
-      break;
-    case FilterOp::kIsNull:
-    case FilterOp::kIsNotNull:
-      PERFETTO_FATAL("Should be handled above");
   }
 }
 
-template <bool is_nullable>
-void Column::FilterIntoDoubleSlow(FilterOp op,
-                                  SqlValue value,
-                                  RowMap* rm) const {
-  PERFETTO_DCHECK(IsNullable() == is_nullable);
-  PERFETTO_DCHECK(type_ == ColumnType::kDouble);
-
-  if (op == FilterOp::kIsNull) {
-    PERFETTO_DCHECK(value.is_null());
-    if (is_nullable) {
-      row_map().FilterInto(rm, [this](uint32_t row) {
-        return !sparse_vector<double>().Get(row).has_value();
-      });
-    } else {
-      rm->Intersect(RowMap());
-    }
-    return;
-  } else if (op == FilterOp::kIsNotNull) {
-    PERFETTO_DCHECK(value.is_null());
-    if (is_nullable) {
-      row_map().FilterInto(rm, [this](uint32_t row) {
-        return sparse_vector<double>().Get(row).has_value();
-      });
-    }
-    return;
-  }
-
-  if (value.type != SqlValue::Type::kDouble) {
-    rm->Intersect(RowMap());
-    return;
-  }
-
-  double double_value = value.double_value;
+template <typename T, bool is_nullable, typename Comparator>
+void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
+                                                 RowMap* rm,
+                                                 Comparator cmp) const {
   switch (op) {
     case FilterOp::kLt:
-      row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+      row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<double>().Get(idx);
-          return opt_value && opt_value < double_value;
+          auto opt_value = sparse_vector<T>().Get(idx);
+          return opt_value && cmp(*opt_value) < 0;
         }
-        return sparse_vector<double>().GetNonNull(idx) < double_value;
+        return cmp(sparse_vector<T>().GetNonNull(idx)) < 0;
       });
       break;
     case FilterOp::kEq:
-      row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+      row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<double>().Get(idx);
-          return opt_value && std::equal_to<double>()(*opt_value, double_value);
+          auto opt_value = sparse_vector<T>().Get(idx);
+          return opt_value && cmp(*opt_value) == 0;
         }
-        auto v = sparse_vector<double>().GetNonNull(idx);
-        return std::equal_to<double>()(v, double_value);
+        return cmp(sparse_vector<T>().GetNonNull(idx)) == 0;
       });
       break;
     case FilterOp::kGt:
-      row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+      row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<double>().Get(idx);
-          return opt_value && opt_value > double_value;
+          auto opt_value = sparse_vector<T>().Get(idx);
+          return opt_value && cmp(*opt_value) > 0;
         }
-        return sparse_vector<double>().GetNonNull(idx) > double_value;
+        return cmp(sparse_vector<T>().GetNonNull(idx)) > 0;
       });
       break;
     case FilterOp::kNe:
-      row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+      row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<double>().Get(idx);
-          return opt_value &&
-                 std::not_equal_to<double>()(*opt_value, double_value);
+          auto opt_value = sparse_vector<T>().Get(idx);
+          return opt_value && cmp(*opt_value) != 0;
         }
-        auto v = sparse_vector<double>().GetNonNull(idx);
-        return std::not_equal_to<double>()(v, double_value);
+        return cmp(sparse_vector<T>().GetNonNull(idx)) != 0;
       });
       break;
     case FilterOp::kLe:
-      row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+      row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<double>().Get(idx);
-          return opt_value && opt_value <= double_value;
+          auto opt_value = sparse_vector<T>().Get(idx);
+          return opt_value && cmp(*opt_value) <= 0;
         }
-        return sparse_vector<double>().GetNonNull(idx) <= double_value;
+        return cmp(sparse_vector<T>().GetNonNull(idx)) <= 0;
       });
       break;
     case FilterOp::kGe:
-      row_map().FilterInto(rm, [this, double_value](uint32_t idx) {
+      row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<double>().Get(idx);
-          return opt_value && opt_value >= double_value;
+          auto opt_value = sparse_vector<T>().Get(idx);
+          return opt_value && cmp(*opt_value) >= 0;
         }
-        return sparse_vector<double>().GetNonNull(idx) >= double_value;
+        return cmp(sparse_vector<T>().GetNonNull(idx)) >= 0;
       });
       break;
     case FilterOp::kLike:
