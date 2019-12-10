@@ -26,7 +26,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TrackEventModule : public NewProtoImporterModule {
+class TrackEventModule : public ProtoImporterModule {
  public:
   explicit TrackEventModule(TraceProcessorContext* context);
 

@@ -26,7 +26,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class SystemProbesModule : public NewProtoImporterModule {
+class SystemProbesModule : public ProtoImporterModule {
  public:
   explicit SystemProbesModule(TraceProcessorContext* context);
 

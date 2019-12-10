@@ -27,7 +27,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class HeapGraphModule : public NewProtoImporterModule {
+class HeapGraphModule : public ProtoImporterModule {
  public:
   explicit HeapGraphModule(TraceProcessorContext* context);
 

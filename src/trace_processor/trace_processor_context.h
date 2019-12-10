@@ -72,8 +72,8 @@ class TraceProcessorContext {
 
   // The module at the index N is registered to handle field id N in
   // TracePacket.
-  std::vector<NewProtoImporterModule*> modules_by_field;
-  std::vector<std::unique_ptr<NewProtoImporterModule>> modules;
+  std::vector<ProtoImporterModule*> modules_by_field;
+  std::vector<std::unique_ptr<ProtoImporterModule>> modules;
   FtraceModule* ftrace_module;
 };
 

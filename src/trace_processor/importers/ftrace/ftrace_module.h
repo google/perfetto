@@ -29,7 +29,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class FtraceModule : public NewProtoImporterModule {
+class FtraceModule : public ProtoImporterModule {
  public:
   virtual void ParseFtracePacket(uint32_t cpu,
                                  const TimestampedTracePiece& ttp);

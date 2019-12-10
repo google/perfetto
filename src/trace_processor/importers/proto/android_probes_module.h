@@ -28,7 +28,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class AndroidProbesModule : public NewProtoImporterModule {
+class AndroidProbesModule : public ProtoImporterModule {
  public:
   explicit AndroidProbesModule(TraceProcessorContext* context);
 
