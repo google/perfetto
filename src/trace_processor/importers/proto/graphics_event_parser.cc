@@ -352,7 +352,7 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
         if (present_slice_id_end) {
           // The slice could have had additional buffers in it, so we need to
           // update the name.
-          context_->storage->mutable_nestable_slices()->set_name(
+          context_->storage->mutable_slice_table()->mutable_name()->Set(
               present_slice_id_end.value(),
               context_->storage->InternString(
                   present_frame_name_.GetStringView()));

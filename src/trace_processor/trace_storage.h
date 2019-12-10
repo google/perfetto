@@ -324,78 +324,6 @@ class TraceStorage {
     std::deque<std::vector<uint32_t>> rows_for_utids_;
   };
 
-  class NestableSlices {
-   public:
-    inline uint32_t AddSlice(int64_t start_ns,
-                             int64_t duration_ns,
-                             TrackId track_id,
-                             int64_t ref,
-                             RefType type,
-                             StringId category,
-                             StringId name,
-                             uint8_t depth,
-                             int64_t stack_id,
-                             int64_t parent_stack_id) {
-      start_ns_.emplace_back(start_ns);
-      durations_.emplace_back(duration_ns);
-      track_id_.emplace_back(track_id);
-      refs_.emplace_back(ref);
-      types_.emplace_back(type);
-      categories_.emplace_back(category);
-      names_.emplace_back(name);
-      depths_.emplace_back(depth);
-      stack_ids_.emplace_back(stack_id);
-      parent_stack_ids_.emplace_back(parent_stack_id);
-      arg_set_ids_.emplace_back(kInvalidArgSetId);
-      return slice_count() - 1;
-    }
-
-    void set_name(uint32_t index, StringId name) { names_[index] = name; }
-
-    void set_duration(uint32_t index, int64_t duration_ns) {
-      durations_[index] = duration_ns;
-    }
-
-    void set_stack_id(uint32_t index, int64_t stack_id) {
-      stack_ids_[index] = stack_id;
-    }
-
-    void set_arg_set_id(uint32_t index, ArgSetId id) {
-      arg_set_ids_[index] = id;
-    }
-
-    uint32_t slice_count() const {
-      return static_cast<uint32_t>(start_ns_.size());
-    }
-
-    const std::deque<int64_t>& start_ns() const { return start_ns_; }
-    const std::deque<int64_t>& durations() const { return durations_; }
-    const std::deque<TrackId>& track_id() const { return track_id_; }
-    const std::deque<int64_t>& refs() const { return refs_; }
-    const std::deque<RefType>& types() const { return types_; }
-    const std::deque<StringId>& categories() const { return categories_; }
-    const std::deque<StringId>& names() const { return names_; }
-    const std::deque<uint8_t>& depths() const { return depths_; }
-    const std::deque<int64_t>& stack_ids() const { return stack_ids_; }
-    const std::deque<int64_t>& parent_stack_ids() const {
-      return parent_stack_ids_;
-    }
-    const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
-
-   private:
-    std::deque<int64_t> start_ns_;
-    std::deque<int64_t> durations_;
-    std::deque<TrackId> track_id_;
-    std::deque<int64_t> refs_;
-    std::deque<RefType> types_;
-    std::deque<StringId> categories_;
-    std::deque<StringId> names_;
-    std::deque<uint8_t> depths_;
-    std::deque<int64_t> stack_ids_;
-    std::deque<int64_t> parent_stack_ids_;
-    std::deque<ArgSetId> arg_set_ids_;
-  };
-
   class ThreadSlices {
    public:
     inline uint32_t AddThreadSlice(uint32_t slice_id,
@@ -1115,8 +1043,8 @@ class TraceStorage {
   const Slices& slices() const { return slices_; }
   Slices* mutable_slices() { return &slices_; }
 
-  const NestableSlices& nestable_slices() const { return nestable_slices_; }
-  NestableSlices* mutable_nestable_slices() { return &nestable_slices_; }
+  const tables::SliceTable& slice_table() const { return slice_table_; }
+  tables::SliceTable* mutable_slice_table() { return &slice_table_; }
 
   const ThreadSlices& thread_slices() const { return thread_slices_; }
   ThreadSlices* mutable_thread_slices() { return &thread_slices_; }
@@ -1304,7 +1232,7 @@ class TraceStorage {
   std::deque<Thread> unique_threads_;
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
-  NestableSlices nestable_slices_;
+  tables::SliceTable slice_table_{&string_pool_, nullptr};
 
   // Additional attributes for threads slices (sub-type of NestableSlices).
   ThreadSlices thread_slices_;
