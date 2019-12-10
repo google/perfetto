@@ -27,7 +27,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class GraphicsEventModule : public NewProtoImporterModule {
+class GraphicsEventModule : public ProtoImporterModule {
  public:
   explicit GraphicsEventModule(TraceProcessorContext* context);
 

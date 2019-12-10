@@ -20,43 +20,19 @@
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class SystemProbesModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
-                               PERFETTO_TP_SYSTEM_PROBES)> {
+class SystemProbesModule : public ProtoImporterModule {
  public:
-  explicit SystemProbesModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context), parser_(context) {}
+  explicit SystemProbesModule(TraceProcessorContext* context);
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                           const TimestampedTracePiece& ttp) {
-    if (decoder.has_process_tree()) {
-      parser_.ParseProcessTree(decoder.process_tree());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_process_stats()) {
-      parser_.ParseProcessStats(ttp.timestamp, decoder.process_stats());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_sys_stats()) {
-      parser_.ParseSysStats(ttp.timestamp, decoder.sys_stats());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_system_info()) {
-      parser_.ParseSystemInfo(decoder.system_info());
-      return ModuleResult::Handled();
-    }
-
-    return ModuleResult::Ignored();
-  }
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                   const TimestampedTracePiece& ttp,
+                   uint32_t field_id) override;
 
  private:
   SystemProbesParser parser_;
