@@ -327,7 +327,7 @@ template <typename Id>
 class StringVectorAccessor : public Accessor<NullTermStringView> {
  public:
   StringVectorAccessor(const std::deque<Id>* deque,
-                       const std::vector<const char*>* string_map)
+                       const std::vector<NullTermStringView>* string_map)
       : deque_(deque), string_map_(string_map) {}
   ~StringVectorAccessor() override = default;
 
@@ -336,13 +336,12 @@ class StringVectorAccessor : public Accessor<NullTermStringView> {
   }
 
   NullTermStringView Get(uint32_t idx) const override {
-    const char* ptr = (*string_map_)[static_cast<size_t>((*deque_)[idx])];
-    return ptr ? NullTermStringView(ptr) : NullTermStringView();
+    return (*string_map_)[static_cast<size_t>((*deque_)[idx])];
   }
 
  private:
   const std::deque<Id>* deque_;
-  const std::vector<const char*>* string_map_;
+  const std::vector<NullTermStringView>* string_map_;
 };
 
 // An accessor implementation for numeric columns which uses a deque as the
