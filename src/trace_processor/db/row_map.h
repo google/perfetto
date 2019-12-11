@@ -534,7 +534,8 @@ class RowMap {
   void InsertIntoBitVector(uint32_t row) {
     PERFETTO_DCHECK(mode_ == Mode::kBitVector);
 
-    bit_vector_.Resize(row + 1, false);
+    if (row >= bit_vector_.size())
+      bit_vector_.Resize(row + 1, false);
     bit_vector_.Set(row);
   }
 

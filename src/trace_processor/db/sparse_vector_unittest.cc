@@ -47,8 +47,11 @@ TEST(SparseVector, Set) {
   sv.Set(0, 15);
   sv.Set(3, 30);
 
-  ASSERT_EQ(sv.Get(0), base::Optional<int64_t>(15));
-  ASSERT_EQ(sv.Get(3), base::Optional<int64_t>(30));
+  ASSERT_EQ(*sv.Get(0), 15);
+  ASSERT_EQ(*sv.Get(1), 20);
+  ASSERT_EQ(sv.Get(2), base::nullopt);
+  ASSERT_EQ(*sv.Get(3), 30);
+  ASSERT_EQ(*sv.Get(4), 40);
 }
 
 TEST(SparseVector, SetNonNull) {
