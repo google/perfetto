@@ -127,7 +127,7 @@ TracingSession::TracingSession(base::TaskRunner* task_runner,
       callback_(callback),
       callback_arg_(callback_arg) {
   PERFETTO_DETACH_FROM_THREAD(thread_checker_);
-  trace_config_.FromProto(trace_config_proto);
+  trace_config_ = trace_config_proto;
   trace_config_.set_write_into_file(true);
 
   // TODO(primiano): this really doesn't matter because the trace will be
