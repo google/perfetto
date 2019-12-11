@@ -125,6 +125,12 @@ if (perfetto_build_standalone) {
   ]
 }
 
+# The CTS code is built (but not ran) also in standalone builds. This is to
+# catch refactoring breakages earlier without having to wait for treehugger.
+if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
+  all_targets += [ "test/cts:perfetto_cts_deps" ]
+}
+
 group("all") {
   testonly = true  # allow to build also test targets
   deps = all_targets
@@ -194,7 +200,7 @@ if (!build_with_chromium) {
   # on how to use the Perfetto Client API from the android tree.
   static_library("libperfetto_client_experimental") {
     complete_static_lib = true
-    deps = [
+    public_deps = [
       "gn:default_deps",
       "src/tracing",
       "src/tracing:client_api",
