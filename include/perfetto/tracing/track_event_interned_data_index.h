@@ -20,6 +20,7 @@
 #include "perfetto/tracing/internal/track_event_internal.h"
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/tracing/event_context.h"
 
 #include <map>
 #include <type_traits>
