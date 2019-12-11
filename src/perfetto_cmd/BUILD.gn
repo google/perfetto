@@ -136,8 +136,7 @@ perfetto_unittest_source_set("unittests") {
     "../../include/perfetto/ext/base",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
-    "../../protos/perfetto/trace:lite",
-    "../protozero",
+    "../../protos/perfetto/trace:cpp",
     "../tracing",
   ]
   sources = [

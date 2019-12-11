@@ -27,7 +27,10 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
-#include "protos/perfetto/config/profiling/heapprofd_config.pb.h"
+#include "protos/perfetto/config/profiling/heapprofd_config.gen.h"
+#include "protos/perfetto/trace/profiling/profile_common.gen.h"
+#include "protos/perfetto/trace/profiling/profile_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 namespace {
@@ -41,8 +44,7 @@ constexpr uint64_t kExpectedIndividualAllocSz = 4153;
 static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
               "kTestSamplingInterval invalid");
 
-
-std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
+std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -67,7 +69,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   ds_config->set_name("android.heapprofd");
   ds_config->set_target_buffer(0);
 
-  protos::HeapprofdConfig heapprofd_config;
+  protos::gen::HeapprofdConfig heapprofd_config;
   heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
   heapprofd_config.add_process_cmdline(app_name.c_str());
   heapprofd_config.set_block_client(true);
@@ -83,7 +85,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   return helper.trace();
 }
 
-std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
+std::vector<protos::gen::TracePacket> ProfileStartup(std::string app_name) {
   base::TestTaskRunner task_runner;
 
   if (IsAppRunning(app_name)) {
@@ -104,7 +106,7 @@ std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
   ds_config->set_name("android.heapprofd");
   ds_config->set_target_buffer(0);
 
-  protos::HeapprofdConfig heapprofd_config;
+  protos::gen::HeapprofdConfig heapprofd_config;
   heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
   heapprofd_config.add_process_cmdline(app_name.c_str());
   heapprofd_config.set_block_client(true);
@@ -127,7 +129,7 @@ std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
 }
 
 void AssertExpectedAllocationsPresent(
-    std::vector<protos::TracePacket> packets) {
+    std::vector<protos::gen::TracePacket> packets) {
   ASSERT_GT(packets.size(), 0u);
 
   // TODO(rsavitski): assert particular stack frames once we clarify the
@@ -152,7 +154,7 @@ void AssertExpectedAllocationsPresent(
   ASSERT_TRUE(found_alloc);
 }
 
-void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
+void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
   // If profile packets are present, they must be empty.
   for (const auto& packet : packets) {
     ASSERT_EQ(packet.profile_packet().process_dumps_size(), 0);

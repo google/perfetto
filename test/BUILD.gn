@@ -29,8 +29,10 @@ source_set("end_to_end_integrationtests") {
     "../protos/perfetto/config:cpp",
     "../protos/perfetto/config:zero",
     "../protos/perfetto/config/power:zero",
-    "../protos/perfetto/trace:lite",
+    "../protos/perfetto/trace:cpp",
     "../protos/perfetto/trace:zero",
+    "../protos/perfetto/trace/ftrace:cpp",
+    "../protos/perfetto/trace/power:cpp",
     "../src/base:base",
     "../src/base:test_support",
     "../src/traced/probes/ftrace",
@@ -130,6 +132,7 @@ source_set("task_runner_thread_delegates") {
 source_set("test_helper") {
   testonly = true
   public_deps = [
+    "../protos/perfetto/trace:cpp",
     "../src/tracing:ipc",
   ]
   deps = [
@@ -137,7 +140,6 @@ source_set("test_helper") {
     ":task_runner_thread_delegates",
     "../gn:default_deps",
     "../include/perfetto/ext/traced",
-    "../protos/perfetto/trace:lite",
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
   ]
@@ -162,7 +164,7 @@ if (enable_perfetto_benchmarks) {
       "../gn:gtest_and_gmock",
       "../include/perfetto/ext/traced",
       "../protos/perfetto/config:cpp",
-      "../protos/perfetto/trace:lite",
+      "../protos/perfetto/trace:cpp",
       "../protos/perfetto/trace:zero",
       "../src/base:test_support",
     ]

@@ -26,7 +26,7 @@
 #include "test/fake_producer.h"
 #include "test/task_runner_thread.h"
 
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 
@@ -81,7 +81,7 @@ class TestHelper : public Consumer {
 
   TaskRunnerThread* service_thread() { return &service_thread_; }
   TaskRunnerThread* producer_thread() { return &producer_thread_; }
-  const std::vector<protos::TracePacket>& trace() { return trace_; }
+  const std::vector<protos::gen::TracePacket>& trace() { return trace_; }
 
  private:
   static uint64_t next_instance_num_;
@@ -95,7 +95,7 @@ class TestHelper : public Consumer {
   std::function<void()> on_detach_callback_;
   std::function<void(bool)> on_attach_callback_;
 
-  std::vector<protos::TracePacket> trace_;
+  std::vector<protos::gen::TracePacket> trace_;
 
   TaskRunnerThread service_thread_;
   TaskRunnerThread producer_thread_;
