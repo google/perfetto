@@ -26,12 +26,15 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
-#include "protos/perfetto/config/profiling/java_hprof_config.pb.h"
+#include "protos/perfetto/config/profiling/java_hprof_config.gen.h"
+#include "protos/perfetto/trace/profiling/heap_graph.gen.h"
+#include "protos/perfetto/trace/profiling/profile_common.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 namespace {
 
-std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
+std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -59,7 +62,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   ds_config->set_name("android.java_hprof");
   ds_config->set_target_buffer(0);
 
-  protos::JavaHprofConfig java_hprof_config;
+  protos::gen::JavaHprofConfig java_hprof_config;
   java_hprof_config.add_process_cmdline(app_name.c_str());
   ds_config->set_java_hprof_config_raw(java_hprof_config.SerializeAsString());
 
@@ -73,7 +76,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
   return helper.trace();
 }
 
-void AssertGraphPresent(std::vector<protos::TracePacket> packets) {
+void AssertGraphPresent(std::vector<protos::gen::TracePacket> packets) {
   ASSERT_GT(packets.size(), 0u);
 
   size_t objects = 0;
@@ -86,7 +89,7 @@ void AssertGraphPresent(std::vector<protos::TracePacket> packets) {
   ASSERT_GT(roots, 0u);
 }
 
-void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
+void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
   // If profile packets are present, they must be empty.
   for (const auto& packet : packets) {
     ASSERT_EQ(packet.heap_graph().roots_size(), 0);

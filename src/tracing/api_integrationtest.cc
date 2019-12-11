@@ -24,14 +24,6 @@
 #include <vector>
 
 #include "perfetto/tracing.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/test_event.pbzero.h"
-#include "protos/perfetto/trace/trace.pb.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
-#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
-#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "test/gtest_and_gmock.h"
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
@@ -44,6 +36,29 @@
 
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
+
+// xxx.pbzero.h includes are for the writing path (the code that pretends to be
+// production code).
+// yyy.gen.h includes are for the test readback path (the code in the test that
+// checks that the results are valid).
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/interned_data/interned_data.gen.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.gen.h"
+#include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
+#include "protos/perfetto/trace/track_event/log_message.gen.h"
+#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
+#include "protos/perfetto/trace/track_event/process_descriptor.gen.h"
+#include "protos/perfetto/trace/track_event/source_location.gen.h"
+#include "protos/perfetto/trace/track_event/source_location.pbzero.h"
+#include "protos/perfetto/trace/track_event/thread_descriptor.gen.h"
+#include "protos/perfetto/trace/track_event/track_event.gen.h"
 
 // Trace categories used in the tests.
 PERFETTO_DEFINE_CATEGORIES(PERFETTO_CATEGORY(test),
@@ -267,10 +282,10 @@ class PerfettoApiTest : public ::testing::Test {
     // Read back the trace, maintaining interning tables as we go.
     std::vector<std::string> log_messages;
     std::map<uint64_t, std::string> log_message_bodies;
-    std::map<uint64_t, perfetto::protos::SourceLocation> source_locations;
-    perfetto::protos::Trace parsed_trace;
+    std::map<uint64_t, perfetto::protos::gen::SourceLocation> source_locations;
+    perfetto::protos::gen::Trace parsed_trace;
     EXPECT_TRUE(
-        parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+        parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
     for (const auto& packet : parsed_trace.packet()) {
       if (!packet.has_track_event())
@@ -291,7 +306,8 @@ class PerfettoApiTest : public ::testing::Test {
         }
       }
       const auto& track_event = packet.track_event();
-      if (track_event.type() != perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN)
+      if (track_event.type() !=
+          perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN)
         continue;
 
       EXPECT_TRUE(track_event.has_log_message());
@@ -322,9 +338,9 @@ class PerfettoApiTest : public ::testing::Test {
     std::map<uint64_t, std::string> categories;
     std::map<uint64_t, std::string> event_names;
     std::map<uint64_t, std::string> debug_annotation_names;
-    perfetto::protos::Trace parsed_trace;
+    perfetto::protos::gen::Trace parsed_trace;
     EXPECT_TRUE(
-        parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+        parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
     bool incremental_state_was_cleared = false;
     uint32_t sequence_id = 0;
@@ -366,20 +382,20 @@ class PerfettoApiTest : public ::testing::Test {
       const auto& track_event = packet.track_event();
       std::string slice;
       switch (track_event.type()) {
-        case perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN:
+        case perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN:
           slice += "B";
           break;
-        case perfetto::protos::TrackEvent::TYPE_SLICE_END:
+        case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
           slice += "E";
           break;
-        case perfetto::protos::TrackEvent::TYPE_INSTANT:
+        case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
           slice += "I";
           break;
         default:
-        case perfetto::protos::TrackEvent::TYPE_UNSPECIFIED:
+        case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
           EXPECT_FALSE(track_event.type());
       }
-      slice += ":" + categories[track_event.category_iids().Get(0)] + "." +
+      slice += ":" + categories[track_event.category_iids()[0]] + "." +
                event_names[track_event.name_iid()];
 
       if (track_event.debug_annotations_size()) {
@@ -533,10 +549,10 @@ TEST_F(PerfettoApiTest, TrackEvent) {
   ASSERT_GE(raw_trace.size(), 0u);
 
   // Read back the trace, maintaining interning tables as we go.
-  perfetto::protos::Trace trace;
+  perfetto::protos::gen::Trace trace;
   std::map<uint64_t, std::string> categories;
   std::map<uint64_t, std::string> event_names;
-  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
   bool incremental_state_was_cleared = false;
   bool begin_found = false;
@@ -601,19 +617,20 @@ TEST_F(PerfettoApiTest, TrackEvent) {
         perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
     EXPECT_EQ(packet.timestamp_clock_id(), kClockMonotonic);
 #endif
-    EXPECT_EQ(track_event.category_iids().size(), 1);
-    EXPECT_GE(track_event.category_iids().Get(0), 1u);
+    EXPECT_EQ(track_event.category_iids().size(), 1u);
+    EXPECT_GE(track_event.category_iids()[0], 1u);
 
-    if (track_event.type() == perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN) {
+    if (track_event.type() ==
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
       EXPECT_FALSE(begin_found);
-      EXPECT_EQ("test", categories[track_event.category_iids().Get(0)]);
+      EXPECT_EQ("test", categories[track_event.category_iids()[0]]);
       EXPECT_EQ("TestEvent", event_names[track_event.name_iid()]);
       begin_found = true;
     } else if (track_event.type() ==
-               perfetto::protos::TrackEvent::TYPE_SLICE_END) {
+               perfetto::protos::gen::TrackEvent::TYPE_SLICE_END) {
       EXPECT_FALSE(end_found);
       EXPECT_EQ(0u, track_event.name_iid());
-      EXPECT_EQ("test", categories[track_event.category_iids().Get(0)]);
+      EXPECT_EQ("test", categories[track_event.category_iids()[0]]);
       end_found = true;
     }
   }
@@ -734,9 +751,8 @@ TEST_F(PerfettoApiTest, TrackEventCategoriesWithModule) {
   EXPECT_THAT(trace, HasSubstr("FooEventFromModule2"));
   EXPECT_THAT(trace, Not(HasSubstr("DisabledEventFromModule2")));
 
-  perfetto::protos::Trace parsed_trace;
-  ASSERT_TRUE(
-      parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
   uint32_t sequence_id = 0;
   for (const auto& packet : parsed_trace.packet()) {
@@ -841,16 +857,16 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgs) {
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
   std::string trace(raw_trace.data(), raw_trace.size());
 
-  perfetto::protos::Trace parsed_trace;
-  ASSERT_TRUE(
-      parsed_trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
   bool found_args = false;
   for (const auto& packet : parsed_trace.packet()) {
     if (!packet.has_track_event())
       continue;
     const auto& track_event = packet.track_event();
-    if (track_event.type() != perfetto::protos::TrackEvent::TYPE_SLICE_BEGIN)
+    if (track_event.type() !=
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN)
       continue;
 
     EXPECT_TRUE(track_event.has_log_message());
@@ -858,7 +874,7 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgs) {
     EXPECT_EQ(1u, log.source_location_iid());
     EXPECT_EQ(2u, log.body_iid());
 
-    const auto& dbg = track_event.debug_annotations().Get(0);
+    const auto& dbg = track_event.debug_annotations()[0];
     EXPECT_EQ("random", dbg.name());
     EXPECT_EQ(random_value, dbg.int_value());
 
@@ -1378,8 +1394,8 @@ TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
   ASSERT_GE(raw_trace.size(), 0u);
 
-  perfetto::protos::Trace trace;
-  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
   bool test_packet_found = false;
   for (const auto& packet : trace.packet()) {
     if (!packet.has_for_testing())
@@ -1489,8 +1505,8 @@ TEST_F(PerfettoApiTest, WriteEventsAfterDeferredStop) {
   // Check the contents of the trace.
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
   ASSERT_GE(raw_trace.size(), 0u);
-  perfetto::protos::Trace trace;
-  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
   int test_packet_found = 0;
   for (const auto& packet : trace.packet()) {
     if (!packet.has_for_testing())
@@ -1666,8 +1682,8 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
   ASSERT_GE(raw_trace.size(), 0u);
 
-  perfetto::protos::Trace trace;
-  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), int(raw_trace.size())));
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
   int packets_found = 0;
   for (const auto& packet : trace.packet()) {
     if (!packet.has_for_testing())

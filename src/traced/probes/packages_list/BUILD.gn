@@ -39,7 +39,7 @@ perfetto_unittest_source_set("unittests") {
     ":packages_list",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/android:lite",
+    "../../../../protos/perfetto/trace/android:cpp",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../../src/base:test_support",
     "../../../../src/tracing:test_support",

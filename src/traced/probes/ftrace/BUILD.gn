@@ -47,12 +47,15 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":format_parser",
     ":ftrace",
+    ":test_messages_cpp",
     ":test_messages_lite",
     ":test_messages_zero",
     ":test_support",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/ftrace:lite",
+    "../../../../protos/perfetto/trace:cpp",
+    "../../../../protos/perfetto/trace/ftrace:cpp",
+    "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../base:test_support",
     "../../../tracing:test_support",
   ]
@@ -71,6 +74,7 @@ perfetto_unittest_source_set("unittests") {
 
 perfetto_proto_library("test_messages_@TYPE@") {
   proto_generators = [
+    "cpp",
     "lite",
     "zero",
   ]
@@ -89,7 +93,6 @@ source_set("integrationtests") {
     ":test_support",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/ftrace:lite",
     "../../../base",
     "../../../tracing",
   ]
