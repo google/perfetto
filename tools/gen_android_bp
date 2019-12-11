@@ -61,6 +61,7 @@ default_targets = [
     '//src/profiling/perf:traced_perf',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
+    '//test/cts:perfetto_cts_deps',
 ]
 
 # Host targets
@@ -169,8 +170,9 @@ additional_args = {
 }
 
 
-def enable_gmock(module):
+def enable_gtest_and_gmock(module):
   module.static_libs.add('libgmock')
+  module.static_libs.add('libgtest')
 
 
 def enable_protobuf_full(module):
@@ -224,7 +226,7 @@ builtin_deps = {
     '//gn:default_deps': lambda x: None,
     '//gn:gtest_main': lambda x: None,
     '//gn:protoc': lambda x: None,
-    '//gn:gtest_and_gmock': enable_gmock,
+    '//gn:gtest_and_gmock': enable_gtest_and_gmock,
     '//gn:libunwind': enable_libunwind,
     '//gn:protobuf_full': enable_protobuf_full,
     '//gn:protobuf_lite': enable_protobuf_lite,
