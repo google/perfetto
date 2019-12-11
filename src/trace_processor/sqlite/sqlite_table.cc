@@ -80,6 +80,8 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
     return ret;
 
   BestIndexInfo info;
+  info.estimated_cost = idx->estimatedCost;
+  info.estimated_rows = idx->estimatedRows;
   info.sqlite_omit_constraint.resize(qc.constraints().size());
 
   ret = BestIndex(qc, &info);
