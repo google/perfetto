@@ -28,8 +28,9 @@
 #include "src/tracing/test/fake_producer_endpoint.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -146,7 +147,7 @@ class StartupTraceWriterTest : public AlignedBufferTest {
       EXPECT_EQ(static_cast<uid_t>(1),
                 sequence_properties.producer_uid_trusted);
 
-      protos::TracePacket parsed_packet;
+      protos::gen::TracePacket parsed_packet;
       bool res = parsed_packet.ParseFromString(packet.GetRawBytesForTesting());
       EXPECT_TRUE(res);
       if (!res)

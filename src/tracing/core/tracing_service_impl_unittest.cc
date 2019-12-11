@@ -36,10 +36,12 @@
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
-#include "protos/perfetto/trace/trace.pb.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trigger.gen.h"
 
 using ::testing::_;
 using ::testing::AssertionFailure;
@@ -68,15 +70,16 @@ constexpr size_t kDefaultShmPageSizeKb =
 constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
 
 AssertionResult HasTriggerModeInternal(
-    const std::vector<protos::TracePacket>& packets,
-    protos::TraceConfig::TriggerConfig::TriggerMode mode) {
+    const std::vector<protos::gen::TracePacket>& packets,
+    protos::gen::TraceConfig::TriggerConfig::TriggerMode mode) {
   StringMatchResultListener matcher_result_string;
   bool contains = ExplainMatchResult(
       Contains(Property(
-          &protos::TracePacket::trace_config,
-          Property(&protos::TraceConfig::trigger_config,
-                   Property(&protos::TraceConfig::TriggerConfig::trigger_mode,
-                            Eq(mode))))),
+          &protos::gen::TracePacket::trace_config,
+          Property(
+              &protos::gen::TraceConfig::trigger_config,
+              Property(&protos::gen::TraceConfig::TriggerConfig::trigger_mode,
+                       Eq(mode))))),
       packets, &matcher_result_string);
   if (contains) {
     return AssertionSuccess();
@@ -330,7 +333,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerDeferredStart) {
 
   EXPECT_THAT(
       consumer->ReadBuffers(),
-      HasTriggerMode(protos::TraceConfig::TriggerConfig::START_TRACING));
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
 }
 
 // Creates a tracing session with a START_TRACING trigger and checks that the
@@ -466,7 +469,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerCorrectProducer) {
   consumer->WaitForTracingDisabled();
   EXPECT_THAT(
       consumer->ReadBuffers(),
-      HasTriggerMode(protos::TraceConfig::TriggerConfig::START_TRACING));
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
 }
 
 // Creates a tracing session with a START_TRACING trigger and checks that the
@@ -557,7 +560,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerMultipleTriggers) {
   consumer->WaitForTracingDisabled();
   EXPECT_THAT(
       consumer->ReadBuffers(),
-      HasTriggerMode(protos::TraceConfig::TriggerConfig::START_TRACING));
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
 }
 
 // Creates two tracing sessions with a START_TRACING trigger and checks that
@@ -686,10 +689,10 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerMultipleTraces) {
   EXPECT_TRUE(flushed_writer_2);
   EXPECT_THAT(
       consumer_1->ReadBuffers(),
-      HasTriggerMode(protos::TraceConfig::TriggerConfig::START_TRACING));
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
   EXPECT_THAT(
       consumer_2->ReadBuffers(),
-      HasTriggerMode(protos::TraceConfig::TriggerConfig::START_TRACING));
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::START_TRACING));
 }
 
 // Creates a tracing session with a START_TRACING trigger and checks that the
@@ -741,21 +744,21 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStartTracingTrigger) {
   EXPECT_THAT(
       packets,
       Contains(Property(
-          &protos::TracePacket::trace_config,
+          &protos::gen::TracePacket::trace_config,
           Property(
-              &protos::TraceConfig::trigger_config,
-              Property(
-                  &protos::TraceConfig::TriggerConfig::trigger_mode,
-                  Eq(protos::TraceConfig::TriggerConfig::START_TRACING))))));
+              &protos::gen::TraceConfig::trigger_config,
+              Property(&protos::gen::TraceConfig::TriggerConfig::trigger_mode,
+                       Eq(protos::gen::TraceConfig::TriggerConfig::
+                              START_TRACING))))));
   auto expect_received_trigger = [&](const std::string& name) {
     return Contains(AllOf(
-        Property(
-            &protos::TracePacket::trigger,
-            AllOf(Property(&protos::Trigger::trigger_name, Eq(name)),
-                  Property(&protos::Trigger::trusted_producer_uid, Eq(123)),
-                  Property(&protos::Trigger::producer_name,
-                           Eq("mock_producer")))),
-        Property(&protos::TracePacket::trusted_packet_sequence_id,
+        Property(&protos::gen::TracePacket::trigger,
+                 AllOf(Property(&protos::gen::Trigger::trigger_name, Eq(name)),
+                       Property(&protos::gen::Trigger::trusted_producer_uid,
+                                Eq(123)),
+                       Property(&protos::gen::Trigger::producer_name,
+                                Eq("mock_producer")))),
+        Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                  Eq(kServicePacketSequenceID))));
   };
   EXPECT_THAT(packets, expect_received_trigger("trigger_name"));
@@ -816,22 +819,22 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStopTracingTrigger) {
   EXPECT_THAT(
       packets,
       Contains(Property(
-          &protos::TracePacket::trace_config,
+          &protos::gen::TracePacket::trace_config,
           Property(
-              &protos::TraceConfig::trigger_config,
-              Property(
-                  &protos::TraceConfig::TriggerConfig::trigger_mode,
-                  Eq(protos::TraceConfig::TriggerConfig::STOP_TRACING))))));
+              &protos::gen::TraceConfig::trigger_config,
+              Property(&protos::gen::TraceConfig::TriggerConfig::trigger_mode,
+                       Eq(protos::gen::TraceConfig::TriggerConfig::
+                              STOP_TRACING))))));
 
   auto expect_received_trigger = [&](const std::string& name) {
     return Contains(AllOf(
-        Property(
-            &protos::TracePacket::trigger,
-            AllOf(Property(&protos::Trigger::trigger_name, Eq(name)),
-                  Property(&protos::Trigger::trusted_producer_uid, Eq(321)),
-                  Property(&protos::Trigger::producer_name,
-                           Eq("mock_producer")))),
-        Property(&protos::TracePacket::trusted_packet_sequence_id,
+        Property(&protos::gen::TracePacket::trigger,
+                 AllOf(Property(&protos::gen::Trigger::trigger_name, Eq(name)),
+                       Property(&protos::gen::Trigger::trusted_producer_uid,
+                                Eq(321)),
+                       Property(&protos::gen::Trigger::producer_name,
+                                Eq("mock_producer")))),
+        Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                  Eq(kServicePacketSequenceID))));
   };
   EXPECT_THAT(packets, expect_received_trigger("trigger_name"));
@@ -868,13 +871,13 @@ TEST_F(TracingServiceImplTest, EmitTriggersRepeatedly) {
   trigger_config->set_trigger_timeout_ms(30000);
 
   auto expect_received_trigger = [&](const std::string& name) {
-    return Contains(
-        AllOf(Property(&protos::TracePacket::trigger,
-                       AllOf(Property(&protos::Trigger::trigger_name, Eq(name)),
-                             Property(&protos::Trigger::producer_name,
-                                      Eq("mock_producer")))),
-              Property(&protos::TracePacket::trusted_packet_sequence_id,
-                       Eq(kServicePacketSequenceID))));
+    return Contains(AllOf(
+        Property(&protos::gen::TracePacket::trigger,
+                 AllOf(Property(&protos::gen::Trigger::trigger_name, Eq(name)),
+                       Property(&protos::gen::Trigger::producer_name,
+                                Eq("mock_producer")))),
+        Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
+                 Eq(kServicePacketSequenceID))));
   };
 
   consumer->EnableTracing(trace_config);
@@ -890,12 +893,12 @@ TEST_F(TracingServiceImplTest, EmitTriggersRepeatedly) {
   EXPECT_THAT(
       packets,
       Contains(Property(
-          &protos::TracePacket::trace_config,
+          &protos::gen::TracePacket::trace_config,
           Property(
-              &protos::TraceConfig::trigger_config,
-              Property(
-                  &protos::TraceConfig::TriggerConfig::trigger_mode,
-                  Eq(protos::TraceConfig::TriggerConfig::STOP_TRACING))))));
+              &protos::gen::TraceConfig::trigger_config,
+              Property(&protos::gen::TraceConfig::TriggerConfig::trigger_mode,
+                       Eq(protos::gen::TraceConfig::TriggerConfig::
+                              STOP_TRACING))))));
   EXPECT_THAT(packets, expect_received_trigger("trigger_name"));
   EXPECT_THAT(packets, Not(expect_received_trigger("trigger_name_2")));
 
@@ -1041,21 +1044,24 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerRingBuffer) {
   // We expect for the TraceConfig preamble packet to be there correctly and
   // then we expect each payload to be there, but not the |large_payload|
   // packet.
-  EXPECT_THAT(packets,
-              HasTriggerMode(protos::TraceConfig::TriggerConfig::STOP_TRACING));
+  EXPECT_THAT(
+      packets,
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
   for (size_t i = 0; i < kNumTestPackets; i++) {
     std::string payload = kPayload;
     payload += std::to_string(i);
-    EXPECT_THAT(packets, Contains(Property(
-                             &protos::TracePacket::for_testing,
-                             Property(&protos::TestEvent::str, Eq(payload)))));
+    EXPECT_THAT(packets,
+                Contains(Property(
+                    &protos::gen::TracePacket::for_testing,
+                    Property(&protos::gen::TestEvent::str, Eq(payload)))));
   }
 
   // The large payload was overwritten before we trigger and ReadBuffers so it
   // should not be in the returned data.
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq(large_payload))))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq(large_payload))))));
 }
 
 // Creates a tracing session with a STOP_TRACING trigger and checks that the
@@ -1111,8 +1117,9 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerMultipleTriggers) {
 
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
-  EXPECT_THAT(consumer->ReadBuffers(),
-              HasTriggerMode(protos::TraceConfig::TriggerConfig::STOP_TRACING));
+  EXPECT_THAT(
+      consumer->ReadBuffers(),
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
 }
 
 TEST_F(TracingServiceImplTest, LockdownMode) {
@@ -1382,12 +1389,13 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   // Verify the contents of the file.
   std::string trace_raw;
   ASSERT_TRUE(base::ReadFile(tmp_file.path().c_str(), &trace_raw));
-  protos::Trace trace;
+  protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_raw));
 
   ASSERT_EQ(trace.packet_size(), kNumPreamblePackets + kNumTestPackets);
-  for (int i = 0; i < kNumTestPackets; i++) {
-    const protos::TracePacket& tp = trace.packet(kNumPreamblePackets + i);
+  for (size_t i = 0; i < kNumTestPackets; i++) {
+    const protos::gen::TracePacket& tp =
+        trace.packet()[kNumPreamblePackets + i];
     ASSERT_EQ(kPayload + std::to_string(i++), tp.for_testing().str());
   }
 }
@@ -1499,10 +1507,10 @@ TEST_F(TracingServiceImplTest, ExplicitFlush) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
-  EXPECT_THAT(
-      consumer->ReadBuffers(),
-      Contains(Property(&protos::TracePacket::for_testing,
-                        Property(&protos::TestEvent::str, Eq("payload")))));
+  EXPECT_THAT(consumer->ReadBuffers(),
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload")))));
 }
 
 TEST_F(TracingServiceImplTest, ImplicitFlushOnTimedTraces) {
@@ -1536,10 +1544,10 @@ TEST_F(TracingServiceImplTest, ImplicitFlushOnTimedTraces) {
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 
-  EXPECT_THAT(
-      consumer->ReadBuffers(),
-      Contains(Property(&protos::TracePacket::for_testing,
-                        Property(&protos::TestEvent::str, Eq("payload")))));
+  EXPECT_THAT(consumer->ReadBuffers(),
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload")))));
 }
 
 // Tests the monotonic semantic of flush request IDs, i.e., once a producer
@@ -1599,10 +1607,10 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
-  EXPECT_THAT(
-      consumer->ReadBuffers(),
-      Contains(Property(&protos::TracePacket::for_testing,
-                        Property(&protos::TestEvent::str, Eq("payload")))));
+  EXPECT_THAT(consumer->ReadBuffers(),
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload")))));
 }
 
 TEST_F(TracingServiceImplTest, PeriodicFlush) {
@@ -1653,8 +1661,8 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
   auto trace_packets = consumer->ReadBuffers();
   for (int i = 0; i < kNumFlushes; i++) {
     EXPECT_THAT(trace_packets,
-                Contains(Property(&protos::TracePacket::for_testing,
-                                  Property(&protos::TestEvent::str,
+                Contains(Property(&protos::gen::TracePacket::for_testing,
+                                  Property(&protos::gen::TestEvent::str,
                                            Eq("f_" + std::to_string(i))))));
   }
 }
@@ -1999,21 +2007,25 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
   size_t num_markers = 0;
   size_t start = 0;
   size_t end = 0;
-  protos::Trace merged_trace;
+  std::string merged_trace_raw;
   for (size_t pos = 0; pos != std::string::npos; start = end) {
     pos = trace_raw.find(kSyncMarkerStr, pos + 1);
     num_markers++;
     end = (pos == std::string::npos) ? trace_raw.size() : pos + kMarkerSize;
-    int size = static_cast<int>(end - start);
-    ASSERT_GT(size, 0);
-    protos::Trace trace_partition;
-    ASSERT_TRUE(trace_partition.ParseFromArray(trace_raw.data() + start, size));
-    merged_trace.MergeFrom(trace_partition);
+    size_t size = end - start;
+    ASSERT_GT(size, 0u);
+    std::string trace_partition_raw = trace_raw.substr(start, size);
+    protos::gen::Trace trace_partition;
+    ASSERT_TRUE(trace_partition.ParseFromString(trace_partition_raw));
+    merged_trace_raw += trace_partition_raw;
   }
   EXPECT_GE(num_markers, static_cast<size_t>(kNumMarkers));
 
-  protos::Trace whole_trace;
+  protos::gen::Trace whole_trace;
   ASSERT_TRUE(whole_trace.ParseFromString(trace_raw));
+
+  protos::gen::Trace merged_trace;
+  merged_trace.ParseFromString(merged_trace_raw);
 
   ASSERT_EQ(whole_trace.packet_size(), merged_trace.packet_size());
   EXPECT_EQ(whole_trace.SerializeAsString(), merged_trace.SerializeAsString());
@@ -2114,38 +2126,43 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
   EXPECT_THAT(
       packets,
       Contains(AllOf(
-          Property(&protos::TracePacket::for_testing,
-                   Property(&protos::TestEvent::str, Eq("payload1a1"))),
-          Property(&protos::TracePacket::trusted_uid, Eq(123)),
-          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(2u)))));
+          Property(&protos::gen::TracePacket::for_testing,
+                   Property(&protos::gen::TestEvent::str, Eq("payload1a1"))),
+          Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
+                   Eq(2u)))));
   EXPECT_THAT(
       packets,
       Contains(AllOf(
-          Property(&protos::TracePacket::for_testing,
-                   Property(&protos::TestEvent::str, Eq("payload1a2"))),
-          Property(&protos::TracePacket::trusted_uid, Eq(123)),
-          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(2u)))));
+          Property(&protos::gen::TracePacket::for_testing,
+                   Property(&protos::gen::TestEvent::str, Eq("payload1a2"))),
+          Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
+                   Eq(2u)))));
   EXPECT_THAT(
       packets,
       Contains(AllOf(
-          Property(&protos::TracePacket::for_testing,
-                   Property(&protos::TestEvent::str, Eq("payload1b1"))),
-          Property(&protos::TracePacket::trusted_uid, Eq(123)),
-          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(3u)))));
+          Property(&protos::gen::TracePacket::for_testing,
+                   Property(&protos::gen::TestEvent::str, Eq("payload1b1"))),
+          Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
+                   Eq(3u)))));
   EXPECT_THAT(
       packets,
       Contains(AllOf(
-          Property(&protos::TracePacket::for_testing,
-                   Property(&protos::TestEvent::str, Eq("payload1b2"))),
-          Property(&protos::TracePacket::trusted_uid, Eq(123)),
-          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(3u)))));
+          Property(&protos::gen::TracePacket::for_testing,
+                   Property(&protos::gen::TestEvent::str, Eq("payload1b2"))),
+          Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
+                   Eq(3u)))));
   EXPECT_THAT(
       packets,
       Contains(AllOf(
-          Property(&protos::TracePacket::for_testing,
-                   Property(&protos::TestEvent::str, Eq("payload2a1"))),
-          Property(&protos::TracePacket::trusted_uid, Eq(456)),
-          Property(&protos::TracePacket::trusted_packet_sequence_id, Eq(4u)))));
+          Property(&protos::gen::TracePacket::for_testing,
+                   Property(&protos::gen::TestEvent::str, Eq("payload2a1"))),
+          Property(&protos::gen::TracePacket::trusted_uid, Eq(456)),
+          Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
+                   Eq(4u)))));
 }
 
 TEST_F(TracingServiceImplTest, AllowedBuffers) {
@@ -2288,12 +2305,13 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   consumer->WaitForTracingDisabled();
 
   auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(&protos::TracePacket::for_testing,
-                                         Property(&protos::TestEvent::str,
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
                                                   Eq("good_payload")))));
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("bad_payload"))))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("bad_payload"))))));
 
   consumer->FreeBuffers();
   EXPECT_EQ(std::set<BufferID>(), GetAllowedTargetBuffers(producer_id));
@@ -2356,9 +2374,9 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
   consumer->WaitForTracingDisabled();
 
   auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload")))));
 }
 
 TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
@@ -2404,15 +2422,16 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   // Chunk with the packets should have been scraped. The service can't know
   // whether the last packet was completed, so shouldn't read it.
   auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload1")))));
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload2")))));
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload1")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload2")))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
 
   // Write some more packets.
   writer->NewTracePacket()->set_for_testing()->set_str("payload4");
@@ -2427,21 +2446,24 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   // original one. Again, the last packet should be ignored and the first two
   // should not be read twice.
   packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("payload1"))))));
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("payload2"))))));
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload3")))));
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload4")))));
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("payload5"))))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload1"))))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload2"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload3")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload4")))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload5"))))));
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
@@ -2549,15 +2571,16 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   // Chunk with the packets should have been scraped. The service can't know
   // whether the last packet was completed, so shouldn't read it.
   auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload1")))));
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload2")))));
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload1")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload2")))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
 
   // Cleanup writer without causing a crash because the producer already went
   // away.
@@ -2611,15 +2634,16 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
   // Chunk with the packets should have been scraped. The service can't know
   // whether the last packet was completed, so shouldn't read it.
   auto packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload1")))));
-  EXPECT_THAT(packets, Contains(Property(
-                           &protos::TracePacket::for_testing,
-                           Property(&protos::TestEvent::str, Eq("payload2")))));
-  EXPECT_THAT(packets, Not(Contains(Property(&protos::TracePacket::for_testing,
-                                             Property(&protos::TestEvent::str,
-                                                      Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload1")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload2")))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
 }
 
 TEST_F(TracingServiceImplTest, AbortIfTraceDurationIsTooLong) {

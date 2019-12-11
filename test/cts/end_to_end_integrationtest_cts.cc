@@ -23,7 +23,8 @@
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/test_config.gen.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 

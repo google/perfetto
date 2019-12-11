@@ -40,10 +40,8 @@ perfetto_unittest_source_set("unittests") {
     ":sys_stats",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/common:zero",
-    "../../../../protos/perfetto/config:zero",
-    "../../../../protos/perfetto/config/sys_stats:zero",
-    "../../../../protos/perfetto/trace/sys_stats:zero",
+    "../../../../protos/perfetto/config/sys_stats:cpp",
+    "../../../../protos/perfetto/trace/sys_stats:cpp",
     "../../../../src/base:test_support",
     "../../../../src/tracing:test_support",
   ]

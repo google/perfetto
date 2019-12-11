@@ -217,6 +217,9 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
       local_enums.push_back(enum_desc);
   };
 
+  for (int i = 0; i < file->enum_type_count(); i++)
+    add_enum(file->enum_type(i));
+
   std::stack<const Descriptor*> recursion_stack;
   for (int i = 0; i < file->message_type_count(); i++)
     recursion_stack.push(file->message_type(i));
@@ -557,17 +560,6 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
   p->Print("std::string SerializeAsString() const override;\n");
   p->Print("std::vector<uint8_t> SerializeAsArray() const override;\n");
   p->Print("void Serialize(::protozero::Message*) const;\n");
-
-  p->Print("// (DEPRECATED) Conversion methods from/to libprotobuf types.\n");
-  p->Print("// These two will go away soon, see go/perfetto-libprotobuf.\n");
-  p->Print(
-      "template <typename T /*$p$*/> void FromProto(const T& pb_obj) { "
-      "ParseFromString(pb_obj.SerializeAsString()); }\n",
-      "p", proto_type);
-  p->Print(
-      "template <typename T /*$p$*/> void ToProto(T* pb_obj) const { "
-      "pb_obj->Clear(); pb_obj->ParseFromString(SerializeAsString()); }\n",
-      "p", proto_type);
 
   // Generate accessors.
   for (int i = 0; i < msg->field_count(); i++) {

@@ -30,9 +30,9 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using testing::_;
@@ -49,7 +49,6 @@ using testing::Return;
 using testing::UnorderedElementsAre;
 
 using Table = perfetto::ProtoTranslationTable;
-using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
 
 namespace perfetto {
 
@@ -535,8 +534,8 @@ TEST(FtraceStatsTest, Write) {
     stats.Write(out);
   }
 
-  protos::TracePacket result_packet = writer->GetOnlyTracePacket();
-  auto result = result_packet.ftrace_stats().cpu_stats(0);
+  protos::gen::TracePacket result_packet = writer->GetOnlyTracePacket();
+  auto result = result_packet.ftrace_stats().cpu_stats()[0];
   EXPECT_EQ(result.cpu(), 0u);
   EXPECT_EQ(result.entries(), 1u);
   EXPECT_EQ(result.overrun(), 2u);
