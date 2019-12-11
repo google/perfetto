@@ -227,10 +227,6 @@ declare_args() {
   enable_perfetto_trace_processor_heap_graphs =
       enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
-  # Enables graphics event support in the trace processor.
-  enable_perfetto_trace_processor_graphics =
-      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
-
   # Enables JSON support in the trace processor. Required for JSON trace import
   # and export. Importer support can also be disabled using
   # |enable_perfetto_trace_processor_json_import|.

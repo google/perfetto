@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_VULKAN_MEMORY_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_VULKAN_MEMORY_TRACKER_H_
 
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_storage.h"
@@ -80,4 +80,4 @@ class VulkanMemoryTracker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_VULKAN_MEMORY_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_VULKAN_MEMORY_TRACKER_H_

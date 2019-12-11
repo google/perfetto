@@ -86,7 +86,6 @@ action("gen_buildflags") {
     "PERFETTO_TP_SYSTEM_PROBES=$enable_perfetto_trace_processor_system_probes",
     "PERFETTO_TP_ANDROID_PROBES=$enable_perfetto_trace_processor_android_probes",
     "PERFETTO_TP_HEAP_GRAPHS=$enable_perfetto_trace_processor_heap_graphs",
-    "PERFETTO_TP_GRAPHICS=$enable_perfetto_trace_processor_graphics",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_TP_JSON_IMPORT=$enable_perfetto_trace_processor_json_import",
     "PERFETTO_TP_FUCHSIA=$enable_perfetto_trace_processor_fuchsia",

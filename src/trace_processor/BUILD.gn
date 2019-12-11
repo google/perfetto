@@ -58,7 +58,7 @@ source_set("descriptors") {
   ]
 }
 
-source_set("storage") {
+source_set("storage_minimal") {
   sources = [
     "args_tracker.cc",
     "args_tracker.h",
@@ -88,8 +88,6 @@ source_set("storage") {
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
     "importers/proto/chrome_compositor_scheduler_state.descriptor.h",
-    "importers/proto/graphics_event_module.h",
-    "importers/proto/graphics_event_parser.h",
     "importers/proto/heap_graph_module.h",
     "importers/proto/heap_graph_tracker.h",
     "importers/proto/heap_graph_walker.h",
@@ -136,7 +134,6 @@ source_set("storage") {
     "track_tracker.h",
     "variadic.h",
     "virtual_destructors.cc",
-    "vulkan_memory_tracker.h",
   ]
 
   deps = [
@@ -150,7 +147,6 @@ source_set("storage") {
     "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/chrome:zero",
     "../../protos/perfetto/trace/ftrace:zero",
-    "../../protos/perfetto/trace/gpu:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../../protos/perfetto/trace/perfetto:zero",
     "../../protos/perfetto/trace/power:zero",
@@ -211,13 +207,6 @@ source_set("storage") {
       "importers/proto/heap_graph_walker.cc",
     ]
   }
-  if (enable_perfetto_trace_processor_graphics) {
-    sources += [
-      "importers/proto/graphics_event_module.cc",
-      "importers/proto/graphics_event_parser.cc",
-      "vulkan_memory_tracker.cc",
-    ]
-  }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [
       "importers/fuchsia/fuchsia_provider_view.cc",
@@ -240,6 +229,33 @@ source_set("storage") {
   }
 }
 
+source_set("storage_full") {
+  sources = [
+    "importers/proto/graphics_event_module.cc",
+    "importers/proto/graphics_event_module.h",
+    "importers/proto/graphics_event_parser.cc",
+    "importers/proto/graphics_event_parser.h",
+    "importers/proto/vulkan_memory_tracker.cc",
+    "importers/proto/vulkan_memory_tracker.h",
+    "register_additional_modules.cc",
+    "register_additional_modules.h",
+  ]
+  public_deps = [
+    ":storage_minimal",
+  ]
+  deps = [
+    "../../protos/perfetto/common:zero",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/android:zero",
+    "../../protos/perfetto/trace/gpu:zero",
+    "../../protos/perfetto/trace/interned_data:zero",
+    "../protozero",
+  ]
+  if (enable_perfetto_trace_processor_json) {
+    public_deps += [ "../../gn:jsoncpp" ]
+  }
+}
+
 if (enable_perfetto_trace_processor_json) {
   source_set("export_json") {
     sources = [
@@ -247,7 +263,7 @@ if (enable_perfetto_trace_processor_json) {
       "export_json.h",
     ]
     deps = [
-      ":storage",
+      ":storage_minimal",
       "../../gn:default_deps",
       "../../gn:jsoncpp",
       "../base",
@@ -312,7 +328,7 @@ if (enable_perfetto_trace_processor_sqlite) {
 
     deps = [
       ":common",
-      ":storage",
+      ":storage_full",
       "../../gn:default_deps",
       "../../gn:sqlite",
       "../../protos/perfetto/trace/ftrace:zero",
@@ -401,7 +417,7 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":common",
     ":descriptors",
-    ":storage",
+    ":storage_full",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/common:zero",
@@ -482,7 +498,7 @@ source_set("integrationtests") {
     sources += [ "trace_database_integrationtest.cc" ]
     deps += [
       ":lib",
-      ":storage",
+      ":storage_full",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
       "../../protos/perfetto/trace:lite",
@@ -503,7 +519,7 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
     "trace_parsing_fuzzer.cc",
   ]
   deps = [
-    ":storage",
+    ":storage_full",
     "../../gn:default_deps",
     "../base",
   ]
