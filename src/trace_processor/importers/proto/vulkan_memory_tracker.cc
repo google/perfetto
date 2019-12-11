@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/vulkan_memory_tracker.h"
+#include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 
 #include <string>
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
