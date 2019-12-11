@@ -43,7 +43,6 @@ class TraceParser;
 class TraceSorter;
 class TraceStorage;
 class TrackTracker;
-class VulkanMemoryTracker;
 
 class TraceProcessorContext {
  public:
@@ -67,7 +66,6 @@ class TraceProcessorContext {
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<SystraceParser> systrace_parser;
   std::unique_ptr<HeapGraphTracker> heap_graph_tracker;
-  std::unique_ptr<VulkanMemoryTracker> vulkan_memory_tracker;
   std::unique_ptr<BinderTracker> binder_tracker;
 
   // The module at the index N is registered to handle field id N in

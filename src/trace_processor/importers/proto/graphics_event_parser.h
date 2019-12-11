@@ -21,8 +21,8 @@
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
+#include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/trace_storage.h"
-#include "src/trace_processor/vulkan_memory_tracker.h"
 
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
@@ -73,6 +73,7 @@ class GraphicsEventParser {
       const protos::pbzero::GpuRenderStageEvent_Decoder& event);
 
   TraceProcessorContext* const context_;
+  VulkanMemoryTracker vulkan_memory_tracker_;
   // For GpuCounterEvent
   std::unordered_map<uint32_t, TrackId> gpu_counter_track_ids_;
   // For GpuRenderStageEvent

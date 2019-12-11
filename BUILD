@@ -770,9 +770,24 @@ filegroup(
     ],
 )
 
-# GN target: //src/trace_processor:storage
+# GN target: //src/trace_processor:storage_full
 filegroup(
-    name = "src_trace_processor_storage",
+    name = "src_trace_processor_storage_full",
+    srcs = [
+        "src/trace_processor/importers/proto/graphics_event_module.cc",
+        "src/trace_processor/importers/proto/graphics_event_module.h",
+        "src/trace_processor/importers/proto/graphics_event_parser.cc",
+        "src/trace_processor/importers/proto/graphics_event_parser.h",
+        "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
+        "src/trace_processor/importers/proto/vulkan_memory_tracker.h",
+        "src/trace_processor/register_additional_modules.cc",
+        "src/trace_processor/register_additional_modules.h",
+    ],
+)
+
+# GN target: //src/trace_processor:storage_minimal
+filegroup(
+    name = "src_trace_processor_storage_minimal",
     srcs = [
         "src/trace_processor/args_tracker.cc",
         "src/trace_processor/args_tracker.h",
@@ -823,10 +838,6 @@ filegroup(
         "src/trace_processor/importers/proto/args_table_utils.cc",
         "src/trace_processor/importers/proto/args_table_utils.h",
         "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h",
-        "src/trace_processor/importers/proto/graphics_event_module.cc",
-        "src/trace_processor/importers/proto/graphics_event_module.h",
-        "src/trace_processor/importers/proto/graphics_event_parser.cc",
-        "src/trace_processor/importers/proto/graphics_event_parser.h",
         "src/trace_processor/importers/proto/heap_graph_module.cc",
         "src/trace_processor/importers/proto/heap_graph_module.h",
         "src/trace_processor/importers/proto/heap_graph_tracker.cc",
@@ -885,8 +896,6 @@ filegroup(
         "src/trace_processor/track_tracker.h",
         "src/trace_processor/variadic.h",
         "src/trace_processor/virtual_destructors.cc",
-        "src/trace_processor/vulkan_memory_tracker.cc",
-        "src/trace_processor/vulkan_memory_tracker.h",
     ],
 )
 
@@ -2515,7 +2524,8 @@ perfetto_cc_library(
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_storage",
+        ":src_trace_processor_storage_full",
+        ":src_trace_processor_storage_minimal",
         ":src_trace_processor_tables_tables",
     ],
     hdrs = [
@@ -2594,7 +2604,8 @@ perfetto_cc_binary(
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_storage",
+        ":src_trace_processor_storage_full",
+        ":src_trace_processor_storage_minimal",
         ":src_trace_processor_tables_tables",
     ],
     visibility = [
@@ -2744,7 +2755,8 @@ perfetto_cc_binary(
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_storage",
+        ":src_trace_processor_storage_full",
+        ":src_trace_processor_storage_minimal",
         ":src_trace_processor_tables_tables",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",

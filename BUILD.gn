@@ -216,7 +216,7 @@ if (build_with_chromium) {
     public_configs = [ "gn:public_config" ]
     deps = [
       "src/trace_processor:export_json",
-      "src/trace_processor:storage",
+      "src/trace_processor:storage_minimal",
       "src/tracing",
     ]
     configs -= [ "//build/config/compiler:chromium_code" ]
