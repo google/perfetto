@@ -326,23 +326,6 @@ TEST(RateLimiterTest, DropBox_NoTimeTravel) {
   EXPECT_EQ(output.last_trace_timestamp(), 0u);
 }
 
-TEST(RateLimiterTest, DropBox_TooSoon) {
-  StrictMock<MockRateLimiter> limiter;
-  RateLimiter::Args args;
-
-  gen::PerfettoCmdState input{};
-  input.set_first_trace_timestamp(10000);
-  input.set_last_trace_timestamp(10000);
-  ASSERT_TRUE(limiter.SaveStateConcrete(input));
-
-  args.allow_user_build_tracing = true;
-  args.is_dropbox = true;
-  args.current_time = base::TimeSeconds(10000 + 60 * 4);
-
-  EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_FALSE(limiter.ShouldTrace(args));
-}
-
 TEST(RateLimiterTest, DropBox_TooMuch_OtherSession) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
