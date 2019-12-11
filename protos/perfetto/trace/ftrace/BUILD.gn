@@ -18,6 +18,7 @@ import("all_protos.gni")
 
 perfetto_proto_library("@TYPE@") {
   proto_generators = [
+    "cpp",
     "zero",
     "lite",
   ]

@@ -31,12 +31,6 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/config/power/android_power_config.pbzero.h"
-#include "protos/perfetto/config/test_config.gen.h"
-#include "protos/perfetto/config/trace_config.gen.h"
-#include "protos/perfetto/trace/trace.pb.h"
-#include "protos/perfetto/trace/trace_packet.pb.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -44,6 +38,19 @@
 #include "test/task_runner_thread.h"
 #include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
+
+#include "protos/perfetto/config/power/android_power_config.pbzero.h"
+#include "protos/perfetto/config/test_config.gen.h"
+#include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/power/battery_counters.gen.h"
+#include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trigger.gen.h"
 
 namespace perfetto {
 
@@ -371,7 +378,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   ds_config->set_name("linux.ftrace");
   ds_config->set_target_buffer(0);
 
-  protos::FtraceConfig ftrace_config;
+  protos::gen::FtraceConfig ftrace_config;
   ftrace_config.add_ftrace_events("sched_switch");
   ftrace_config.add_ftrace_events("bar");
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
@@ -387,7 +394,9 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
 
   for (const auto& packet : packets) {
     for (int ev = 0; ev < packet.ftrace_events().event_size(); ev++) {
-      ASSERT_TRUE(packet.ftrace_events().event(ev).has_sched_switch());
+      ASSERT_TRUE(packet.ftrace_events()
+                      .event()[static_cast<size_t>(ev)]
+                      .has_sched_switch());
     }
   }
 }
@@ -415,7 +424,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
 
-  protos::FtraceConfig ftrace_config;
+  protos::gen::FtraceConfig ftrace_config;
   ftrace_config.add_ftrace_events("print");
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
@@ -443,7 +452,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   int marker_found = 0;
   for (const auto& packet : helper.trace()) {
     for (int i = 0; i < packet.ftrace_events().event_size(); i++) {
-      const auto& ev = packet.ftrace_events().event(i);
+      const auto& ev = packet.ftrace_events().event()[static_cast<size_t>(i)];
       if (ev.has_print() && ev.print().buf().find(kMarker) != std::string::npos)
         marker_found++;
     }
@@ -814,7 +823,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
-  protos::TraceConfig trace_config;
+  protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
@@ -822,7 +831,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   ds_config->mutable_for_testing()->set_message_size(kMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
-      protos::TraceConfig::TriggerConfig::START_TRACING);
+      protos::gen::TraceConfig::TriggerConfig::START_TRACING);
   trigger_cfg->set_trigger_timeout_ms(15000);
   auto* trigger = trigger_cfg->add_triggers();
   trigger->set_name("trigger_name");
@@ -878,19 +887,20 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
 
   std::string trace_str;
   base::ReadFile(path, &trace_str);
-  protos::Trace trace;
+  protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
   EXPECT_EQ(static_cast<int>(kPreamblePackets + kMessageCount),
             trace.packet_size());
   for (const auto& packet : trace.packet()) {
-    if (packet.data_case() == protos::TracePacket::kTraceConfig) {
+    if (packet.has_trace_config()) {
       // Ensure the trace config properly includes the trigger mode we set.
-      EXPECT_EQ(protos::TraceConfig::TriggerConfig::START_TRACING,
+      auto kStartTrig = protos::gen::TraceConfig::TriggerConfig::START_TRACING;
+      EXPECT_EQ(kStartTrig,
                 packet.trace_config().trigger_config().trigger_mode());
-    } else if (packet.data_case() == protos::TracePacket::kTrigger) {
+    } else if (packet.has_trigger()) {
       // validate that the triggers are properly added to the trace.
       EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
-    } else if (packet.data_case() == protos::TracePacket::kForTesting) {
+    } else if (packet.has_for_testing()) {
       // Make sure that the data size is correctly set based on what we
       // requested.
       EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
@@ -902,7 +912,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
-  protos::TraceConfig trace_config;
+  protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
@@ -910,7 +920,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   ds_config->mutable_for_testing()->set_message_size(kMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
-      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+      protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
   trigger_cfg->set_trigger_timeout_ms(15000);
   auto* trigger = trigger_cfg->add_triggers();
   trigger->set_name("trigger_name");
@@ -970,17 +980,18 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
 
   std::string trace_str;
   base::ReadFile(path, &trace_str);
-  protos::Trace trace;
+  protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
   EXPECT_EQ(static_cast<int>(kPreamblePackets + kMessageCount),
             trace.packet_size());
   bool seen_first_trigger = false;
   for (const auto& packet : trace.packet()) {
-    if (packet.data_case() == protos::TracePacket::kTraceConfig) {
+    if (packet.has_trace_config()) {
       // Ensure the trace config properly includes the trigger mode we set.
-      EXPECT_EQ(protos::TraceConfig::TriggerConfig::STOP_TRACING,
+      auto kStopTrig = protos::gen::TraceConfig::TriggerConfig::STOP_TRACING;
+      EXPECT_EQ(kStopTrig,
                 packet.trace_config().trigger_config().trigger_mode());
-    } else if (packet.data_case() == protos::TracePacket::kTrigger) {
+    } else if (packet.has_trigger()) {
       // validate that the triggers are properly added to the trace.
       if (!seen_first_trigger) {
         EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
@@ -988,7 +999,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
       } else {
         EXPECT_EQ("trigger_name_3", packet.trigger().trigger_name());
       }
-    } else if (packet.data_case() == protos::TracePacket::kForTesting) {
+    } else if (packet.has_for_testing()) {
       // Make sure that the data size is correctly set based on what we
       // requested.
       EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
@@ -1006,7 +1017,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
-  protos::TraceConfig trace_config;
+  protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_allow_user_build_tracing(true);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -1015,7 +1026,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   ds_config->mutable_for_testing()->set_message_size(kMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
-      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+      protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
   trigger_cfg->set_trigger_timeout_ms(1000);
   auto* trigger = trigger_cfg->add_triggers();
   trigger->set_name("trigger_name");
@@ -1059,7 +1070,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
-  protos::TraceConfig trace_config;
+  protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
@@ -1067,7 +1078,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   ds_config->mutable_for_testing()->set_message_size(kMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
-      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+      protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
   trigger_cfg->set_trigger_timeout_ms(15000);
   auto* trigger = trigger_cfg->add_triggers();
   trigger->set_name("trigger_name");
@@ -1132,16 +1143,17 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
 
   std::string trace_str;
   base::ReadFile(path, &trace_str);
-  protos::Trace trace;
+  protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
   EXPECT_LT(static_cast<int>(kMessageCount), trace.packet_size());
   bool seen_first_trigger = false;
   for (const auto& packet : trace.packet()) {
-    if (packet.data_case() == protos::TracePacket::kTraceConfig) {
+    if (packet.has_trace_config()) {
       // Ensure the trace config properly includes the trigger mode we set.
-      EXPECT_EQ(protos::TraceConfig::TriggerConfig::STOP_TRACING,
+      auto kStopTrig = protos::gen::TraceConfig::TriggerConfig::STOP_TRACING;
+      EXPECT_EQ(kStopTrig,
                 packet.trace_config().trigger_config().trigger_mode());
-    } else if (packet.data_case() == protos::TracePacket::kTrigger) {
+    } else if (packet.has_trigger()) {
       // validate that the triggers are properly added to the trace.
       if (!seen_first_trigger) {
         EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
@@ -1149,7 +1161,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
       } else {
         EXPECT_EQ("trigger_name_3", packet.trigger().trigger_name());
       }
-    } else if (packet.data_case() == protos::TracePacket::kForTesting) {
+    } else if (packet.has_for_testing()) {
       // Make sure that the data size is correctly set based on what we
       // requested.
       EXPECT_EQ(kMessageSize, packet.for_testing().str().size());
@@ -1161,7 +1173,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
-  protos::TraceConfig trace_config;
+  protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
@@ -1169,7 +1181,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
   ds_config->mutable_for_testing()->set_message_size(kMessageSize);
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
-      protos::TraceConfig::TriggerConfig::STOP_TRACING);
+      protos::gen::TraceConfig::TriggerConfig::STOP_TRACING);
   trigger_cfg->set_trigger_timeout_ms(15000);
   auto* trigger = trigger_cfg->add_triggers();
   trigger->set_name("trigger_name");

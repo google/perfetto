@@ -24,8 +24,10 @@ static_library("perfetto_cts_deps") {
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/ext/tracing/core",
-    "../../protos/perfetto/config/profiling:lite",
-    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/config:cpp",
+    "../../protos/perfetto/config/profiling:cpp",
+    "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace/profiling:cpp",
     "../../src/base:test_support",
     "../../test:test_helper",
   ]
