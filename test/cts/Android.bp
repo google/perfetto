@@ -15,14 +15,12 @@ cc_test {
     "libgmock",
     "libprotobuf-cpp-lite",
     "libperfetto_client_experimental",
+    "perfetto_cts_deps",
     "perfetto_trace_protos",
   ],
   shared_libs: [
     "libandroid",
     "liblog",
-  ],
-  whole_static_libs: [
-    "perfetto_cts_deps"
   ],
   test_suites: [
     "cts",

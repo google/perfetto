@@ -128,7 +128,7 @@ std::vector<protos::TracePacket> ProfileStartup(std::string app_name) {
 
 void AssertExpectedAllocationsPresent(
     std::vector<protos::TracePacket> packets) {
-  ASSERT_GT(packets.size(), 0);
+  ASSERT_GT(packets.size(), 0u);
 
   // TODO(rsavitski): assert particular stack frames once we clarify the
   // expected behaviour of unwinding native libs within an apk.
