@@ -82,7 +82,7 @@ void StartAppActivity(const std::string& app_name,
         PollRunState(desired_run_state, task_runner, app_name,
                      std::move(checkpoint));
       },
-      delay_ms);
+      static_cast<uint32_t>(delay_ms));
 }
 
 void StopApp(const std::string& app_name,

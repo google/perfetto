@@ -74,16 +74,16 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
 }
 
 void AssertGraphPresent(std::vector<protos::TracePacket> packets) {
-  ASSERT_GT(packets.size(), 0);
+  ASSERT_GT(packets.size(), 0u);
 
   size_t objects = 0;
   size_t roots = 0;
   for (const auto& packet : packets) {
-    objects += packet.heap_graph().objects_size();
-    roots += packet.heap_graph().roots_size();
+    objects += static_cast<size_t>(packet.heap_graph().objects_size());
+    roots += static_cast<size_t>(packet.heap_graph().roots_size());
   }
-  ASSERT_GT(objects, 0);
-  ASSERT_GT(roots, 0);
+  ASSERT_GT(objects, 0u);
+  ASSERT_GT(roots, 0u);
 }
 
 void AssertNoProfileContents(std::vector<protos::TracePacket> packets) {
