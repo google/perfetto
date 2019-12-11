@@ -25,7 +25,6 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
-#include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
@@ -34,12 +33,12 @@
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/register_additional_modules.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_storage.h"
 #include "src/trace_processor/track_tracker.h"
-#include "src/trace_processor/vulkan_memory_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
@@ -257,12 +256,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.parser.reset(new ProtoTraceParser(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.systrace_parser.reset(new SystraceParser(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
-    context_.vulkan_memory_tracker.reset(new VulkanMemoryTracker(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     context_.modules.emplace_back(new FtraceModuleImpl(&context_));
 #else
     context_.modules.emplace_back(new FtraceModule());
@@ -280,9 +273,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.modules.emplace_back(new SystemProbesModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
     context_.modules.emplace_back(new TrackEventModule(&context_));
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
-    context_.modules.emplace_back(new GraphicsEventModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)
+
+    RegisterAdditionalModules(&context_);
   }
 
   void ResetTraceBuffers() {

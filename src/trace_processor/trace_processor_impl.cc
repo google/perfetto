@@ -31,6 +31,7 @@
 #include "src/trace_processor/metadata_table.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/raw_table.h"
+#include "src/trace_processor/register_additional_modules.h"
 #include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/span_join_operator_table.h"
 #include "src/trace_processor/sql_stats_table.h"
@@ -349,11 +350,11 @@ void SetupMetrics(TraceProcessor* tp,
   }
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
-
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg) {
+  RegisterAdditionalModules(&context_);
   sqlite3* db = nullptr;
   PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
