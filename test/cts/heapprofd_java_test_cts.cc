@@ -102,7 +102,7 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntime) {
   AssertGraphPresent(packets);
 }
 
-TEST(HeapprofdJavaCtsTest, ProfileableAppRuntime) {
+TEST(HeapprofdJavaCtsTest, DISABLED_ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name);
   AssertGraphPresent(packets);
