@@ -40,6 +40,7 @@ constexpr auto kMappingStartOffset = 1231;
 constexpr auto kMappingStart = 234;
 constexpr auto kMappingEnd = 345;
 constexpr auto kMappingLoadBias = 456;
+constexpr auto kDefaultSequence = 1;
 
 // heapprofd on Android Q has large callstack ideas, explicitly test large
 // values.
@@ -114,11 +115,11 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
 // interned, and assert we only store one.
 TEST_F(HeapProfileTrackerDupTest, Mapping) {
   InsertMapping(kFirstPacket);
-  context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
-                                                nullptr);
+  context.heap_profile_tracker->FinalizeProfile(
+      kDefaultSequence, stack_profile_tracker.get(), nullptr);
   InsertMapping(kSecondPacket);
-  context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
-                                                nullptr);
+  context.heap_profile_tracker->FinalizeProfile(
+      kDefaultSequence, stack_profile_tracker.get(), nullptr);
 
   EXPECT_THAT(context.storage->stack_profile_mappings().build_ids(),
               ElementsAre(context.storage->InternString({kBuildIDHexName})));
@@ -140,11 +141,11 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
 // interned, and assert we only store one.
 TEST_F(HeapProfileTrackerDupTest, Frame) {
   InsertFrame(kFirstPacket);
-  context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
-                                                nullptr);
+  context.heap_profile_tracker->FinalizeProfile(
+      kDefaultSequence, stack_profile_tracker.get(), nullptr);
   InsertFrame(kSecondPacket);
-  context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
-                                                nullptr);
+  context.heap_profile_tracker->FinalizeProfile(
+      kDefaultSequence, stack_profile_tracker.get(), nullptr);
 
   EXPECT_THAT(context.storage->stack_profile_frames().names(),
               ElementsAre(frame_name));
@@ -158,11 +159,11 @@ TEST_F(HeapProfileTrackerDupTest, Frame) {
 // stored once.
 TEST_F(HeapProfileTrackerDupTest, Callstack) {
   InsertCallsite(kFirstPacket);
-  context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
-                                                nullptr);
+  context.heap_profile_tracker->FinalizeProfile(
+      kDefaultSequence, stack_profile_tracker.get(), nullptr);
   InsertCallsite(kSecondPacket);
-  context.heap_profile_tracker->FinalizeProfile(stack_profile_tracker.get(),
-                                                nullptr);
+  context.heap_profile_tracker->FinalizeProfile(
+      kDefaultSequence, stack_profile_tracker.get(), nullptr);
 
   const auto& callsite_table = context.storage->stack_profile_callsite_table();
   const auto& depth = callsite_table.depth();
@@ -218,7 +219,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
   mapping.load_bias = 0;
   mapping.name_ids = {kMappingNameId1, kMappingNameId2};
   spt->AddMapping(0, mapping);
-  hpt->CommitAllocations(spt.get(), nullptr);
+  hpt->CommitAllocations(kDefaultSequence, spt.get(), nullptr);
   auto foo_bar_id = context.storage->string_pool().GetId("/foo/bar");
   ASSERT_NE(foo_bar_id, base::nullopt);
   EXPECT_THAT(context.storage->stack_profile_mappings().names(),
@@ -321,7 +322,7 @@ TEST(HeapProfileTrackerTest, Functional) {
   for (uint32_t i = 0; i < base::ArraySize(callstacks); ++i)
     spt->AddCallstack(i, callstacks[i]);
 
-  hpt->CommitAllocations(spt.get(), nullptr);
+  hpt->CommitAllocations(kDefaultSequence, spt.get(), nullptr);
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
     int64_t parent = -1;
@@ -336,7 +337,7 @@ TEST(HeapProfileTrackerTest, Functional) {
     }
   }
 
-  hpt->FinalizeProfile(spt.get(), nullptr);
+  hpt->FinalizeProfile(kDefaultSequence, spt.get(), nullptr);
 }
 
 }  // namespace

@@ -211,9 +211,9 @@ void ProtoTraceParser::ParseTracePacketImpl(
     ParseTraceStats(packet.trace_stats());
 
   if (packet.has_profile_packet()) {
-    ParseProfilePacket(ts, ttp.packet_sequence_state,
-                       ttp.packet_sequence_state_generation,
-                       packet.profile_packet());
+    ParseProfilePacket(
+        ts, ttp.packet_sequence_state, ttp.packet_sequence_state_generation,
+        packet.trusted_packet_sequence_id(), packet.profile_packet());
   }
 
   if (packet.has_streaming_profile_packet()) {
@@ -321,9 +321,10 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
 void ProtoTraceParser::ParseProfilePacket(int64_t,
                                           PacketSequenceState* sequence_state,
                                           size_t sequence_state_generation,
+                                          uint32_t seq_id,
                                           ConstBytes blob) {
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
-  context_->heap_profile_tracker->SetProfilePacketIndex(packet.index());
+  context_->heap_profile_tracker->SetProfilePacketIndex(seq_id, packet.index());
 
   for (auto it = packet.strings(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
@@ -381,7 +382,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t,
       src_allocation.alloc_count = sample.alloc_count();
       src_allocation.free_count = sample.free_count();
 
-      context_->heap_profile_tracker->StoreAllocation(src_allocation);
+      context_->heap_profile_tracker->StoreAllocation(seq_id, src_allocation);
     }
   }
   if (!packet.continued()) {
@@ -389,7 +390,7 @@ void ProtoTraceParser::ParseProfilePacket(int64_t,
     ProfilePacketInternLookup intern_lookup(sequence_state,
                                             sequence_state_generation);
     context_->heap_profile_tracker->FinalizeProfile(
-        &sequence_state->stack_profile_tracker(), &intern_lookup);
+        seq_id, &sequence_state->stack_profile_tracker(), &intern_lookup);
   }
 }
 
