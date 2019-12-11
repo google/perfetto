@@ -143,6 +143,8 @@ heap_profile_jit.textproto heap_profile_frames.sql heap_profile_jit.out
 
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
+heap_graph_interleaved.textproto heap_graph_object.sql heap_graph_interleaved_object.out
+heap_graph_interleaved.textproto heap_graph_reference.sql heap_graph_interleaved_reference.out
 
 # TrackEvent tests.
 track_event_same_tids.textproto process_tracking.sql track_event_same_tids_threads.out
