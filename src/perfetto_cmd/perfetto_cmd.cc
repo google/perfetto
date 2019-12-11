@@ -436,7 +436,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
   // 3) A set of option arguments (-t 10s -s 10m).
   // The only cases in which a trace config is not expected is --attach.
   // For this we are just acting on already existing sessions.
-  TraceConfig trace_config_proto;
+  trace_config_.reset(new TraceConfig());
+
   std::vector<std::string> triggers_to_activate;
   bool parsed = false;
   const bool will_trace = !is_attach() && !query_service_;
@@ -452,7 +453,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
           "--buffer, --app, ATRACE_CAT, FTRACE_EVENT");
       return 1;
     }
-    parsed = CreateConfigFromOptions(config_options, &trace_config_proto);
+    parsed = CreateConfigFromOptions(config_options, trace_config_.get());
   } else {
     if (trace_config_raw.empty()) {
       PERFETTO_ELOG("The TraceConfig is empty");
@@ -461,16 +462,14 @@ int PerfettoCmd::Main(int argc, char** argv) {
     PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
     if (parse_as_pbtxt) {
       parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
-                                     &trace_config_proto);
+                                     trace_config_.get());
     } else {
-      parsed = trace_config_proto.ParseFromString(trace_config_raw);
+      parsed = trace_config_->ParseFromString(trace_config_raw);
     }
   }
 
-  trace_config_.reset(new TraceConfig());
   if (parsed) {
-    *trace_config_proto.mutable_statsd_metadata() = std::move(statsd_metadata);
-    trace_config_->FromProto(trace_config_proto);
+    *trace_config_->mutable_statsd_metadata() = std::move(statsd_metadata);
     trace_config_raw.clear();
   } else if (will_trace) {
     PERFETTO_ELOG("The trace config is invalid, bailing out.");
