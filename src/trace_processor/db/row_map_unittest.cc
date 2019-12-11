@@ -87,6 +87,18 @@ TEST(RowMapUnittest, InsertToRangeAfter) {
   ASSERT_EQ(rm.IndexOf(10u), 4u);
 }
 
+TEST(RowMapUnittest, InsertToBitVectorBefore) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+  rm.Insert(1u);
+
+  ASSERT_EQ(rm.size(), 5u);
+  ASSERT_EQ(rm.Get(0u), 0u);
+  ASSERT_EQ(rm.Get(1u), 1u);
+  ASSERT_EQ(rm.Get(2u), 2u);
+  ASSERT_EQ(rm.Get(3u), 3u);
+  ASSERT_EQ(rm.Get(4u), 5u);
+}
+
 TEST(RowMapUnittest, InsertToBitVectorAfter) {
   RowMap rm(BitVector{true, false, true, true, false, true});
   rm.Insert(10u);
