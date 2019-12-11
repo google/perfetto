@@ -19,10 +19,8 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "test/task_runner_thread_delegates.h"
-
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 
-#include "protos/perfetto/trace/trace_packet.pb.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -60,7 +58,7 @@ void TestHelper::OnTracingDisabled() {
 
 void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   for (auto& encoded_packet : packets) {
-    protos::TracePacket packet;
+    protos::gen::TracePacket packet;
     PERFETTO_CHECK(
         packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
     if (packet.has_clock_snapshot() || packet.has_trace_config() ||
@@ -68,8 +66,7 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
         packet.has_system_info()) {
       continue;
     }
-    PERFETTO_CHECK(packet.optional_trusted_uid_case() ==
-                   protos::TracePacket::kTrustedUid);
+    PERFETTO_CHECK(packet.has_trusted_uid());
     trace_.push_back(std::move(packet));
   }
 
