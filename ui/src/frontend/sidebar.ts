@@ -54,10 +54,11 @@ select
   sum(dur * freq)/1e6 as mcycles
 from (
   select
-    ref as cpu,
+    cpu,
     value as freq,
-    lead(ts) over (partition by ref order by ts) - ts as dur
-  from counters
+    lead(ts) over (partition by cpu order by ts) - ts as dur
+  from counter
+  inner join cpu_counter_track on counter.track_id = cpu_counter_track.id
   where name = 'cpufreq'
 ) group by cpu, freq
 order by mcycles desc limit 32;`;

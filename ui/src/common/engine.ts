@@ -101,8 +101,11 @@ export abstract class Engine {
 
   async getNumberOfGpus(): Promise<number> {
     if (!this._numGpus) {
-      const result = await this.query(
-          'select count(distinct(arg_set_id)) as gpuCount from counters where name = "gpufreq";');
+      const result = await this.query(`
+        select count(distinct(gpu_id)) as gpuCount
+        from gpu_counter_track
+        where name = 'gpufreq';
+      `);
       this._numGpus = +result.columns[0].longValues![0];
     }
     return this._numGpus;
