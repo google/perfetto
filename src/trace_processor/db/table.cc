@@ -61,35 +61,7 @@ Table Table::CopyExceptRowMaps() const {
   return table;
 }
 
-Table Table::Filter(const std::vector<Constraint>& cs) const {
-  // TODO(lalitm): we can add optimizations here depending on whether this is
-  // an lvalue or rvalue.
-
-  if (cs.empty())
-    return Copy();
-
-  // Create a RowMap indexing all rows and filter this down to the rows which
-  // meet all the constraints.
-  RowMap rm(0, size_);
-  for (const Constraint& c : cs) {
-    columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
-  }
-
-  // Return a copy of this table with the RowMaps using the computed filter
-  // RowMap and with the updated size.
-  Table table = CopyExceptRowMaps();
-  table.size_ = rm.size();
-  for (const RowMap& map : row_maps_) {
-    table.row_maps_.emplace_back(map.SelectRows(rm));
-    PERFETTO_DCHECK(table.row_maps_.back().size() == table.size());
-  }
-  return table;
-}
-
 Table Table::Sort(const std::vector<Order>& od) const {
-  // TODO(lalitm): we can add optimizations here depending on whether this is
-  // an lvalue or rvalue.
-
   if (od.empty())
     return Copy();
 
