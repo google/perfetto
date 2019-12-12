@@ -141,6 +141,15 @@
 // Begin a thread-scoped slice under |category| with the title |name|. Both
 // strings must be static constants. The track event is only recorded if
 // |category| is enabled for a tracing session.
+//
+// |name| must be a string with static lifetime (i.e., the same
+// address must not be used for a different event name in the future). If you
+// want to use a dynamically allocated name, do this:
+//
+//  TRACE_EVENT("category", nullptr, [&](perfetto::EventContext ctx) {
+//    ctx.event()->set_name(dynamic_name);
+//  });
+//
 #define TRACE_EVENT_BEGIN(category, name, ...) \
   PERFETTO_INTERNAL_TRACK_EVENT(               \
       category, name,                          \
