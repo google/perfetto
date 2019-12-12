@@ -22,6 +22,7 @@ source_set("lib") {
     "bit_vector_iterators.h",
     "column.cc",
     "column.h",
+    "compare.h",
     "row_map.cc",
     "row_map.h",
     "sparse_vector.h",
@@ -42,6 +43,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "bit_vector_unittest.cc",
+    "compare_unittest.cc",
     "row_map_unittest.cc",
     "sparse_vector_unittest.cc",
   ]
