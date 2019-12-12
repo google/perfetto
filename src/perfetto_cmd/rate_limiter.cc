@@ -16,9 +16,12 @@
 
 #include "src/perfetto_cmd/rate_limiter.h"
 
+#include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <algorithm>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -29,16 +32,18 @@
 namespace perfetto {
 namespace {
 
-// 5 mins between traces.
-const uint64_t kCooldownInSeconds = 60 * 5;
-
 // Every 24 hours we reset how much we've uploaded.
 const uint64_t kMaxUploadResetPeriodInSeconds = 60 * 60 * 24;
 
 // Maximum of 10mb every 24h.
 const uint64_t kMaxUploadInBytes = 1024 * 1024 * 10;
 
+// Keep track of last 10 observed sessions.
+const uint64_t kMaxSessionsInHistory = 10;
+
 }  // namespace
+
+using PerSessionState = gen::PerfettoCmdState::PerSessionState;
 
 RateLimiter::RateLimiter() = default;
 RateLimiter::~RateLimiter() = default;
@@ -88,13 +93,6 @@ bool RateLimiter::ShouldTrace(const Args& args) {
       return false;
   }
 
-  // If we've uploaded in the last 5mins we shouldn't trace now.
-  if ((now_in_s - state_.last_trace_timestamp()) < kCooldownInSeconds) {
-    PERFETTO_LOG("Guardrail: Uploaded to DropBox in the last 5mins.");
-    if (!args.ignore_guardrails)
-      return false;
-  }
-
   // First trace was more than 24h ago? Reset state.
   if ((now_in_s - state_.first_trace_timestamp()) >
       kMaxUploadResetPeriodInSeconds) {
@@ -104,17 +102,34 @@ bool RateLimiter::ShouldTrace(const Args& args) {
     return true;
   }
 
-  if (args.is_user_build) {
-    // If we've uploaded more than 10mb in the last 24 hours we shouldn't trace
-    // now.
-    uint64_t max_upload_guardrail = args.max_upload_bytes_override > 0
-                                        ? args.max_upload_bytes_override
-                                        : kMaxUploadInBytes;
-    if (state_.total_bytes_uploaded() > max_upload_guardrail) {
-      PERFETTO_ELOG("Guardrail: Uploaded >10mb DropBox in the last 24h.");
-      if (!args.ignore_guardrails)
-        return false;
+  uint64_t max_upload_guardrail = kMaxUploadInBytes;
+  if (args.max_upload_bytes_override > 0) {
+    if (args.unique_session_name.empty()) {
+      PERFETTO_ELOG(
+          "Ignoring max_upload_per_day_bytes override as unique_session_name "
+          "not set");
+    } else {
+      max_upload_guardrail = args.max_upload_bytes_override;
     }
+  }
+
+  uint64_t uploaded_so_far = state_.total_bytes_uploaded();
+  if (!args.unique_session_name.empty()) {
+    uploaded_so_far = 0;
+    for (const auto& session_state : state_.session_state()) {
+      if (session_state.session_name() == args.unique_session_name) {
+        uploaded_so_far = session_state.total_bytes_uploaded();
+        break;
+      }
+    }
+  }
+
+  if (uploaded_so_far > max_upload_guardrail) {
+    PERFETTO_ELOG("Guardrail: Uploaded %" PRIu64
+                  " in the last 24h. Limit is %" PRIu64 ".",
+                  uploaded_so_far, max_upload_guardrail);
+    if (!args.ignore_guardrails)
+      return false;
   }
 
   return true;
@@ -137,8 +152,26 @@ bool RateLimiter::OnTraceDone(const Args& args, bool success, uint64_t bytes) {
     state_.set_first_trace_timestamp(now_in_s);
   // Always updated the last trace timestamp.
   state_.set_last_trace_timestamp(now_in_s);
-  // Add the amount we uploaded to the running total.
-  state_.set_total_bytes_uploaded(state_.total_bytes_uploaded() + bytes);
+
+  if (args.unique_session_name.empty()) {
+    // Add the amount we uploaded to the running total.
+    state_.set_total_bytes_uploaded(state_.total_bytes_uploaded() + bytes);
+  } else {
+    PerSessionState* target_session = nullptr;
+    for (PerSessionState& session : *state_.mutable_session_state()) {
+      if (session.session_name() == args.unique_session_name) {
+        target_session = &session;
+        break;
+      }
+    }
+    if (!target_session) {
+      target_session = state_.add_session_state();
+      target_session->set_session_name(args.unique_session_name);
+    }
+    target_session->set_total_bytes_uploaded(
+        target_session->total_bytes_uploaded() + bytes);
+    target_session->set_last_trace_timestamp(now_in_s);
+  }
 
   if (!SaveState(state_)) {
     PERFETTO_ELOG("Failed to save state.");
@@ -170,17 +203,29 @@ bool RateLimiter::ClearState() {
 
 bool RateLimiter::LoadState(gen::PerfettoCmdState* state) {
   base::ScopedFile in_fd(base::OpenFile(GetStateFilePath(), O_RDONLY));
-
   if (!in_fd)
     return false;
-  char buf[1024];
-  ssize_t bytes = PERFETTO_EINTR(read(in_fd.get(), &buf, sizeof(buf)));
-  if (bytes <= 0)
+  std::string s;
+  base::ReadFileDescriptor(in_fd.get(), &s);
+  if (s.size() == 0)
     return false;
-  return state->ParseFromArray(&buf, static_cast<size_t>(bytes));
+  return state->ParseFromString(s);
 }
 
-bool RateLimiter::SaveState(const gen::PerfettoCmdState& state) {
+bool RateLimiter::SaveState(const gen::PerfettoCmdState& input_state) {
+  gen::PerfettoCmdState state = input_state;
+
+  // Keep only the N most recent per session states so the file doesn't
+  // grow indefinitely:
+  std::vector<PerSessionState>* sessions = state.mutable_session_state();
+  std::sort(sessions->begin(), sessions->end(),
+            [](const PerSessionState& a, const PerSessionState& b) {
+              return a.last_trace_timestamp() > b.last_trace_timestamp();
+            });
+  if (sessions->size() > kMaxSessionsInHistory) {
+    sessions->resize(kMaxSessionsInHistory);
+  }
+
   // Rationale for 0666: the cmdline client can be executed under two
   // different Unix UIDs: shell and statsd. If we run one after the
   // other and the file has 0600 permissions, then the 2nd run won't
