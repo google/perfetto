@@ -55,7 +55,7 @@ export class SearchController extends Controller<'main'> {
     await this.query(`create virtual table search_summary_sched_span using
       span_join(sched PARTITIONED cpu, search_summary_window);`);
     await this.query(`create virtual table search_summary_slice_span using
-      span_join(slice PARTITIONED ref_type  ref, search_summary_window);`);
+      span_join(slice PARTITIONED track_id, search_summary_window);`);
   }
 
   run() {
@@ -92,7 +92,7 @@ export class SearchController extends Controller<'main'> {
         sliceIds: new Float64Array(0),
         tsStarts: new Float64Array(0),
         utids: new Float64Array(0),
-        refTypes: [],
+        sources: [],
         trackIds: [],
         totalResults: 0,
       });
@@ -208,7 +208,7 @@ export class SearchController extends Controller<'main'> {
       row_id as slice_id,
       ts,
       'cpu' as source,
-      cpu as ref,
+      cpu as source_id,
       utid
     from sched where utid in (${utids.join(',')})
     union
@@ -216,7 +216,7 @@ export class SearchController extends Controller<'main'> {
       slice_id,
       ts,
       'track' as source,
-      track_id as ref,
+      track_id as source_id,
       0 as utid
       from slice
       inner join track on slice.track_id = track.id
@@ -230,19 +230,19 @@ export class SearchController extends Controller<'main'> {
       tsStarts: new Float64Array(numRows),
       utids: new Float64Array(numRows),
       trackIds: [],
-      refTypes: [],
+      sources: [],
       totalResults: +numRows,
     };
 
     const columns = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
       const source = columns[2].stringValues![row];
-      const ref = +columns[3].longValues![row];
+      const sourceId = +columns[3].longValues![row];
       let trackId = undefined;
       if (source === 'cpu') {
-        trackId = cpuToTrackId.get(ref);
+        trackId = cpuToTrackId.get(sourceId);
       } else if (source === 'track') {
-        trackId = engineTrackIdToTrackId.get(ref);
+        trackId = engineTrackIdToTrackId.get(sourceId);
       }
 
       if (trackId === undefined) {
@@ -251,7 +251,7 @@ export class SearchController extends Controller<'main'> {
       }
 
       searchResults.trackIds.push(trackId);
-      searchResults.refTypes.push(source);
+      searchResults.sources.push(source);
       searchResults.sliceIds[row] = +columns[0].longValues![row];
       searchResults.tsStarts[row] = +columns[1].longValues![row];
       searchResults.utids[row] = +columns[4].longValues![row];
