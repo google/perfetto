@@ -50,6 +50,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TRACK_TABLE_DEF);
   NAME(GpuTrackTable, "gpu_track")                 \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)           \
   C(StringPool::Id, scope)                         \
+  C(StringPool::Id, description)                   \
   C(base::Optional<int64_t>, context_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACK_DEF);
