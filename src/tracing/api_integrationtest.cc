@@ -1302,6 +1302,27 @@ TEST_F(PerfettoApiTest, TrackEventCustomRawDebugAnnotations) {
                   "B:test.E(plain_arg=(int)42,raw_arg=(nested)nested_value)"));
 }
 
+TEST_F(PerfettoApiTest, TrackEventComputedName) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  for (int i = 0; i < 3; i++)
+    TRACE_EVENT_BEGIN("test", i % 2 ? "Odd" : "Even");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.Even", "B:test.Odd", "B:test.Even"));
+}
+
 TEST_F(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
   // Setup the trace config.
   perfetto::TraceConfig cfg;
