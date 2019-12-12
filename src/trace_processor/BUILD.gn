@@ -44,6 +44,22 @@ if (enable_perfetto_ui) {
   }
 }
 
+source_set("protozero_to_text") {
+  sources = [
+    "importers/proto/track_event.descriptor.h",
+    "protozero_to_text.cc",
+    "protozero_to_text.h",
+  ]
+  deps = [
+    ":descriptors",
+    "../../gn:default_deps",
+    "../../protos/perfetto/common:zero",
+    "../../protos/perfetto/trace/track_event:zero",
+    "../base",
+    "../protozero:protozero",
+  ]
+}
+
 source_set("descriptors") {
   sources = [
     "descriptors.cc",
@@ -409,6 +425,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/systrace/systrace_parser_unittest.cc",
     "null_term_string_view_unittest.cc",
     "process_tracker_unittest.cc",
+    "protozero_to_text_unittests.cc",
     "slice_tracker_unittest.cc",
     "string_pool_unittest.cc",
     "trace_sorter_unittest.cc",
@@ -416,6 +433,7 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":common",
     ":descriptors",
+    ":protozero_to_text",
     ":storage_full",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
