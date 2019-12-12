@@ -439,17 +439,36 @@ class RowMap {
   void FilterInto(RowMap* out, Predicate p) const {
     PERFETTO_DCHECK(size() >= out->size());
 
-    switch (mode_) {
-      case Mode::kRange:
-        FilterInto(out, RangeIterator(this), p);
-        break;
-      case Mode::kBitVector:
-        FilterInto(out, bit_vector_.IterateSetBits(), p);
-        break;
-      case Mode::kIndexVector:
-        FilterInto(out, IndexVectorIterator(this), p);
-        break;
+    if (out->size() == 0) {
+      // If the output RowMap is empty, we don't need to do anything.
+      return;
     }
+
+    if (out->size() == 1) {
+      // If the output RowMap has a single entry, just lookup that entry and see
+      // if we should keep it.
+      if (!p(out->Get(0)))
+        *out = RowMap();
+      return;
+    }
+
+    // TODO(lalitm): investigate whether we should have another fast path for
+    // cases where |out| has only a few entries so we can scan |out| instead of
+    // scanning |this|.
+
+    // TODO(lalit): investigate whether we should also scan |out| if |this| is
+    // a range or index vector as, in those cases, it would be fast to lookup
+    // |this| by index.
+
+    // We choose to full scan |this| rather than |out| as the performance
+    // penalty of incorrectly scanning |out| is much worse than mistakely
+    // scanning |this|.
+    // This is because scans on |out| involve an indexed lookup on |this| which
+    // (in the case of a bitvector) can be very expensive. On the other hand,
+    // scanning |this| means we never have to do indexed lookups but we may
+    // scan many more rows than necessary (as they may have already been
+    // excluded in out).
+    FilterIntoScanSelf(out, p);
   }
 
   template <typename Comparator>
@@ -482,8 +501,29 @@ class RowMap {
     kIndexVector,
   };
 
+  // Filters the current RowMap into |out| by performing a full scan on |this|.
+  // See |FilterInto| for a full breakdown of the semantics of this function.
+  template <typename Predicate>
+  void FilterIntoScanSelf(RowMap* out, Predicate p) const {
+    switch (mode_) {
+      case Mode::kRange:
+        FilterIntoScanSelf(out, RangeIterator(this), p);
+        break;
+      case Mode::kBitVector:
+        FilterIntoScanSelf(out, bit_vector_.IterateSetBits(), p);
+        break;
+      case Mode::kIndexVector:
+        FilterIntoScanSelf(out, IndexVectorIterator(this), p);
+        break;
+    }
+  }
+
+  // Filters the current RowMap into |out| by performing a full scan on |this|
+  // using the |it|, a strongly typed iterator on |this| (a strongly typed
+  // iterator is used for performance reasons).
+  // See |FilterInto| for a full breakdown of the semantics of this function.
   template <typename Iterator, typename Predicate>
-  void FilterInto(RowMap* out, Iterator it, Predicate p) const {
+  void FilterIntoScanSelf(RowMap* out, Iterator it, Predicate p) const {
     switch (out->mode_) {
       case Mode::kRange: {
         // TODO(lalitm): investigate whether we can reuse the data inside
