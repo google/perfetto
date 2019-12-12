@@ -39,6 +39,7 @@ namespace trace_processor {
 GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
     : context_(context),
       vulkan_memory_tracker_(context),
+      description_id_(context->storage->InternString("description")),
       gpu_render_stage_scope_id_(
           context->storage->InternString("gpu_render_stage")),
       graphics_event_scope_id_(
@@ -178,7 +179,7 @@ const StringId GraphicsEventParser::GetFullStageName(
   StringId stage_name;
 
   if (stage_id < gpu_render_stage_ids_.size()) {
-    stage_name = gpu_render_stage_ids_[stage_id];
+    stage_name = gpu_render_stage_ids_[stage_id].first;
   } else {
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "render stage(%zu)", stage_id);
@@ -220,6 +221,8 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
         StringId track_name = context_->storage->InternString(hw_queue.name());
         tables::GpuTrackTable::Row track(track_name.id);
         track.scope = gpu_render_stage_scope_id_;
+        track.description =
+            context_->storage->InternString(hw_queue.description());
         gpu_hw_queue_ids_.emplace_back(
             context_->track_tracker->InternGpuTrack(track));
       }
@@ -228,13 +231,20 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
           stage(*it);
       if (stage.has_name()) {
-        gpu_render_stage_ids_.emplace_back(
-            context_->storage->InternString(stage.name()));
+        gpu_render_stage_ids_.emplace_back(std::make_pair(
+            context_->storage->InternString(stage.name()),
+            context_->storage->InternString(stage.description())));
       }
     }
   }
 
   auto args_callback = [this, &event](ArgsTracker* args_tracker, RowId row_id) {
+    auto description =
+        gpu_render_stage_ids_[static_cast<size_t>(event.stage_id())].second;
+    if (description != kNullStringId) {
+      args_tracker->AddArg(row_id, description_id_, description_id_,
+                           Variadic::String(description));
+    }
     for (auto it = event.extra_data(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
       StringId name_id = context_->storage->InternString(datum.name());
@@ -246,7 +256,6 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
 
   if (event.has_event_id()) {
     StringId stage_name = GetFullStageName(event);
-
     TrackId track_id =
         gpu_hw_queue_ids_[static_cast<size_t>(event.hw_queue_id())];
     const auto slice_id = context_->slice_tracker->Scoped(

@@ -77,9 +77,11 @@ class GraphicsEventParser {
   // For GpuCounterEvent
   std::unordered_map<uint32_t, TrackId> gpu_counter_track_ids_;
   // For GpuRenderStageEvent
+  const StringId description_id_;
   const StringId gpu_render_stage_scope_id_;
   std::vector<TrackId> gpu_hw_queue_ids_;
-  std::vector<StringId> gpu_render_stage_ids_;
+  // Map of stage ID -> pair(stage name, stage description)
+  std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
   // For GraphicsFrameEvent
   const StringId graphics_event_scope_id_;
   const StringId unknown_event_name_id_;

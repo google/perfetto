@@ -281,7 +281,8 @@ class Trace(object):
     for s in specs:
       hw_queue = spec.hw_queue.add()
       hw_queue.name = s.get('name', '')
-      hw_queue.description = s.get('description', '')
+      if 'description' in s:
+        hw_queue.description = s['description']
 
   def add_gpu_render_stages_stage_spec(self, specs=[]):
     packet = self.add_packet()
@@ -289,7 +290,8 @@ class Trace(object):
     for s in specs:
       stage = spec.stage.add()
       stage.name = s.get('name', '')
-      stage.description = s.get('description', '')
+      if 'description' in s:
+        stage.description = s['description']
 
   def add_gpu_render_stages(self,
                             ts,
