@@ -37,7 +37,7 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', 'Thread State')),
-          m('.details-table', [m('table', [
+          m('.details-table', [m('table.half-width', [
               m('tr',
                 m('th', `Start time`),
                 m('td',

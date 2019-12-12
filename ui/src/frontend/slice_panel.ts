@@ -46,7 +46,7 @@ export class SliceDetailsPanel extends Panel {
     } else {
       return m(
           '.details-table',
-          m('table',
+          m('table.half-width',
             [
               m('tr',
                 m('th', `Process`),
