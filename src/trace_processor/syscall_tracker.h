@@ -52,8 +52,7 @@ class SyscallTracker {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (!name.is_null()) {
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->Begin(ts, track_id, utid, RefType::kRefUtid,
-                                     0 /* cat */, name);
+      context_->slice_tracker->Begin(ts, track_id, 0 /* cat */, name);
     }
   }
 

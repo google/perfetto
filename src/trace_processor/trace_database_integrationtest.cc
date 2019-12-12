@@ -131,8 +131,10 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Demangle) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
-  auto it =
-      Query("select count(*), max(ts) - min(ts) from slices where utid != 0");
+  auto it = Query(
+      "select count(*), max(ts) - min(ts) "
+      "from slice s inner join thread_track t "
+      "on s.track_id = t.id where utid != 0");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(0).long_value, 39828);
@@ -144,7 +146,7 @@ TEST_F(TraceProcessorIntegrationTest, Sfgate) {
 TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
   ASSERT_TRUE(
       LoadTrace("unsorted_trace.json", strlen("{\"traceEvents\":[")).ok());
-  auto it = Query("select ts, depth from slices order by ts");
+  auto it = Query("select ts, depth from slice order by ts");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(0).long_value, 50000);

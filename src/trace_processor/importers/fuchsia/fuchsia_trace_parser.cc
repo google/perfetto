@@ -319,7 +319,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          slices->Begin(ts, track_id, utid, RefType::kRefUtid, cat, name);
+          slices->Begin(ts, track_id, cat, name);
           break;
         }
         case kDurationEnd: {
@@ -349,8 +349,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          slices->Scoped(ts, track_id, utid, RefType::kRefUtid, cat, name,
-                         duration);
+          slices->Scoped(ts, track_id, cat, name, duration);
           break;
         }
         case kAsyncBegin: {
@@ -361,7 +360,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           }
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
-          slices->Begin(ts, track_id, track_id, RefType::kRefTrack, cat, name);
+          slices->Begin(ts, track_id, cat, name);
           break;
         }
         case kAsyncInstant: {

@@ -570,8 +570,8 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       name_id = context_->storage->InternString(fallback);
     }
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->Scoped(ts, track_id, utid, RefType::kRefUtid,
-                                    cat_id, name_id, event.event_duration_ns());
+    context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
+                                    event.event_duration_ns());
   } else if (event.has_counter_id()) {
     auto cid = event.counter_id();
     if (cid < metatrace::COUNTERS_MAX) {
