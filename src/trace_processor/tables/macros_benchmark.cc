@@ -320,6 +320,25 @@ static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
 }
 BENCHMARK(BM_TableFilterChildSortedEqInParent)->Apply(TableFilterArgs);
 
+static void BM_TableFilterIdAndOtherParent(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  for (uint32_t i = 0; i < size; ++i) {
+    RootTestTable::Row root_row;
+    root_row.root_non_null = i * 4;
+    root.Insert(root_row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Filter(
+        {root.id().eq(root.size() - 1), root.root_non_null().gt(100)}));
+  }
+}
+BENCHMARK(BM_TableFilterIdAndOtherParent)->Apply(TableFilterArgs);
+
 static void BM_TableSortRootNonNull(benchmark::State& state) {
   StringPool pool;
   RootTestTable root(&pool, nullptr);
