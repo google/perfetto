@@ -90,24 +90,11 @@
 
 // Efficiently determines whether tracing is enabled for the given category, and
 // if so, emits one trace event with the given arguments.
-#define PERFETTO_INTERNAL_TRACK_EVENT(category, name, ...)                    \
-  ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::CallIfCategoryEnabled<        \
-      PERFETTO_GET_CATEGORY_INDEX(category)>([&](uint32_t instances) {        \
-    /* Check that |name| is a static string. If this fails, you probably want \
-     * to use "constexpr const char*" if the string is computed by an         \
-     * expression, or something like this if the string is fully dynamic:     \
-     *                                                                        \
-     *   TRACE_EVENT("category", nullptr, [&](perfetto::EventContext ctx) {   \
-     *     ctx.event()->set_name(dynamic_name);                               \
-     *   }                                                                    \
-     */                                                                       \
-    static_assert(                                                            \
-        (name) == nullptr || (name) != nullptr,                               \
-        "Track event name must be a (constexpr) static string. Use a trace "  \
-        "lambda if you need a dynamic name (see above).");                    \
-    ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::TraceForCategory<           \
-        PERFETTO_GET_CATEGORY_INDEX(category)>(instances, name,               \
-                                               ##__VA_ARGS__);                \
+#define PERFETTO_INTERNAL_TRACK_EVENT(category, ...)                      \
+  ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::CallIfCategoryEnabled<    \
+      PERFETTO_GET_CATEGORY_INDEX(category)>([&](uint32_t instances) {    \
+    ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::TraceForCategory<       \
+        PERFETTO_GET_CATEGORY_INDEX(category)>(instances, ##__VA_ARGS__); \
   })
 
 // Generate a unique variable name with a given prefix.
