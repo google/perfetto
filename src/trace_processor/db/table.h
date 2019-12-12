@@ -76,7 +76,34 @@ class Table {
   Table& operator=(Table&& other) noexcept;
 
   // Filters the Table using the specified filter constraints.
-  Table Filter(const std::vector<Constraint>& cs) const;
+  Table Filter(const std::vector<Constraint>& cs) const {
+    return Apply(FilterToRowMap(cs));
+  }
+
+  // Filters the Table using the specified filter constraints.
+  // Returns a RowMap which, if applied to the table, would contain the rows
+  // post filter.
+  RowMap FilterToRowMap(const std::vector<Constraint>& cs) const {
+    RowMap rm(0, size_);
+    for (const Constraint& c : cs) {
+      columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
+    }
+    return rm;
+  }
+
+  // Applies the given RowMap to the current table by picking out the rows
+  // specified in the RowMap to be present in the output table.
+  // Note: the RowMap should not reorder this table; this is guaranteed if the
+  // passed RowMap is generated using |FilterToRowMap|.
+  Table Apply(RowMap rm) const {
+    Table table = CopyExceptRowMaps();
+    table.size_ = rm.size();
+    for (const RowMap& map : row_maps_) {
+      table.row_maps_.emplace_back(map.SelectRows(rm));
+      PERFETTO_DCHECK(table.row_maps_.back().size() == table.size());
+    }
+    return table;
+  }
 
   // Sorts the Table using the specified order by constraints.
   Table Sort(const std::vector<Order>& od) const;
