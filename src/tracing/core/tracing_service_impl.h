@@ -560,6 +560,7 @@ class TracingServiceImpl : public TracingService {
   std::set<ConsumerEndpointImpl*> consumers_;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
+  std::map<std::string, int64_t> session_to_last_trace_s_;
 
   bool smb_scraping_enabled_ = false;
   bool lockdown_mode_ = false;
