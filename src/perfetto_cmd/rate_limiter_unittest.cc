@@ -26,10 +26,11 @@
 #include "test/gtest_and_gmock.h"
 
 using testing::_;
-using testing::NiceMock;
-using testing::StrictMock;
+using testing::Contains;
 using testing::Invoke;
+using testing::NiceMock;
 using testing::Return;
+using testing::StrictMock;
 
 namespace perfetto {
 
@@ -85,6 +86,42 @@ TEST(RateLimiterTest, RoundTripState) {
   ASSERT_TRUE(limiter.SaveState(input));
   ASSERT_TRUE(limiter.LoadState(&output));
   ASSERT_EQ(output.total_bytes_uploaded(), 42u);
+  ASSERT_EQ(output.session_state_size(), 0);
+}
+
+TEST(RateLimiterTest, FileIsSensiblyTruncated) {
+  NiceMock<MockRateLimiter> limiter;
+
+  gen::PerfettoCmdState input{};
+  gen::PerfettoCmdState output{};
+
+  input.set_total_bytes_uploaded(42);
+  input.set_first_trace_timestamp(1);
+  input.set_last_trace_timestamp(2);
+
+  for (size_t i = 0; i < 100; ++i) {
+    auto* session = input.add_session_state();
+    session->set_session_name("session_" + std::to_string(i));
+    session->set_total_bytes_uploaded(i * 100);
+    session->set_last_trace_timestamp(i);
+  }
+
+  ASSERT_TRUE(limiter.SaveState(input));
+  ASSERT_TRUE(limiter.LoadState(&output));
+
+  ASSERT_EQ(output.total_bytes_uploaded(), 42u);
+  ASSERT_EQ(output.first_trace_timestamp(), 1u);
+  ASSERT_EQ(output.last_trace_timestamp(), 2u);
+  ASSERT_LE(output.session_state_size(), 50);
+  ASSERT_GE(output.session_state_size(), 5);
+
+  {
+    gen::PerfettoCmdState::PerSessionState session;
+    session.set_session_name("session_99");
+    session.set_total_bytes_uploaded(99 * 100);
+    session.set_last_trace_timestamp(99);
+    ASSERT_THAT(output.session_state(), Contains(session));
+  }
 }
 
 TEST(RateLimiterTest, LoadFromEmpty) {
@@ -206,6 +243,45 @@ TEST(RateLimiterTest, DropBox_NormalUpload) {
             static_cast<uint64_t>(args.current_time.count()));
 }
 
+TEST(RateLimiterTest, DropBox_NormalUploadWithSessionName) {
+  StrictMock<MockRateLimiter> limiter;
+  RateLimiter::Args args;
+
+  gen::PerfettoCmdState input{};
+  input.set_first_trace_timestamp(10000);
+  input.set_last_trace_timestamp(10000 + 60 * 10);
+  input.set_total_bytes_uploaded(1024 * 1024 * 2);
+  ASSERT_TRUE(limiter.SaveStateConcrete(input));
+
+  args.allow_user_build_tracing = true;
+  args.is_dropbox = true;
+  args.unique_session_name = "foo";
+  args.current_time = base::TimeSeconds(input.last_trace_timestamp() + 60 * 10);
+
+  EXPECT_CALL(limiter, LoadState(_));
+  ASSERT_TRUE(limiter.ShouldTrace(args));
+
+  EXPECT_CALL(limiter, SaveState(_));
+  ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
+
+  gen::PerfettoCmdState output{};
+  ASSERT_TRUE(limiter.LoadStateConcrete(&output));
+  EXPECT_EQ(output.total_bytes_uploaded(), 1024u * 1024u * 2);
+  EXPECT_EQ(output.first_trace_timestamp(), input.first_trace_timestamp());
+  EXPECT_EQ(output.last_trace_timestamp(),
+            static_cast<uint64_t>(args.current_time.count()));
+  ASSERT_GE(output.session_state_size(), 1);
+
+  {
+    gen::PerfettoCmdState::PerSessionState session;
+    session.set_session_name("foo");
+    session.set_total_bytes_uploaded(1024 * 1024);
+    session.set_last_trace_timestamp(
+        static_cast<uint64_t>(args.current_time.count()));
+    ASSERT_THAT(output.session_state(), Contains(session));
+  }
+}
+
 TEST(RateLimiterTest, DropBox_FailedToLoadState) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
@@ -250,18 +326,43 @@ TEST(RateLimiterTest, DropBox_NoTimeTravel) {
   EXPECT_EQ(output.last_trace_timestamp(), 0u);
 }
 
-TEST(RateLimiterTest, DropBox_TooSoon) {
+TEST(RateLimiterTest, DropBox_TooMuch_OtherSession) {
   StrictMock<MockRateLimiter> limiter;
   RateLimiter::Args args;
 
   gen::PerfettoCmdState input{};
-  input.set_first_trace_timestamp(10000);
-  input.set_last_trace_timestamp(10000);
+  auto* session = input.add_session_state();
+  session->set_session_name("foo");
+  session->set_total_bytes_uploaded(100 * 1024 * 1024);
+
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
 
+  args.is_user_build = true;
   args.allow_user_build_tracing = true;
   args.is_dropbox = true;
-  args.current_time = base::TimeSeconds(10000 + 60 * 4);
+  args.unique_session_name = "bar";
+  args.current_time = base::TimeSeconds(60 * 60);
+
+  EXPECT_CALL(limiter, LoadState(_));
+  ASSERT_TRUE(limiter.ShouldTrace(args));
+}
+
+TEST(RateLimiterTest, DropBox_TooMuch_Session) {
+  StrictMock<MockRateLimiter> limiter;
+  RateLimiter::Args args;
+
+  gen::PerfettoCmdState input{};
+  auto* session = input.add_session_state();
+  session->set_session_name("foo");
+  session->set_total_bytes_uploaded(100 * 1024 * 1024);
+
+  ASSERT_TRUE(limiter.SaveStateConcrete(input));
+
+  args.is_user_build = true;
+  args.allow_user_build_tracing = true;
+  args.is_dropbox = true;
+  args.unique_session_name = "foo";
+  args.current_time = base::TimeSeconds(60 * 60);
 
   EXPECT_CALL(limiter, LoadState(_));
   ASSERT_FALSE(limiter.ShouldTrace(args));
@@ -289,6 +390,27 @@ TEST(RateLimiterTest, DropBox_TooMuch_Override) {
   RateLimiter::Args args;
 
   gen::PerfettoCmdState input{};
+  auto* session = input.add_session_state();
+  session->set_session_name("foo");
+  session->set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
+  ASSERT_TRUE(limiter.SaveStateConcrete(input));
+
+  args.allow_user_build_tracing = true;
+  args.is_dropbox = true;
+  args.current_time = base::TimeSeconds(60 * 60);
+  args.max_upload_bytes_override = 10 * 1024 * 1024 + 2;
+  args.unique_session_name = "foo";
+
+  EXPECT_CALL(limiter, LoadState(_));
+  ASSERT_TRUE(limiter.ShouldTrace(args));
+}
+
+// Override doesn't apply to traces without session name.
+TEST(RateLimiterTest, DropBox_OverrideOnEmptySesssionName) {
+  StrictMock<MockRateLimiter> limiter;
+  RateLimiter::Args args;
+
+  gen::PerfettoCmdState input{};
   input.set_total_bytes_uploaded(10 * 1024 * 1024 + 1);
   ASSERT_TRUE(limiter.SaveStateConcrete(input));
 
@@ -298,7 +420,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_Override) {
   args.max_upload_bytes_override = 10 * 1024 * 1024 + 2;
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_FALSE(limiter.ShouldTrace(args));
 }
 
 TEST(RateLimiterTest, DropBox_TooMuchWasUploaded) {
