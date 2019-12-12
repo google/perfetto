@@ -22,15 +22,17 @@ trace = synth_common.create_trace()
 trace.add_gpu_render_stages_stage_spec([{
     'name': 'stage 0'
 }, {
-    'name': 'stage 1'
+    'name': 'stage 1',
+    'description': 'stage desc 1'
 }, {
     'name': 'stage 2'
 }])
 
 trace.add_gpu_render_stages_hw_queue_spec([{
-    'name': 'queue 0'
+    'name': 'queue 0',
+    'description': 'queue desc 0'
 }, {
-    'name': 'queue 1'
+    'name': 'queue 1',
 }])
 
 for i in range(1, 8):
