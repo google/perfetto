@@ -582,6 +582,7 @@ filegroup(
         "src/trace_processor/db/bit_vector_iterators.h",
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
+        "src/trace_processor/db/compare.h",
         "src/trace_processor/db/row_map.cc",
         "src/trace_processor/db/row_map.h",
         "src/trace_processor/db/sparse_vector.h",

@@ -16,39 +16,11 @@
 
 #include "src/trace_processor/db/column.h"
 
+#include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/table.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-namespace {
-
-// This code mathces the behaviour of sqlite3IntFloatCompare to ensure that
-// we are consistent with SQLite.
-int CompareIntToDouble(int64_t i, double d) {
-  // First check if we are out of range for a int64_t. We use the constants
-  // directly instead of using numeric_limits as the casts introduces rounding
-  // in the doubles as a double cannot exactly represent int64::max().
-  if (d >= 9223372036854775808.0)
-    return -1;
-  if (d < -9223372036854775808.0)
-    return 1;
-
-  // Then, try to compare in int64 space to try and keep as much precision as
-  // possible.
-  int64_t d_i = static_cast<int64_t>(d);
-  if (i < d_i)
-    return -1;
-  if (i > d_i)
-    return 1;
-
-  // Finally, try and compare in double space, sacrificing precision if
-  // necessary.
-  double i_d = static_cast<double>(i);
-  return (i_d < d) ? -1 : (i_d > d ? 1 : 0);
-}
-
-}  // namespace
 
 Column::Column(const Column& column,
                Table* table,
@@ -168,7 +140,10 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     double double_value = value.double_value;
     if (std::is_same<T, double>::value) {
       auto fn = [double_value](T v) {
-        return v < double_value ? -1 : (v > double_value ? 1 : 0);
+        // We static cast here as this code will be compiled even when T ==
+        // int64_t as we don't have if constexpr in C++11. In reality the cast
+        // is a noop but we cannot statically verify that for the compiler.
+        return compare::Numeric(static_cast<double>(v), double_value);
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     } else {
@@ -176,7 +151,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
         // We static cast here as this code will be compiled even when T ==
         // double as we don't have if constexpr in C++11. In reality the cast is
         // a noop but we cannot statically verify that for the compiler.
-        return CompareIntToDouble(static_cast<int64_t>(v), double_value);
+        return compare::LongToDouble(static_cast<int64_t>(v), double_value);
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     }
@@ -188,12 +163,15 @@ void Column::FilterIntoNumericSlow(FilterOp op,
         // for this function even though the LHS of the comparator should
         // actually be |v|. This saves us having a duplicate implementation of
         // the comparision function.
-        return -CompareIntToDouble(long_value, v);
+        return -compare::LongToDouble(long_value, v);
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     } else {
       auto fn = [long_value](T v) {
-        return v < long_value ? -1 : (v > long_value ? 1 : 0);
+        // We static cast here as this code will be compiled even when T ==
+        // double as we don't have if constexpr in C++11. In reality the cast is
+        // a noop but we cannot statically verify that for the compiler.
+        return compare::Numeric(static_cast<int64_t>(v), long_value);
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     }
@@ -295,41 +273,43 @@ void Column::FilterIntoStringSlow(FilterOp op,
   }
 
   NullTermStringView str_value = value.string_value;
+  PERFETTO_DCHECK(str_value.data() != nullptr);
+
   switch (op) {
     case FilterOp::kLt:
       row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
         auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && v < str_value;
+        return v.data() != nullptr && compare::String(v, str_value) < 0;
       });
       break;
     case FilterOp::kEq:
       row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
         auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && v == str_value;
+        return v.data() != nullptr && compare::String(v, str_value) == 0;
       });
       break;
     case FilterOp::kGt:
       row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
         auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && v > str_value;
+        return v.data() != nullptr && compare::String(v, str_value) > 0;
       });
       break;
     case FilterOp::kNe:
       row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
         auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && v != str_value;
+        return v.data() != nullptr && compare::String(v, str_value) != 0;
       });
       break;
     case FilterOp::kLe:
       row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
         auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && v <= str_value;
+        return v.data() != nullptr && compare::String(v, str_value) <= 0;
       });
       break;
     case FilterOp::kGe:
       row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
         auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && v >= str_value;
+        return v.data() != nullptr && compare::String(v, str_value) >= 0;
       });
       break;
     case FilterOp::kLike:
@@ -363,28 +343,34 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
   uint32_t id_value = static_cast<uint32_t>(value.long_value);
   switch (op) {
     case FilterOp::kLt:
-      row_map().FilterInto(rm,
-                           [id_value](uint32_t idx) { return idx < id_value; });
+      row_map().FilterInto(rm, [id_value](uint32_t idx) {
+        return compare::Numeric(idx, id_value) < 0;
+      });
       break;
     case FilterOp::kEq:
-      row_map().FilterInto(
-          rm, [id_value](uint32_t idx) { return idx == id_value; });
+      row_map().FilterInto(rm, [id_value](uint32_t idx) {
+        return compare::Numeric(idx, id_value) == 0;
+      });
       break;
     case FilterOp::kGt:
-      row_map().FilterInto(rm,
-                           [id_value](uint32_t idx) { return idx > id_value; });
+      row_map().FilterInto(rm, [id_value](uint32_t idx) {
+        return compare::Numeric(idx, id_value) > 0;
+      });
       break;
     case FilterOp::kNe:
-      row_map().FilterInto(
-          rm, [id_value](uint32_t idx) { return idx != id_value; });
+      row_map().FilterInto(rm, [id_value](uint32_t idx) {
+        return compare::Numeric(idx, id_value) != 0;
+      });
       break;
     case FilterOp::kLe:
-      row_map().FilterInto(
-          rm, [id_value](uint32_t idx) { return idx <= id_value; });
+      row_map().FilterInto(rm, [id_value](uint32_t idx) {
+        return compare::Numeric(idx, id_value) <= 0;
+      });
       break;
     case FilterOp::kGe:
-      row_map().FilterInto(
-          rm, [id_value](uint32_t idx) { return idx >= id_value; });
+      row_map().FilterInto(rm, [id_value](uint32_t idx) {
+        return compare::Numeric(idx, id_value) >= 0;
+      });
       break;
     case FilterOp::kLike:
       rm->Intersect(RowMap());
@@ -400,33 +386,33 @@ void Column::StableSort(std::vector<uint32_t>* out) const {
   switch (type_) {
     case ColumnType::kInt32: {
       if (IsNullable()) {
-        StableSort<desc, int32_t, true /* is_nullable */>(out);
+        StableSortNumeric<desc, int32_t, true /* is_nullable */>(out);
       } else {
-        StableSort<desc, int32_t, false /* is_nullable */>(out);
+        StableSortNumeric<desc, int32_t, false /* is_nullable */>(out);
       }
       break;
     }
     case ColumnType::kUint32: {
       if (IsNullable()) {
-        StableSort<desc, uint32_t, true /* is_nullable */>(out);
+        StableSortNumeric<desc, uint32_t, true /* is_nullable */>(out);
       } else {
-        StableSort<desc, uint32_t, false /* is_nullable */>(out);
+        StableSortNumeric<desc, uint32_t, false /* is_nullable */>(out);
       }
       break;
     }
     case ColumnType::kInt64: {
       if (IsNullable()) {
-        StableSort<desc, int64_t, true /* is_nullable */>(out);
+        StableSortNumeric<desc, int64_t, true /* is_nullable */>(out);
       } else {
-        StableSort<desc, int64_t, false /* is_nullable */>(out);
+        StableSortNumeric<desc, int64_t, false /* is_nullable */>(out);
       }
       break;
     }
     case ColumnType::kDouble: {
       if (IsNullable()) {
-        StableSort<desc, double, true /* is_nullable */>(out);
+        StableSortNumeric<desc, double, true /* is_nullable */>(out);
       } else {
-        StableSort<desc, double, false /* is_nullable */>(out);
+        StableSortNumeric<desc, double, false /* is_nullable */>(out);
       }
       break;
     }
@@ -434,19 +420,22 @@ void Column::StableSort(std::vector<uint32_t>* out) const {
       row_map().StableSort(out, [this](uint32_t a_idx, uint32_t b_idx) {
         auto a_str = GetStringPoolStringAtIdx(a_idx);
         auto b_str = GetStringPoolStringAtIdx(b_idx);
-        return desc ? b_str < a_str : a_str < b_str;
+
+        int res = compare::NullableString(a_str, b_str);
+        return desc ? res > 0 : res < 0;
       });
       break;
     }
     case ColumnType::kId:
       row_map().StableSort(out, [](uint32_t a_idx, uint32_t b_idx) {
-        return desc ? b_idx < a_idx : a_idx < b_idx;
+        int res = compare::Numeric(a_idx, b_idx);
+        return desc ? res > 0 : res < 0;
       });
   }
 }
 
 template <bool desc, typename T, bool is_nullable>
-void Column::StableSort(std::vector<uint32_t>* out) const {
+void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
   PERFETTO_DCHECK(IsNullable() == is_nullable);
   PERFETTO_DCHECK(ToColumnType<T>() == type_);
 
@@ -455,11 +444,15 @@ void Column::StableSort(std::vector<uint32_t>* out) const {
     if (is_nullable) {
       auto a_val = sv.Get(a_idx);
       auto b_val = sv.Get(b_idx);
-      return desc ? b_val < a_val : a_val < b_val;
+
+      int res = compare::NullableNumeric(a_val, b_val);
+      return desc ? res > 0 : res < 0;
     }
     auto a_val = sv.GetNonNull(a_idx);
     auto b_val = sv.GetNonNull(b_idx);
-    return desc ? b_val < a_val : a_val < b_val;
+
+    int res = compare::Numeric(a_val, b_val);
+    return desc ? res > 0 : res < 0;
   });
 }
 
