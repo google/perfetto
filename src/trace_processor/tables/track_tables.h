@@ -57,8 +57,6 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACK_DEF);
 #define PERFETTO_TP_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(CounterTrackTable, "counter_track")             \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)               \
-  C(int64_t, ref)                                      \
-  C(StringPool::Id, ref_type)                          \
   C(StringPool::Id, unit)                              \
   C(StringPool::Id, description)
 
