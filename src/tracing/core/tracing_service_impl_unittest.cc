@@ -225,6 +225,39 @@ TEST_F(TracingServiceImplTest, AtMostOneConfig) {
   EXPECT_THAT(consumer_b->ReadBuffers(), IsEmpty());
 }
 
+TEST_F(TracingServiceImplTest, CantBackToBackConfigsForWithExtraGuardrails) {
+  {
+    std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
+    consumer_a->Connect(svc.get());
+
+    TraceConfig trace_config_a;
+    trace_config_a.add_buffers()->set_size_kb(128);
+    trace_config_a.set_duration_ms(0);
+    trace_config_a.set_enable_extra_guardrails(true);
+    trace_config_a.set_unique_session_name("foo");
+
+    consumer_a->EnableTracing(trace_config_a);
+    consumer_a->DisableTracing();
+    consumer_a->WaitForTracingDisabled();
+    EXPECT_THAT(consumer_a->ReadBuffers(), Not(IsEmpty()));
+  }
+
+  {
+    std::unique_ptr<MockConsumer> consumer_b = CreateMockConsumer();
+    consumer_b->Connect(svc.get());
+
+    TraceConfig trace_config_b;
+    trace_config_b.add_buffers()->set_size_kb(128);
+    trace_config_b.set_duration_ms(10000);
+    trace_config_b.set_enable_extra_guardrails(true);
+    trace_config_b.set_unique_session_name("foo");
+
+    consumer_b->EnableTracing(trace_config_b);
+    consumer_b->WaitForTracingDisabled(2000);
+    EXPECT_THAT(consumer_b->ReadBuffers(), IsEmpty());
+  }
+}
+
 TEST_F(TracingServiceImplTest, RegisterAndUnregister) {
   std::unique_ptr<MockProducer> mock_producer_1 = CreateMockProducer();
   std::unique_ptr<MockProducer> mock_producer_2 = CreateMockProducer();
