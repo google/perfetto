@@ -84,42 +84,6 @@ struct PERFETTO_EXPORT SqlValue {
     return double_value;
   }
 
-  int64_t Compare(const SqlValue& value) const {
-    // TODO(lalitm): this is almost the same as what SQLite does with the
-    // exception of comparisions between long and double - we choose (for
-    // performance reasons) to omit comparisions between them.
-    if (type != value.type)
-      return type - value.type;
-
-    switch (type) {
-      case Type::kNull:
-        return 0;
-      case Type::kLong:
-        return long_value - value.long_value;
-      case Type::kDouble: {
-        return double_value < value.double_value
-                   ? -1
-                   : (double_value > value.double_value ? 1 : 0);
-      }
-      case Type::kString:
-        return strcmp(string_value, value.string_value);
-      case Type::kBytes: {
-        size_t bytes = std::min(bytes_count, value.bytes_count);
-        int ret = memcmp(bytes_value, value.bytes_value, bytes);
-        if (ret != 0)
-          return ret;
-        return static_cast<int64_t>(bytes_count - value.bytes_count);
-      }
-    }
-    PERFETTO_FATAL("For GCC");
-  }
-  bool operator==(const SqlValue& value) const { return Compare(value) == 0; }
-  bool operator<(const SqlValue& value) const { return Compare(value) < 0; }
-  bool operator!=(const SqlValue& value) const { return !(*this == value); }
-  bool operator>=(const SqlValue& value) const { return !(*this < value); }
-  bool operator<=(const SqlValue& value) const { return !(value < *this); }
-  bool operator>(const SqlValue& value) const { return value < *this; }
-
   bool is_null() const { return type == Type::kNull; }
 
   // Up to 1 of these fields can be accessed depending on |type|.

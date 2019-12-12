@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/row_map.h"
 #include "src/trace_processor/db/sparse_vector.h"
 #include "src/trace_processor/string_pool.h"
@@ -131,7 +132,7 @@ class Column {
       case ColumnType::kDouble:
       case ColumnType::kString: {
         for (uint32_t i = 0; i < row_map().size(); i++) {
-          if (Get(i) == value)
+          if (compare::SqlValue(Get(i), value) == 0)
             return i;
         }
         return base::nullopt;
@@ -389,28 +390,34 @@ class Column {
     Iterator e(this, row_map().size());
     switch (op) {
       case FilterOp::kEq: {
-        uint32_t beg = std::distance(b, std::lower_bound(b, e, value));
-        uint32_t end = std::distance(b, std::upper_bound(b, e, value));
+        uint32_t beg = std::distance(
+            b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
+        uint32_t end = std::distance(
+            b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
         rm->Intersect(RowMap(beg, end));
         return true;
       }
       case FilterOp::kLe: {
-        uint32_t end = std::distance(b, std::upper_bound(b, e, value));
+        uint32_t end = std::distance(
+            b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
         rm->Intersect(RowMap(0, end));
         return true;
       }
       case FilterOp::kLt: {
-        uint32_t end = std::distance(b, std::lower_bound(b, e, value));
+        uint32_t end = std::distance(
+            b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
         rm->Intersect(RowMap(0, end));
         return true;
       }
       case FilterOp::kGe: {
-        uint32_t beg = std::distance(b, std::lower_bound(b, e, value));
+        uint32_t beg = std::distance(
+            b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
         rm->Intersect(RowMap(beg, row_map().size()));
         return true;
       }
       case FilterOp::kGt: {
-        uint32_t beg = std::distance(b, std::upper_bound(b, e, value));
+        uint32_t beg = std::distance(
+            b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
         rm->Intersect(RowMap(beg, row_map().size()));
         return true;
       }
@@ -450,7 +457,7 @@ class Column {
   // Stable sorts this column storing the result in |out|.
   // |T| and |is_nullable| should match the type and nullability of this column.
   template <bool desc, typename T, bool is_nullable>
-  void StableSort(std::vector<uint32_t>* out) const;
+  void StableSortNumeric(std::vector<uint32_t>* out) const;
 
   template <typename T>
   static ColumnType ToColumnType() {
