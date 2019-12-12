@@ -76,6 +76,7 @@ constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kMaxConcurrentTracingSessions = 15;
+constexpr int64_t kMinSecondsBetweenTracesGuardrail = 5 * 60;
 
 constexpr uint32_t kMillisPerHour = 3600000;
 constexpr uint32_t kMaxTracingDurationMillis = 7 * 24 * kMillisPerHour;
@@ -421,7 +422,7 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   }
 
   if (cfg.buffers_size() > kMaxBuffersPerConsumer) {
-    PERFETTO_DLOG("Too many buffers configured (%d)", cfg.buffers_size());
+    PERFETTO_ELOG("Too many buffers configured (%d)", cfg.buffers_size());
     return false;
   }
 
@@ -434,6 +435,34 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             name.c_str());
         return false;
       }
+    }
+  }
+
+  if (cfg.enable_extra_guardrails()) {
+    // unique_session_name can be empty
+    const std::string& name = cfg.unique_session_name();
+    int64_t now_s = base::GetBootTimeS().count();
+
+    // Remove any entries where the time limit has passed so this map doesn't
+    // grow indefinitely:
+    std::map<std::string, int64_t>& sessions = session_to_last_trace_s_;
+    for (auto it = sessions.cbegin(); it != sessions.cend();) {
+      if (now_s - it->second > kMinSecondsBetweenTracesGuardrail) {
+        it = sessions.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    int64_t& previous_s = session_to_last_trace_s_[name];
+    if (previous_s == 0) {
+      previous_s = now_s;
+    } else {
+      PERFETTO_ELOG(
+          "A trace with unique session name \"%s\" began less than %" PRId64
+          "s ago (%" PRId64 "s)",
+          name.c_str(), kMinSecondsBetweenTracesGuardrail, now_s - previous_s);
+      return false;
     }
   }
 
