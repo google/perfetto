@@ -61,29 +61,9 @@ source_set("tracing") {
   ]
 }
 
-# TODO(primiano): Remove this target as soon as chromium's
-# track_event_json_exporter.cc (which is the only user of this file) is no more.
-# This causes a dependency on libprotobuf, which we want to avoid for our
-# codebase.
-source_set("sliced_protobuf_input_stream") {
-  public_deps = [
-    "../../include/perfetto/base",
-    "../../include/perfetto/ext/tracing/core",
-  ]
-  deps = [
-    ":tracing",
-    "../../gn:default_deps",
-  ]
-  sources = [
-    "../../include/perfetto/ext/tracing/core/sliced_protobuf_input_stream.h",
-    "core/sliced_protobuf_input_stream.cc",
-  ]
-}
-
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":sliced_protobuf_input_stream",
     ":test_support",
     ":tracing",
     "../../gn:default_deps",
@@ -100,7 +80,6 @@ perfetto_unittest_source_set("unittests") {
     "core/packet_stream_validator_unittest.cc",
     "core/patch_list_unittest.cc",
     "core/shared_memory_abi_unittest.cc",
-    "core/sliced_protobuf_input_stream_unittest.cc",
     "core/trace_buffer_unittest.cc",
     "core/trace_packet_unittest.cc",
     "test/aligned_buffer_test.cc",
