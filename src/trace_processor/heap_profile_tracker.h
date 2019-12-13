@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_HEAP_PROFILE_TRACKER_H_
 
 #include <deque>
+#include <unordered_map>
 
 #include "perfetto/ext/base/optional.h"
 
@@ -45,42 +46,48 @@ class HeapProfileTracker {
     uint64_t free_count = 0;
   };
 
-  void SetProfilePacketIndex(uint64_t id);
+  void SetProfilePacketIndex(uint32_t seq_id, uint64_t id);
 
   explicit HeapProfileTracker(TraceProcessorContext* context);
 
-  void StoreAllocation(SourceAllocation);
+  void StoreAllocation(uint32_t seq_id, SourceAllocation);
 
   // Call after the last profile packet of a dump to commit the allocations
   // that had been stored using StoreAllocation and clear internal indices
   // for that dump.
-  void FinalizeProfile(StackProfileTracker* stack_profile_tracker,
+  void FinalizeProfile(uint32_t seq_id,
+                       StackProfileTracker* stack_profile_tracker,
                        const StackProfileTracker::InternLookup* lookup);
 
   // Only commit the allocations that had been stored using StoreAllocations.
   // This is only needed in tests, use FinalizeProfile instead.
-  void CommitAllocations(StackProfileTracker* stack_profile_tracker,
+  void CommitAllocations(uint32_t seq_id,
+                         StackProfileTracker* stack_profile_tracker,
                          const StackProfileTracker::InternLookup* lookup);
 
   ~HeapProfileTracker();
 
  private:
   void AddAllocation(
+      uint32_t seq_id,
       StackProfileTracker* stack_profile_tracker,
       const SourceAllocation&,
       const StackProfileTracker::InternLookup* intern_lookup = nullptr);
 
-  std::vector<SourceAllocation> pending_allocs_;
+  struct SequenceState {
+    std::vector<SourceAllocation> pending_allocs;
 
-  std::unordered_map<std::pair<UniquePid, int64_t>,
-                     TraceStorage::HeapProfileAllocations::Row>
-      prev_alloc_;
-  std::unordered_map<std::pair<UniquePid, int64_t>,
-                     TraceStorage::HeapProfileAllocations::Row>
-      prev_free_;
+    std::unordered_map<std::pair<UniquePid, int64_t>,
+                       TraceStorage::HeapProfileAllocations::Row>
+        prev_alloc;
+    std::unordered_map<std::pair<UniquePid, int64_t>,
+                       TraceStorage::HeapProfileAllocations::Row>
+        prev_free;
 
+    uint64_t last_profile_packet_index = 0;
+  };
+  std::map<uint32_t, SequenceState> sequence_state_;
   TraceProcessorContext* const context_;
-  uint64_t last_profile_packet_index_ = 0;
   const StringId empty_;
 };
 

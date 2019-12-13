@@ -64,6 +64,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseProfilePacket(int64_t ts,
                           PacketSequenceState*,
                           size_t sequence_state_generation,
+                          uint32_t seq_id,
                           ConstBytes);
   void ParseStreamingProfilePacket(PacketSequenceState*,
                                    size_t sequence_state_generation,
