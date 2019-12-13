@@ -3555,13 +3555,14 @@ std::array<MessageDescriptor, 334> descriptors{{
     },
     {
         "sde_tracing_mark_write",
-        4,
+        5,
         {
             {},
             {"pid", ProtoSchemaType::kInt32},
             {"trace_name", ProtoSchemaType::kString},
             {"trace_type", ProtoSchemaType::kUint32},
             {"value", ProtoSchemaType::kInt32},
+            {"trace_begin", ProtoSchemaType::kUint32},
         },
     },
 }};
