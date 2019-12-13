@@ -538,10 +538,15 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t ts,
                                             ConstBytes blob) {
   protos::pbzero::SdeTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
                                                               blob.size);
+  if (!evt.has_trace_type() && !evt.has_trace_begin()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
   context_->systrace_parser->ParseSdeTracingMarkWrite(
-      ts, pid, static_cast<char>(evt.trace_type()), evt.trace_name(),
-      tgid, evt.value());
+      ts, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
+      evt.trace_name(), tgid, evt.value());
 }
 
 void FtraceParser::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
