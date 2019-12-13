@@ -35,6 +35,8 @@ SOURCE_TARGET = {
         'src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h',
     'src/protozero/test/example_proto/test_messages.proto':
         'src/protozero/test/example_proto/test_messages.descriptor.h',
+    'protos/perfetto/trace/track_event/track_event.proto':
+        'src/trace_processor/importers/proto/track_event.descriptor.h',
 }
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
