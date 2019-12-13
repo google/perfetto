@@ -77,6 +77,7 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
 void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
                                               uint32_t pid,
                                               char trace_type,
+                                              bool trace_begin,
                                               base::StringView trace_name,
                                               uint32_t tgid,
                                               int64_t value) {
@@ -84,9 +85,12 @@ void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
   point.name = trace_name;
   point.tgid = tgid;
   point.value = value;
-  point.phase = trace_type;
 
-  if (trace_type != 'B' && trace_type != 'E' && trace_type != 'C') {
+  if (trace_type == 0) {
+    point.phase = trace_begin ? 'B' : 'E';
+  } else if (trace_type == 'B' && trace_type == 'E' && trace_type == 'C') {
+    point.phase = trace_type;
+  } else {
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
   }
