@@ -29,11 +29,13 @@ const VALID_ORIGINS = [
 // which indicates it is ready to receive a trace.
 export function postMessageHandler(messageEvent: MessageEvent) {
   if (!isOriginAllowed(messageEvent.origin)) {
-    throw new Error('Invalid origin for postMessage: ' + messageEvent.origin);
+    console.error(
+        `Ignoring message - disallowed origin ${messageEvent.origin}`);
+    return;
   }
 
   if (document.readyState !== 'complete') {
-    console.error('Not ready.');
+    console.error('Ignoring message - document not ready yet.');
     return;
   }
 
