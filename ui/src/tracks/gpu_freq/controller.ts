@@ -49,7 +49,6 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
           as select
             ts,
             lead(ts) over (order by ts) - ts as dur,
-            name as freq_name,
             value as freq_value
           from counter
           where track_id = ${this.config.trackId};
