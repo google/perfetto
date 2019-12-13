@@ -271,8 +271,10 @@ function main() {
 
   updateAvailableAdbDevices();
   try {
-    navigator.usb.addEventListener('connect', updateAvailableAdbDevices);
-    navigator.usb.addEventListener('disconnect', updateAvailableAdbDevices);
+    navigator.usb.addEventListener(
+        'connect', () => updateAvailableAdbDevices());
+    navigator.usb.addEventListener(
+        'disconnect', () => updateAvailableAdbDevices());
   } catch (e) {
     console.error('WebUSB API not supported');
   }

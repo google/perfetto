@@ -724,7 +724,21 @@ function RecordingPlatformSelection() {
           'label',
           'Target platform:',
           m('select',
-            {onchange: m.withAttr('value', onTargetChange), selectedIndex},
+            {
+              selectedIndex,
+              onchange: m.withAttr('value', onTargetChange),
+              onupdate: (select) => {
+                // Work around mithril bug
+                // (https://github.com/MithrilJS/mithril.js/issues/2107): We may
+                // update the select's options while also changing the
+                // selectedIndex at the same time. The update of selectedIndex
+                // may be applied before the new options are added to the select
+                // element. Because the new selectedIndex may be outside of the
+                // select's options at that time, we have to reselect the
+                // correct index here after any new children were added.
+                (select.dom as HTMLSelectElement).selectedIndex = selectedIndex;
+              }
+            },
             ...targets),
           ),
       m('.chip',
@@ -959,7 +973,7 @@ async function addAndroidDevice() {
   try {
     device = await new AdbOverWebUsb().findDevice();
   } catch (e) {
-    console.error('No device found: ${e.name}: ${e.message}');
+    console.error(`No device found: ${e.name}: ${e.message}`);
     return;
   }
 
@@ -971,12 +985,14 @@ async function addAndroidDevice() {
   // After the user has selected a device with the chrome UI, it will be
   // available when listing all the available device from WebUSB. Therefore,
   // we update the list of available devices.
-  await updateAvailableAdbDevices();
-  onTargetChange(device.serialNumber);
+  await updateAvailableAdbDevices(device.serialNumber);
 }
 
-export async function updateAvailableAdbDevices() {
+export async function updateAvailableAdbDevices(
+    preferredDeviceSerial?: string) {
   const devices = await new AdbOverWebUsb().getPairedDevices();
+
+  let recordingTarget: AdbRecordingTarget|undefined = undefined;
 
   const availableAdbDevices: AdbRecordingTarget[] = [];
   devices.forEach(d => {
@@ -987,31 +1003,41 @@ export async function updateAvailableAdbDevices() {
       // connection, from adb_record_controller
       availableAdbDevices.push(
           {name: d.productName, serial: d.serialNumber, os: 'Q'});
+      if (preferredDeviceSerial && preferredDeviceSerial === d.serialNumber) {
+        recordingTarget = availableAdbDevices[availableAdbDevices.length - 1];
+      }
     }
   });
 
   globals.dispatch(
       Actions.setAvailableAdbDevices({devices: availableAdbDevices}));
-  selectAndroidDeviceIfAvailable(availableAdbDevices);
+  selectAndroidDeviceIfAvailable(availableAdbDevices, recordingTarget);
   globals.rafScheduler.scheduleFullRedraw();
   return availableAdbDevices;
 }
 
 function selectAndroidDeviceIfAvailable(
-    availableAdbDevices: AdbRecordingTarget[]) {
-  const recordingTarget = globals.state.recordingTarget;
+    availableAdbDevices: AdbRecordingTarget[],
+    recordingTarget?: RecordingTarget) {
+  if (!recordingTarget) {
+    recordingTarget = globals.state.recordingTarget;
+  }
   const deviceConnected = isAdbTarget(recordingTarget);
   const connectedDeviceDisconnected = deviceConnected &&
       availableAdbDevices.find(
           e => e.serial === (recordingTarget as AdbRecordingTarget).serial) ===
           undefined;
 
-  // If there is an android device attached, but not selected (or the currently
-  // selected device was disconnected), select it by default.
-  if ((!deviceConnected || connectedDeviceDisconnected) &&
-      availableAdbDevices.length) {
-    globals.dispatch(
-        Actions.setRecordingTarget({target: availableAdbDevices[0]}));
+  if (availableAdbDevices.length) {
+    // If there's an Android device available and the current selection isn't
+    // one, select the Android device by default. If the current device isn't
+    // available anymore, but another Android device is, select the other
+    // Android device instead.
+    if (!deviceConnected || connectedDeviceDisconnected) {
+      recordingTarget = availableAdbDevices[0];
+    }
+
+    globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
     return;
   }
 
