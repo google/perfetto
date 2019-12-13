@@ -229,7 +229,7 @@ export class FrontendLocalState {
       lastUpdate: Date.now() / 1000
     };
     this.selectAreaDebounced();
-    globals.frontendLocalState.currentTab = 'time_range';
+    globals.frontendLocalState.currentTab = 'cpu_slices';
     globals.rafScheduler.scheduleFullRedraw();
   }
 
