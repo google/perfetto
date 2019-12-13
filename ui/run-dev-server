@@ -22,6 +22,10 @@ if [ -z "$1" ]; then
   exit 127
 fi
 OUT_DIR="$1"
+
+echo 'Initial build:'
+$ROOT_DIR/tools/ninja -C $OUT_DIR ui
+
 UI_OUT_DIR="$OUT_DIR/ui"
 if [ ! -d $UI_OUT_DIR ]; then
   echo "ERROR: cannot find the UI output directory (\"$UI_OUT_DIR\")."
