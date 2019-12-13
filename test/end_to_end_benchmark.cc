@@ -211,9 +211,9 @@ static void BenchmarkConsumer(benchmark::State& state) {
 
 void SaturateCpuProducerArgs(benchmark::internal::Benchmark* b) {
   int min_message_count = 16;
-  int max_message_count = IsBenchmarkFunctionalOnly() ? 1024 : 1024 * 1024;
+  int max_message_count = IsBenchmarkFunctionalOnly() ? 16 : 1024 * 1024;
   int min_payload = 8;
-  int max_payload = IsBenchmarkFunctionalOnly() ? 256 : 2048;
+  int max_payload = IsBenchmarkFunctionalOnly() ? 8 : 2048;
   for (int count = min_message_count; count <= max_message_count; count *= 2) {
     for (int bytes = min_payload; bytes <= max_payload; bytes *= 2) {
       b->Args({count, bytes, 0 /* speed */});
