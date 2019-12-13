@@ -21,6 +21,7 @@ import * as m from 'mithril';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
+import {AggregateCpuData} from '../common/aggregation_data';
 import {
   LogBoundsKey,
   LogEntriesKey,
@@ -171,6 +172,11 @@ class FrontendApi {
 
   publishRecordingLog(args: {logs: string}) {
     globals.setRecordingLog(args.logs);
+    this.redraw();
+  }
+
+  publishAggregateCpuData(args: AggregateCpuData) {
+    globals.aggregateCpuData = args;
     this.redraw();
   }
 
