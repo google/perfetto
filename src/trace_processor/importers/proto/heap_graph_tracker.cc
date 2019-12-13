@@ -22,79 +22,110 @@ namespace trace_processor {
 HeapGraphTracker::HeapGraphTracker(TraceProcessorContext* context)
     : context_(context) {}
 
-bool HeapGraphTracker::SetPidAndTimestamp(UniquePid upid, int64_t ts) {
-  if (current_upid_ != 0 && current_upid_ != upid) {
+HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
+    uint32_t seq_id) {
+  auto seq_it = sequence_state_.find(seq_id);
+  if (seq_it == sequence_state_.end()) {
+    std::tie(seq_it, std::ignore) = sequence_state_.emplace(seq_id, this);
+  }
+  return seq_it->second;
+}
+
+bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
+                                          UniquePid upid,
+                                          int64_t ts) {
+  if (sequence_state->current_upid != 0 &&
+      sequence_state->current_upid != upid) {
     context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
     return false;
   }
-  if (current_ts_ != 0 && current_ts_ != ts) {
+  if (sequence_state->current_ts != 0 && sequence_state->current_ts != ts) {
     context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
     return false;
   }
-  current_upid_ = upid;
-  current_ts_ = ts;
+  sequence_state->current_upid = upid;
+  sequence_state->current_ts = ts;
   return true;
 }
 
-void HeapGraphTracker::AddObject(UniquePid upid, int64_t ts, SourceObject obj) {
-  if (!SetPidAndTimestamp(upid, ts))
+void HeapGraphTracker::AddObject(uint32_t seq_id,
+                                 UniquePid upid,
+                                 int64_t ts,
+                                 SourceObject obj) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+
+  if (!SetPidAndTimestamp(&sequence_state, upid, ts))
     return;
 
-  current_objects_.emplace_back(std::move(obj));
+  sequence_state.current_objects.emplace_back(std::move(obj));
 }
 
-void HeapGraphTracker::AddRoot(UniquePid upid, int64_t ts, SourceRoot root) {
-  if (!SetPidAndTimestamp(upid, ts))
+void HeapGraphTracker::AddRoot(uint32_t seq_id,
+                               UniquePid upid,
+                               int64_t ts,
+                               SourceRoot root) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  if (!SetPidAndTimestamp(&sequence_state, upid, ts))
     return;
 
-  current_roots_.emplace_back(std::move(root));
+  sequence_state.current_roots.emplace_back(std::move(root));
 }
 
-void HeapGraphTracker::AddInternedTypeName(uint64_t intern_id,
+void HeapGraphTracker::AddInternedTypeName(uint32_t seq_id,
+                                           uint64_t intern_id,
                                            StringPool::Id strid) {
-  interned_type_names_.emplace(intern_id, strid);
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  sequence_state.interned_type_names.emplace(intern_id, strid);
 }
 
-void HeapGraphTracker::AddInternedFieldName(uint64_t intern_id,
+void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
+                                            uint64_t intern_id,
                                             StringPool::Id strid) {
-  interned_field_names_.emplace(intern_id, strid);
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  sequence_state.interned_field_names.emplace(intern_id, strid);
 }
 
-void HeapGraphTracker::SetPacketIndex(uint64_t index) {
-  if (prev_index_ != 0 && prev_index_ + 1 != index) {
+void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  if (sequence_state.prev_index != 0 &&
+      sequence_state.prev_index + 1 != index) {
     PERFETTO_ELOG("Missing packets between %" PRIu64 " and %" PRIu64,
-                  prev_index_, index);
-    context_->storage->IncrementIndexedStats(stats::heap_graph_missing_packet,
-                                             static_cast<int>(current_upid_));
+                  sequence_state.prev_index, index);
+    context_->storage->IncrementIndexedStats(
+        stats::heap_graph_missing_packet,
+        static_cast<int>(sequence_state.current_upid));
   }
-  prev_index_ = index;
+  sequence_state.prev_index = index;
 }
 
-void HeapGraphTracker::FinalizeProfile() {
-  for (const SourceObject& obj : current_objects_) {
-    auto it = interned_type_names_.find(obj.type_id);
-    if (it == interned_type_names_.end()) {
+void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  for (const SourceObject& obj : sequence_state.current_objects) {
+    auto it = sequence_state.interned_type_names.find(obj.type_id);
+    if (it == sequence_state.interned_type_names.end()) {
       context_->storage->IncrementIndexedStats(
-          stats::heap_graph_invalid_string_id, static_cast<int>(current_upid_));
+          stats::heap_graph_invalid_string_id,
+          static_cast<int>(sequence_state.current_upid));
       continue;
     }
     StringPool::Id type_name = it->second;
     context_->storage->mutable_heap_graph_object_table()->Insert(
-        {current_upid_, current_ts_, static_cast<int64_t>(obj.object_id),
+        {sequence_state.current_upid, sequence_state.current_ts,
+         static_cast<int64_t>(obj.object_id),
          static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
          /*unique_retained_size=*/-1, /*reference_set_id=*/-1,
          /*reachable=*/0, /*type_name=*/type_name,
          /*deobfuscated_type_name=*/base::nullopt,
          /*root_type=*/base::nullopt});
     int64_t row = context_->storage->heap_graph_object_table().size() - 1;
-    object_id_to_row_.emplace(obj.object_id, row);
+    sequence_state.object_id_to_row.emplace(obj.object_id, row);
     class_to_rows_[type_name].emplace_back(row);
-    walker_.AddNode(row, obj.self_size);
+    sequence_state.walker.AddNode(row, obj.self_size);
   }
 
-  for (const SourceObject& obj : current_objects_) {
-    auto it = object_id_to_row_.find(obj.object_id);
-    if (it == object_id_to_row_.end())
+  for (const SourceObject& obj : sequence_state.current_objects) {
+    auto it = sequence_state.object_id_to_row.find(obj.object_id);
+    if (it == sequence_state.object_id_to_row.end())
       continue;
     int64_t owner_row = it->second;
 
@@ -106,23 +137,24 @@ void HeapGraphTracker::FinalizeProfile() {
       if (ref.owned_object_id == 0)
         continue;
 
-      it = object_id_to_row_.find(ref.owned_object_id);
+      it = sequence_state.object_id_to_row.find(ref.owned_object_id);
       // This can only happen for an invalid type string id, which is already
       // reported as an error. Silently continue here.
-      if (it == object_id_to_row_.end())
+      if (it == sequence_state.object_id_to_row.end())
         continue;
 
       int64_t owned_row = it->second;
       bool inserted;
       std::tie(std::ignore, inserted) = seen_owned.emplace(owned_row);
       if (inserted)
-        walker_.AddEdge(owner_row, owned_row);
+        sequence_state.walker.AddEdge(owner_row, owned_row);
 
-      auto field_name_it = interned_field_names_.find(ref.field_name_id);
-      if (field_name_it == interned_field_names_.end()) {
+      auto field_name_it =
+          sequence_state.interned_field_names.find(ref.field_name_id);
+      if (field_name_it == sequence_state.interned_field_names.end()) {
         context_->storage->IncrementIndexedStats(
             stats::heap_graph_invalid_string_id,
-            static_cast<int>(current_upid_));
+            static_cast<int>(sequence_state.current_upid));
         continue;
       }
       StringPool::Id field_name = field_name_it->second;
@@ -137,38 +169,24 @@ void HeapGraphTracker::FinalizeProfile() {
         ->Set(static_cast<uint32_t>(owner_row), reference_set_id);
   }
 
-  for (const SourceRoot& root : current_roots_) {
+  for (const SourceRoot& root : sequence_state.current_roots) {
     for (uint64_t obj_id : root.object_ids) {
-      auto it = object_id_to_row_.find(obj_id);
+      auto it = sequence_state.object_id_to_row.find(obj_id);
       // This can only happen for an invalid type string id, which is already
       // reported as an error. Silently continue here.
-      if (it == object_id_to_row_.end())
+      if (it == sequence_state.object_id_to_row.end())
         continue;
 
       int64_t obj_row = it->second;
-      walker_.MarkRoot(obj_row);
+      sequence_state.walker.MarkRoot(obj_row);
       context_->storage->mutable_heap_graph_object_table()
           ->mutable_root_type()
           ->Set(static_cast<uint32_t>(obj_row), root.root_type);
     }
   }
 
-  walker_.CalculateRetained();
-
-  // TODO(fmayer): Track these fields per sequence, then delete the
-  // current sequence's data here.
-  current_upid_ = 0;
-  current_ts_ = 0;
-  current_objects_.clear();
-  current_roots_.clear();
-  interned_type_names_.clear();
-  interned_field_names_.clear();
-  object_id_to_row_.clear();
-  prev_index_ = 0;
-  walker_ = HeapGraphWalker(this);
-
-  // class_to_rows_ and field_to_rows_ need to outlive this to handle
-  // DeobfuscationMapping later.
+  sequence_state.walker.CalculateRetained();
+  sequence_state_.erase(seq_id);
 }
 
 void HeapGraphTracker::MarkReachable(int64_t row) {
