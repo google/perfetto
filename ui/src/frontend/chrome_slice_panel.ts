@@ -28,7 +28,7 @@ export class ChromeSliceDetailsPanel extends Panel {
           m('.details-panel-heading', m('h2', `Slice Details`)),
           m(
               '.details-table',
-              [m('table',
+              [m('table.half-width',
                  [
                    m('tr', m('th', `Name`), m('td', `${sliceInfo.name}`)),
                    (sliceInfo.category === '[NULL]') ?
