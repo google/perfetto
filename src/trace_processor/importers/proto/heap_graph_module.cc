@@ -104,7 +104,8 @@ void HeapGraphModule::ParsePacket(
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kHeapGraphFieldNumber:
-      ParseHeapGraph(ttp.timestamp, decoder.heap_graph());
+      ParseHeapGraph(decoder.trusted_packet_sequence_id(), ttp.timestamp,
+                     decoder.heap_graph());
       return;
     case TracePacket::kDeobfuscationMappingFieldNumber:
       ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
@@ -112,11 +113,13 @@ void HeapGraphModule::ParsePacket(
   }
 }
 
-void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
+void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
+                                     int64_t ts,
+                                     protozero::ConstBytes blob) {
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(heap_graph.pid()));
-  context_->heap_graph_tracker->SetPacketIndex(heap_graph.index());
+  context_->heap_graph_tracker->SetPacketIndex(seq_id, heap_graph.index());
   for (auto it = heap_graph.objects(); it; ++it) {
     protos::pbzero::HeapGraphObject::Decoder object(*it);
     HeapGraphTracker::SourceObject obj;
@@ -154,7 +157,7 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
       ref.owned_object_id = object_ids[i];
       obj.references.emplace_back(std::move(ref));
     }
-    context_->heap_graph_tracker->AddObject(upid, ts, std::move(obj));
+    context_->heap_graph_tracker->AddObject(seq_id, upid, ts, std::move(obj));
   }
   for (auto it = heap_graph.type_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
@@ -162,7 +165,7 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
     auto str_view = base::StringView(str, entry.str().size);
 
     context_->heap_graph_tracker->AddInternedTypeName(
-        entry.iid(), context_->storage->InternString(str_view));
+        seq_id, entry.iid(), context_->storage->InternString(str_view));
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
@@ -170,7 +173,7 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
     auto str_view = base::StringView(str, entry.str().size);
 
     context_->heap_graph_tracker->AddInternedFieldName(
-        entry.iid(), context_->storage->InternString(str_view));
+        seq_id, entry.iid(), context_->storage->InternString(str_view));
   }
   for (auto it = heap_graph.roots(); it; ++it) {
     protos::pbzero::HeapGraphRoot::Decoder entry(*it);
@@ -189,10 +192,11 @@ void HeapGraphModule::ParseHeapGraph(int64_t ts, protozero::ConstBytes blob) {
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }
-    context_->heap_graph_tracker->AddRoot(upid, ts, std::move(src_root));
+    context_->heap_graph_tracker->AddRoot(seq_id, upid, ts,
+                                          std::move(src_root));
   }
   if (!heap_graph.continued()) {
-    context_->heap_graph_tracker->FinalizeProfile();
+    context_->heap_graph_tracker->FinalizeProfile(seq_id);
   }
 }
 

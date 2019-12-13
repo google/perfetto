@@ -52,6 +52,28 @@ packet {
   }
 }
 packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+  heap_graph {
+    pid: 3
+    roots {
+      root_type: ROOT_JAVA_FRAME
+      object_ids: 0x01
+    }
+    objects {
+      id: 0x01
+      type_id: 1
+      self_size: 64
+    }
+    type_names {
+      iid: 1
+      str: "FactoryProducerDelegateImplActor"
+    }
+    continued: false
+    index: 1
+  }
+}
+packet {
   trusted_packet_sequence_id: 999
   heap_graph {
     pid: 2

@@ -36,7 +36,7 @@ class HeapGraphModule : public ProtoImporterModule {
                    uint32_t field_id) override;
 
  private:
-  void ParseHeapGraph(int64_t ts, protozero::ConstBytes);
+  void ParseHeapGraph(uint32_t seq_id, int64_t ts, protozero::ConstBytes);
   void ParseDeobfuscationMapping(protozero::ConstBytes);
 
   TraceProcessorContext* context_;
