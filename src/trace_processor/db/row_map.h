@@ -447,7 +447,7 @@ class RowMap {
     if (out->size() == 1) {
       // If the output RowMap has a single entry, just lookup that entry and see
       // if we should keep it.
-      if (!p(out->Get(0)))
+      if (!p(Get(out->Get(0))))
         *out = RowMap();
       return;
     }

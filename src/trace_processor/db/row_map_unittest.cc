@@ -289,6 +289,37 @@ TEST(RowMapUnittest, IntersectMany) {
   ASSERT_EQ(rm.Get(2u), 3u);
 }
 
+TEST(RowMapUnittest, FilterIntoEmptyOutput) {
+  RowMap rm(0, 10000);
+  RowMap filter(4, 4);
+  rm.FilterInto(&filter, [](uint32_t) -> bool {
+    ADD_FAILURE() << "Should not have called lambda";
+    return true;
+  });
+
+  ASSERT_EQ(filter.size(), 0u);
+}
+
+TEST(RowMapUnittest, FilterIntoSingleRowTrue) {
+  RowMap rm(100, 10000);
+  RowMap filter(6, 7);
+  rm.FilterInto(&filter, [](uint32_t row) { return row == 106u; });
+
+  ASSERT_EQ(filter.size(), 1u);
+  ASSERT_EQ(filter.Get(0u), 6u);
+}
+
+TEST(RowMapUnittest, FilterIntoSingleRowFalse) {
+  RowMap rm(100, 10000);
+  RowMap filter(6, 7);
+  rm.FilterInto(&filter, [](uint32_t row) {
+    EXPECT_EQ(row, 106u);
+    return row != 106u;
+  });
+
+  ASSERT_EQ(filter.size(), 0u);
+}
+
 TEST(RowMapUnittest, FilterIntoRangeWithRange) {
   RowMap rm(93, 157);
   RowMap filter(4, 7);
