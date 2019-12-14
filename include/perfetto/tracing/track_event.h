@@ -126,7 +126,7 @@
 #define PERFETTO_DEFINE_CATEGORIES(...)                        \
   namespace PERFETTO_TRACK_EVENT_NAMESPACE {                   \
   /* The list of category names */                             \
-  PERFETTO_INTERNAL_DECLARE_CATEGORIES(__VA_ARGS__);           \
+  PERFETTO_INTERNAL_DECLARE_CATEGORIES(__VA_ARGS__)            \
   /* The track event data source for this set of categories */ \
   PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE();         \
   }  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
@@ -135,7 +135,7 @@
 // namespace.
 #define PERFETTO_TRACK_EVENT_STATIC_STORAGE() \
   namespace PERFETTO_TRACK_EVENT_NAMESPACE {  \
-  PERFETTO_INTERNAL_CATEGORY_STORAGE();       \
+  PERFETTO_INTERNAL_CATEGORY_STORAGE()        \
   }  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
 
 // Begin a thread-scoped slice under |category| with the title |name|. Both
