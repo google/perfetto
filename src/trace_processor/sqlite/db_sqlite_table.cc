@@ -305,7 +305,10 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   // Otherwise, just use the original table.
   auto* source =
       sorted_cache_table_ ? &*sorted_cache_table_ : &*initial_db_table_;
-  db_table_ = source->Filter(constraints_).Sort(orders_);
+  db_table_ = source->Filter(constraints_);
+  if (!orders_.empty())
+    db_table_ = db_table_->Sort(orders_);
+
   iterator_ = db_table_->IterateRows();
 
   return SQLITE_OK;
