@@ -20,5 +20,6 @@
 "queue 1","[NULL]",70,5,"stage 1",0,"height","49",42,0,0,1
 "queue 0","queue desc 0",80,5,"stage 2",0,"[NULL]","[NULL]",42,0,0,0
 "queue 0","queue desc 0",90,5,"stage 0[0x10]",0,"[NULL]","[NULL]",42,16,0,0
-"queue 0","queue desc 0",100,5,"stage 0[frame_buffer]",0,"[NULL]","[NULL]",42,16,0,0
-"queue 0","queue desc 0",110,5,"stage 0[renamed_buffer]",0,"[NULL]","[NULL]",42,16,0,0
+"queue 0","queue desc 0",100,5,"stage 0[0x10]",0,"[NULL]","[NULL]",42,16,0,0
+"queue 0","queue desc 0",110,5,"stage 0[framebuffer]",0,"[NULL]","[NULL]",42,16,0,0
+"queue 0","queue desc 0",120,5,"stage 0[renamed_buffer]",0,"[NULL]","[NULL]",42,16,0,0

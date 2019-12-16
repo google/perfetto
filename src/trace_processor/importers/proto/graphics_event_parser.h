@@ -111,7 +111,10 @@ class GraphicsEventParser {
   const StringId log_message_id_;
   std::array<StringId, 7> log_severity_ids_;
   // For Vulkan events.
-  std::unordered_map<uint64_t, ::protozero::ConstChars> debug_marker_names_;
+  // Map of vk handle -> vk object name.
+  using DebugMarkerMap = std::unordered_map<uint64_t, std::string>;
+  // Map of VkObjectType -> DebugMarkerMap.
+  std::unordered_map<int32_t, DebugMarkerMap> debug_marker_names_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
