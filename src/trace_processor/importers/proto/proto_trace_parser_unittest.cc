@@ -84,6 +84,8 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::UnorderedElementsAreArray;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 namespace {
 MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   // The IEEE standard says that any comparison operation involving
@@ -95,6 +97,8 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   return fabs(d_arg - d_exp) < 1e-128;
 }
 }  // namespace
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE) ||
+        // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 class MockSchedEventTracker : public SchedEventTracker {
@@ -261,6 +265,9 @@ class ProtoTraceParserTest : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
     context_.modules.emplace_back(new AndroidProbesModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
+    context_.modules.emplace_back(new SystemProbesModule(&context_));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
     context_.modules.emplace_back(new TrackEventModule(&context_));
 
     RegisterAdditionalModules(&context_);
@@ -604,6 +611,8 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
+
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_.add_packet();
   uint64_t ts = 1000;
@@ -677,6 +686,8 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
 }
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
