@@ -22,20 +22,20 @@ SELECT RUN_METRIC('android/android_startup_cpu.sql');
 -- Slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
-CREATE VIEW zygote_fork_slices AS
-SELECT slices.ts, slices.dur, STR_SPLIT(slices.name, ": ", 1) AS process_name
-FROM slices WHERE name LIKE 'Start proc: %';
+CREATE VIEW zygote_fork_slice AS
+SELECT slice.ts, slice.dur, STR_SPLIT(slice.name, ": ", 1) AS process_name
+FROM slice WHERE name LIKE 'Start proc: %';
 
 CREATE TABLE zygote_forks_by_id AS
 SELECT
   launches.id,
-  zygote_fork_slices.ts,
-  zygote_fork_slices.dur
-FROM zygote_fork_slices
+  zygote_fork_slice.ts,
+  zygote_fork_slice.dur
+FROM zygote_fork_slice
 JOIN launches
-ON (launches.ts < zygote_fork_slices.ts
-    AND zygote_fork_slices.ts + zygote_fork_slices.dur < launches.ts_end
-    AND zygote_fork_slices.process_name = launches.package
+ON (launches.ts < zygote_fork_slice.ts
+    AND zygote_fork_slice.ts + zygote_fork_slice.dur < launches.ts_end
+    AND zygote_fork_slice.process_name = launches.package
 );
 
 CREATE VIEW launch_main_threads AS
@@ -61,18 +61,19 @@ FROM main_thread_state
 GROUP BY 1, 2;
 
 -- Tracks all slices for the main process threads
-CREATE TABLE main_process_slices AS
+CREATE TABLE main_process_slice AS
 SELECT
   launches.id AS launch_id,
-  slices.name AS name,
-  AndroidStartupMetric_Slice('dur_ns', SUM(slices.dur)) AS slice_proto
+  slice.name AS name,
+  AndroidStartupMetric_Slice('dur_ns', SUM(slice.dur)) AS slice_proto
 FROM launches
 JOIN launch_processes ON (launches.id = launch_processes.launch_id)
 JOIN thread ON (launch_processes.upid = thread.upid)
-JOIN slices ON (
-  slices.utid = thread.utid
-  AND slices.ts BETWEEN launches.ts AND launches.ts + launches.dur)
-WHERE slices.name IN (
+JOIN thread_track USING (utid)
+JOIN slice ON (
+  slice.track_id = thread_track.id
+  AND slice.ts BETWEEN launches.ts AND launches.ts + launches.dur)
+WHERE slice.name IN (
   'ActivityThreadMain',
   'bindApplication',
   'activityStart',
@@ -135,23 +136,23 @@ SELECT
         )
       ),
       'time_activity_thread_main', (
-        SELECT slice_proto FROM main_process_slices
+        SELECT slice_proto FROM main_process_slice
         WHERE launch_id = launches.id AND name = 'ActivityThreadMain'
       ),
       'time_bind_application', (
-        SELECT slice_proto FROM main_process_slices
+        SELECT slice_proto FROM main_process_slice
         WHERE launch_id = launches.id AND name = 'bindApplication'
       ),
       'time_activity_start', (
-        SELECT slice_proto FROM main_process_slices
+        SELECT slice_proto FROM main_process_slice
         WHERE launch_id = launches.id AND name = 'activityStart'
       ),
       'time_activity_resume', (
-        SELECT slice_proto FROM main_process_slices
+        SELECT slice_proto FROM main_process_slice
         WHERE launch_id = launches.id AND name = 'activityResume'
       ),
       'time_choreographer', (
-        SELECT slice_proto FROM main_process_slices
+        SELECT slice_proto FROM main_process_slice
         WHERE launch_id = launches.id AND name = 'Choreographer#doFrame'
       ),
       'time_before_start_process', (
