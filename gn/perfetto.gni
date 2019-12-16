@@ -198,6 +198,10 @@ declare_args() {
 }
 
 declare_args() {
+  # Whether info-level logging is enabled.
+  perfetto_verbose_logs_enabled =
+      !build_with_chromium || perfetto_force_dlog == "on"
+
   # Enables the SQL query layer of trace processor.
   enable_perfetto_trace_processor_sqlite =
       enable_perfetto_trace_processor && !(build_with_chromium && is_android)
