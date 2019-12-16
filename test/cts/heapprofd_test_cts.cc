@@ -173,14 +173,14 @@ TEST(HeapprofdCtsTest, DebuggableAppStartup) {
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, DISABLED_ProfileableAppRuntime) {
+TEST(HeapprofdCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, DISABLED_ProfileableAppStartup) {
+TEST(HeapprofdCtsTest, ProfileableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileStartup(app_name);
   AssertExpectedAllocationsPresent(packets);
