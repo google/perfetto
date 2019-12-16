@@ -13,19 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include "src/trace_processor/register_additional_modules.h"
-#include "src/trace_processor/importers/proto/graphics_event_module.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
-#include "src/trace_processor/syscall_tracker.h"
+#include "src/trace_processor/destructible.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-void RegisterAdditionalModules(TraceProcessorContext* context) {
-  context->modules.emplace_back(new GraphicsEventModule(context));
-  context->modules.emplace_back(new SystemProbesModule(context));
-}
+Destructible::~Destructible() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

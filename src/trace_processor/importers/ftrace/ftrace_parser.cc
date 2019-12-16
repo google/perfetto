@@ -707,10 +707,11 @@ void FtraceParser::ParseSysEvent(int64_t ts,
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
   if (is_enter) {
-    context_->syscall_tracker->Enter(ts, utid, syscall_num);
+    syscall_tracker->Enter(ts, utid, syscall_num);
   } else {
-    context_->syscall_tracker->Exit(ts, utid, syscall_num);
+    syscall_tracker->Exit(ts, utid, syscall_num);
   }
 
   // We are reusing the same function for sys_enter and sys_exit.
