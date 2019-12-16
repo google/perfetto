@@ -51,7 +51,7 @@ class TraceBlobView {
   TraceBlobView(const TraceBlobView&) = delete;
   TraceBlobView& operator=(const TraceBlobView&) = delete;
 
-  TraceBlobView slice(size_t offset, size_t length) {
+  TraceBlobView slice(size_t offset, size_t length) const {
     PERFETTO_DCHECK(offset + length <= offset_ + length_);
     return TraceBlobView(shbuf_, offset, length);
   }
