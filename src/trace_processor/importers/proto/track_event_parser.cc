@@ -522,9 +522,8 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
         return;
       }
 
-      auto opt_slice_id =
-          slice_tracker->Begin(ts, track_id, *utid, RefType::kRefUtid,
-                               category_id, name_id, args_callback);
+      auto opt_slice_id = slice_tracker->Begin(ts, track_id, category_id,
+                                               name_id, args_callback);
       if (opt_slice_id.has_value()) {
         auto* thread_slices = storage->mutable_thread_slices();
         PERFETTO_DCHECK(!thread_slices->slice_count() ||
@@ -563,8 +562,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       if (duration_ns < 0)
         return;
       auto opt_slice_id = slice_tracker->Scoped(
-          ts, track_id, *utid, RefType::kRefUtid, category_id, name_id,
-          duration_ns, args_callback);
+          ts, track_id, category_id, name_id, duration_ns, args_callback);
       if (opt_slice_id.has_value()) {
         auto* thread_slices = storage->mutable_thread_slices();
         PERFETTO_DCHECK(!thread_slices->slice_count() ||
@@ -587,10 +585,8 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       switch (legacy_event.instant_event_scope()) {
         case LegacyEvent::SCOPE_UNSPECIFIED:
         case LegacyEvent::SCOPE_THREAD: {
-          // TODO(lalitm): Associate thread slices with track instead.
           auto opt_slice_id = slice_tracker->Scoped(
-              ts, track_id, *utid, RefType::kRefUtid, category_id, name_id,
-              duration_ns, args_callback);
+              ts, track_id, category_id, name_id, duration_ns, args_callback);
           if (opt_slice_id.has_value()) {
             auto* thread_slices = storage->mutable_thread_slices();
             PERFETTO_DCHECK(!thread_slices->slice_count() ||
@@ -602,14 +598,12 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
           break;
         }
         case LegacyEvent::SCOPE_GLOBAL: {
-          slice_tracker->Scoped(ts, track_id, /*ref=*/0, RefType::kRefNoRef,
-                                category_id, name_id, duration_ns,
+          slice_tracker->Scoped(ts, track_id, category_id, name_id, duration_ns,
                                 args_callback);
           break;
         }
         case LegacyEvent::SCOPE_PROCESS: {
-          slice_tracker->Scoped(ts, track_id, *upid, RefType::kRefUpid,
-                                category_id, name_id, duration_ns,
+          slice_tracker->Scoped(ts, track_id, category_id, name_id, duration_ns,
                                 args_callback);
           break;
         }
@@ -622,9 +616,8 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       break;
     }
     case 'b': {  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
-      auto opt_slice_id =
-          slice_tracker->Begin(ts, track_id, track_id, RefType::kRefTrack,
-                               category_id, name_id, args_callback);
+      auto opt_slice_id = slice_tracker->Begin(ts, track_id, category_id,
+                                               name_id, args_callback);
       // For the time beeing, we only create vtrack slice rows if we need to
       // store thread timestamps/counters.
       if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
@@ -654,8 +647,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       int64_t duration_ns = 0;
       int64_t tidelta = 0;
       auto opt_slice_id = slice_tracker->Scoped(
-          ts, track_id, track_id, RefType::kRefTrack, category_id, name_id,
-          duration_ns, args_callback);
+          ts, track_id, category_id, name_id, duration_ns, args_callback);
       if (legacy_event.use_async_tts() && opt_slice_id.has_value()) {
         auto* vtrack_slices = storage->mutable_virtual_track_slices();
         PERFETTO_DCHECK(!vtrack_slices->slice_count() ||

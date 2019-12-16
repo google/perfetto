@@ -40,8 +40,6 @@ SliceTracker::~SliceTracker() = default;
 
 base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
                                              TrackId track_id,
-                                             int64_t ref,
-                                             RefType ref_type,
                                              StringId category,
                                              StringId name,
                                              SetArgsCallback args_callback) {
@@ -53,14 +51,12 @@ base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
   prev_timestamp_ = timestamp;
 
   MaybeCloseStack(timestamp, &stacks_[track_id]);
-  return StartSlice(timestamp, kPendingDuration, track_id, ref, ref_type,
-                    category, name, args_callback);
+  return StartSlice(timestamp, kPendingDuration, track_id, category, name,
+                    args_callback);
 }
 
 base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
                                               TrackId track_id,
-                                              int64_t ref,
-                                              RefType ref_type,
                                               StringId category,
                                               StringId name,
                                               int64_t duration,
@@ -74,16 +70,14 @@ base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
 
   PERFETTO_DCHECK(duration >= 0);
   MaybeCloseStack(timestamp, &stacks_[track_id]);
-  return StartSlice(timestamp, duration, track_id, ref, ref_type, category,
-                    name, args_callback);
+  return StartSlice(timestamp, duration, track_id, category, name,
+                    args_callback);
 }
 
 base::Optional<uint32_t> SliceTracker::StartSlice(
     int64_t timestamp,
     int64_t duration,
     TrackId track_id,
-    int64_t ref,
-    RefType ref_type,
     StringId category,
     StringId name,
     SetArgsCallback args_callback) {
@@ -98,11 +92,8 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_id()[stack->back().first];
 
-  StringId ref_type_id = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<uint32_t>(ref_type)]);
-
-  tables::SliceTable::Row row(timestamp, duration, track_id, ref, ref_type_id,
-                              category, name, depth, 0, parent_stack_id);
+  tables::SliceTable::Row row(timestamp, duration, track_id, category, name,
+                              depth, 0, parent_stack_id);
   uint32_t slice_idx = slices->Insert(row);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 

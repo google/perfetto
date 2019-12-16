@@ -38,8 +38,6 @@ class SliceTracker {
   virtual base::Optional<uint32_t> Begin(
       int64_t timestamp,
       TrackId track_id,
-      int64_t ref,
-      RefType ref_type,
       StringId category,
       StringId name,
       SetArgsCallback args_callback = SetArgsCallback());
@@ -48,8 +46,6 @@ class SliceTracker {
   virtual base::Optional<uint32_t> Scoped(
       int64_t timestamp,
       TrackId track_id,
-      int64_t ref,
-      RefType ref_type,
       StringId category,
       StringId name,
       int64_t duration,
@@ -72,8 +68,6 @@ class SliceTracker {
   base::Optional<uint32_t> StartSlice(int64_t timestamp,
                                       int64_t duration,
                                       TrackId track_id,
-                                      int64_t ref,
-                                      RefType ref_type,
                                       StringId category,
                                       StringId name,
                                       SetArgsCallback args_callback);
