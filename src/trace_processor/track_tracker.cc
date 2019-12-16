@@ -339,9 +339,6 @@ TrackId TrackTracker::InternCpuCounterTrack(StringId name, uint32_t cpu) {
 
   tables::CpuCounterTrackTable::Row row(name);
   row.cpu = cpu;
-  row.ref = cpu;
-  row.ref_type = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefCpuId)]);
 
   TrackId track =
       context_->storage->mutable_cpu_counter_track_table()->Insert(row);
@@ -357,9 +354,6 @@ TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
 
   tables::ThreadCounterTrackTable::Row row(name);
   row.utid = utid;
-  row.ref = utid;
-  row.ref_type = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUtid)]);
 
   TrackId track =
       context_->storage->mutable_thread_counter_track_table()->Insert(row);
@@ -375,9 +369,6 @@ TrackId TrackTracker::InternProcessCounterTrack(StringId name, UniquePid upid) {
 
   tables::ProcessCounterTrackTable::Row row(name);
   row.upid = upid;
-  row.ref = upid;
-  row.ref_type = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUpid)]);
 
   TrackId track =
       context_->storage->mutable_process_counter_track_table()->Insert(row);
@@ -393,9 +384,6 @@ TrackId TrackTracker::InternIrqCounterTrack(StringId name, int32_t irq) {
 
   tables::IrqCounterTrackTable::Row row(name);
   row.irq = irq;
-  row.ref = irq;
-  row.ref_type = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefIrq)]);
 
   TrackId track =
       context_->storage->mutable_irq_counter_track_table()->Insert(row);
@@ -412,9 +400,6 @@ TrackId TrackTracker::InternSoftirqCounterTrack(StringId name,
 
   tables::SoftirqCounterTrackTable::Row row(name);
   row.softirq = softirq;
-  row.ref = softirq;
-  row.ref_type = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefSoftIrq)]);
 
   TrackId track =
       context_->storage->mutable_softirq_counter_track_table()->Insert(row);
@@ -440,9 +425,6 @@ TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
   row.gpu_id = gpu_id;
   row.description = description;
   row.unit = unit;
-  row.ref = gpu_id;
-  row.ref_type = context_->storage->InternString(
-      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefGpuId)]);
 
   return context_->storage->mutable_gpu_counter_track_table()->Insert(row);
 }
