@@ -327,12 +327,13 @@ class Trace(object):
       if value is not None:
         data.value = value
 
-  def add_vk_debug_marker(self, ts, pid, vk_device, obj, obj_name):
+  def add_vk_debug_marker(self, ts, pid, vk_device, obj_type, obj, obj_name):
     packet = self.add_packet()
     packet.timestamp = ts
     debug_marker = (self.packet.vulkan_api_event.vk_debug_utils_object_name)
     debug_marker.pid = pid
     debug_marker.vk_device = vk_device
+    debug_marker.object_type = obj_type
     debug_marker.object = obj
     debug_marker.object_name = obj_name
 
