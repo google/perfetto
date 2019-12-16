@@ -178,11 +178,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "SELECT "
                "  *, "
                "  category AS cat, "
-               "  id AS slice_id, "
-               "  CASE ref_type "
-               "    WHEN 'utid' THEN ref "
-               "    ELSE NULL "
-               "  END AS utid "
+               "  id AS slice_id "
                "FROM internal_slice;",
                0, 0, &error);
   if (error) {
