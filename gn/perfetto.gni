@@ -215,10 +215,6 @@ declare_args() {
   enable_perfetto_trace_processor_ftrace =
       enable_perfetto_trace_processor && !(build_with_chromium && is_android)
 
-  # Enables parsing support for system probes in trace processor.
-  enable_perfetto_trace_processor_system_probes =
-      enable_perfetto_trace_processor && !(build_with_chromium && is_android)
-
   # Enables parsing support for android system probes in trace processor.
   enable_perfetto_trace_processor_android_probes =
       enable_perfetto_trace_processor && !(build_with_chromium && is_android)
@@ -248,13 +244,6 @@ declare_args() {
   enable_perfetto_trace_processor_json_import =
       enable_perfetto_trace_processor_json &&
       !(build_with_chromium && is_android)
-
-  # Enables syscall support in trace processor. Required for ftrace, system
-  # probes, and android probes support.
-  enable_perfetto_trace_processor_syscalls =
-      enable_perfetto_trace_processor_ftrace ||
-      enable_perfetto_trace_processor_system_probes ||
-      enable_perfetto_trace_processor_android_probes
 
   # Enables metrics support in the trace processor, which require SQL support.
   enable_perfetto_trace_processor_metrics =
@@ -311,9 +300,3 @@ assert(!enable_perfetto_trace_processor_metrics ||
 assert(!enable_perfetto_tools_trace_to_text ||
        enable_perfetto_trace_processor_sqlite)
 assert(!enable_perfetto_ui || enable_perfetto_trace_processor_sqlite)
-
-# Syscall support is required for ftrace, system probes, and android probes.
-assert(enable_perfetto_trace_processor_syscalls ||
-       (!enable_perfetto_trace_processor_ftrace &&
-        !enable_perfetto_trace_processor_system_probes &&
-        !enable_perfetto_trace_processor_android_probes))

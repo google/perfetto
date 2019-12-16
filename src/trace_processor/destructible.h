@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/register_additional_modules.h"
-#include "src/trace_processor/importers/proto/graphics_event_module.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
-#include "src/trace_processor/syscall_tracker.h"
+#ifndef SRC_TRACE_PROCESSOR_DESTRUCTIBLE_H_
+#define SRC_TRACE_PROCESSOR_DESTRUCTIBLE_H_
 
 namespace perfetto {
 namespace trace_processor {
 
-void RegisterAdditionalModules(TraceProcessorContext* context) {
-  context->modules.emplace_back(new GraphicsEventModule(context));
-  context->modules.emplace_back(new SystemProbesModule(context));
-}
+// To reduce Chrome binary size, we exclude the source code of several
+// trackers from the storage_minimal build target. So the trace processor
+// context can't always know the exact types of the tracker classes, but
+// it still needs to destruct them. To solve this, we subclass all trackers
+// from this Desctructible class.
+class Destructible {
+ public:
+  virtual ~Destructible();
+};
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // SRC_TRACE_PROCESSOR_DESTRUCTIBLE_H_
