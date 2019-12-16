@@ -29,8 +29,6 @@ namespace tables {
   C(int64_t, ts, Column::Flag::kSorted)              \
   C(int64_t, dur)                                    \
   C(uint32_t, track_id)                              \
-  C(int64_t, ref)                                    \
-  C(StringPool::Id, ref_type)                        \
   C(StringPool::Id, category)                        \
   C(StringPool::Id, name)                            \
   C(uint32_t, depth)                                 \

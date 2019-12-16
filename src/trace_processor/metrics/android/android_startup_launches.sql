@@ -24,7 +24,7 @@ SELECT
 FROM args
 WHERE string_value LIKE '%|launching: %';
 
--- TODO: Replace with proper async slices once available
+-- TODO: Replace with proper async slice once available
 -- The start of the launching event corresponds to the end of the AM handling
 -- the startActivity intent, whereas the end corresponds to the first frame drawn.
 -- Only successful app launches have a launching event.
@@ -44,13 +44,13 @@ AND process.name = 'system_server';
 -- Marks the beginning of the trace and is equivalent to when the statsd launch
 -- logging begins.
 CREATE VIEW activity_intent_received AS
-SELECT ts FROM slices
+SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 
 -- Successful activity launch. The end of the 'launching' event is not related
 -- to whether it actually succeeded or not.
 CREATE VIEW activity_intent_launch_successful AS
-SELECT ts FROM slices
+SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
 -- We partition the trace into spans based on posted activity intents.

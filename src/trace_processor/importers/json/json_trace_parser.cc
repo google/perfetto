@@ -89,8 +89,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->Begin(timestamp, track_id, utid, RefType::kRefUtid, cat_id,
-                           name_id);
+      slice_tracker->Begin(timestamp, track_id, cat_id, name_id);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
@@ -104,8 +103,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->Scoped(timestamp, track_id, utid, RefType::kRefUtid,
-                            cat_id, name_id, opt_dur.value());
+      slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
+                            opt_dur.value());
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
