@@ -5742,11 +5742,8 @@ filegroup {
   srcs: [
     "src/trace_processor/importers/proto/graphics_event_module.cc",
     "src/trace_processor/importers/proto/graphics_event_parser.cc",
-    "src/trace_processor/importers/proto/system_probes_module.cc",
-    "src/trace_processor/importers/proto/system_probes_parser.cc",
     "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
     "src/trace_processor/register_additional_modules.cc",
-    "src/trace_processor/syscall_tracker.cc",
   ],
 }
 
@@ -5757,7 +5754,6 @@ filegroup {
     "src/trace_processor/args_tracker.cc",
     "src/trace_processor/binder_tracker.cc",
     "src/trace_processor/clock_tracker.cc",
-    "src/trace_processor/destructible.cc",
     "src/trace_processor/event_tracker.cc",
     "src/trace_processor/forwarding_trace_parser.cc",
     "src/trace_processor/ftrace_utils.cc",
@@ -5782,6 +5778,8 @@ filegroup {
     "src/trace_processor/importers/proto/proto_importer_module.cc",
     "src/trace_processor/importers/proto/proto_trace_parser.cc",
     "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",
+    "src/trace_processor/importers/proto/system_probes_module.cc",
+    "src/trace_processor/importers/proto/system_probes_parser.cc",
     "src/trace_processor/importers/proto/track_event_module.cc",
     "src/trace_processor/importers/proto/track_event_parser.cc",
     "src/trace_processor/importers/proto/track_event_tokenizer.cc",
@@ -5790,6 +5788,7 @@ filegroup {
     "src/trace_processor/process_tracker.cc",
     "src/trace_processor/slice_tracker.cc",
     "src/trace_processor/stack_profile_tracker.cc",
+    "src/trace_processor/syscall_tracker.cc",
     "src/trace_processor/trace_processor_context.cc",
     "src/trace_processor/trace_processor_storage.cc",
     "src/trace_processor/trace_processor_storage_impl.cc",

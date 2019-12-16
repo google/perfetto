@@ -41,7 +41,6 @@
 #include "src/trace_processor/stack_profile_frame_table.h"
 #include "src/trace_processor/stack_profile_mapping_table.h"
 #include "src/trace_processor/stats_table.h"
-#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/window_operator_table.h"
 
