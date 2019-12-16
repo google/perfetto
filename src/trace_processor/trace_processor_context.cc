@@ -29,11 +29,13 @@
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
+#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/track_tracker.h"
 
