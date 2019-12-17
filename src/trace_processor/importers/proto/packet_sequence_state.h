@@ -29,6 +29,8 @@
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 
+#include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -43,51 +45,124 @@ namespace trace_processor {
 class PacketSequenceState {
  public:
   // Entry in an interning index, refers to the interned message.
-  struct InternedMessageView {
-    InternedMessageView(TraceBlobView msg) : message(std::move(msg)) {}
+  class InternedMessageView {
+   public:
+    InternedMessageView(TraceBlobView msg) : message_(std::move(msg)) {}
 
+    InternedMessageView(InternedMessageView&&) noexcept = default;
+    InternedMessageView& operator=(InternedMessageView&&) = default;
+
+    // Allow copy by cloning the TraceBlobView. This is required for
+    // UpdateTracePacketDefaults().
+    InternedMessageView(const InternedMessageView& view)
+        : message_(view.message_.slice(0, view.message_.length())) {}
+    InternedMessageView& operator=(const InternedMessageView& view) {
+      this->message_ = view.message_.slice(0, view.message_.length());
+      this->decoder_ = nullptr;
+      this->decoder_type_ = nullptr;
+      this->submessages_.clear();
+      return *this;
+    }
+
+    // Lazily initializes and returns the decoder object for the message. The
+    // decoder is stored in the InternedMessageView to avoid having to parse the
+    // message multiple times.
     template <typename MessageType>
     typename MessageType::Decoder* GetOrCreateDecoder() {
-      if (!decoder) {
+      if (!decoder_) {
         // Lazy init the decoder and save it away, so that we don't have to
         // reparse the message every time we access the interning entry.
-        decoder = std::unique_ptr<void, std::function<void(void*)>>(
-            new typename MessageType::Decoder(message.data(), message.length()),
+        decoder_ = std::unique_ptr<void, std::function<void(void*)>>(
+            new
+            typename MessageType::Decoder(message_.data(), message_.length()),
             [](void* obj) {
               delete reinterpret_cast<typename MessageType::Decoder*>(obj);
             });
-        decoder_type = PERFETTO_TYPE_IDENTIFIER;
+        decoder_type_ = PERFETTO_TYPE_IDENTIFIER;
       }
       // Verify that the type of the decoder didn't change.
       if (PERFETTO_TYPE_IDENTIFIER &&
-          strcmp(decoder_type,
+          strcmp(decoder_type_,
                  // GCC complains if this arg can be null.
                  PERFETTO_TYPE_IDENTIFIER ? PERFETTO_TYPE_IDENTIFIER : "") !=
               0) {
         PERFETTO_FATAL(
             "Interning entry accessed under different types! previous type: "
             "%s. new type: %s.",
-            decoder_type, __PRETTY_FUNCTION__);
+            decoder_type_, __PRETTY_FUNCTION__);
       }
-      return reinterpret_cast<typename MessageType::Decoder*>(decoder.get());
+      return reinterpret_cast<typename MessageType::Decoder*>(decoder_.get());
     }
 
-    TraceBlobView message;
-    std::unique_ptr<void, std::function<void(void*)>> decoder;
+    // Lookup a submessage of the interned message, which is then itself stored
+    // as InternedMessageView, so that we only need to parse it once. Returns
+    // nullptr if the field isn't set.
+    // TODO(eseckler): Support repeated fields.
+    template <typename MessageType, uint32_t FieldId>
+    InternedMessageView* GetOrCreateSubmessageView() {
+      auto it = submessages_.find(FieldId);
+      if (it != submessages_.end())
+        return it->second.get();
+      auto* decoder = GetOrCreateDecoder<MessageType>();
+      // Calls the at() template method on the decoder.
+      auto field = decoder->template at<FieldId>().as_bytes();
+      if (!field.data)
+        return nullptr;
+      const size_t offset = message_.offset_of(field.data);
+      TraceBlobView submessage = message_.slice(offset, field.size);
+      InternedMessageView* submessage_view =
+          new InternedMessageView(std::move(submessage));
+      submessages_.emplace_hint(
+          it, FieldId, std::unique_ptr<InternedMessageView>(submessage_view));
+      return submessage_view;
+    }
+
+    const TraceBlobView& message() { return message_; }
 
    private:
-    const char* decoder_type = nullptr;
+    using SubMessageViewMap =
+        std::unordered_map<uint32_t /*field_id*/,
+                           std::unique_ptr<InternedMessageView>>;
+
+    TraceBlobView message_;
+
+    // Stores the decoder for the message_, so that the message does not have to
+    // be re-decoded every time the interned message is looked up. Lazily
+    // initialized in GetOrCreateDecoder(). Since we don't know the type of the
+    // decoder until GetOrCreateDecoder() is called, we store the decoder as a
+    // void* unique_pointer with a destructor function that's supplied in
+    // GetOrCreateDecoder() when the decoder is created.
+    std::unique_ptr<void, std::function<void(void*)>> decoder_;
+
+    // Type identifier for the decoder. Only valid in debug builds and on
+    // supported platforms. Used to verify that GetOrCreateDecoder() is always
+    // called with the same template argument.
+    const char* decoder_type_ = nullptr;
+
+    // Views of submessages of the interned message. Submessages are lazily
+    // added by GetOrCreateSubmessageView(). By storing submessages and their
+    // decoders, we avoid having to decode submessages multiple times if they
+    // looked up often.
+    SubMessageViewMap submessages_;
   };
 
   using InternedMessageMap =
       std::unordered_map<uint64_t /*iid*/, InternedMessageView>;
   using InternedFieldMap =
       std::unordered_map<uint32_t /*field_id*/, InternedMessageMap>;
-  using InternedDataGenerationList = std::vector<InternedFieldMap>;
+
+  struct GenerationData {
+    InternedFieldMap interned_data;
+    base::Optional<InternedMessageView> trace_packet_defaults;
+  };
+
+  // TODO(eseckler): Reference count the generations so that we can get rid of
+  // past generations once all packets referring to them have been parsed.
+  using GenerationList = std::vector<GenerationData>;
 
   PacketSequenceState(TraceProcessorContext* context)
       : context_(context), stack_profile_tracker_(context) {
-    interned_data_.emplace_back();
+    generations_.emplace_back();
   }
 
   int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
@@ -115,7 +190,7 @@ class PacketSequenceState {
 
   void OnIncrementalStateCleared() {
     packet_loss_ = false;
-    interned_data_.emplace_back();  // Bump generation number
+    generations_.emplace_back();  // Bump generation number
   }
 
   void SetThreadDescriptor(int32_t pid,
@@ -138,9 +213,8 @@ class PacketSequenceState {
     return stack_profile_tracker_;
   }
 
-  // Returns the index of the current generation in the
-  // InternedDataGenerationList.
-  size_t current_generation() const { return interned_data_.size() - 1; }
+  // Returns the index of the current generation in the GenerationList.
+  size_t current_generation() const { return generations_.size() - 1; }
 
   bool track_event_timestamps_valid() const {
     return track_event_timestamps_valid_;
@@ -167,7 +241,7 @@ class PacketSequenceState {
     }
     iid = field.as_uint64();
 
-    auto* map = &interned_data_.back()[field_id];
+    auto* map = &generations_.back().interned_data[field_id];
     auto res = map->emplace(iid, InternedMessageView(std::move(message)));
 
     // If a message with this ID is already interned in the same generation,
@@ -176,16 +250,18 @@ class PacketSequenceState {
     // TODO(eseckler): This DCHECK assumes that the message is encoded the
     // same way if it is re-emitted.
     PERFETTO_DCHECK(res.second ||
-                    (res.first->second.message.length() == message_size &&
-                     memcmp(res.first->second.message.data(), message_start,
+                    (res.first->second.message().length() == message_size &&
+                     memcmp(res.first->second.message().data(), message_start,
                             message_size) == 0));
   }
 
+  // Returns |nullptr| if the message with the given |iid| was not found (also
+  // records a stat in this case).
   template <uint32_t FieldId, typename MessageType>
   typename MessageType::Decoder* LookupInternedMessage(size_t generation,
                                                        uint64_t iid) {
-    PERFETTO_CHECK(generation <= interned_data_.size());
-    auto* field_map = &interned_data_[generation];
+    PERFETTO_CHECK(generation <= generations_.size());
+    auto* field_map = &generations_[generation].interned_data;
     auto field_it = field_map->find(FieldId);
     if (field_it != field_map->end()) {
       auto* message_map = &field_it->second;
@@ -199,6 +275,37 @@ class PacketSequenceState {
                   ", generation %zu, and IID %" PRIu64,
                   FieldId, generation, iid);
     return nullptr;
+  }
+
+  void UpdateTracePacketDefaults(TraceBlobView trace_packet_defaults) {
+    if (generations_.back().trace_packet_defaults) {
+      // The new defaults should only apply to subsequent messages on the
+      // sequence. Add a new generation with the updated defaults but the
+      // current generation's interned data state.
+      const InternedFieldMap& current_interned_data =
+          generations_.back().interned_data;
+      generations_.emplace_back();
+      generations_.back().interned_data = current_interned_data;
+    }
+    generations_.back().trace_packet_defaults =
+        InternedMessageView(std::move(trace_packet_defaults));
+  }
+
+  // Returns |nullptr| if no defaults were set in the given generation.
+  InternedMessageView* GetTracePacketDefaultsView(size_t generation) {
+    PERFETTO_CHECK(generation <= generations_.size());
+    if (!generations_[generation].trace_packet_defaults)
+      return nullptr;
+    return &generations_[generation].trace_packet_defaults.value();
+  }
+
+  // Returns |nullptr| if no defaults were set in the given generation.
+  typename protos::pbzero::TracePacketDefaults::Decoder* GetTracePacketDefaults(
+      size_t generation) {
+    InternedMessageView* view = GetTracePacketDefaultsView(generation);
+    if (!view)
+      return nullptr;
+    return view->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
   }
 
  private:
@@ -229,7 +336,7 @@ class PacketSequenceState {
   int64_t track_event_thread_timestamp_ns_ = 0;
   int64_t track_event_thread_instruction_count_ = 0;
 
-  InternedDataGenerationList interned_data_;
+  GenerationList generations_;
   StackProfileTracker stack_profile_tracker_;
 };
 
