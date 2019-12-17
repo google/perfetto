@@ -773,40 +773,6 @@ class TraceStorage {
         index_;
   };
 
-  class HeapProfileAllocations {
-   public:
-    struct Row {
-      int64_t timestamp;
-      UniquePid upid;
-      int64_t callsite_id;
-      int64_t count;
-      int64_t size;
-    };
-
-    uint32_t size() const { return static_cast<uint32_t>(timestamps_.size()); }
-
-    void Insert(const Row& row) {
-      timestamps_.emplace_back(row.timestamp);
-      upids_.emplace_back(row.upid);
-      callsite_ids_.emplace_back(row.callsite_id);
-      counts_.emplace_back(row.count);
-      sizes_.emplace_back(row.size);
-    }
-
-    const std::deque<int64_t>& timestamps() const { return timestamps_; }
-    const std::deque<UniquePid>& upids() const { return upids_; }
-    const std::deque<int64_t>& callsite_ids() const { return callsite_ids_; }
-    const std::deque<int64_t>& counts() const { return counts_; }
-    const std::deque<int64_t>& sizes() const { return sizes_; }
-
-   private:
-    std::deque<int64_t> timestamps_;
-    std::deque<UniquePid> upids_;
-    std::deque<int64_t> callsite_ids_;
-    std::deque<int64_t> counts_;
-    std::deque<int64_t> sizes_;
-  };
-
   class CpuProfileStackSamples {
    public:
     struct Row {
@@ -1106,11 +1072,12 @@ class TraceStorage {
     return &stack_profile_callsite_table_;
   }
 
-  const HeapProfileAllocations& heap_profile_allocations() const {
-    return heap_profile_allocations_;
+  const tables::HeapProfileAllocationTable& heap_profile_allocation_table()
+      const {
+    return heap_profile_allocation_table_;
   }
-  HeapProfileAllocations* mutable_heap_profile_allocations() {
-    return &heap_profile_allocations_;
+  tables::HeapProfileAllocationTable* mutable_heap_profile_allocation_table() {
+    return &heap_profile_allocation_table_;
   }
   const CpuProfileStackSamples& cpu_profile_stack_samples() const {
     return cpu_profile_stack_samples_;
@@ -1267,7 +1234,8 @@ class TraceStorage {
   StackProfileFrames stack_profile_frames_;
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
                                                                   nullptr};
-  HeapProfileAllocations heap_profile_allocations_;
+  tables::HeapProfileAllocationTable heap_profile_allocation_table_{
+      &string_pool_, nullptr};
   CpuProfileStackSamples cpu_profile_stack_samples_;
 
   // Symbol tables (mappings from frames to symbol names)
