@@ -381,31 +381,13 @@ class RowMap {
   //   if (!other.Contains(idx))
   //     Remove(idx)
   void Intersect(const RowMap& other) {
-    uint32_t size = other.size();
-
-    if (size == 0u) {
-      // If other is empty, then we will also end up being empty.
-      *this = RowMap();
-      return;
-    }
-
-    if (size == 1u) {
-      // If other just has a single row, see if we also have that row. If we
-      // do, then just return that row. Otherwise, make ourselves empty.
-      uint32_t row = other.Get(0);
-      *this = Contains(row) ? RowMap::SingleRow(row) : RowMap();
-      return;
-    }
-
     if (mode_ == Mode::kRange && other.mode_ == Mode::kRange) {
       // If both RowMaps have ranges, we can just take the smallest intersection
       // of them as the new RowMap.
-      // This case is important to optimize as it comes up with sorted columns.
+      // We have this as an explicit fast path as this is very common for
+      // constraints on id and sorted columns to satisfy this condition.
       start_idx_ = std::max(start_idx_, other.start_idx_);
-      end_idx_ = std::min(end_idx_, other.end_idx_);
-
-      if (end_idx_ <= start_idx_)
-        *this = RowMap();
+      end_idx_ = std::max(start_idx_, std::min(end_idx_, other.end_idx_));
       return;
     }
 
