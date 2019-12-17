@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_NULL_TERM_STRING_VIEW_H_
-#define SRC_TRACE_PROCESSOR_NULL_TERM_STRING_VIEW_H_
+#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_NULL_TERM_STRING_VIEW_H_
+#define SRC_TRACE_PROCESSOR_CONTAINERS_NULL_TERM_STRING_VIEW_H_
 
 #include "perfetto/ext/base/string_view.h"
 
@@ -57,4 +57,4 @@ class NullTermStringView : public base::StringView {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_NULL_TERM_STRING_VIEW_H_
+#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_NULL_TERM_STRING_VIEW_H_

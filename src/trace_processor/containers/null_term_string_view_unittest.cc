@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/null_term_string_view.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 
 #include "test/gtest_and_gmock.h"
 

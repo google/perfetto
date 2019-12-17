@@ -24,7 +24,6 @@ source_set("lib") {
     "typed_column.h",
   ]
   deps = [
-    "../:common",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",

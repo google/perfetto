@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_TABLES_TRACK_TABLES_H_
 #define SRC_TRACE_PROCESSOR_TABLES_TRACK_TABLES_H_
 
-#include "src/trace_processor/string_pool.h"
 #include "src/trace_processor/tables/macros.h"
 
 namespace perfetto {

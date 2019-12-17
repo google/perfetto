@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/string_pool.h"
+#include "src/trace_processor/containers/string_pool.h"
 
 #include <random>
 
