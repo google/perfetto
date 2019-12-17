@@ -68,10 +68,25 @@ trace.add_clock_snapshot(seq_id=3, clocks={SEQ_CLOCK1: 1, CLOCK_BOOTTIME: 3001})
 
 # This counter should be translated @ BOOTTIME : 3000 + 7
 trace.add_gpu_counter(
-    ts=7, clock_id=SEQ_CLOCK1, counter_id=42, value=13, seq_id=3)
+    ts=7, clock_id=SEQ_CLOCK1, counter_id=42, value=14, seq_id=3)
 
 # This counter should be translated @ BOOTTIME : 2000 + 6
 trace.add_gpu_counter(
     ts=6, clock_id=SEQ_CLOCK1, seq_id=2, counter_id=42, value=11)
+
+# Set default clock for sequence 2.
+defaults_packet = trace.add_packet()
+defaults_packet.trusted_packet_sequence_id = 2
+defaults_packet.trace_packet_defaults.timestamp_clock_id = SEQ_CLOCK1
+
+# This counter should be translated @ BOOTTIME : 2000 + 10
+trace.add_gpu_counter(ts=10, seq_id=2, counter_id=42, value=12)
+
+# Manually specified clock_id overrides the default clock.
+trace.add_gpu_counter(
+    ts=2013, clock_id=CLOCK_BOOTTIME, seq_id=2, counter_id=42, value=13)
+
+# Other sequence's default clock isn't changed, so this should be in BOOTTIME.
+trace.add_gpu_counter(ts=3010, counter_id=42, value=15, seq_id=3)
 
 print(trace.trace.SerializeToString())

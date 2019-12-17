@@ -193,6 +193,21 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
                                        ConstBytes blob) {
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
+  protos::pbzero::TrackEventDefaults::Decoder* defaults = nullptr;
+  auto* packet_defaults_view =
+      sequence_state->GetTracePacketDefaultsView(sequence_state_generation);
+  if (packet_defaults_view) {
+    auto* track_event_defaults_view =
+        packet_defaults_view
+            ->GetOrCreateSubmessageView<protos::pbzero::TracePacketDefaults,
+                                        protos::pbzero::TracePacketDefaults::
+                                            kTrackEventDefaultsFieldNumber>();
+    if (track_event_defaults_view) {
+      defaults = track_event_defaults_view
+                     ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
+    }
+  }
+
   protos::pbzero::TrackEvent::Decoder event(blob.data, blob.size);
 
   const auto legacy_event_blob = event.legacy_event();
@@ -275,9 +290,14 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     name_id = storage->InternString(event.name());
   }
 
-  // TODO(eseckler): Also consider track_uuid from TrackEventDefaults.
-  // Fall back to the default descriptor track (uuid 0).
-  uint64_t track_uuid = event.has_track_uuid() ? event.track_uuid() : 0u;
+  // Consider track_uuid from the packet and TrackEventDefaults, fall back to
+  // the default descriptor track (uuid 0).
+  uint64_t track_uuid =
+      event.has_track_uuid()
+          ? event.track_uuid()
+          : (defaults && defaults->has_track_uuid() ? defaults->track_uuid()
+                                                    : 0u);
+
   TrackId track_id;
   base::Optional<UniqueTid> utid;
   base::Optional<UniqueTid> upid;

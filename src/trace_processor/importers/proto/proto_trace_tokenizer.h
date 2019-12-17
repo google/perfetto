@@ -67,6 +67,8 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   void HandleIncrementalStateCleared(
       const protos::pbzero::TracePacket_Decoder&);
   void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&);
+  void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
+                                TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
   PacketSequenceState* GetIncrementalStateForPacketSequence(

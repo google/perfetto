@@ -1,3 +1,4 @@
 "thread","ts","dur","category","name","arg_set_id"
 "t1",1000,0,"cat","name1",0
 "t2",2000,0,"cat","name2",0
+"t2",3000,0,"cat","name3",0
