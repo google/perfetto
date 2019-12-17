@@ -161,8 +161,8 @@ called.
 
 ## Manual dumping
 You can trigger a manual dump of all currently profiled processes by running
-`adb killall -USR1 heapprofd`. This can be useful for seeing the current memory
-usage of the target in a specific state.
+`adb shell killall -USR1 heapprofd`. This can be useful for seeing the current
+memory usage of the target in a specific state.
 
 This dump will show up in addition to the dump at the end of the profile that is
 always produced. You can create multiple of these dumps, and they will be
