@@ -120,7 +120,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     int64_t row = context_->storage->heap_graph_object_table().row_count() - 1;
     sequence_state.object_id_to_row.emplace(obj.object_id, row);
     class_to_rows_[type_name].emplace_back(row);
-    sequence_state.walker.AddNode(row, obj.self_size);
+    sequence_state.walker.AddNode(row, obj.self_size,
+                                  static_cast<int32_t>(type_name.id));
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
@@ -186,8 +187,44 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
   }
 
-  sequence_state.walker.CalculateRetained();
+  TraceStorage::StackProfileMappings::Row mapping_row{};
+  mapping_row.name_id = context_->storage->InternString("JAVA");
+  uint32_t mapping_id =
+      context_->storage->mutable_stack_profile_mappings()->Insert(mapping_row);
+
+  auto paths = sequence_state.walker.FindPathsFromRoot();
+  for (const auto& p : paths.children)
+    WriteFlamegraph(sequence_state, p.second, -1, 0, mapping_id);
+
   sequence_state_.erase(seq_id);
+}
+
+void HeapGraphTracker::WriteFlamegraph(
+    const SequenceState& sequence_state,
+    const HeapGraphWalker::PathFromRoot& path,
+    int32_t parent_id,
+    uint32_t depth,
+    uint32_t mapping_id) {
+  TraceStorage::StackProfileFrames::Row row{};
+  row.name_id = StringId(static_cast<uint32_t>(path.class_name));
+  row.mapping_row = mapping_id;
+  int32_t frame_id = static_cast<int32_t>(
+      context_->storage->mutable_stack_profile_frames()->Insert(row));
+
+  parent_id = static_cast<int32_t>(
+      context_->storage->mutable_stack_profile_callsite_table()->Insert(
+          {depth, parent_id, frame_id}));
+  depth++;
+
+  TraceStorage::HeapProfileAllocations::Row alloc_row{
+      sequence_state.current_ts, sequence_state.current_upid, parent_id,
+      static_cast<int64_t>(path.count), static_cast<int64_t>(path.size)};
+  // TODO(fmayer): Maybe add a separate table for heap graph flamegraphs.
+  context_->storage->mutable_heap_profile_allocations()->Insert(alloc_row);
+  for (const auto& p : path.children) {
+    const HeapGraphWalker::PathFromRoot& child = p.second;
+    WriteFlamegraph(sequence_state, child, parent_id, depth, mapping_id);
+  }
 }
 
 void HeapGraphTracker::MarkReachable(int64_t row) {
