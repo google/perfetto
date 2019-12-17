@@ -104,6 +104,12 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
   bool SetPidAndTimestamp(SequenceState* seq, UniquePid upid, int64_t ts);
 
+  void WriteFlamegraph(const SequenceState& sequence_state,
+                       const HeapGraphWalker::PathFromRoot& path,
+                       int32_t parent_id,
+                       uint32_t depth,
+                       uint32_t mapping_id);
+
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
 
