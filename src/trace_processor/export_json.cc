@@ -458,7 +458,7 @@ util::Status ExportSlices(const TraceStorage* storage,
                           const ArgsBuilder& args_builder,
                           TraceFormatWriter* writer) {
   const auto& slices = storage->slice_table();
-  for (uint32_t i = 0; i < slices.size(); ++i) {
+  for (uint32_t i = 0; i < slices.row_count(); ++i) {
     Json::Value event;
     event["ts"] = Json::Int64(slices.ts()[i] / 1000);
     event["cat"] = GetNonNullString(storage, slices.category()[i]);
@@ -845,7 +845,7 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
     const auto& callsites = storage->stack_profile_callsite_table();
     int64_t maybe_callsite_id = samples.callsite_ids()[i];
     PERFETTO_DCHECK(maybe_callsite_id >= 0 &&
-                    maybe_callsite_id < callsites.size());
+                    maybe_callsite_id < callsites.row_count());
     while (maybe_callsite_id >= 0) {
       uint32_t callsite_id = static_cast<uint32_t>(maybe_callsite_id);
 

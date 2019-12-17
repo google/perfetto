@@ -1150,7 +1150,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   uint32_t frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
       {/*name_id=*/0, module_row_id_1, 0x42});
-  uint32_t symbol_set_id = storage->symbol_table().size();
+  uint32_t symbol_set_id = storage->symbol_table().row_count();
   storage->mutable_symbol_table()->Insert(
       {symbol_set_id, storage->InternString("foo_func"),
        storage->InternString("foo_file"), 66});
@@ -1159,7 +1159,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   uint32_t frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
       {/*name_id=*/0, module_row_id_2, 0x4242});
-  symbol_set_id = storage->symbol_table().size();
+  symbol_set_id = storage->symbol_table().row_count();
   storage->mutable_symbol_table()->Insert(
       {symbol_set_id, storage->InternString("bar_func"),
        storage->InternString("bar_file"), 77});

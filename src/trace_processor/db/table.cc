@@ -32,7 +32,7 @@ Table::Table(StringPool* pool, const Table* parent) : string_pool_(pool) {
 }
 
 Table& Table::operator=(Table&& other) noexcept {
-  size_ = other.size_;
+  row_count_ = other.row_count_;
   string_pool_ = other.string_pool_;
 
   row_maps_ = std::move(other.row_maps_);
@@ -53,7 +53,7 @@ Table Table::Copy() const {
 
 Table Table::CopyExceptRowMaps() const {
   Table table(string_pool_, nullptr);
-  table.size_ = size_;
+  table.row_count_ = row_count_;
   for (const Column& col : columns_) {
     table.columns_.emplace_back(col, &table, col.index_in_table(),
                                 col.row_map_idx_);
@@ -66,7 +66,7 @@ Table Table::Sort(const std::vector<Order>& od) const {
     return Copy();
 
   // Build an index vector with all the indices for the first |size_| rows.
-  std::vector<uint32_t> idx(size_);
+  std::vector<uint32_t> idx(row_count_);
   std::iota(idx.begin(), idx.end(), 0);
 
   // As our data is columnar, it's always more efficient to sort one column
@@ -108,7 +108,7 @@ Table Table::Sort(const std::vector<Order>& od) const {
   RowMap rm(std::move(idx));
   for (const RowMap& map : row_maps_) {
     table.row_maps_.emplace_back(map.SelectRows(rm));
-    PERFETTO_DCHECK(table.row_maps_.back().size() == table.size());
+    PERFETTO_DCHECK(table.row_maps_.back().size() == table.row_count());
   }
 
   // Remove the sorted flag from all the columns.
@@ -126,7 +126,7 @@ Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
   // The join table will have the same size and RowMaps as the left (this)
   // table because the left column is indexing the right table.
   Table table(string_pool_, nullptr);
-  table.size_ = size_;
+  table.row_count_ = row_count_;
   for (const RowMap& rm : row_maps_) {
     table.row_maps_.emplace_back(rm.Copy());
   }
@@ -146,8 +146,8 @@ Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
   // the RowMap of the right column. By getting the index of the row rather
   // than the row number itself, we can call |Apply| on the other RowMaps
   // in the right table.
-  std::vector<uint32_t> indices(size_);
-  for (uint32_t i = 0; i < size_; ++i) {
+  std::vector<uint32_t> indices(row_count_);
+  for (uint32_t i = 0; i < row_count_; ++i) {
     SqlValue val = left_col.Get(i);
     PERFETTO_CHECK(val.type != SqlValue::Type::kNull);
     indices[i] = right_col.IndexOf(val).value();

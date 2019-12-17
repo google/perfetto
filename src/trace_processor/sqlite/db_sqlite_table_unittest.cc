@@ -24,9 +24,9 @@ namespace {
 
 class TestTable : public Table {
  public:
-  TestTable(uint32_t size) : Table(&pool_, nullptr) {
-    row_maps_.emplace_back(RowMap(0, size));
-    size_ = size;
+  TestTable(uint32_t row_count) : Table(&pool_, nullptr) {
+    row_maps_.emplace_back(RowMap(0, row_count));
+    row_count_ = row_count;
 
     columns_.emplace_back(Column::IdColumn(this, 0u, 0u));
     columns_.emplace_back(

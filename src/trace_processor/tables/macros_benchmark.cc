@@ -136,7 +136,7 @@ static void BM_TableFilterRootIdAndOther(benchmark::State& state) {
 
   for (auto _ : state) {
     benchmark::DoNotOptimize(root.Filter(
-        {root.id().eq(root.size() - 1), root.root_non_null().gt(100)}));
+        {root.id().eq(root.row_count() - 1), root.root_non_null().gt(100)}));
   }
 }
 BENCHMARK(BM_TableFilterRootIdAndOther)->Apply(TableFilterArgs);
