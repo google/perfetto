@@ -5620,14 +5620,6 @@ filegroup {
   ],
 }
 
-// GN: //src/trace_processor:common
-filegroup {
-  name: "perfetto_src_trace_processor_common",
-  srcs: [
-    "src/trace_processor/string_pool.cc",
-  ],
-}
-
 // GN: //src/trace_processor/containers:containers
 filegroup {
   name: "perfetto_src_trace_processor_containers_containers",
@@ -5635,6 +5627,7 @@ filegroup {
     "src/trace_processor/containers/bit_vector.cc",
     "src/trace_processor/containers/bit_vector_iterators.cc",
     "src/trace_processor/containers/row_map.cc",
+    "src/trace_processor/containers/string_pool.cc",
   ],
 }
 
@@ -5643,8 +5636,10 @@ filegroup {
   name: "perfetto_src_trace_processor_containers_unittests",
   srcs: [
     "src/trace_processor/containers/bit_vector_unittest.cc",
+    "src/trace_processor/containers/null_term_string_view_unittest.cc",
     "src/trace_processor/containers/row_map_unittest.cc",
     "src/trace_processor/containers/sparse_vector_unittest.cc",
+    "src/trace_processor/containers/string_pool_unittest.cc",
   ],
 }
 
@@ -5844,14 +5839,12 @@ filegroup {
     "src/trace_processor/importers/proto/proto_trace_parser_unittest.cc",
     "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
     "src/trace_processor/metadata_table_unittest.cc",
-    "src/trace_processor/null_term_string_view_unittest.cc",
     "src/trace_processor/process_table_unittest.cc",
     "src/trace_processor/process_tracker_unittest.cc",
     "src/trace_processor/protozero_to_text_unittests.cc",
     "src/trace_processor/sched_slice_table_unittest.cc",
     "src/trace_processor/slice_tracker_unittest.cc",
     "src/trace_processor/span_join_operator_table_unittest.cc",
-    "src/trace_processor/string_pool_unittest.cc",
     "src/trace_processor/syscall_tracker_unittest.cc",
     "src/trace_processor/thread_table_unittest.cc",
     "src/trace_processor/trace_sorter_unittest.cc",
@@ -6603,7 +6596,6 @@ cc_test {
     ":perfetto_src_protozero_testing_messages_lite_gen",
     ":perfetto_src_protozero_testing_messages_zero_gen",
     ":perfetto_src_protozero_unittests",
-    ":perfetto_src_trace_processor_common",
     ":perfetto_src_trace_processor_containers_containers",
     ":perfetto_src_trace_processor_containers_unittests",
     ":perfetto_src_trace_processor_db_lib",
@@ -6819,7 +6811,6 @@ cc_binary_host {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_base_base",
     ":perfetto_src_protozero_protozero",
-    ":perfetto_src_trace_processor_common",
     ":perfetto_src_trace_processor_containers_containers",
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_descriptors",
@@ -6927,7 +6918,6 @@ cc_binary_host {
     ":perfetto_src_base_base",
     ":perfetto_src_profiling_deobfuscator",
     ":perfetto_src_protozero_protozero",
-    ":perfetto_src_trace_processor_common",
     ":perfetto_src_trace_processor_containers_containers",
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_descriptors",
