@@ -54,7 +54,6 @@ class SyscallTrackerTest : public ::testing::Test {
     context.track_tracker.reset(track_tracker);
     slice_tracker = new MockSliceTracker(&context);
     context.slice_tracker.reset(slice_tracker);
-    context.syscall_tracker.reset(new SyscallTracker(&context));
   }
 
  protected:
@@ -72,19 +71,21 @@ TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<3>(&end_name), Return(base::nullopt)));
 
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
+  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
+  syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
   EXPECT_EQ(context.storage->GetString(begin_name), "sys_57");
   EXPECT_EQ(context.storage->GetString(end_name), "sys_57");
 }
 
 TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
-  context.syscall_tracker->SetArchitecture(kAarch64);
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
+  syscall_tracker->SetArchitecture(kAarch64);
   EXPECT_CALL(*slice_tracker, Begin(_, _, _, _, _)).Times(0);
   EXPECT_CALL(*slice_tracker, End(_, _, _, _, _)).Times(0);
 
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
+  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
+  syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
 }
 
 TEST_F(SyscallTrackerTest, Aarch64) {
@@ -96,9 +97,10 @@ TEST_F(SyscallTrackerTest, Aarch64) {
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<3>(&end_name), Return(base::nullopt)));
 
-  context.syscall_tracker->SetArchitecture(kAarch64);
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
+  syscall_tracker->SetArchitecture(kAarch64);
+  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
+  syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
   EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
   EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
 }
@@ -112,9 +114,10 @@ TEST_F(SyscallTrackerTest, x8664) {
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<3>(&end_name), Return(base::nullopt)));
 
-  context.syscall_tracker->SetArchitecture(kX86_64);
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
+  syscall_tracker->SetArchitecture(kX86_64);
+  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
+  syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
   EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
   EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
 }
@@ -122,9 +125,11 @@ TEST_F(SyscallTrackerTest, x8664) {
 TEST_F(SyscallTrackerTest, SyscallNumberTooLarge) {
   EXPECT_CALL(*slice_tracker, Begin(_, _, _, _, _)).Times(0);
   EXPECT_CALL(*slice_tracker, End(_, _, _, _, _)).Times(0);
-  context.syscall_tracker->SetArchitecture(kAarch64);
-  context.syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 9999);
-  context.syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 9999);
+
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
+  syscall_tracker->SetArchitecture(kAarch64);
+  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 9999);
+  syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 9999);
 }
 
 }  // namespace

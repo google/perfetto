@@ -37,7 +37,6 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
-#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/track_tracker.h"
@@ -53,9 +52,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSCALLS)
-  context_.syscall_tracker.reset(new SyscallTracker(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSCALLS)
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)

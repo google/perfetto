@@ -83,6 +83,8 @@ source_set("storage_minimal") {
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
+    "destructible.cc",
+    "destructible.h",
     "event_tracker.cc",
     "event_tracker.h",
     "forwarding_trace_parser.cc",
@@ -269,6 +271,20 @@ source_set("storage_full") {
   ]
   if (enable_perfetto_trace_processor_json) {
     public_deps += [ "../../gn:jsoncpp" ]
+  }
+
+  # Include these sources only if they are not already included in
+  # storage_minimal.
+  # TODO(khokhlov): Remove this 'if' when modules that use this tracker are
+  # migrated to storage_full.
+  if (!enable_perfetto_trace_processor_syscalls) {
+    sources += [
+      "syscall_tracker.cc",
+      "syscalls_aarch32.h",
+      "syscalls_aarch64.h",
+      "syscalls_armeabi.h",
+      "syscalls_x86_64.h",
+    ]
   }
 }
 
