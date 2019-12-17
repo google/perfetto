@@ -76,6 +76,7 @@ action("gen_buildflags") {
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
+    "PERFETTO_VERBOSE_LOGS=$perfetto_verbose_logs_enabled",
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_SQLITE=$enable_perfetto_trace_processor_sqlite",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
