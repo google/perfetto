@@ -25,12 +25,10 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -73,12 +71,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
   context_.modules.emplace_back(new HeapGraphModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
-  context_.modules.emplace_back(new AndroidProbesModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
-  context_.modules.emplace_back(new SystemProbesModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
   context_.modules.emplace_back(new TrackEventModule(&context_));
 }
 
