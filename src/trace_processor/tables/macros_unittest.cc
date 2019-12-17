@@ -144,47 +144,47 @@ TEST_F(TableMacrosUnittest, NullableLongComparision) {
 
   Table out = slice_.Filter({slice_.dur().is_null()});
   const auto* dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(dur->Get(0).type, SqlValue::kNull);
   ASSERT_EQ(dur->Get(1).type, SqlValue::kNull);
 
   out = slice_.Filter({slice_.dur().is_not_null()});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 3u);
+  ASSERT_EQ(out.row_count(), 3u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
   ASSERT_EQ(dur->Get(1).long_value, 101);
   ASSERT_EQ(dur->Get(2).long_value, 200);
 
   out = slice_.Filter({slice_.dur().lt(101)});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
 
   out = slice_.Filter({slice_.dur().eq(101)});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
 
   out = slice_.Filter({slice_.dur().gt(101)});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 200);
 
   out = slice_.Filter({slice_.dur().ne(100)});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
   ASSERT_EQ(dur->Get(1).long_value, 200);
 
   out = slice_.Filter({slice_.dur().le(101)});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
   ASSERT_EQ(dur->Get(1).long_value, 101);
 
   out = slice_.Filter({slice_.dur().ge(101)});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 101);
   ASSERT_EQ(dur->Get(1).long_value, 200);
 }
@@ -204,24 +204,24 @@ TEST_F(TableMacrosUnittest, NullableLongCompareWithDouble) {
 
   Table out = slice_.Filter({slice_.dur().eq_value(SqlValue::Double(100.0))});
   const Column* dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
 
   out = slice_.Filter({slice_.dur().le_value(SqlValue::Double(99.9999))});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, std::numeric_limits<int64_t>::min());
 
   out = slice_.Filter({slice_.dur().ge_value(SqlValue::Double(99.9999))});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(dur->Get(0).long_value, 100);
   ASSERT_EQ(dur->Get(1).long_value, std::numeric_limits<int64_t>::max());
 
   out = slice_.Filter({slice_.dur().eq_value(
       SqlValue::Double(std::numeric_limits<int64_t>::min()))});
   dur = out.GetColumnByName("dur");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(dur->Get(0).long_value, std::numeric_limits<int64_t>::min());
 }
 
@@ -241,10 +241,10 @@ TEST_F(TableMacrosUnittest, NullableLongCompareWrongType) {
   slice_.Insert({});
 
   Table out = slice_.Filter({slice_.dur().ne_value(SqlValue())});
-  ASSERT_EQ(out.size(), 0u);
+  ASSERT_EQ(out.row_count(), 0u);
 
   out = slice_.Filter({slice_.dur().eq_value(SqlValue::String("100"))});
-  ASSERT_EQ(out.size(), 0u);
+  ASSERT_EQ(out.row_count(), 0u);
 }
 
 TEST_F(TableMacrosUnittest, NullableDoubleComparision) {
@@ -264,47 +264,47 @@ TEST_F(TableMacrosUnittest, NullableDoubleComparision) {
 
   Table out = counter_.Filter({counter_.value().is_null()});
   const auto* value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(value->Get(0).type, SqlValue::kNull);
   ASSERT_EQ(value->Get(1).type, SqlValue::kNull);
 
   out = counter_.Filter({counter_.value().is_not_null()});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 3u);
+  ASSERT_EQ(out.row_count(), 3u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100);
   ASSERT_DOUBLE_EQ(value->Get(1).double_value, 101);
   ASSERT_DOUBLE_EQ(value->Get(2).double_value, 200);
 
   out = counter_.Filter({counter_.value().lt(101)});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100);
 
   out = counter_.Filter({counter_.value().eq(101)});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 101);
 
   out = counter_.Filter({counter_.value().gt(101)});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 200);
 
   out = counter_.Filter({counter_.value().ne(100)});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 101);
   ASSERT_DOUBLE_EQ(value->Get(1).double_value, 200);
 
   out = counter_.Filter({counter_.value().le(101)});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100);
   ASSERT_DOUBLE_EQ(value->Get(1).double_value, 101);
 
   out = counter_.Filter({counter_.value().ge(101)});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 101);
   ASSERT_DOUBLE_EQ(value->Get(1).double_value, 200);
 }
@@ -324,12 +324,12 @@ TEST_F(TableMacrosUnittest, NullableDoubleCompareWithLong) {
 
   Table out = counter_.Filter({counter_.value().eq_value(SqlValue::Long(100))});
   const Column* value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 100.0);
 
   out = counter_.Filter({counter_.value().lt_value(SqlValue::Long(100))});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value, 99.9999);
   ASSERT_DOUBLE_EQ(value->Get(1).double_value,
                    std::numeric_limits<int64_t>::min());
@@ -337,7 +337,7 @@ TEST_F(TableMacrosUnittest, NullableDoubleCompareWithLong) {
   out = counter_.Filter({counter_.value().eq_value(
       SqlValue::Long(std::numeric_limits<int64_t>::min()))});
   value = out.GetColumnByName("value");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_DOUBLE_EQ(value->Get(0).double_value,
                    std::numeric_limits<int64_t>::min());
 }
@@ -356,45 +356,45 @@ TEST_F(TableMacrosUnittest, StringComparision) {
 
   Table out = cpu_slice_.Filter({cpu_slice_.end_state().is_null()});
   const auto* end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_EQ(end_state->Get(0).type, SqlValue::kNull);
   ASSERT_EQ(end_state->Get(1).type, SqlValue::kNull);
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().is_not_null()});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().lt("R")});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().eq("D")});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().gt("D")});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().ne("D")});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().le("R")});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 
   out = cpu_slice_.Filter({cpu_slice_.end_state().ge("D")});
   end_state = out.GetColumnByName("end_state");
-  ASSERT_EQ(out.size(), 2u);
+  ASSERT_EQ(out.row_count(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
 }
@@ -414,7 +414,7 @@ TEST_F(TableMacrosUnittest, FilterIdThenOther) {
   const auto* end_state = out.GetColumnByName("end_state");
   const auto* cpu = out.GetColumnByName("cpu");
 
-  ASSERT_EQ(out.size(), 1u);
+  ASSERT_EQ(out.row_count(), 1u);
   ASSERT_EQ(cpu->Get(0).long_value, 1u);
   ASSERT_STREQ(end_state->Get(0).string_value, "D");
 }
