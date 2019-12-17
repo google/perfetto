@@ -28,13 +28,15 @@
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
 namespace {
+constexpr char kHexDigits[] = "0123456789abcdef";
 std::string HexDump(const uint8_t* src, size_t size) {
   std::string buf;
   buf.reserve(4096 * 4);
   char line[64];
   char* c = line;
   for (size_t i = 0; i < size; i++) {
-    c += sprintf(c, "%02x ", src[i]);
+    *c++ = kHexDigits[(src[i] >> 4) & 0x0f];
+    *c++ = kHexDigits[(src[i] >> 0) & 0x0f];
     if (i % 16 == 15) {
       buf.append("\n");
       buf.append(line);
