@@ -5740,6 +5740,8 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_storage_full",
   srcs: [
+    "src/trace_processor/importers/proto/android_probes_module.cc",
+    "src/trace_processor/importers/proto/android_probes_parser.cc",
     "src/trace_processor/importers/proto/graphics_event_module.cc",
     "src/trace_processor/importers/proto/graphics_event_parser.cc",
     "src/trace_processor/importers/proto/system_probes_module.cc",
@@ -5772,8 +5774,6 @@ filegroup {
     "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
     "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.cc",
     "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.cc",
-    "src/trace_processor/importers/proto/android_probes_module.cc",
-    "src/trace_processor/importers/proto/android_probes_parser.cc",
     "src/trace_processor/importers/proto/args_table_utils.cc",
     "src/trace_processor/importers/proto/heap_graph_module.cc",
     "src/trace_processor/importers/proto/heap_graph_tracker.cc",

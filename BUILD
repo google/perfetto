@@ -775,6 +775,10 @@ filegroup(
 filegroup(
     name = "src_trace_processor_storage_full",
     srcs = [
+        "src/trace_processor/importers/proto/android_probes_module.cc",
+        "src/trace_processor/importers/proto/android_probes_module.h",
+        "src/trace_processor/importers/proto/android_probes_parser.cc",
+        "src/trace_processor/importers/proto/android_probes_parser.h",
         "src/trace_processor/importers/proto/graphics_event_module.cc",
         "src/trace_processor/importers/proto/graphics_event_module.h",
         "src/trace_processor/importers/proto/graphics_event_parser.cc",
@@ -838,10 +842,6 @@ filegroup(
         "src/trace_processor/importers/json/json_trace_tokenizer.h",
         "src/trace_processor/importers/json/json_trace_utils.cc",
         "src/trace_processor/importers/json/json_trace_utils.h",
-        "src/trace_processor/importers/proto/android_probes_module.cc",
-        "src/trace_processor/importers/proto/android_probes_module.h",
-        "src/trace_processor/importers/proto/android_probes_parser.cc",
-        "src/trace_processor/importers/proto/android_probes_parser.h",
         "src/trace_processor/importers/proto/args_table_utils.cc",
         "src/trace_processor/importers/proto/args_table_utils.h",
         "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h",

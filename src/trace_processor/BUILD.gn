@@ -101,8 +101,6 @@ source_set("storage_minimal") {
     "importers/ftrace/ftrace_tokenizer.h",
     "importers/ftrace/sched_event_tracker.h",
     "importers/fuchsia/fuchsia_provider_view.h",
-    "importers/proto/android_probes_module.h",
-    "importers/proto/android_probes_parser.h",
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
     "importers/proto/chrome_compositor_scheduler_state.descriptor.h",
@@ -203,13 +201,6 @@ source_set("storage_minimal") {
       enable_perfetto_trace_processor_fuchsia) {
     sources += [ "ftrace_utils.cc" ]
   }
-  if (enable_perfetto_trace_processor_android_probes) {
-    sources += [
-      "importers/proto/android_probes_module.cc",
-      "importers/proto/android_probes_parser.cc",
-    ]
-    deps += [ "../../include/perfetto/ext/traced:sys_stats_counters" ]
-  }
   if (enable_perfetto_trace_processor_heap_graphs) {
     sources += [
       "importers/proto/heap_graph_module.cc",
@@ -241,6 +232,10 @@ source_set("storage_minimal") {
 
 source_set("storage_full") {
   sources = [
+    "importers/proto/android_probes_module.cc",
+    "importers/proto/android_probes_module.h",
+    "importers/proto/android_probes_parser.cc",
+    "importers/proto/android_probes_parser.h",
     "importers/proto/graphics_event_module.cc",
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.cc",

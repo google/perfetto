@@ -24,11 +24,9 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
@@ -258,9 +256,6 @@ class ProtoTraceParserTest : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
     context_.modules.emplace_back(new HeapGraphModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
-    context_.modules.emplace_back(new AndroidProbesModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
     context_.modules.emplace_back(new TrackEventModule(&context_));
 
     RegisterAdditionalModules(&context_);
@@ -2451,7 +2446,6 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
                           Variadic::String(3))}));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   auto* packet = trace_.add_packet();
   auto* pkg_list = packet->set_packages_list();
@@ -2532,7 +2526,6 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
             false);
   EXPECT_EQ(find_arg(second_set_id, "version_code").int_value, 43);
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 
 TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   {
