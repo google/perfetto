@@ -117,8 +117,6 @@ source_set("storage_minimal") {
     "importers/proto/proto_trace_parser.h",
     "importers/proto/proto_trace_tokenizer.cc",
     "importers/proto/proto_trace_tokenizer.h",
-    "importers/proto/system_probes_module.h",
-    "importers/proto/system_probes_parser.h",
     "importers/proto/track_event_module.cc",
     "importers/proto/track_event_module.h",
     "importers/proto/track_event_parser.cc",
@@ -205,18 +203,12 @@ source_set("storage_minimal") {
       enable_perfetto_trace_processor_fuchsia) {
     sources += [ "ftrace_utils.cc" ]
   }
-  if (enable_perfetto_trace_processor_system_probes) {
-    sources += [
-      "importers/proto/system_probes_module.cc",
-      "importers/proto/system_probes_parser.cc",
-    ]
-    deps += [ "../../include/perfetto/ext/traced:sys_stats_counters" ]
-  }
   if (enable_perfetto_trace_processor_android_probes) {
     sources += [
       "importers/proto/android_probes_module.cc",
       "importers/proto/android_probes_parser.cc",
     ]
+    deps += [ "../../include/perfetto/ext/traced:sys_stats_counters" ]
   }
   if (enable_perfetto_trace_processor_heap_graphs) {
     sources += [
@@ -253,6 +245,10 @@ source_set("storage_full") {
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.cc",
     "importers/proto/graphics_event_parser.h",
+    "importers/proto/system_probes_module.cc",
+    "importers/proto/system_probes_module.h",
+    "importers/proto/system_probes_parser.cc",
+    "importers/proto/system_probes_parser.h",
     "importers/proto/vulkan_memory_tracker.cc",
     "importers/proto/vulkan_memory_tracker.h",
     "register_additional_modules.cc",
@@ -262,6 +258,7 @@ source_set("storage_full") {
     ":storage_minimal",
   ]
   deps = [
+    "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:zero",
