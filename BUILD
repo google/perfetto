@@ -572,20 +572,27 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/containers:containers
+filegroup(
+    name = "src_trace_processor_containers_containers",
+    srcs = [
+        "src/trace_processor/containers/bit_vector.cc",
+        "src/trace_processor/containers/bit_vector.h",
+        "src/trace_processor/containers/bit_vector_iterators.cc",
+        "src/trace_processor/containers/bit_vector_iterators.h",
+        "src/trace_processor/containers/row_map.cc",
+        "src/trace_processor/containers/row_map.h",
+        "src/trace_processor/containers/sparse_vector.h",
+    ],
+)
+
 # GN target: //src/trace_processor/db:lib
 filegroup(
     name = "src_trace_processor_db_lib",
     srcs = [
-        "src/trace_processor/db/bit_vector.cc",
-        "src/trace_processor/db/bit_vector.h",
-        "src/trace_processor/db/bit_vector_iterators.cc",
-        "src/trace_processor/db/bit_vector_iterators.h",
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
         "src/trace_processor/db/compare.h",
-        "src/trace_processor/db/row_map.cc",
-        "src/trace_processor/db/row_map.h",
-        "src/trace_processor/db/sparse_vector.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",
         "src/trace_processor/db/typed_column.h",
@@ -2521,6 +2528,7 @@ perfetto_cc_library(
         ":src_base_base",
         ":src_protozero_protozero",
         ":src_trace_processor_common",
+        ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
@@ -2599,6 +2607,7 @@ perfetto_cc_binary(
         ":src_base_unix_socket",
         ":src_protozero_protozero",
         ":src_trace_processor_common",
+        ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
@@ -2752,6 +2761,7 @@ perfetto_cc_binary(
         ":src_profiling_deobfuscator",
         ":src_protozero_protozero",
         ":src_trace_processor_common",
+        ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",

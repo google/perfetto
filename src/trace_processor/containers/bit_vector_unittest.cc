@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/bit_vector.h"
+#include "src/trace_processor/containers/bit_vector.h"
 
 #include <random>
 
-#include "src/trace_processor/db/bit_vector_iterators.h"
+#include "src/trace_processor/containers/bit_vector_iterators.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

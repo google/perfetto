@@ -16,7 +16,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "src/trace_processor/db/bit_vector.h"
+#include "src/trace_processor/containers/bit_vector.h"
 
 namespace {
 
@@ -36,7 +36,7 @@ void BitVectorArgs(benchmark::internal::Benchmark* b) {
     b->Arg(1234567);
   }
 }
-}
+}  // namespace
 
 static void BM_BitVectorAppendTrue(benchmark::State& state) {
   BitVector bv;

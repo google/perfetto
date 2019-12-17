@@ -16,7 +16,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "src/trace_processor/db/row_map.h"
+#include "src/trace_processor/containers/row_map.h"
 
 using perfetto::trace_processor::BitVector;
 using perfetto::trace_processor::RowMap;
