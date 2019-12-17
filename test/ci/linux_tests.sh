@@ -23,6 +23,7 @@ tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS}
 
 ${OUT_PATH}/perfetto_unittests
 ${OUT_PATH}/perfetto_integrationtests
+${OUT_PATH}/trace_processor_minimal_smoke_tests
 
 # If this is a split host+target build, use the trace_processoer_shell binary
 # from the host directory. In some cases (e.g. lsan x86 builds) the host binary
