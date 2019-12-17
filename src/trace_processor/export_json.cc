@@ -286,7 +286,11 @@ std::string PrintUint64(uint64_t x) {
 class ArgsBuilder {
  public:
   explicit ArgsBuilder(const TraceStorage* storage)
-      : storage_(storage), empty_value_(Json::objectValue) {
+      : storage_(storage),
+        empty_value_(Json::objectValue),
+        nan_value_(Json::StaticString("NaN")),
+        inf_value_(Json::StaticString("Infinity")),
+        neg_inf_value_(Json::StaticString("-Infinity")) {
     const TraceStorage::Args& args = storage->args();
     if (args.args_count() == 0) {
       args_sets_.resize(1, empty_value_);
@@ -320,7 +324,15 @@ class ArgsBuilder {
       case Variadic::kString:
         return GetNonNullString(storage_, variadic.string_value);
       case Variadic::kReal:
-        return variadic.real_value;
+        if (std::isnan(variadic.real_value)) {
+          return nan_value_;
+        } else if (std::isinf(variadic.real_value) && variadic.real_value > 0) {
+          return inf_value_;
+        } else if (std::isinf(variadic.real_value) && variadic.real_value < 0) {
+          return neg_inf_value_;
+        } else {
+          return variadic.real_value;
+        }
       case Variadic::kPointer:
         return PrintUint64(variadic.pointer_value);
       case Variadic::kBool:
@@ -387,7 +399,10 @@ class ArgsBuilder {
 
   const TraceStorage* storage_;
   std::vector<Json::Value> args_sets_;
-  Json::Value empty_value_;
+  const Json::Value empty_value_;
+  const Json::Value nan_value_;
+  const Json::Value inf_value_;
+  const Json::Value neg_inf_value_;
 };
 
 void ConvertLegacyFlowEventArgs(const Json::Value& legacy_args,
