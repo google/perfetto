@@ -20,15 +20,18 @@ source_set("containers") {
     "bit_vector.h",
     "bit_vector_iterators.cc",
     "bit_vector_iterators.h",
+    "null_term_string_view.h",
     "row_map.cc",
     "row_map.h",
     "sparse_vector.h",
+    "string_pool.cc",
+    "string_pool.h",
   ]
   deps = [
-    "../:common",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/protozero",
   ]
 }
 
@@ -36,8 +39,10 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "bit_vector_unittest.cc",
+    "null_term_string_view_unittest.cc",
     "row_map_unittest.cc",
     "sparse_vector_unittest.cc",
+    "string_pool_unittest.cc",
   ]
   deps = [
     ":containers",

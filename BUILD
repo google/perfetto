@@ -580,9 +580,12 @@ filegroup(
         "src/trace_processor/containers/bit_vector.h",
         "src/trace_processor/containers/bit_vector_iterators.cc",
         "src/trace_processor/containers/bit_vector_iterators.h",
+        "src/trace_processor/containers/null_term_string_view.h",
         "src/trace_processor/containers/row_map.cc",
         "src/trace_processor/containers/row_map.h",
         "src/trace_processor/containers/sparse_vector.h",
+        "src/trace_processor/containers/string_pool.cc",
+        "src/trace_processor/containers/string_pool.h",
     ],
 )
 
@@ -692,16 +695,6 @@ filegroup(
         "src/trace_processor/tables/profiler_tables.h",
         "src/trace_processor/tables/slice_tables.h",
         "src/trace_processor/tables/track_tables.h",
-    ],
-)
-
-# GN target: //src/trace_processor:common
-filegroup(
-    name = "src_trace_processor_common",
-    srcs = [
-        "src/trace_processor/null_term_string_view.h",
-        "src/trace_processor/string_pool.cc",
-        "src/trace_processor/string_pool.h",
     ],
 )
 
@@ -2527,7 +2520,6 @@ perfetto_cc_library(
     srcs = [
         ":src_base_base",
         ":src_protozero_protozero",
-        ":src_trace_processor_common",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
@@ -2606,7 +2598,6 @@ perfetto_cc_binary(
         ":src_base_base",
         ":src_base_unix_socket",
         ":src_protozero_protozero",
-        ":src_trace_processor_common",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
@@ -2760,7 +2751,6 @@ perfetto_cc_binary(
         ":src_base_base",
         ":src_profiling_deobfuscator",
         ":src_protozero_protozero",
-        ":src_trace_processor_common",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",

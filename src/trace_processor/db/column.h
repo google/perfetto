@@ -24,8 +24,8 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/sparse_vector.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/compare.h"
-#include "src/trace_processor/string_pool.h"
 
 namespace perfetto {
 namespace trace_processor {

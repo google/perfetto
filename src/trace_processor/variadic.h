@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_VARIADIC_H_
 #define SRC_TRACE_PROCESSOR_VARIADIC_H_
 
-#include "src/trace_processor/string_pool.h"
+#include "src/trace_processor/containers/string_pool.h"
 
 namespace perfetto {
 namespace trace_processor {

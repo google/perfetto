@@ -151,12 +151,12 @@ source_set("storage_minimal") {
   ]
 
   deps = [
-    ":common",
     ":descriptors",
     "../../gn:default_deps",
     "../../gn:zlib",
     "../base",
     "../protozero",
+    "containers",
     "tables",
   ]
   public_deps = [
@@ -351,7 +351,6 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     deps = [
-      ":common",
       ":storage_full",
       "../../gn:default_deps",
       "../../gn:sqlite",
@@ -378,21 +377,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       deps += [ ":export_json" ]
     }
   }
-}
-
-# TODO(lalitm): we need to find a better home for the classes here.
-source_set("common") {
-  sources = [
-    "null_term_string_view.h",
-    "string_pool.cc",
-    "string_pool.h",
-  ]
-
-  deps = [
-    "../../gn:default_deps",
-    "../base",
-    "../protozero",
-  ]
 }
 
 if (enable_perfetto_trace_processor_metrics) {  # shell requires metrics.
@@ -431,15 +415,12 @@ perfetto_unittest_source_set("unittests") {
     "importers/proto/args_table_utils_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
-    "null_term_string_view_unittest.cc",
     "process_tracker_unittest.cc",
     "protozero_to_text_unittests.cc",
     "slice_tracker_unittest.cc",
-    "string_pool_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
-    ":common",
     ":descriptors",
     ":protozero_to_text",
     ":storage_full",
