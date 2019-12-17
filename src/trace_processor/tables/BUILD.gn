@@ -24,7 +24,6 @@ source_set("tables") {
     "track_tables.h",
   ]
   deps = [
-    "..:common",
     "../../../gn:default_deps",
     "../db:lib",
   ]

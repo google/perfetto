@@ -25,8 +25,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/string_pool.h"
 
 namespace perfetto {
 namespace trace_processor {

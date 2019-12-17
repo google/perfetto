@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_STRING_POOL_H_
-#define SRC_TRACE_PROCESSOR_STRING_POOL_H_
+#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_STRING_POOL_H_
+#define SRC_TRACE_PROCESSOR_CONTAINERS_STRING_POOL_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/trace_processor/null_term_string_view.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -250,4 +250,4 @@ struct hash< ::perfetto::trace_processor::StringPool::Id> {
 
 }  // namespace std
 
-#endif  // SRC_TRACE_PROCESSOR_STRING_POOL_H_
+#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_STRING_POOL_H_
