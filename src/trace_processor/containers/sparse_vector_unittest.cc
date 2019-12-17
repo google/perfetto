@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/sparse_vector.h"
+#include "src/trace_processor/containers/sparse_vector.h"
 
 #include "test/gtest_and_gmock.h"
 

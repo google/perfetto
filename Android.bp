@@ -5628,14 +5628,31 @@ filegroup {
   ],
 }
 
+// GN: //src/trace_processor/containers:containers
+filegroup {
+  name: "perfetto_src_trace_processor_containers_containers",
+  srcs: [
+    "src/trace_processor/containers/bit_vector.cc",
+    "src/trace_processor/containers/bit_vector_iterators.cc",
+    "src/trace_processor/containers/row_map.cc",
+  ],
+}
+
+// GN: //src/trace_processor/containers:unittests
+filegroup {
+  name: "perfetto_src_trace_processor_containers_unittests",
+  srcs: [
+    "src/trace_processor/containers/bit_vector_unittest.cc",
+    "src/trace_processor/containers/row_map_unittest.cc",
+    "src/trace_processor/containers/sparse_vector_unittest.cc",
+  ],
+}
+
 // GN: //src/trace_processor/db:lib
 filegroup {
   name: "perfetto_src_trace_processor_db_lib",
   srcs: [
-    "src/trace_processor/db/bit_vector.cc",
-    "src/trace_processor/db/bit_vector_iterators.cc",
     "src/trace_processor/db/column.cc",
-    "src/trace_processor/db/row_map.cc",
     "src/trace_processor/db/table.cc",
   ],
 }
@@ -5644,10 +5661,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_db_unittests",
   srcs: [
-    "src/trace_processor/db/bit_vector_unittest.cc",
     "src/trace_processor/db/compare_unittest.cc",
-    "src/trace_processor/db/row_map_unittest.cc",
-    "src/trace_processor/db/sparse_vector_unittest.cc",
   ],
 }
 
@@ -6590,6 +6604,8 @@ cc_test {
     ":perfetto_src_protozero_testing_messages_zero_gen",
     ":perfetto_src_protozero_unittests",
     ":perfetto_src_trace_processor_common",
+    ":perfetto_src_trace_processor_containers_containers",
+    ":perfetto_src_trace_processor_containers_unittests",
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_db_unittests",
     ":perfetto_src_trace_processor_descriptors",
@@ -6804,6 +6820,7 @@ cc_binary_host {
     ":perfetto_src_base_base",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_trace_processor_common",
+    ":perfetto_src_trace_processor_containers_containers",
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_descriptors",
     ":perfetto_src_trace_processor_lib",
@@ -6911,6 +6928,7 @@ cc_binary_host {
     ":perfetto_src_profiling_deobfuscator",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_trace_processor_common",
+    ":perfetto_src_trace_processor_containers_containers",
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_descriptors",
     ":perfetto_src_trace_processor_lib",
