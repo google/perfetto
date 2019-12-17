@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/bit_vector_iterators.h"
+#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 namespace perfetto {
 namespace trace_processor {

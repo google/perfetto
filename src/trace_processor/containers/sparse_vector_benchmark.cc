@@ -16,7 +16,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "src/trace_processor/db/sparse_vector.h"
+#include "src/trace_processor/containers/sparse_vector.h"
 
 namespace {
 
