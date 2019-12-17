@@ -583,6 +583,76 @@ TEST(HeapGraphWalkerTest, DISABLED_AllGraphs) {
   });
 }
 
+bool HasPath(const HeapGraphWalker::PathFromRoot& path,
+             std::vector<int32_t> class_names) {
+  if (class_names.empty())
+    return true;
+  auto it = path.children.find(class_names[0]);
+  if (it == path.children.end())
+    return false;
+  class_names.erase(class_names.begin());
+  return HasPath(it->second, class_names);
+}
+
+//    1      |
+//    ^^     |
+//   /  \    |
+//  2<-> 3   |
+//  ^        |
+//  |        |
+//  4R       |
+TEST(HeapGraphWalkeTest, ShortestPath) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1, 1);
+  walker.AddNode(2, 2, 2);
+  walker.AddNode(3, 3, 3);
+  walker.AddNode(4, 4, 4);
+
+  walker.AddEdge(2, 1);
+  walker.AddEdge(2, 3);
+  walker.AddEdge(3, 1);
+  walker.AddEdge(3, 2);
+  walker.AddEdge(4, 2);
+
+  walker.MarkRoot(4);
+  auto path = walker.FindPathsFromRoot();
+
+  EXPECT_TRUE(HasPath(path, {4, 2, 1}));
+  EXPECT_TRUE(HasPath(path, {4, 2, 3}));
+  EXPECT_FALSE(HasPath(path, {4, 2, 3, 1}));
+}
+
+//    1      |
+//    ^^     |
+//   /  \    |
+//  2R<->3   |
+//  ^        |
+//  |        |
+//  4R       |
+TEST(HeapGraphWalkeTest, ShortestPathMultipleRoots) {
+  HeapGraphWalkerTestDelegate delegate;
+  HeapGraphWalker walker(&delegate);
+  walker.AddNode(1, 1, 1);
+  walker.AddNode(2, 2, 2);
+  walker.AddNode(3, 3, 3);
+  walker.AddNode(4, 4, 4);
+
+  walker.AddEdge(2, 1);
+  walker.AddEdge(2, 3);
+  walker.AddEdge(3, 1);
+  walker.AddEdge(3, 2);
+  walker.AddEdge(4, 2);
+
+  walker.MarkRoot(4);
+  walker.MarkRoot(2);
+  auto path = walker.FindPathsFromRoot();
+
+  EXPECT_TRUE(HasPath(path, {2, 1}));
+  EXPECT_TRUE(HasPath(path, {2, 3}));
+  EXPECT_FALSE(HasPath(path, {4, 2, 3}));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
