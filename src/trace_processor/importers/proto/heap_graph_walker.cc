@@ -17,6 +17,8 @@
 #include "src/trace_processor/importers/proto/heap_graph_walker.h"
 #include "perfetto/base/logging.h"
 
+#include <deque>
+
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -57,12 +59,13 @@ bool IsUniqueOwner(const std::map<int64_t, int64_t>& component_to_node,
 
 HeapGraphWalker::Delegate::~Delegate() = default;
 
-void HeapGraphWalker::AddNode(int64_t row, uint64_t size) {
+void HeapGraphWalker::AddNode(int64_t row, uint64_t size, int32_t class_name) {
   if (static_cast<size_t>(row) >= nodes_.size())
     nodes_.resize(static_cast<size_t>(row) + 1);
   Node& node = GetNode(row);
   node.self_size = size;
   node.row = row;
+  node.class_name = class_name;
 }
 
 void HeapGraphWalker::AddEdge(int64_t owner_row, int64_t owned_row) {
@@ -74,36 +77,39 @@ void HeapGraphWalker::AddEdge(int64_t owner_row, int64_t owned_row) {
 }
 
 void HeapGraphWalker::MarkRoot(int64_t row) {
-  Node& n = GetNode(row);
-  n.root = true;
-  ReachableNode(&n);
+  Node* node = &GetNode(row);
+  roots_.emplace_back(node);
+
+  // Calculate shortest distance to a GC root.
+  std::deque<std::pair<int32_t, Node*>> reachable_nodes{{0, node}};
+  while (!reachable_nodes.empty()) {
+    Node* cur_node;
+    int32_t distance;
+    std::tie(distance, cur_node) = reachable_nodes.front();
+    reachable_nodes.pop_front();
+    if (cur_node->distance_to_root == -1 ||
+        cur_node->distance_to_root > distance) {
+      if (cur_node->distance_to_root == -1)
+        delegate_->MarkReachable(cur_node->row);
+      cur_node->distance_to_root = distance;
+      for (Node* child_node : cur_node->children) {
+        if (child_node->distance_to_root == -1 ||
+            child_node->distance_to_root > distance + 1)
+          reachable_nodes.emplace_back(distance + 1, child_node);
+      }
+    }
+  }
 }
 
 void HeapGraphWalker::CalculateRetained() {
   for (Node& n : nodes_) {
-    if (n.reachable && n.node_index == 0)
+    if (n.reachable() && n.node_index == 0)
       FindSCC(&n);
   }
 
   // Sanity check that we have processed all edges.
   for (const auto& c : components_)
     PERFETTO_CHECK(c.incoming_edges == 0);
-}
-
-void HeapGraphWalker::ReachableNode(Node* node) {
-  if (node->reachable)
-    return;
-  std::vector<Node*> reachable_nodes{node};
-  while (!reachable_nodes.empty()) {
-    Node* cur_node = reachable_nodes.back();
-    reachable_nodes.pop_back();
-    if (!cur_node->reachable) {
-      delegate_->MarkReachable(cur_node->row);
-      cur_node->reachable = true;
-      reachable_nodes.insert(reachable_nodes.end(), cur_node->children.cbegin(),
-                             cur_node->children.cend());
-    }
-  }
 }
 
 int64_t HeapGraphWalker::RetainedSize(const Component& component) {
@@ -163,7 +169,7 @@ void HeapGraphWalker::FoundSCC(Node* node) {
     // A node can never be part of two components.
     PERFETTO_CHECK(stack_elem->component == -1);
     stack_elem->component = component_id;
-    if (stack_elem->root)
+    if (stack_elem->root())
       component.root = true;
   } while (stack_elem != node);
 
@@ -171,7 +177,7 @@ void HeapGraphWalker::FoundSCC(Node* node) {
     component.unique_retained_size += elem->self_size;
     for (Node* parent : elem->parents) {
       // We do not count intra-component edges.
-      if (parent->reachable && parent->component != component_id)
+      if (parent->reachable() && parent->component != component_id)
         component.incoming_edges++;
     }
     component.orig_incoming_edges = component.incoming_edges;
@@ -306,13 +312,39 @@ void HeapGraphWalker::FindSCC(Node* node) {
       walk_child.pop_back();
     } else {
       Node* child = node->children[child_idx++];
-      PERFETTO_CHECK(child->reachable);
+      PERFETTO_CHECK(child->reachable());
       if (child->node_index == 0) {
         walk_stack.emplace_back(child);
         walk_child.emplace_back(0);
       } else if (child->on_stack && child->node_index < node->lowlink) {
         node->lowlink = child->node_index;
       }
+    }
+  }
+}
+
+HeapGraphWalker::PathFromRoot HeapGraphWalker::FindPathsFromRoot() {
+  for (Node* root : roots_)
+    FindPathFromRoot(root, &path_);
+  for (Node& node : nodes_)
+    node.find_paths_from_root_visited = false;
+  return std::move(path_);
+}
+
+// TODO(fmayer): Teach this to handle field names.
+void HeapGraphWalker::FindPathFromRoot(Node* n, PathFromRoot* parent) {
+  PathFromRoot& cur = parent->children[n->class_name];
+  cur.size += n->self_size;
+  cur.count++;
+  cur.parent = parent;
+  cur.class_name = n->class_name;
+  for (Node* child : n->children) {
+    if (child->distance_to_root == n->distance_to_root + 1 &&
+        !child->find_paths_from_root_visited) {
+      // Mark as visited in case there is another path with the same distance
+      // from a root.
+      child->find_paths_from_root_visited = true;
+      FindPathFromRoot(child, &cur);
     }
   }
 }
