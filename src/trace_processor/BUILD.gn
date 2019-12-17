@@ -545,6 +545,24 @@ source_set("integrationtests") {
   }
 }
 
+if (enable_perfetto_trace_processor_json) {
+  source_set("storage_minimal_smoke_tests") {
+    testonly = true
+    sources = [
+      "storage_minimal_smoke_test.cc",
+    ]
+    deps = [
+      ":export_json",
+      ":storage_minimal",
+      "../../gn:default_deps",
+      "../../gn:gtest_and_gmock",
+      "../../gn:gtest_main",
+      "../../gn:jsoncpp",
+      "../base:test_support",
+    ]
+  }
+}
+
 perfetto_fuzzer_test("trace_processor_fuzzer") {
   testonly = true
   sources = [
