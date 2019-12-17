@@ -84,7 +84,7 @@ class Table {
   // Returns a RowMap which, if applied to the table, would contain the rows
   // post filter.
   RowMap FilterToRowMap(const std::vector<Constraint>& cs) const {
-    RowMap rm(0, size_);
+    RowMap rm(0, row_count_);
     for (const Constraint& c : cs) {
       columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
     }
@@ -97,10 +97,10 @@ class Table {
   // passed RowMap is generated using |FilterToRowMap|.
   Table Apply(RowMap rm) const {
     Table table = CopyExceptRowMaps();
-    table.size_ = rm.size();
+    table.row_count_ = rm.size();
     for (const RowMap& map : row_maps_) {
       table.row_maps_.emplace_back(map.SelectRows(rm));
-      PERFETTO_DCHECK(table.row_maps_.back().size() == table.size());
+      PERFETTO_DCHECK(table.row_maps_.back().size() == table.row_count());
     }
     return table;
   }
@@ -145,7 +145,7 @@ class Table {
   // Returns an iterator into the Table.
   Iterator IterateRows() const { return Iterator(this); }
 
-  uint32_t size() const { return size_; }
+  uint32_t row_count() const { return row_count_; }
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
 
  protected:
@@ -153,7 +153,7 @@ class Table {
 
   std::vector<RowMap> row_maps_;
   std::vector<Column> columns_;
-  uint32_t size_ = 0;
+  uint32_t row_count_ = 0;
 
   StringPool* string_pool_ = nullptr;
 

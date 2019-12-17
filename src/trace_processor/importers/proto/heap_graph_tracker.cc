@@ -117,7 +117,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
          /*reachable=*/0, /*type_name=*/type_name,
          /*deobfuscated_type_name=*/base::nullopt,
          /*root_type=*/base::nullopt});
-    int64_t row = context_->storage->heap_graph_object_table().size() - 1;
+    int64_t row = context_->storage->heap_graph_object_table().row_count() - 1;
     sequence_state.object_id_to_row.emplace(obj.object_id, row);
     class_to_rows_[type_name].emplace_back(row);
     sequence_state.walker.AddNode(row, obj.self_size);
@@ -130,7 +130,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     int64_t owner_row = it->second;
 
     int64_t reference_set_id =
-        context_->storage->heap_graph_reference_table().size();
+        context_->storage->heap_graph_reference_table().row_count();
     std::set<int64_t> seen_owned;
     for (const SourceObject::Reference& ref : obj.references) {
       // This is true for unset reference fields.
@@ -161,7 +161,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       context_->storage->mutable_heap_graph_reference_table()->Insert(
           {reference_set_id, owner_row, owned_row, field_name,
            /*deobfuscated_field_name=*/base::nullopt});
-      int64_t row = context_->storage->heap_graph_reference_table().size() - 1;
+      int64_t row =
+          context_->storage->heap_graph_reference_table().row_count() - 1;
       field_to_rows_[field_name].emplace_back(row);
     }
     context_->storage->mutable_heap_graph_object_table()

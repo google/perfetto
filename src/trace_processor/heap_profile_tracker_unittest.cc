@@ -185,7 +185,7 @@ int64_t FindCallstack(const TraceStorage& storage,
                       int64_t parent,
                       int64_t frame_id) {
   const auto& callsites = storage.stack_profile_callsite_table();
-  for (uint32_t i = 0; i < callsites.size(); ++i) {
+  for (uint32_t i = 0; i < callsites.row_count(); ++i) {
     if (callsites.depth()[i] == depth && callsites.parent_id()[i] == parent &&
         callsites.frame_id()[i] == frame_id) {
       return static_cast<int64_t>(i);

@@ -192,7 +192,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   // end of filtering. Note that |current_row_count| should always be at least 1
   // unless we are absolutely certain that we will return no rows as otherwise
   // SQLite can make some bad choices.
-  uint32_t current_row_count = table.size();
+  uint32_t current_row_count = table.row_count();
 
   // If the table is empty, any constraint set only pays the fixed cost. Also we
   // can return 0 as the row count as we are certain that we will return no
