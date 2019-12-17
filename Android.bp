@@ -5754,6 +5754,7 @@ filegroup {
     "src/trace_processor/args_tracker.cc",
     "src/trace_processor/binder_tracker.cc",
     "src/trace_processor/clock_tracker.cc",
+    "src/trace_processor/destructible.cc",
     "src/trace_processor/event_tracker.cc",
     "src/trace_processor/forwarding_trace_parser.cc",
     "src/trace_processor/ftrace_utils.cc",

@@ -797,6 +797,8 @@ filegroup(
         "src/trace_processor/chunked_trace_reader.h",
         "src/trace_processor/clock_tracker.cc",
         "src/trace_processor/clock_tracker.h",
+        "src/trace_processor/destructible.cc",
+        "src/trace_processor/destructible.h",
         "src/trace_processor/event_tracker.cc",
         "src/trace_processor/event_tracker.h",
         "src/trace_processor/forwarding_trace_parser.cc",
