@@ -24,11 +24,9 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
-#include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/metadata.h"
@@ -84,8 +82,6 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::UnorderedElementsAreArray;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE) || \
-    PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 namespace {
 MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   // The IEEE standard says that any comparison operation involving
@@ -97,8 +93,6 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
   return fabs(d_arg - d_exp) < 1e-128;
 }
 }  // namespace
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 class MockSchedEventTracker : public SchedEventTracker {
@@ -262,12 +256,6 @@ class ProtoTraceParserTest : public ::testing::Test {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
     context_.modules.emplace_back(new HeapGraphModule(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
-    context_.modules.emplace_back(new AndroidProbesModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
-    context_.modules.emplace_back(new SystemProbesModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
     context_.modules.emplace_back(new TrackEventModule(&context_));
 
     RegisterAdditionalModules(&context_);
@@ -611,8 +599,6 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
-
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_.add_packet();
   uint64_t ts = 1000;
@@ -686,8 +672,6 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
 }
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_SYSTEM_PROBES)
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
@@ -2462,7 +2446,6 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
                           Variadic::String(3))}));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   auto* packet = trace_.add_packet();
   auto* pkg_list = packet->set_packages_list();
@@ -2543,7 +2526,6 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
             false);
   EXPECT_EQ(find_arg(second_set_id, "version_code").int_value, 43);
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_ANDROID_PROBES)
 
 TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   {
