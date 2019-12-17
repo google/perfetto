@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_SPARSE_VECTOR_H_
-#define SRC_TRACE_PROCESSOR_DB_SPARSE_VECTOR_H_
+#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_SPARSE_VECTOR_H_
+#define SRC_TRACE_PROCESSOR_CONTAINERS_SPARSE_VECTOR_H_
 
 #include <stdint.h>
 
@@ -23,7 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/db/row_map.h"
+#include "src/trace_processor/containers/row_map.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -115,4 +115,4 @@ class SparseVector {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_SPARSE_VECTOR_H_
+#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_SPARSE_VECTOR_H_

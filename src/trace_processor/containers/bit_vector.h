@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_BIT_VECTOR_H_
-#define SRC_TRACE_PROCESSOR_DB_BIT_VECTOR_H_
+#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_BIT_VECTOR_H_
+#define SRC_TRACE_PROCESSOR_CONTAINERS_BIT_VECTOR_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -655,4 +655,4 @@ class BitVector {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_BIT_VECTOR_H_
+#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_BIT_VECTOR_H_

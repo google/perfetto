@@ -22,9 +22,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/sparse_vector.h"
 #include "src/trace_processor/db/compare.h"
-#include "src/trace_processor/db/row_map.h"
-#include "src/trace_processor/db/sparse_vector.h"
 #include "src/trace_processor/string_pool.h"
 
 namespace perfetto {

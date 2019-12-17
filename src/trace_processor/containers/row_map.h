@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_ROW_MAP_H_
-#define SRC_TRACE_PROCESSOR_DB_ROW_MAP_H_
+#ifndef SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_H_
+#define SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_H_
 
 #include <stdint.h>
 
@@ -24,8 +24,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/db/bit_vector.h"
-#include "src/trace_processor/db/bit_vector_iterators.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -616,4 +616,4 @@ class RowMap {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_ROW_MAP_H_
+#endif  // SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_H_

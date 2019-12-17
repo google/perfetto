@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/row_map.h"
+#include "src/trace_processor/containers/row_map.h"
 
 #include <memory>
 
