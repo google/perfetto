@@ -623,7 +623,7 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
   for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
     protos::pbzero::AddressSymbols::Decoder address_symbols(*addr_it);
 
-    uint32_t symbol_set_id = context_->storage->symbol_table().size();
+    uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
     bool frame_found = false;
     for (int64_t mapping_row : mapping_rows) {
       std::vector<int64_t> frame_rows =

@@ -44,7 +44,7 @@ inline void PrintTo(const SliceInfo& info, ::std::ostream* os) {
 
 std::vector<SliceInfo> ToSliceInfo(const tables::SliceTable& slices) {
   std::vector<SliceInfo> infos;
-  for (uint32_t i = 0; i < slices.size(); i++) {
+  for (uint32_t i = 0; i < slices.row_count(); i++) {
     infos.emplace_back(SliceInfo{slices.ts()[i], slices.dur()[i]});
   }
   return infos;
@@ -60,7 +60,7 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   tracker.End(10 /*ts*/, track, 0 /*cat*/, 1 /*name*/);
 
   const auto& slices = context.storage->slice_table();
-  EXPECT_EQ(slices.size(), 1u);
+  EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
   EXPECT_EQ(slices.track_id()[0], track);
@@ -88,7 +88,7 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
               });
 
   const auto& slices = context.storage->slice_table();
-  EXPECT_EQ(slices.size(), 1u);
+  EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
   EXPECT_EQ(slices.track_id()[0], track);
@@ -121,7 +121,7 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
 
   const auto& slices = context.storage->slice_table();
 
-  EXPECT_EQ(slices.size(), 2u);
+  EXPECT_EQ(slices.row_count(), 2u);
 
   uint32_t idx = 0;
   EXPECT_EQ(slices.ts()[idx], 2);

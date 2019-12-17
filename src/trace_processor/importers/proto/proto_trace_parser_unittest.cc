@@ -613,7 +613,7 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
                                    DoubleEq(value * 1024.0), 0u));
   Tokenize();
 
-  EXPECT_EQ(context_.storage->track_table().size(), 1u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadVmStats) {
@@ -630,7 +630,7 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
               PushCounter(static_cast<int64_t>(ts), DoubleEq(value), 0u));
   Tokenize();
 
-  EXPECT_EQ(context_.storage->track_table().size(), 1u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
@@ -1238,12 +1238,12 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   context_.sorter->ExtractEventsForced();
 
   // First track is for the thread; others are the async event tracks.
-  EXPECT_EQ(storage_->track_table().size(), 4u);
+  EXPECT_EQ(storage_->track_table().row_count(), 4u);
   EXPECT_EQ(storage_->track_table().name()[1], 2u);
   EXPECT_EQ(storage_->track_table().name()[2], 4u);
   EXPECT_EQ(storage_->track_table().name()[3], 4u);
 
-  EXPECT_EQ(storage_->process_track_table().size(), 3u);
+  EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
   EXPECT_EQ(storage_->process_track_table().upid()[0], 1u);
   EXPECT_EQ(storage_->process_track_table().upid()[1], 1u);
   EXPECT_EQ(storage_->process_track_table().upid()[2], 1u);
@@ -1403,11 +1403,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 
   // First track is "Thread track 1"; second is "Async track 1", third is
   // "Thread track 2".
-  EXPECT_EQ(storage_->track_table().size(), 3u);
+  EXPECT_EQ(storage_->track_table().row_count(), 3u);
   EXPECT_EQ(storage_->track_table().name()[0], 10u);  // "Thread track 1"
   EXPECT_EQ(storage_->track_table().name()[1], 11u);  // "Async track 1"
   EXPECT_EQ(storage_->track_table().name()[2], 12u);  // "Thread track 2"
-  EXPECT_EQ(storage_->thread_track_table().size(), 2u);
+  EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
   EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
   EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
 
@@ -1440,8 +1440,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   context_.sorter->ExtractEventsForced();
 
   // Track tables shouldn't have changed.
-  EXPECT_EQ(storage_->track_table().size(), 3u);
-  EXPECT_EQ(storage_->thread_track_table().size(), 2u);
+  EXPECT_EQ(storage_->track_table().row_count(), 3u);
+  EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);

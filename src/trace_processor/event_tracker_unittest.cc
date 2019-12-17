@@ -125,9 +125,9 @@ TEST_F(EventTrackerTest, CounterDuration) {
   context.event_tracker->PushCounter(timestamp + 3, 5000, track);
   context.event_tracker->PushCounter(timestamp + 9, 1000, track);
 
-  ASSERT_EQ(context.storage->counter_track_table().size(), 1ul);
+  ASSERT_EQ(context.storage->counter_track_table().row_count(), 1ul);
 
-  ASSERT_EQ(context.storage->counter_table().size(), 4ul);
+  ASSERT_EQ(context.storage->counter_table().row_count(), 4ul);
   ASSERT_EQ(context.storage->counter_table().ts()[0], timestamp);
   ASSERT_DOUBLE_EQ(context.storage->counter_table().value()[0], 1000);
 

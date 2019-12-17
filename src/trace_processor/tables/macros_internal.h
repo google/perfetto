@@ -76,7 +76,7 @@ class MacroTable : public Table {
     }
     // Also add the index of the new row to the identity row map and increment
     // the size.
-    row_maps_.back().Insert(size_++);
+    row_maps_.back().Insert(row_count_++);
   }
 
   // Stores the most specific "derived" type of this row in the table.
@@ -267,7 +267,7 @@ class MacroTable : public Table {
     uint32_t Insert(const Row& row) {                                         \
       uint32_t id;                                                            \
       if (parent_ == nullptr) {                                               \
-        id = size();                                                          \
+        id = row_count();                                                     \
         type_.Append(string_pool_->InternString(row.type()));                 \
       } else {                                                                \
         id = parent_->Insert(row);                                            \
