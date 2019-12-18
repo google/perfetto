@@ -195,12 +195,13 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
       return util::Status("Could not parse sched_switch");
     }
 
-    context_->sched_tracker->PushSchedSwitch(
+    SchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
         cpu, ts, prev_pid.value(), prev_comm, prev_prio.value(), prev_state,
         next_pid.value(), next_comm, next_prio.value());
   } else if (event_name == "tracing_mark_write" || event_name == "0" ||
              event_name == "print") {
-    context_->systrace_parser->ParsePrintEvent(ts, pid, args_str.c_str());
+    SystraceParser::GetOrCreate(context_)->ParsePrintEvent(ts, pid,
+                                                           args_str.c_str());
   } else if (event_name == "sched_wakeup") {
     auto comm = args["comm"];
     base::Optional<uint32_t> wakee_pid = base::StringToUInt32(args["pid"]);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/binder_tracker.h"
+#include "src/trace_processor/importers/ftrace/binder_tracker.h"
 
 #include "perfetto/base/compiler.h"
 

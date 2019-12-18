@@ -19,6 +19,7 @@
 
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
@@ -94,6 +95,7 @@ class FtraceParser {
                          protozero::ConstBytes);
 
   TraceProcessorContext* context_;
+  BinderTracker binder_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
