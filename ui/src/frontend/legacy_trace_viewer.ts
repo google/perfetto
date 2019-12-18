@@ -22,7 +22,8 @@ export function isLegacyTrace(fileName: string): boolean {
   fileName = fileName.toLowerCase();
   return (
       fileName.endsWith('.json') || fileName.endsWith('.json.gz') ||
-      fileName.endsWith('.zip') || fileName.endsWith('.ctrace'));
+      fileName.endsWith('.zip') || fileName.endsWith('.ctrace') ||
+      fileName.endsWith('.html'));
 }
 
 export function openFileWithLegacyTraceViewer(file: File) {
