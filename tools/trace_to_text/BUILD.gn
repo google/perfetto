@@ -38,7 +38,6 @@ perfetto_host_executable("trace_to_text_lite") {
 
 source_set("utils") {
   deps = [
-    ":symbolizer",
     "../../gn:default_deps",
     "../../include/perfetto/profiling:deobfuscator",
     "../../include/perfetto/protozero",
@@ -47,12 +46,13 @@ source_set("utils") {
     "../../protos/perfetto/trace/interned_data:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../src/profiling:deobfuscator",
+    "../../src/profiling/symbolizer",
+    "../../src/profiling/symbolizer:symbolize_database",
   ]
   public_deps = [
     "../../gn:zlib",
     "../../include/perfetto/ext/base",
     "../../include/perfetto/profiling:deobfuscator",
-    "../../include/perfetto/profiling:symbolizer",
   ]
   sources = [
     "utils.cc",
@@ -60,45 +60,21 @@ source_set("utils") {
   ]
 }
 
-source_set("local_symbolizer") {
-  public_deps = [
-    "../../include/perfetto/ext/base",
-    "../../include/perfetto/profiling:symbolizer",
-  ]
-  deps = [
-    ":symbolizer",
-    ":utils",
-    "../../gn:default_deps",
-    "../../include/perfetto/protozero",
-  ]
-  sources = [
-    "local_symbolizer.cc",
-    "local_symbolizer.h",
-  ]
-}
-
-source_set("symbolizer") {
-  deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/profiling:symbolizer",
-  ]
-  sources = [
-    "symbolizer.cc",
-  ]
-}
-
 source_set("pprofbuilder") {
+  public_deps = [
+    "../../include/perfetto/profiling:pprof_builder",
+  ]
   deps = [
-    ":symbolizer",
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
-    "../../include/perfetto/profiling:symbolizer",
     "../../include/perfetto/protozero",
     "../../include/perfetto/trace_processor",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/third_party/pprof:zero",
+    "../../src/profiling/symbolizer",
+    "../../src/profiling/symbolizer:symbolize_database",
   ]
   sources = [
     "pprof_builder.cc",
@@ -117,7 +93,6 @@ static_library("libpprofbuilder") {
 # executable) and by the "lite" version (the WASM module for the UI).
 source_set("common") {
   deps = [
-    ":local_symbolizer",
     ":pprofbuilder",
     ":utils",
     "../../gn:default_deps",
@@ -126,6 +101,8 @@ source_set("common") {
     "../../include/perfetto/profiling:deobfuscator",
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:zero",
+    "../../src/profiling/symbolizer",
+    "../../src/profiling/symbolizer:symbolize_database",
     "../../src/trace_processor:lib",
   ]
   sources = [
