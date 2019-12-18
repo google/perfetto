@@ -2597,6 +2597,8 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_trace_processor",
         ":src_base_base",
         ":src_base_unix_socket",
+        ":src_profiling_symbolizer_symbolize_database",
+        ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_protozero",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",

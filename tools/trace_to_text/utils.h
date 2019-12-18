@@ -57,7 +57,6 @@ void ForEachPacketBlobInTrace(
     std::istream* input,
     const std::function<void(std::unique_ptr<char[]>, size_t)>&);
 
-std::vector<std::string> GetPerfettoBinaryPath();
 base::Optional<std::string> GetPerfettoProguardMapPath();
 
 bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input);
