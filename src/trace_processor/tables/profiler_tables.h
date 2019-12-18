@@ -42,6 +42,17 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
 
+#define PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF(NAME, PARENT, C) \
+  NAME(HeapProfileAllocationTable, "heap_profile_allocation")    \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                              \
+  C(int64_t, ts, Column::Flag::kSorted)                          \
+  C(uint32_t, upid)                                              \
+  C(int64_t, callsite_id)                                        \
+  C(int64_t, count)                                              \
+  C(int64_t, size)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
+
 #define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)  \
   NAME(HeapGraphObjectTable, "heap_graph_object")           \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                         \
