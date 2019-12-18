@@ -179,45 +179,6 @@ will read symbol information from these files.
 
 You can save the symbolized version by issuing the `proto` command in pprof.
 
-## Idle page tracking
-This is only available in Android versions newer than 10.
-
-Idle page tracking allows you to analyze which allocations made by your
-program are being used by a workload. This can be useful for finding leaks
-as well as unused cached values.
-
-**Do not follow these instructions on devices containing valuable data.**
-They require you turn off SELinux on your device, significantly lowering
-your device's security level.
-
-Use the following command to profile the next startup of your program with idle
-tracking enabled.
-
-1. `$ adb root`
-2. `$ tools/heap_profile -n ${NAME} --no-running --disable-selinux
---idle-allocations`
-
-Then run the following commands in a separate shell.
-
-1. `$ adb shell killall ${ROOT}` to restart your program.
-2. Wait for your program to finish starting.
-3. `adb shell killall -USR1 heapprofd` to trigger the first dump (see
-[Manual Dumping](#manual-dumping) above). This will mark all allocations as
-idle.
-4. Interact with your program.
-
-Once you are done interacting, `Ctrl-C` the invokation of
-`tools/heap_profile`, and upload the `heap_dump.2.*.pb.gz` file to pprof.
-You can then see the memory that was idle in the `idle_space` tab.
-
-This will show allocations that are on pages that have not been touched since
-the last dump. Small allocations that are not touched might not show up, as
-they might share a page with an allocation that was.
-
-If heapprofd is operating in sampling mode (i.e. `--interval` is larger than 1),
-the values in `idle_space` will not correct for the sampling, so they are not
-comparable to values in `space` and `alloc_space`, which do.
-
 ## Troubleshooting
 
 ### Buffer overrun
