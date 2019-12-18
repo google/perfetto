@@ -773,32 +773,6 @@ class TraceStorage {
         index_;
   };
 
-  class CpuProfileStackSamples {
-   public:
-    struct Row {
-      int64_t timestamp;
-      int64_t callsite_id;
-      UniqueTid utid;
-    };
-
-    uint32_t size() const { return static_cast<uint32_t>(timestamps_.size()); }
-
-    void Insert(const Row& row) {
-      timestamps_.emplace_back(row.timestamp);
-      callsite_ids_.emplace_back(row.callsite_id);
-      utids_.emplace_back(row.utid);
-    }
-
-    const std::deque<int64_t>& timestamps() const { return timestamps_; }
-    const std::deque<int64_t>& callsite_ids() const { return callsite_ids_; }
-    const std::deque<UniqueTid>& utids() const { return utids_; }
-
-   private:
-    std::deque<int64_t> timestamps_;
-    std::deque<int64_t> callsite_ids_;
-    std::deque<UniqueTid> utids_;
-  };
-
   UniqueTid AddEmptyThread(uint32_t tid) {
     unique_threads_.emplace_back(tid);
     return static_cast<UniqueTid>(unique_threads_.size() - 1);
@@ -1079,11 +1053,12 @@ class TraceStorage {
   tables::HeapProfileAllocationTable* mutable_heap_profile_allocation_table() {
     return &heap_profile_allocation_table_;
   }
-  const CpuProfileStackSamples& cpu_profile_stack_samples() const {
-    return cpu_profile_stack_samples_;
+  const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
+      const {
+    return cpu_profile_stack_sample_table_;
   }
-  CpuProfileStackSamples* mutable_cpu_profile_stack_samples() {
-    return &cpu_profile_stack_samples_;
+  tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
+    return &cpu_profile_stack_sample_table_;
   }
 
   const tables::SymbolTable& symbol_table() const { return symbol_table_; }
@@ -1236,7 +1211,8 @@ class TraceStorage {
                                                                   nullptr};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
       &string_pool_, nullptr};
-  CpuProfileStackSamples cpu_profile_stack_samples_;
+  tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
+      &string_pool_, nullptr};
 
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_, nullptr};

@@ -443,10 +443,10 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
 
     int64_t callstack_id = *maybe_callstack_id;
 
-    TraceStorage::CpuProfileStackSamples::Row sample_row{
+    tables::CpuProfileStackSampleTable::Row sample_row{
         sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it),
         callstack_id, utid};
-    storage->mutable_cpu_profile_stack_samples()->Insert(sample_row);
+    storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
 }
 
