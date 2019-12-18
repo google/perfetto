@@ -169,15 +169,24 @@ always produced. You can create multiple of these dumps, and they will be
 enumerated in the output directory.
 
 ## Symbolization
-If the profiled binary or libraries do not have debug symbols, you can use
-pprof to symbolize offline.
+If the profiled binary or libraries do not have debug symbols, you can
+symbolize profiles offline. All tools (traceconv, trace_processor_shell,
+the heap_profile script) support specifying `PERFETTO_BINARY_PATH` as an
+environment variable.
 
-To do so, copy symbolized versions of your binary and/or libraries into a
-directory. Then run
-`PPROF_BINARY_PATH=thatdirectory pprof heap_profile.${n}.${pid}.gz`, and pprof
-will read symbol information from these files.
+For instance, run
 
-You can save the symbolized version by issuing the `proto` command in pprof.
+```
+PERFETTO_BINARY_PATH=somedir tools/heap_profile --name ${NAME}
+```
+
+and the output files (`*.pb.gz`) will be symbolized.
+
+You can persist symbols for a trace by running
+`PERFETTO_BINARY_PATH=somedir tools/traceconv symbolize raw-trace > symbols`.
+You can then concatenate the symbols to the trace (
+`cat raw-trace symbols > symbolized-trace`) and the symbols will part of
+`symbolized-trace`.
 
 ## Idle page tracking
 This is only available in Android versions newer than 10.
