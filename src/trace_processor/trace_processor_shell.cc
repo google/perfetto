@@ -127,32 +127,32 @@ void SetupLineEditor() {
   }
 }
 
-void FreeLine(char* line) {
-  linenoiseHistoryAdd(line);
-  linenoiseHistorySave(GetHistoryPath().c_str());
-  linenoiseFree(line);
-}
+struct LineDeleter {
+  void operator()(char* p) const {
+    linenoiseHistoryAdd(p);
+    linenoiseHistorySave(GetHistoryPath().c_str());
+    linenoiseFree(p);
+  }
+};
 
-char* GetLine(const char* prompt) {
-  return linenoise(prompt);
+using ScopedLine = std::unique_ptr<char, LineDeleter>;
+
+ScopedLine GetLine(const char* prompt) {
+  return ScopedLine(linenoise(prompt));
 }
 
 #else
 
 void SetupLineEditor() {}
 
-void FreeLine(char* line) {
-  delete[] line;
-}
+using ScopedLine = std::unique_ptr<char>;
 
-char* GetLine(const char* prompt) {
+ScopedLine GetLine(const char* prompt) {
   printf("\r%80s\r%s", "", prompt);
   fflush(stdout);
-  char* line = new char[1024];
-  if (!fgets(line, 1024 - 1, stdin)) {
-    FreeLine(line);
+  ScopedLine line(new char[1024]);
+  if (!fgets(line, 1024 - 1, stdin))
     return nullptr;
-  }
   if (strlen(line) > 0)
     line[strlen(line) - 1] = 0;
   return line;
@@ -452,15 +452,15 @@ int StartInteractiveShell(uint32_t column_width) {
   SetupLineEditor();
 
   for (;;) {
-    char* line = GetLine("> ");
+    ScopedLine line = GetLine("> ");
     if (!line)
       break;
-    if (strcmp(line, "") == 0)
+    if (strcmp(line.get(), "") == 0)
       continue;
-    if (line[0] == '.') {
+    if (line.get()[0] == '.') {
       char command[32] = {};
       char arg[1024] = {};
-      sscanf(line + 1, "%31s %1023s", command, arg);
+      sscanf(line.get() + 1, "%31s %1023s", command, arg);
       if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
         break;
       } else if (strcmp(command, "help") == 0) {
@@ -477,10 +477,8 @@ int StartInteractiveShell(uint32_t column_width) {
     }
 
     base::TimeNanos t_start = base::GetWallTimeNs();
-    auto it = g_tp->ExecuteQuery(line);
+    auto it = g_tp->ExecuteQuery(line.get());
     PrintQueryResultInteractively(&it, t_start, column_width);
-
-    FreeLine(line);
   }
   return 0;
 }
