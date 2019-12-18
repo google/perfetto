@@ -98,7 +98,6 @@ class MockSchedEventTracker : public SchedEventTracker {
  public:
   MockSchedEventTracker(TraceProcessorContext* context)
       : SchedEventTracker(context) {}
-  virtual ~MockSchedEventTracker() = default;
 
   MOCK_METHOD9(PushSchedSwitch,
                void(uint32_t cpu,

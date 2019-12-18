@@ -36,7 +36,6 @@ class FtraceModule;
 class HeapGraphTracker;
 class HeapProfileTracker;
 class ProcessTracker;
-class SchedEventTracker;
 class SliceTracker;
 class SystraceParser;
 class TraceParser;
@@ -57,7 +56,6 @@ class TraceProcessorContext {
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<EventTracker> event_tracker;
-  std::unique_ptr<SchedEventTracker> sched_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<TraceParser> parser;
   std::unique_ptr<TraceSorter> sorter;
@@ -71,7 +69,8 @@ class TraceProcessorContext {
   // type is only available in the storage_full target. To access these fields,
   // use the GetOrCreate() method on their subclass type,
   // e.g. SyscallTracker::GetOrCreate(context).
-  std::unique_ptr<Destructible> syscall_tracker;  // SyscallTracker.
+  std::unique_ptr<Destructible> syscall_tracker;  // SyscallTracker
+  std::unique_ptr<Destructible> sched_tracker;    // SchedEventTracker
 
   // The module at the index N is registered to handle field id N in
   // TracePacket.

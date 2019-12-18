@@ -195,7 +195,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
       return util::Status("Could not parse sched_switch");
     }
 
-    context_->sched_tracker->PushSchedSwitch(
+    SchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
         cpu, ts, prev_pid.value(), prev_comm, prev_prio.value(), prev_state,
         next_pid.value(), next_comm, next_prio.value());
   } else if (event_name == "tracing_mark_write" || event_name == "0" ||

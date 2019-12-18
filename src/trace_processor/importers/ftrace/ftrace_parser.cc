@@ -188,20 +188,21 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             const TimestampedTracePiece& ttp) {
   using protos::pbzero::FtraceEvent;
   int64_t ts = ttp.timestamp;
+  SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(context_);
 
   // Handle the (optional) alternative encoding format for sched_switch.
   if (ttp.inline_event.type == InlineEvent::Type::kSchedSwitch) {
     const auto& event = ttp.inline_event.sched_switch;
-    context_->sched_tracker->PushSchedSwitchCompact(
-        cpu, ts, event.prev_state, static_cast<uint32_t>(event.next_pid),
-        event.next_prio, event.next_comm);
+    sched_tracker->PushSchedSwitchCompact(cpu, ts, event.prev_state,
+                                          static_cast<uint32_t>(event.next_pid),
+                                          event.next_prio, event.next_comm);
     return util::OkStatus();
   }
 
   // Handle the (optional) alternative encoding format for sched_waking.
   if (ttp.inline_event.type == InlineEvent::Type::kSchedWaking) {
     const auto& event = ttp.inline_event.sched_waking;
-    context_->sched_tracker->PushSchedWakingCompact(
+    sched_tracker->PushSchedWakingCompact(
         cpu, ts, static_cast<uint32_t>(event.pid), event.target_cpu, event.prio,
         event.comm);
     return util::OkStatus();
@@ -465,7 +466,7 @@ void FtraceParser::ParseSchedSwitch(uint32_t cpu, int64_t ts, ConstBytes blob) {
   protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(blob.data, blob.size);
   uint32_t prev_pid = static_cast<uint32_t>(ss.prev_pid());
   uint32_t next_pid = static_cast<uint32_t>(ss.next_pid());
-  context_->sched_tracker->PushSchedSwitch(
+  SchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
       cpu, ts, prev_pid, ss.prev_comm(), ss.prev_prio(), ss.prev_state(),
       next_pid, ss.next_comm(), ss.next_prio());
 }
