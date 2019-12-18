@@ -104,9 +104,6 @@ source_set("storage_minimal") {
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
     "importers/proto/chrome_compositor_scheduler_state.descriptor.h",
-    "importers/proto/heap_graph_module.h",
-    "importers/proto/heap_graph_tracker.h",
-    "importers/proto/heap_graph_walker.h",
     "importers/proto/packet_sequence_state.h",
     "importers/proto/proto_importer_module.cc",
     "importers/proto/proto_importer_module.h",
@@ -201,13 +198,6 @@ source_set("storage_minimal") {
       enable_perfetto_trace_processor_fuchsia) {
     sources += [ "ftrace_utils.cc" ]
   }
-  if (enable_perfetto_trace_processor_heap_graphs) {
-    sources += [
-      "importers/proto/heap_graph_module.cc",
-      "importers/proto/heap_graph_tracker.cc",
-      "importers/proto/heap_graph_walker.cc",
-    ]
-  }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [
       "importers/fuchsia/fuchsia_provider_view.cc",
@@ -240,6 +230,12 @@ source_set("storage_full") {
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.cc",
     "importers/proto/graphics_event_parser.h",
+    "importers/proto/heap_graph_module.cc",
+    "importers/proto/heap_graph_module.h",
+    "importers/proto/heap_graph_tracker.cc",
+    "importers/proto/heap_graph_tracker.h",
+    "importers/proto/heap_graph_walker.cc",
+    "importers/proto/heap_graph_walker.h",
     "importers/proto/system_probes_module.cc",
     "importers/proto/system_probes_module.h",
     "importers/proto/system_probes_parser.cc",
@@ -413,6 +409,7 @@ perfetto_unittest_source_set("unittests") {
     "forwarding_trace_parser_unittest.cc",
     "heap_profile_tracker_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
+    "importers/proto/heap_graph_walker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
     "process_tracker_unittest.cc",
@@ -485,9 +482,6 @@ perfetto_unittest_source_set("unittests") {
       "sched_slice_table_unittest.cc",
       "thread_table_unittest.cc",
     ]
-  }
-  if (enable_perfetto_trace_processor_heap_graphs) {
-    sources += [ "importers/proto/heap_graph_walker_unittest.cc" ]
   }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [ "importers/fuchsia/fuchsia_trace_utils_unittest.cc" ]

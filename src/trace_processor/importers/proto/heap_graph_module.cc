@@ -92,8 +92,7 @@ bool ForEachVarInt(const T& decoder, F fn) {
 using perfetto::protos::pbzero::TracePacket;
 
 HeapGraphModule::HeapGraphModule(TraceProcessorContext* context)
-    : context_(context) {
-  context_->heap_graph_tracker.reset(new HeapGraphTracker(context_));
+    : context_(context), heap_graph_tracker_(context) {
   RegisterForField(TracePacket::kHeapGraphFieldNumber, context);
   RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
 }
@@ -119,7 +118,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(heap_graph.pid()));
-  context_->heap_graph_tracker->SetPacketIndex(seq_id, heap_graph.index());
+  heap_graph_tracker_.SetPacketIndex(seq_id, heap_graph.index());
   for (auto it = heap_graph.objects(); it; ++it) {
     protos::pbzero::HeapGraphObject::Decoder object(*it);
     HeapGraphTracker::SourceObject obj;
@@ -157,14 +156,14 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
       ref.owned_object_id = object_ids[i];
       obj.references.emplace_back(std::move(ref));
     }
-    context_->heap_graph_tracker->AddObject(seq_id, upid, ts, std::move(obj));
+    heap_graph_tracker_.AddObject(seq_id, upid, ts, std::move(obj));
   }
   for (auto it = heap_graph.type_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_view = base::StringView(str, entry.str().size);
 
-    context_->heap_graph_tracker->AddInternedTypeName(
+    heap_graph_tracker_.AddInternedTypeName(
         seq_id, entry.iid(), context_->storage->InternString(str_view));
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
@@ -172,7 +171,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_view = base::StringView(str, entry.str().size);
 
-    context_->heap_graph_tracker->AddInternedFieldName(
+    heap_graph_tracker_.AddInternedFieldName(
         seq_id, entry.iid(), context_->storage->InternString(str_view));
   }
   for (auto it = heap_graph.roots(); it; ++it) {
@@ -192,11 +191,10 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }
-    context_->heap_graph_tracker->AddRoot(seq_id, upid, ts,
-                                          std::move(src_root));
+    heap_graph_tracker_.AddRoot(seq_id, upid, ts, std::move(src_root));
   }
   if (!heap_graph.continued()) {
-    context_->heap_graph_tracker->FinalizeProfile(seq_id);
+    heap_graph_tracker_.FinalizeProfile(seq_id);
   }
 }
 
@@ -214,7 +212,7 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
                     cls.obfuscated_name().ToStdString().c_str());
     } else {
       const std::vector<int64_t>* cls_objects =
-          context_->heap_graph_tracker->RowsForType(*obfuscated_class_name_id);
+          heap_graph_tracker_.RowsForType(*obfuscated_class_name_id);
 
       if (cls_objects) {
         auto interned_deobfuscated_name =
@@ -247,7 +245,7 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
       }
 
       const std::vector<int64_t>* field_references =
-          context_->heap_graph_tracker->RowsForField(*obfuscated_field_name_id);
+          heap_graph_tracker_.RowsForField(*obfuscated_field_name_id);
       if (field_references) {
         auto interned_deobfuscated_name = context_->storage->InternString(
             base::StringView(merged_deobfuscated));

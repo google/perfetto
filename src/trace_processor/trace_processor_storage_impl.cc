@@ -25,8 +25,6 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/heap_graph_module.h"
-#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
@@ -68,9 +66,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.ftrace_module =
       static_cast<FtraceModule*>(context_.modules.back().get());
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
-  context_.modules.emplace_back(new HeapGraphModule(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_HEAP_GRAPHS)
   context_.modules.emplace_back(new TrackEventModule(&context_));
 }
 

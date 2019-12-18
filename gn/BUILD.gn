@@ -84,7 +84,6 @@ action("gen_buildflags") {
     "PERFETTO_TP_METRICS=$enable_perfetto_trace_processor_metrics",
     "PERFETTO_TP_FTRACE=$enable_perfetto_trace_processor_ftrace",
     "PERFETTO_TP_HTTPD=$perfetto_tp_httpd",
-    "PERFETTO_TP_HEAP_GRAPHS=$enable_perfetto_trace_processor_heap_graphs",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_TP_JSON_IMPORT=$enable_perfetto_trace_processor_json_import",
     "PERFETTO_TP_FUCHSIA=$enable_perfetto_trace_processor_fuchsia",
