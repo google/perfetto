@@ -151,10 +151,10 @@ ScopedLine GetLine(const char* prompt) {
   printf("\r%80s\r%s", "", prompt);
   fflush(stdout);
   ScopedLine line(new char[1024]);
-  if (!fgets(line, 1024 - 1, stdin))
+  if (!fgets(line.get(), 1024 - 1, stdin))
     return nullptr;
-  if (strlen(line) > 0)
-    line[strlen(line) - 1] = 0;
+  if (strlen(line.get()) > 0)
+    line.get()[strlen(line.get()) - 1] = 0;
   return line;
 }
 
