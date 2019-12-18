@@ -28,6 +28,8 @@ namespace trace_processor {
 SystraceParser::SystraceParser(TraceProcessorContext* ctx)
     : context_(ctx), lmk_id_(ctx->storage->InternString("mem.lmk")) {}
 
+SystraceParser::~SystraceParser() = default;
+
 void SystraceParser::ParsePrintEvent(int64_t ts,
                                      uint32_t pid,
                                      base::StringView event) {
@@ -71,7 +73,7 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
   }
-  context_->systrace_parser->ParseSystracePoint(ts, pid, point);
+  ParseSystracePoint(ts, pid, point);
 }
 
 void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
@@ -95,7 +97,7 @@ void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
     return;
   }
 
-  context_->systrace_parser->ParseSystracePoint(ts, pid, point);
+  ParseSystracePoint(ts, pid, point);
 }
 
 void SystraceParser::ParseSystracePoint(

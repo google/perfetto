@@ -524,14 +524,14 @@ void FtraceParser::ParseCpuIdle(int64_t ts, ConstBytes blob) {
 
 void FtraceParser::ParsePrint(int64_t ts, uint32_t pid, ConstBytes blob) {
   protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
-  context_->systrace_parser->ParsePrintEvent(ts, pid, evt.buf());
+  SystraceParser::GetOrCreate(context_)->ParsePrintEvent(ts, pid, evt.buf());
 }
 
 void FtraceParser::ParseZero(int64_t ts, uint32_t pid, ConstBytes blob) {
   protos::pbzero::ZeroFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  context_->systrace_parser->ParseZeroEvent(ts, pid, evt.flag(), evt.name(),
-                                            tgid, evt.value());
+  SystraceParser::GetOrCreate(context_)->ParseZeroEvent(
+      ts, pid, evt.flag(), evt.name(), tgid, evt.value());
 }
 
 void FtraceParser::ParseSdeTracingMarkWrite(int64_t ts,
@@ -545,7 +545,7 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t ts,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  context_->systrace_parser->ParseSdeTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseSdeTracingMarkWrite(
       ts, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
       evt.trace_name(), tgid, evt.value());
 }

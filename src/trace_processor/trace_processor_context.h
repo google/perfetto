@@ -37,7 +37,6 @@ class HeapGraphTracker;
 class HeapProfileTracker;
 class ProcessTracker;
 class SliceTracker;
-class SystraceParser;
 class TraceParser;
 class TraceSorter;
 class TraceStorage;
@@ -61,7 +60,6 @@ class TraceProcessorContext {
   std::unique_ptr<TraceSorter> sorter;
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
-  std::unique_ptr<SystraceParser> systrace_parser;
   std::unique_ptr<BinderTracker> binder_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
@@ -71,6 +69,7 @@ class TraceProcessorContext {
   // e.g. SyscallTracker::GetOrCreate(context).
   std::unique_ptr<Destructible> syscall_tracker;  // SyscallTracker
   std::unique_ptr<Destructible> sched_tracker;    // SchedEventTracker
+  std::unique_ptr<Destructible> systrace_parser;  // SystraceParser
 
   // The module at the index N is registered to handle field id N in
   // TracePacket.

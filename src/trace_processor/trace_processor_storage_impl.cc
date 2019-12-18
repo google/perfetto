@@ -27,7 +27,6 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -50,7 +49,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.systrace_parser.reset(new SystraceParser(&context_));
   context_.binder_tracker.reset(new BinderTracker(&context_));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
