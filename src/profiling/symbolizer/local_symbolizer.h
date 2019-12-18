@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_LOCAL_SYMBOLIZER_H_
-#define TOOLS_TRACE_TO_TEXT_LOCAL_SYMBOLIZER_H_
+#ifndef SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
+#define SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
 
 #include <map>
 #include <string>
@@ -23,10 +23,10 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
-#include "perfetto/profiling/symbolizer.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 
 namespace perfetto {
-namespace trace_to_text {
+namespace profiling {
 
 class LocalBinaryFinder {
  public:
@@ -93,7 +93,7 @@ class LocalSymbolizer : public Symbolizer {
   LocalBinaryFinder finder_;
 };
 
-}  // namespace trace_to_text
+}  // namespace profiling
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_LOCAL_SYMBOLIZER_H_
+#endif  // SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_

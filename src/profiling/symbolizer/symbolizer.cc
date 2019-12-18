@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "perfetto/profiling/symbolizer.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 
 namespace perfetto {
-namespace trace_to_text {
+namespace profiling {
 
 Symbolizer::~Symbolizer() = default;
 
-}  // namespace trace_to_text
+}  // namespace profiling
 }  // namespace perfetto

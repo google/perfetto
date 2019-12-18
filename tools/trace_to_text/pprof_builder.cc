@@ -31,10 +31,12 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/profiling/symbolizer.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
+
+#include "src/profiling/symbolizer/symbolize_database.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -497,7 +499,7 @@ class GProfileBuilder {
 
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
-                  Symbolizer* symbolizer,
+                  profiling::Symbolizer* symbolizer,
                   uint64_t pid,
                   const std::vector<uint64_t>& timestamps) {
   trace_processor::Config config;
@@ -513,26 +515,27 @@ bool TraceToPprof(std::istream* input,
 
 bool TraceToPprof(trace_processor::TraceProcessor* tp,
                   std::vector<SerializedProfile>* output,
-                  Symbolizer* symbolizer,
+                  profiling::Symbolizer* symbolizer,
                   uint64_t pid,
                   const std::vector<uint64_t>& timestamps) {
   if (symbolizer) {
-    SymbolizeDatabase(tp, symbolizer, [&tp](const std::string& packet_proto) {
-      std::unique_ptr<uint8_t[]> buf(new uint8_t[11 + packet_proto.size()]);
-      uint8_t* wptr = &buf[0];
-      *(wptr++) =
-          MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
-      wptr = WriteVarInt(packet_proto.size(), wptr);
-      memcpy(wptr, packet_proto.data(), packet_proto.size());
-      wptr += packet_proto.size();
-      size_t buf_size = static_cast<size_t>(wptr - &buf[0]);
-      auto status = tp->Parse(std::move(buf), buf_size);
-      if (!status.ok()) {
-        PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                status.message().c_str());
-        return;
-      }
-    });
+    profiling::SymbolizeDatabase(
+        tp, symbolizer, [&tp](const std::string& packet_proto) {
+          std::unique_ptr<uint8_t[]> buf(new uint8_t[11 + packet_proto.size()]);
+          uint8_t* wptr = &buf[0];
+          *(wptr++) =
+              MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
+          wptr = WriteVarInt(packet_proto.size(), wptr);
+          memcpy(wptr, packet_proto.data(), packet_proto.size());
+          wptr += packet_proto.size();
+          size_t buf_size = static_cast<size_t>(wptr - &buf[0]);
+          auto status = tp->Parse(std::move(buf), buf_size);
+          if (!status.ok()) {
+            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                    status.message().c_str());
+            return;
+          }
+        });
   }
 
   tp->NotifyEndOfFile();

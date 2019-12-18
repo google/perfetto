@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PROFILING_SYMBOLIZER_H_
-#define INCLUDE_PERFETTO_PROFILING_SYMBOLIZER_H_
+#ifndef SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
+#define SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
 
 #include <map>
 #include <string>
 #include <vector>
 
-// TODO(135923303): do not depend on anything in this file as it will be
-// removed as part of fixing b/135923303.
 namespace perfetto {
-namespace trace_to_text {
+namespace profiling {
 
 struct SymbolizedFrame {
   std::string function_name;
@@ -46,7 +44,7 @@ class Symbolizer {
   virtual ~Symbolizer();
 };
 
-}  // namespace trace_to_text
+}  // namespace profiling
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_PROFILING_SYMBOLIZER_H_
+#endif  // SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
