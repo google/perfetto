@@ -47,9 +47,6 @@ The resulting profile proto contains four views on the data
   moment the dump was created.
 * **alloc\_space**: how many bytes were allocated (including ones freed at the
   moment of the dump) at this callstack
-* **idle\_space**: if [idle page tracking](#idle-page-tracking) is being used,
-  the number of bytes that were allocated at this callstack and are on pages
-  that have not been touched since the last dump.
 * **objects**: how many allocations without matching frees were done at this
   callstack.
 * **alloc\_objects**: how many allocations (including ones with matching frees)
