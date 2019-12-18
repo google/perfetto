@@ -66,20 +66,6 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
     return;
   }
 
-  std::string maps_path = std::string("/proc/") +
-                          std::to_string(event_config->target_tid()) +
-                          std::string("/maps");
-  auto maps_fd = base::OpenFile(maps_path, O_RDONLY);
-  if (!maps_fd)
-    PERFETTO_PLOG("failed /proc/pid/maps open (proceeding)");
-
-  std::string mem_path = std::string("/proc/") +
-                         std::to_string(event_config->target_tid()) +
-                         std::string("/mem");
-  auto mem_fd = base::OpenFile(mem_path, O_RDONLY);
-  if (!mem_fd)
-    PERFETTO_PLOG("failed /proc/pid/mem open (proceeding)");
-
   base::Optional<EventReader> event_reader =
       EventReader::ConfigureEvents(event_config.value());
   if (!event_reader.has_value()) {
@@ -90,8 +76,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   // Build the DataSource instance.
   auto it_inserted = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(instance_id),
-      std::forward_as_tuple(std::move(event_reader.value()), std::move(maps_fd),
-                            std::move(mem_fd)));
+      std::forward_as_tuple(std::move(event_reader.value())));
 
   PERFETTO_DCHECK(it_inserted.second);
 }

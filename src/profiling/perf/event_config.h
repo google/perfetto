@@ -23,6 +23,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "src/profiling/perf/unwind_support.h"
 
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
 
@@ -42,21 +43,17 @@ class EventConfig {
     protos::pbzero::PerfEventConfig::Decoder pb_config(
         ds_config.perf_event_config_raw());
 
-    if (!pb_config.has_tid())
-      return base::nullopt;
-
     return EventConfig(pb_config);
   }
 
-  int32_t target_tid() const { return target_tid_; }
+  uint32_t target_cpu() const { return target_cpu_; }
 
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
 
  private:
-  EventConfig(const protos::pbzero::PerfEventConfig::Decoder& pb_config)
-      : target_tid_(pb_config.tid()) {
+  EventConfig(const protos::pbzero::PerfEventConfig::Decoder&) {
     auto& pe = perf_event_attr_;
     memset(&pe, 0, sizeof(perf_event_attr));
     pe.size = sizeof(perf_event_attr);
@@ -70,18 +67,20 @@ class EventConfig {
     pe.sample_freq = 100;
     pe.freq = true;
 
-    pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER;
+    pe.sample_type =
+        PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
     pe.sample_stack_user = (1u << 15);
-
-    // Note: can't use inherit with task-scoped event mmap
-    pe.inherit = false;
+    pe.sample_regs_user = PerfUserRegsMaskForCurrentArch();
   }
 
-  // TODO(rsavitski): this will have to represent entire event groups, thus this
-  // class will represent N events. So we'll need N cpus/tids, but likely still
-  // a single perf_event_attr.
-  int32_t target_tid_ = 0;
+  // TODO(rsavitski): for now hardcode each session to be for a single cpu's
+  // scope. In general a config will correspond to N cpus and/or tids.
+  uint32_t target_cpu_ = 0;
+
+  // TODO(rsavitski): if we allow for event groups containing multiple sampled
+  // counters, we'll need to vary the .type & .config fields per
+  // perf_event_open.
   perf_event_attr perf_event_attr_;
 };
 

@@ -18,6 +18,9 @@ import("../../../gn/test.gni")
 
 assert(enable_perfetto_traced_perf)
 
+# TODO(rsavitski): only building in-tree at the moment (so this build file is
+# only used for gen_android_bp, expect bitrot).
+
 executable("traced_perf") {
   deps = [
     ":traced_perf_main",
@@ -43,6 +46,7 @@ source_set("traced_perf_main") {
 
 source_set("producer") {
   deps = [
+    ":unwind_support",
     "../../../gn:default_deps",
     "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/config/profiling:zero",
@@ -63,6 +67,17 @@ source_set("producer") {
   ]
 }
 
+source_set("unwind_support") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:libunwindstack",
+    "../../../src/base",
+  ]
+  sources = [
+    "unwind_support.cc",
+    "unwind_support.h",
+  ]
+}
 source_set("producer_unittests") {
   testonly = true
   deps = [
