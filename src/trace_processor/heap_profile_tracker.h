@@ -78,10 +78,10 @@ class HeapProfileTracker {
     std::vector<SourceAllocation> pending_allocs;
 
     std::unordered_map<std::pair<UniquePid, int64_t>,
-                       TraceStorage::HeapProfileAllocations::Row>
+                       tables::HeapProfileAllocationTable::Row>
         prev_alloc;
     std::unordered_map<std::pair<UniquePid, int64_t>,
-                       TraceStorage::HeapProfileAllocations::Row>
+                       tables::HeapProfileAllocationTable::Row>
         prev_free;
 
     uint64_t last_profile_packet_index = 0;
