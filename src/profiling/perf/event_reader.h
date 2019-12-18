@@ -86,7 +86,7 @@ class EventReader {
   EventReader(EventReader&&) noexcept;
   EventReader& operator=(EventReader&&) noexcept;
 
-  // TODO(rsavitski): temporary.
+  // TODO(rsavitski): temporary one-shot parser for development purposes.
   void ParseNextSampleBatch();
 
  private:

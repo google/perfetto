@@ -66,22 +66,13 @@ class PerfProducer : public Producer {
     kConnected,
   };
 
-  // TODO(rsavitski): proc-fds need to live elsewhere, as they can be shared
-  // across data sources. We might also have arbitrarily many tasks handled
-  // by one data source (if scoping events to a cpu).
   struct DataSource {
-    DataSource(EventReader _event_reader,
-               base::ScopedFile _maps_fd,
-               base::ScopedFile _mem_fd)
-        : event_reader(std::move(_event_reader)),
-          maps_fd(std::move(_maps_fd)),
-          mem_fd(std::move(_mem_fd)) {}
+    DataSource(EventReader _event_reader)
+        : event_reader(std::move(_event_reader)) {}
 
+    // TODO(rsavitski): current thinking is an EventReader per cpu-scoped ring
+    // buffer. And a central bookkeeper.
     EventReader event_reader;
-
-    // note: currently populated, but unused.
-    base::ScopedFile maps_fd;
-    base::ScopedFile mem_fd;
   };
 
   void ConnectService();
