@@ -27,9 +27,11 @@ namespace trace_processor {
 class TraceProcessor;
 }
 
-namespace trace_to_text {
-
+namespace profiling {
 class Symbolizer;
+}
+
+namespace trace_to_text {
 
 struct SerializedProfile {
   uint64_t pid;
@@ -38,13 +40,13 @@ struct SerializedProfile {
 
 bool TraceToPprof(trace_processor::TraceProcessor*,
                   std::vector<SerializedProfile>* output,
-                  Symbolizer* symbolizer,
+                  profiling::Symbolizer* symbolizer,
                   uint64_t pid = 0,
                   const std::vector<uint64_t>& timestamps = {});
 
 bool TraceToPprof(std::istream* input,
                   std::vector<SerializedProfile>* output,
-                  Symbolizer* symbolizer,
+                  profiling::Symbolizer* symbolizer,
                   uint64_t pid = 0,
                   const std::vector<uint64_t>& timestamps = {});
 

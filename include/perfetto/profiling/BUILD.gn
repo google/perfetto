@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO(135923303): as part of fixing b/135923303, symbolizer.h will be removed
-# and namespacing of pprof_builder.h will be changed so do not depend on this
-# target.
-source_set("symbolizer") {
+source_set("pprof_builder") {
   sources = [
     "pprof_builder.h",
-    "symbolizer.h",
   ]
 }
 
