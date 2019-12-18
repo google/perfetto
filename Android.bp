@@ -5416,6 +5416,14 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/perf:unwind_support
+filegroup {
+  name: "perfetto_src_profiling_perf_unwind_support",
+  srcs: [
+    "src/profiling/perf/unwind_support.cc",
+  ],
+}
+
 // GN: //src/profiling:unittests
 filegroup {
   name: "perfetto_src_profiling_unittests",
@@ -6589,6 +6597,7 @@ cc_test {
     ":perfetto_src_profiling_memory_wire_protocol",
     ":perfetto_src_profiling_perf_producer",
     ":perfetto_src_profiling_perf_producer_unittests",
+    ":perfetto_src_profiling_perf_unwind_support",
     ":perfetto_src_profiling_unittests",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_protozero_testing_messages_cpp_gen",
@@ -6727,6 +6736,9 @@ cc_test {
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
+  ],
+  include_dirs: [
+    "bionic/libc/kernel",
   ],
   data: [
     "src/traced/probes/filesystem/testdata/**/*",
@@ -7055,6 +7067,7 @@ cc_binary {
     ":perfetto_src_ipc_ipc",
     ":perfetto_src_profiling_perf_producer",
     ":perfetto_src_profiling_perf_traced_perf_main",
+    ":perfetto_src_profiling_perf_unwind_support",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_ipc",
@@ -7062,7 +7075,10 @@ cc_binary {
     "src/profiling/perf/main.cc",
   ],
   shared_libs: [
+    "libbase",
     "liblog",
+    "libprocinfo",
+    "libunwindstack",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -7109,6 +7125,9 @@ cc_binary {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+  ],
+  include_dirs: [
+    "bionic/libc/kernel",
   ],
 }
 

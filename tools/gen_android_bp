@@ -158,11 +158,17 @@ additional_args = {
         ('static_libs', {'libasync_safe'}),
         ('header_libs', {'bionic_libc_platform_headers'}),
     ],
-    'perfetto_unittests': [('data', set(enumerate_data_deps())),],
+    'perfetto_unittests': [
+        ('data', set(enumerate_data_deps())),
+        ('include_dirs', {'bionic/libc/kernel'}),
+    ],
     'traced_probes': [
         ('required', {'libperfetto_android_internal', 'trigger_perfetto'}),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
+    'traced_perf': [
+        ('include_dirs', {'bionic/libc/kernel'}),
+    ],
     'trace_processor_shell': [
       ('dist', {'targets': ['sdk_repo']}),
       ('stl', 'libc++_static'),

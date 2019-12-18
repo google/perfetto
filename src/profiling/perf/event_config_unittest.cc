@@ -32,9 +32,8 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-static DataSourceConfig ConfigForTid(int32_t tid) {
+static DataSourceConfig CreateEmptyConfig() {
   protozero::HeapBuffered<protos::pbzero::PerfEventConfig> pb_config;
-  pb_config->set_tid(tid);
   protozero::HeapBuffered<protos::pbzero::DataSourceConfig> ds_config;
   ds_config->set_perf_event_config_raw(pb_config.SerializeAsString());
   DataSourceConfig cfg;
@@ -42,17 +41,8 @@ static DataSourceConfig ConfigForTid(int32_t tid) {
   return cfg;
 }
 
-TEST(EventConfigTest, TidRequired) {
-  // Doesn't pass validation without a TID
-  DataSourceConfig cfg;
-  ASSERT_TRUE(cfg.ParseFromString(""));
-
-  base::Optional<EventConfig> event_config = EventConfig::Create(cfg);
-  ASSERT_FALSE(event_config.has_value());
-}
-
 TEST(EventConfigTest, AttrStructConstructed) {
-  auto cfg = ConfigForTid(42);
+  auto cfg = CreateEmptyConfig();
   base::Optional<EventConfig> event_config = EventConfig::Create(cfg);
 
   ASSERT_TRUE(event_config.has_value());
