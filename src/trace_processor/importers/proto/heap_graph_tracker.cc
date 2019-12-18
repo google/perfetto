@@ -216,11 +216,11 @@ void HeapGraphTracker::WriteFlamegraph(
           {depth, parent_id, frame_id}));
   depth++;
 
-  TraceStorage::HeapProfileAllocations::Row alloc_row{
+  tables::HeapProfileAllocationTable::Row alloc_row{
       sequence_state.current_ts, sequence_state.current_upid, parent_id,
       static_cast<int64_t>(path.count), static_cast<int64_t>(path.size)};
   // TODO(fmayer): Maybe add a separate table for heap graph flamegraphs.
-  context_->storage->mutable_heap_profile_allocations()->Insert(alloc_row);
+  context_->storage->mutable_heap_profile_allocation_table()->Insert(alloc_row);
   for (const auto& p : path.children) {
     const HeapGraphWalker::PathFromRoot& child = p.second;
     WriteFlamegraph(sequence_state, child, parent_id, depth, mapping_id);
