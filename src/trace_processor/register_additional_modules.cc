@@ -17,6 +17,7 @@
 #include "src/trace_processor/register_additional_modules.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
+#include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 
 namespace perfetto {
@@ -25,6 +26,7 @@ namespace trace_processor {
 void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new AndroidProbesModule(context));
   context->modules.emplace_back(new GraphicsEventModule(context));
+  context->modules.emplace_back(new HeapGraphModule(context));
   context->modules.emplace_back(new SystemProbesModule(context));
 }
 

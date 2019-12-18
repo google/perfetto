@@ -64,7 +64,6 @@ class TraceProcessorContext {
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<SystraceParser> systrace_parser;
-  std::unique_ptr<HeapGraphTracker> heap_graph_tracker;
   std::unique_ptr<BinderTracker> binder_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
