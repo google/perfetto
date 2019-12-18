@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/utils.h"
+#include "src/profiling/perf/unwind_support.h"
 
 namespace perfetto {
 namespace profiling {
@@ -48,10 +49,15 @@ static int perf_event_open(perf_event_attr* attr,
       syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags));
 }
 
+// TODO(rsavitski): one EventConfig will correspond to N perf_event_open calls
+// in the general case. Does it make sense to keep a single function which does
+// the N calls, and then returns the group leader's fd? What about cases where
+// we have >1 pid or >1 cpu to open for? Should the entire EventReader be
+// cpu-scoped?
 base::ScopedFile PerfEventOpen(const EventConfig& event_cfg) {
   base::ScopedFile perf_fd{
-      perf_event_open(event_cfg.perf_attr(), event_cfg.target_tid(),
-                      /*cpu=*/-1, /*group_fd=*/-1, PERF_FLAG_FD_CLOEXEC)};
+      perf_event_open(event_cfg.perf_attr(), /*pid=*/-1, event_cfg.target_cpu(),
+                      /*group_fd=*/-1, PERF_FLAG_FD_CLOEXEC)};
   return perf_fd;
 }
 
@@ -195,7 +201,7 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
 void EventReader::ParseNextSampleBatch() {
   std::vector<char> data = ring_buffer_.ReadAvailable();
   if (data.size() == 0) {
-    PERFETTO_LOG("WIP: no samples");
+    PERFETTO_LOG("no samples (work in progress)");
     return;
   }
 
@@ -217,7 +223,7 @@ bool EventReader::ParseSampleAndAdvance(const char** ptr) {
   if (event_hdr->type == PERF_RECORD_SAMPLE) {
     ParsePerfRecordSample(sample_start, event_hdr->size);
   } else {
-    PERFETTO_ELOG("WIP: unsupported event type");
+    PERFETTO_ELOG("Unsupported event type (work in progress)");
   }
 
   *ptr = sample_start + event_hdr->size;
@@ -229,9 +235,9 @@ void EventReader::ParsePerfRecordSample(const char* sample_start,
                                         size_t sample_size) {
   const perf_event_attr* cfg = event_cfg_.perf_attr();
 
-  if (cfg->sample_type &
-      (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER))) {
-    PERFETTO_ELOG("WIP: unsupported sampling option.");
+  if (cfg->sample_type & (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER |
+                                    PERF_SAMPLE_REGS_USER))) {
+    PERFETTO_ELOG("Unsupported sampling option (work in progress)");
     return;
   }
 
@@ -247,6 +253,16 @@ void EventReader::ParsePerfRecordSample(const char* sample_start,
     uint32_t tid;
     parse_pos = ReadValue(&tid, parse_pos);
     PERFETTO_LOG("tid: %" PRIu32 "", tid);
+  }
+
+  if (cfg->sample_type & PERF_SAMPLE_REGS_USER) {
+    auto parsed_regs = ReadPerfUserRegsData(&parse_pos);
+
+    if (parsed_regs) {
+      parsed_regs->IterateRegisters([](const char* name, uint64_t value) {
+        PERFETTO_LOG("reg[%s]: %" PRIx64 "", name, value);
+      });
+    }
   }
 
   if (cfg->sample_type & PERF_SAMPLE_STACK_USER) {
