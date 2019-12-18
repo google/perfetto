@@ -42,7 +42,6 @@ enum Architecture {
 
 class SyscallTracker : public Destructible {
  public:
-  explicit SyscallTracker(TraceProcessorContext*);
   SyscallTracker(const SyscallTracker&) = delete;
   SyscallTracker& operator=(const SyscallTracker&) = delete;
   virtual ~SyscallTracker();
@@ -72,6 +71,8 @@ class SyscallTracker : public Destructible {
   }
 
  private:
+  explicit SyscallTracker(TraceProcessorContext*);
+
   TraceProcessorContext* const context_;
 
   inline StringId SyscallNumberToStringId(uint32_t syscall_num) {
