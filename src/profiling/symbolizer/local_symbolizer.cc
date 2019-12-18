@@ -20,7 +20,7 @@
 // This translation unit is built only on Linux. See //gn/BUILD.gn.
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
-#include "tools/trace_to_text/local_symbolizer.h"
+#include "src/profiling/symbolizer/local_symbolizer.h"
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -35,7 +35,7 @@
 #include <unistd.h>
 
 namespace perfetto {
-namespace trace_to_text {
+namespace profiling {
 
 namespace {
 
@@ -59,7 +59,6 @@ std::vector<std::string> GetLines(FILE* f) {
   } while (rd > 1);
   return lines;
 }
-
 
 struct Elf32 {
   using Ehdr = Elf32_Ehdr;
@@ -402,7 +401,7 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
 
 LocalSymbolizer::~LocalSymbolizer() = default;
 
-}  // namespace trace_to_text
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
