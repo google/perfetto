@@ -78,8 +78,6 @@ source_set("storage_minimal") {
   sources = [
     "args_tracker.cc",
     "args_tracker.h",
-    "binder_tracker.cc",
-    "binder_tracker.h",
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
@@ -185,6 +183,8 @@ source_set("storage_minimal") {
   }
   if (enable_perfetto_trace_processor_ftrace) {
     sources += [
+      "importers/ftrace/binder_tracker.cc",
+      "importers/ftrace/binder_tracker.h",
       "importers/ftrace/ftrace_descriptors.cc",
       "importers/ftrace/ftrace_module_impl.cc",
       "importers/ftrace/ftrace_parser.cc",

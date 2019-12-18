@@ -187,9 +187,15 @@ inline bool operator==(const SystraceTracePoint& x,
 
 }  // namespace systrace_utils
 
-class SystraceParser {
+class SystraceParser : public Destructible {
  public:
-  explicit SystraceParser(TraceProcessorContext*);
+  static SystraceParser* GetOrCreate(TraceProcessorContext* context) {
+    if (!context->systrace_parser) {
+      context->systrace_parser.reset(new SystraceParser(context));
+    }
+    return static_cast<SystraceParser*>(context->systrace_parser.get());
+  }
+  ~SystraceParser() override;
 
   void ParsePrintEvent(int64_t ts, uint32_t pid, base::StringView event);
 
@@ -209,6 +215,7 @@ class SystraceParser {
                       int64_t value);
 
  private:
+  explicit SystraceParser(TraceProcessorContext*);
   void ParseSystracePoint(int64_t ts,
                           uint32_t pid,
                           systrace_utils::SystraceTracePoint event);
