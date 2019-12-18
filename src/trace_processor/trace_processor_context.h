@@ -28,7 +28,6 @@ namespace perfetto {
 namespace trace_processor {
 
 class ArgsTracker;
-class BinderTracker;
 class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
@@ -60,7 +59,6 @@ class TraceProcessorContext {
   std::unique_ptr<TraceSorter> sorter;
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
-  std::unique_ptr<BinderTracker> binder_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass

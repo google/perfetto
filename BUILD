@@ -806,8 +806,6 @@ filegroup(
     srcs = [
         "src/trace_processor/args_tracker.cc",
         "src/trace_processor/args_tracker.h",
-        "src/trace_processor/binder_tracker.cc",
-        "src/trace_processor/binder_tracker.h",
         "src/trace_processor/chunked_trace_reader.h",
         "src/trace_processor/clock_tracker.cc",
         "src/trace_processor/clock_tracker.h",
@@ -823,6 +821,8 @@ filegroup(
         "src/trace_processor/gzip_trace_parser.h",
         "src/trace_processor/heap_profile_tracker.cc",
         "src/trace_processor/heap_profile_tracker.h",
+        "src/trace_processor/importers/ftrace/binder_tracker.cc",
+        "src/trace_processor/importers/ftrace/binder_tracker.h",
         "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
         "src/trace_processor/importers/ftrace/ftrace_descriptors.h",
         "src/trace_processor/importers/ftrace/ftrace_module.cc",

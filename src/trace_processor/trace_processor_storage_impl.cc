@@ -18,7 +18,6 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/args_tracker.h"
-#include "src/trace_processor/binder_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
@@ -48,9 +47,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.binder_tracker.reset(new BinderTracker(&context_));
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.modules.emplace_back(new FtraceModuleImpl(&context_));
