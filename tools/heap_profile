@@ -167,12 +167,12 @@ def main(argv):
   parser.add_argument(
       "--no-running",
       action="store_true",
-      help="Do not target already running processes.")
+      help="Do not target already running processes. Requires Android 11.")
   parser.add_argument(
       "--no-startup",
       action="store_true",
       help="Do not target processes that start during "
-      "the profile.")
+      "the profile. Requires Android 11.")
   parser.add_argument(
       "--shmem-size",
       help="Size of buffer between client and "
