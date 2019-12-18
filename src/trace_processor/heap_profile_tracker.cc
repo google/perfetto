@@ -55,27 +55,27 @@ void HeapProfileTracker::AddAllocation(
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(alloc.pid));
 
-  TraceStorage::HeapProfileAllocations::Row alloc_row{
+  tables::HeapProfileAllocationTable::Row alloc_row{
       alloc.timestamp, upid, callstack_id,
       static_cast<int64_t>(alloc.alloc_count),
       static_cast<int64_t>(alloc.self_allocated)};
 
-  TraceStorage::HeapProfileAllocations::Row free_row{
+  tables::HeapProfileAllocationTable::Row free_row{
       alloc.timestamp, upid, callstack_id,
       -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 
-  TraceStorage::HeapProfileAllocations::Row alloc_delta = alloc_row;
-  TraceStorage::HeapProfileAllocations::Row free_delta = free_row;
+  tables::HeapProfileAllocationTable::Row alloc_delta = alloc_row;
+  tables::HeapProfileAllocationTable::Row free_delta = free_row;
 
   auto prev_alloc_it = sequence_state.prev_alloc.find({upid, callstack_id});
   if (prev_alloc_it == sequence_state.prev_alloc.end()) {
     std::tie(prev_alloc_it, std::ignore) = sequence_state.prev_alloc.emplace(
         std::make_pair(upid, callstack_id),
-        TraceStorage::HeapProfileAllocations::Row{});
+        tables::HeapProfileAllocationTable::Row{});
   }
 
-  TraceStorage::HeapProfileAllocations::Row& prev_alloc = prev_alloc_it->second;
+  tables::HeapProfileAllocationTable::Row& prev_alloc = prev_alloc_it->second;
   alloc_delta.count -= prev_alloc.count;
   alloc_delta.size -= prev_alloc.size;
 
@@ -83,17 +83,19 @@ void HeapProfileTracker::AddAllocation(
   if (prev_free_it == sequence_state.prev_free.end()) {
     std::tie(prev_free_it, std::ignore) = sequence_state.prev_free.emplace(
         std::make_pair(upid, callstack_id),
-        TraceStorage::HeapProfileAllocations::Row{});
+        tables::HeapProfileAllocationTable::Row{});
   }
 
-  TraceStorage::HeapProfileAllocations::Row& prev_free = prev_free_it->second;
+  tables::HeapProfileAllocationTable::Row& prev_free = prev_free_it->second;
   free_delta.count -= prev_free.count;
   free_delta.size -= prev_free.size;
 
   if (alloc_delta.count)
-    context_->storage->mutable_heap_profile_allocations()->Insert(alloc_delta);
+    context_->storage->mutable_heap_profile_allocation_table()->Insert(
+        alloc_delta);
   if (free_delta.count)
-    context_->storage->mutable_heap_profile_allocations()->Insert(free_delta);
+    context_->storage->mutable_heap_profile_allocation_table()->Insert(
+        free_delta);
 
   prev_alloc = alloc_row;
   prev_free = free_row;
