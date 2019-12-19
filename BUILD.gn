@@ -213,12 +213,10 @@ if (!build_with_chromium) {
     complete_static_lib = true
     public_deps = [
       "gn:default_deps",
+      "include/perfetto:tracing_all",
       "src/tracing",
       "src/tracing:client_api",
       "src/tracing:platform_posix",
-    ]
-    sources = [
-      "include/perfetto/tracing.h",
     ]
     assert_no_deps = [ "//gn:protobuf_lite" ]
   }
