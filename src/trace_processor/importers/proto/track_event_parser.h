@@ -89,6 +89,9 @@ class TrackEventParser {
   void ParseChromeKeyedService(protozero::ConstBytes chrome_keyed_service,
                                ArgsTracker*,
                                RowId);
+  void ParseChromeHistogramSample(protozero::ConstBytes chrome_keyed_service,
+                                  ArgsTracker*,
+                                  RowId);
 
  private:
   TraceProcessorContext* context_;
@@ -122,6 +125,9 @@ class TrackEventParser {
   const StringId chrome_legacy_ipc_class_args_key_id_;
   const StringId chrome_legacy_ipc_line_args_key_id_;
   const StringId chrome_keyed_service_name_args_key_id_;
+  const StringId chrome_histogram_sample_name_hash_args_key_id_;
+  const StringId chrome_histogram_sample_name_args_key_id_;
+  const StringId chrome_histogram_sample_sample_args_key_id_;
 
   std::array<StringId, 38> chrome_legacy_ipc_class_ids_;
 };
