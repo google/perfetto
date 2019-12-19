@@ -116,9 +116,14 @@ perfetto_cc_binary(
     name = "client_api_example",
     srcs = [
         "test/client_api_example.cc",
+        ":include_perfetto_base_base",
+        ":include_perfetto_protozero_protozero",
+        ":include_perfetto_tracing_core_forward_decls",
+        ":include_perfetto_tracing_tracing",
     ],
     deps = [
         ":libperfetto_client_experimental",
+        ":protos_perfetto_common_cpp",
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_zero",
         ":protos_perfetto_config_ftrace_zero",
