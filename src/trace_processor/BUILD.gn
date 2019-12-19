@@ -379,6 +379,8 @@ if (enable_perfetto_trace_processor_metrics) {  # shell requires metrics.
       ":lib",
       "../../gn:default_deps",
       "../../gn:protoc_lib",
+      "../../src/profiling/symbolizer",
+      "../../src/profiling/symbolizer:symbolize_database",
       "../base",
       "metrics:lib",
     ]

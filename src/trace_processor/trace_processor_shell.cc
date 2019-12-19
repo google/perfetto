@@ -43,6 +43,13 @@
 #include "src/trace_processor/rpc/httpd.h"
 #endif
 
+#include "src/profiling/symbolizer/symbolize_database.h"
+#include "src/profiling/symbolizer/symbolizer.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+#include "src/profiling/symbolizer/local_symbolizer.h"
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
@@ -913,6 +920,31 @@ int TraceProcessorMain(int argc, char** argv) {
                     options.trace_file_path.c_str(), read_status.c_message());
       return 1;
     }
+
+    std::unique_ptr<profiling::Symbolizer> symbolizer;
+    auto binary_path = profiling::GetPerfettoBinaryPath();
+    if (!binary_path.empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+      symbolizer.reset(new profiling::LocalSymbolizer(std::move(binary_path)));
+#else
+      PERFETTO_FATAL("This build does not support local symbolization.");
+#endif
+    }
+    if (symbolizer) {
+      profiling::SymbolizeDatabase(
+          tp.get(), symbolizer.get(), [&tp](const std::string& trace_proto) {
+            std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+            memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+            auto status = tp->Parse(std::move(buf), trace_proto.size());
+            if (!status.ok()) {
+              PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                      status.message().c_str());
+              return;
+            }
+          });
+      tp->NotifyEndOfFile();
+    }
+
     t_load = base::GetWallTimeNs() - t_load_start;
     double t_load_s = t_load.count() / 1E9;
     PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,

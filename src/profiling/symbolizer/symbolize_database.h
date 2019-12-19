@@ -21,12 +21,14 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace perfetto {
 namespace trace_processor {
 class TraceProcessor;
 }
 namespace profiling {
+std::vector<std::string> GetPerfettoBinaryPath();
 // Generate ModuleSymbol protos for all unsymbolized frames in the database.
 // Wrap them in proto-encoded TracePackets messages and call callback.
 void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
