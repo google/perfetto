@@ -92,7 +92,6 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
 }
 }  // namespace
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 class MockSchedEventTracker : public SchedEventTracker {
  public:
   MockSchedEventTracker(TraceProcessorContext* context)
@@ -109,7 +108,6 @@ class MockSchedEventTracker : public SchedEventTracker {
                     base::StringView next_comm,
                     int32_t next_prio));
 };
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 class MockEventTracker : public EventTracker {
  public:
@@ -229,10 +227,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     sched_ = new MockSchedEventTracker(&context_);
     context_.sched_tracker.reset(sched_);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     process_ = new MockProcessTracker(&context_);
     context_.process_tracker.reset(process_);
     slice_ = new MockSliceTracker(&context_);
@@ -241,14 +237,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-    context_.modules.emplace_back(new FtraceModuleImpl(&context_));
-#else
-    context_.modules.emplace_back(new FtraceModule());
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-    context_.ftrace_module =
-        static_cast<FtraceModule*>(context_.modules.back().get());
-
     context_.modules.emplace_back(new TrackEventModule(&context_));
 
     RegisterAdditionalModules(&context_);
@@ -301,9 +289,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   protos::pbzero::Trace trace_;
   TraceProcessorContext context_;
   MockEventTracker* event_;
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   MockSchedEventTracker* sched_;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
   ClockTracker* clock_;
@@ -311,7 +297,6 @@ class ProtoTraceParserTest : public ::testing::Test {
 };
 
 // TODO(eseckler): Refactor these into a new file for ftrace tests.
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
   auto* bundle = trace_.add_packet()->set_ftrace_events();
@@ -586,8 +571,6 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
   EXPECT_EQ(context_.storage->cpu_counter_track_table().cpu()[0], 10u);
 }
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_.add_packet();

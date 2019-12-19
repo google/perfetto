@@ -92,12 +92,8 @@ source_set("storage_minimal") {
     "gzip_trace_parser.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
-    "importers/ftrace/ftrace_descriptors.h",
     "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
-    "importers/ftrace/ftrace_parser.h",
-    "importers/ftrace/ftrace_tokenizer.h",
-    "importers/ftrace/sched_event_tracker.h",
     "importers/fuchsia/fuchsia_provider_view.h",
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
@@ -116,8 +112,6 @@ source_set("storage_minimal") {
     "importers/proto/track_event_parser.h",
     "importers/proto/track_event_tokenizer.cc",
     "importers/proto/track_event_tokenizer.h",
-    "importers/systrace/systrace_parser.h",
-    "importers/systrace/systrace_trace_parser.h",
     "metadata.h",
     "process_tracker.cc",
     "process_tracker.h",
@@ -181,25 +175,9 @@ source_set("storage_minimal") {
     ]
     deps += [ "../../gn:jsoncpp" ]
   }
-  if (enable_perfetto_trace_processor_ftrace) {
-    sources += [
-      "importers/ftrace/binder_tracker.cc",
-      "importers/ftrace/binder_tracker.h",
-      "importers/ftrace/ftrace_descriptors.cc",
-      "importers/ftrace/ftrace_module_impl.cc",
-      "importers/ftrace/ftrace_parser.cc",
-      "importers/ftrace/ftrace_tokenizer.cc",
-      "importers/ftrace/sched_event_tracker.cc",
-      "importers/systrace/systrace_parser.cc",
-      "importers/systrace/systrace_trace_parser.cc",
-    ]
-  }
-  if (enable_perfetto_trace_processor_ftrace ||
-      enable_perfetto_trace_processor_fuchsia) {
-    sources += [ "ftrace_utils.cc" ]
-  }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [
+      "ftrace_utils.cc",
       "importers/fuchsia/fuchsia_provider_view.cc",
       "importers/fuchsia/fuchsia_trace_parser.cc",
       "importers/fuchsia/fuchsia_trace_parser.h",
@@ -209,19 +187,22 @@ source_set("storage_minimal") {
       "importers/fuchsia/fuchsia_trace_utils.h",
     ]
   }
-  if (enable_perfetto_trace_processor_syscalls) {
-    sources += [
-      "syscall_tracker.cc",
-      "syscalls_aarch32.h",
-      "syscalls_aarch64.h",
-      "syscalls_armeabi.h",
-      "syscalls_x86_64.h",
-    ]
-  }
 }
 
 source_set("storage_full") {
   sources = [
+    "importers/ftrace/binder_tracker.cc",
+    "importers/ftrace/binder_tracker.h",
+    "importers/ftrace/ftrace_descriptors.cc",
+    "importers/ftrace/ftrace_descriptors.h",
+    "importers/ftrace/ftrace_module_impl.cc",
+    "importers/ftrace/ftrace_module_impl.h",
+    "importers/ftrace/ftrace_parser.cc",
+    "importers/ftrace/ftrace_parser.h",
+    "importers/ftrace/ftrace_tokenizer.cc",
+    "importers/ftrace/ftrace_tokenizer.h",
+    "importers/ftrace/sched_event_tracker.cc",
+    "importers/ftrace/sched_event_tracker.h",
     "importers/proto/android_probes_module.cc",
     "importers/proto/android_probes_module.h",
     "importers/proto/android_probes_parser.cc",
@@ -242,8 +223,17 @@ source_set("storage_full") {
     "importers/proto/system_probes_parser.h",
     "importers/proto/vulkan_memory_tracker.cc",
     "importers/proto/vulkan_memory_tracker.h",
+    "importers/systrace/systrace_parser.cc",
+    "importers/systrace/systrace_parser.h",
+    "importers/systrace/systrace_trace_parser.cc",
+    "importers/systrace/systrace_trace_parser.h",
     "register_additional_modules.cc",
     "register_additional_modules.h",
+    "syscall_tracker.cc",
+    "syscalls_aarch32.h",
+    "syscalls_aarch64.h",
+    "syscalls_armeabi.h",
+    "syscalls_x86_64.h",
   ]
   public_deps = [
     ":storage_minimal",
@@ -263,16 +253,8 @@ source_set("storage_full") {
 
   # Include these sources only if they are not already included in
   # storage_minimal.
-  # TODO(khokhlov): Remove this 'if' when modules that use this tracker are
-  # migrated to storage_full.
-  if (!enable_perfetto_trace_processor_syscalls) {
-    sources += [
-      "syscall_tracker.cc",
-      "syscalls_aarch32.h",
-      "syscalls_aarch64.h",
-      "syscalls_armeabi.h",
-      "syscalls_x86_64.h",
-    ]
+  if (!enable_perfetto_trace_processor_fuchsia) {
+    sources += [ "ftrace_utils.cc" ]
   }
 }
 
@@ -316,6 +298,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "read_trace.cc",
       "row_iterators.cc",
       "row_iterators.h",
+      "sched_slice_table.cc",
       "sched_slice_table.h",
       "span_join_operator_table.cc",
       "span_join_operator_table.h",
@@ -355,9 +338,6 @@ if (enable_perfetto_trace_processor_sqlite) {
     public_deps = [
       "../../include/perfetto/trace_processor",
     ]
-    if (enable_perfetto_trace_processor_ftrace) {
-      sources += [ "sched_slice_table.cc" ]
-    }
     if (enable_perfetto_trace_processor_metrics) {
       deps += [
         "../../protos/perfetto/metrics:zero",
@@ -405,6 +385,7 @@ perfetto_unittest_source_set("unittests") {
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
+    "ftrace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
     "importers/proto/heap_graph_walker_unittest.cc",
@@ -412,7 +393,10 @@ perfetto_unittest_source_set("unittests") {
     "importers/systrace/systrace_parser_unittest.cc",
     "process_tracker_unittest.cc",
     "protozero_to_text_unittests.cc",
+    "sched_slice_table_unittest.cc",
     "slice_tracker_unittest.cc",
+    "syscall_tracker_unittest.cc",
+    "thread_table_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
@@ -474,18 +458,8 @@ perfetto_unittest_source_set("unittests") {
       ]
     }
   }
-  if (enable_perfetto_trace_processor_ftrace) {
-    sources += [
-      "ftrace_utils_unittest.cc",
-      "sched_slice_table_unittest.cc",
-      "thread_table_unittest.cc",
-    ]
-  }
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [ "importers/fuchsia/fuchsia_trace_utils_unittest.cc" ]
-  }
-  if (enable_perfetto_trace_processor_syscalls) {
-    sources += [ "syscall_tracker_unittest.cc" ]
   }
 }
 
