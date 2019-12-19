@@ -1174,7 +1174,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
       storage->mutable_stack_profile_callsite_table()->Insert(
           {1, frame_callsite_id_1, frame_row_id_2});
 
-  storage->mutable_cpu_profile_stack_samples()->Insert(
+  storage->mutable_cpu_profile_stack_sample_table()->Insert(
       {kTimestamp, frame_callsite_id_2, utid});
 
   base::TempFile temp_file = base::TempFile::Create();
