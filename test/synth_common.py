@@ -28,9 +28,10 @@ class Trace(object):
     self.proc_map = {}
     self.proc_map[0] = 'idle_thread'
 
-  def add_system_info(self, arch=None):
+  def add_system_info(self, arch="", fingerprint=""):
     self.packet = self.trace.packet.add()
     self.packet.system_info.utsname.machine = arch
+    self.packet.system_info.android_build_fingerprint = fingerprint
 
   def add_ftrace_packet(self, cpu):
     self.packet = self.trace.packet.add()
