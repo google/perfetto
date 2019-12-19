@@ -520,16 +520,10 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
                   const std::vector<uint64_t>& timestamps) {
   if (symbolizer) {
     profiling::SymbolizeDatabase(
-        tp, symbolizer, [&tp](const std::string& packet_proto) {
-          std::unique_ptr<uint8_t[]> buf(new uint8_t[11 + packet_proto.size()]);
-          uint8_t* wptr = &buf[0];
-          *(wptr++) =
-              MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
-          wptr = WriteVarInt(packet_proto.size(), wptr);
-          memcpy(wptr, packet_proto.data(), packet_proto.size());
-          wptr += packet_proto.size();
-          size_t buf_size = static_cast<size_t>(wptr - &buf[0]);
-          auto status = tp->Parse(std::move(buf), buf_size);
+        tp, symbolizer, [tp](const std::string& trace_proto) {
+          std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+          memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+          auto status = tp->Parse(std::move(buf), trace_proto.size());
           if (!status.ok()) {
             PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
                                     status.message().c_str());

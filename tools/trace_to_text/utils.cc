@@ -25,7 +25,6 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -131,16 +130,6 @@ void ForEachPacketBlobInTrace(
 
     f(std::move(buf), field_size);
   }
-}
-
-std::vector<std::string> GetPerfettoBinaryPath() {
-  std::vector<std::string> roots;
-  const char* root = getenv("PERFETTO_BINARY_PATH");
-  if (root != nullptr) {
-    for (base::StringSplitter sp(std::string(root), ':'); sp.Next();)
-      roots.emplace_back(sp.cur_token(), sp.cur_token_size());
-  }
-  return roots;
 }
 
 base::Optional<std::string> GetPerfettoProguardMapPath() {

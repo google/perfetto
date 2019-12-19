@@ -21,6 +21,7 @@
 
 #include "perfetto/base/build_config.h"
 
+#include "src/profiling/symbolizer/symbolize_database.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #endif
@@ -54,10 +55,10 @@ int TraceToProfile(std::istream* input,
                    uint64_t pid,
                    std::vector<uint64_t> timestamps) {
   std::unique_ptr<profiling::Symbolizer> symbolizer;
-  auto binary_path = GetPerfettoBinaryPath();
+  auto binary_path = profiling::GetPerfettoBinaryPath();
   if (!binary_path.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-    symbolizer.reset(new profiling::LocalSymbolizer(GetPerfettoBinaryPath()));
+    symbolizer.reset(new profiling::LocalSymbolizer(std::move(binary_path)));
 #else
     PERFETTO_ELOG(
         "This build does not support local symbolization. "
