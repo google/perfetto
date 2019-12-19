@@ -301,31 +301,61 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     orders_[i] = Order{col, static_cast<bool>(ob.desc)};
   }
 
-  // Try and use the sorted cache table (if it exists) to speed up the sorting.
-  // Otherwise, just use the original table.
-  auto* source =
-      sorted_cache_table_ ? &*sorted_cache_table_ : &*initial_db_table_;
-  db_table_ = source->Filter(constraints_);
-  if (!orders_.empty())
-    db_table_ = db_table_->Sort(orders_);
+  // Attempt to filter into a RowMap first - we'll figure out whether to apply
+  // this to the table or we should use the RowMap directly.
+  RowMap filter_map = SourceTable()->FilterToRowMap(constraints_);
 
-  iterator_ = db_table_->IterateRows();
+  // If we have no order by constraints and it's cheap for us to use the
+  // RowMap, just use the RowMap directoy.
+  if (filter_map.IsRange() && filter_map.size() <= 1) {
+    // Currently, our criteria where we have a special fast path is if it's
+    // a single ranged row. We have tihs fast path for joins on id columns
+    // where we get repeated queries filtering down to a single row. The
+    // other path performs allocations when creating the new table as well
+    // as the iterator on the new table whereas this path only uses a single
+    // number and lives entirely on the stack.
+
+    // TODO(lalitm): investigate some other criteria where it is beneficial
+    // to have a fast path and expand to them.
+    mode_ = Mode::kSingleRow;
+    single_row_ = filter_map.size() == 1
+                      ? base::make_optional(filter_map.Get(0))
+                      : base::nullopt;
+    eof_ = !single_row_.has_value();
+  } else {
+    mode_ = Mode::kTable;
+
+    db_table_ = SourceTable()->Apply(std::move(filter_map));
+    if (!orders_.empty())
+      db_table_ = db_table_->Sort(orders_);
+
+    iterator_ = db_table_->IterateRows();
+
+    eof_ = !*iterator_;
+  }
 
   return SQLITE_OK;
 }
 
 int DbSqliteTable::Cursor::Next() {
-  iterator_->Next();
+  if (mode_ == Mode::kSingleRow) {
+    eof_ = true;
+  } else {
+    iterator_->Next();
+    eof_ = !*iterator_;
+  }
   return SQLITE_OK;
 }
 
 int DbSqliteTable::Cursor::Eof() {
-  return !*iterator_;
+  return eof_;
 }
 
 int DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
   uint32_t column = static_cast<uint32_t>(raw_col);
-  SqlValue value = iterator_->Get(column);
+  SqlValue value = mode_ == Mode::kSingleRow
+                       ? SourceTable()->GetColumn(column).Get(*single_row_)
+                       : iterator_->Get(column);
   switch (value.type) {
     case SqlValue::Type::kLong:
       sqlite3_result_int64(ctx, value.long_value);

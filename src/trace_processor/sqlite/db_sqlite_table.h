@@ -42,13 +42,30 @@ class DbSqliteTable : public SqliteTable {
     int Column(sqlite3_context*, int N) override;
 
    private:
+    enum class Mode {
+      kSingleRow,
+      kTable,
+    };
+
+    const Table* SourceTable() const {
+      // Try and use the sorted cache table (if it exists) to speed up the
+      // sorting. Otherwise, just use the original table.
+      return sorted_cache_table_ ? &*sorted_cache_table_ : &*initial_db_table_;
+    }
+
     Cursor(const Cursor&) = delete;
     Cursor& operator=(const Cursor&) = delete;
 
     const Table* initial_db_table_ = nullptr;
 
+    // Only valid for Mode::kSingleRow.
+    base::Optional<uint32_t> single_row_;
+
+    // Only valid for Mode::kTable.
     base::Optional<Table> db_table_;
     base::Optional<Table::Iterator> iterator_;
+
+    bool eof_ = true;
 
     // Stores a sorted version of |db_table_| sorted on a repeated equals
     // constraint. This allows speeding up repeated subqueries in joins
@@ -58,6 +75,8 @@ class DbSqliteTable : public SqliteTable {
     // Stores the count of repeated equality queries to decide whether it is
     // wortwhile to sort |db_table_| to create |sorted_cache_table_|.
     uint32_t repeated_cache_count_ = 0;
+
+    Mode mode_ = Mode::kSingleRow;
 
     std::vector<Constraint> constraints_;
     std::vector<Order> orders_;
