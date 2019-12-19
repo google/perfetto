@@ -28,6 +28,7 @@
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_user_event.pbzero.h"
@@ -145,6 +146,12 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
           context->storage->InternString("legacy_ipc.line")),
       chrome_keyed_service_name_args_key_id_(
           context->storage->InternString("keyed_service.name")),
+      chrome_histogram_sample_name_hash_args_key_id_(
+          context->storage->InternString("histogram_sample.name_hash")),
+      chrome_histogram_sample_name_args_key_id_(
+          context->storage->InternString("histogram_sample.name")),
+      chrome_histogram_sample_sample_args_key_id_(
+          context->storage->InternString("histogram_sample.sample")),
       chrome_legacy_ipc_class_ids_{
           {context->storage->InternString("UNSPECIFIED"),
            context->storage->InternString("AUTOMATION"),
@@ -489,6 +496,10 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     if (event.has_chrome_keyed_service()) {
       ParseChromeKeyedService(event.chrome_keyed_service(), args_tracker,
                               row_id);
+    }
+    if (event.has_chrome_histogram_sample()) {
+      ParseChromeHistogramSample(event.chrome_histogram_sample(), args_tracker,
+                                 row_id);
     }
 
     if (legacy_tid) {
@@ -1117,6 +1128,32 @@ void TrackEventParser::ParseChromeKeyedService(
     args_tracker->AddArg(row, chrome_keyed_service_name_args_key_id_,
                          chrome_keyed_service_name_args_key_id_,
                          Variadic::String(action_id));
+  }
+}
+
+void TrackEventParser::ParseChromeHistogramSample(
+    protozero::ConstBytes chrome_histogram_sample,
+    ArgsTracker* args_tracker,
+    RowId row) {
+  protos::pbzero::ChromeHistogramSample::Decoder event(
+      chrome_histogram_sample.data, chrome_histogram_sample.size);
+  if (event.has_name_hash()) {
+    uint64_t name_hash = static_cast<uint64_t>(event.name_hash());
+    args_tracker->AddArg(row, chrome_histogram_sample_name_hash_args_key_id_,
+                         chrome_histogram_sample_name_hash_args_key_id_,
+                         Variadic::UnsignedInteger(name_hash));
+  }
+  if (event.has_name()) {
+    StringId name = context_->storage->InternString(event.name());
+    args_tracker->AddArg(row, chrome_keyed_service_name_args_key_id_,
+                         chrome_keyed_service_name_args_key_id_,
+                         Variadic::String(name));
+  }
+  if (event.has_sample()) {
+    int64_t sample = static_cast<int64_t>(event.sample());
+    args_tracker->AddArg(row, chrome_histogram_sample_sample_args_key_id_,
+                         chrome_histogram_sample_sample_args_key_id_,
+                         Variadic::Integer(sample));
   }
 }
 
