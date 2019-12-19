@@ -422,7 +422,6 @@ cc_library_static {
     ":perfetto_include_perfetto_ext_tracing_core_core",
     ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
     ":perfetto_include_perfetto_protozero_protozero",
-    ":perfetto_include_perfetto_tracing_all",
     ":perfetto_include_perfetto_tracing_core_core",
     ":perfetto_include_perfetto_tracing_core_forward_decls",
     ":perfetto_include_perfetto_tracing_tracing",
@@ -1008,11 +1007,6 @@ filegroup {
 // GN: //include/perfetto/trace_processor:trace_processor
 filegroup {
   name: "perfetto_include_perfetto_trace_processor_trace_processor",
-}
-
-// GN: //include/perfetto:tracing_all
-filegroup {
-  name: "perfetto_include_perfetto_tracing_all",
 }
 
 // GN: //include/perfetto/tracing/core:core

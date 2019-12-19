@@ -55,6 +55,7 @@ source_set("end_to_end_integrationtests") {
 
 executable("client_api_example") {
   sources = [
+    "../include/perfetto/tracing.h",
     "client_api_example.cc",
   ]
   deps = [
