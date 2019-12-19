@@ -21,11 +21,13 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_splitter.h"
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -101,7 +103,8 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
     if (res.empty())
       continue;
 
-    protozero::HeapBuffered<perfetto::protos::pbzero::TracePacket> packet;
+    protozero::HeapBuffered<perfetto::protos::pbzero::Trace> trace;
+    auto* packet = trace->add_packet();
     auto* module_symbols = packet->set_module_symbols();
     module_symbols->set_path(name_and_buildid.first);
     module_symbols->set_build_id(name_and_buildid.second);
@@ -116,8 +119,18 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
         line->set_line_number(frame.line);
       }
     }
-    callback(packet.SerializeAsString());
+    callback(trace.SerializeAsString());
   }
+}
+
+std::vector<std::string> GetPerfettoBinaryPath() {
+  std::vector<std::string> roots;
+  const char* root = getenv("PERFETTO_BINARY_PATH");
+  if (root != nullptr) {
+    for (base::StringSplitter sp(std::string(root), ':'); sp.Next();)
+      roots.emplace_back(sp.cur_token(), sp.cur_token_size());
+  }
+  return roots;
 }
 
 }  // namespace profiling
