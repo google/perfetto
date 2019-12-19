@@ -2581,20 +2581,20 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   Tokenize();
 
   // Verify cpu_profile_samples.
-  const auto& samples = storage_->cpu_profile_stack_samples();
-  EXPECT_EQ(samples.size(), 3u);
+  const auto& samples = storage_->cpu_profile_stack_sample_table();
+  EXPECT_EQ(samples.row_count(), 3u);
 
-  EXPECT_EQ(samples.timestamps()[0], 1010);
-  EXPECT_EQ(samples.callsite_ids()[0], 0);
-  EXPECT_EQ(samples.utids()[0], 1u);
+  EXPECT_EQ(samples.timestamp()[0], 1010);
+  EXPECT_EQ(samples.callsite_id()[0], 0);
+  EXPECT_EQ(samples.utid()[0], 1u);
 
-  EXPECT_EQ(samples.timestamps()[1], 1025);
-  EXPECT_EQ(samples.callsite_ids()[1], 1);
-  EXPECT_EQ(samples.utids()[1], 1u);
+  EXPECT_EQ(samples.timestamp()[1], 1025);
+  EXPECT_EQ(samples.callsite_id()[1], 1);
+  EXPECT_EQ(samples.utid()[1], 1u);
 
-  EXPECT_EQ(samples.timestamps()[2], 1067);
-  EXPECT_EQ(samples.callsite_ids()[2], 0);
-  EXPECT_EQ(samples.utids()[2], 1u);
+  EXPECT_EQ(samples.timestamp()[2], 1067);
+  EXPECT_EQ(samples.callsite_id()[2], 0);
+  EXPECT_EQ(samples.utid()[2], 1u);
 }
 
 }  // namespace
