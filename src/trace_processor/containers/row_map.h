@@ -476,6 +476,9 @@ class RowMap {
   // Returns the iterator over the rows in this RowMap.
   Iterator IterateRows() const { return Iterator(this); }
 
+  // Returns if the RowMap is internally represented using a range.
+  bool IsRange() const { return mode_ == Mode::kRange; }
+
  private:
   enum class Mode {
     kRange,
