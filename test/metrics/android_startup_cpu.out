@@ -1,87 +1,232 @@
 android_cpu {
-      process_info {
-        name:"Process1"
-        threads {
-          name : "Process1"
-          cpu {
-            id: 0
-            max_freq_khz: 500000
-            min_freq_khz: 500000
-            avg_freq_khz: 500000
-            duration_ns: 2
-          }
-          normalized_cpu_cycles: 1
+  process_info {
+    name: "Process1"
+    threads {
+      name: "Process1"
+      core {
+        id: 0
+        metrics {
+          mcycles: 1
+          runtime_ns: 2
+          min_freq_khz: 500000
+          max_freq_khz: 500000
+          avg_freq_khz: 500000
         }
-        threads {
-          name: "p1-t2"
-          cpu {
-            id: 0
-            max_freq_khz: 1400000
-            min_freq_khz: 1400000
-            avg_freq_khz: 1400000
-            duration_ns: 1
-          }
-          normalized_cpu_cycles: 1
-        }
-        normalized_cpu_cycles: 2
       }
-      process_info {
-        name: "Process2"
-        threads {
-          name: "p2-t2"
-          cpu {
-            id: 1
-            max_freq_khz: 2000000
-            min_freq_khz: 2000000
-            avg_freq_khz: 2000000
-            duration_ns: 2
-          }
-          normalized_cpu_cycles: 4
-        }
-        threads {
-          name: "p2-t3"
-          cpu {
-            id: 1
-            max_freq_khz: 8000000
-            min_freq_khz: 2000000
-            avg_freq_khz: 4000000
-            duration_ns: 3
-          }
-          normalized_cpu_cycles: 12
-        }
-        threads {
-          name: "Process2"
-          cpu {
-            id: 0
-            max_freq_khz: 2500000
-            min_freq_khz: 2500000
-            avg_freq_khz: 2500000
-            duration_ns: 2
-          }
-          normalized_cpu_cycles: 5
-        }
-        normalized_cpu_cycles: 21
+      metrics {
+        mcycles: 1
+        runtime_ns: 2
+        min_freq_khz: 500000
+        max_freq_khz: 500000
+        avg_freq_khz: 500000
       }
-      process_info {
-        name: "Process3"
-        threads {
-          name: "Process3"
-          cpu {
-            id: 0
-            max_freq_khz: 1400000
-            min_freq_khz: 500000
-            avg_freq_khz: 725000
-            duration_ns: 4
-          }
-          cpu {
-            id: 1
-            max_freq_khz: 8000000
-            min_freq_khz: 8000000
-            avg_freq_khz: 8000000
-            duration_ns: 2
-          }
-          normalized_cpu_cycles: 18
+      core_type {
+        type: "little"
+        metrics {
+          mcycles: 1
+          runtime_ns: 2
+          min_freq_khz: 500000
+          max_freq_khz: 500000
+          avg_freq_khz: 500000
         }
-        normalized_cpu_cycles: 18
       }
+    }
+    threads {
+      name: "p1-t2"
+      core {
+        id: 0
+        metrics {
+          mcycles: 1
+          runtime_ns: 1
+          min_freq_khz: 1400000
+          max_freq_khz: 1400000
+          avg_freq_khz: 1400000
+        }
+      }
+      metrics {
+        mcycles: 1
+        runtime_ns: 1
+        min_freq_khz: 1400000
+        max_freq_khz: 1400000
+        avg_freq_khz: 1400000
+      }
+      core_type {
+        type: "little"
+        metrics {
+          mcycles: 1
+          runtime_ns: 1
+          min_freq_khz: 1400000
+          max_freq_khz: 1400000
+          avg_freq_khz: 1400000
+        }
+      }
+    }
+    metrics {
+      mcycles: 2
+      runtime_ns: 3
+      min_freq_khz: 500000
+      max_freq_khz: 1400000
+      avg_freq_khz: 800000
+    }
+  }
+  process_info {
+    name: "Process2"
+    threads {
+      name: "p2-t2"
+      core {
+        id: 6
+        metrics {
+          mcycles: 4
+          runtime_ns: 2
+          min_freq_khz: 2000000
+          max_freq_khz: 2000000
+          avg_freq_khz: 2000000
+        }
+      }
+      metrics {
+        mcycles: 4
+        runtime_ns: 2
+        min_freq_khz: 2000000
+        max_freq_khz: 2000000
+        avg_freq_khz: 2000000
+      }
+      core_type {
+        type: "big"
+        metrics {
+          mcycles: 4
+          runtime_ns: 2
+          min_freq_khz: 2000000
+          max_freq_khz: 2000000
+          avg_freq_khz: 2000000
+        }
+      }
+    }
+    threads {
+      name: "p2-t3"
+      core {
+        id: 6
+        metrics {
+          mcycles: 12
+          runtime_ns: 3
+          min_freq_khz: 2000000
+          max_freq_khz: 8000000
+          avg_freq_khz: 4000000
+        }
+      }
+      metrics {
+        mcycles: 12
+        runtime_ns: 3
+        min_freq_khz: 2000000
+        max_freq_khz: 8000000
+        avg_freq_khz: 4000000
+      }
+      core_type {
+        type: "big"
+        metrics {
+          mcycles: 12
+          runtime_ns: 3
+          min_freq_khz: 2000000
+          max_freq_khz: 8000000
+          avg_freq_khz: 4000000
+        }
+      }
+    }
+    threads {
+      name: "Process2"
+      core {
+        id: 0
+        metrics {
+          mcycles: 5
+          runtime_ns: 2
+          min_freq_khz: 2500000
+          max_freq_khz: 2500000
+          avg_freq_khz: 2500000
+        }
+      }
+      metrics {
+        mcycles: 5
+        runtime_ns: 2
+        min_freq_khz: 2500000
+        max_freq_khz: 2500000
+        avg_freq_khz: 2500000
+      }
+      core_type {
+        type: "little"
+        metrics {
+          mcycles: 5
+          runtime_ns: 2
+          min_freq_khz: 2500000
+          max_freq_khz: 2500000
+          avg_freq_khz: 2500000
+        }
+      }
+    }
+    metrics {
+      mcycles: 21
+      runtime_ns: 7
+      min_freq_khz: 2000000
+      max_freq_khz: 8000000
+      avg_freq_khz: 3000000
+    }
+  }
+  process_info {
+    name: "Process3"
+    threads {
+      name: "Process3"
+      core {
+        id: 0
+        metrics {
+          mcycles: 2
+          runtime_ns: 4
+          min_freq_khz: 500000
+          max_freq_khz: 1400000
+          avg_freq_khz: 725000
+        }
+      }
+      core {
+        id: 6
+        metrics {
+          mcycles: 16
+          runtime_ns: 2
+          min_freq_khz: 8000000
+          max_freq_khz: 8000000
+          avg_freq_khz: 8000000
+        }
+      }
+      metrics {
+        mcycles: 18
+        runtime_ns: 6
+        min_freq_khz: 500000
+        max_freq_khz: 8000000
+        avg_freq_khz: 3150000
+      }
+      core_type {
+        type: "big"
+        metrics {
+          mcycles: 16
+          runtime_ns: 2
+          min_freq_khz: 8000000
+          max_freq_khz: 8000000
+          avg_freq_khz: 8000000
+        }
+      }
+      core_type {
+        type: "little"
+        metrics {
+          mcycles: 2
+          runtime_ns: 4
+          min_freq_khz: 500000
+          max_freq_khz: 1400000
+          avg_freq_khz: 725000
+        }
+      }
+    }
+    metrics {
+      mcycles: 18
+      runtime_ns: 6
+      min_freq_khz: 500000
+      max_freq_khz: 8000000
+      avg_freq_khz: 3150000
+    }
+  }
 }
