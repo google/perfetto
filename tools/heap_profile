@@ -31,8 +31,8 @@ import time
 import urllib
 
 TRACE_TO_TEXT_SHAS = {
-    'linux': '74cb40d9413d7ad756e327e09e46a8adde90db92',
-    'mac': '47045bc6abd4f9113969211f37fdd2259b0c1cc3',
+    'linux': 'cd6d89e0ada48c0d7850206d80c324b912a3db42',
+    'mac': 'aadf14ce5988e5d5e283fb816f72bb2bba8cc9e4',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
@@ -376,8 +376,10 @@ def main(argv):
       '/tmp/profile'
   ],
                         stdout=NULL)
+
   trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile', '/tmp/profile'])
+      [trace_to_text_binary, 'profile', '/tmp/profile'],
+      env=os.environ)
   profile_path = None
   for word in trace_to_text_output.split():
     if 'heap_profile-' in word:
@@ -405,6 +407,17 @@ def main(argv):
     os.unlink(symlink_path)
   os.symlink(profile_path, symlink_path)
   shutil.copyfile('/tmp/profile', os.path.join(profile_path, 'raw-trace'))
+
+  binary_path = os.getenv('PERFETTO_BINARY_PATH')
+  if binary_path is not None:
+      with open(os.path.join(profile_path, 'symbols'), 'w') as fd:
+          ret = subprocess.call([
+              trace_to_text_binary, 'symbolize',
+              os.path.join(profile_path, 'raw-trace')],
+              env=os.environ,
+              stdout=fd)
+          if ret != 0:
+              print("Failed to symbolize.", file=sys.stderr)
 
   print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
   print("These can be viewed using pprof. Googlers: head to pprof/ and "

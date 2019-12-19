@@ -39,10 +39,10 @@ namespace trace_to_text {
 // be prepended to the profile to attach the symbol information.
 int SymbolizeProfile(std::istream* input, std::ostream* output) {
   std::unique_ptr<profiling::Symbolizer> symbolizer;
-  auto binary_path = GetPerfettoBinaryPath();
+  auto binary_path = profiling::GetPerfettoBinaryPath();
   if (!binary_path.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-    symbolizer.reset(new profiling::LocalSymbolizer(GetPerfettoBinaryPath()));
+    symbolizer.reset(new profiling::LocalSymbolizer(std::move(binary_path)));
 #else
     PERFETTO_FATAL("This build does not support local symbolization.");
 #endif
@@ -59,10 +59,9 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
 
   tp->NotifyEndOfFile();
 
-  SymbolizeDatabase(tp.get(), symbolizer.get(),
-                    [output](const std::string& packet_proto) {
-                      WriteTracePacket(packet_proto, output);
-                    });
+  SymbolizeDatabase(
+      tp.get(), symbolizer.get(),
+      [output](const std::string& trace_proto) { *output << trace_proto; });
   return 0;
 }
 
