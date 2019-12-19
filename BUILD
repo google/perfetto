@@ -480,6 +480,14 @@ filegroup(
     ],
 )
 
+# GN target: //include/perfetto:tracing_all
+filegroup(
+    name = "include_perfetto_tracing_all",
+    srcs = [
+        "include/perfetto/tracing.h",
+    ],
+)
+
 # GN target: //src/android_internal:headers
 filegroup(
     name = "src_android_internal_headers",
@@ -2413,7 +2421,6 @@ perfetto_proto_library(
 perfetto_cc_library(
     name = "libperfetto_client_experimental",
     srcs = [
-        "include/perfetto/tracing.h",
         ":src_base_base",
         ":src_base_unix_socket",
         ":src_ipc_ipc",
@@ -2431,6 +2438,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_tracing_all",
         ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
