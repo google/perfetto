@@ -743,8 +743,6 @@ filegroup(
         "src/trace_processor/android_logs_table.h",
         "src/trace_processor/args_table.cc",
         "src/trace_processor/args_table.h",
-        "src/trace_processor/cpu_profile_stack_sample_table.cc",
-        "src/trace_processor/cpu_profile_stack_sample_table.h",
         "src/trace_processor/filtered_row_index.cc",
         "src/trace_processor/filtered_row_index.h",
         "src/trace_processor/gfp_flags.cc",

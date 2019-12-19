@@ -811,13 +811,13 @@ util::Status ExportRawEvents(const TraceStorage* storage,
 
 util::Status ExportCpuProfileSamples(const TraceStorage* storage,
                                      TraceFormatWriter* writer) {
-  const TraceStorage::CpuProfileStackSamples& samples =
-      storage->cpu_profile_stack_samples();
-  for (uint32_t i = 0; i < samples.size(); ++i) {
+  const tables::CpuProfileStackSampleTable& samples =
+      storage->cpu_profile_stack_sample_table();
+  for (uint32_t i = 0; i < samples.row_count(); ++i) {
     Json::Value event;
-    event["ts"] = Json::Int64(samples.timestamps()[i] / 1000);
+    event["ts"] = Json::Int64(samples.timestamp()[i] / 1000);
 
-    UniqueTid utid = static_cast<UniqueTid>(samples.utids()[i]);
+    UniqueTid utid = static_cast<UniqueTid>(samples.utid()[i]);
     auto thread = storage->GetThread(utid);
     event["tid"] = static_cast<int32_t>(thread.tid);
     if (thread.upid) {
@@ -843,7 +843,7 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
 
     std::vector<std::string> callstack;
     const auto& callsites = storage->stack_profile_callsite_table();
-    int64_t maybe_callsite_id = samples.callsite_ids()[i];
+    int64_t maybe_callsite_id = samples.callsite_id()[i];
     PERFETTO_DCHECK(maybe_callsite_id >= 0 &&
                     maybe_callsite_id < callsites.row_count());
     while (maybe_callsite_id >= 0) {
