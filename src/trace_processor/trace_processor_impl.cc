@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
-#include "src/trace_processor/cpu_profile_stack_sample_table.h"
 #include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/metadata_table.h"
 #include "src/trace_processor/process_table.h"
@@ -381,7 +380,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   StatsTable::RegisterTable(*db_, context_.storage.get());
   AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
-  CpuProfileStackSampleTable::RegisterTable(*db_, context_.storage.get());
   StackProfileFrameTable::RegisterTable(*db_, context_.storage.get());
   StackProfileMappingTable::RegisterTable(*db_, context_.storage.get());
   MetadataTable::RegisterTable(*db_, context_.storage.get());
@@ -435,6 +433,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   DbSqliteTable::RegisterTable(
       *db_, &storage->heap_profile_allocation_table(),
       storage->heap_profile_allocation_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->cpu_profile_stack_sample_table(),
+      storage->cpu_profile_stack_sample_table().table_name());
   DbSqliteTable::RegisterTable(
       *db_, &storage->stack_profile_callsite_table(),
       storage->stack_profile_callsite_table().table_name());
