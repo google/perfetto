@@ -21,8 +21,6 @@ SELECT
   cpu,
   ts,
   LEAD(ts, 1, (SELECT end_ts from trace_bounds))
-    OVER (PARTITION by cpu ORDER BY ts) AS end_ts,
-  LEAD(ts, 1, (SELECT end_ts from trace_bounds))
     OVER (PARTITION by cpu ORDER BY ts) - ts AS dur,
   value as freq
 FROM counter
