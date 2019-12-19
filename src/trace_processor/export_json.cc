@@ -815,7 +815,7 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
       storage->cpu_profile_stack_sample_table();
   for (uint32_t i = 0; i < samples.row_count(); ++i) {
     Json::Value event;
-    event["ts"] = Json::Int64(samples.timestamp()[i] / 1000);
+    event["ts"] = Json::Int64(samples.ts()[i] / 1000);
 
     UniqueTid utid = static_cast<UniqueTid>(samples.utid()[i]);
     auto thread = storage->GetThread(utid);
