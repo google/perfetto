@@ -35,7 +35,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 #define PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF(NAME, PARENT, C) \
   NAME(CpuProfileStackSampleTable, "cpu_profile_stack_sample")    \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                               \
-  C(int64_t, timestamp)                                           \
+  C(int64_t, ts, Column::Flag::kSorted)                           \
   C(int64_t, callsite_id)                                         \
   C(uint32_t, utid)
 
