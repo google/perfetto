@@ -122,9 +122,7 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
     _proto_deps = [d for d in deps if d.endswith("_protos")]
     _cc_deps = [d for d in deps if d not in _proto_deps]
     if len(_proto_deps) != 1:
-        fail("Too many proto deeps for target %s" % name)
-    # Generates the .gen.{cc,h} files.
-    perfetto_cc_protocpp_library(name = name + "_gen", deps = deps)
+        fail("Too many proto deps for target %s" % name)
 
     # Generates .ipc.{cc,h}.
     proto_gen(
@@ -148,7 +146,6 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
         srcs = [":" + name + "_src"],
         hdrs = [":" + name + "_h"],
         deps = [
-            ":" + name + "_gen",
             # Generated .ipc.{cc,h} depend on this and protozero.
             PERFETTO_CONFIG.root + ":perfetto_ipc",
             PERFETTO_CONFIG.root + ":libprotozero",
@@ -176,7 +173,7 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
     _proto_deps = [d for d in deps if d.endswith("_protos")]
     _cc_deps = [d for d in deps if d not in _proto_deps]
     if len(_proto_deps) != 1:
-        fail("Too many proto deeps for target %s" % name)
+        fail("Too many proto deps for target %s" % name)
 
     proto_gen(
         name = name + "_gen",
