@@ -855,11 +855,10 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
                       callsites.frame_id()[callsite_id] < frames.size());
       size_t frame_id = static_cast<size_t>(callsites.frame_id()[callsite_id]);
 
-      const TraceStorage::StackProfileMappings& mappings =
-          storage->stack_profile_mappings();
+      const auto& mappings = storage->stack_profile_mapping_table();
       PERFETTO_DCHECK(frames.mappings()[frame_id] >= 0 &&
-                      frames.mappings()[frame_id] < mappings.size());
-      size_t mapping_id = static_cast<size_t>(frames.mappings()[frame_id]);
+                      frames.mappings()[frame_id] < mappings.row_count());
+      uint32_t mapping_id = static_cast<uint32_t>(frames.mappings()[frame_id]);
 
       NullTermStringView symbol_name;
       uint32_t symbol_set_id = frames.symbol_set_ids()[frame_id];
@@ -875,8 +874,8 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
                ? PrintUint64(static_cast<uint64_t>(frames.rel_pcs()[frame_id]))
                      .c_str()
                : symbol_name.c_str()),
-          GetNonNullString(storage, mappings.names()[mapping_id]),
-          GetNonNullString(storage, mappings.build_ids()[mapping_id]));
+          GetNonNullString(storage, mappings.name()[mapping_id]),
+          GetNonNullString(storage, mappings.build_id()[mapping_id]));
 
       callstack.emplace_back(frame_entry);
 

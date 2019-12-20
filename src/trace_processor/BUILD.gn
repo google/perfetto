@@ -303,8 +303,6 @@ source_set("lib") {
     "sql_stats_table.h",
     "stack_profile_frame_table.cc",
     "stack_profile_frame_table.h",
-    "stack_profile_mapping_table.cc",
-    "stack_profile_mapping_table.h",
     "stats_table.cc",
     "stats_table.h",
     "storage_columns.cc",
