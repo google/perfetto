@@ -51,6 +51,19 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
 
+#define PERFETTO_TP_STACK_PROFILE_MAPPING_DEF(NAME, PARENT, C) \
+  NAME(StackProfileMappingTable, "stack_profile_mapping")      \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                            \
+  C(StringPool::Id, build_id)                                  \
+  C(int64_t, exact_offset)                                     \
+  C(int64_t, start_offset)                                     \
+  C(int64_t, start)                                            \
+  C(int64_t, end)                                              \
+  C(int64_t, load_bias)                                        \
+  C(StringPool::Id, name)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_MAPPING_DEF);
+
 #define PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF(NAME, PARENT, C) \
   NAME(HeapProfileAllocationTable, "heap_profile_allocation")    \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                              \

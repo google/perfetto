@@ -1136,13 +1136,15 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   UniqueTid utid = storage->AddEmptyThread(kThreadID);
   storage->GetMutableThread(utid)->upid = upid;
 
-  uint32_t module_row_id_1 = storage->mutable_stack_profile_mappings()->Insert(
-      {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
-       storage->InternString("foo_module_name")});
+  uint32_t module_row_id_1 =
+      storage->mutable_stack_profile_mapping_table()->Insert(
+          {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
+           storage->InternString("foo_module_name")});
 
-  uint32_t module_row_id_2 = storage->mutable_stack_profile_mappings()->Insert(
-      {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
-       storage->InternString("bar_module_name")});
+  uint32_t module_row_id_2 =
+      storage->mutable_stack_profile_mapping_table()->Insert(
+          {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
+           storage->InternString("bar_module_name")});
 
   // TODO(140860736): Once we support null values for
   // stack_profile_frame.symbol_set_id remove this hack
