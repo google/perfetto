@@ -707,72 +707,6 @@ class TraceStorage {
         index_;
   };
 
-  class StackProfileMappings {
-   public:
-    struct Row {
-      StringId build_id;
-      int64_t exact_offset;
-      int64_t start_offset;
-      int64_t start;
-      int64_t end;
-      int64_t load_bias;
-      StringId name_id;
-
-      bool operator==(const Row& other) const {
-        return std::tie(build_id, exact_offset, start_offset, start, end,
-                        load_bias, name_id) ==
-               std::tie(other.build_id, other.exact_offset, other.start_offset,
-                        other.start, other.end, other.load_bias, other.name_id);
-      }
-    };
-
-    uint32_t size() const { return static_cast<uint32_t>(names_.size()); }
-
-    uint32_t Insert(const Row& row) {
-      build_ids_.emplace_back(row.build_id);
-      exact_offsets_.emplace_back(row.exact_offset);
-      start_offsets_.emplace_back(row.start_offset);
-      starts_.emplace_back(row.start);
-      ends_.emplace_back(row.end);
-      load_biases_.emplace_back(row.load_bias);
-      names_.emplace_back(row.name_id);
-
-      size_t row_number = build_ids_.size() - 1;
-      index_[std::make_pair(row.name_id, row.build_id)].emplace_back(
-          row_number);
-      return static_cast<uint32_t>(row_number);
-    }
-
-    std::vector<int64_t> FindMappingRow(StringId name,
-                                        StringId build_id) const {
-      auto it = index_.find(std::make_pair(name, build_id));
-      if (it == index_.end())
-        return {};
-      return it->second;
-    }
-
-    const std::deque<StringId>& build_ids() const { return build_ids_; }
-    const std::deque<int64_t>& exact_offsets() const { return exact_offsets_; }
-    const std::deque<int64_t>& start_offsets() const { return start_offsets_; }
-    const std::deque<int64_t>& starts() const { return starts_; }
-    const std::deque<int64_t>& ends() const { return ends_; }
-    const std::deque<int64_t>& load_biases() const { return load_biases_; }
-    const std::deque<StringId>& names() const { return names_; }
-
-   private:
-    std::deque<StringId> build_ids_;
-    std::deque<int64_t> exact_offsets_;
-    std::deque<int64_t> start_offsets_;
-    std::deque<int64_t> starts_;
-    std::deque<int64_t> ends_;
-    std::deque<int64_t> load_biases_;
-    std::deque<StringId> names_;
-
-    std::map<std::pair<StringId /* name */, StringId /* build id */>,
-             std::vector<int64_t>>
-        index_;
-  };
-
   UniqueTid AddEmptyThread(uint32_t tid) {
     unique_threads_.emplace_back(tid);
     return static_cast<UniqueTid>(unique_threads_.size() - 1);
@@ -1024,11 +958,11 @@ class TraceStorage {
   const RawEvents& raw_events() const { return raw_events_; }
   RawEvents* mutable_raw_events() { return &raw_events_; }
 
-  const StackProfileMappings& stack_profile_mappings() const {
-    return stack_profile_mappings_;
+  const tables::StackProfileMappingTable& stack_profile_mapping_table() const {
+    return stack_profile_mapping_table_;
   }
-  StackProfileMappings* mutable_stack_profile_mappings() {
-    return &stack_profile_mappings_;
+  tables::StackProfileMappingTable* mutable_stack_profile_mapping_table() {
+    return &stack_profile_mapping_table_;
   }
 
   const StackProfileFrames& stack_profile_frames() const {
@@ -1113,6 +1047,20 @@ class TraceStorage {
   // Returns (0, 0) if the trace is empty.
   std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs() const;
 
+  // TODO(lalitm): remove this when we have a better home.
+  std::vector<int64_t> FindMappingRow(StringId name, StringId build_id) const {
+    auto it = stack_profile_mapping_index_.find(std::make_pair(name, build_id));
+    if (it == stack_profile_mapping_index_.end())
+      return {};
+    return it->second;
+  }
+
+  // TODO(lalitm): remove this when we have a better home.
+  void InsertMappingRow(StringId name, StringId build_id, uint32_t row) {
+    auto pair = std::make_pair(name, build_id);
+    stack_profile_mapping_index_[pair].emplace_back(row);
+  }
+
  private:
   static constexpr uint8_t kRowIdTableShift = 32;
 
@@ -1123,6 +1071,10 @@ class TraceStorage {
 
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;
+
+  // TODO(lalitm): remove this when we find a better home for this.
+  using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
+  std::map<MappingKey, std::vector<int64_t>> stack_profile_mapping_index_;
 
   // One entry for each unique string in the trace.
   StringPool string_pool_;
@@ -1205,7 +1157,8 @@ class TraceStorage {
   RawEvents raw_events_;
   AndroidLogs android_log_;
 
-  StackProfileMappings stack_profile_mappings_;
+  tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,
+                                                                nullptr};
   StackProfileFrames stack_profile_frames_;
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
                                                                   nullptr};
@@ -1257,9 +1210,9 @@ struct hash<
 
 template <>
 struct hash<
-    ::perfetto::trace_processor::TraceStorage::StackProfileMappings::Row> {
+    ::perfetto::trace_processor::tables::StackProfileMappingTable::Row> {
   using argument_type =
-      ::perfetto::trace_processor::TraceStorage::StackProfileMappings::Row;
+      ::perfetto::trace_processor::tables::StackProfileMappingTable::Row;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
@@ -1268,7 +1221,7 @@ struct hash<
            std::hash<int64_t>{}(r.start_offset) ^
            std::hash<int64_t>{}(r.start) ^ std::hash<int64_t>{}(r.end) ^
            std::hash<int64_t>{}(r.load_bias) ^
-           std::hash<::perfetto::trace_processor::StringId>{}(r.name_id);
+           std::hash<::perfetto::trace_processor::StringId>{}(r.name);
   }
 };
 
