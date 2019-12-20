@@ -53,11 +53,12 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
   auto f = fopen(base::GetTestDataPath("test/data/gpu_trace.pb").c_str(), "rb");
   std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
-  storage_->Parse(std::move(buf), rsize);
+  util::Status status = storage_->Parse(std::move(buf), rsize);
+  ASSERT_TRUE(status.ok());
   storage_->NotifyEndOfFile();
 
   JsonStringOutputWriter output_writer;
-  auto status = json::ExportJson(storage_.get(), &output_writer);
+  json::ExportJson(storage_.get(), &output_writer);
   Json::Reader reader;
   Json::Value result;
   reader.parse(output_writer.buffer, result);
@@ -65,16 +66,28 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
   ASSERT_EQ(result["traceEvents"].size(), 0u);
 }
 
+TEST_F(StorageMinimalSmokeTest, SystraceReturnsError) {
+  const size_t MAX_SIZE = 1 << 20;
+  auto f =
+      fopen(base::GetTestDataPath("test/data/systrace.html").c_str(), "rb");
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
+  auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
+  util::Status status = storage_->Parse(std::move(buf), rsize);
+
+  ASSERT_FALSE(status.ok());
+}
+
 TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
   const size_t MAX_SIZE = 1 << 20;
   auto f = fopen("test/trace_processor/track_event_typed_args.pb", "rb");
   std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
-  storage_->Parse(std::move(buf), rsize);
+  util::Status status = storage_->Parse(std::move(buf), rsize);
+  ASSERT_TRUE(status.ok());
   storage_->NotifyEndOfFile();
 
   JsonStringOutputWriter output_writer;
-  auto status = json::ExportJson(storage_.get(), &output_writer);
+  json::ExportJson(storage_.get(), &output_writer);
   Json::Reader reader;
   Json::Value result;
   reader.parse(output_writer.buffer, result);

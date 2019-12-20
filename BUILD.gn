@@ -39,8 +39,7 @@ if (enable_perfetto_platform_services) {
   ]
 }
 
-if (enable_perfetto_trace_processor &&
-    enable_perfetto_trace_processor_metrics) {
+if (enable_perfetto_trace_processor) {
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
 
@@ -250,17 +249,15 @@ if (build_with_chromium) {
       "protos/perfetto/trace/track_event:zero",
     ]
   }
-  if (enable_perfetto_trace_processor_sqlite) {
-    component("libtrace_processor") {
-      public_configs = [ "gn:public_config" ]
-      deps = [
-        "src/trace_processor:lib",
-      ]
-      configs -= [ "//build/config/compiler:chromium_code" ]
-      configs += [ "//build/config/compiler:no_chromium_code" ]
-      public_deps = [
-        "include/perfetto/trace_processor",
-      ]
-    }
+  component("libtrace_processor") {
+    public_configs = [ "gn:public_config" ]
+    deps = [
+      "src/trace_processor:lib",
+    ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+    public_deps = [
+      "include/perfetto/trace_processor",
+    ]
   }
 }
