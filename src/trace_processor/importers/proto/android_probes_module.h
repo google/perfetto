@@ -32,6 +32,12 @@ class AndroidProbesModule : public ProtoImporterModule {
  public:
   explicit AndroidProbesModule(TraceProcessorContext* context);
 
+  ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
+                              TraceBlobView* packet,
+                              int64_t packet_timestamp,
+                              PacketSequenceState*,
+                              uint32_t field_id) override;
+
   void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
                    const TimestampedTracePiece& ttp,
                    uint32_t field_id) override;
@@ -41,6 +47,7 @@ class AndroidProbesModule : public ProtoImporterModule {
 
  private:
   AndroidProbesParser parser_;
+  TraceProcessorContext* context_ = nullptr;
 };
 
 }  // namespace trace_processor
