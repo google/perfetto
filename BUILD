@@ -115,7 +115,6 @@ perfetto_cc_library(
 perfetto_cc_binary(
     name = "client_api_example",
     srcs = [
-        "include/perfetto/tracing.h",
         "test/client_api_example.cc",
         ":include_perfetto_base_base",
         ":include_perfetto_protozero_protozero",
@@ -2415,7 +2414,6 @@ perfetto_proto_library(
 perfetto_cc_library(
     name = "libperfetto_client_experimental",
     srcs = [
-        "include/perfetto/tracing.h",
         ":src_base_base",
         ":src_base_unix_socket",
         ":src_ipc_ipc",
@@ -2436,6 +2434,7 @@ perfetto_cc_library(
         ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
+        "include/perfetto/tracing.h",
     ],
     visibility = [
         "//visibility:public",
