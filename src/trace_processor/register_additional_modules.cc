@@ -15,10 +15,12 @@
  */
 
 #include "src/trace_processor/register_additional_modules.h"
+#include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
+#include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,6 +30,13 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new GraphicsEventModule(context));
   context->modules.emplace_back(new HeapGraphModule(context));
   context->modules.emplace_back(new SystemProbesModule(context));
+  context->modules.emplace_back(new FtraceModuleImpl(context));
+  // Ftrace module is special, because it has one extra method for parsing
+  // ftrace packets. So we need to store a pointer to it separately.
+  context->ftrace_module =
+      static_cast<FtraceModule*>(context->modules.back().get());
+
+  context->systrace_trace_parser.reset(new SystraceTraceParser(context));
 }
 
 }  // namespace trace_processor

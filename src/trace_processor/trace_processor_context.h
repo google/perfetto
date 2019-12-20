@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/destructible.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
@@ -69,11 +70,17 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> sched_tracker;    // SchedEventTracker
   std::unique_ptr<Destructible> systrace_parser;  // SystraceParser
 
+  // This will be nullptr in the minimal build (storage_minimal target), and
+  // a pointer to the instance of SystraceTraceParser class in the full build
+  // (storage_full target). The corresponding initialization happens in
+  // register_additional_modules.cc.
+  std::unique_ptr<ChunkedTraceReader> systrace_trace_parser;
+
   // The module at the index N is registered to handle field id N in
   // TracePacket.
   std::vector<ProtoImporterModule*> modules_by_field;
   std::vector<std::unique_ptr<ProtoImporterModule>> modules;
-  FtraceModule* ftrace_module;
+  FtraceModule* ftrace_module = nullptr;
 };
 
 }  // namespace trace_processor
