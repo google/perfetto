@@ -29,6 +29,16 @@ java_library_host {
   ],
 }
 
+java_library_host {
+  name: "perfetto_metrics-full",
+  proto: {
+      type: "full",
+  },
+  srcs: [
+    "protos/perfetto/metrics/perfetto_merged_metrics.proto",
+  ],
+}
+
 // This sample target shows how to use the perfetto client API from within the
 // Android tree.
 cc_binary {

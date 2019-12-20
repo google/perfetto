@@ -30,7 +30,7 @@ message AndroidBatteryMetric {
     optional double current_avg_ua = 5;
   }
 
-   // Battery counters info for each ts of the trace. This should only be
-   // extracted for short traces.
+  // Battery counters info for each ts of the trace. This should only be
+  // extracted for short traces.
   repeated BatteryCounters battery_counters = 1;
 }
