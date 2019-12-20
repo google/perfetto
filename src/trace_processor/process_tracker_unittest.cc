@@ -86,7 +86,6 @@ TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
             "test");
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
@@ -114,7 +113,6 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   ASSERT_EQ(process.pid, 2u);
   ASSERT_EQ(process.start_ns, 0);
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   context.process_tracker->UpdateThread(12, 2);

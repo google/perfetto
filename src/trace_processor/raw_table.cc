@@ -52,7 +52,6 @@ std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
 
 RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
     : storage_(storage) {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     auto* thiz = static_cast<RawTable*>(sqlite3_user_data(ctx));
     thiz->ToSystrace(ctx, argc, argv);
@@ -60,9 +59,6 @@ RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
   sqlite3_create_function(db, "to_ftrace", 1,
                           SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
                           nullptr);
-#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  base::ignore_result(db);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 }
 
 void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
@@ -99,7 +95,6 @@ int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   return SQLITE_OK;
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 bool RawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
   if (!storage_->metadata().MetadataExists(metadata::KeyIDs::system_name) ||
       !storage_->metadata().MetadataExists(metadata::KeyIDs::system_release)) {
@@ -415,7 +410,6 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
   FormatSystraceArgs(event_name, raw_evts.arg_set_ids()[row], &writer);
   sqlite3_result_text(ctx, writer.CreateStringCopy(), -1, free);
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 }  // namespace trace_processor
 }  // namespace perfetto
