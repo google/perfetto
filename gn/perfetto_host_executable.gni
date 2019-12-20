@@ -29,10 +29,11 @@ template("perfetto_host_executable") {
     not_needed(invoker, "*", [ "testonly" ])
     _host_target = ":$target_name($host_toolchain)"
     _testonly = defined(invoker.testonly) && invoker.testonly
-    if (perfetto_build_with_embedder || is_perfetto_build_generator) {
-      # Don't copy anythin in Chromium, just add a dependency to the host
-      # target. V8 and other GN embedder builds. This causes problems on
-      # some bot (see crbug.com/1002599).
+    if ((perfetto_build_with_embedder && !build_with_chromium) ||
+        is_perfetto_build_generator) {
+      # Don't copy anything in V8 and other GN embedder builds, just add a
+      # dependency to the host target. This causes problems on some bots.
+      # (See crbug.com/1002599).
       group(target_name) {
         testonly = _testonly
         deps = [
@@ -46,11 +47,15 @@ template("perfetto_host_executable") {
           _host_target,
         ]
         _host_out_dir = get_label_info(_host_target, "root_out_dir")
+        _extension = ""
+        if (host_os == "win") {
+          _extension = ".exe"
+        }
         sources = [
-          "$_host_out_dir/$target_name",
+          "$_host_out_dir/$target_name${_extension}",
         ]
         outputs = [
-          "$root_out_dir/$target_name",
+          "$root_out_dir/$target_name${_extension}",
         ]
       }
     }
