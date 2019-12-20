@@ -73,7 +73,7 @@ base::Optional<int64_t> StackProfileTracker::AddMapping(
     build_id = context_->storage->InternString(base::StringView(hex_build_id));
   }
 
-  TraceStorage::StackProfileMappings::Row row{
+  tables::StackProfileMappingTable::Row row{
       build_id,
       static_cast<int64_t>(mapping.exact_offset),
       static_cast<int64_t>(mapping.start_offset),
@@ -82,26 +82,26 @@ base::Optional<int64_t> StackProfileTracker::AddMapping(
       static_cast<int64_t>(mapping.load_bias),
       context_->storage->InternString(base::StringView(path))};
 
-  TraceStorage::StackProfileMappings* mappings =
-      context_->storage->mutable_stack_profile_mappings();
+  tables::StackProfileMappingTable* mappings =
+      context_->storage->mutable_stack_profile_mapping_table();
   int64_t cur_row = -1;
   auto it = mapping_idx_.find(row);
   if (it != mapping_idx_.end()) {
     cur_row = it->second;
   } else {
     std::vector<int64_t> db_mappings =
-        mappings->FindMappingRow(row.name_id, row.build_id);
+        context_->storage->FindMappingRow(row.name, row.build_id);
     for (const int64_t preexisting_mapping : db_mappings) {
       PERFETTO_DCHECK(preexisting_mapping >= 0);
-      size_t preexisting_row_id = static_cast<size_t>(preexisting_mapping);
-      TraceStorage::StackProfileMappings::Row preexisting_row{
-          mappings->build_ids()[preexisting_row_id],
-          mappings->exact_offsets()[preexisting_row_id],
-          mappings->start_offsets()[preexisting_row_id],
-          mappings->starts()[preexisting_row_id],
-          mappings->ends()[preexisting_row_id],
-          mappings->load_biases()[preexisting_row_id],
-          mappings->names()[preexisting_row_id]};
+      uint32_t preexisting_row_id = static_cast<uint32_t>(preexisting_mapping);
+      tables::StackProfileMappingTable::Row preexisting_row{
+          mappings->build_id()[preexisting_row_id],
+          mappings->exact_offset()[preexisting_row_id],
+          mappings->start_offset()[preexisting_row_id],
+          mappings->start()[preexisting_row_id],
+          mappings->end()[preexisting_row_id],
+          mappings->load_bias()[preexisting_row_id],
+          mappings->name()[preexisting_row_id]};
 
       if (row == preexisting_row) {
         cur_row = preexisting_mapping;
@@ -109,7 +109,9 @@ base::Optional<int64_t> StackProfileTracker::AddMapping(
     }
     if (cur_row == -1) {
       cur_row =
-          context_->storage->mutable_stack_profile_mappings()->Insert(row);
+          context_->storage->mutable_stack_profile_mapping_table()->Insert(row);
+      context_->storage->InsertMappingRow(row.name, row.build_id,
+                                          static_cast<uint32_t>(cur_row));
     }
     mapping_idx_.emplace(row, cur_row);
   }

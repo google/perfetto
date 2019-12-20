@@ -616,10 +616,9 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
   std::string hex_build_id = base::ToHex(module_symbols.build_id().data,
                                          module_symbols.build_id().size);
-  auto mapping_rows =
-      context_->storage->stack_profile_mappings().FindMappingRow(
-          context_->storage->InternString(module_symbols.path()),
-          context_->storage->InternString(base::StringView(hex_build_id)));
+  auto mapping_rows = context_->storage->FindMappingRow(
+      context_->storage->InternString(module_symbols.path()),
+      context_->storage->InternString(base::StringView(hex_build_id)));
   if (mapping_rows.empty()) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;

@@ -187,10 +187,11 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
   }
 
-  TraceStorage::StackProfileMappings::Row mapping_row{};
-  mapping_row.name_id = context_->storage->InternString("JAVA");
+  tables::StackProfileMappingTable::Row mapping_row{};
+  mapping_row.name = context_->storage->InternString("JAVA");
   uint32_t mapping_id =
-      context_->storage->mutable_stack_profile_mappings()->Insert(mapping_row);
+      context_->storage->mutable_stack_profile_mapping_table()->Insert(
+          mapping_row);
 
   auto paths = sequence_state.walker.FindPathsFromRoot();
   for (const auto& p : paths.children)
