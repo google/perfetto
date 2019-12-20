@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "perfetto/base/build_config.h"
-#include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/timestamped_trace_piece.h"

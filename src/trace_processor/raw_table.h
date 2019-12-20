@@ -36,13 +36,11 @@ class RawTable : public StorageTable {
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   void FormatSystraceArgs(NullTermStringView event_name,
                           ArgSetId arg_set_id,
                           base::StringWriter* writer);
   void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
   bool ParseGfpFlags(Variadic value, base::StringWriter* writer);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
   const TraceStorage* const storage_;
 };

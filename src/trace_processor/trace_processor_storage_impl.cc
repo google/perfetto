@@ -26,7 +26,6 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
@@ -48,11 +47,7 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  context_.modules.emplace_back(new FtraceModuleImpl(&context_));
-#else
   context_.modules.emplace_back(new FtraceModule());
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   // Ftrace module is special, because it has one extra method for parsing
   // ftrace packets. So we need to store a pointer to it separately.
   context_.ftrace_module =
@@ -86,9 +81,6 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
 
   if (context_.sorter)
     context_.sorter->ExtractEventsForced();
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
-  SchedEventTracker::GetOrCreate(&context_)->FlushPendingEvents();
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
 }

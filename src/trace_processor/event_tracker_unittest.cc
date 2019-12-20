@@ -39,9 +39,7 @@ class EventTrackerTest : public ::testing::Test {
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
     context.track_tracker.reset(new TrackTracker(&context));
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
     sched_tracker = SchedEventTracker::GetOrCreate(&context);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
   }
 
  protected:
@@ -49,7 +47,6 @@ class EventTrackerTest : public ::testing::Test {
   SchedEventTracker* sched_tracker;
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(EventTrackerTest, InsertSecondSched) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
@@ -111,7 +108,6 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
   ASSERT_EQ(context.storage->slices().utids().at(0),
             context.storage->slices().utids().at(2));
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;

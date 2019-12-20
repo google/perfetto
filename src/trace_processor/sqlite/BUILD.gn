@@ -14,42 +14,40 @@
 
 import("../../../gn/test.gni")
 
-if (enable_perfetto_trace_processor_sqlite) {
-  source_set("sqlite") {
-    sources = [
-      "db_sqlite_table.cc",
-      "db_sqlite_table.h",
-      "query_constraints.cc",
-      "query_constraints.h",
-      "scoped_db.h",
-      "sqlite3_str_split.cc",
-      "sqlite3_str_split.h",
-      "sqlite_table.cc",
-      "sqlite_table.h",
-      "sqlite_utils.h",
-    ]
-    deps = [
-      "../../../gn:default_deps",
-      "../../../gn:sqlite",
-      "../../../include/perfetto/trace_processor",
-      "../../base",
-      "../db:lib",
-    ]
-  }
+source_set("sqlite") {
+  sources = [
+    "db_sqlite_table.cc",
+    "db_sqlite_table.h",
+    "query_constraints.cc",
+    "query_constraints.h",
+    "scoped_db.h",
+    "sqlite3_str_split.cc",
+    "sqlite3_str_split.h",
+    "sqlite_table.cc",
+    "sqlite_table.h",
+    "sqlite_utils.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:sqlite",
+    "../../../include/perfetto/trace_processor",
+    "../../base",
+    "../db:lib",
+  ]
+}
 
-  perfetto_unittest_source_set("unittests") {
-    testonly = true
-    sources = [
-      "db_sqlite_table_unittest.cc",
-      "query_constraints_unittest.cc",
-      "sqlite3_str_split_unittest.cc",
-    ]
-    deps = [
-      ":sqlite",
-      "../../../gn:default_deps",
-      "../../../gn:gtest_and_gmock",
-      "../../../gn:sqlite",
-      "../../base",
-    ]
-  }
-}  # if (enable_perfetto_trace_processor_sqlite)
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "db_sqlite_table_unittest.cc",
+    "query_constraints_unittest.cc",
+    "sqlite3_str_split_unittest.cc",
+  ]
+  deps = [
+    ":sqlite",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../gn:sqlite",
+    "../../base",
+  ]
+}
