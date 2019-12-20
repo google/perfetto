@@ -121,20 +121,20 @@ TEST_F(HeapProfileTrackerDupTest, Mapping) {
   context.heap_profile_tracker->FinalizeProfile(
       kDefaultSequence, stack_profile_tracker.get(), nullptr);
 
-  EXPECT_THAT(context.storage->stack_profile_mappings().build_ids(),
-              ElementsAre(context.storage->InternString({kBuildIDHexName})));
-  EXPECT_THAT(context.storage->stack_profile_mappings().exact_offsets(),
-              ElementsAre(kMappingExactOffset));
-  EXPECT_THAT(context.storage->stack_profile_mappings().start_offsets(),
-              ElementsAre(kMappingStartOffset));
-  EXPECT_THAT(context.storage->stack_profile_mappings().starts(),
-              ElementsAre(kMappingStart));
-  EXPECT_THAT(context.storage->stack_profile_mappings().ends(),
-              ElementsAre(kMappingEnd));
-  EXPECT_THAT(context.storage->stack_profile_mappings().load_biases(),
-              ElementsAre(kMappingLoadBias));
-  EXPECT_THAT(context.storage->stack_profile_mappings().names(),
-              ElementsAre(fully_qualified_mapping_name));
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().build_id()[0],
+              context.storage->InternString({kBuildIDHexName}));
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().exact_offset()[0],
+              kMappingExactOffset);
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().start_offset()[0],
+              kMappingStartOffset);
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().start()[0],
+              kMappingStart);
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().end()[0],
+              kMappingEnd);
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().load_bias()[0],
+              kMappingLoadBias);
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().name()[0],
+              fully_qualified_mapping_name);
 }
 
 // Insert the same mapping from two different packets, with different strings
@@ -222,8 +222,8 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
   hpt->CommitAllocations(kDefaultSequence, spt.get(), nullptr);
   auto foo_bar_id = context.storage->string_pool().GetId("/foo/bar");
   ASSERT_NE(foo_bar_id, base::nullopt);
-  EXPECT_THAT(context.storage->stack_profile_mappings().names(),
-              ElementsAre(*foo_bar_id));
+  EXPECT_THAT(context.storage->stack_profile_mapping_table().name()[0],
+              *foo_bar_id);
 }
 
 // Insert multiple mappings, frames and callstacks and check result.
