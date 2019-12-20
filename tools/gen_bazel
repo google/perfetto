@@ -306,7 +306,13 @@ def gen_target(gn_target):
 
   label = BazelLabel(get_bazel_label_name(gn_target.name), bazel_type)
   label.comment = gn_target.name
-  label.srcs = [x[2:] for x in gn_target.sources]
+
+  raw_srcs = [x[2:] for x in gn_target.sources]
+  if bazel_type == 'perfetto_cc_library':
+    label.srcs = [x for x in raw_srcs if not x.startswith('include')]
+    label.hdrs = [x for x in raw_srcs if x.startswith('include')]
+  else:
+    label.srcs = raw_srcs
 
   if gn_target.name in public_targets:
     label.visibility = ['//visibility:public']
