@@ -65,6 +65,7 @@ namespace stats {
   F(proc_stat_unknown_counters,               kSingle,  kError,    kAnalysis), \
   F(rss_stat_unknown_keys,                    kSingle,  kError,    kAnalysis), \
   F(rss_stat_negative_size,                   kSingle,  kInfo,     kAnalysis), \
+  F(rss_stat_unknown_thread_for_mm_id,        kSingle,  kInfo,     kAnalysis), \
   F(sched_switch_out_of_order,                kSingle,  kError,    kAnalysis), \
   F(slice_out_of_order,                       kSingle,  kError,    kAnalysis), \
   F(stackprofile_invalid_string_id,           kSingle,  kError,    kTrace),    \

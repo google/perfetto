@@ -838,6 +838,8 @@ filegroup(
         "src/trace_processor/importers/ftrace/ftrace_parser.h",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.h",
+        "src/trace_processor/importers/ftrace/rss_stat_tracker.cc",
+        "src/trace_processor/importers/ftrace/rss_stat_tracker.h",
         "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker.h",
         "src/trace_processor/importers/proto/android_probes_module.cc",

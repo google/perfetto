@@ -47,11 +47,15 @@ class Trace(object):
     ftrace.pid = tid
     return ftrace
 
-  def add_rss_stat(self, ts, tid, member, size):
+  def add_rss_stat(self, ts, tid, member, size, mm_id=None, curr=None):
     ftrace = self.__add_ftrace_event(ts, tid)
     rss_stat = ftrace.rss_stat
     rss_stat.member = member
     rss_stat.size = size
+    if mm_id is not None:
+      rss_stat.mm_id = mm_id
+    if curr is not None:
+      rss_stat.curr = curr
 
   def add_ion_event(self, ts, tid, heap_name, size):
     ftrace = self.__add_ftrace_event(ts, tid)
