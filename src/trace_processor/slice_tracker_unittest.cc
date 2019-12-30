@@ -77,14 +77,14 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
 
   constexpr TrackId track = 22u;
   tracker.Begin(2 /*ts*/, track, 0 /*cat*/, 1 /*name*/,
-                [](ArgsTracker* args_tracker, RowId row) {
-                  args_tracker->AddArg(row, /*flat_key=*/1, /*key=*/2,
-                                       /*value=*/Variadic::Integer(10));
+                [](ArgsTracker::BoundInserter* inserter) {
+                  inserter->AddArg(/*flat_key=*/1, /*key=*/2,
+                                   /*value=*/Variadic::Integer(10));
                 });
   tracker.End(10 /*ts*/, track, 0 /*cat*/, 1 /*name*/,
-              [](ArgsTracker* args_tracker, RowId row) {
-                args_tracker->AddArg(row, /*flat_key=*/3, /*key=*/4,
-                                     /*value=*/Variadic::Integer(20));
+              [](ArgsTracker::BoundInserter* inserter) {
+                inserter->AddArg(/*flat_key=*/3, /*key=*/4,
+                                 /*value=*/Variadic::Integer(20));
               });
 
   const auto& slices = context.storage->slice_table();

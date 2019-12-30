@@ -408,23 +408,6 @@ class TsEndAccessor : public Accessor<int64_t> {
   const std::deque<int64_t>* dur_ = nullptr;
 };
 
-class RowIdAccessor : public Accessor<int64_t> {
- public:
-  RowIdAccessor(TableId table_id);
-  ~RowIdAccessor() override;
-
-  uint32_t Size() const override {
-    return std::numeric_limits<uint32_t>::max();
-  }
-
-  int64_t Get(uint32_t idx) const override {
-    return TraceStorage::CreateRowId(table_id_, idx);
-  }
-
- private:
-  TableId table_id_;
-};
-
 class RowAccessor : public Accessor<uint32_t> {
  public:
   RowAccessor();

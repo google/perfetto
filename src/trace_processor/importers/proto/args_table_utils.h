@@ -70,14 +70,13 @@ namespace trace_processor {
 class ProtoToArgsTable {
  public:
   struct ParsingOverrideState {
-    ArgsTracker* args_tracker;
     TraceProcessorContext* context;
     PacketSequenceState* sequence_state;
     size_t sequence_generation;
-    RowId row_id;
   };
   using ParsingOverride = bool (*)(const ParsingOverrideState& state,
-                                   const protozero::Field&);
+                                   const protozero::Field&,
+                                   ArgsTracker::BoundInserter* inserter);
 
   // ScopedStringAppender will add |append| to |dest| when constructed and
   // erases the appended suffix from |dest| when it goes out of scope. Thus
@@ -103,15 +102,12 @@ class ProtoToArgsTable {
   // |sequence_state| and |sequence_state_generation| provide access to
   // interning data. |context| provides access to storage.
   //
-  // |args_tracker| is the access to the Args table, if nullptr then we will use
-  // the tracker inside |context|.
   // |starting_prefix| will be prepended to all columns.
   // |prefix_size_hint| allows the class to upfront reserve the expected string
   // size needed.
   ProtoToArgsTable(PacketSequenceState* sequence_state,
                    size_t sequence_state_generation,
                    TraceProcessorContext* context,
-                   ArgsTracker* args_tracker = nullptr,
                    std::string starting_prefix = "",
                    size_t prefix_size_hint = 64);
 
@@ -145,7 +141,7 @@ class ProtoToArgsTable {
   // TODO(b/145578432): Add support for repeated fields and byte fields.
   util::Status InternProtoIntoArgsTable(const protozero::ConstBytes& cb,
                                         const std::string& type,
-                                        RowId row);
+                                        ArgsTracker::BoundInserter* inserter);
 
   // Installs an override for the field at the specified path. We will invoke
   // |parsing_override| when the field is encountered.
@@ -172,10 +168,11 @@ class ProtoToArgsTable {
                           ParsingOverride parsing_override);
 
  private:
-  util::Status InternProtoIntoArgsTableInternal(const protozero::ConstBytes& cb,
-                                                const std::string& type,
-                                                RowId row,
-                                                std::string* prefix);
+  util::Status InternProtoIntoArgsTableInternal(
+      const protozero::ConstBytes& cb,
+      const std::string& type,
+      ArgsTracker::BoundInserter* inserter,
+      std::string* prefix);
 
   using OverrideIterator =
       std::vector<std::pair<std::string, ParsingOverride>>::iterator;

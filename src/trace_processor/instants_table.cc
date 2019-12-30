@@ -33,7 +33,7 @@ void InstantsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema InstantsTable::CreateStorageSchema() {
   const auto& instants = storage_->instants();
   return StorageSchema::Builder()
-      .AddGenericNumericColumn("id", RowIdAccessor(TableId::kInstants))
+      .AddGenericNumericColumn("id", RowAccessor())
       .AddOrderedNumericColumn("ts", &instants.timestamps())
       .AddStringColumn("name", &instants.name_ids(), &storage_->string_pool())
       .AddNumericColumn("value", &instants.values())
