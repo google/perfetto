@@ -248,11 +248,11 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          RowId row = context_->event_tracker->PushInstant(ts, name, 0, utid,
-                                                           RefType::kRefUtid);
+          uint32_t row = context_->event_tracker->PushInstant(
+              ts, name, 0, utid, RefType::kRefUtid);
           for (const Arg& arg : args) {
             context_->args_tracker->AddArg(
-                row, arg.name, arg.name,
+                TableId::kInstants, row, arg.name, arg.name,
                 arg.value.ToStorageVariadic(context_->storage.get()));
           }
           context_->args_tracker->Flush();
@@ -374,11 +374,11 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           }
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
-          RowId row = context_->event_tracker->PushInstant(
+          uint32_t row = context_->event_tracker->PushInstant(
               ts, name, 0, track_id, RefType::kRefTrack);
           for (const Arg& arg : args) {
             context_->args_tracker->AddArg(
-                row, arg.name, arg.name,
+                TableId::kInstants, row, arg.name, arg.name,
                 arg.value.ToStorageVariadic(context_->storage.get()));
           }
           context_->args_tracker->Flush();

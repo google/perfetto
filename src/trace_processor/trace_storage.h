@@ -59,9 +59,8 @@ using StringId = StringPool::Id;
 static const StringId kNullStringId = StringId(0);
 
 // Identifiers for all the tables in the database.
-enum TableId : uint8_t {
-  // Intentionally don't have TableId == 0 so that RowId == 0 can refer to an
-  // invalid row id.
+enum class TableId : uint8_t {
+  kInvalid = 0,
   kCounterValues = 1,
   kRawEvents = 2,
   kInstants = 3,
@@ -71,11 +70,6 @@ enum TableId : uint8_t {
   kTrack = 7,
   kVulkanMemoryAllocation = 8,
 };
-
-// The top 8 bits are set to the TableId and the bottom 32 to the row of the
-// table.
-using RowId = int64_t;
-static const RowId kInvalidRowId = 0;
 
 using ArgSetId = uint32_t;
 static const ArgSetId kInvalidArgSetId = 0;
@@ -138,8 +132,8 @@ class TraceStorage {
       StringId key = 0;
       Variadic value = Variadic::Integer(0);
 
-      // This is only used by the arg tracker and so is not part of the hash.
-      RowId row_id = 0;
+      TableId table;
+      uint32_t row;
     };
 
     struct ArgHasher {
@@ -518,17 +512,16 @@ class TraceStorage {
 
   class RawEvents {
    public:
-    inline RowId AddRawEvent(int64_t timestamp,
-                             StringId name_id,
-                             uint32_t cpu,
-                             UniqueTid utid) {
+    inline uint32_t AddRawEvent(int64_t timestamp,
+                                StringId name_id,
+                                uint32_t cpu,
+                                UniqueTid utid) {
       timestamps_.emplace_back(timestamp);
       name_ids_.emplace_back(name_id);
       cpus_.emplace_back(cpu);
       utids_.emplace_back(utid);
       arg_set_ids_.emplace_back(kInvalidArgSetId);
-      return CreateRowId(TableId::kRawEvents,
-                         static_cast<uint32_t>(raw_event_count() - 1));
+      return static_cast<uint32_t>(raw_event_count() - 1);
     }
 
     void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
@@ -596,7 +589,7 @@ class TraceStorage {
     const std::deque<metadata::KeyIDs>& keys() const { return keys_; }
     const std::deque<Variadic>& values() const { return values_; }
 
-    RowId SetScalarMetadata(metadata::KeyIDs key, Variadic value) {
+    uint32_t SetScalarMetadata(metadata::KeyIDs key, Variadic value) {
       PERFETTO_DCHECK(key < metadata::kNumKeys);
       PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kSingle);
       PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
@@ -607,25 +600,24 @@ class TraceStorage {
         PERFETTO_DFATAL("Setting a scalar metadata entry more than once.");
         uint32_t index = static_cast<uint32_t>(it->second);
         values_[index] = value;
-        return TraceStorage::CreateRowId(kMetadataTable, index);
+        return index;
       }
       // First time setting this key.
       keys_.push_back(key);
       values_.push_back(value);
       uint32_t index = static_cast<uint32_t>(keys_.size() - 1);
       scalar_indices[key] = index;
-      return TraceStorage::CreateRowId(kMetadataTable, index);
+      return index;
     }
 
-    RowId AppendMetadata(metadata::KeyIDs key, Variadic value) {
+    uint32_t AppendMetadata(metadata::KeyIDs key, Variadic value) {
       PERFETTO_DCHECK(key < metadata::kNumKeys);
       PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::kMulti);
       PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
 
       keys_.push_back(key);
       values_.push_back(value);
-      uint32_t index = static_cast<uint32_t>(keys_.size() - 1);
-      return TraceStorage::CreateRowId(kMetadataTable, index);
+      return static_cast<uint32_t>(keys_.size() - 1);
     }
 
     const Variadic& GetScalarMetadata(metadata::KeyIDs key) const {
@@ -765,18 +757,18 @@ class TraceStorage {
   // Example usage:
   // SetMetadata(metadata::benchmark_name,
   //             Variadic::String(storage->InternString("foo"));
-  // Returns the RowId of the new entry.
+  // Returns the row of the new entry.
   // Virtual for testing.
-  virtual RowId SetMetadata(metadata::KeyIDs key, Variadic value) {
+  virtual uint32_t SetMetadata(metadata::KeyIDs key, Variadic value) {
     return metadata_.SetScalarMetadata(key, value);
   }
 
   // Example usage:
   // AppendMetadata(metadata::benchmark_story_tags,
   //                Variadic::String(storage->InternString("bar"));
-  // Returns the RowId of the new entry.
+  // Returns the row of the new entry.
   // Virtual for testing.
-  virtual RowId AppendMetadata(metadata::KeyIDs key, Variadic value) {
+  virtual uint32_t AppendMetadata(metadata::KeyIDs key, Variadic value) {
     return metadata_.AppendMetadata(key, value);
   }
 
@@ -835,17 +827,6 @@ class TraceStorage {
     // Allow utid == 0 for idle thread retrieval.
     PERFETTO_DCHECK(utid < unique_threads_.size());
     return unique_threads_[utid];
-  }
-
-  static RowId CreateRowId(TableId table, uint32_t row) {
-    return (static_cast<RowId>(table) << kRowIdTableShift) | row;
-  }
-
-  static std::pair<int8_t /*table*/, uint32_t /*row*/> ParseRowId(RowId rowid) {
-    auto id = static_cast<uint64_t>(rowid);
-    auto table_id = static_cast<uint8_t>(id >> kRowIdTableShift);
-    auto row = static_cast<uint32_t>(id & ((1ull << kRowIdTableShift) - 1));
-    return std::make_pair(table_id, row);
   }
 
   const tables::TrackTable& track_table() const { return track_table_; }
@@ -1062,8 +1043,6 @@ class TraceStorage {
   }
 
  private:
-  static constexpr uint8_t kRowIdTableShift = 32;
-
   using StringHash = uint64_t;
 
   TraceStorage(const TraceStorage&) = delete;

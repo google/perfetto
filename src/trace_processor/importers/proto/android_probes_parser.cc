@@ -226,12 +226,13 @@ void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
   for (auto it = pkg_list.packages(); it; ++it) {
     // Insert a placeholder metadata entry, which will be overwritten by the
     // arg_set_id when the arg tracker is flushed.
-    RowId row_id = context_->storage->AppendMetadata(
+    uint32_t row = context_->storage->AppendMetadata(
         metadata::android_packages_list, Variadic::Integer(0));
 
-    auto add_arg = [this, row_id](base::StringView name, Variadic value) {
+    auto add_arg = [this, row](base::StringView name, Variadic value) {
       StringId key_id = context_->storage->InternString(name);
-      context_->args_tracker->AddArg(row_id, key_id, key_id, value);
+      context_->args_tracker->AddArg(TableId::kMetadataTable, row, key_id,
+                                     key_id, value);
     };
     protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
     add_arg("name",

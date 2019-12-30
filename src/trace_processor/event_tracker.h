@@ -37,9 +37,11 @@ class EventTracker {
   EventTracker& operator=(const EventTracker&) = delete;
   virtual ~EventTracker();
 
-  // Adds a counter event to the counters table returning the RowId of the
+  // Adds a counter event to the counters table returning the index of the
   // newly added row.
-  virtual RowId PushCounter(int64_t timestamp, double value, TrackId track_id);
+  virtual base::Optional<uint32_t> PushCounter(int64_t timestamp,
+                                               double value,
+                                               TrackId track_id);
 
   // Adds a counter event to the counters table for counter events which
   // should be associated with a process but only have a thread context
@@ -47,18 +49,19 @@ class EventTracker {
   //
   // This function will resolve the utid to a upid when the events are
   // flushed (see |FlushPendingEvents()|).
-  virtual RowId PushProcessCounterForThread(int64_t timestamp,
-                                            double value,
-                                            StringId name_id,
-                                            UniqueTid utid);
+  virtual base::Optional<uint32_t> PushProcessCounterForThread(
+      int64_t timestamp,
+      double value,
+      StringId name_id,
+      UniqueTid utid);
 
   // This method is called when a instant event is seen in the trace.
-  virtual RowId PushInstant(int64_t timestamp,
-                            StringId name_id,
-                            double value,
-                            int64_t ref,
-                            RefType ref_type,
-                            bool resolve_utid_to_upid = false);
+  virtual uint32_t PushInstant(int64_t timestamp,
+                               StringId name_id,
+                               double value,
+                               int64_t ref,
+                               RefType ref_type,
+                               bool resolve_utid_to_upid = false);
 
   // Called at the end of trace to flush any events which are pending to the
   // storage.

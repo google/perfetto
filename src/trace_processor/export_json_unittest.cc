@@ -363,15 +363,15 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
 
   TraceStorage* storage = context_.storage.get();
 
-  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
       0, storage->InternString("chrome_event.metadata"), 0, 0);
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
   StringId value1_id = storage->InternString(base::StringView(kValue1));
-  context_.args_tracker->AddArg(row_id, name1_id, name1_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, name1_id, name1_id,
                                 Variadic::String(value1_id));
-  context_.args_tracker->AddArg(row_id, name2_id, name2_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, name2_id, name2_id,
                                 Variadic::Integer(kValue2));
   context_.args_tracker->Flush();
 
@@ -445,13 +445,13 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = storage->InternString(base::StringView(kCategory));
   StringId name_id = storage->InternString(base::StringView(kName));
-  RowId row_id = TraceStorage::CreateRowId(
-      kNestableSlices, storage->mutable_slice_table()->Insert(
-                           {0, 0, track, cat_id, name_id, 0, 0, 0}));
+  uint32_t row = storage->mutable_slice_table()->Insert(
+      {0, 0, track, cat_id, name_id, 0, 0, 0});
 
   auto add_arg = [&](const char* key, Variadic value) {
     StringId key_id = storage->InternString(key);
-    context_.args_tracker->AddArg(row_id, key_id, key_id, value);
+    context_.args_tracker->AddArg(TableId::kNestableSlices, row, key_id, key_id,
+                                  value);
   };
 
   add_arg("legacy_event.bind_id", Variadic::UnsignedInteger(kBindId));
@@ -1014,13 +1014,14 @@ TEST_F(ExportJsonTest, RawEvent) {
   UniqueTid utid = storage->AddEmptyThread(kThreadID);
   storage->GetMutableThread(utid)->upid = upid;
 
-  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
       kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
       utid);
 
   auto add_arg = [&](const char* key, Variadic value) {
     StringId key_id = storage->InternString(key);
-    context_.args_tracker->AddArg(row_id, key_id, key_id, value);
+    context_.args_tracker->AddArg(TableId::kRawEvents, row, key_id, key_id,
+                                  value);
   };
 
   StringId cat_id = storage->InternString(base::StringView(kCategory));
@@ -1089,24 +1090,24 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
   TraceStorage* storage = context_.storage.get();
 
-  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
       0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0);
 
   StringId data_id = storage->InternString("data");
   StringId ftrace_data_id = storage->InternString(kLegacyFtraceData);
-  context_.args_tracker->AddArg(row_id, data_id, data_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
                                 Variadic::String(ftrace_data_id));
 
-  row_id = storage->mutable_raw_events()->AddRawEvent(
+  row = storage->mutable_raw_events()->AddRawEvent(
       0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
   StringId json_data1_id = storage->InternString(kLegacyJsonData1);
-  context_.args_tracker->AddArg(row_id, data_id, data_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
                                 Variadic::String(json_data1_id));
 
-  row_id = storage->mutable_raw_events()->AddRawEvent(
+  row = storage->mutable_raw_events()->AddRawEvent(
       0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
   StringId json_data2_id = storage->InternString(kLegacyJsonData2);
-  context_.args_tracker->AddArg(row_id, data_id, data_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
                                 Variadic::String(json_data2_id));
 
   context_.args_tracker->Flush();
@@ -1216,17 +1217,17 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   StringId arg2_id = context_.storage->InternString(base::StringView("arg2"));
   StringId val_id = context_.storage->InternString(base::StringView("val"));
 
-  std::array<RowId, 3> slice_ids;
+  std::array<uint32_t, 3> slice_ids;
   for (size_t i = 0; i < name_ids.size(); i++) {
-    slice_ids[i] = TraceStorage::CreateRowId(
-        kNestableSlices, context_.storage->mutable_slice_table()->Insert(
-                             {0, 0, track, cat_id, name_ids[i], 0, 0, 0}));
+    slice_ids[i] = context_.storage->mutable_slice_table()->Insert(
+        {0, 0, track, cat_id, name_ids[i], 0, 0, 0});
   }
 
-  for (RowId row : slice_ids) {
-    context_.args_tracker->AddArg(row, arg1_id, arg1_id, Variadic::Integer(5));
-    context_.args_tracker->AddArg(row, arg2_id, arg2_id,
-                                  Variadic::String(val_id));
+  for (uint32_t row : slice_ids) {
+    context_.args_tracker->AddArg(TableId::kNestableSlices, row, arg1_id,
+                                  arg1_id, Variadic::Integer(5));
+    context_.args_tracker->AddArg(TableId::kNestableSlices, row, arg2_id,
+                                  arg2_id, Variadic::String(val_id));
   }
   context_.args_tracker->Flush();
 
@@ -1280,15 +1281,15 @@ TEST_F(ExportJsonTest, MetadataFilter) {
 
   TraceStorage* storage = context_.storage.get();
 
-  RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
       0, storage->InternString("chrome_event.metadata"), 0, 0);
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
   StringId value1_id = storage->InternString(base::StringView(kValue1));
-  context_.args_tracker->AddArg(row_id, name1_id, name1_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, name1_id, name1_id,
                                 Variadic::String(value1_id));
-  context_.args_tracker->AddArg(row_id, name2_id, name2_id,
+  context_.args_tracker->AddArg(TableId::kRawEvents, row, name2_id, name2_id,
                                 Variadic::Integer(kValue2));
   context_.args_tracker->Flush();
 

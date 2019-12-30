@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
@@ -29,7 +30,7 @@ class TraceProcessorContext;
 
 class SliceTracker {
  public:
-  using SetArgsCallback = std::function<void(ArgsTracker*, RowId row_id)>;
+  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
 
   explicit SliceTracker(TraceProcessorContext*);
   virtual ~SliceTracker();
