@@ -362,22 +362,24 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RowId row_id = context_->storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = context_->storage->mutable_raw_events()->AddRawEvent(
       ts, event_id, cpu, utid);
 
   for (auto it = evt.field(); it; ++it) {
     protos::pbzero::GenericFtraceEvent::Field::Decoder fld(*it);
     auto field_name_id = context_->storage->InternString(fld.name());
     if (fld.has_int_value()) {
-      context_->args_tracker->AddArg(row_id, field_name_id, field_name_id,
+      context_->args_tracker->AddArg(TableId::kRawEvents, row, field_name_id,
+                                     field_name_id,
                                      Variadic::Integer(fld.int_value()));
     } else if (fld.has_uint_value()) {
       context_->args_tracker->AddArg(
-          row_id, field_name_id, field_name_id,
+          TableId::kRawEvents, row, field_name_id, field_name_id,
           Variadic::Integer(static_cast<int64_t>(fld.uint_value())));
     } else if (fld.has_str_value()) {
       StringId str_value = context_->storage->InternString(fld.str_value());
-      context_->args_tracker->AddArg(row_id, field_name_id, field_name_id,
+      context_->args_tracker->AddArg(TableId::kRawEvents, row, field_name_id,
+                                     field_name_id,
                                      Variadic::String(str_value));
     }
   }
@@ -398,7 +400,7 @@ void FtraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
   MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RowId raw_event_id = context_->storage->mutable_raw_events()->AddRawEvent(
+  uint32_t raw_event_row = context_->storage->mutable_raw_events()->AddRawEvent(
       ts, message_strings.message_name_id, cpu, utid);
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     if (PERFETTO_UNLIKELY(fld.id() >= kMaxFtraceEventFields)) {
@@ -418,7 +420,8 @@ void FtraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
       case ProtoSchemaType::kSint64:
       case ProtoSchemaType::kBool:
       case ProtoSchemaType::kEnum: {
-        context_->args_tracker->AddArg(raw_event_id, name_id, name_id,
+        context_->args_tracker->AddArg(TableId::kRawEvents, raw_event_row,
+                                       name_id, name_id,
                                        Variadic::Integer(fld.as_int64()));
         break;
       }
@@ -430,25 +433,27 @@ void FtraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
         // as a signed 64 bit integers (but the translation back to ftrace
         // refers to this storage directly).
         context_->args_tracker->AddArg(
-            raw_event_id, name_id, name_id,
+            TableId::kRawEvents, raw_event_row, name_id, name_id,
             Variadic::UnsignedInteger(fld.as_uint64()));
         break;
       }
       case ProtoSchemaType::kString:
       case ProtoSchemaType::kBytes: {
         StringId value = context_->storage->InternString(fld.as_string());
-        context_->args_tracker->AddArg(raw_event_id, name_id, name_id,
+        context_->args_tracker->AddArg(TableId::kRawEvents, raw_event_row,
+                                       name_id, name_id,
                                        Variadic::String(value));
         break;
       }
       case ProtoSchemaType::kDouble: {
-        context_->args_tracker->AddArg(raw_event_id, name_id, name_id,
+        context_->args_tracker->AddArg(TableId::kRawEvents, raw_event_row,
+                                       name_id, name_id,
                                        Variadic::Real(fld.as_double()));
         break;
       }
       case ProtoSchemaType::kFloat: {
         context_->args_tracker->AddArg(
-            raw_event_id, name_id, name_id,
+            TableId::kRawEvents, raw_event_row, name_id, name_id,
             Variadic::Real(static_cast<double>(fld.as_float())));
         break;
       }
@@ -658,14 +663,14 @@ void FtraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
   if (!opt_utid)
     return;
 
-  auto row_id = context_->event_tracker->PushInstant(
+  uint32_t row = context_->event_tracker->PushInstant(
       ts, lmk_id_, 0, opt_utid.value(), RefType::kRefUtid, true);
 
   // Store the comm as an arg.
   auto comm_id = context_->storage->InternString(
       lmk.has_comm() ? lmk.comm() : base::StringView());
-  context_->args_tracker->AddArg(row_id, comm_name_id_, comm_name_id_,
-                                 Variadic::String(comm_id));
+  context_->args_tracker->AddArg(TableId::kInstants, row, comm_name_id_,
+                                 comm_name_id_, Variadic::String(comm_id));
 }
 
 void FtraceParser::ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes blob) {

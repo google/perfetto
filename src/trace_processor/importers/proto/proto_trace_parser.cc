@@ -505,7 +505,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
-    RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+    uint32_t row = storage->mutable_raw_events()->AddRawEvent(
         ts, raw_chrome_metadata_event_id_, 0, 0);
 
     // Metadata is proxied via a special event in the raw table to JSON export.
@@ -525,12 +525,12 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       } else {
         context_->storage->IncrementStats(stats::empty_chrome_metadata);
       }
-      args.AddArg(row_id, name_id, name_id, value);
+      args.AddArg(TableId::kRawEvents, row, name_id, name_id, value);
     }
   }
 
   if (bundle.has_legacy_ftrace_output()) {
-    RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+    uint32_t row = storage->mutable_raw_events()->AddRawEvent(
         ts, raw_chrome_legacy_system_trace_event_id_, 0, 0);
 
     std::string data;
@@ -539,7 +539,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
     }
     Variadic value =
         Variadic::String(storage->InternString(base::StringView(data)));
-    args.AddArg(row_id, data_name_id_, data_name_id_, value);
+    args.AddArg(TableId::kRawEvents, row, data_name_id_, data_name_id_, value);
   }
 
   if (bundle.has_legacy_json_trace()) {
@@ -549,11 +549,12 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
-      RowId row_id = storage->mutable_raw_events()->AddRawEvent(
+      uint32_t row = storage->mutable_raw_events()->AddRawEvent(
           ts, raw_chrome_legacy_user_trace_event_id_, 0, 0);
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
-      args.AddArg(row_id, data_name_id_, data_name_id_, value);
+      args.AddArg(TableId::kRawEvents, row, data_name_id_, data_name_id_,
+                  value);
     }
   }
 }

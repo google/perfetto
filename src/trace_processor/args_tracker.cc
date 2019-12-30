@@ -27,14 +27,16 @@ ArgsTracker::~ArgsTracker() {
   Flush();
 }
 
-void ArgsTracker::AddArg(RowId row_id,
+void ArgsTracker::AddArg(TableId table,
+                         uint32_t row,
                          StringId flat_key,
                          StringId key,
                          Variadic value) {
   args_.emplace_back();
 
   auto* rid_arg = &args_.back();
-  rid_arg->row_id = row_id;
+  rid_arg->table = table;
+  rid_arg->row = row;
   rid_arg->flat_key = flat_key;
   rid_arg->key = key;
   rid_arg->value = value;
@@ -49,24 +51,25 @@ void ArgsTracker::Flush() {
   // We sort here because a single packet may add multiple args with different
   // rowids.
   auto comparator = [](const Arg& f, const Arg& s) {
-    return f.row_id < s.row_id;
+    return f.table < s.table && f.row < s.row;
   };
   std::stable_sort(args_.begin(), args_.end(), comparator);
 
   auto* storage = context_->storage.get();
   for (uint32_t i = 0; i < args_.size();) {
-    const auto& args = args_[i];
-    RowId rid = args.row_id;
+    const auto& arg = args_[i];
+    auto table_id = arg.table;
+    auto row = arg.row;
 
     uint32_t next_rid_idx = i + 1;
-    while (next_rid_idx < args_.size() && rid == args_[next_rid_idx].row_id)
+    while (next_rid_idx < args_.size() &&
+           table_id == args_[next_rid_idx].table &&
+           row == args_[next_rid_idx].row) {
       next_rid_idx++;
+    }
 
     ArgSetId set_id =
         storage->mutable_args()->AddArgSet(args_, i, next_rid_idx);
-    auto parsed = TraceStorage::ParseRowId(rid);
-    auto table_id = parsed.first;
-    auto row = parsed.second;
     switch (table_id) {
       case TableId::kRawEvents:
         storage->mutable_raw_events()->set_arg_set_id(row, set_id);
@@ -95,13 +98,16 @@ void ArgsTracker::Flush() {
             ->mutable_arg_set_id()
             ->Set(row, set_id);
         break;
-      default:
+      case TableId::kInvalid:
+      case TableId::kSched:
         PERFETTO_FATAL("Unsupported table to insert args into");
     }
     i = next_rid_idx;
   }
   args_.clear();
 }
+
+ArgsTracker::BoundInserter::~BoundInserter() {}
 
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 
-#include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -98,9 +97,10 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 
   if (args_callback) {
-    args_callback(
-        &stack->back().second,
-        TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
+    ArgsTracker* tracker = &stack->back().second;
+    ArgsTracker::BoundInserter inserter(tracker, TableId::kNestableSlices,
+                                        slice_idx);
+    args_callback(&inserter);
   }
   slices->mutable_stack_id()->Set(slice_idx, GetStackHash(*stack));
   return slice_idx;
@@ -177,9 +177,10 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
   slices->mutable_dur()->Set(slice_idx, timestamp - slices->ts()[slice_idx]);
 
   if (args_callback) {
-    args_callback(
-        &stack.back().second,
-        TraceStorage::CreateRowId(TableId::kNestableSlices, slice_idx));
+    ArgsTracker* tracker = &stack.back().second;
+    ArgsTracker::BoundInserter inserter(tracker, TableId::kNestableSlices,
+                                        slice_idx);
+    args_callback(&inserter);
   }
 
   return CompleteSlice(track_id);

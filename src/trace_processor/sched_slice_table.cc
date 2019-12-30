@@ -37,7 +37,7 @@ StorageSchema SchedSliceTable::CreateStorageSchema() {
       .AddNumericColumn("utid", &slices.utids(), &slices.rows_for_utids())
       .AddColumn<EndStateColumn>("end_state", &slices.end_state())
       .AddNumericColumn("priority", &slices.priorities())
-      .AddGenericNumericColumn("row_id", RowIdAccessor(TableId::kSched))
+      .AddGenericNumericColumn("row_id", RowAccessor())
       .Build({"cpu", "ts"});
 }
 

@@ -28,12 +28,39 @@ namespace trace_processor {
 // allows args to pushed as a group into storage.
 class ArgsTracker {
  public:
+  // Stores the table and row at creation time which args are associated with.
+  // This allows callers to directly add args without repeating the row the
+  // args should be associated with.
+  class BoundInserter {
+   public:
+    BoundInserter(ArgsTracker* args_tracker, TableId table, uint32_t row)
+        : args_tracker_(args_tracker), table_(table), row_(row) {}
+    virtual ~BoundInserter();
+
+    // Adds an arg with the same key and flat_key.
+    void AddArg(StringId key, Variadic v) { AddArg(key, key, v); }
+
+    // Virtual for testing.
+    virtual void AddArg(StringId flat_key, StringId key, Variadic v) {
+      args_tracker_->AddArg(table_, row_, flat_key, key, v);
+    }
+
+   private:
+    ArgsTracker* args_tracker_ = nullptr;
+    TableId table_ = TableId::kInvalid;
+    uint32_t row_ = 0;
+  };
+
   explicit ArgsTracker(TraceProcessorContext*);
   virtual ~ArgsTracker();
 
   // Adds a arg for this row id with the given key and value.
   // Virtual for testing.
-  virtual void AddArg(RowId row_id, StringId flat_key, StringId key, Variadic);
+  virtual void AddArg(TableId table,
+                      uint32_t row,
+                      StringId flat_key,
+                      StringId key,
+                      Variadic);
 
   // Commits the added args to storage.
   // Virtual for testing.
