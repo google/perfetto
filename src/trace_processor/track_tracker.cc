@@ -60,11 +60,10 @@ TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
   auto id = context_->storage->mutable_track_table()->Insert(row);
   fuchsia_async_tracks_[correlation_id] = id;
 
-  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
-  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
-                                 Variadic::String(fuchsia_source_));
-  context_->args_tracker->AddArg(row_id, source_id_key_, source_id_key_,
-                                 Variadic::Integer(correlation_id));
+  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
+                                      TableId::kTrack, id);
+  inserter.AddArg(source_key_, Variadic::String(fuchsia_source_));
+  inserter.AddArg(source_id_key_, Variadic::Integer(correlation_id));
   return id;
 }
 
@@ -103,17 +102,13 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   TrackId id = context_->storage->mutable_process_track_table()->Insert(track);
   chrome_tracks_[tuple] = id;
 
-  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
-  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
-                                 Variadic::String(chrome_source_));
-  context_->args_tracker->AddArg(row_id, source_id_key_, source_id_key_,
-                                 Variadic::Integer(source_id));
-  context_->args_tracker->AddArg(
-      row_id, source_id_is_process_scoped_key_,
-      source_id_is_process_scoped_key_,
-      Variadic::Boolean(source_id_is_process_scoped));
-  context_->args_tracker->AddArg(row_id, source_scope_key_, source_scope_key_,
-                                 Variadic::String(source_scope));
+  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
+                                      TableId::kTrack, id);
+  inserter.AddArg(source_key_, Variadic::String(chrome_source_));
+  inserter.AddArg(source_id_key_, Variadic::Integer(source_id));
+  inserter.AddArg(source_id_is_process_scoped_key_,
+                  Variadic::Boolean(source_id_is_process_scoped));
+  inserter.AddArg(source_scope_key_, Variadic::String(source_scope));
   return id;
 }
 
@@ -131,11 +126,10 @@ TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
   auto id = context_->storage->mutable_process_track_table()->Insert(row);
   android_async_tracks_[tuple] = id;
 
-  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
-  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
-                                 Variadic::String(android_source_));
-  context_->args_tracker->AddArg(row_id, source_id_key_, source_id_key_,
-                                 Variadic::Integer(cookie));
+  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
+                                      TableId::kTrack, id);
+  inserter.AddArg(source_key_, Variadic::String(android_source_));
+  inserter.AddArg(source_id_key_, Variadic::Integer(cookie));
   return id;
 }
 
@@ -149,8 +143,7 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
   auto id = context_->storage->mutable_process_track_table()->Insert(row);
   chrome_process_instant_tracks_[upid] = id;
 
-  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, id);
-  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
+  context_->args_tracker->AddArg(TableId::kTrack, id, source_key_, source_key_,
                                  Variadic::String(chrome_source_));
   return id;
 }
@@ -160,10 +153,9 @@ TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
     chrome_global_instant_track_id_ =
         context_->storage->mutable_track_table()->Insert({});
 
-    RowId row_id = TraceStorage::CreateRowId(TableId::kTrack,
-                                             *chrome_global_instant_track_id_);
-    context_->args_tracker->AddArg(row_id, source_key_, source_key_,
-                                   Variadic::String(chrome_source_));
+    context_->args_tracker->AddArg(
+        TableId::kTrack, *chrome_global_instant_track_id_, source_key_,
+        source_key_, Variadic::String(chrome_source_));
   }
   return *chrome_global_instant_track_id_;
 }
@@ -243,11 +235,8 @@ TrackId TrackTracker::UpdateDescriptorTrack(uint64_t uuid,
           });
       if (descriptor_it == descriptor_tracks_.end()) {
         descriptor_tracks_[uuid] = candidate_track_id;
-
-        RowId row_id =
-            TraceStorage::CreateRowId(TableId::kTrack, candidate_track_id);
         context_->args_tracker->AddArg(
-            row_id, source_id_key_, source_id_key_,
+            TableId::kTrack, candidate_track_id, source_id_key_, source_id_key_,
             Variadic::Integer(static_cast<int64_t>(uuid)));
 
         return candidate_track_id;
@@ -275,12 +264,11 @@ TrackId TrackTracker::UpdateDescriptorTrack(uint64_t uuid,
 
   descriptor_tracks_[uuid] = track_id;
 
-  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, track_id);
-  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
-                                 Variadic::String(descriptor_source_));
-  context_->args_tracker->AddArg(row_id, source_id_key_, source_id_key_,
-                                 Variadic::Integer(static_cast<int64_t>(uuid)));
-
+  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
+                                      TableId::kTrack, track_id);
+  inserter.AddArg(source_key_, Variadic::String(descriptor_source_));
+  inserter.AddArg(source_id_key_,
+                  Variadic::Integer(static_cast<int64_t>(uuid)));
   return track_id;
 }
 
@@ -303,8 +291,8 @@ TrackId TrackTracker::GetOrCreateDescriptorTrackForThread(UniqueTid utid) {
       context_->storage->mutable_thread_track_table()->Insert(row);
   descriptor_tracks_by_utid_[utid] = track_id;
 
-  RowId row_id = TraceStorage::CreateRowId(TableId::kTrack, track_id);
-  context_->args_tracker->AddArg(row_id, source_key_, source_key_,
+  context_->args_tracker->AddArg(TableId::kTrack, track_id, source_key_,
+                                 source_key_,
                                  Variadic::String(descriptor_source_));
   return track_id;
 }

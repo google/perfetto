@@ -292,19 +292,18 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
     }
   }
 
-  auto args_callback = [this, &event](ArgsTracker* args_tracker, RowId row_id) {
+  auto args_callback = [this, &event](ArgsTracker::BoundInserter* inserter) {
     auto description =
         gpu_render_stage_ids_[static_cast<size_t>(event.stage_id())].second;
     if (description != kNullStringId) {
-      args_tracker->AddArg(row_id, description_id_, description_id_,
-                           Variadic::String(description));
+      inserter->AddArg(description_id_, Variadic::String(description));
     }
     for (auto it = event.extra_data(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
       StringId name_id = context_->storage->InternString(datum.name());
       StringId value = context_->storage->InternString(
           datum.has_value() ? datum.value() : base::StringView());
-      args_tracker->AddArg(row_id, name_id, name_id, Variadic::String(value));
+      inserter->AddArg(name_id, Variadic::String(value));
     }
   };
 
@@ -388,16 +387,17 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   track.scope = graphics_event_scope_id_;
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
-  const auto slice_id = context_->slice_tracker->Scoped(
-      timestamp, track_id, 0 /* cat */, event_name_id, duration,
-      [this, layer_name_id](ArgsTracker* args_tracker, RowId row_id) {
-        args_tracker->AddArg(row_id, layer_name_key_id_, layer_name_key_id_,
-                             Variadic::String(layer_name_id));
-      });
+  auto scoped_callback = [this,
+                          layer_name_id](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));
+  };
+  auto opt_slice_id =
+      context_->slice_tracker->Scoped(timestamp, track_id, 0 /* cat */,
+                                      event_name_id, duration, scoped_callback);
 
-  if (slice_id) {
+  if (opt_slice_id) {
     tables::GpuSliceTable::Row row;
-    row.slice_id = slice_id.value();
+    row.slice_id = opt_slice_id.value();
     row.frame_id = frame_number;
     context_->storage->mutable_gpu_slice_table()->Insert(row);
   }
@@ -433,14 +433,15 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
       if (previous_timestamp_ != 0) {
         StringId present_frame_layer_name_id = context_->storage->InternString(
             present_frame_layer_name_.GetStringView());
+        auto args_callback = [this, present_frame_layer_name_id](
+                                 ArgsTracker::BoundInserter* inserter) {
+          inserter->AddArg(layer_name_key_id_,
+                           Variadic::String(present_frame_layer_name_id));
+        };
         // End the current slice that's being tracked.
-        const auto present_slice_id_end = context_->slice_tracker->End(
-            timestamp, present_track_id_, 0, present_event_name_id_,
-            [this, present_frame_layer_name_id](ArgsTracker* args_tracker,
-                                                RowId row_id) {
-              args_tracker->AddArg(row_id, layer_name_key_id_, layer_name_key_id_,
-                                  Variadic::String(present_frame_layer_name_id));
-            });
+        const auto present_slice_id_end =
+            context_->slice_tracker->End(timestamp, present_track_id_, 0,
+                                         present_event_name_id_, args_callback);
 
         if (present_slice_id_end) {
           // The slice could have had additional buffers in it, so we need to
@@ -619,13 +620,13 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
   UpdateVulkanMemoryAllocationCounters(vulkan_memory_event_row.upid.value(),
                                        vulkan_memory_event);
 
-  auto row_id =
+  uint32_t row =
       context_->storage->mutable_vulkan_memory_allocations_table()->Insert(
           vulkan_memory_event_row);
 
   if (vulkan_memory_event.has_annotations()) {
-    auto global_row_id =
-        TraceStorage::CreateRowId(TableId::kVulkanMemoryAllocation, row_id);
+    ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
+                                        TableId::kVulkanMemoryAllocation, row);
 
     for (auto it = vulkan_memory_event.annotations(); it; ++it) {
       protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(*it);
@@ -637,13 +638,9 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
                   static_cast<uint64_t>(annotation.key_iid()));
 
       if (annotation.has_int_value()) {
-        context_->args_tracker->AddArg(
-            global_row_id, key_id, key_id,
-            Variadic::Integer(annotation.int_value()));
+        inserter.AddArg(key_id, Variadic::Integer(annotation.int_value()));
       } else if (annotation.has_double_value()) {
-        context_->args_tracker->AddArg(
-            global_row_id, key_id, key_id,
-            Variadic::Real(annotation.double_value()));
+        inserter.AddArg(key_id, Variadic::Real(annotation.double_value()));
       } else if (annotation.has_string_iid()) {
         auto string_id =
             vulkan_memory_tracker_
@@ -651,8 +648,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
                     sequence_state, sequence_state_generation,
                     static_cast<uint64_t>(annotation.string_iid()));
 
-        context_->args_tracker->AddArg(global_row_id, key_id, key_id,
-                                       Variadic::String(string_id.id));
+        inserter.AddArg(key_id, Variadic::String(string_id.id));
       }
     }
   }
@@ -665,16 +661,16 @@ void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
   track.scope = gpu_log_scope_id_;
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
-  auto args_callback = [this, &event](ArgsTracker* args_tracker, RowId row_id) {
+  auto args_callback = [this, &event](ArgsTracker::BoundInserter* inserter) {
     if (event.has_tag()) {
-      args_tracker->AddArg(
-          row_id, tag_id_, tag_id_,
+      inserter->AddArg(
+          tag_id_,
           Variadic::String(context_->storage->InternString(event.tag())));
     }
     if (event.has_log_message()) {
-      args_tracker->AddArg(row_id, log_message_id_, log_message_id_,
-                           Variadic::String(context_->storage->InternString(
-                               event.log_message())));
+      inserter->AddArg(log_message_id_,
+                       Variadic::String(context_->storage->InternString(
+                           event.log_message())));
     }
   };
 

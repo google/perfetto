@@ -33,9 +33,6 @@ TsEndAccessor::TsEndAccessor(const std::deque<int64_t>* ts,
     : ts_(ts), dur_(dur) {}
 TsEndAccessor::~TsEndAccessor() = default;
 
-RowIdAccessor::RowIdAccessor(TableId table_id) : table_id_(table_id) {}
-RowIdAccessor::~RowIdAccessor() = default;
-
 RowAccessor::RowAccessor() = default;
 RowAccessor::~RowAccessor() = default;
 

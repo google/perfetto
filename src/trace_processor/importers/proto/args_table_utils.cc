@@ -27,11 +27,9 @@ namespace trace_processor {
 ProtoToArgsTable::ProtoToArgsTable(PacketSequenceState* sequence_state,
                                    size_t sequence_state_generation,
                                    TraceProcessorContext* context,
-                                   ArgsTracker* args_tracker,
                                    std::string starting_prefix,
                                    size_t prefix_size_hint)
-    : state_{args_tracker ? args_tracker : context->args_tracker.get(), context,
-             sequence_state, sequence_state_generation, RowId(0)},
+    : state_{context, sequence_state, sequence_state_generation},
       prefix_(std::move(starting_prefix)) {
   prefix_.reserve(prefix_size_hint);
 }
@@ -46,15 +44,14 @@ util::Status ProtoToArgsTable::AddProtoFileDescriptor(
 util::Status ProtoToArgsTable::InternProtoIntoArgsTable(
     const protozero::ConstBytes& cb,
     const std::string& type,
-    RowId row) {
-  state_.row_id = row;
-  return InternProtoIntoArgsTableInternal(cb, type, row, &prefix_);
+    ArgsTracker::BoundInserter* inserter) {
+  return InternProtoIntoArgsTableInternal(cb, type, inserter, &prefix_);
 }
 
 util::Status ProtoToArgsTable::InternProtoIntoArgsTableInternal(
     const protozero::ConstBytes& cb,
     const std::string& type,
-    RowId row,
+    ArgsTracker::BoundInserter* inserter,
     std::string* prefix) {
   // Given |type| field the proto descriptor for this proto message.
   auto opt_proto_descriptor_idx = pool_.FindDescriptorIdx(type);
@@ -86,7 +83,7 @@ util::Status ProtoToArgsTable::InternProtoIntoArgsTableInternal(
     // next loop.
     auto it = FindOverride(*prefix);
     if (it != overrides_.end()) {
-      if (it->second(state_, field)) {
+      if (it->second(state_, field, inserter)) {
         continue;
       }
     }
@@ -97,15 +94,15 @@ util::Status ProtoToArgsTable::InternProtoIntoArgsTableInternal(
     if (field_descriptor.type() ==
         protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
       auto status = InternProtoIntoArgsTableInternal(
-          field.as_bytes(), field_descriptor.resolved_type_name(), row, prefix);
+          field.as_bytes(), field_descriptor.resolved_type_name(), inserter,
+          prefix);
       if (!status.ok()) {
         return status;
       }
     } else {
       const StringId id =
           state_.context->storage->InternString(base::StringView(*prefix));
-      state_.args_tracker->AddArg(
-          row, id, id, ConvertProtoTypeToVariadic(field_descriptor, field));
+      inserter->AddArg(id, ConvertProtoTypeToVariadic(field_descriptor, field));
     }
   }
   PERFETTO_DCHECK(decoder.bytes_left() == 0);

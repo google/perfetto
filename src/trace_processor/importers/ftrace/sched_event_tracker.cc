@@ -195,24 +195,27 @@ size_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
                                                    int32_t next_prio) {
   // Push the raw event - this is done as the raw ftrace event codepath does
   // not insert sched_switch.
-  auto rid = context_->storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = context_->storage->mutable_raw_events()->AddRawEvent(
       ts, sched_switch_id_, cpu, prev_utid);
 
   // Note: this ordering is important. The events should be pushed in the same
   // order as the order of fields in the proto; this is used by the raw table to
   // index these events using the field ids.
   using SS = protos::pbzero::SchedSwitchFtraceEvent;
-  auto add_raw_arg = [this](RowId row_id, int field_num, Variadic var) {
+
+  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
+                                      TableId::kRawEvents, row);
+  auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
     StringId key = sched_switch_field_ids_[static_cast<size_t>(field_num)];
-    context_->args_tracker->AddArg(row_id, key, key, var);
+    inserter.AddArg(key, var);
   };
-  add_raw_arg(rid, SS::kPrevCommFieldNumber, Variadic::String(prev_comm_id));
-  add_raw_arg(rid, SS::kPrevPidFieldNumber, Variadic::Integer(prev_pid));
-  add_raw_arg(rid, SS::kPrevPrioFieldNumber, Variadic::Integer(prev_prio));
-  add_raw_arg(rid, SS::kPrevStateFieldNumber, Variadic::Integer(prev_state));
-  add_raw_arg(rid, SS::kNextCommFieldNumber, Variadic::String(next_comm_id));
-  add_raw_arg(rid, SS::kNextPidFieldNumber, Variadic::Integer(next_pid));
-  add_raw_arg(rid, SS::kNextPrioFieldNumber, Variadic::Integer(next_prio));
+  add_raw_arg(SS::kPrevCommFieldNumber, Variadic::String(prev_comm_id));
+  add_raw_arg(SS::kPrevPidFieldNumber, Variadic::Integer(prev_pid));
+  add_raw_arg(SS::kPrevPrioFieldNumber, Variadic::Integer(prev_prio));
+  add_raw_arg(SS::kPrevStateFieldNumber, Variadic::Integer(prev_state));
+  add_raw_arg(SS::kNextCommFieldNumber, Variadic::String(next_comm_id));
+  add_raw_arg(SS::kNextPidFieldNumber, Variadic::Integer(next_pid));
+  add_raw_arg(SS::kNextPrioFieldNumber, Variadic::Integer(next_prio));
 
   // Open a new scheduling slice, corresponding to the task that was
   // just switched to.
@@ -271,23 +274,22 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   auto curr_utid = pending_sched->last_utid;
 
   // Add an entry to the raw table.
-  auto rid = context_->storage->mutable_raw_events()->AddRawEvent(
+  uint32_t row = context_->storage->mutable_raw_events()->AddRawEvent(
       ts, sched_waking_id_, cpu, curr_utid);
 
   // "success" is hardcoded as always 1 by the kernel, with a TODO to remove it.
   static constexpr int32_t kHardcodedSuccess = 1;
 
   using SW = protos::pbzero::SchedWakingFtraceEvent;
-  auto add_raw_arg = [this](RowId row_id, int field_num, Variadic var) {
+  auto add_raw_arg = [this, row](int field_num, Variadic var) {
     StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
-    context_->args_tracker->AddArg(row_id, key, key, var);
+    context_->args_tracker->AddArg(TableId::kRawEvents, row, key, key, var);
   };
-  add_raw_arg(rid, SW::kCommFieldNumber, Variadic::String(comm_id));
-  add_raw_arg(rid, SW::kPidFieldNumber, Variadic::Integer(wakee_pid));
-  add_raw_arg(rid, SW::kPrioFieldNumber, Variadic::Integer(prio));
-  add_raw_arg(rid, SW::kSuccessFieldNumber,
-              Variadic::Integer(kHardcodedSuccess));
-  add_raw_arg(rid, SW::kTargetCpuFieldNumber, Variadic::Integer(target_cpu));
+  add_raw_arg(SW::kCommFieldNumber, Variadic::String(comm_id));
+  add_raw_arg(SW::kPidFieldNumber, Variadic::Integer(wakee_pid));
+  add_raw_arg(SW::kPrioFieldNumber, Variadic::Integer(prio));
+  add_raw_arg(SW::kSuccessFieldNumber, Variadic::Integer(kHardcodedSuccess));
+  add_raw_arg(SW::kTargetCpuFieldNumber, Variadic::Integer(target_cpu));
 
   // Add a waking entry to the instants.
   auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);

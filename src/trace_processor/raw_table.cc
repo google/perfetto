@@ -68,7 +68,7 @@ void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
 StorageSchema RawTable::CreateStorageSchema() {
   const auto& raw = storage_->raw_events();
   return StorageSchema::Builder()
-      .AddGenericNumericColumn("id", RowIdAccessor(TableId::kRawEvents))
+      .AddGenericNumericColumn("id", RowAccessor())
       .AddOrderedNumericColumn("ts", &raw.timestamps())
       .AddStringColumn("name", &raw.name_ids(), &storage_->string_pool())
       .AddNumericColumn("cpu", &raw.cpus())
@@ -376,11 +376,7 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
     sqlite3_result_error(ctx, "Usage: to_ftrace(id)", -1);
     return;
   }
-  RowId row_id = sqlite3_value_int64(argv[0]);
-  auto pair = TraceStorage::ParseRowId(row_id);
-  PERFETTO_DCHECK(pair.first == TableId::kRawEvents);
-  auto row = pair.second;
-
+  uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
   const auto& raw_evts = storage_->raw_events();
 
   UniqueTid utid = raw_evts.utids()[row];
