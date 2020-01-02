@@ -279,7 +279,7 @@ message TrackEvent {
 // is cleared. It's defined here because field IDs should match those of the
 // corresponding fields in TrackEvent.
 message TrackEventDefaults {
-  optional uint64 track_uuid = 10;
+  optional uint64 track_uuid = 11;
 
   // TODO(eseckler): Support default values for more TrackEvent fields.
 }
