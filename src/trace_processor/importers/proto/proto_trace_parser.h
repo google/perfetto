@@ -63,13 +63,10 @@ class ProtoTraceParser : public TraceParser {
 
   void ParseTraceStats(ConstBytes);
   void ParseProfilePacket(int64_t ts,
-                          PacketSequenceState*,
-                          size_t sequence_state_generation,
+                          PacketSequenceStateGeneration*,
                           uint32_t seq_id,
                           ConstBytes);
-  void ParseStreamingProfilePacket(PacketSequenceState*,
-                                   size_t sequence_state_generation,
-                                   ConstBytes);
+  void ParseStreamingProfilePacket(PacketSequenceStateGeneration*, ConstBytes);
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);

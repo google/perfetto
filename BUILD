@@ -914,6 +914,7 @@ filegroup(
         "src/trace_processor/importers/proto/args_table_utils.cc",
         "src/trace_processor/importers/proto/args_table_utils.h",
         "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h",
+        "src/trace_processor/importers/proto/packet_sequence_state.cc",
         "src/trace_processor/importers/proto/packet_sequence_state.h",
         "src/trace_processor/importers/proto/proto_importer_module.cc",
         "src/trace_processor/importers/proto/proto_importer_module.h",

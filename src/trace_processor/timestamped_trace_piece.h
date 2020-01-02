@@ -63,18 +63,15 @@ struct InlineSchedWaking {
 struct TracePacketData {
   TraceBlobView packet;
 
-  // TODO(eseckler): Refactor this into a single pointer to a PSSGeneration.
-  PacketSequenceState* packet_sequence_state;
-  size_t packet_sequence_state_generation;
+  PacketSequenceStateGeneration* sequence_state;
 };
 
 struct TrackEventData : public TracePacketData {
   TrackEventData(TraceBlobView pv,
-                 PacketSequenceState* pss,
-                 size_t pss_generation,
+                 PacketSequenceStateGeneration* generation,
                  int64_t thread_ts,
                  int64_t thread_ic)
-      : TracePacketData{std::move(pv), pss, pss_generation},
+      : TracePacketData{std::move(pv), generation},
         thread_timestamp(thread_ts),
         thread_instruction_count(thread_ic) {}
 
@@ -99,9 +96,8 @@ struct TimestampedTracePiece {
   TimestampedTracePiece(int64_t ts,
                         uint64_t idx,
                         TraceBlobView tbv,
-                        PacketSequenceState* sequence_state)
-      : packet_data{std::move(tbv), sequence_state,
-                    sequence_state ? sequence_state->current_generation() : 0},
+                        PacketSequenceStateGeneration* sequence_state)
+      : packet_data{std::move(tbv), sequence_state},
         timestamp(ts),
         packet_idx(idx),
         type(Type::kTracePacket) {}

@@ -69,9 +69,7 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
     parser_.ParseTrackEvent(
         ttp.timestamp, ttp.track_event_data->thread_timestamp,
         ttp.track_event_data->thread_instruction_count,
-        ttp.track_event_data->packet_sequence_state,
-        ttp.track_event_data->packet_sequence_state_generation,
-        decoder.track_event());
+        ttp.track_event_data->sequence_state, decoder.track_event());
   }
 }
 

@@ -65,8 +65,7 @@ bool MaybeParseSourceLocation(
     ArgsTracker::BoundInserter* inserter) {
   auto* decoder = state.sequence_state->LookupInternedMessage<
       protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-      protos::pbzero::SourceLocation>(state.sequence_generation,
-                                      field.as_uint64());
+      protos::pbzero::SourceLocation>(field.as_uint64());
   if (!decoder) {
     // Lookup failed fall back on default behaviour which will just put
     // the source_location_iid into the args table.
@@ -194,17 +193,16 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
            context->storage->InternString("SUBRESOURCE_FILTER"),
            context->storage->InternString("UNFREEZABLE_FRAME")}} {}
 
-void TrackEventParser::ParseTrackEvent(int64_t ts,
-                                       int64_t tts,
-                                       int64_t ticount,
-                                       PacketSequenceState* sequence_state,
-                                       size_t sequence_state_generation,
-                                       ConstBytes blob) {
+void TrackEventParser::ParseTrackEvent(
+    int64_t ts,
+    int64_t tts,
+    int64_t ticount,
+    PacketSequenceStateGeneration* sequence_state,
+    ConstBytes blob) {
   using LegacyEvent = protos::pbzero::TrackEvent::LegacyEvent;
 
   protos::pbzero::TrackEventDefaults::Decoder* defaults = nullptr;
-  auto* packet_defaults_view =
-      sequence_state->GetTracePacketDefaultsView(sequence_state_generation);
+  auto* packet_defaults_view = sequence_state->GetTracePacketDefaultsView();
   if (packet_defaults_view) {
     auto* track_event_defaults_view =
         packet_defaults_view
@@ -252,8 +250,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
   if (PERFETTO_LIKELY(category_iids.size() == 1 && category_strings.empty())) {
     auto* decoder = sequence_state->LookupInternedMessage<
         protos::pbzero::InternedData::kEventCategoriesFieldNumber,
-        protos::pbzero::EventCategory>(sequence_state_generation,
-                                       category_iids[0]);
+        protos::pbzero::EventCategory>(category_iids[0]);
     if (decoder)
       category_id = storage->InternString(decoder->name());
   } else if (category_iids.empty() && category_strings.size() == 1) {
@@ -266,7 +263,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     for (uint64_t iid : category_iids) {
       auto* decoder = sequence_state->LookupInternedMessage<
           protos::pbzero::InternedData::kEventCategoriesFieldNumber,
-          protos::pbzero::EventCategory>(sequence_state_generation, iid);
+          protos::pbzero::EventCategory>(iid);
       if (!decoder)
         continue;
       base::StringView name = decoder->name();
@@ -292,7 +289,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
   if (PERFETTO_LIKELY(name_iid)) {
     auto* decoder = sequence_state->LookupInternedMessage<
         protos::pbzero::InternedData::kEventNamesFieldNumber,
-        protos::pbzero::EventName>(sequence_state_generation, name_iid);
+        protos::pbzero::EventName>(name_iid);
     if (decoder)
       name_id = storage->InternString(decoder->name());
   } else if (event.has_name()) {
@@ -337,11 +334,11 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       if (process_track_row)
         upid = storage->process_track_table().upid()[*process_track_row];
     }
-  } else if (sequence_state->pid_and_tid_valid() ||
+  } else if (sequence_state->state()->pid_and_tid_valid() ||
              (legacy_event.has_pid_override() &&
               legacy_event.has_tid_override())) {
-    uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
-    uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+    uint32_t pid = static_cast<uint32_t>(sequence_state->state()->pid());
+    uint32_t tid = static_cast<uint32_t>(sequence_state->state()->tid());
     if (legacy_event.has_pid_override())
       pid = static_cast<uint32_t>(legacy_event.pid_override());
     if (legacy_event.has_tid_override())
@@ -467,26 +464,21 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     }
   }
 
-  auto args_callback = [this, &event, &legacy_event, &sequence_state,
-                        sequence_state_generation, ts, utid,
+  auto args_callback = [this, &event, &legacy_event, sequence_state, ts, utid,
                         legacy_tid](ArgsTracker::BoundInserter* inserter) {
     for (auto it = event.debug_annotations(); it; ++it) {
-      ParseDebugAnnotationArgs(*it, sequence_state, sequence_state_generation,
-                               inserter);
+      ParseDebugAnnotationArgs(*it, sequence_state, inserter);
     }
 
     if (event.has_task_execution()) {
-      ParseTaskExecutionArgs(event.task_execution(), sequence_state,
-                             sequence_state_generation, inserter);
+      ParseTaskExecutionArgs(event.task_execution(), sequence_state, inserter);
     }
 
     if (event.has_log_message()) {
-      ParseLogMessage(event.log_message(), sequence_state,
-                      sequence_state_generation, ts, utid, inserter);
+      ParseLogMessage(event.log_message(), sequence_state, ts, utid, inserter);
     }
     if (event.has_cc_scheduler_state()) {
-      ParseCcScheduler(event.cc_scheduler_state(), sequence_state,
-                       sequence_state_generation, inserter);
+      ParseCcScheduler(event.cc_scheduler_state(), sequence_state, inserter);
     }
     if (event.has_chrome_user_event()) {
       ParseChromeUserEvent(event.chrome_user_event(), inserter);
@@ -831,8 +823,7 @@ void TrackEventParser::ParseLegacyEventAsRawEvent(
 
 void TrackEventParser::ParseDebugAnnotationArgs(
     ConstBytes debug_annotation,
-    PacketSequenceState* sequence_state,
-    size_t sequence_state_generation,
+    PacketSequenceStateGeneration* sequence_state,
     ArgsTracker::BoundInserter* inserter) {
   TraceStorage* storage = context_->storage.get();
 
@@ -845,8 +836,7 @@ void TrackEventParser::ParseDebugAnnotationArgs(
   if (PERFETTO_LIKELY(name_iid)) {
     auto* decoder = sequence_state->LookupInternedMessage<
         protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
-        protos::pbzero::DebugAnnotationName>(sequence_state_generation,
-                                             name_iid);
+        protos::pbzero::DebugAnnotationName>(name_iid);
     if (!decoder)
       return;
 
@@ -942,8 +932,7 @@ void TrackEventParser::ParseNestedValueArgs(
 
 void TrackEventParser::ParseTaskExecutionArgs(
     ConstBytes task_execution,
-    PacketSequenceState* sequence_state,
-    size_t sequence_state_generation,
+    PacketSequenceStateGeneration* sequence_state,
     ArgsTracker::BoundInserter* inserter) {
   protos::pbzero::TaskExecution::Decoder task(task_execution.data,
                                               task_execution.size);
@@ -953,7 +942,7 @@ void TrackEventParser::ParseTaskExecutionArgs(
 
   auto* decoder = sequence_state->LookupInternedMessage<
       protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-      protos::pbzero::SourceLocation>(sequence_state_generation, iid);
+      protos::pbzero::SourceLocation>(iid);
   if (!decoder)
     return;
 
@@ -974,12 +963,12 @@ void TrackEventParser::ParseTaskExecutionArgs(
                    Variadic::UnsignedInteger(line_number));
 }
 
-void TrackEventParser::ParseLogMessage(ConstBytes blob,
-                                       PacketSequenceState* sequence_state,
-                                       size_t sequence_state_generation,
-                                       int64_t ts,
-                                       base::Optional<UniqueTid> utid,
-                                       ArgsTracker::BoundInserter* inserter) {
+void TrackEventParser::ParseLogMessage(
+    ConstBytes blob,
+    PacketSequenceStateGeneration* sequence_state,
+    int64_t ts,
+    base::Optional<UniqueTid> utid,
+    ArgsTracker::BoundInserter* inserter) {
   if (!utid) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("LogMessage without thread association");
@@ -994,8 +983,7 @@ void TrackEventParser::ParseLogMessage(ConstBytes blob,
 
   auto* decoder = sequence_state->LookupInternedMessage<
       protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
-      protos::pbzero::LogMessageBody>(sequence_state_generation,
-                                      message.body_iid());
+      protos::pbzero::LogMessageBody>(message.body_iid());
   if (!decoder)
     return;
 
@@ -1016,13 +1004,12 @@ void TrackEventParser::ParseLogMessage(ConstBytes blob,
 
 void TrackEventParser::ParseCcScheduler(
     ConstBytes cc,
-    PacketSequenceState* sequence_state,
-    size_t sequence_state_generation,
+    PacketSequenceStateGeneration* sequence_state,
     ArgsTracker::BoundInserter* outer_inserter) {
   // The 79 decides the initial amount of memory reserved in the prefix. This
   // was determined my manually counting the length of the longest column.
   constexpr size_t kCcSchedulerStateMaxColumnLength = 79;
-  ProtoToArgsTable helper(sequence_state, sequence_state_generation, context_,
+  ProtoToArgsTable helper(sequence_state, context_,
                           /* starting_prefix = */ "",
                           kCcSchedulerStateMaxColumnLength);
   auto status = helper.AddProtoFileDescriptor(

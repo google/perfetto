@@ -73,7 +73,8 @@ class TraceSorter {
     DCHECK_ftrace_batch_cpu(kNoBatch);
     auto* queue = GetQueue(0);
     queue->Append(TimestampedTracePiece(timestamp, packet_idx_++,
-                                        std::move(packet), state));
+                                        std::move(packet),
+                                        state->current_generation()));
     MaybeExtractEvents(queue);
   }
 
@@ -135,9 +136,9 @@ class TraceSorter {
                                    PacketSequenceState* state,
                                    TraceBlobView packet) {
     auto* queue = GetQueue(0);
-    std::unique_ptr<TrackEventData> data(new TrackEventData{
-        std::move(packet), state, state->current_generation(), thread_time,
-        thread_instruction_count});
+    std::unique_ptr<TrackEventData> data(
+        new TrackEventData{std::move(packet), state->current_generation(),
+                           thread_time, thread_instruction_count});
     queue->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(data)));
     MaybeExtractEvents(queue);

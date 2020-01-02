@@ -570,8 +570,7 @@ void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
 }
 
 void GraphicsEventParser::ParseVulkanMemoryEvent(
-    PacketSequenceState* sequence_state,
-    size_t sequence_state_generation,
+    PacketSequenceStateGeneration* sequence_state,
     ConstBytes blob) {
   using protos::pbzero::InternedData;
   VulkanMemoryEvent::Decoder vulkan_memory_event(blob.data, blob.size);
@@ -599,7 +598,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
     vulkan_memory_event_row.function_name =
         vulkan_memory_tracker_
             .GetInternedString<InternedData::kFunctionNamesFieldNumber>(
-                sequence_state, sequence_state_generation,
+                sequence_state,
                 static_cast<uint64_t>(vulkan_memory_event.caller_iid()));
   }
   if (vulkan_memory_event.has_object_handle())
@@ -634,8 +633,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
       auto key_id =
           vulkan_memory_tracker_
               .GetInternedString<InternedData::kVulkanMemoryKeysFieldNumber>(
-                  sequence_state, sequence_state_generation,
-                  static_cast<uint64_t>(annotation.key_iid()));
+                  sequence_state, static_cast<uint64_t>(annotation.key_iid()));
 
       if (annotation.has_int_value()) {
         inserter.AddArg(key_id, Variadic::Integer(annotation.int_value()));
@@ -645,7 +643,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
         auto string_id =
             vulkan_memory_tracker_
                 .GetInternedString<InternedData::kVulkanMemoryKeysFieldNumber>(
-                    sequence_state, sequence_state_generation,
+                    sequence_state,
                     static_cast<uint64_t>(annotation.string_iid()));
 
         inserter.AddArg(key_id, Variadic::String(string_id.id));

@@ -53,10 +53,8 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       return;
     case TracePacket::kVulkanMemoryEventFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      parser_.ParseVulkanMemoryEvent(
-          ttp.packet_data.packet_sequence_state,
-          ttp.packet_data.packet_sequence_state_generation,
-          decoder.vulkan_memory_event());
+      parser_.ParseVulkanMemoryEvent(ttp.packet_data.sequence_state,
+                                     decoder.vulkan_memory_event());
       return;
     case TracePacket::kVulkanApiEventFieldNumber:
       parser_.ParseVulkanApiEvent(decoder.vulkan_api_event());
