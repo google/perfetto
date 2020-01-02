@@ -108,7 +108,7 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
                        const HeapGraphWalker::PathFromRoot& path,
                        int32_t parent_id,
                        uint32_t depth,
-                       uint32_t mapping_id);
+                       uint32_t mapping_row);
 
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;

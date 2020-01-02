@@ -637,7 +637,7 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
       for (const int64_t frame_row : frame_rows) {
         PERFETTO_DCHECK(frame_row >= 0);
         context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
-            static_cast<size_t>(frame_row), symbol_set_id);
+            static_cast<uint32_t>(frame_row), symbol_set_id);
         frame_found = true;
       }
     }

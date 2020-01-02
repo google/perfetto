@@ -39,9 +39,9 @@ class EventTracker {
 
   // Adds a counter event to the counters table returning the index of the
   // newly added row.
-  virtual base::Optional<uint32_t> PushCounter(int64_t timestamp,
-                                               double value,
-                                               TrackId track_id);
+  virtual base::Optional<CounterId> PushCounter(int64_t timestamp,
+                                                double value,
+                                                TrackId track_id);
 
   // Adds a counter event to the counters table for counter events which
   // should be associated with a process but only have a thread context
@@ -49,7 +49,7 @@ class EventTracker {
   //
   // This function will resolve the utid to a upid when the events are
   // flushed (see |FlushPendingEvents()|).
-  virtual base::Optional<uint32_t> PushProcessCounterForThread(
+  virtual base::Optional<CounterId> PushProcessCounterForThread(
       int64_t timestamp,
       double value,
       StringId name_id,

@@ -478,10 +478,10 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
 void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
     UniquePid upid,
     const VulkanMemoryEvent::Decoder& event) {
-  StringId track_id = kNullStringId;
-  TrackId track = UINT32_MAX;
+  StringId track_str_id = kNullStringId;
+  TrackId track = kInvalidTrackId;
   auto allocation_scope = VulkanMemoryEvent::SCOPE_UNSPECIFIED;
-  uint32_t memory_type = UINT32_MAX;
+  uint32_t memory_type = std::numeric_limits<uint32_t>::max();
   switch (event.source()) {
     case VulkanMemoryEvent::SOURCE_DRIVER:
       allocation_scope = static_cast<VulkanMemoryEvent::AllocationScope>(
@@ -501,10 +501,10 @@ void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
         case VulkanMemoryEvent::OP_ANNOTATIONS:
           return;
       }
-      track_id = vulkan_memory_tracker_.FindAllocationScopeCounterString(
+      track_str_id = vulkan_memory_tracker_.FindAllocationScopeCounterString(
           allocation_scope);
-      track =
-          context_->track_tracker->InternProcessCounterTrack(track_id, upid);
+      track = context_->track_tracker->InternProcessCounterTrack(track_str_id,
+                                                                 upid);
       context_->event_tracker->PushCounter(
           event.timestamp(), vulkan_driver_memory_counters_[allocation_scope],
           track);
@@ -527,11 +527,11 @@ void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
         case VulkanMemoryEvent::OP_ANNOTATIONS:
           return;
       }
-      track_id = vulkan_memory_tracker_.FindMemoryTypeCounterString(
+      track_str_id = vulkan_memory_tracker_.FindMemoryTypeCounterString(
           memory_type,
           VulkanMemoryTracker::DeviceCounterType::kAllocationCounter);
-      track =
-          context_->track_tracker->InternProcessCounterTrack(track_id, upid);
+      track = context_->track_tracker->InternProcessCounterTrack(track_str_id,
+                                                                 upid);
       context_->event_tracker->PushCounter(
           event.timestamp(),
           vulkan_device_memory_counters_allocate_[memory_type], track);
@@ -555,10 +555,10 @@ void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
         case VulkanMemoryEvent::OP_ANNOTATIONS:
           return;
       }
-      track_id = vulkan_memory_tracker_.FindMemoryTypeCounterString(
+      track_str_id = vulkan_memory_tracker_.FindMemoryTypeCounterString(
           memory_type, VulkanMemoryTracker::DeviceCounterType::kBindCounter);
-      track =
-          context_->track_tracker->InternProcessCounterTrack(track_id, upid);
+      track = context_->track_tracker->InternProcessCounterTrack(track_str_id,
+                                                                 upid);
       context_->event_tracker->PushCounter(
           event.timestamp(), vulkan_device_memory_counters_bind_[memory_type],
           track);
@@ -620,9 +620,9 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
   UpdateVulkanMemoryAllocationCounters(vulkan_memory_event_row.upid.value(),
                                        vulkan_memory_event);
 
-  uint32_t row =
-      context_->storage->mutable_vulkan_memory_allocations_table()->Insert(
-          vulkan_memory_event_row);
+  auto* allocs = context_->storage->mutable_vulkan_memory_allocations_table();
+  auto id = allocs->Insert(vulkan_memory_event_row);
+  uint32_t row = *allocs->id().IndexOf(id);
 
   if (vulkan_memory_event.has_annotations()) {
     ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),

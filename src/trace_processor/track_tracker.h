@@ -136,7 +136,7 @@ class TrackTracker {
     }
   };
 
-  static constexpr TrackId kDefaultDescriptorTrackUuid = 0u;
+  static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
   std::map<UniqueTid /* utid */, TrackId> thread_tracks_;
   std::map<int64_t /* correlation_id */, TrackId> fuchsia_async_tracks_;
