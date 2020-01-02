@@ -187,15 +187,18 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
   }
 
+  auto* mapping_table =
+      context_->storage->mutable_stack_profile_mapping_table();
+
   tables::StackProfileMappingTable::Row mapping_row{};
   mapping_row.name = context_->storage->InternString("JAVA");
-  uint32_t mapping_id =
-      context_->storage->mutable_stack_profile_mapping_table()->Insert(
-          mapping_row);
+  MappingId mapping_id = mapping_table->Insert(mapping_row);
+
+  uint32_t mapping_idx = *mapping_table->id().IndexOf(mapping_id);
 
   auto paths = sequence_state.walker.FindPathsFromRoot();
   for (const auto& p : paths.children)
-    WriteFlamegraph(sequence_state, p.second, -1, 0, mapping_id);
+    WriteFlamegraph(sequence_state, p.second, -1, 0, mapping_idx);
 
   sequence_state_.erase(seq_id);
 }
@@ -205,16 +208,16 @@ void HeapGraphTracker::WriteFlamegraph(
     const HeapGraphWalker::PathFromRoot& path,
     int32_t parent_id,
     uint32_t depth,
-    uint32_t mapping_id) {
+    uint32_t mapping_row) {
   TraceStorage::StackProfileFrames::Row row{};
   row.name_id = StringId(static_cast<uint32_t>(path.class_name));
-  row.mapping_row = mapping_id;
+  row.mapping_row = mapping_row;
   int32_t frame_id = static_cast<int32_t>(
       context_->storage->mutable_stack_profile_frames()->Insert(row));
 
-  parent_id = static_cast<int32_t>(
-      context_->storage->mutable_stack_profile_callsite_table()->Insert(
-          {depth, parent_id, frame_id}));
+  auto* callsites = context_->storage->mutable_stack_profile_callsite_table();
+  auto callsite_id = callsites->Insert({depth, parent_id, frame_id});
+  parent_id = static_cast<int32_t>(callsite_id.value);
   depth++;
 
   tables::HeapProfileAllocationTable::Row alloc_row{
@@ -224,7 +227,7 @@ void HeapGraphTracker::WriteFlamegraph(
   context_->storage->mutable_heap_profile_allocation_table()->Insert(alloc_row);
   for (const auto& p : path.children) {
     const HeapGraphWalker::PathFromRoot& child = p.second;
-    WriteFlamegraph(sequence_state, child, parent_id, depth, mapping_id);
+    WriteFlamegraph(sequence_state, child, parent_id, depth, mapping_row);
   }
 }
 

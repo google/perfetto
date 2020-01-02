@@ -325,15 +325,13 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     track_id = *opt_track_id;
 
     auto thread_track_row =
-        context_->storage->thread_track_table().id().IndexOf(
-            SqlValue::Long(track_id));
+        context_->storage->thread_track_table().id().IndexOf(track_id);
     if (thread_track_row) {
       utid = storage->thread_track_table().utid()[*thread_track_row];
       upid = storage->GetThread(*utid).upid;
     } else {
       auto process_track_row =
-          context_->storage->process_track_table().id().IndexOf(
-              SqlValue::Long(track_id));
+          context_->storage->process_track_table().id().IndexOf(track_id);
       if (process_track_row)
         upid = storage->process_track_table().upid()[*process_track_row];
     }

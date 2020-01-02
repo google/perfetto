@@ -63,7 +63,7 @@ class SyscallTrackerTest : public ::testing::Test {
 };
 
 TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
-  constexpr TrackId track = 0u;
+  constexpr TrackId track{0u};
   StringId begin_name = 0;
   StringId end_name = 0;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
@@ -89,7 +89,7 @@ TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
 }
 
 TEST_F(SyscallTrackerTest, Aarch64) {
-  constexpr TrackId track = 0u;
+  constexpr TrackId track{0u};
   StringId begin_name = 0;
   StringId end_name = 0;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
@@ -106,7 +106,7 @@ TEST_F(SyscallTrackerTest, Aarch64) {
 }
 
 TEST_F(SyscallTrackerTest, x8664) {
-  constexpr TrackId track = 0u;
+  constexpr TrackId track{0u};
   StringId begin_name = 0;
   StringId end_name = 0;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))

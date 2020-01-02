@@ -43,6 +43,30 @@ class RootParentTable : public Table {
   uint32_t Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
 };
 
+// IdHelper is used to figure out the Id type for a table.
+//
+// We do this using templates with the following algorithm:
+// 1. If the parent class is anything but RootParentTable, the Id of the
+//    table is the same as the Id of the parent.
+// 2. If the parent class is RootParentTable (i.e. the table is a root
+//    table), then the Id is the one defined in the table itself.
+// The net result of this is that all tables in the hierarchy get the
+// same type of Id - the one defined in the root table of that hierarchy.
+//
+// Reasoning: We do this because using uint32_t is very overloaded and
+// having a wrapper type for ids is very helpful to avoid confusion with
+// row indices (especially because ids and row indices often appear in
+// similar places in the codebase - that is at insertion in parsers and
+// in trackers).
+template <typename ParentClass, typename Class>
+struct IdHelper {
+  using Id = typename ParentClass::Id;
+};
+template <typename Class>
+struct IdHelper<RootParentTable, Class> {
+  using Id = typename Class::DefinedId;
+};
+
 // The parent class for all macro generated tables.
 // This class is used to extract common code from the macro tables to reduce
 // code size.
@@ -218,7 +242,35 @@ class MacroTable : public Table {
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
                                    DEF)                                       \
   class class_name : public macros_internal::MacroTable {                     \
+   private:                                                                   \
+    /*                                                                        \
+     * Allows IdHelper to access DefinedId for root tables.                   \
+     * Needs to be defined here to allow the public using declaration of Id   \
+     * below to work correctly.                                               \
+     */                                                                       \
+    friend struct macros_internal::IdHelper<parent_class_name, class_name>;   \
+                                                                              \
+    /*                                                                        \
+     * Defines a new id type for a heirarchy of tables.                       \
+     * We define it here as we need this type to be visible for the public    \
+     * using declaration of Id below.                                         \
+     * Note: This type will only used if this table is a root table.          \
+     */                                                                       \
+    struct DefinedId {                                                        \
+      DefinedId() = default;                                                  \
+      explicit constexpr DefinedId(uint32_t v) : value(v) {}                  \
+                                                                              \
+      bool operator==(const DefinedId& o) const { return o.value == value; }  \
+                                                                              \
+      uint32_t value;                                                         \
+    };                                                                        \
+                                                                              \
    public:                                                                    \
+    /*                                                                        \
+     * This defines the type of the id to be the type of the root table of    \
+     * the hierarchy - see IdHelper for more details.                         \
+     */                                                                       \
+    using Id = macros_internal::IdHelper<parent_class_name, class_name>::Id;  \
     struct Row : parent_class_name::Row {                                     \
       /*                                                                      \
        * Expands to Row(col_type1 col1_c, base::Optional<col_type2> col2_c,   \
@@ -231,7 +283,8 @@ class MacroTable : public Table {
                 PERFETTO_TP_PARENT_ROW_CONSTRUCTOR) nullptr) {                \
         type_ = table_name;                                                   \
                                                                               \
-        /* Expands to                                                         \
+        /*                                                                    \
+         * Expands to                                                         \
          * col1 = col1_c;                                                     \
          * col2 = col2_c;                                                     \
          * ...                                                                \
@@ -243,7 +296,8 @@ class MacroTable : public Table {
         return PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_EQUALS) true;   \
       }                                                                       \
                                                                               \
-      /* Expands to                                                           \
+      /*                                                                      \
+       * Expands to                                                           \
        * col_type1 col1 = {};                                                 \
        * base::Optional<col_type2> col2 = {};                                 \
        * ...                                                                  \
@@ -254,7 +308,8 @@ class MacroTable : public Table {
     class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
-      /* Expands to                                                           \
+      /*                                                                      \
+       * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
        *                        columns_.size(), row_maps_.size() - 1);       \
        * columns_.emplace_back("col2", col2_, Column::kNoFlag, this,          \
@@ -264,17 +319,18 @@ class MacroTable : public Table {
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
                                                                               \
-    uint32_t Insert(const Row& row) {                                         \
-      uint32_t id;                                                            \
+    Id Insert(const Row& row) {                                               \
+      Id id;                                                                  \
       if (parent_ == nullptr) {                                               \
-        id = row_count();                                                     \
+        id = Id{row_count()};                                                 \
         type_.Append(string_pool_->InternString(row.type()));                 \
       } else {                                                                \
-        id = parent_->Insert(row);                                            \
+        id = Id{parent_->Insert(row)};                                        \
       }                                                                       \
       UpdateRowMapsAfterParentInsert();                                       \
                                                                               \
-      /* Expands to                                                           \
+      /*                                                                      \
+       * Expands to                                                           \
        * col1_.Append(row.col1);                                              \
        * col2_.Append(row.col2);                                              \
        * ...                                                                  \
@@ -283,8 +339,8 @@ class MacroTable : public Table {
       return id;                                                              \
     }                                                                         \
                                                                               \
-    const IdColumn& id() const {                                              \
-      return static_cast<const IdColumn&>(                                    \
+    const IdColumn<Id>& id() const {                                          \
+      return static_cast<const IdColumn<Id>&>(                                \
           columns_[static_cast<uint32_t>(ColumnIndex::id)]);                  \
     }                                                                         \
                                                                               \
@@ -293,7 +349,8 @@ class MacroTable : public Table {
           columns_[static_cast<uint32_t>(ColumnIndex::type)]);                \
     }                                                                         \
                                                                               \
-    /* Expands to                                                             \
+    /*                                                                        \
+     * Expands to                                                             \
      * const TypedColumn<col1_type>& col1() { return col1_; }                 \
      * TypedColumn<col1_type>* mutable_col1() { return &col1_; }              \
      * const TypedColumn<col2_type>& col2() { return col2_; }                 \
@@ -311,7 +368,8 @@ class MacroTable : public Table {
                                                                               \
     parent_class_name* parent_;                                               \
                                                                               \
-    /* Expands to                                                             \
+    /*                                                                        \
+     * Expands to                                                             \
      * SparseVector<col1_type> col1_;                                         \
      * SparseVector<col2_type> col2_;                                         \
      * ...                                                                    \
