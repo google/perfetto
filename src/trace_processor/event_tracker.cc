@@ -35,25 +35,25 @@ EventTracker::EventTracker(TraceProcessorContext* context)
 
 EventTracker::~EventTracker() = default;
 
-base::Optional<uint32_t> EventTracker::PushProcessCounterForThread(
+base::Optional<CounterId> EventTracker::PushProcessCounterForThread(
     int64_t timestamp,
     double value,
     StringId name_id,
     UniqueTid utid) {
-  auto opt_row = PushCounter(timestamp, value, kInvalidTrackId);
-  if (opt_row) {
+  auto opt_id = PushCounter(timestamp, value, kInvalidTrackId);
+  if (opt_id) {
     PendingUpidResolutionCounter pending;
-    pending.row = *opt_row;
+    pending.row = *context_->storage->counter_table().id().IndexOf(*opt_id);
     pending.utid = utid;
     pending.name_id = name_id;
     pending_upid_resolution_counter_.emplace_back(pending);
   }
-  return opt_row;
+  return opt_id;
 }
 
-base::Optional<uint32_t> EventTracker::PushCounter(int64_t timestamp,
-                                                   double value,
-                                                   TrackId track_id) {
+base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
+                                                    double value,
+                                                    TrackId track_id) {
   if (timestamp < max_timestamp_) {
     PERFETTO_DLOG("counter event (ts: %" PRId64
                   ") out of order by %.4f ms, skipping",
@@ -64,7 +64,7 @@ base::Optional<uint32_t> EventTracker::PushCounter(int64_t timestamp,
   max_timestamp_ = timestamp;
 
   auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values->Insert({timestamp, track_id, value});
+  return counter_values->Insert({timestamp, track_id.value, value});
 }
 
 uint32_t EventTracker::PushInstant(int64_t timestamp,
@@ -94,10 +94,10 @@ void EventTracker::FlushPendingEvents() {
     // TODO(lalitm): having upid == 0 is probably not the correct approach here
     // but it's unclear what may be better.
     UniquePid upid = thread.upid.value_or(0);
-    auto id = context_->track_tracker->InternProcessCounterTrack(
+    TrackId id = context_->track_tracker->InternProcessCounterTrack(
         pending_counter.name_id, upid);
     context_->storage->mutable_counter_table()->mutable_track_id()->Set(
-        pending_counter.row, id);
+        pending_counter.row, id.value);
   }
 
   for (const auto& pending_instant : pending_upid_resolution_instant_) {

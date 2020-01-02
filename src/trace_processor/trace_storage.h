@@ -74,11 +74,18 @@ enum class TableId : uint8_t {
 using ArgSetId = uint32_t;
 static const ArgSetId kInvalidArgSetId = 0;
 
-using TrackId = uint32_t;
+using TrackId = tables::TrackTable::Id;
+
+using CounterId = tables::CounterTable::Id;
+
+using SliceId = tables::SliceTable::Id;
+
+using MappingId = tables::StackProfileMappingTable::Id;
 
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
 // will be removed when the migration is complete.
-static const TrackId kInvalidTrackId = std::numeric_limits<TrackId>::max();
+static const TrackId kInvalidTrackId =
+    TrackId(std::numeric_limits<TrackId>::max());
 
 enum class RefType {
   kRefNoRef = 0,
@@ -676,7 +683,7 @@ class TraceStorage {
       return it->second;
     }
 
-    void SetSymbolSetId(size_t row_idx, uint32_t symbol_set_id) {
+    void SetSymbolSetId(uint32_t row_idx, uint32_t symbol_set_id) {
       PERFETTO_CHECK(row_idx < symbol_set_ids_.size());
       symbol_set_ids_[row_idx] = symbol_set_id;
     }
@@ -1160,6 +1167,16 @@ class TraceStorage {
 }  // namespace perfetto
 
 namespace std {
+
+template <>
+struct hash<::perfetto::trace_processor::TrackId> {
+  using argument_type = ::perfetto::trace_processor::TrackId;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& r) const {
+    return std::hash<uint32_t>{}(r.value);
+  }
+};
 
 template <>
 struct hash<

@@ -375,7 +375,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
           uint32_t row = context_->event_tracker->PushInstant(
-              ts, name, 0, track_id, RefType::kRefTrack);
+              ts, name, 0, track_id.value, RefType::kRefTrack);
           for (const Arg& arg : args) {
             context_->args_tracker->AddArg(
                 TableId::kInstants, row, arg.name, arg.name,

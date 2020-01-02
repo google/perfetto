@@ -55,7 +55,7 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, 0 /*cat*/, 1 /*name*/);
   tracker.End(10 /*ts*/, track, 0 /*cat*/, 1 /*name*/);
 
@@ -63,7 +63,7 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track);
+  EXPECT_EQ(slices.track_id()[0], track.value);
   EXPECT_EQ(slices.category()[0], 0u);
   EXPECT_EQ(slices.name()[0], 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
@@ -75,7 +75,7 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, 0 /*cat*/, 1 /*name*/,
                 [](ArgsTracker::BoundInserter* inserter) {
                   inserter->AddArg(/*flat_key=*/1, /*key=*/2,
@@ -91,7 +91,7 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track);
+  EXPECT_EQ(slices.track_id()[0], track.value);
   EXPECT_EQ(slices.category()[0], 0u);
   EXPECT_EQ(slices.name()[0], 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
@@ -113,7 +113,7 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, 0 /*cat*/, 1 /*name*/);
   tracker.Begin(3 /*ts*/, track, 0 /*cat*/, 2 /*name*/);
   tracker.End(5 /*ts*/, track);
@@ -126,14 +126,14 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   uint32_t idx = 0;
   EXPECT_EQ(slices.ts()[idx], 2);
   EXPECT_EQ(slices.dur()[idx], 8);
-  EXPECT_EQ(slices.track_id()[idx], track);
+  EXPECT_EQ(slices.track_id()[idx], track.value);
   EXPECT_EQ(slices.category()[idx], 0u);
   EXPECT_EQ(slices.name()[idx], 1u);
   EXPECT_EQ(slices.depth()[idx++], 0u);
 
   EXPECT_EQ(slices.ts()[idx], 3);
   EXPECT_EQ(slices.dur()[idx], 2);
-  EXPECT_EQ(slices.track_id()[idx], track);
+  EXPECT_EQ(slices.track_id()[idx], track.value);
   EXPECT_EQ(slices.category()[idx], 0u);
   EXPECT_EQ(slices.name()[idx], 2u);
   EXPECT_EQ(slices.depth()[idx], 1u);
@@ -148,7 +148,7 @@ TEST(SliceTrackerTest, Scoped) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Begin(0 /*ts*/, track, 0, 0);
   tracker.Begin(1 /*ts*/, track, 0, 0);
   tracker.Scoped(2 /*ts*/, track, 0, 0, 6);
@@ -165,7 +165,7 @@ TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, 5 /*cat*/, 1 /*name*/);
   tracker.End(3 /*ts*/, track, 1 /*cat*/, 1 /*name*/);
   tracker.End(4 /*ts*/, track, 0 /*cat*/, 2 /*name*/);
@@ -183,7 +183,7 @@ TEST(SliceTrackerTest, ZeroLengthScoped) {
   // Bug scenario: the second zero-length scoped slice prevents the first slice
   // from being closed, leading to an inconsistency when we try to insert the
   // final slice and it doesn't intersect with the still pending first slice.
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Scoped(2 /*ts*/, track, 0 /*cat*/, 1 /*name*/, 10 /* dur */);
   tracker.Scoped(2 /*ts*/, track, 0 /*cat*/, 1 /*name*/, 0 /* dur */);
   tracker.Scoped(12 /*ts*/, track, 0 /*cat*/, 1 /*name*/, 1 /* dur */);
@@ -199,8 +199,8 @@ TEST(SliceTrackerTest, DifferentTracks) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track_a = 22u;
-  constexpr TrackId track_b = 23u;
+  constexpr TrackId track_a{22u};
+  constexpr TrackId track_b{23u};
   tracker.Begin(0 /*ts*/, track_a, 0, 0);
   tracker.Scoped(2 /*ts*/, track_b, 0, 0, 6);
   tracker.Scoped(3 /*ts*/, track_b, 0, 0, 4);
@@ -211,9 +211,9 @@ TEST(SliceTrackerTest, DifferentTracks) {
   EXPECT_THAT(slices,
               ElementsAre(SliceInfo{0, 10}, SliceInfo{2, 6}, SliceInfo{3, 4}));
 
-  EXPECT_EQ(context.storage->slice_table().track_id()[0], track_a);
-  EXPECT_EQ(context.storage->slice_table().track_id()[1], track_b);
-  EXPECT_EQ(context.storage->slice_table().track_id()[2], track_b);
+  EXPECT_EQ(context.storage->slice_table().track_id()[0], track_a.value);
+  EXPECT_EQ(context.storage->slice_table().track_id()[1], track_b.value);
+  EXPECT_EQ(context.storage->slice_table().track_id()[2], track_b.value);
   EXPECT_EQ(context.storage->slice_table().depth()[0], 0u);
   EXPECT_EQ(context.storage->slice_table().depth()[1], 0u);
   EXPECT_EQ(context.storage->slice_table().depth()[2], 1u);
@@ -224,7 +224,7 @@ TEST(SliceTrackerTest, EndEventOutOfOrder) {
   context.storage.reset(new TraceStorage());
   SliceTracker tracker(&context);
 
-  constexpr TrackId track = 22u;
+  constexpr TrackId track{22u};
   tracker.Scoped(50 /*ts*/, track, 11 /*cat*/, 21 /*name*/, 100 /*dur*/);
   tracker.Begin(100 /*ts*/, track, 12 /*cat*/, 22 /*name*/);
   tracker.Scoped(450 /*ts*/, track, 12 /*cat*/, 22 /*name*/, 100 /*dur*/);

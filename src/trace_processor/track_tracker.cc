@@ -22,7 +22,7 @@ namespace perfetto {
 namespace trace_processor {
 
 // static
-constexpr TrackId TrackTracker::kDefaultDescriptorTrackUuid;
+constexpr uint64_t TrackTracker::kDefaultDescriptorTrackUuid;
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
@@ -61,7 +61,7 @@ TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
   fuchsia_async_tracks_[correlation_id] = id;
 
   ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, id);
+                                      TableId::kTrack, id.value);
   inserter.AddArg(source_key_, Variadic::String(fuchsia_source_));
   inserter.AddArg(source_id_key_, Variadic::Integer(correlation_id));
   return id;
@@ -103,7 +103,7 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   chrome_tracks_[tuple] = id;
 
   ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, id);
+                                      TableId::kTrack, id.value);
   inserter.AddArg(source_key_, Variadic::String(chrome_source_));
   inserter.AddArg(source_id_key_, Variadic::Integer(source_id));
   inserter.AddArg(source_id_is_process_scoped_key_,
@@ -127,7 +127,7 @@ TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
   android_async_tracks_[tuple] = id;
 
   ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, id);
+                                      TableId::kTrack, id.value);
   inserter.AddArg(source_key_, Variadic::String(android_source_));
   inserter.AddArg(source_id_key_, Variadic::Integer(cookie));
   return id;
@@ -143,8 +143,8 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
   auto id = context_->storage->mutable_process_track_table()->Insert(row);
   chrome_process_instant_tracks_[upid] = id;
 
-  context_->args_tracker->AddArg(TableId::kTrack, id, source_key_, source_key_,
-                                 Variadic::String(chrome_source_));
+  context_->args_tracker->AddArg(TableId::kTrack, id.value, source_key_,
+                                 source_key_, Variadic::String(chrome_source_));
   return id;
 }
 
@@ -154,7 +154,7 @@ TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
         context_->storage->mutable_track_table()->Insert({});
 
     context_->args_tracker->AddArg(
-        TableId::kTrack, *chrome_global_instant_track_id_, source_key_,
+        TableId::kTrack, chrome_global_instant_track_id_->value, source_key_,
         source_key_, Variadic::String(chrome_source_));
   }
   return *chrome_global_instant_track_id_;
@@ -169,16 +169,16 @@ TrackId TrackTracker::UpdateDescriptorTrack(uint64_t uuid,
     // Update existing track for |uuid|.
     TrackId track_id = it->second;
     if (name != kNullStringId) {
-      context_->storage->mutable_track_table()->mutable_name()->Set(track_id,
-                                                                    name);
+      auto* track = context_->storage->mutable_track_table();
+      auto row = *track->id().IndexOf(track_id);
+      track->mutable_name()->Set(row, name);
     }
 
 #if PERFETTO_DLOG_IS_ON()
     if (upid) {
       // Verify that upid didn't change.
       auto process_track_row =
-          context_->storage->process_track_table().id().IndexOf(
-              SqlValue::Long(track_id));
+          context_->storage->process_track_table().id().IndexOf(track_id);
       if (!process_track_row) {
         PERFETTO_DLOG("Can't update non-scoped track with uuid %" PRIu64
                       " to a scoped track.",
@@ -197,8 +197,7 @@ TrackId TrackTracker::UpdateDescriptorTrack(uint64_t uuid,
     if (utid) {
       // Verify that utid didn't change.
       auto thread_track_row =
-          context_->storage->thread_track_table().id().IndexOf(
-              SqlValue::Long(track_id));
+          context_->storage->thread_track_table().id().IndexOf(track_id);
       if (!thread_track_row) {
         PERFETTO_DLOG("Can't update non-thread track with uuid %" PRIu64
                       " to a thread track.",
@@ -236,8 +235,8 @@ TrackId TrackTracker::UpdateDescriptorTrack(uint64_t uuid,
       if (descriptor_it == descriptor_tracks_.end()) {
         descriptor_tracks_[uuid] = candidate_track_id;
         context_->args_tracker->AddArg(
-            TableId::kTrack, candidate_track_id, source_id_key_, source_id_key_,
-            Variadic::Integer(static_cast<int64_t>(uuid)));
+            TableId::kTrack, candidate_track_id.value, source_id_key_,
+            source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)));
 
         return candidate_track_id;
       }
@@ -265,7 +264,7 @@ TrackId TrackTracker::UpdateDescriptorTrack(uint64_t uuid,
   descriptor_tracks_[uuid] = track_id;
 
   ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, track_id);
+                                      TableId::kTrack, track_id.value);
   inserter.AddArg(source_key_, Variadic::String(descriptor_source_));
   inserter.AddArg(source_id_key_,
                   Variadic::Integer(static_cast<int64_t>(uuid)));
@@ -291,7 +290,7 @@ TrackId TrackTracker::GetOrCreateDescriptorTrackForThread(UniqueTid utid) {
       context_->storage->mutable_thread_track_table()->Insert(row);
   descriptor_tracks_by_utid_[utid] = track_id;
 
-  context_->args_tracker->AddArg(TableId::kTrack, track_id, source_key_,
+  context_->args_tracker->AddArg(TableId::kTrack, track_id.value, source_key_,
                                  source_key_,
                                  Variadic::String(descriptor_source_));
   return track_id;
