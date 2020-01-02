@@ -23,7 +23,13 @@ namespace perfetto {
 namespace trace_processor {
 
 // Represents a column containing ids.
+template <typename Id>
 struct IdColumn : public Column {
+  Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
+  base::Optional<uint32_t> IndexOf(Id id) const {
+    return row_map().IndexOf(id.value);
+  }
+
   // Helper functions to create constraints for the given value.
   Constraint eq(uint32_t v) const { return eq_value(SqlValue::Long(v)); }
   Constraint gt(uint32_t v) const { return gt_value(SqlValue::Long(v)); }

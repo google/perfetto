@@ -91,9 +91,10 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_id()[stack->back().first];
 
-  tables::SliceTable::Row row(timestamp, duration, track_id, category, name,
-                              depth, 0, parent_stack_id);
-  uint32_t slice_idx = slices->Insert(row);
+  tables::SliceTable::Row row(timestamp, duration, track_id.value, category,
+                              name, depth, 0, parent_stack_id);
+  auto id = slices->Insert(row);
+  uint32_t slice_idx = *slices->id().IndexOf(id);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 
   if (args_callback) {

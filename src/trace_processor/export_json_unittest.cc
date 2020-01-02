@@ -120,7 +120,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   context_.storage->mutable_thread_slices()->AddThreadSlice(
       0, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
       kThreadInstructionDelta);
@@ -167,7 +167,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   context_.storage->mutable_thread_slices()->AddThreadSlice(
       0, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
       kThreadInstructionDelta);
@@ -229,7 +229,7 @@ TEST_F(ExportJsonTest, WrongTrackTypeIgnored) {
   StringId cat_id = context_.storage->InternString("cat");
   StringId name_id = context_.storage->InternString("name");
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -401,7 +401,7 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   StringId arg_key_id = context_.storage->InternString(
       base::StringView("task.posted_from.file_name"));
@@ -445,8 +445,9 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = storage->InternString(base::StringView(kCategory));
   StringId name_id = storage->InternString(base::StringView(kName));
-  uint32_t row = storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+  SliceId id = storage->mutable_slice_table()->Insert(
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
+  uint32_t row = *storage->slice_table().id().IndexOf(id);
 
   auto add_arg = [&](const char* key, Variadic value) {
     StringId key_id = storage->InternString(key);
@@ -495,7 +496,7 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   StringId arg_flat_key_id = context_.storage->InternString(
       base::StringView("debug.draw_duration_ms"));
@@ -545,7 +546,7 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   StringId arg_key0_id =
       context_.storage->InternString(base::StringView("arg0"));
@@ -591,7 +592,7 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   StringId arg_flat_key_id =
       context_.storage->InternString(base::StringView("a.b"));
@@ -640,7 +641,7 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   StringId arg_flat_key_id =
       context_.storage->InternString(base::StringView("a"));
@@ -689,7 +690,7 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {0, 0, track, cat_id, name_id, 0, 0, 0});
+      {0, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   StringId arg_key_id = context_.storage->InternString(base::StringView("a"));
   StringId arg_value_id =
@@ -727,7 +728,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -759,7 +760,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, 0, track.value, cat_id, name_id, 0, 0, 0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -799,7 +800,7 @@ TEST_F(ExportJsonTest, AsyncEvent) {
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView(kArgName));
   TraceStorage::Args::Arg arg;
@@ -862,9 +863,9 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   context_.args_tracker->Flush();  // Flush track args.
 
   auto slice_id = context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
-      slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
+      slice_id.value, kThreadTimestamp, kThreadDuration, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -917,9 +918,9 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   context_.args_tracker->Flush();  // Flush track args.
 
   auto slice_id = context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
-      slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
+      slice_id.value, kThreadTimestamp, kThreadDuration, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -960,7 +961,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp, 0, track.value, cat_id, name_id, 0, 0, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView("arg_name"));
   TraceStorage::Args::Arg arg;
@@ -1137,48 +1138,46 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   UniqueTid utid = storage->AddEmptyThread(kThreadID);
   storage->GetMutableThread(utid)->upid = upid;
 
-  uint32_t module_row_id_1 =
-      storage->mutable_stack_profile_mapping_table()->Insert(
-          {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
-           storage->InternString("foo_module_name")});
+  auto module_id_1 = storage->mutable_stack_profile_mapping_table()->Insert(
+      {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
+       storage->InternString("foo_module_name")});
 
-  uint32_t module_row_id_2 =
-      storage->mutable_stack_profile_mapping_table()->Insert(
-          {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
-           storage->InternString("bar_module_name")});
+  auto module_id_2 = storage->mutable_stack_profile_mapping_table()->Insert(
+      {storage->InternString("bar_module_id"), 0, 0, 0, 0, 0,
+       storage->InternString("bar_module_name")});
 
   // TODO(140860736): Once we support null values for
   // stack_profile_frame.symbol_set_id remove this hack
   storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
 
   uint32_t frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
-      {/*name_id=*/0, module_row_id_1, 0x42});
+      {/*name_id=*/0, module_id_1.value, 0x42});
   uint32_t symbol_set_id = storage->symbol_table().row_count();
   storage->mutable_symbol_table()->Insert(
       {symbol_set_id, storage->InternString("foo_func"),
        storage->InternString("foo_file"), 66});
-  storage->mutable_stack_profile_frames()->SetSymbolSetId(
-      static_cast<size_t>(frame_row_id_1), symbol_set_id);
+  storage->mutable_stack_profile_frames()->SetSymbolSetId(frame_row_id_1,
+                                                          symbol_set_id);
 
   uint32_t frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
-      {/*name_id=*/0, module_row_id_2, 0x4242});
+      {/*name_id=*/0, module_id_2.value, 0x4242});
   symbol_set_id = storage->symbol_table().row_count();
   storage->mutable_symbol_table()->Insert(
       {symbol_set_id, storage->InternString("bar_func"),
        storage->InternString("bar_file"), 77});
-  storage->mutable_stack_profile_frames()->SetSymbolSetId(
-      static_cast<size_t>(frame_row_id_2), symbol_set_id);
+  storage->mutable_stack_profile_frames()->SetSymbolSetId(frame_row_id_2,
+                                                          symbol_set_id);
 
-  uint32_t frame_callsite_id_1 =
+  auto frame_callsite_id_1 =
       storage->mutable_stack_profile_callsite_table()->Insert(
           {0, -1, frame_row_id_1});
 
-  uint32_t frame_callsite_id_2 =
+  auto frame_callsite_id_2 =
       storage->mutable_stack_profile_callsite_table()->Insert(
-          {1, frame_callsite_id_1, frame_row_id_2});
+          {1, frame_callsite_id_1.value, frame_row_id_2});
 
   storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      {kTimestamp, frame_callsite_id_2, utid});
+      {kTimestamp, frame_callsite_id_2.value, utid});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -1217,13 +1216,14 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   StringId arg2_id = context_.storage->InternString(base::StringView("arg2"));
   StringId val_id = context_.storage->InternString(base::StringView("val"));
 
-  std::array<uint32_t, 3> slice_ids;
+  std::array<uint32_t, 3> slice_rows;
   for (size_t i = 0; i < name_ids.size(); i++) {
-    slice_ids[i] = context_.storage->mutable_slice_table()->Insert(
-        {0, 0, track, cat_id, name_ids[i], 0, 0, 0});
+    auto slice_id = context_.storage->mutable_slice_table()->Insert(
+        {0, 0, track.value, cat_id, name_ids[i], 0, 0, 0});
+    slice_rows[i] = *context_.storage->slice_table().id().IndexOf(slice_id);
   }
 
-  for (uint32_t row : slice_ids) {
+  for (uint32_t row : slice_rows) {
     context_.args_tracker->AddArg(TableId::kNestableSlices, row, arg1_id,
                                   arg1_id, Variadic::Integer(5));
     context_.args_tracker->AddArg(TableId::kNestableSlices, row, arg2_id,
@@ -1323,9 +1323,9 @@ TEST_F(ExportJsonTest, LabelFilter) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp1, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp1, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp2, kDuration, track, cat_id, name_id, 0, 0, 0});
+      {kTimestamp2, kDuration, track.value, cat_id, name_id, 0, 0, 0});
 
   auto label_filter = [](const char* label_name) {
     return strcmp(label_name, "traceEvents") == 0;

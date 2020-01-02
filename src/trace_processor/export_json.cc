@@ -487,8 +487,12 @@ util::Status ExportSlices(const TraceStorage* storage,
     // or chrome tracks (i.e. TrackEvent slices). Slices on other tracks may
     // also be present as raw events and handled by trace_to_text. Only add more
     // track types here if they are not already covered by trace_to_text.
-    auto track_id = slices.track_id()[i];
-    auto track_args_id = storage->track_table().source_arg_set_id()[track_id];
+    uint32_t track_id = slices.track_id()[i];
+
+    const auto& track_table = storage->track_table();
+
+    uint32_t track_row = *track_table.id().IndexOf(TrackId{track_id});
+    auto track_args_id = track_table.source_arg_set_id()[track_row];
     if (!track_args_id)
       continue;
     const auto& track_args = args_builder.GetArgs(*track_args_id);
@@ -535,8 +539,7 @@ util::Status ExportSlices(const TraceStorage* storage,
       }
     }
 
-    auto opt_thread_track_row =
-        thread_track.id().IndexOf(SqlValue::Long(track_id));
+    auto opt_thread_track_row = thread_track.id().IndexOf(TrackId{track_id});
 
     if (opt_thread_track_row) {
       // Synchronous (thread) slice or instant event.
@@ -584,8 +587,7 @@ util::Status ExportSlices(const TraceStorage* storage,
     } else if (!legacy_chrome_track ||
                (legacy_chrome_track && track_args.isMember("source_id"))) {
       // Async event slice.
-      auto opt_process_row =
-          process_track.id().IndexOf(SqlValue::Long(track_id));
+      auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
       if (legacy_chrome_track) {
         // Legacy async tracks are always process-associated.
         PERFETTO_DCHECK(opt_process_row);
@@ -671,8 +673,7 @@ util::Status ExportSlices(const TraceStorage* storage,
       // Use "I" instead of "i" phase for backwards-compat with old consumers.
       event["ph"] = "I";
 
-      auto opt_process_row =
-          process_track.id().IndexOf(SqlValue::Long(track_id));
+      auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
       if (opt_process_row.has_value()) {
         uint32_t upid = process_track.upid()[*opt_process_row];
         event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);

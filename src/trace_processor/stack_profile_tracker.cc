@@ -108,10 +108,10 @@ base::Optional<int64_t> StackProfileTracker::AddMapping(
       }
     }
     if (cur_row == -1) {
-      cur_row =
-          context_->storage->mutable_stack_profile_mapping_table()->Insert(row);
-      context_->storage->InsertMappingRow(row.name, row.build_id,
-                                          static_cast<uint32_t>(cur_row));
+      MappingId mapping_id = mappings->Insert(row);
+      uint32_t mapping_row = *mappings->id().IndexOf(mapping_id);
+      context_->storage->InsertMappingRow(row.name, row.build_id, mapping_row);
+      cur_row = mapping_row;
     }
     mapping_idx_.emplace(row, cur_row);
   }
@@ -206,9 +206,10 @@ base::Optional<int64_t> StackProfileTracker::AddCallstack(
     if (callsite_it != callsite_idx_.end()) {
       self_id = callsite_it->second;
     } else {
-      self_id =
-          context_->storage->mutable_stack_profile_callsite_table()->Insert(
-              row);
+      auto* callsite =
+          context_->storage->mutable_stack_profile_callsite_table();
+      auto callsite_id = callsite->Insert(row);
+      self_id = callsite_id.value;
       callsite_idx_.emplace(row, self_id);
     }
     parent_id = self_id;

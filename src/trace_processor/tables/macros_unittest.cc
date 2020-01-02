@@ -67,14 +67,14 @@ TEST_F(TableMacrosUnittest, Name) {
 }
 
 TEST_F(TableMacrosUnittest, InsertParent) {
-  uint32_t id = event_.Insert(TestEventTable::Row(100, 0));
-  ASSERT_EQ(id, 0u);
+  auto id = event_.Insert(TestEventTable::Row(100, 0));
+  ASSERT_EQ(id.value, 0u);
   ASSERT_EQ(event_.type().GetString(0), "event");
   ASSERT_EQ(event_.ts()[0], 100);
   ASSERT_EQ(event_.arg_set_id()[0], 0);
 
   id = slice_.Insert(TestSliceTable::Row(200, 123, 10, 0));
-  ASSERT_EQ(id, 1u);
+  ASSERT_EQ(id.value, 1u);
 
   ASSERT_EQ(event_.type().GetString(1), "slice");
   ASSERT_EQ(event_.ts()[1], 200);
@@ -86,7 +86,7 @@ TEST_F(TableMacrosUnittest, InsertParent) {
   ASSERT_EQ(slice_.depth()[0], 0);
 
   id = slice_.Insert(TestSliceTable::Row(210, 456, base::nullopt, 0));
-  ASSERT_EQ(id, 2u);
+  ASSERT_EQ(id.value, 2u);
 
   ASSERT_EQ(event_.type().GetString(2), "slice");
   ASSERT_EQ(event_.ts()[2], 210);
@@ -103,9 +103,9 @@ TEST_F(TableMacrosUnittest, InsertChild) {
   slice_.Insert(TestSliceTable::Row(200, 123, 10, 0));
 
   auto reason = pool_.InternString("R");
-  uint32_t id = cpu_slice_.Insert(
+  auto id = cpu_slice_.Insert(
       TestCpuSliceTable::Row(205, 456, 5, 1, 4, 1024, reason));
-  ASSERT_EQ(id, 2u);
+  ASSERT_EQ(id.value, 2u);
   ASSERT_EQ(event_.type().GetString(2), "cpu_slice");
   ASSERT_EQ(event_.ts()[2], 205);
   ASSERT_EQ(event_.arg_set_id()[2], 456);

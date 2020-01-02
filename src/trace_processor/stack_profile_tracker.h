@@ -56,6 +56,8 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+// TODO(lalitm): Overhaul this class to make row vs id consistent and use
+// base::Optional instead of int64_t.
 class StackProfileTracker {
  public:
   using SourceStringId = uint64_t;
