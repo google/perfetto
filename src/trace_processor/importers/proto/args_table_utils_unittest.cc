@@ -77,8 +77,7 @@ class ArgsTableUtilsTest : public ::testing::Test {
 };
 
 TEST_F(ArgsTableUtilsTest, EnsureChromeCompositorStateDescriptorParses) {
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(
       kChromeCompositorSchedulerStateDescriptor.data(),
@@ -89,8 +88,7 @@ TEST_F(ArgsTableUtilsTest, EnsureChromeCompositorStateDescriptorParses) {
 }
 
 TEST_F(ArgsTableUtilsTest, EnsureTestMessageProtoParses) {
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
@@ -127,8 +125,7 @@ TEST_F(ArgsTableUtilsTest, BasicSingleLayerProto) {
   auto binary_proto = msg.SerializeAsArray();
 
   storage_->mutable_track_table()->Insert({});
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
@@ -201,8 +198,7 @@ TEST_F(ArgsTableUtilsTest, NestedProto) {
   auto binary_proto = msg.SerializeAsArray();
 
   storage_->mutable_track_table()->Insert({});
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
@@ -231,8 +227,7 @@ TEST_F(ArgsTableUtilsTest, CamelCaseFieldsProto) {
   auto binary_proto = msg.SerializeAsArray();
 
   storage_->mutable_track_table()->Insert({});
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
@@ -261,8 +256,7 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideHandled) {
   auto binary_proto = msg.SerializeAsArray();
 
   storage_->mutable_track_table()->Insert({});
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
@@ -304,8 +298,7 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideSkipped) {
   auto binary_proto = msg.SerializeAsArray();
 
   storage_->mutable_track_table()->Insert({});
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
                                               kTestMessagesDescriptor.size());
@@ -361,8 +354,7 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
       protos::pbzero::InternedData::kSourceLocationsFieldNumber,
       std::move(blob));
 
-  ProtoToArgsTable helper(sequence_state_.get(),
-                          sequence_state_->current_generation(), &context_, "",
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
                           0);
   // Now we override the behaviour of |value_c| so we can expand the iid into
   // multiple args rows.
@@ -373,8 +365,7 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
         auto* decoder = state.sequence_state->LookupInternedMessage<
             protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-            protos::pbzero::SourceLocation>(state.sequence_generation,
-                                            field.as_uint64());
+            protos::pbzero::SourceLocation>(field.as_uint64());
         if (!decoder) {
           // Lookup failed fall back on default behaviour.
           return false;

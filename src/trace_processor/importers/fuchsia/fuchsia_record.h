@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_PROVIDER_VIEW_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_PROVIDER_VIEW_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_RECORD_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_RECORD_H_
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_storage.h"
 
 #include <vector>
@@ -26,11 +27,14 @@ namespace perfetto {
 namespace trace_processor {
 
 // Data from a trace provider that is necessary for interpreting a binary
-// record. Namely, the entries of the string table and the thread table that are
-// referenced by the record. This enables understanding the binary record after
-// arbitrary reordering.
-class FuchsiaProviderView {
+// record. Namely, the record itself and the entries of the string table and the
+// thread table that are referenced by the record. This enables understanding
+// the binary record after arbitrary reordering.
+class FuchsiaRecord {
  public:
+  FuchsiaRecord(TraceBlobView record_view)
+      : record_view_(std::move(record_view)) {}
+
   struct StringTableEntry {
     uint32_t index;
     StringId string_id;
@@ -53,7 +57,11 @@ class FuchsiaProviderView {
 
   uint64_t get_ticks_per_second() { return ticks_per_second_; }
 
+  TraceBlobView* record_view() { return &record_view_; }
+
  private:
+  TraceBlobView record_view_;
+
   std::vector<StringTableEntry> string_entries_;
   std::vector<ThreadTableEntry> thread_entries_;
 
@@ -63,4 +71,4 @@ class FuchsiaProviderView {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_PROVIDER_VIEW_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_RECORD_H_

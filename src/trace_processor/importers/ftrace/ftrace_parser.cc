@@ -192,8 +192,8 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(context_);
 
   // Handle the (optional) alternative encoding format for sched_switch.
-  if (ttp.inline_event.type == InlineEvent::Type::kSchedSwitch) {
-    const auto& event = ttp.inline_event.sched_switch;
+  if (ttp.type == TimestampedTracePiece::Type::kInlineSchedSwitch) {
+    const auto& event = ttp.sched_switch;
     sched_tracker->PushSchedSwitchCompact(cpu, ts, event.prev_state,
                                           static_cast<uint32_t>(event.next_pid),
                                           event.next_prio, event.next_comm);
@@ -201,15 +201,16 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   }
 
   // Handle the (optional) alternative encoding format for sched_waking.
-  if (ttp.inline_event.type == InlineEvent::Type::kSchedWaking) {
-    const auto& event = ttp.inline_event.sched_waking;
+  if (ttp.type == TimestampedTracePiece::Type::kInlineSchedWaking) {
+    const auto& event = ttp.sched_waking;
     sched_tracker->PushSchedWakingCompact(
         cpu, ts, static_cast<uint32_t>(event.pid), event.target_cpu, event.prio,
         event.comm);
     return util::OkStatus();
   }
 
-  const TraceBlobView& event = ttp.blob_view;
+  PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kFtraceEvent);
+  const TraceBlobView& event = ttp.ftrace_event;
   ProtoDecoder decoder(event.data(), event.length());
   uint64_t raw_pid = 0;
   if (auto pid_field = decoder.FindField(FtraceEvent::kPidFieldNumber)) {
