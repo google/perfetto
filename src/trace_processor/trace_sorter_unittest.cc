@@ -48,15 +48,17 @@ class MockTraceParser : public ProtoTraceParser {
   void ParseFtracePacket(uint32_t cpu,
                          int64_t timestamp,
                          TimestampedTracePiece ttp) override {
-    TraceBlobView& tbv = ttp.blob_view;
-    MOCK_ParseFtracePacket(cpu, timestamp, tbv.data(), tbv.length());
+    bool isNonCompact = ttp.type == TimestampedTracePiece::Type::kFtraceEvent;
+    MOCK_ParseFtracePacket(cpu, timestamp,
+                           isNonCompact ? ttp.ftrace_event.data() : nullptr,
+                           isNonCompact ? ttp.ftrace_event.length() : 0);
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,
                void(int64_t ts, const uint8_t* data, size_t length));
 
   void ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) override {
-    TraceBlobView& tbv = ttp.blob_view;
+    TraceBlobView& tbv = ttp.packet_data.packet;
     MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
 };

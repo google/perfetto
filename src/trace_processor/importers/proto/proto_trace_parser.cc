@@ -181,12 +181,18 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
 ProtoTraceParser::~ProtoTraceParser() = default;
 
 void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
-  PERFETTO_DCHECK(ttp.json_value == nullptr);
+  const TracePacketData* data = nullptr;
+  if (ttp.type == TimestampedTracePiece::Type::kTracePacket) {
+    data = &ttp.packet_data;
+  } else {
+    PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
+    data = ttp.track_event_data.get();
+  }
 
-  const TraceBlobView& blob = ttp.blob_view;
+  const TraceBlobView& blob = data->packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
 
-  ParseTracePacketImpl(ts, std::move(ttp), packet);
+  ParseTracePacketImpl(ts, std::move(ttp), data, packet);
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
@@ -198,6 +204,7 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
 void ProtoTraceParser::ParseTracePacketImpl(
     int64_t ts,
     TimestampedTracePiece ttp,
+    const TracePacketData* data,
     const protos::pbzero::TracePacket::Decoder& packet) {
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = context_->modules_by_field;
@@ -213,13 +220,13 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_profile_packet()) {
     ParseProfilePacket(
-        ts, ttp.packet_sequence_state, ttp.packet_sequence_state_generation,
+        ts, data->packet_sequence_state, data->packet_sequence_state_generation,
         packet.trusted_packet_sequence_id(), packet.profile_packet());
   }
 
   if (packet.has_streaming_profile_packet()) {
-    ParseStreamingProfilePacket(ttp.packet_sequence_state,
-                                ttp.packet_sequence_state_generation,
+    ParseStreamingProfilePacket(data->packet_sequence_state,
+                                data->packet_sequence_state_generation,
                                 packet.streaming_profile_packet());
   }
 
@@ -247,7 +254,9 @@ void ProtoTraceParser::ParseTracePacketImpl(
 void ProtoTraceParser::ParseFtracePacket(uint32_t cpu,
                                          int64_t /*ts*/,
                                          TimestampedTracePiece ttp) {
-  PERFETTO_DCHECK(ttp.json_value == nullptr);
+  PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kFtraceEvent ||
+                  ttp.type == TimestampedTracePiece::Type::kInlineSchedSwitch ||
+                  ttp.type == TimestampedTracePiece::Type::kInlineSchedWaking);
   PERFETTO_DCHECK(context_->ftrace_module);
   context_->ftrace_module->ParseFtracePacket(cpu, ttp);
 

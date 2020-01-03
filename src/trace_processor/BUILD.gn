@@ -92,7 +92,7 @@ source_set("storage_minimal") {
     "heap_profile_tracker.h",
     "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
-    "importers/fuchsia/fuchsia_provider_view.h",
+    "importers/fuchsia/fuchsia_record.h",
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
     "importers/proto/chrome_compositor_scheduler_state.descriptor.h",
@@ -176,7 +176,7 @@ source_set("storage_minimal") {
   if (enable_perfetto_trace_processor_fuchsia) {
     sources += [
       "ftrace_utils.cc",
-      "importers/fuchsia/fuchsia_provider_view.cc",
+      "importers/fuchsia/fuchsia_record.cc",
       "importers/fuchsia/fuchsia_trace_parser.cc",
       "importers/fuchsia/fuchsia_trace_parser.h",
       "importers/fuchsia/fuchsia_trace_tokenizer.cc",

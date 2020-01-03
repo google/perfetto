@@ -58,6 +58,7 @@ class ProtoTraceParser : public TraceParser {
 
   void ParseTracePacketImpl(int64_t ts,
                             TimestampedTracePiece,
+                            const TracePacketData*,
                             const protos::pbzero::TracePacket_Decoder&);
 
   void ParseTraceStats(ConstBytes);
