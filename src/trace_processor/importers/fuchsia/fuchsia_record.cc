@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-void FuchsiaProviderView::InsertString(uint32_t index, StringId string_id) {
+void FuchsiaRecord::InsertString(uint32_t index, StringId string_id) {
   StringTableEntry entry;
   entry.index = index;
   entry.string_id = string_id;
@@ -27,7 +27,7 @@ void FuchsiaProviderView::InsertString(uint32_t index, StringId string_id) {
   string_entries_.push_back(entry);
 }
 
-StringId FuchsiaProviderView::GetString(uint32_t index) {
+StringId FuchsiaRecord::GetString(uint32_t index) {
   for (const auto& entry : string_entries_) {
     if (entry.index == index)
       return entry.string_id;
@@ -35,8 +35,8 @@ StringId FuchsiaProviderView::GetString(uint32_t index) {
   return StringId();
 }
 
-void FuchsiaProviderView::InsertThread(uint32_t index,
-                                       fuchsia_trace_utils::ThreadInfo info) {
+void FuchsiaRecord::InsertThread(uint32_t index,
+                                 fuchsia_trace_utils::ThreadInfo info) {
   ThreadTableEntry entry;
   entry.index = index;
   entry.info = info;
@@ -44,7 +44,7 @@ void FuchsiaProviderView::InsertThread(uint32_t index,
   thread_entries_.push_back(entry);
 }
 
-fuchsia_trace_utils::ThreadInfo FuchsiaProviderView::GetThread(uint32_t index) {
+fuchsia_trace_utils::ThreadInfo FuchsiaRecord::GetThread(uint32_t index) {
   for (const auto& entry : thread_entries_) {
     if (entry.index == index)
       return entry.info;

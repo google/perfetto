@@ -40,12 +40,11 @@ class VulkanMemoryTracker {
   ~VulkanMemoryTracker() = default;
 
   template <int32_t FieldId>
-  StringId GetInternedString(PacketSequenceState* state,
-                             size_t generation,
+  StringId GetInternedString(PacketSequenceStateGeneration* state,
                              uint64_t iid) {
     auto* decoder =
         state->LookupInternedMessage<FieldId, protos::pbzero::InternedString>(
-            generation, iid);
+            iid);
     if (!decoder)
       return kNullStringId;
     return context_->storage->InternString(

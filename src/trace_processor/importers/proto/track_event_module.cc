@@ -65,10 +65,11 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
                                    const TimestampedTracePiece& ttp,
                                    uint32_t field_id) {
   if (field_id == TracePacket::kTrackEventFieldNumber) {
+    PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
     parser_.ParseTrackEvent(
-        ttp.timestamp, ttp.thread_timestamp, ttp.thread_instruction_count,
-        ttp.packet_sequence_state, ttp.packet_sequence_state_generation,
-        decoder.track_event());
+        ttp.timestamp, ttp.track_event_data->thread_timestamp,
+        ttp.track_event_data->thread_instruction_count,
+        ttp.track_event_data->sequence_state, decoder.track_event());
   }
 }
 

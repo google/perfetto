@@ -19,7 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -33,6 +33,15 @@ namespace Json {
 class Value {};
 }  // namespace Json
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+
+// GCC can't figure out the relationship between TimestampedTracePiece's type
+// and the union, and thus thinks that we may be moving or destroying
+// uninitialized data in the move constructors / destructors. Disable those
+// warnings for TimestampedTracePiece and the types it contains.
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -51,143 +60,163 @@ struct InlineSchedWaking {
   StringId comm;
 };
 
-// Discriminated union of events that are cannot be easily read from the
-// mapped trace.
-struct InlineEvent {
-  enum class Type { kInvalid = 0, kSchedSwitch, kSchedWaking };
+struct TracePacketData {
+  TraceBlobView packet;
 
-  static InlineEvent SchedSwitch(InlineSchedSwitch content) {
-    InlineEvent evt;
-    evt.type = Type::kSchedSwitch;
-    evt.sched_switch = content;
-    return evt;
-  }
+  PacketSequenceStateGeneration* sequence_state;
+};
 
-  static InlineEvent SchedWaking(InlineSchedWaking content) {
-    InlineEvent evt;
-    evt.type = Type::kSchedWaking;
-    evt.sched_waking = content;
-    return evt;
-  }
+struct TrackEventData : public TracePacketData {
+  TrackEventData(TraceBlobView pv,
+                 PacketSequenceStateGeneration* generation,
+                 int64_t thread_ts,
+                 int64_t thread_ic)
+      : TracePacketData{std::move(pv), generation},
+        thread_timestamp(thread_ts),
+        thread_instruction_count(thread_ic) {}
 
-  Type type = Type::kInvalid;
-  union {
-    InlineSchedSwitch sched_switch;
-    InlineSchedWaking sched_waking;
-  };
+  int64_t thread_timestamp;
+  int64_t thread_instruction_count;
 };
 
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
 // is sorted by TraceSorter.
 struct TimestampedTracePiece {
+  enum class Type {
+    kInvalid = 0,
+    kFtraceEvent,
+    kTracePacket,
+    kInlineSchedSwitch,
+    kInlineSchedWaking,
+    kJsonValue,
+    kFuchsiaRecord,
+    kTrackEvent
+  };
+
   TimestampedTracePiece(int64_t ts,
                         uint64_t idx,
                         TraceBlobView tbv,
-                        PacketSequenceState* sequence_state)
-      : TimestampedTracePiece(ts,
-                              /*thread_ts=*/0,
-                              /*thread_instructions=*/0,
-                              idx,
-                              std::move(tbv),
-                              /*value=*/nullptr,
-                              /*fpv=*/nullptr,
-                              /*sequence_state=*/sequence_state,
-                              InlineEvent{}) {}
+                        PacketSequenceStateGeneration* sequence_state)
+      : packet_data{std::move(tbv), sequence_state},
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kTracePacket) {}
 
   TimestampedTracePiece(int64_t ts, uint64_t idx, TraceBlobView tbv)
-      : TimestampedTracePiece(ts,
-                              /*thread_ts=*/0,
-                              /*thread_instructions=*/0,
-                              idx,
-                              std::move(tbv),
-                              /*value=*/nullptr,
-                              /*fpv=*/nullptr,
-                              /*sequence_state=*/nullptr,
-                              InlineEvent{}) {}
+      : ftrace_event(std::move(tbv)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kFtraceEvent) {}
 
   TimestampedTracePiece(int64_t ts,
                         uint64_t idx,
                         std::unique_ptr<Json::Value> value)
-      : TimestampedTracePiece(ts,
-                              /*thread_ts=*/0,
-                              /*thread_instructions=*/0,
-                              idx,
-                              // TODO(dproy): Stop requiring TraceBlobView in
-                              // TimestampedTracePiece.
-                              TraceBlobView(nullptr, 0, 0),
-                              std::move(value),
-                              /*fpv=*/nullptr,
-                              /*sequence_state=*/nullptr,
-                              InlineEvent{}) {}
-
-  TimestampedTracePiece(int64_t ts,
-                        uint64_t idx,
-                        TraceBlobView tbv,
-                        std::unique_ptr<FuchsiaProviderView> fpv)
-      : TimestampedTracePiece(ts,
-                              /*thread_ts=*/0,
-                              /*thread_instructions=*/0,
-                              idx,
-                              std::move(tbv),
-                              /*value=*/nullptr,
-                              std::move(fpv),
-                              /*sequence_state=*/nullptr,
-                              InlineEvent{}) {}
-
-  TimestampedTracePiece(int64_t ts,
-                        int64_t thread_ts,
-                        int64_t thread_instructions,
-                        uint64_t idx,
-                        TraceBlobView tbv,
-                        PacketSequenceState* sequence_state)
-      : TimestampedTracePiece(ts,
-                              thread_ts,
-                              thread_instructions,
-                              idx,
-                              std::move(tbv),
-                              /*value=*/nullptr,
-                              /*fpv=*/nullptr,
-                              sequence_state,
-                              InlineEvent{}) {}
-
-  // TODO(rsavitski): each "empty" TraceBlobView created by this constructor
-  // still allocates ref-counting structures for the nonexistent memory.
-  // It's not a significant overhead, but consider making the class have a
-  // legitimate empty state.
-  TimestampedTracePiece(int64_t ts, uint64_t idx, InlineEvent inline_evt)
-      : TimestampedTracePiece(ts,
-                              /*thread_ts=*/0,
-                              /*thread_instructions=*/0,
-                              idx,
-                              TraceBlobView(nullptr, 0, 0),
-                              /*value=*/nullptr,
-                              /*fpv=*/nullptr,
-                              /*sequence_state=*/nullptr,
-                              inline_evt) {}
-
-  TimestampedTracePiece(int64_t ts,
-                        int64_t thread_ts,
-                        int64_t thread_instructions,
-                        uint64_t idx,
-                        TraceBlobView tbv,
-                        std::unique_ptr<Json::Value> value,
-                        std::unique_ptr<FuchsiaProviderView> fpv,
-                        PacketSequenceState* sequence_state,
-                        InlineEvent inline_evt)
       : json_value(std::move(value)),
-        fuchsia_provider_view(std::move(fpv)),
-        packet_sequence_state(sequence_state),
-        packet_sequence_state_generation(
-            sequence_state ? sequence_state->current_generation() : 0),
         timestamp(ts),
-        thread_timestamp(thread_ts),
-        thread_instruction_count(thread_instructions),
-        packet_idx_(idx),
-        blob_view(std::move(tbv)),
-        inline_event(inline_evt) {}
+        packet_idx(idx),
+        type(Type::kJsonValue) {}
 
-  TimestampedTracePiece(TimestampedTracePiece&&) noexcept = default;
-  TimestampedTracePiece& operator=(TimestampedTracePiece&&) = default;
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        std::unique_ptr<FuchsiaRecord> fr)
+      : fuchsia_record(std::move(fr)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kFuchsiaRecord) {}
+
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        std::unique_ptr<TrackEventData> ted)
+      : track_event_data(std::move(ted)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kTrackEvent) {}
+
+  TimestampedTracePiece(int64_t ts, uint64_t idx, InlineSchedSwitch iss)
+      : sched_switch(std::move(iss)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kInlineSchedSwitch) {}
+
+  TimestampedTracePiece(int64_t ts, uint64_t idx, InlineSchedWaking isw)
+      : sched_waking(std::move(isw)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kInlineSchedWaking) {}
+
+  TimestampedTracePiece(TimestampedTracePiece&& ttp) noexcept {
+    // Adopt |ttp|'s data. We have to use placement-new to fill the fields
+    // because their original values may be uninitialized and thus
+    // move-assignment won't work correctly.
+    switch (ttp.type) {
+      case Type::kInvalid:
+        break;
+      case Type::kFtraceEvent:
+        new (&ftrace_event) TraceBlobView(std::move(ttp.ftrace_event));
+        break;
+      case Type::kTracePacket:
+        new (&packet_data) TracePacketData(std::move(ttp.packet_data));
+        break;
+      case Type::kInlineSchedSwitch:
+        new (&sched_switch) InlineSchedSwitch(std::move(ttp.sched_switch));
+        break;
+      case Type::kInlineSchedWaking:
+        new (&sched_waking) InlineSchedWaking(std::move(ttp.sched_waking));
+        break;
+      case Type::kJsonValue:
+        new (&json_value)
+            std::unique_ptr<Json::Value>(std::move(ttp.json_value));
+        break;
+      case Type::kFuchsiaRecord:
+        new (&fuchsia_record)
+            std::unique_ptr<FuchsiaRecord>(std::move(ttp.fuchsia_record));
+        break;
+      case Type::kTrackEvent:
+        new (&track_event_data)
+            std::unique_ptr<TrackEventData>(std::move(ttp.track_event_data));
+        break;
+    }
+    timestamp = ttp.timestamp;
+    packet_idx = ttp.packet_idx;
+    type = ttp.type;
+
+    // Invalidate |ttp|.
+    ttp.type = Type::kInvalid;
+  }
+
+  TimestampedTracePiece& operator=(TimestampedTracePiece&& ttp) {
+    if (this != &ttp) {
+      // First invoke the destructor and then invoke the move constructor
+      // inline via placement-new to implement move-assignment.
+      this->~TimestampedTracePiece();
+      new (this) TimestampedTracePiece(std::move(ttp));
+    }
+    return *this;
+  }
+
+  ~TimestampedTracePiece() {
+    switch (type) {
+      case Type::kInvalid:
+      case Type::kInlineSchedSwitch:
+      case Type::kInlineSchedWaking:
+        break;
+      case Type::kFtraceEvent:
+        ftrace_event.~TraceBlobView();
+        break;
+      case Type::kTracePacket:
+        packet_data.~TracePacketData();
+        break;
+      case Type::kJsonValue:
+        json_value.~unique_ptr();
+        break;
+      case Type::kFuchsiaRecord:
+        fuchsia_record.~unique_ptr();
+        break;
+      case Type::kTrackEvent:
+        track_event_data.~unique_ptr();
+        break;
+    }
+  }
 
   // For std::lower_bound().
   static inline bool Compare(const TimestampedTracePiece& x, int64_t ts) {
@@ -197,23 +226,32 @@ struct TimestampedTracePiece {
   // For std::sort().
   inline bool operator<(const TimestampedTracePiece& o) const {
     return timestamp < o.timestamp ||
-           (timestamp == o.timestamp && packet_idx_ < o.packet_idx_);
+           (timestamp == o.timestamp && packet_idx < o.packet_idx);
   }
 
-  std::unique_ptr<Json::Value> json_value;
-  std::unique_ptr<FuchsiaProviderView> fuchsia_provider_view;
-  PacketSequenceState* packet_sequence_state;
-  size_t packet_sequence_state_generation;
+  // Fields ordered for packing.
+
+  // Data for different types of TimestampedTracePiece.
+  union {
+    TraceBlobView ftrace_event;
+    TracePacketData packet_data;
+    InlineSchedSwitch sched_switch;
+    InlineSchedWaking sched_waking;
+    std::unique_ptr<Json::Value> json_value;
+    std::unique_ptr<FuchsiaRecord> fuchsia_record;
+    std::unique_ptr<TrackEventData> track_event_data;
+  };
 
   int64_t timestamp;
-  int64_t thread_timestamp;
-  int64_t thread_instruction_count;
-  uint64_t packet_idx_;
-  TraceBlobView blob_view;
-  InlineEvent inline_event;
+  uint64_t packet_idx;
+  Type type;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#endif
 
 #endif  // SRC_TRACE_PROCESSOR_TIMESTAMPED_TRACE_PIECE_H_
