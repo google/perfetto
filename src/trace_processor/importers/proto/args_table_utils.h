@@ -71,8 +71,7 @@ class ProtoToArgsTable {
  public:
   struct ParsingOverrideState {
     TraceProcessorContext* context;
-    PacketSequenceState* sequence_state;
-    size_t sequence_generation;
+    PacketSequenceStateGeneration* sequence_state;
   };
   using ParsingOverride = bool (*)(const ParsingOverrideState& state,
                                    const protozero::Field&,
@@ -99,14 +98,13 @@ class ProtoToArgsTable {
     std::string* str_;
   };
 
-  // |sequence_state| and |sequence_state_generation| provide access to
-  // interning data. |context| provides access to storage.
+  // |sequence_state| provides access to interning data.
+  // |context| provides access to storage.
   //
   // |starting_prefix| will be prepended to all columns.
   // |prefix_size_hint| allows the class to upfront reserve the expected string
   // size needed.
-  ProtoToArgsTable(PacketSequenceState* sequence_state,
-                   size_t sequence_state_generation,
+  ProtoToArgsTable(PacketSequenceStateGeneration* sequence_state,
                    TraceProcessorContext* context,
                    std::string starting_prefix = "",
                    size_t prefix_size_hint = 64);

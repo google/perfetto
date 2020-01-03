@@ -234,7 +234,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   }
 
   protos::pbzero::TracePacketDefaults::Decoder* defaults =
-      state->GetTracePacketDefaults(state->current_generation());
+      state->current_generation()->GetTracePacketDefaults();
 
   int64_t timestamp;
   if (decoder.has_timestamp()) {

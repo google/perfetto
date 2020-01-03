@@ -22,7 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/ftrace_utils.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_provider_view.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -187,7 +187,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
   ProcessTracker* procs = context_->process_tracker.get();
   TraceSorter* sorter = context_->sorter.get();
 
-  fuchsia_trace_utils::RecordCursor cursor(&tbv);
+  fuchsia_trace_utils::RecordCursor cursor(tbv.data(), tbv.length());
   uint64_t header;
   if (!cursor.ReadUint64(&header)) {
     context_->storage->IncrementStats(stats::fuchsia_invalid_event);
@@ -278,13 +278,12 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       uint32_t name_ref =
           fuchsia_trace_utils::ReadField<uint32_t>(header, 48, 63);
 
-      // Build the minimal FuchsiaProviderView needed by
-      // the record. This means the thread information if not inline, and any
-      // non-inline strings (name, category for now, arg names and string values
-      // in the future.
-      auto provider_view =
-          std::unique_ptr<FuchsiaProviderView>(new FuchsiaProviderView());
-      provider_view->set_ticks_per_second(current_provider_->ticks_per_second);
+      // Build the FuchsiaRecord for the event, i.e. extract the thread
+      // information if not inline, and any non-inline strings (name, category
+      // for now, arg names and string values in the future).
+      auto record =
+          std::unique_ptr<FuchsiaRecord>(new FuchsiaRecord(std::move(tbv)));
+      record->set_ticks_per_second(current_provider_->ticks_per_second);
 
       uint64_t ticks;
       if (!cursor.ReadUint64(&ticks)) {
@@ -302,24 +301,23 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         // Skip over inline thread
         cursor.ReadInlineThread(nullptr);
       } else {
-        provider_view->InsertThread(
-            thread_ref, current_provider_->thread_table[thread_ref]);
+        record->InsertThread(thread_ref,
+                             current_provider_->thread_table[thread_ref]);
       }
 
       if (fuchsia_trace_utils::IsInlineString(cat_ref)) {
         // Skip over inline string
         cursor.ReadInlineString(cat_ref, nullptr);
       } else {
-        provider_view->InsertString(cat_ref,
-                                    current_provider_->string_table[cat_ref]);
+        record->InsertString(cat_ref, current_provider_->string_table[cat_ref]);
       }
 
       if (fuchsia_trace_utils::IsInlineString(name_ref)) {
         // Skip over inline string
         cursor.ReadInlineString(name_ref, nullptr);
       } else {
-        provider_view->InsertString(name_ref,
-                                    current_provider_->string_table[name_ref]);
+        record->InsertString(name_ref,
+                             current_provider_->string_table[name_ref]);
       }
 
       uint32_t n_args =
@@ -342,8 +340,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // Skip over inline string
           cursor.ReadInlineString(arg_name_ref, nullptr);
         } else {
-          provider_view->InsertString(
-              arg_name_ref, current_provider_->string_table[arg_name_ref]);
+          record->InsertString(arg_name_ref,
+                               current_provider_->string_table[arg_name_ref]);
         }
 
         if (arg_type == kArgString) {
@@ -353,7 +351,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             // Skip over inline string
             cursor.ReadInlineString(arg_value_ref, nullptr);
           } else {
-            provider_view->InsertString(
+            record->InsertString(
                 arg_value_ref, current_provider_->string_table[arg_value_ref]);
           }
         }
@@ -361,8 +359,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         cursor.SetWordIndex(arg_base + arg_size_words);
       }
 
-      sorter->PushFuchsiaRecord(ts, std::move(tbv), std::move(provider_view));
-
+      sorter->PushFuchsiaRecord(ts, std::move(record));
       break;
     }
     case kKernelObject: {

@@ -153,8 +153,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
     event.next_pid = *npid_it;
     event.next_prio = *nprio_it;
 
-    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp,
-                                            InlineEvent::SchedSwitch(event));
+    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp, event);
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
@@ -197,8 +196,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
     event.target_cpu = *tcpu_it;
     event.prio = *prio_it;
 
-    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp,
-                                            InlineEvent::SchedWaking(event));
+    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp, event);
   }
 
   // Check that all packed buffers were decoded correctly, and fully.

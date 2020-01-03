@@ -174,13 +174,12 @@ bool RecordCursor::ReadDouble(double* out) {
 }
 
 bool RecordCursor::ReadWords(size_t num_words, const uint8_t** data_out) {
-  const uint8_t* end = tbv_.data() + tbv_.length();
-  const uint8_t* data = tbv_.data() + sizeof(uint64_t) * word_index_;
+  const uint8_t* data = begin_ + sizeof(uint64_t) * word_index_;
   // This addition is unconditional so that callers with data_out == nullptr do
   // not necessarily have to check the return value, as future calls will fail
   // due to attempting to read out of bounds.
   word_index_ += num_words;
-  if (data + sizeof(uint64_t) * num_words <= end) {
+  if (data + sizeof(uint64_t) * num_words <= end_) {
     if (data_out != nullptr) {
       *data_out = data;
     }

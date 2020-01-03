@@ -60,9 +60,7 @@ class GraphicsEventParser {
   void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
   void ParseGpuLog(int64_t ts, ConstBytes);
 
-  void ParseVulkanMemoryEvent(PacketSequenceState*,
-                              size_t sequence_state_generation,
-                              ConstBytes);
+  void ParseVulkanMemoryEvent(PacketSequenceStateGeneration*, ConstBytes);
   void UpdateVulkanMemoryAllocationCounters(UniquePid,
                                             const VulkanMemoryEvent::Decoder&);
 
