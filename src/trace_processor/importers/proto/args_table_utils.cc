@@ -24,13 +24,12 @@
 namespace perfetto {
 namespace trace_processor {
 
-ProtoToArgsTable::ProtoToArgsTable(PacketSequenceState* sequence_state,
-                                   size_t sequence_state_generation,
-                                   TraceProcessorContext* context,
-                                   std::string starting_prefix,
-                                   size_t prefix_size_hint)
-    : state_{context, sequence_state, sequence_state_generation},
-      prefix_(std::move(starting_prefix)) {
+ProtoToArgsTable::ProtoToArgsTable(
+    PacketSequenceStateGeneration* sequence_state,
+    TraceProcessorContext* context,
+    std::string starting_prefix,
+    size_t prefix_size_hint)
+    : state_{context, sequence_state}, prefix_(std::move(starting_prefix)) {
   prefix_.reserve(prefix_size_hint);
 }
 

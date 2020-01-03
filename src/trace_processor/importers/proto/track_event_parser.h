@@ -32,7 +32,7 @@ class TrackEvent_LegacyEvent_Decoder;
 
 namespace trace_processor {
 
-class PacketSequenceState;
+class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 
 class TrackEventParser {
@@ -42,8 +42,7 @@ class TrackEventParser {
   void ParseTrackEvent(int64_t ts,
                        int64_t tts,
                        int64_t ticount,
-                       PacketSequenceState*,
-                       size_t sequence_state_generation,
+                       PacketSequenceStateGeneration*,
                        protozero::ConstBytes);
   void ParseLegacyEventAsRawEvent(
       int64_t ts,
@@ -55,26 +54,22 @@ class TrackEventParser {
       const protos::pbzero::TrackEvent_LegacyEvent_Decoder& legacy_event,
       SliceTracker::SetArgsCallback slice_args_callback);
   void ParseDebugAnnotationArgs(protozero::ConstBytes debug_annotation,
-                                PacketSequenceState*,
-                                size_t sequence_state_generation,
+                                PacketSequenceStateGeneration*,
                                 ArgsTracker::BoundInserter* inserter);
   void ParseNestedValueArgs(protozero::ConstBytes nested_value,
                             base::StringView flat_key,
                             base::StringView key,
                             ArgsTracker::BoundInserter* inserter);
   void ParseTaskExecutionArgs(protozero::ConstBytes task_execution,
-                              PacketSequenceState*,
-                              size_t sequence_state_generation,
+                              PacketSequenceStateGeneration*,
                               ArgsTracker::BoundInserter* inserter);
   void ParseLogMessage(protozero::ConstBytes,
-                       PacketSequenceState*,
-                       size_t sequence_state_generation,
+                       PacketSequenceStateGeneration*,
                        int64_t,
                        base::Optional<UniqueTid>,
                        ArgsTracker::BoundInserter* inserter);
   void ParseCcScheduler(protozero::ConstBytes cc_scheduler,
-                        PacketSequenceState*,
-                        size_t sequence_state_generation,
+                        PacketSequenceStateGeneration*,
                         ArgsTracker::BoundInserter* inserter);
   void ParseChromeUserEvent(protozero::ConstBytes chrome_user_event,
                             ArgsTracker::BoundInserter* inserter);
