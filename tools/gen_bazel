@@ -166,6 +166,8 @@ class BazelLabel(object):
       res += '    %s = ' % k
       if isinstance(v, basestring):
         res += '"%s",\n' % v
+      elif isinstance(v, bool):
+        res += '%s,\n' % v
       elif isinstance(v, list):
         res += '[\n'
         if k == 'deps' and len(self.external_deps) > 1:
@@ -311,6 +313,10 @@ def gen_target(gn_target):
   if bazel_type == 'perfetto_cc_library':
     label.srcs = [x for x in raw_srcs if not x.startswith('include')]
     label.hdrs = [x for x in raw_srcs if x.startswith('include')]
+
+    # Most Perfetto libraries cannot by dynamically linked as they would
+    # cause ODR violations.
+    label.__dict__['linkstatic'] = True
   else:
     label.srcs = raw_srcs
 
