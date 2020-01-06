@@ -221,47 +221,6 @@ class TraceStorage {
     std::unordered_map<ArgSetHash, uint32_t> arg_row_for_hash_;
   };
 
-  class Tracks {
-   public:
-    inline uint32_t AddTrack(StringId name) {
-      names_.emplace_back(name);
-      return track_count() - 1;
-    }
-
-    uint32_t track_count() const {
-      return static_cast<uint32_t>(names_.size());
-    }
-
-    const std::deque<StringId>& names() const { return names_; }
-
-   private:
-    std::deque<StringId> names_;
-  };
-
-  class GpuContexts {
-   public:
-    inline void AddGpuContext(uint64_t context_id,
-                              UniquePid upid,
-                              uint32_t priority) {
-      context_ids_.emplace_back(context_id);
-      upids_.emplace_back(upid);
-      priorities_.emplace_back(priority);
-    }
-
-    uint32_t gpu_context_count() const {
-      return static_cast<uint32_t>(context_ids_.size());
-    }
-
-    const std::deque<uint64_t>& context_ids() const { return context_ids_; }
-    const std::deque<UniquePid>& upids() const { return upids_; }
-    const std::deque<uint32_t>& priorities() const { return priorities_; }
-
-   private:
-    std::deque<uint64_t> context_ids_;
-    std::deque<UniquePid> upids_;
-    std::deque<uint32_t> priorities_;
-  };
-
   class Slices {
    public:
     inline size_t AddSlice(uint32_t cpu,
@@ -1055,9 +1014,6 @@ class TraceStorage {
       &string_pool_, &counter_track_table_};
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
-
-  // Metadata for gpu tracks.
-  GpuContexts gpu_contexts_;
 
   // One entry for each CPU in the trace.
   Slices slices_;
