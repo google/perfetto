@@ -26,8 +26,10 @@
 #include <json/value.h>
 #include <json/writer.h>
 #include <stdio.h>
+
 #include <cstring>
-#include <vector>
+#include <deque>
+#include <limits>
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "src/trace_processor/metadata.h"
@@ -107,33 +109,26 @@ class TraceFormatWriter {
     if (label_filter_ && !label_filter_("traceEvents"))
       return;
 
-    if (!first_event_)
-      output_->AppendString(",\n");
+    // Pop end events with smaller or equal timestamps.
+    PopEndEvents(event["ts"].asInt64());
 
-    Json::FastWriter writer;
-    writer.omitEndingLineFeed();
+    DoWriteEvent(event);
+  }
 
-    ArgumentNameFilterPredicate argument_name_filter;
-    bool strip_args =
-        argument_filter_ &&
-        !argument_filter_(event["cat"].asCString(), event["name"].asCString(),
-                          &argument_name_filter);
-    if ((strip_args || argument_name_filter) && event.isMember("args")) {
-      Json::Value event_copy = event;
-      if (strip_args) {
-        event_copy["args"] = kStrippedArgument;
-      } else {
-        auto& args = event_copy["args"];
-        for (const auto& member : event["args"].getMemberNames()) {
-          if (!argument_name_filter(member.c_str()))
-            args[member] = kStrippedArgument;
-        }
-      }
-      output_->AppendString(writer.write(event_copy));
-    } else {
-      output_->AppendString(writer.write(event));
-    }
-    first_event_ = false;
+  void PushEndEvent(const Json::Value& event) {
+    if (label_filter_ && !label_filter_("traceEvents"))
+      return;
+
+    // Pop any end events that end before the new one.
+    PopEndEvents(event["ts"].asInt64() - 1);
+
+    // Catapult doesn't handle out-of-order begin/end events well, especially
+    // when their timestamps are the same, but their order is incorrect. Since
+    // our events are sorted by begin timestamp, we only have to reorder end
+    // events. We do this by buffering them into a stack, so that both begin &
+    // end events of potential child events have been emitted before we emit the
+    // end of a parent event.
+    end_events_.push_back(event);
   }
 
   void WriteMetadataEvent(const char* metadata_type,
@@ -226,6 +221,8 @@ class TraceFormatWriter {
   }
 
   void WriteFooter() {
+    PopEndEvents(std::numeric_limits<int64_t>::max());
+
     // Filter metadata entries.
     if (metadata_filter_) {
       for (const auto& member : metadata_.getMemberNames()) {
@@ -266,6 +263,46 @@ class TraceFormatWriter {
       output_->AppendString("}");
   }
 
+  void DoWriteEvent(const Json::Value& event) {
+    if (!first_event_)
+      output_->AppendString(",\n");
+
+    Json::FastWriter writer;
+    writer.omitEndingLineFeed();
+
+    ArgumentNameFilterPredicate argument_name_filter;
+    bool strip_args =
+        argument_filter_ &&
+        !argument_filter_(event["cat"].asCString(), event["name"].asCString(),
+                          &argument_name_filter);
+    if ((strip_args || argument_name_filter) && event.isMember("args")) {
+      Json::Value event_copy = event;
+      if (strip_args) {
+        event_copy["args"] = kStrippedArgument;
+      } else {
+        auto& args = event_copy["args"];
+        for (const auto& member : event["args"].getMemberNames()) {
+          if (!argument_name_filter(member.c_str()))
+            args[member] = kStrippedArgument;
+        }
+      }
+      output_->AppendString(writer.write(event_copy));
+    } else {
+      output_->AppendString(writer.write(event));
+    }
+    first_event_ = false;
+  }
+
+  void PopEndEvents(int64_t max_ts) {
+    while (!end_events_.empty()) {
+      int64_t ts = end_events_.back()["ts"].asInt64();
+      if (ts > max_ts)
+        break;
+      DoWriteEvent(end_events_.back());
+      end_events_.pop_back();
+    }
+  }
+
   OutputWriter* output_;
   ArgumentFilterPredicate argument_filter_;
   MetadataFilterPredicate metadata_filter_;
@@ -275,6 +312,7 @@ class TraceFormatWriter {
   Json::Value metadata_;
   std::string system_trace_data_;
   std::string user_trace_data_;
+  std::deque<Json::Value> end_events_;
 };
 
 std::string PrintUint64(uint64_t x) {
@@ -664,7 +702,7 @@ util::Status ExportSlices(const TraceStorage* storage,
                 (thread_instruction_count + thread_instruction_delta));
           }
           event["args"].clear();
-          writer->WriteCommonEvent(event);
+          writer->PushEndEvent(event);
         }
       }
     } else {

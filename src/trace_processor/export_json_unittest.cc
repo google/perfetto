@@ -780,18 +780,20 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   EXPECT_EQ(event["name"].asString(), kName);
 }
 
-TEST_F(ExportJsonTest, AsyncEvent) {
+TEST_F(ExportJsonTest, AsyncEvents) {
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = 100000;
   const int64_t kProcessID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
+  const char* kName2 = "name2";
   const char* kArgName = "arg_name";
   const int kArgValue = 123;
 
   UniquePid upid = context_.storage->AddEmptyProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
+  StringId name2_id = context_.storage->InternString(base::StringView(kName2));
 
   constexpr int64_t kSourceId = 235;
   TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
@@ -810,6 +812,10 @@ TEST_F(ExportJsonTest, AsyncEvent) {
   ArgSetId args = context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
+  // Child event with same timestamps as first one.
+  context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp, kDuration, track.value, cat_id, name2_id, 0, 0, 0});
+
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
   util::Status status = ExportJson(context_.storage.get(), output);
@@ -817,30 +823,54 @@ TEST_F(ExportJsonTest, AsyncEvent) {
   EXPECT_TRUE(status.ok());
 
   Json::Value result = ToJsonValue(ReadFile(output));
-  EXPECT_EQ(result["traceEvents"].size(), 2u);
+  EXPECT_EQ(result["traceEvents"].size(), 4u);
 
-  Json::Value begin_event = result["traceEvents"][0];
-  EXPECT_EQ(begin_event["ph"].asString(), "b");
-  EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(begin_event["cat"].asString(), kCategory);
-  EXPECT_EQ(begin_event["name"].asString(), kName);
-  EXPECT_EQ(begin_event["args"][kArgName].asInt(), kArgValue);
-  EXPECT_FALSE(begin_event.isMember("tts"));
-  EXPECT_FALSE(begin_event.isMember("use_async_tts"));
+  Json::Value begin_event1 = result["traceEvents"][0];
+  EXPECT_EQ(begin_event1["ph"].asString(), "b");
+  EXPECT_EQ(begin_event1["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event1["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event1["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(begin_event1["cat"].asString(), kCategory);
+  EXPECT_EQ(begin_event1["name"].asString(), kName);
+  EXPECT_EQ(begin_event1["args"][kArgName].asInt(), kArgValue);
+  EXPECT_FALSE(begin_event1.isMember("tts"));
+  EXPECT_FALSE(begin_event1.isMember("use_async_tts"));
 
-  Json::Value end_event = result["traceEvents"][1];
-  EXPECT_EQ(end_event["ph"].asString(), "e");
-  EXPECT_EQ(end_event["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event["pid"].asInt64(), kProcessID);
-  EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
-  EXPECT_EQ(end_event["cat"].asString(), kCategory);
-  EXPECT_EQ(end_event["name"].asString(), kName);
-  EXPECT_TRUE(end_event["args"].isObject());
-  EXPECT_EQ(end_event["args"].size(), 0u);
-  EXPECT_FALSE(end_event.isMember("tts"));
-  EXPECT_FALSE(end_event.isMember("use_async_tts"));
+  Json::Value begin_event2 = result["traceEvents"][1];
+  EXPECT_EQ(begin_event2["ph"].asString(), "b");
+  EXPECT_EQ(begin_event2["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event2["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event2["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(begin_event2["cat"].asString(), kCategory);
+  EXPECT_EQ(begin_event2["name"].asString(), kName2);
+  EXPECT_TRUE(begin_event2["args"].isObject());
+  EXPECT_EQ(begin_event2["args"].size(), 0u);
+  EXPECT_FALSE(begin_event2.isMember("tts"));
+  EXPECT_FALSE(begin_event2.isMember("use_async_tts"));
+
+  Json::Value end_event2 = result["traceEvents"][3];
+  EXPECT_EQ(end_event2["ph"].asString(), "e");
+  EXPECT_EQ(end_event2["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event2["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(end_event2["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(end_event2["cat"].asString(), kCategory);
+  EXPECT_EQ(end_event2["name"].asString(), kName);
+  EXPECT_TRUE(end_event2["args"].isObject());
+  EXPECT_EQ(end_event2["args"].size(), 0u);
+  EXPECT_FALSE(end_event2.isMember("tts"));
+  EXPECT_FALSE(end_event2.isMember("use_async_tts"));
+
+  Json::Value end_event1 = result["traceEvents"][3];
+  EXPECT_EQ(end_event1["ph"].asString(), "e");
+  EXPECT_EQ(end_event1["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event1["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(end_event1["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(end_event1["cat"].asString(), kCategory);
+  EXPECT_EQ(end_event1["name"].asString(), kName);
+  EXPECT_TRUE(end_event1["args"].isObject());
+  EXPECT_EQ(end_event1["args"].size(), 0u);
+  EXPECT_FALSE(end_event1.isMember("tts"));
+  EXPECT_FALSE(end_event1.isMember("use_async_tts"));
 }
 
 TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
