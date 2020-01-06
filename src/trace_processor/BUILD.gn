@@ -200,6 +200,8 @@ source_set("storage_full") {
     "importers/ftrace/ftrace_parser.h",
     "importers/ftrace/ftrace_tokenizer.cc",
     "importers/ftrace/ftrace_tokenizer.h",
+    "importers/ftrace/rss_stat_tracker.cc",
+    "importers/ftrace/rss_stat_tracker.h",
     "importers/ftrace/sched_event_tracker.cc",
     "importers/ftrace/sched_event_tracker.h",
     "importers/proto/android_probes_module.cc",
