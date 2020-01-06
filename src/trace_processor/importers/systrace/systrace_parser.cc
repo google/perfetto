@@ -160,7 +160,7 @@ void SystraceParser::ParseSystracePoint(
         if (killed_pid != 0) {
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
-          context_->event_tracker->PushInstant(ts, lmk_id_, 0, killed_upid,
+          context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
                                                RefType::kRefUpid);
         }
         // TODO(lalitm): we should not add LMK events to the counters table

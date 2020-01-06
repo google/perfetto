@@ -80,6 +80,8 @@ using CounterId = tables::CounterTable::Id;
 
 using SliceId = tables::SliceTable::Id;
 
+using InstantId = tables::InstantTable::Id;
+
 using MappingId = tables::StackProfileMappingTable::Id;
 
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
@@ -472,49 +474,6 @@ class TraceStorage {
     std::deque<int64_t> times_started_;
     std::deque<int64_t> times_first_next_;
     std::deque<int64_t> times_ended_;
-  };
-
-  class Instants {
-   public:
-    inline uint32_t AddInstantEvent(int64_t timestamp,
-                                    StringId name_id,
-                                    double value,
-                                    int64_t ref,
-                                    RefType type) {
-      timestamps_.emplace_back(timestamp);
-      name_ids_.emplace_back(name_id);
-      values_.emplace_back(value);
-      refs_.emplace_back(ref);
-      types_.emplace_back(type);
-      arg_set_ids_.emplace_back(kInvalidArgSetId);
-      return static_cast<uint32_t>(instant_count() - 1);
-    }
-
-    void set_ref(uint32_t row, int64_t ref) { refs_[row] = ref; }
-
-    void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
-
-    size_t instant_count() const { return timestamps_.size(); }
-
-    const std::deque<int64_t>& timestamps() const { return timestamps_; }
-
-    const std::deque<StringId>& name_ids() const { return name_ids_; }
-
-    const std::deque<double>& values() const { return values_; }
-
-    const std::deque<int64_t>& refs() const { return refs_; }
-
-    const std::deque<RefType>& types() const { return types_; }
-
-    const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
-
-   private:
-    std::deque<int64_t> timestamps_;
-    std::deque<StringId> name_ids_;
-    std::deque<double> values_;
-    std::deque<int64_t> refs_;
-    std::deque<RefType> types_;
-    std::deque<ArgSetId> arg_set_ids_;
   };
 
   class RawEvents {
@@ -929,8 +888,8 @@ class TraceStorage {
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
 
-  const Instants& instants() const { return instants_; }
-  Instants* mutable_instants() { return &instants_; }
+  const tables::InstantTable& instant_table() const { return instant_table_; }
+  tables::InstantTable* mutable_instant_table() { return &instant_table_; }
 
   const AndroidLogs& android_logs() const { return android_log_; }
   AndroidLogs* mutable_android_log() { return &android_log_; }
@@ -1134,7 +1093,7 @@ class TraceStorage {
   // These are instantaneous events in the trace. They have no duration
   // and do not have a value that make sense to track over time.
   // e.g. signal events
-  Instants instants_;
+  tables::InstantTable instant_table_{&string_pool_, nullptr};
 
   // Raw events are every ftrace event in the trace. The raw event includes
   // the timestamp and the pid. The args for the raw event will be in the

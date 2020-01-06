@@ -38,6 +38,17 @@ namespace tables {
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
+#define PERFETTO_TP_INSTANT_TABLE_DEF(NAME, PARENT, C) \
+  NAME(InstantTable, "instant")                        \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
+  C(int64_t, ts, Column::Flag::kSorted)                \
+  C(StringPool::Id, name)                              \
+  C(int64_t, ref)                                      \
+  C(StringPool::Id, ref_type)                          \
+  C(uint32_t, arg_set_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_INSTANT_TABLE_DEF);
+
 #define PERFETTO_TP_GPU_SLICES_DEF(NAME, PARENT, C) \
   NAME(GpuSliceTable, "internal_gpu_slice")         \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                 \
