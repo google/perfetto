@@ -147,12 +147,10 @@ TEST_F(HeapProfileTrackerDupTest, Frame) {
   context.heap_profile_tracker->FinalizeProfile(
       kDefaultSequence, stack_profile_tracker.get(), nullptr);
 
-  EXPECT_THAT(context.storage->stack_profile_frames().names(),
-              ElementsAre(frame_name));
-  EXPECT_THAT(context.storage->stack_profile_frames().mappings(),
-              ElementsAre(0));
-  EXPECT_THAT(context.storage->stack_profile_frames().rel_pcs(),
-              ElementsAre(kFrameRelPc));
+  const auto& frames = context.storage->stack_profile_frame_table();
+  EXPECT_THAT(frames.name()[0], frame_name);
+  EXPECT_THAT(frames.mapping()[0], 0);
+  EXPECT_THAT(frames.rel_pc()[0], kFrameRelPc);
 }
 
 // Insert the same callstack from two different packets, assert it is only
