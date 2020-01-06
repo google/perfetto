@@ -140,33 +140,36 @@ base::Optional<int64_t> StackProfileTracker::AddFrame(
   }
   int64_t mapping_row = *maybe_mapping;
 
-  TraceStorage::StackProfileFrames::Row row{str_id, mapping_row,
-                                            static_cast<int64_t>(frame.rel_pc)};
+  tables::StackProfileFrameTable::Row row{str_id, mapping_row,
+                                          static_cast<int64_t>(frame.rel_pc)};
 
-  TraceStorage::StackProfileFrames* frames =
-      context_->storage->mutable_stack_profile_frames();
+  auto* frames = context_->storage->mutable_stack_profile_frame_table();
 
   int64_t cur_row = -1;
   auto it = frame_idx_.find(row);
   if (it != frame_idx_.end()) {
     cur_row = it->second;
   } else {
-    std::vector<int64_t> db_frames =
-        frames->FindFrameRow(static_cast<size_t>(mapping_row), frame.rel_pc);
+    std::vector<int64_t> db_frames = context_->storage->FindFrameRow(
+        static_cast<size_t>(mapping_row), frame.rel_pc);
     for (const int64_t preexisting_frame : db_frames) {
       PERFETTO_DCHECK(preexisting_frame >= 0);
-      size_t preexisting_row_id = static_cast<size_t>(preexisting_frame);
-      TraceStorage::StackProfileFrames::Row preexisting_row{
-          frames->names()[preexisting_row_id],
-          frames->mappings()[preexisting_row_id],
-          frames->rel_pcs()[preexisting_row_id]};
+      uint32_t preexisting_row_id = static_cast<uint32_t>(preexisting_frame);
+      tables::StackProfileFrameTable::Row preexisting_row{
+          frames->name()[preexisting_row_id],
+          frames->mapping()[preexisting_row_id],
+          frames->rel_pc()[preexisting_row_id]};
 
       if (row == preexisting_row) {
         cur_row = preexisting_frame;
       }
     }
     if (cur_row == -1) {
-      cur_row = context_->storage->mutable_stack_profile_frames()->Insert(row);
+      auto new_id = frames->Insert(row);
+      cur_row = *frames->id().IndexOf(new_id);
+      context_->storage->InsertFrameRow(static_cast<size_t>(row.mapping),
+                                        static_cast<uint64_t>(row.rel_pc),
+                                        static_cast<uint32_t>(cur_row));
     }
     frame_idx_.emplace(row, cur_row);
   }

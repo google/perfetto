@@ -804,8 +804,6 @@ filegroup(
         "src/trace_processor/span_join_operator_table.h",
         "src/trace_processor/sql_stats_table.cc",
         "src/trace_processor/sql_stats_table.h",
-        "src/trace_processor/stack_profile_frame_table.cc",
-        "src/trace_processor/stack_profile_frame_table.h",
         "src/trace_processor/stats_table.cc",
         "src/trace_processor/stats_table.h",
         "src/trace_processor/storage_columns.cc",
