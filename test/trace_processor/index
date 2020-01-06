@@ -55,6 +55,10 @@ synth_oom.py oom_query.sql synth_oom_oom_query.out
 kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
 
+# Rss stats
+rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
+rss_stat_legacy.py rss_stat.sql rss_stat_legacy.out
+
 # Memory counters
 ../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
 ../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
