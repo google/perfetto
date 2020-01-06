@@ -61,6 +61,7 @@ const char kKthreaddName[] = "kthreadd";
 FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
       binder_tracker_(context),
+      rss_stat_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
@@ -74,13 +75,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       lmk_id_(context->storage->InternString("mem.lmk")),
       comm_name_id_(context->storage->InternString("comm")) {
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.file"));
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.anon"));
-  rss_members_.emplace_back(context->storage->InternString("mem.swap"));
-  rss_members_.emplace_back(context->storage->InternString("mem.rss.shmem"));
-  rss_members_.emplace_back(
-      context->storage->InternString("mem.rss.unknown"));  // Keep this last.
-
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -272,7 +266,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kRssStatFieldNumber: {
-        ParseRssStat(ts, pid, data);
+        rss_stat_tracker_.ParseRssStat(ts, pid, data);
         break;
       }
       case FtraceEvent::kIonHeapGrowFieldNumber: {
@@ -320,27 +314,27 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kBinderTransactionFieldNumber: {
-        ParseBinderTransaction(ts, pid, data);
+        binder_tracker_.Transaction(ts, pid);
         break;
       }
       case FtraceEvent::kBinderTransactionReceivedFieldNumber: {
-        ParseBinderTransactionReceived(ts, pid, data);
+        binder_tracker_.TransactionReceived(ts, pid);
         break;
       }
       case FtraceEvent::kBinderTransactionAllocBufFieldNumber: {
-        ParseBinderTransactionAllocBuf(ts, pid, data);
+        binder_tracker_.TransactionAllocBuf(ts, pid);
         break;
       }
       case FtraceEvent::kBinderLockFieldNumber: {
-        ParseBinderLock(ts, pid, data);
+        binder_tracker_.Lock(ts, pid);
         break;
       }
       case FtraceEvent::kBinderUnlockFieldNumber: {
-        ParseBinderUnlock(ts, pid, data);
+        binder_tracker_.Unlock(ts, pid);
         break;
       }
       case FtraceEvent::kBinderLockedFieldNumber: {
-        ParseBinderLocked(ts, pid, data);
+        binder_tracker_.Locked(ts, pid);
         break;
       }
       case FtraceEvent::kSdeTracingMarkWriteFieldNumber: {
@@ -557,25 +551,6 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t ts,
       evt.trace_name(), tgid, evt.value());
 }
 
-void FtraceParser::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
-  protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
-  const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
-  auto member = static_cast<uint32_t>(rss.member());
-  int64_t size = rss.size();
-  if (member >= rss_members_.size()) {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
-    member = kRssStatUnknown;
-  }
-
-  if (size >= 0) {
-    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-    context_->event_tracker->PushProcessCounterForThread(
-        ts, size, rss_members_[member], utid);
-  } else {
-    context_->storage->IncrementStats(stats::rss_stat_negative_size);
-  }
-}
-
 void FtraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
                                             uint32_t pid,
                                             ConstBytes blob,
@@ -770,51 +745,6 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   StringId comm = context_->storage->InternString(evt.newcomm());
   context_->process_tracker->UpdateThreadName(tid, comm);
   context_->process_tracker->UpdateProcessNameFromThreadName(tid, comm);
-}
-
-void FtraceParser::ParseBinderTransaction(int64_t timestamp,
-                                          uint32_t pid,
-                                          ConstBytes blob) {
-  protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob.data,
-                                                            blob.size);
-  binder_tracker_.Transaction(timestamp, pid);
-}
-
-void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
-                                                  uint32_t pid,
-                                                  ConstBytes blob) {
-  protos::pbzero::BinderTransactionReceivedFtraceEvent::Decoder evt(blob.data,
-                                                                    blob.size);
-  binder_tracker_.TransactionReceived(timestamp, pid);
-}
-
-void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
-                                                  uint32_t pid,
-                                                  ConstBytes blob) {
-  protos::pbzero::BinderTransactionAllocBufFtraceEvent::Decoder evt(blob.data,
-                                                                    blob.size);
-  binder_tracker_.TransactionAllocBuf(timestamp, pid);
-}
-
-void FtraceParser::ParseBinderLocked(int64_t timestamp,
-                                     uint32_t pid,
-                                     ConstBytes blob) {
-  protos::pbzero::BinderLockedFtraceEvent::Decoder evt(blob.data, blob.size);
-  binder_tracker_.Locked(timestamp, pid);
-}
-
-void FtraceParser::ParseBinderLock(int64_t timestamp,
-                                   uint32_t pid,
-                                   ConstBytes blob) {
-  protos::pbzero::BinderLockFtraceEvent::Decoder evt(blob.data, blob.size);
-  binder_tracker_.Lock(timestamp, pid);
-}
-
-void FtraceParser::ParseBinderUnlock(int64_t timestamp,
-                                     uint32_t pid,
-                                     ConstBytes blob) {
-  protos::pbzero::BinderUnlockFtraceEvent::Decoder evt(blob.data, blob.size);
-  binder_tracker_.Unlock(timestamp, pid);
 }
 
 }  // namespace trace_processor
