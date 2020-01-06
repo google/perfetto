@@ -1150,31 +1150,32 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   // stack_profile_frame.symbol_set_id remove this hack
   storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
 
-  uint32_t frame_row_id_1 = storage->mutable_stack_profile_frames()->Insert(
-      {/*name_id=*/0, module_id_1.value, 0x42});
+  auto* frames = storage->mutable_stack_profile_frame_table();
+  auto frame_id_1 = frames->Insert({/*name_id=*/0, module_id_1.value, 0x42});
+  uint32_t frame_row_1 = *frames->id().IndexOf(frame_id_1);
+
   uint32_t symbol_set_id = storage->symbol_table().row_count();
   storage->mutable_symbol_table()->Insert(
       {symbol_set_id, storage->InternString("foo_func"),
        storage->InternString("foo_file"), 66});
-  storage->mutable_stack_profile_frames()->SetSymbolSetId(frame_row_id_1,
-                                                          symbol_set_id);
+  frames->mutable_symbol_set_id()->Set(frame_row_1, symbol_set_id);
 
-  uint32_t frame_row_id_2 = storage->mutable_stack_profile_frames()->Insert(
-      {/*name_id=*/0, module_id_2.value, 0x4242});
+  auto frame_id_2 = frames->Insert({/*name_id=*/0, module_id_2.value, 0x4242});
+  uint32_t frame_row_2 = *frames->id().IndexOf(frame_id_2);
+
   symbol_set_id = storage->symbol_table().row_count();
   storage->mutable_symbol_table()->Insert(
       {symbol_set_id, storage->InternString("bar_func"),
        storage->InternString("bar_file"), 77});
-  storage->mutable_stack_profile_frames()->SetSymbolSetId(frame_row_id_2,
-                                                          symbol_set_id);
+  frames->mutable_symbol_set_id()->Set(frame_row_2, symbol_set_id);
 
   auto frame_callsite_id_1 =
       storage->mutable_stack_profile_callsite_table()->Insert(
-          {0, -1, frame_row_id_1});
+          {0, -1, frame_id_1.value});
 
   auto frame_callsite_id_2 =
       storage->mutable_stack_profile_callsite_table()->Insert(
-          {1, frame_callsite_id_1.value, frame_row_id_2});
+          {1, frame_callsite_id_1.value, frame_id_2.value});
 
   storage->mutable_cpu_profile_stack_sample_table()->Insert(
       {kTimestamp, frame_callsite_id_2.value, utid});

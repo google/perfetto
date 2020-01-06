@@ -64,6 +64,16 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_MAPPING_DEF);
 
+#define PERFETTO_TP_STACK_PROFILE_FRAME_DEF(NAME, PARENT, C) \
+  NAME(StackProfileFrameTable, "stack_profile_frame")        \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                          \
+  C(StringPool::Id, name)                                    \
+  C(int64_t, mapping)                                        \
+  C(int64_t, rel_pc)                                         \
+  C(base::Optional<uint32_t>, symbol_set_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_FRAME_DEF);
+
 #define PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF(NAME, PARENT, C) \
   NAME(HeapProfileAllocationTable, "heap_profile_allocation")    \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                              \

@@ -209,11 +209,12 @@ void HeapGraphTracker::WriteFlamegraph(
     int32_t parent_id,
     uint32_t depth,
     uint32_t mapping_row) {
-  TraceStorage::StackProfileFrames::Row row{};
-  row.name_id = StringId(static_cast<uint32_t>(path.class_name));
-  row.mapping_row = mapping_row;
-  int32_t frame_id = static_cast<int32_t>(
-      context_->storage->mutable_stack_profile_frames()->Insert(row));
+  tables::StackProfileFrameTable::Row row{};
+  row.name = StringId(static_cast<uint32_t>(path.class_name));
+  row.mapping = mapping_row;
+
+  auto id = context_->storage->mutable_stack_profile_frame_table()->Insert(row);
+  int32_t frame_id = static_cast<int32_t>(id.value);
 
   auto* callsites = context_->storage->mutable_stack_profile_callsite_table();
   auto callsite_id = callsites->Insert({depth, parent_id, frame_id});

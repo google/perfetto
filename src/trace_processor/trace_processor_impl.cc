@@ -37,7 +37,6 @@
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
-#include "src/trace_processor/stack_profile_frame_table.h"
 #include "src/trace_processor/stats_table.h"
 #include "src/trace_processor/thread_table.h"
 #include "src/trace_processor/window_operator_table.h"
@@ -372,7 +371,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   StatsTable::RegisterTable(*db_, context_.storage.get());
   AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
-  StackProfileFrameTable::RegisterTable(*db_, context_.storage.get());
   MetadataTable::RegisterTable(*db_, context_.storage.get());
 
   // New style db-backed tables.
@@ -433,6 +431,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   DbSqliteTable::RegisterTable(
       *db_, &storage->stack_profile_mapping_table(),
       storage->stack_profile_mapping_table().table_name());
+  DbSqliteTable::RegisterTable(
+      *db_, &storage->stack_profile_frame_table(),
+      storage->stack_profile_frame_table().table_name());
 
   DbSqliteTable::RegisterTable(
       *db_, &storage->vulkan_memory_allocations_table(),

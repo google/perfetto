@@ -850,29 +850,29 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
     while (maybe_callsite_id >= 0) {
       uint32_t callsite_id = static_cast<uint32_t>(maybe_callsite_id);
 
-      const TraceStorage::StackProfileFrames& frames =
-          storage->stack_profile_frames();
+      const auto& frames = storage->stack_profile_frame_table();
       PERFETTO_DCHECK(callsites.frame_id()[callsite_id] >= 0 &&
-                      callsites.frame_id()[callsite_id] < frames.size());
-      size_t frame_id = static_cast<size_t>(callsites.frame_id()[callsite_id]);
+                      callsites.frame_id()[callsite_id] < frames.row_count());
+      uint32_t frame_id =
+          static_cast<uint32_t>(callsites.frame_id()[callsite_id]);
 
       const auto& mappings = storage->stack_profile_mapping_table();
-      PERFETTO_DCHECK(frames.mappings()[frame_id] >= 0 &&
-                      frames.mappings()[frame_id] < mappings.row_count());
-      uint32_t mapping_id = static_cast<uint32_t>(frames.mappings()[frame_id]);
+      PERFETTO_DCHECK(frames.mapping()[frame_id] >= 0 &&
+                      frames.mapping()[frame_id] < mappings.row_count());
+      uint32_t mapping_id = static_cast<uint32_t>(frames.mapping()[frame_id]);
 
       NullTermStringView symbol_name;
-      uint32_t symbol_set_id = frames.symbol_set_ids()[frame_id];
-      if (symbol_set_id) {
-        symbol_name =
-            storage->GetString(storage->symbol_table().name()[symbol_set_id]);
+      auto opt_symbol_set_id = frames.symbol_set_id()[frame_id];
+      if (opt_symbol_set_id) {
+        symbol_name = storage->GetString(
+            storage->symbol_table().name()[*opt_symbol_set_id]);
       }
 
       char frame_entry[1024];
       snprintf(
           frame_entry, sizeof(frame_entry), "%s - %s [%s]\n",
           (symbol_name.empty()
-               ? PrintUint64(static_cast<uint64_t>(frames.rel_pcs()[frame_id]))
+               ? PrintUint64(static_cast<uint64_t>(frames.rel_pc()[frame_id]))
                      .c_str()
                : symbol_name.c_str()),
           GetNonNullString(storage, mappings.name()[mapping_id]),
