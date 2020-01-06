@@ -217,7 +217,7 @@ def _merge_dicts(*args):
     res = {}
     for arg in args:
         for k, v in arg.items():
-            if type(v) == "string":
+            if type(v) == "string" or type(v) == "bool":
                 res[k] = v
             elif type(v) == "list" or type(v) == "select":
                 res[k] = res.get(k, []) + v
