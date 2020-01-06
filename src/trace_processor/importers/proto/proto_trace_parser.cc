@@ -636,14 +636,15 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
     uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
     bool frame_found = false;
     for (int64_t mapping_row : mapping_rows) {
-      std::vector<int64_t> frame_rows =
-          context_->storage->stack_profile_frames().FindFrameRow(
-              static_cast<size_t>(mapping_row), address_symbols.address());
+      std::vector<int64_t> frame_rows = context_->storage->FindFrameRow(
+          static_cast<size_t>(mapping_row), address_symbols.address());
 
       for (const int64_t frame_row : frame_rows) {
         PERFETTO_DCHECK(frame_row >= 0);
-        context_->storage->mutable_stack_profile_frames()->SetSymbolSetId(
-            static_cast<uint32_t>(frame_row), symbol_set_id);
+
+        uint32_t row_idx = static_cast<uint32_t>(frame_row);
+        auto* frames = context_->storage->mutable_stack_profile_frame_table();
+        frames->mutable_symbol_set_id()->Set(row_idx, symbol_set_id);
         frame_found = true;
       }
     }

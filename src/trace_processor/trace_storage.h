@@ -649,63 +649,6 @@ class TraceStorage {
     std::map<metadata::KeyIDs, uint32_t> scalar_indices;
   };
 
-  class StackProfileFrames {
-   public:
-    struct Row {
-      StringId name_id;
-      int64_t mapping_row;
-      int64_t rel_pc;
-
-      bool operator==(const Row& other) const {
-        return std::tie(name_id, mapping_row, rel_pc) ==
-               std::tie(other.name_id, other.mapping_row, other.rel_pc);
-      }
-    };
-
-    uint32_t size() const { return static_cast<uint32_t>(names_.size()); }
-
-    uint32_t Insert(const Row& row) {
-      names_.emplace_back(row.name_id);
-      mappings_.emplace_back(row.mapping_row);
-      rel_pcs_.emplace_back(row.rel_pc);
-      symbol_set_ids_.emplace_back(0);
-      size_t row_number = names_.size() - 1;
-      index_[std::make_pair(row.mapping_row, row.rel_pc)].emplace_back(
-          row_number);
-      return static_cast<uint32_t>(row_number);
-    }
-
-    std::vector<int64_t> FindFrameRow(size_t mapping_row,
-                                      uint64_t rel_pc) const {
-      auto it = index_.find(std::make_pair(mapping_row, rel_pc));
-      if (it == index_.end())
-        return {};
-      return it->second;
-    }
-
-    void SetSymbolSetId(uint32_t row_idx, uint32_t symbol_set_id) {
-      PERFETTO_CHECK(row_idx < symbol_set_ids_.size());
-      symbol_set_ids_[row_idx] = symbol_set_id;
-    }
-
-    const std::deque<StringId>& names() const { return names_; }
-    const std::deque<int64_t>& mappings() const { return mappings_; }
-    const std::deque<int64_t>& rel_pcs() const { return rel_pcs_; }
-    const std::deque<uint32_t>& symbol_set_ids() const {
-      return symbol_set_ids_;
-    }
-
-   private:
-    std::deque<StringId> names_;
-    std::deque<int64_t> mappings_;
-    std::deque<int64_t> rel_pcs_;
-    std::deque<uint32_t> symbol_set_ids_;
-
-    std::map<std::pair<size_t /* mapping row */, uint64_t /* rel_pc */>,
-             std::vector<int64_t>>
-        index_;
-  };
-
   UniqueTid AddEmptyThread(uint32_t tid) {
     unique_threads_.emplace_back(tid);
     return static_cast<UniqueTid>(unique_threads_.size() - 1);
@@ -953,11 +896,11 @@ class TraceStorage {
     return &stack_profile_mapping_table_;
   }
 
-  const StackProfileFrames& stack_profile_frames() const {
-    return stack_profile_frames_;
+  const tables::StackProfileFrameTable& stack_profile_frame_table() const {
+    return stack_profile_frame_table_;
   }
-  StackProfileFrames* mutable_stack_profile_frames() {
-    return &stack_profile_frames_;
+  tables::StackProfileFrameTable* mutable_stack_profile_frame_table() {
+    return &stack_profile_frame_table_;
   }
 
   const tables::StackProfileCallsiteTable& stack_profile_callsite_table()
@@ -1049,6 +992,21 @@ class TraceStorage {
     stack_profile_mapping_index_[pair].emplace_back(row);
   }
 
+  // TODO(lalitm): remove this when we have a better home.
+  std::vector<int64_t> FindFrameRow(size_t mapping_row, uint64_t rel_pc) const {
+    auto it =
+        stack_profile_frame_index_.find(std::make_pair(mapping_row, rel_pc));
+    if (it == stack_profile_frame_index_.end())
+      return {};
+    return it->second;
+  }
+
+  // TODO(lalitm): remove this when we have a better home.
+  void InsertFrameRow(size_t mapping_row, uint64_t rel_pc, uint32_t row) {
+    auto pair = std::make_pair(mapping_row, rel_pc);
+    stack_profile_frame_index_[pair].emplace_back(row);
+  }
+
  private:
   using StringHash = uint64_t;
 
@@ -1061,6 +1019,10 @@ class TraceStorage {
   // TODO(lalitm): remove this when we find a better home for this.
   using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
   std::map<MappingKey, std::vector<int64_t>> stack_profile_mapping_index_;
+
+  // TODO(lalitm): remove this when we find a better home for this.
+  using FrameKey = std::pair<size_t /* mapping row */, uint64_t /* rel_pc */>;
+  std::map<MappingKey, std::vector<int64_t>> stack_profile_frame_index_;
 
   // One entry for each unique string in the trace.
   StringPool string_pool_;
@@ -1145,7 +1107,8 @@ class TraceStorage {
 
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,
                                                                 nullptr};
-  StackProfileFrames stack_profile_frames_;
+  tables::StackProfileFrameTable stack_profile_frame_table_{&string_pool_,
+                                                            nullptr};
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
                                                                   nullptr};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
@@ -1179,15 +1142,14 @@ struct hash<::perfetto::trace_processor::TrackId> {
 };
 
 template <>
-struct hash<
-    ::perfetto::trace_processor::TraceStorage::StackProfileFrames::Row> {
+struct hash<::perfetto::trace_processor::tables::StackProfileFrameTable::Row> {
   using argument_type =
-      ::perfetto::trace_processor::TraceStorage::StackProfileFrames::Row;
+      ::perfetto::trace_processor::tables::StackProfileFrameTable::Row;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<::perfetto::trace_processor::StringId>{}(r.name_id) ^
-           std::hash<int64_t>{}(r.mapping_row) ^ std::hash<int64_t>{}(r.rel_pc);
+    return std::hash<::perfetto::trace_processor::StringId>{}(r.name) ^
+           std::hash<int64_t>{}(r.mapping) ^ std::hash<int64_t>{}(r.rel_pc);
   }
 };
 

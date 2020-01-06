@@ -172,7 +172,7 @@ class StackProfileTracker {
   // since they're not sequence-specific.
   std::unordered_map<tables::StackProfileMappingTable::Row, int64_t>
       mapping_idx_;
-  std::unordered_map<TraceStorage::StackProfileFrames::Row, int64_t> frame_idx_;
+  std::unordered_map<tables::StackProfileFrameTable::Row, int64_t> frame_idx_;
   std::unordered_map<tables::StackProfileCallsiteTable::Row, int64_t>
       callsite_idx_;
 
