@@ -280,8 +280,6 @@ if (enable_perfetto_trace_processor_json) {
 
 source_set("lib") {
   sources = [
-    "android_logs_table.cc",
-    "android_logs_table.h",
     "args_table.cc",
     "args_table.h",
     "filtered_row_index.cc",

@@ -23,7 +23,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/metadata_table.h"
@@ -379,7 +378,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
   StatsTable::RegisterTable(*db_, context_.storage.get());
-  AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
   MetadataTable::RegisterTable(*db_, context_.storage.get());
 
@@ -446,6 +444,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   DbSqliteTable::RegisterTable(
       *db_, &storage->stack_profile_frame_table(),
       storage->stack_profile_frame_table().table_name());
+
+  DbSqliteTable::RegisterTable(*db_, &storage->android_log_table(),
+                               storage->android_log_table().table_name());
 
   DbSqliteTable::RegisterTable(
       *db_, &storage->vulkan_memory_allocations_table(),

@@ -36,6 +36,7 @@
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/stats.h"
+#include "src/trace_processor/tables/android_tables.h"
 #include "src/trace_processor/tables/counter_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
@@ -471,37 +472,6 @@ class TraceStorage {
     std::deque<ArgSetId> arg_set_ids_;
   };
 
-  class AndroidLogs {
-   public:
-    inline size_t AddLogEvent(int64_t timestamp,
-                              UniqueTid utid,
-                              uint8_t prio,
-                              StringId tag_id,
-                              StringId msg_id) {
-      timestamps_.emplace_back(timestamp);
-      utids_.emplace_back(utid);
-      prios_.emplace_back(prio);
-      tag_ids_.emplace_back(tag_id);
-      msg_ids_.emplace_back(msg_id);
-      return size() - 1;
-    }
-
-    size_t size() const { return timestamps_.size(); }
-
-    const std::deque<int64_t>& timestamps() const { return timestamps_; }
-    const std::deque<UniqueTid>& utids() const { return utids_; }
-    const std::deque<uint8_t>& prios() const { return prios_; }
-    const std::deque<StringId>& tag_ids() const { return tag_ids_; }
-    const std::deque<StringId>& msg_ids() const { return msg_ids_; }
-
-   private:
-    std::deque<int64_t> timestamps_;
-    std::deque<UniqueTid> utids_;
-    std::deque<uint8_t> prios_;
-    std::deque<StringId> tag_ids_;
-    std::deque<StringId> msg_ids_;
-  };
-
   struct Stats {
     using IndexMap = std::map<int, int64_t>;
     int64_t value = 0;
@@ -793,8 +763,12 @@ class TraceStorage {
   const tables::InstantTable& instant_table() const { return instant_table_; }
   tables::InstantTable* mutable_instant_table() { return &instant_table_; }
 
-  const AndroidLogs& android_logs() const { return android_log_; }
-  AndroidLogs* mutable_android_log() { return &android_log_; }
+  const tables::AndroidLogTable& android_log_table() const {
+    return android_log_table_;
+  }
+  tables::AndroidLogTable* mutable_android_log_table() {
+    return &android_log_table_;
+  }
 
   const StatsMap& stats() const { return stats_; }
 
@@ -1018,7 +992,7 @@ class TraceStorage {
   // args table. This table can be used to generate a text version of the
   // trace.
   RawEvents raw_events_;
-  AndroidLogs android_log_;
+  tables::AndroidLogTable android_log_table_{&string_pool_, nullptr};
 
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,
                                                                 nullptr};
