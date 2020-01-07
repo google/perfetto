@@ -32,7 +32,7 @@
       grid-area: tabs;
 
       .tab {
-        font-family: 'Google Sans';
+        font-family: 'Roboto Condensed', sans-serif;
         color: #3c4b5d;
         padding: 3px 10px 0px 10px;
         margin-top: 3px;
@@ -79,7 +79,8 @@
     }
 
     .handle-title {
-      font-family: 'Google Sans';
+      font-family: 'Roboto Condensed', sans-serif;
+      font-weight: 300;
       color: #3c4b5d;
       margin-left: 5px;
       padding: 5px;
@@ -90,7 +91,8 @@
 }
 
 .details-panel {
-  font-family: 'Google Sans';
+  font-family: 'Roboto Condensed', sans-serif;
+  font-weight: 300;
   color: #3c4b5d;
   .details-panel-heading {
     padding: 10px 0 5px 0;
@@ -106,7 +108,7 @@
     }
     h2 {
       font-size: 16px;
-      font-family: 'Google Sans';
+      font-weight: 400;
       padding: 0 10px;
       &.split {
         width: 50%;
@@ -218,7 +220,8 @@ table.half-width {
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: 'Google Sans';
+  font-family: 'Roboto Condensed', sans-serif;
+  font-weight: 300;
   color: #3c4b5d;
 
   .notes-editor-panel-heading-bar {

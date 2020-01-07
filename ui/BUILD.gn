@@ -331,11 +331,11 @@ copy("index_dist") {
 
 copy("typefaces_dist") {
   sources = [
-    "../buildtools/typefaces/GoogleSans-Medium.woff2",
-    "../buildtools/typefaces/GoogleSans-Regular.woff2",
     "../buildtools/typefaces/MaterialIcons.woff2",
     "../buildtools/typefaces/Raleway-Regular.woff2",
     "../buildtools/typefaces/Raleway-Thin.woff2",
+    "../buildtools/typefaces/RobotoCondensed-Light.woff2",
+    "../buildtools/typefaces/RobotoCondensed-Regular.woff2",
     "../buildtools/typefaces/RobotoMono-Regular.woff2",
   ]
 
