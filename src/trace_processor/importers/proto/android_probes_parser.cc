@@ -181,8 +181,8 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
 
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
-  context_->storage->mutable_android_log()->AddLogEvent(
-      opt_trace_time.value(), utid, prio, tag_id, msg_id);
+  context_->storage->mutable_android_log_table()->Insert(
+      {opt_trace_time.value(), utid, prio, tag_id, msg_id});
 }
 
 void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {

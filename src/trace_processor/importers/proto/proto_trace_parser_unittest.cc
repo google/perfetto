@@ -2055,9 +2055,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_TRUE(context_.storage->android_logs().size() > 0);
-  EXPECT_EQ(context_.storage->android_logs().timestamps()[0], 1010000);
-  EXPECT_EQ(context_.storage->android_logs().msg_ids()[0], 3u);
+  EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
+  EXPECT_EQ(context_.storage->android_log_table().ts()[0], 1010000);
+  EXPECT_EQ(context_.storage->android_log_table().msg()[0], 3u);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
