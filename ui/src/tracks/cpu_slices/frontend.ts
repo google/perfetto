@@ -112,7 +112,7 @@ class CpuSliceTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.utids.length);
 
     ctx.textAlign = 'center';
-    ctx.font = '12px Google Sans';
+    ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     for (let i = 0; i < data.starts.length; i++) {
@@ -171,10 +171,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       subTitle = cropText(subTitle, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
       ctx.fillStyle = '#fff';
-      ctx.font = '12px Google Sans';
+      ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.font = '10px Google Sans';
+      ctx.font = '10px Roboto Condensed';
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
@@ -251,7 +251,7 @@ class CpuSliceTrack extends Track<Config, Data> {
         line1 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       }
 
-      ctx.font = '10px Google Sans';
+      ctx.font = '10px Roboto Condensed';
       const line1Width = ctx.measureText(line1).width;
       const line2Width = ctx.measureText(line2).width;
       const width = Math.max(line1Width, line2Width);

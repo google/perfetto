@@ -76,7 +76,7 @@ function drawHBar(
 
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#222';
-  ctx.font = '10px Google Sans';
+  ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, labelXLeft, yMid);
 }
 
@@ -105,7 +105,7 @@ function drawIBar(
 
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#222';
-  ctx.font = '10px Google Sans';
+  ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, xPosLabel, yMid);
 }
 

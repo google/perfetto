@@ -26,7 +26,7 @@
     }
     input[type=file] { display:none; }
     >header {
-        font-family: 'Raleway';
+        font-family: 'Raleway', sans-serif;
         height: var(--topbar-height);
         line-height: var(--topbar-height);
         vertical-align: middle;
@@ -88,7 +88,7 @@
                 cursor: pointer;
                 >h1,
                 >h2 {
-                    font-family: 'Raleway';
+                    font-family: 'Raleway', sans-serif;
                     letter-spacing: 0.25px;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -143,7 +143,7 @@
                     line-height: 24px;
                     font-size: 14px;
                     font-weight: 400;
-                    font-family: 'Raleway';
+                    font-family: 'Raleway', sans-serif;
                     letter-spacing: 0.5px;
                     padding: 5px 24px;
                     text-decoration: none;

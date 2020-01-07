@@ -32,7 +32,7 @@ export class TimeAxisPanel extends Panel {
     ctx.fillStyle = '#999';
 
     // Write trace offset time + line.
-    ctx.font = '12px Google Sans';
+    ctx.font = '12px Roboto Condensed';
 
     ctx.textAlign = 'right';
     const offsetTime =
@@ -44,7 +44,7 @@ export class TimeAxisPanel extends Panel {
     ctx.fillText(startTime + ' +', 6, 11);
 
     // Draw time axis.
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Roboto Condensed';
     for (const [x, time] of gridlines(size.width, range, timeScale)) {
       ctx.fillRect(x, 0, 1, size.height);
       ctx.fillText('+' + timeToString(time - range.start), x + 5, 10);
