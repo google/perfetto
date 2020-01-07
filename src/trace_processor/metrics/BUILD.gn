@@ -40,6 +40,7 @@ sql_files = [
   "android/mem_stats_priority_breakdown.sql",
   "android/span_view_stats.sql",
   "android/upid_span_view.sql",
+  "android/unmapped_java_symbols.sql",
   "android/unsymbolized_frames.sql",
 ]
 
