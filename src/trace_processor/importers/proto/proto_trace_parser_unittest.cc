@@ -1792,6 +1792,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     auto* annotation8 = event->add_debug_annotations();
     annotation8->set_name_iid(8);
     annotation8->set_legacy_json_value("val8");
+    auto* annotation9 = event->add_debug_annotations();
+    annotation9->set_name_iid(9);
+    annotation9->set_int_value(15);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
     legacy_event->set_phase('E');
@@ -1815,6 +1818,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     auto an8 = interned_data->add_debug_annotation_names();
     an8->set_iid(8);
     an8->set_name("an8");
+    auto an9 = interned_data->add_debug_annotation_names();
+    an9->set_iid(9);
+    an9->set_name("an8.foo");
   }
 
   Tokenize();
@@ -1865,6 +1871,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .WillOnce(Return(17));
   EXPECT_CALL(*storage_, InternString(base::StringView("val8")))
       .WillOnce(Return(18));
+  EXPECT_CALL(*storage_, InternString(base::StringView("debug.an8_foo")))
+      .WillOnce(Return(19));
 
   EXPECT_CALL(*storage_, GetString(StringId(4))).WillOnce(Return("debug.an2"));
 
@@ -1901,6 +1909,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   EXPECT_CALL(inserter,
               AddArg(StringId(15), StringId(15), Variadic::String(16)));
   EXPECT_CALL(inserter, AddArg(StringId(17), StringId(17), Variadic::Json(18)));
+  EXPECT_CALL(inserter,
+              AddArg(StringId(19), StringId(19), Variadic::Integer(15)));
 
   context_.sorter->ExtractEventsForced();
 }

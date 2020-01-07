@@ -389,6 +389,11 @@ class ArgsBuilder {
                  const Json::Value& value) {
     Json::Value* target = &args_sets_[set_id];
     for (base::StringSplitter parts(key, '.'); parts.Next();) {
+      if (PERFETTO_UNLIKELY(!target->isNull() && !target->isObject())) {
+        PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
+                      key.c_str(), args_sets_[set_id].toStyledString().c_str());
+        return;
+      }
       std::string key_part = parts.cur_token();
       size_t bracketpos = key_part.find('[');
       if (bracketpos == key_part.npos) {  // A single item
@@ -398,6 +403,12 @@ class ArgsBuilder {
         while (bracketpos != key_part.npos) {
           std::string index = key_part.substr(
               bracketpos + 1, key_part.find(']', bracketpos) - bracketpos - 1);
+          if (PERFETTO_UNLIKELY(!target->isNull() && !target->isArray())) {
+            PERFETTO_DLOG("Malformed arguments. Can't append %s to %s.",
+                          key.c_str(),
+                          args_sets_[set_id].toStyledString().c_str());
+            return;
+          }
           target = &(*target)[stoi(index)];
           bracketpos = key_part.find('[', bracketpos + 1);
         }
