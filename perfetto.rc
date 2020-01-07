@@ -62,3 +62,7 @@ on property:persist.traced.enable=1
 on property:persist.traced.enable=0
     stop traced
     stop traced_probes
+
+# Reset the Perfetto guard rail state on boot:
+on post-fs-data
+    rm /data/misc/perfetto-traces/.guardraildata
