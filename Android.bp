@@ -5721,7 +5721,6 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_lib",
   srcs: [
-    "src/trace_processor/android_logs_table.cc",
     "src/trace_processor/args_table.cc",
     "src/trace_processor/filtered_row_index.cc",
     "src/trace_processor/gfp_flags.cc",
