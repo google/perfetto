@@ -19,7 +19,9 @@
 
 #include <vector>
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/trace_storage.h"
@@ -69,6 +71,9 @@ class GraphicsEventParser {
  private:
   const StringId GetFullStageName(
       const protos::pbzero::GpuRenderStageEvent_Decoder& event);
+  void InsertGpuTrack(
+      const protos::pbzero::
+          GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue);
 
   TraceProcessorContext* const context_;
   VulkanMemoryTracker vulkan_memory_tracker_;
@@ -77,7 +82,8 @@ class GraphicsEventParser {
   // For GpuRenderStageEvent
   const StringId description_id_;
   const StringId gpu_render_stage_scope_id_;
-  std::vector<TrackId> gpu_hw_queue_ids_;
+  std::vector<perfetto::base::Optional<TrackId>> gpu_hw_queue_ids_;
+  size_t gpu_hw_queue_counter_ = 0;
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
   // For GraphicsFrameEvent

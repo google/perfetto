@@ -19,6 +19,10 @@ import synth_common
 
 trace = synth_common.create_trace()
 
+# Add a slice before any Specification packet is received.
+trace.add_gpu_render_stages(
+    ts=0, event_id=0, duration=5, hw_queue_id=1, stage_id=1, context=0)
+
 trace.add_gpu_render_stages_stage_spec([{
     'name': 'stage 0'
 }, {
@@ -26,6 +30,8 @@ trace.add_gpu_render_stages_stage_spec([{
     'description': 'stage desc 1'
 }, {
     'name': 'stage 2'
+}, {
+    'name': 'stage 3'
 }])
 
 trace.add_gpu_render_stages_hw_queue_spec([{
@@ -33,25 +39,55 @@ trace.add_gpu_render_stages_hw_queue_spec([{
     'description': 'queue desc 0'
 }, {
     'name': 'queue 1',
+    'description': 'queue desc 1'
+}, {
+    'name': 'queue 2',
 }])
 
-for i in range(1, 8):
-  extra_data = {}
-  render_target_handle = None
-  if i % 4 != 0:
-    extra_data['keyOnlyTest'] = None
-    if i % 2 != 0:
-      extra_data['stencilBPP'] = '1'
-    extra_data['height'] = str(pow(i, 2))
+# Add some track to make sure Specification works properly
+trace.add_gpu_render_stages(
+    ts=0, event_id=0, duration=5, hw_queue_id=0, stage_id=0, context=42)
+trace.add_gpu_render_stages(
+    ts=10, event_id=1, duration=5, hw_queue_id=1, stage_id=1, context=42)
+trace.add_gpu_render_stages(
+    ts=20, event_id=2, duration=5, hw_queue_id=2, stage_id=2, context=42)
+trace.add_gpu_render_stages(
+    ts=30, event_id=3, duration=5, hw_queue_id=0, stage_id=3, context=42)
+# Add a track without Specification for hw_queue_id/stage_id.
+trace.add_gpu_render_stages(
+    ts=40, event_id=3, duration=5, hw_queue_id=3, stage_id=4, context=42)
 
-  trace.add_gpu_render_stages(
-      ts=i * 10,
-      event_id=i,
-      duration=5,
-      hw_queue_id=i % 2,
-      stage_id=i % 3,
-      context=42,
-      extra_data=extra_data)
+# Test extra_data
+# event with single arg.
+trace.add_gpu_render_stages(
+    ts=50,
+    event_id=5,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    extra_data={'key1': 'value1'})
+# event with multiple args.
+trace.add_gpu_render_stages(
+    ts=60,
+    event_id=6,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    extra_data={
+        'key1': 'value1',
+        'key2': 'value2'
+    })
+# event with args that only has key, but no value.
+trace.add_gpu_render_stages(
+    ts=70,
+    event_id=7,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    extra_data={'key1': None})
 
 ##############################################
 # Test stage naming with render target handle.
@@ -122,5 +158,9 @@ trace.add_gpu_render_stages(
     stage_id=0,
     context=42,
     render_target_handle=0x10)
+
+# Check that a hw_queue_id=-1 doesn't blow up.
+trace.add_gpu_render_stages(
+    ts=120, event_id=12, duration=5, hw_queue_id=-1, stage_id=-1, context=42)
 
 print(trace.trace.SerializeToString())

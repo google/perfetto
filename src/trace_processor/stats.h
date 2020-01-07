@@ -52,6 +52,7 @@ namespace stats {
   F(fuchsia_invalid_event,                    kSingle,  kError,    kAnalysis), \
   F(gpu_counters_invalid_spec,                kSingle,  kError,    kAnalysis), \
   F(gpu_counters_missing_spec,                kSingle,  kError,    kAnalysis), \
+  F(gpu_render_stage_parser_errors,           kSingle,  kError,    kAnalysis), \
   F(graphics_frame_event_parser_errors,       kSingle,  kInfo,     kAnalysis), \
   F(guess_trace_type_duration_ns,             kSingle,  kInfo,     kAnalysis), \
   F(interned_data_tokenizer_errors,           kSingle,  kInfo,     kAnalysis), \
