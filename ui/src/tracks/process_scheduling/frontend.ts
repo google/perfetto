@@ -157,7 +157,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
         line1 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       }
 
-      ctx.font = '10px Google Sans';
+      ctx.font = '10px Roboto Condensed';
       const line1Width = ctx.measureText(line1).width;
       const line2Width = ctx.measureText(line2).width;
       const width = Math.max(line1Width, line2Width);

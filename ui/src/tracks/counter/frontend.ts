@@ -154,7 +154,7 @@ class CounterTrack extends Track<Config, Data> {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Roboto Condensed';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       // TODO(hjd): Add units.
