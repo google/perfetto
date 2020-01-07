@@ -129,14 +129,6 @@ class MockEventTracker : public EventTracker {
                base::Optional<CounterId>(int64_t timestamp,
                                          double value,
                                          TrackId track_id));
-
-  MOCK_METHOD6(PushInstant,
-               uint32_t(int64_t timestamp,
-                        StringId name_id,
-                        double value,
-                        int64_t ref,
-                        RefType ref_type,
-                        bool resolve_utid_to_upid));
 };
 
 class MockProcessTracker : public ProcessTracker {

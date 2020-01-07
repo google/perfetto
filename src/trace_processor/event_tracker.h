@@ -56,12 +56,11 @@ class EventTracker {
       UniqueTid utid);
 
   // This method is called when a instant event is seen in the trace.
-  virtual uint32_t PushInstant(int64_t timestamp,
-                               StringId name_id,
-                               double value,
-                               int64_t ref,
-                               RefType ref_type,
-                               bool resolve_utid_to_upid = false);
+  virtual InstantId PushInstant(int64_t timestamp,
+                                StringId name_id,
+                                int64_t ref,
+                                RefType ref_type,
+                                bool resolve_utid_to_upid = false);
 
   // Called at the end of trace to flush any events which are pending to the
   // storage.

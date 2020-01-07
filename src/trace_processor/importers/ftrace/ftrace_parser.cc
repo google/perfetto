@@ -477,8 +477,8 @@ void FtraceParser::ParseSchedWakeup(int64_t ts, ConstBytes blob) {
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
   auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
-  context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, 0 /* value */,
-                                       utid, RefType::kRefUtid);
+  context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, utid,
+                                       RefType::kRefUtid);
 }
 
 void FtraceParser::ParseSchedWaking(int64_t ts, ConstBytes blob) {
@@ -486,8 +486,8 @@ void FtraceParser::ParseSchedWaking(int64_t ts, ConstBytes blob) {
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
   auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
-  context_->event_tracker->PushInstant(ts, sched_waking_name_id_, 0 /* value */,
-                                       utid, RefType::kRefUtid);
+  context_->event_tracker->PushInstant(ts, sched_waking_name_id_, utid,
+                                       RefType::kRefUtid);
 }
 
 void FtraceParser::ParseSchedProcessFree(int64_t ts, ConstBytes blob) {
@@ -612,8 +612,13 @@ void FtraceParser::ParseSignalGenerate(int64_t ts, ConstBytes blob) {
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(
       static_cast<uint32_t>(sig.pid()));
-  context_->event_tracker->PushInstant(ts, signal_generate_id_, sig.sig(), utid,
-                                       RefType::kRefUtid);
+  InstantId id = context_->event_tracker->PushInstant(ts, signal_generate_id_,
+                                                      utid, RefType::kRefUtid);
+  uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
+
+  StringId key = context_->storage->InternString("signal.sig");
+  context_->args_tracker->AddArg(TableId::kInstants, row, key, key,
+                                 Variadic::Integer(sig.sig()));
 }
 
 void FtraceParser::ParseSignalDeliver(int64_t ts,
@@ -621,8 +626,13 @@ void FtraceParser::ParseSignalDeliver(int64_t ts,
                                       ConstBytes blob) {
   protos::pbzero::SignalDeliverFtraceEvent::Decoder sig(blob.data, blob.size);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  context_->event_tracker->PushInstant(ts, signal_deliver_id_, sig.sig(), utid,
-                                       RefType::kRefUtid);
+  InstantId id = context_->event_tracker->PushInstant(ts, signal_deliver_id_,
+                                                      utid, RefType::kRefUtid);
+  uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
+
+  StringId key = context_->storage->InternString("signal.sig");
+  context_->args_tracker->AddArg(TableId::kInstants, row, key, key,
+                                 Variadic::Integer(sig.sig()));
 }
 
 void FtraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
@@ -639,8 +649,9 @@ void FtraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
   if (!opt_utid)
     return;
 
-  uint32_t row = context_->event_tracker->PushInstant(
-      ts, lmk_id_, 0, opt_utid.value(), RefType::kRefUtid, true);
+  InstantId id = context_->event_tracker->PushInstant(
+      ts, lmk_id_, opt_utid.value(), RefType::kRefUtid, true);
+  uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
 
   // Store the comm as an arg.
   auto comm_id = context_->storage->InternString(

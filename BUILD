@@ -790,8 +790,6 @@ filegroup(
         "src/trace_processor/filtered_row_index.h",
         "src/trace_processor/gfp_flags.cc",
         "src/trace_processor/gfp_flags.h",
-        "src/trace_processor/instants_table.cc",
-        "src/trace_processor/instants_table.h",
         "src/trace_processor/metadata_table.cc",
         "src/trace_processor/metadata_table.h",
         "src/trace_processor/process_table.cc",

@@ -293,9 +293,10 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
 
   // Add a waking entry to the instants.
   auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
-  auto* instants = context_->storage->mutable_instants();
-  instants->AddInstantEvent(ts, sched_waking_id_, /*value=*/0, wakee_utid,
-                            RefType::kRefUtid);
+  auto* instants = context_->storage->mutable_instant_table();
+  auto ref_type_id = context_->storage->InternString(
+      GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUtid)]);
+  instants->Insert({ts, sched_waking_id_, wakee_utid, ref_type_id});
 }
 
 void SchedEventTracker::FlushPendingEvents() {
