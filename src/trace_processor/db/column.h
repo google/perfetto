@@ -177,6 +177,34 @@ class Column {
     FilterIntoSlow(op, value, rm);
   }
 
+  // Returns the minimum value in this column. Returns nullopt if this column
+  // is empty.
+  base::Optional<SqlValue> Min() const {
+    if (row_map().size() == 0)
+      return base::nullopt;
+
+    if (IsSorted())
+      return Get(0);
+
+    Iterator b(this, 0);
+    Iterator e(this, row_map().size());
+    return *std::min_element(b, e, &compare::SqlValueComparator);
+  }
+
+  // Returns the minimum value in this column. Returns nullopt if this column
+  // is empty.
+  base::Optional<SqlValue> Max() const {
+    if (row_map().size() == 0)
+      return base::nullopt;
+
+    if (IsSorted())
+      return Get(row_map().size() - 1);
+
+    Iterator b(this, 0);
+    Iterator e(this, row_map().size());
+    return *std::max_element(b, e, &compare::SqlValueComparator);
+  }
+
   // Returns true if this column is considered an id column.
   bool IsId() const { return type_ == ColumnType::kId; }
 

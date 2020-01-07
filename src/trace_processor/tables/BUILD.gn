@@ -16,6 +16,7 @@ import("../../../gn/test.gni")
 
 source_set("tables") {
   sources = [
+    "android_tables.h",
     "counter_tables.h",
     "macros.h",
     "macros_internal.h",

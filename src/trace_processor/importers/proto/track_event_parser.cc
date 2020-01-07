@@ -999,12 +999,12 @@ void TrackEventParser::ParseLogMessage(
 
   // TODO(nicomazz): LogMessage also contains the source of the message (file
   // and line number). Android logs doesn't support this so far.
-  context_->storage->mutable_android_log()->AddLogEvent(
-      ts, *utid,
-      /*priority*/ 0,
-      /*tag_id*/ 0,  // TODO(nicomazz): Abuse tag_id to display
-                     // "file_name:line_number".
-      log_message_id);
+  context_->storage->mutable_android_log_table()->Insert(
+      {ts, *utid,
+       /*priority*/ 0,
+       /*tag_id*/ 0,  // TODO(nicomazz): Abuse tag_id to display
+                      // "file_name:line_number".
+       log_message_id});
 
   inserter->AddArg(log_message_body_key_id_, Variadic::String(log_message_id));
   // TODO(nicomazz): Add the source location as an argument.
