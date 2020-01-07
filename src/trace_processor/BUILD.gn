@@ -287,8 +287,6 @@ source_set("lib") {
     "filtered_row_index.h",
     "gfp_flags.cc",
     "gfp_flags.h",
-    "instants_table.cc",
-    "instants_table.h",
     "metadata_table.cc",
     "metadata_table.h",
     "process_table.cc",

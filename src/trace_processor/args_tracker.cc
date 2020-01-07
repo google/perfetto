@@ -79,7 +79,8 @@ void ArgsTracker::Flush() {
                                                                     set_id);
         break;
       case TableId::kInstants:
-        storage->mutable_instants()->set_arg_set_id(row, set_id);
+        storage->mutable_instant_table()->mutable_arg_set_id()->Set(row,
+                                                                    set_id);
         break;
       case TableId::kNestableSlices:
         storage->mutable_slice_table()->mutable_arg_set_id()->Set(row, set_id);

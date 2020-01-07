@@ -26,7 +26,6 @@
 #include "src/trace_processor/android_logs_table.h"
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/instants_table.h"
 #include "src/trace_processor/metadata_table.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/raw_table.h"
@@ -187,6 +186,18 @@ void CreateBuiltinViews(sqlite3* db) {
                "* "
                "FROM internal_gpu_slice join internal_slice "
                "ON internal_gpu_slice.slice_id = internal_slice.id;",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+
+  sqlite3_exec(db,
+               "CREATE VIEW instants AS "
+               "SELECT "
+               "*, "
+               "0.0 as value "
+               "FROM instant;",
                0, 0, &error);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
@@ -367,7 +378,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   ThreadTable::RegisterTable(*db_, context_.storage.get());
   SpanJoinOperatorTable::RegisterTable(*db_, context_.storage.get());
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
-  InstantsTable::RegisterTable(*db_, context_.storage.get());
   StatsTable::RegisterTable(*db_, context_.storage.get());
   AndroidLogsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
@@ -378,6 +388,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   DbSqliteTable::RegisterTable(*db_, &storage->slice_table(),
                                storage->slice_table().table_name());
+  DbSqliteTable::RegisterTable(*db_, &storage->instant_table(),
+                               storage->instant_table().table_name());
   DbSqliteTable::RegisterTable(*db_, &storage->gpu_slice_table(),
                                storage->gpu_slice_table().table_name());
 
