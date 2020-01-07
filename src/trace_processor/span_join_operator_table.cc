@@ -650,9 +650,10 @@ util::Status SpanJoinOperatorTable::Query::Rewind() {
   ts_end_ = std::numeric_limits<int64_t>::max();
   missing_partition_start_ = std::numeric_limits<int64_t>::min();
 
-  if (defn_->IsPartitioned()) {
-    missing_partition_end_ =
-        cursor_eof_ ? std::numeric_limits<int64_t>::max() : CursorPartition();
+  if (cursor_eof_) {
+    missing_partition_end_ = std::numeric_limits<int64_t>::max();
+  } else if (defn_->IsPartitioned()) {
+    missing_partition_end_ = CursorPartition();
   } else {
     missing_partition_end_ = std::numeric_limits<int64_t>::min();
   }
