@@ -80,7 +80,7 @@ class ThreadStateTrack extends Track<Config, Data> {
         const title = cropText(translateState(state), charWidth, rectWidth);
         const rectXCenter = rectStart + rectWidth / 2;
         ctx.fillStyle = color.l < 80 ? '#fff' : '#404040';
-        ctx.font = '10px Google Sans';
+        ctx.font = '10px Roboto Condensed';
         ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
       }
     }

@@ -49,7 +49,8 @@
             border: 0;
             padding: 0 10px;
             font-size: 18px;
-            font-family: 'Google Sans';
+            font-family: 'Roboto Condensed', sans-serif;
+            font-weight: 300;
             color: #666;
             background-color: transparent;
             &:focus {
@@ -57,7 +58,7 @@
             }
             &::placeholder {
                 color: #b4b7ba;
-                font-family: 'Raleway';
+                font-family: 'Raleway', sans-serif;
                 font-weight: 400;
             }
         }
@@ -99,7 +100,8 @@
           display: flex;
           font: inherit;
           font-size: 14px;
-          font-family: 'Google Sans';
+          font-family: 'Roboto Condensed', sans-serif;
+          font-weight: 300;
           color: #aaa;
           .current {
             padding-right: 10px;

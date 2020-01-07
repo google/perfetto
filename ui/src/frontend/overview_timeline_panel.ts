@@ -64,7 +64,7 @@ export class OverviewTimelinePanel extends Panel {
     const tracksHeight = size.height - headerHeight;
 
     // Draw time labels on the top header.
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Roboto Condensed';
     ctx.fillStyle = '#999';
     for (let i = 0; i < 100; i++) {
       const xPos =
