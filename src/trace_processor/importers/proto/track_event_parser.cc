@@ -86,6 +86,15 @@ bool MaybeParseSourceLocation(
   // By returning false we expect this field to be handled like regular.
   return true;
 }
+
+std::string SafeDebugAnnotationName(const std::string& raw_name) {
+  std::string result = raw_name;
+  std::replace(result.begin(), result.end(), '.', '_');
+  std::replace(result.begin(), result.end(), '[', '_');
+  std::replace(result.begin(), result.end(), ']', '_');
+  result = "debug." + result;
+  return result;
+}
 }  // namespace
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context)
@@ -838,7 +847,8 @@ void TrackEventParser::ParseDebugAnnotationArgs(
     if (!decoder)
       return;
 
-    std::string name_prefixed = "debug." + decoder->name().ToStdString();
+    std::string name_prefixed =
+        SafeDebugAnnotationName(decoder->name().ToStdString());
     name_id = storage->InternString(base::StringView(name_prefixed));
   } else if (annotation.has_name()) {
     name_id = storage->InternString(annotation.name());
