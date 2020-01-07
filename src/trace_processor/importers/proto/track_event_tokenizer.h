@@ -25,6 +25,7 @@ namespace perfetto {
 
 namespace protos {
 namespace pbzero {
+class ChromeThreadDescriptor_Decoder;
 class ThreadDescriptor_Decoder;
 class TracePacket_Decoder;
 }  // namespace pbzero
@@ -49,6 +50,10 @@ class TrackEventTokenizer {
       const protos::pbzero::TracePacket_Decoder&);
   void TokenizeThreadDescriptor(
       const protos::pbzero::ThreadDescriptor_Decoder&);
+  void TokenizeChromeThreadDescriptor(
+      int32_t pid,
+      int32_t tid,
+      const protos::pbzero::ChromeThreadDescriptor_Decoder&);
   void TokenizeTrackEventPacket(PacketSequenceState* state,
                                 const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView* packet,
