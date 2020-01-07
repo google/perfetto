@@ -261,6 +261,52 @@ const StringId GraphicsEventParser::GetFullStageName(
   return stage_name;
 }
 
+/**
+ * Create a GPU render stage track based
+ * GpuRenderStageEvent.Specifications.Description.
+ */
+void GraphicsEventParser::InsertGpuTrack(
+    const protos::pbzero::
+        GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue) {
+  StringId track_name = context_->storage->InternString(hw_queue.name());
+  if (gpu_hw_queue_counter_ >= gpu_hw_queue_ids_.size() ||
+      !gpu_hw_queue_ids_[gpu_hw_queue_counter_].has_value()) {
+    tables::GpuTrackTable::Row track(track_name.id);
+    track.scope = gpu_render_stage_scope_id_;
+    track.description = context_->storage->InternString(hw_queue.description());
+    if (gpu_hw_queue_counter_ >= gpu_hw_queue_ids_.size()) {
+      gpu_hw_queue_ids_.emplace_back(
+          context_->track_tracker->InternGpuTrack(track));
+    } else {
+      // If a gpu_render_stage_event is received before the specification, it is
+      // possible that the slot has already been allocated.
+      gpu_hw_queue_ids_[gpu_hw_queue_counter_] =
+          context_->track_tracker->InternGpuTrack(track);
+    }
+  } else {
+    // If a gpu_render_stage_event is received before the specification, a track
+    // will be automatically generated.  In that case, update the name and
+    // description.
+    auto track_id = gpu_hw_queue_ids_[gpu_hw_queue_counter_];
+    if (track_id.has_value()) {
+      auto row = context_->storage->mutable_gpu_track_table()
+                     ->id()
+                     .IndexOf(track_id.value())
+                     .value();
+      context_->storage->mutable_gpu_track_table()->mutable_name()->Set(
+          row, track_name);
+      context_->storage->mutable_gpu_track_table()->mutable_description()->Set(
+          row, context_->storage->InternString(hw_queue.description()));
+    } else {
+      tables::GpuTrackTable::Row track(track_name.id);
+      track.scope = gpu_render_stage_scope_id_;
+      track.description =
+          context_->storage->InternString(hw_queue.description());
+    }
+  }
+  ++gpu_hw_queue_counter_;
+}
+
 void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
                                                    ConstBytes blob) {
   protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
@@ -272,13 +318,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       protos::pbzero::GpuRenderStageEvent_Specifications_Description::Decoder
           hw_queue(*it);
       if (hw_queue.has_name()) {
-        StringId track_name = context_->storage->InternString(hw_queue.name());
-        tables::GpuTrackTable::Row track(track_name.id);
-        track.scope = gpu_render_stage_scope_id_;
-        track.description =
-            context_->storage->InternString(hw_queue.description());
-        gpu_hw_queue_ids_.emplace_back(
-            context_->track_tracker->InternGpuTrack(track));
+        InsertGpuTrack(hw_queue);
       }
     }
     for (auto it = spec.stage(); it; ++it) {
@@ -293,10 +333,12 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
   }
 
   auto args_callback = [this, &event](ArgsTracker::BoundInserter* inserter) {
-    auto description =
-        gpu_render_stage_ids_[static_cast<size_t>(event.stage_id())].second;
-    if (description != kNullStringId) {
-      inserter->AddArg(description_id_, Variadic::String(description));
+    size_t stage_id = static_cast<size_t>(event.stage_id());
+    if (stage_id < gpu_render_stage_ids_.size()) {
+      auto description = gpu_render_stage_ids_[stage_id].second;
+      if (description != kNullStringId) {
+        inserter->AddArg(description_id_, Variadic::String(description));
+      }
     }
     for (auto it = event.extra_data(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
@@ -308,9 +350,37 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
   };
 
   if (event.has_event_id()) {
+    TrackId track_id;
+    uint32_t hw_queue_id = static_cast<uint32_t>(event.hw_queue_id());
+    if (hw_queue_id < gpu_hw_queue_ids_.size() &&
+        gpu_hw_queue_ids_[hw_queue_id].has_value()) {
+      track_id = gpu_hw_queue_ids_[hw_queue_id].value();
+    } else {
+      // If the event has a hw_queue_id that does not have a Specification,
+      // create a new track for it.
+      char buf[128];
+      base::StringWriter writer(buf, sizeof(buf));
+      writer.AppendLiteral("Unknown GPU Queue ");
+      if (hw_queue_id > 1024) {
+        // We don't expect this to happen, but just in case there is a corrupt
+        // packet, make sure we don't allocate a ridiculous amount of memory.
+        hw_queue_id = 1024;
+        context_->storage->IncrementStats(
+            stats::gpu_render_stage_parser_errors);
+        PERFETTO_ELOG("Invalid hw_queue_id.");
+      } else {
+        writer.AppendInt(event.hw_queue_id());
+      }
+      StringId track_name =
+          context_->storage->InternString(writer.GetStringView());
+      tables::GpuTrackTable::Row track(track_name.id);
+      track.scope = gpu_render_stage_scope_id_;
+      track_id = context_->track_tracker->InternGpuTrack(track);
+      gpu_hw_queue_ids_.resize(hw_queue_id + 1);
+      gpu_hw_queue_ids_[hw_queue_id] = track_id;
+    }
+
     StringId stage_name = GetFullStageName(event);
-    TrackId track_id =
-        gpu_hw_queue_ids_[static_cast<size_t>(event.hw_queue_id())];
     const auto slice_id = context_->slice_tracker->Scoped(
         ts, track_id, 0 /* cat */, stage_name,
         static_cast<int64_t>(event.duration()), args_callback);
@@ -319,8 +389,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
         tables::GpuSliceTable::Row(
             slice_id.value(), static_cast<int64_t>(event.context()),
             static_cast<int64_t>(event.render_target_handle()),
-            base::nullopt /*frame_id*/, event.submission_id(),
-            static_cast<uint32_t>(event.hw_queue_id())));
+            base::nullopt /*frame_id*/, event.submission_id(), hw_queue_id));
   }
 }
 
