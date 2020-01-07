@@ -106,7 +106,7 @@ class GpuFreqTrack extends Track<Config, Data> {
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Roboto Condensed';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       let text = `Freq: ${this.hoveredValue.toLocaleString()}kHz`;

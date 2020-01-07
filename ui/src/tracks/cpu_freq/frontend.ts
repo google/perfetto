@@ -126,7 +126,7 @@ class CpuFreqTrack extends Track<Config, Data> {
       }
     }
 
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Roboto Condensed';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       let text = `${this.hoveredValue.toLocaleString()}kHz`;
