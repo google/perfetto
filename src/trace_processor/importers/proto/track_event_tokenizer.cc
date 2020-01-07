@@ -30,6 +30,8 @@
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
@@ -74,6 +76,28 @@ void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 
     upid = context_->process_tracker->GetOrCreateProcess(
         static_cast<uint32_t>(process_descriptor_decoder.pid()));
+
+    if (track_descriptor_decoder.has_chrome_process()) {
+      auto chrome_process_descriptor_field =
+          track_descriptor_decoder.chrome_process();
+      protos::pbzero::ChromeProcessDescriptor::Decoder
+          chrome_process_descriptor_decoder(
+              chrome_process_descriptor_field.data,
+              chrome_process_descriptor_field.size);
+
+      auto process_type = chrome_process_descriptor_decoder.process_type();
+      size_t name_index =
+          static_cast<size_t>(process_type) < process_name_ids_.size()
+              ? static_cast<size_t>(process_type)
+              : 0u;
+      StringId name = process_name_ids_[name_index];
+
+      // Don't override system-provided names.
+      context_->process_tracker->SetProcessNameIfUnset(
+          context_->process_tracker->GetOrCreateProcess(
+              static_cast<uint32_t>(process_descriptor_decoder.pid())),
+          name);
+    }
   }
 
   if (track_descriptor_decoder.has_thread()) {
@@ -86,6 +110,18 @@ void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         static_cast<uint32_t>(thread_descriptor_decoder.tid()),
         static_cast<uint32_t>(thread_descriptor_decoder.pid()));
     upid = *context_->storage->GetThread(*utid).upid;
+
+    if (track_descriptor_decoder.has_chrome_thread()) {
+      auto chrome_thread_descriptor_field =
+          track_descriptor_decoder.chrome_thread();
+      protos::pbzero::ChromeThreadDescriptor::Decoder
+          chrome_thread_descriptor_decoder(chrome_thread_descriptor_field.data,
+                                           chrome_thread_descriptor_field.size);
+
+      TokenizeChromeThreadDescriptor(thread_descriptor_decoder.pid(),
+                                     thread_descriptor_decoder.tid(),
+                                     chrome_thread_descriptor_decoder);
+    }
   }
 
   StringId name_id =
@@ -99,6 +135,7 @@ void TrackEventTokenizer::TokenizeProcessDescriptorPacket(
     const protos::pbzero::TracePacket::Decoder& packet_decoder) {
   protos::pbzero::ProcessDescriptor::Decoder process_descriptor_decoder(
       packet_decoder.process_descriptor());
+  // TODO(skyostil): Remove parsing for legacy chrome_process_type field.
   if (!process_descriptor_decoder.has_chrome_process_type())
     return;
 
@@ -155,6 +192,7 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
   if (thread_descriptor_decoder.has_thread_name()) {
     name = thread_descriptor_decoder.thread_name();
   } else if (thread_descriptor_decoder.has_chrome_thread_type()) {
+    // TODO(skyostil): Remove parsing for legacy chrome_thread_type field.
     using protos::pbzero::ThreadDescriptor;
     switch (thread_descriptor_decoder.chrome_thread_type()) {
       case ThreadDescriptor::CHROME_THREAD_MAIN:
@@ -211,6 +249,74 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
             static_cast<uint32_t>(thread_descriptor_decoder.tid()),
             static_cast<uint32_t>(thread_descriptor_decoder.pid())),
         thread_name_id);
+  }
+}
+
+void TrackEventTokenizer::TokenizeChromeThreadDescriptor(
+    int32_t pid,
+    int32_t tid,
+    const protos::pbzero::ChromeThreadDescriptor::Decoder&
+        thread_descriptor_decoder) {
+  if (!thread_descriptor_decoder.has_thread_type())
+    return;
+
+  base::StringView name;
+  using protos::pbzero::ChromeThreadDescriptor;
+  // Thread names that end in an ampersand indicate multiple thread instances
+  // (e.g., CompositorTileWorker{1,2,...}) that have been collapsed into a
+  // single thread name.
+  switch (thread_descriptor_decoder.thread_type()) {
+    case ChromeThreadDescriptor::THREAD_MAIN:
+      name = "CrProcessMain";
+      break;
+    case ChromeThreadDescriptor::THREAD_IO:
+      name = "ChromeIOThread";
+      break;
+    case ChromeThreadDescriptor::THREAD_POOL_FG_WORKER:
+      name = "ThreadPoolForegroundWorker&";
+      break;
+    case ChromeThreadDescriptor::THREAD_POOL_BG_WORKER:
+      name = "ThreadPoolBackgroundWorker&";
+      break;
+    case ChromeThreadDescriptor::THREAD_POOL_FB_BLOCKING:
+      name = "ThreadPoolSingleThreadForegroundBlocking&";
+      break;
+    case ChromeThreadDescriptor::THREAD_POOL_BG_BLOCKING:
+      name = "ThreadPoolSingleThreadBackgroundBlocking&";
+      break;
+    case ChromeThreadDescriptor::THREAD_POOL_SERVICE:
+      name = "ThreadPoolService";
+      break;
+    case ChromeThreadDescriptor::THREAD_COMPOSITOR_WORKER:
+      name = "CompositorTileWorker&";
+      break;
+    case ChromeThreadDescriptor::THREAD_COMPOSITOR:
+      name = "Compositor";
+      break;
+    case ChromeThreadDescriptor::THREAD_VIZ_COMPOSITOR:
+      name = "VizCompositorThread";
+      break;
+    case ChromeThreadDescriptor::THREAD_SERVICE_WORKER:
+      name = "ServiceWorkerThread&";
+      break;
+    case ChromeThreadDescriptor::THREAD_MEMORY_INFRA:
+      name = "MemoryInfra";
+      break;
+    case ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER:
+      name = "StackSamplingProfiler";
+      break;
+    case ChromeThreadDescriptor::THREAD_UNSPECIFIED:
+      name = "ChromeUnspecified";
+      break;
+  }
+
+  if (!name.empty()) {
+    auto thread_name_id = context_->storage->InternString(name);
+    ProcessTracker* procs = context_->process_tracker.get();
+    // Don't override system-provided names.
+    procs->SetThreadNameIfUnset(procs->UpdateThread(static_cast<uint32_t>(tid),
+                                                    static_cast<uint32_t>(pid)),
+                                thread_name_id);
   }
 }
 
