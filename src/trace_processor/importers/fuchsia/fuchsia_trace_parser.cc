@@ -251,8 +251,9 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          uint32_t row = context_->event_tracker->PushInstant(
-              ts, name, 0, utid, RefType::kRefUtid);
+          InstantId id = context_->event_tracker->PushInstant(
+              ts, name, utid, RefType::kRefUtid);
+          uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
           for (const Arg& arg : args) {
             context_->args_tracker->AddArg(
                 TableId::kInstants, row, arg.name, arg.name,
@@ -376,8 +377,9 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           }
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
-          uint32_t row = context_->event_tracker->PushInstant(
-              ts, name, 0, track_id.value, RefType::kRefTrack);
+          InstantId id = context_->event_tracker->PushInstant(
+              ts, name, track_id.value, RefType::kRefTrack);
+          uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
           for (const Arg& arg : args) {
             context_->args_tracker->AddArg(
                 TableId::kInstants, row, arg.name, arg.name,

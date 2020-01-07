@@ -212,8 +212,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
     StringId name_id = context_->storage->InternString(base::StringView(comm));
     auto wakee_utid =
         context_->process_tracker->UpdateThreadName(wakee_pid.value(), name_id);
-    context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_,
-                                         0 /* value */, wakee_utid,
+    context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, wakee_utid,
                                          RefType::kRefUtid);
   } else if (event_name == "cpu_idle") {
     base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
