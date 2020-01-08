@@ -106,8 +106,6 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
 
   void WriteFlamegraph(const SequenceState& sequence_state,
                        const HeapGraphWalker::PathFromRoot& path,
-                       int32_t parent_id,
-                       uint32_t depth,
                        uint32_t mapping_row);
 
   TraceProcessorContext* const context_;
