@@ -256,7 +256,7 @@ export class HeapProfileController extends Controller<'main'> {
          from stack_profile_callsite cs
          join stack_profile_frame fr on cs.frame_id = fr.id
          join stack_profile_mapping map on fr.mapping = map.id
-         inner join (
+         left join (
               select symbol_set_id, FIRST_VALUE(name) OVER(PARTITION BY
                 symbol_set_id) as name
               from stack_profile_symbol GROUP BY symbol_set_id
