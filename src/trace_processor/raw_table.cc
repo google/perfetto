@@ -96,20 +96,22 @@ int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 }
 
 bool RawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
-  if (!storage_->metadata().MetadataExists(metadata::KeyIDs::system_name) ||
-      !storage_->metadata().MetadataExists(metadata::KeyIDs::system_release)) {
-    return false;
-  }
+  const auto& metadata_table = storage_->metadata_table();
 
-  const Variadic& name =
-      storage_->metadata().GetScalarMetadata(metadata::KeyIDs::system_name);
-  base::StringView system_name = storage_->GetString(name.string_value);
+  auto opt_name_idx = metadata_table.name().IndexOf(
+      metadata::kNames[metadata::KeyIDs::system_name]);
+  auto opt_release_idx = metadata_table.name().IndexOf(
+      metadata::kNames[metadata::KeyIDs::system_release]);
+  if (!opt_name_idx || !opt_release_idx)
+    return false;
+
+  StringId name = metadata_table.str_value()[*opt_name_idx];
+  base::StringView system_name = storage_->GetString(name);
   if (system_name != "Linux")
     return false;
 
-  const Variadic& release =
-      storage_->metadata().GetScalarMetadata(metadata::KeyIDs::system_release);
-  base::StringView system_release = storage_->GetString(release.string_value);
+  StringId release = metadata_table.str_value()[*opt_release_idx];
+  base::StringView system_release = storage_->GetString(release);
   auto version = ParseKernelReleaseVersion(system_release);
 
   WriteGfpFlag(value.uint_value, version, writer);

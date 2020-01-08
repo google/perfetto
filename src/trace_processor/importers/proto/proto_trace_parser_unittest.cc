@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata.h"
+#include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/register_additional_modules.h"
 #include "src/trace_processor/slice_tracker.h"
@@ -218,6 +219,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.storage.reset(storage_);
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -2373,22 +2375,25 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   EXPECT_CALL(*storage_, InternString(base::StringView(kTag2)))
       .WillOnce(Return(3));
 
+  StringId benchmark_id = *storage_->string_pool().GetId(
+      metadata::kNames[metadata::benchmark_name]);
+  StringId tags_id = *storage_->string_pool().GetId(
+      metadata::kNames[metadata::benchmark_story_tags]);
+
   context_.sorter->ExtractEventsForced();
 
-  const auto& meta_keys = storage_->metadata().keys();
-  const auto& meta_values = storage_->metadata().values();
-  EXPECT_EQ(meta_keys.size(), 3u);
-  std::vector<std::pair<metadata::KeyIDs, Variadic>> meta_entries;
-  for (size_t i = 0; i < meta_keys.size(); i++) {
+  const auto& meta_keys = storage_->metadata_table().name();
+  const auto& meta_values = storage_->metadata_table().str_value();
+  EXPECT_EQ(storage_->metadata_table().row_count(), 3u);
+
+  std::vector<std::pair<StringId, StringId>> meta_entries;
+  for (uint32_t i = 0; i < storage_->metadata_table().row_count(); i++) {
     meta_entries.emplace_back(std::make_pair(meta_keys[i], meta_values[i]));
   }
-  EXPECT_THAT(
-      meta_entries,
-      UnorderedElementsAreArray(
-          {std::make_pair(metadata::benchmark_name, Variadic::String(1)),
-           std::make_pair(metadata::benchmark_story_tags, Variadic::String(2)),
-           std::make_pair(metadata::benchmark_story_tags,
-                          Variadic::String(3))}));
+  EXPECT_THAT(meta_entries,
+              UnorderedElementsAreArray({std::make_pair(benchmark_id, 1),
+                                         std::make_pair(tags_id, 2),
+                                         std::make_pair(tags_id, 3)}));
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
@@ -2426,25 +2431,15 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
   const auto& args = context_.storage->args();
-  const auto& metadata = context_.storage->metadata();
-  const auto& meta_keys = metadata.keys();
-  const auto& meta_values = metadata.values();
+  const auto& metadata = context_.storage->metadata_table();
 
-  ASSERT_TRUE(std::count(meta_keys.cbegin(), meta_keys.cend(),
-                         metadata::android_packages_list) == 2);
+  Table package_list = metadata.Filter(
+      {metadata.name().eq(metadata::kNames[metadata::android_packages_list])});
+  ASSERT_EQ(package_list.row_count(), 2u);
 
-  auto first_meta_idx = std::distance(
-      meta_keys.cbegin(), std::find(meta_keys.cbegin(), meta_keys.cend(),
-                                    metadata::android_packages_list));
-  auto second_meta_idx = std::distance(
-      meta_keys.cbegin(),
-      std::find(meta_keys.cbegin() + first_meta_idx + 1, meta_keys.cend(),
-                metadata::android_packages_list));
-
-  uint32_t first_set_id = static_cast<uint32_t>(
-      meta_values[static_cast<size_t>(first_meta_idx)].int_value);
-  uint32_t second_set_id = static_cast<uint32_t>(
-      meta_values[static_cast<size_t>(second_meta_idx)].int_value);
+  const Column* int_value = package_list.GetColumnByName("int_value");
+  uint32_t first_set_id = static_cast<uint32_t>(int_value->Get(0).long_value);
+  uint32_t second_set_id = static_cast<uint32_t>(int_value->Get(1).long_value);
 
   // helper to look up arg values
   auto find_arg = [&args, this](ArgSetId set_id, const char* arg_name) {

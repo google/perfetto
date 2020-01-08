@@ -952,64 +952,69 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
 
 util::Status ExportMetadata(const TraceStorage* storage,
                             TraceFormatWriter* writer) {
-  const auto& trace_metadata = storage->metadata();
-  const auto& keys = trace_metadata.keys();
-  const auto& values = trace_metadata.values();
-  for (size_t pos = 0; pos < keys.size(); pos++) {
+  const auto& trace_metadata = storage->metadata_table();
+  const auto& keys = trace_metadata.name();
+  const auto& int_values = trace_metadata.int_value();
+  const auto& str_values = trace_metadata.str_value();
+
+  // Create a mapping from key string ids to keys.
+  std::unordered_map<StringId, metadata::KeyIDs> key_map;
+  for (uint32_t i = 0; i < metadata::kNumKeys; ++i) {
+    auto id = *storage->string_pool().GetId(metadata::kNames[i]);
+    key_map[id] = static_cast<metadata::KeyIDs>(i);
+  }
+
+  for (uint32_t pos = 0; pos < trace_metadata.row_count(); pos++) {
     // Cast away from enum type, as otherwise -Wswitch-enum will demand an
     // exhaustive list of cases, even if there's a default case.
-    switch (static_cast<size_t>(keys[pos])) {
+    metadata::KeyIDs key = key_map[keys[pos]];
+    switch (static_cast<size_t>(key)) {
       case metadata::benchmark_description:
         writer->AppendTelemetryMetadataString(
             "benchmarkDescriptions",
-            GetNonNullString(storage, values[pos].string_value));
+            GetNonNullString(storage, str_values[pos]));
         break;
 
       case metadata::benchmark_name:
         writer->AppendTelemetryMetadataString(
-            "benchmarks", GetNonNullString(storage, values[pos].string_value));
+            "benchmarks", GetNonNullString(storage, str_values[pos]));
         break;
 
       case metadata::benchmark_start_time_us:
 
         writer->SetTelemetryMetadataTimestamp("benchmarkStart",
-                                              values[pos].int_value);
+                                              *int_values[pos]);
         break;
 
       case metadata::benchmark_had_failures:
-        if (pos < values.size())
-          writer->AppendTelemetryMetadataBool("hadFailures",
-                                              values[pos].int_value);
+        writer->AppendTelemetryMetadataBool("hadFailures", *int_values[pos]);
         break;
 
       case metadata::benchmark_label:
         writer->AppendTelemetryMetadataString(
-            "labels", GetNonNullString(storage, values[pos].string_value));
+            "labels", GetNonNullString(storage, str_values[pos]));
         break;
 
       case metadata::benchmark_story_name:
         writer->AppendTelemetryMetadataString(
-            "stories", GetNonNullString(storage, values[pos].string_value));
+            "stories", GetNonNullString(storage, str_values[pos]));
         break;
 
       case metadata::benchmark_story_run_index:
-        writer->AppendTelemetryMetadataInt("storysetRepeats",
-                                           values[pos].int_value);
+        writer->AppendTelemetryMetadataInt("storysetRepeats", *int_values[pos]);
         break;
 
       case metadata::benchmark_story_run_time_us:
-        writer->SetTelemetryMetadataTimestamp("traceStart",
-                                              values[pos].int_value);
+        writer->SetTelemetryMetadataTimestamp("traceStart", *int_values[pos]);
         break;
 
       case metadata::benchmark_story_tags:  // repeated
         writer->AppendTelemetryMetadataString(
-            "storyTags", GetNonNullString(storage, values[pos].string_value));
+            "storyTags", GetNonNullString(storage, str_values[pos]));
         break;
 
       default:
-        PERFETTO_DLOG("Ignoring metadata key %zu",
-                      static_cast<size_t>(keys[pos]));
+        PERFETTO_DLOG("Ignoring metadata key %zu", static_cast<size_t>(key));
         break;
     }
   }

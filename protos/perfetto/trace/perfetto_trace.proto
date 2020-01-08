@@ -4072,6 +4072,75 @@ message ChromeLegacyIpc {
 
 // End of protos/perfetto/trace/track_event/chrome_legacy_ipc.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_process_descriptor.proto
+
+// Describes the attributes for a Chrome process. Must be paired with a
+// ProcessDescriptor in the same TrackDescriptor.
+//
+// Next id: 4.
+message ChromeProcessDescriptor {
+  // See chromium's content::ProcessType.
+  enum ChromeProcessType {
+    PROCESS_UNSPECIFIED = 0;
+    PROCESS_BROWSER = 1;
+    PROCESS_RENDERER = 2;
+    PROCESS_UTILITY = 3;
+    PROCESS_ZYGOTE = 4;
+    PROCESS_SANDBOX_HELPER = 5;
+    PROCESS_GPU = 6;
+    PROCESS_PPAPI_PLUGIN = 7;
+    PROCESS_PPAPI_BROKER = 8;
+  }
+  optional ChromeProcessType process_type = 1;
+  optional int32 process_priority = 2;
+
+  // To support old UI. New UI should determine default sorting by process_type.
+  optional int32 legacy_sort_index = 3;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_process_descriptor.proto
+
+// Begin of protos/perfetto/trace/track_event/chrome_thread_descriptor.proto
+
+// Describes a Chrome thread's attributes. Emitted as part of a TrackDescriptor,
+// usually by the thread's trace writer. Must be paired with a ThreadDescriptor
+// in the same TrackDescriptor.
+//
+// Next id: 3.
+message ChromeThreadDescriptor {
+  enum ThreadType {
+    THREAD_UNSPECIFIED = 0;
+
+    THREAD_MAIN = 1;
+    THREAD_IO = 2;
+
+    // Scheduler:
+    THREAD_POOL_BG_WORKER = 3;
+    THREAD_POOL_FG_WORKER = 4;
+    THREAD_POOL_FB_BLOCKING = 5;
+    THREAD_POOL_BG_BLOCKING = 6;
+    THREAD_POOL_SERVICE = 7;
+
+    // Compositor:
+    THREAD_COMPOSITOR = 8;
+    THREAD_VIZ_COMPOSITOR = 9;
+    THREAD_COMPOSITOR_WORKER = 10;
+
+    // Renderer:
+    THREAD_SERVICE_WORKER = 11;
+
+    // Tracing related threads:
+    THREAD_MEMORY_INFRA = 50;
+    THREAD_SAMPLING_PROFILER = 51;
+  };
+  optional ThreadType thread_type = 1;
+
+  // To support old UI. New UI should determine default sorting by thread_type.
+  optional int32 legacy_sort_index = 2;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_thread_descriptor.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_user_event.proto
 
 // Details about a UI interaction initiated by the user, such as opening or
@@ -4165,10 +4234,16 @@ message LogMessageBody {
 // Describes a process's attributes. Emitted as part of a TrackDescriptor,
 // usually by the process's main thread.
 //
-// Next id: 5.
+// Next id: 6.
 message ProcessDescriptor {
   optional int32 pid = 1;
   repeated string cmdline = 2;
+
+  optional int32 process_priority = 5;
+
+  // ---------------------------------------------------------------------------
+  // Deprecated / legacy fields, which will be removed in the future:
+  // ---------------------------------------------------------------------------
 
   // See chromium's content::ProcessType.
   enum ChromeProcessType {
@@ -4183,7 +4258,6 @@ message ProcessDescriptor {
     PROCESS_PPAPI_BROKER = 8;
   }
   optional ChromeProcessType chrome_process_type = 4;
-  optional int32 process_priority = 5;
 
   // To support old UI. New UI should determine default sorting by process_type.
   optional int32 legacy_sort_index = 3;
@@ -4229,6 +4303,10 @@ message ThreadDescriptor {
 
   optional string thread_name = 5;
 
+  // ---------------------------------------------------------------------------
+  // Deprecated / legacy fields, which will be removed in the future:
+  // ---------------------------------------------------------------------------
+
   enum ChromeThreadType {
     CHROME_THREAD_UNSPECIFIED = 0;
 
@@ -4256,10 +4334,6 @@ message ThreadDescriptor {
   };
   optional ChromeThreadType chrome_thread_type = 4;
 
-  // ---------------------------------------------------------------------------
-  // Deprecated / legacy fields, which will be removed in the future:
-  // ---------------------------------------------------------------------------
-
   // Deprecated. Use ClockSnapshot in combination with TracePacket's timestamp
   // and timestamp_clock_id fields instead.
   optional int64 reference_timestamp_us = 6;
@@ -4280,7 +4354,9 @@ message ThreadDescriptor {
 // Begin of protos/perfetto/trace/track_event/track_descriptor.proto
 
 // Defines a track for TrackEvents. Slices and instant events on the same track
-// will be nested based on their timestamps, see TrackEvent::Type.
+// will be nested based on their timestamps, see TrackEvent::Type. Additionally
+// events on tracks which represent the same thread (i.e., matching pid and tid
+// in ThreadDescriptor) will be merged onto one sequential timeline.
 //
 // A TrackDescriptor only needs to be emitted by one trace writer / producer and
 // is valid for the entirety of the trace. To ensure the descriptor isn't lost
@@ -4292,7 +4368,7 @@ message ThreadDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 1.
+// Next id: 8.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -4302,16 +4378,20 @@ message TrackDescriptor {
   // event id + id_scope, pid, and/or tid to compute this ID.
   optional uint64 uuid = 1;
 
-  // TODO(eseckler): Support track hierarchies.
-  // uint64 parent_uuid = X;
+  // A parent track reference can be used to describe relationships between
+  // tracks. For example, to define an asynchronous track which is scoped to a
+  // specific process, specify the uuid for that process's process track here.
+  optional uint64 parent_uuid = 5;
 
   // Name of the track.
   optional string name = 2;
 
-  // Associate the track with a process or thread - the UI will draw this track
-  // in the context of the process/thread.
+  // Associate the track with a process or thread - the UI will merge all tracks
+  // for the same process / thread into a single timeline view.
   optional ProcessDescriptor process = 3;
+  optional ChromeProcessDescriptor chrome_process = 6;
   optional ThreadDescriptor thread = 4;
+  optional ChromeThreadDescriptor chrome_thread = 7;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
