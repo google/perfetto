@@ -369,8 +369,6 @@ class DataSource : public DataSourceBase {
   // Setup/Start/Stop notifications and makes the Trace() method work when
   // tracing is enabled and the data source is selected.
   // This must be called after Tracing::Initialize().
-  // The caller must also use the DEFINE_DATA_SOURCE_STATIC_MEMBERS() macro
-  // documented below.
   // Can return false to signal failure if attemping to register more than
   // kMaxDataSources (32) data sources types.
   static bool Register(const DataSourceDescriptor& descriptor) {
@@ -459,15 +457,8 @@ thread_local internal::DataSourceThreadLocalState* DataSource<T, D>::tls_state_;
 // TODO(skyostil): Remove this macro.
 #define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)
 
-// The API client must use this in a translation unit. This is because it needs
-// to instantiate the static storage for the datasource to allow the fastpath
-// enabled check.
-#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)        \
-  template <>                                                  \
-  perfetto::internal::DataSourceStaticState                    \
-      perfetto::DataSource<__VA_ARGS__>::static_state_{};      \
-  template <>                                                  \
-  thread_local perfetto::internal::DataSourceThreadLocalState* \
-      perfetto::DataSource<__VA_ARGS__>::tls_state_ = nullptr
+// Not needed -- only here for backwards compatibility.
+// TODO(skyostil): Remove this macro.
+#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)
 
 #endif  // INCLUDE_PERFETTO_TRACING_DATA_SOURCE_H_
