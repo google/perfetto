@@ -20,6 +20,7 @@ import time
 import argparse
 import socket
 import subprocess
+import threading
 
 try:
   import socketserver
@@ -43,6 +44,7 @@ class Server(object):
     self.port = port
     self.directory = directory
     self.rebuilder = rebuilder
+    self.lock = threading.Lock()
 
   def serve(self):
     this = self
@@ -60,7 +62,8 @@ class Server(object):
 
       def do_GET(self):
         try:
-          this.rebuilder.rebuild_if_needed()
+          with this.lock:
+            this.rebuilder.rebuild_if_needed()
         except RebuildFailed as e:
           self.send_response(200)
           self.send_header("Content-type", "text/html")
@@ -90,6 +93,7 @@ class Rebuilder(object):
     self.command = command
     self.ignored_paths = ignored_paths
     self.last_disk_state = None
+    self.abs_ignored_paths = [os.path.abspath(p) for p in self.ignored_paths]
 
   def rebuild_if_needed(self):
     if self.last_disk_state == self.last_modified_time():
@@ -103,7 +107,8 @@ class Rebuilder(object):
   def last_modified_time(self):
     start_time = time.time()
     max_mtime = 0
-    for dirpath, dirnames, filenames in os.walk('.', topdown=True):
+    for dirpath, dirnames, filenames in os.walk(
+        os.path.abspath('.'), topdown=True):
       dirnames[:] = [
           n for n in dirnames
           if not self.should_ignore_path(os.path.join(dirpath, n))
@@ -119,8 +124,7 @@ class Rebuilder(object):
     return max_mtime
 
   def should_ignore_path(self, path):
-    return os.path.abspath(path) in (
-        os.path.abspath(p) for p in self.ignored_paths)
+    return path in self.abs_ignored_paths
 
   def rebuild(self):
     print('Running command: {}'.format(self.command))
