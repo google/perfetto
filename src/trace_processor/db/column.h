@@ -309,6 +309,8 @@ class Column {
     PERFETTO_FATAL("Invalid type");
   }
 
+  const StringPool& string_pool() const { return *string_pool_; }
+
  private:
   enum class ColumnType {
     // Standard primitive types.

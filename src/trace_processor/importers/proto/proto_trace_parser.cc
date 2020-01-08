@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/metadata.h"
+#include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
@@ -462,47 +463,50 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
 
 void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
+  MetadataTracker* metadata = context_->metadata_tracker.get();
+
   protos::pbzero::ChromeBenchmarkMetadata::Decoder packet(blob.data, blob.size);
   if (packet.has_benchmark_name()) {
     auto benchmark_name_id = storage->InternString(packet.benchmark_name());
-    storage->SetMetadata(metadata::benchmark_name,
-                         Variadic::String(benchmark_name_id));
+    metadata->SetMetadata(metadata::benchmark_name,
+                          Variadic::String(benchmark_name_id));
   }
   if (packet.has_benchmark_description()) {
     auto benchmark_description_id =
         storage->InternString(packet.benchmark_description());
-    storage->SetMetadata(metadata::benchmark_description,
-                         Variadic::String(benchmark_description_id));
+    metadata->SetMetadata(metadata::benchmark_description,
+                          Variadic::String(benchmark_description_id));
   }
   if (packet.has_label()) {
     auto label_id = storage->InternString(packet.label());
-    storage->SetMetadata(metadata::benchmark_label, Variadic::String(label_id));
+    metadata->SetMetadata(metadata::benchmark_label,
+                          Variadic::String(label_id));
   }
   if (packet.has_story_name()) {
     auto story_name_id = storage->InternString(packet.story_name());
-    storage->SetMetadata(metadata::benchmark_story_name,
-                         Variadic::String(story_name_id));
+    metadata->SetMetadata(metadata::benchmark_story_name,
+                          Variadic::String(story_name_id));
   }
   for (auto it = packet.story_tags(); it; ++it) {
     auto story_tag_id = storage->InternString(*it);
-    storage->AppendMetadata(metadata::benchmark_story_tags,
-                            Variadic::String(story_tag_id));
+    metadata->AppendMetadata(metadata::benchmark_story_tags,
+                             Variadic::String(story_tag_id));
   }
   if (packet.has_benchmark_start_time_us()) {
-    storage->SetMetadata(metadata::benchmark_start_time_us,
-                         Variadic::Integer(packet.benchmark_start_time_us()));
+    metadata->SetMetadata(metadata::benchmark_start_time_us,
+                          Variadic::Integer(packet.benchmark_start_time_us()));
   }
   if (packet.has_story_run_time_us()) {
-    storage->SetMetadata(metadata::benchmark_story_run_time_us,
-                         Variadic::Integer(packet.story_run_time_us()));
+    metadata->SetMetadata(metadata::benchmark_story_run_time_us,
+                          Variadic::Integer(packet.story_run_time_us()));
   }
   if (packet.has_story_run_index()) {
-    storage->SetMetadata(metadata::benchmark_story_run_index,
-                         Variadic::Integer(packet.story_run_index()));
+    metadata->SetMetadata(metadata::benchmark_story_run_index,
+                          Variadic::Integer(packet.story_run_index()));
   }
   if (packet.has_had_failures()) {
-    storage->SetMetadata(metadata::benchmark_had_failures,
-                         Variadic::Integer(packet.had_failures()));
+    metadata->SetMetadata(metadata::benchmark_had_failures,
+                          Variadic::Integer(packet.had_failures()));
   }
 }
 
@@ -615,7 +619,8 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
     base::Uuid uuid(uuid_lsb, uuid_msb);
     std::string str = uuid.ToPrettyString();
     StringId id = context_->storage->InternString(base::StringView(str));
-    context_->storage->SetMetadata(metadata::trace_uuid, Variadic::String(id));
+    context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                            Variadic::String(id));
   }
 }
 

@@ -28,41 +28,58 @@ namespace metadata {
 
 // Compile time list of metadata items.
 // clang-format off
-#define PERFETTO_TP_METADATA(F)                                        \
-  F(benchmark_description,               kSingle,  Variadic::kString), \
-  F(benchmark_name,                      kSingle,  Variadic::kString), \
-  F(benchmark_start_time_us,             kSingle,  Variadic::kInt),    \
-  F(benchmark_had_failures,              kSingle,  Variadic::kInt),    \
-  F(benchmark_label,                     kSingle,  Variadic::kString), \
-  F(benchmark_story_name,                kSingle,  Variadic::kString), \
-  F(benchmark_story_run_index,           kSingle,  Variadic::kInt),    \
-  F(benchmark_story_run_time_us,         kSingle,  Variadic::kInt),    \
-  F(benchmark_story_tags,                kMulti,   Variadic::kString), \
-  F(android_packages_list,               kMulti,   Variadic::kInt),    \
-  F(statsd_triggering_subscription_id,   kSingle,  Variadic::kInt),    \
-  F(trace_uuid,                          kSingle,  Variadic::kString), \
-  F(system_name,                         kSingle,  Variadic::kString), \
-  F(system_version,                      kSingle,  Variadic::kString), \
-  F(system_release,                      kSingle,  Variadic::kString), \
-  F(system_machine,                      kSingle,  Variadic::kString), \
-  F(android_build_fingerprint,           kSingle,  Variadic::kString)
+#define PERFETTO_TP_METADATA(F)                                               \
+  F(benchmark_description,             KeyType::kSingle,  Variadic::kString), \
+  F(benchmark_name,                    KeyType::kSingle,  Variadic::kString), \
+  F(benchmark_start_time_us,           KeyType::kSingle,  Variadic::kInt),    \
+  F(benchmark_had_failures,            KeyType::kSingle,  Variadic::kInt),    \
+  F(benchmark_label,                   KeyType::kSingle,  Variadic::kString), \
+  F(benchmark_story_name,              KeyType::kSingle,  Variadic::kString), \
+  F(benchmark_story_run_index,         KeyType::kSingle,  Variadic::kInt),    \
+  F(benchmark_story_run_time_us,       KeyType::kSingle,  Variadic::kInt),    \
+  F(benchmark_story_tags,              KeyType::kMulti,   Variadic::kString), \
+  F(android_packages_list,             KeyType::kMulti,   Variadic::kInt),    \
+  F(statsd_triggering_subscription_id, KeyType::kSingle,  Variadic::kInt),    \
+  F(trace_uuid,                        KeyType::kSingle,  Variadic::kString), \
+  F(system_name,                       KeyType::kSingle,  Variadic::kString), \
+  F(system_version,                    KeyType::kSingle,  Variadic::kString), \
+  F(system_release,                    KeyType::kSingle,  Variadic::kString), \
+  F(system_machine,                    KeyType::kSingle,  Variadic::kString), \
+  F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString)
 // clang-format on
 
-enum KeyType {
-  kSingle,  // One value per key.
-  kMulti    // Multiple values per key.
+// Compile time list of metadata items.
+// clang-format off
+#define PERFETTO_TP_METADATA_KEY_TYPES(F) \
+  F(kSingle, "single"),                   \
+  F(kMulti,  "multi")
+// clang-format
+
+#define PERFETTO_TP_META_TYPE_ENUM(varname, ...) varname
+enum class KeyType : size_t {
+  PERFETTO_TP_METADATA_KEY_TYPES(PERFETTO_TP_META_TYPE_ENUM),
+  kNumKeyTypes,
+};
+
+#define PERFETTO_TP_META_TYPE_NAME(_, name, ...) name
+constexpr char const* kKeyTypeNames[] = {
+  PERFETTO_TP_METADATA_KEY_TYPES(PERFETTO_TP_META_TYPE_NAME)
 };
 
 // Declares an enum of literals (one for each item). The enum values of each
 // literal corresponds to the string index in the arrays below.
 #define PERFETTO_TP_META_ENUM(name, ...) name
-enum KeyIDs : size_t { PERFETTO_TP_METADATA(PERFETTO_TP_META_ENUM), kNumKeys };
+enum KeyIDs : size_t {
+  PERFETTO_TP_METADATA(PERFETTO_TP_META_ENUM),
+  kNumKeys
+};
 
 // The code below declares an array for each property:
 // name, key type, value type.
 
 #define PERFETTO_TP_META_NAME(name, ...) #name
-constexpr char const* kNames[] = {PERFETTO_TP_METADATA(PERFETTO_TP_META_NAME)};
+constexpr char const* kNames[] = {
+  PERFETTO_TP_METADATA(PERFETTO_TP_META_NAME)};
 
 #define PERFETTO_TP_META_KEYTYPE(_, type, ...) type
 constexpr KeyType kKeyTypes[] = {
