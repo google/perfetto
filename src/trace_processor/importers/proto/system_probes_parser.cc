@@ -21,6 +21,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/metadata.h"
+#include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -308,18 +309,18 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     StringPool::Id machine_id =
         context_->storage->InternString(utsname.machine());
 
-    context_->storage->SetMetadata(metadata::system_name,
-                                   Variadic::String(sysname_id));
-    context_->storage->SetMetadata(metadata::system_version,
-                                   Variadic::String(version_id));
-    context_->storage->SetMetadata(metadata::system_release,
-                                   Variadic::String(release_id));
-    context_->storage->SetMetadata(metadata::system_machine,
-                                   Variadic::String(machine_id));
+    MetadataTracker* metadata = context_->metadata_tracker.get();
+    metadata->SetMetadata(metadata::system_name, Variadic::String(sysname_id));
+    metadata->SetMetadata(metadata::system_version,
+                          Variadic::String(version_id));
+    metadata->SetMetadata(metadata::system_release,
+                          Variadic::String(release_id));
+    metadata->SetMetadata(metadata::system_machine,
+                          Variadic::String(machine_id));
   }
 
   if (packet.has_android_build_fingerprint()) {
-    context_->storage->SetMetadata(
+    context_->metadata_tracker->SetMetadata(
         metadata::android_build_fingerprint,
         Variadic::String(context_->storage->InternString(
             packet.android_build_fingerprint())));

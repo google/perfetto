@@ -35,6 +35,7 @@ class EventTracker;
 class FtraceModule;
 class HeapGraphTracker;
 class HeapProfileTracker;
+class MetadataTracker;
 class ProcessTracker;
 class SliceTracker;
 class TraceParser;
@@ -60,6 +61,7 @@ class TraceProcessorContext {
   std::unique_ptr<TraceSorter> sorter;
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
+  std::unique_ptr<MetadataTracker> metadata_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass

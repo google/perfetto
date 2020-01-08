@@ -87,8 +87,8 @@ void ArgsTracker::Flush() {
         break;
       // Special case: overwrites the metadata table row.
       case TableId::kMetadataTable:
-        storage->mutable_metadata()->OverwriteMetadata(
-            row, Variadic::Integer(set_id));
+        storage->mutable_metadata_table()->mutable_int_value()->Set(row,
+                                                                    set_id);
         break;
       case TableId::kTrack:
         storage->mutable_track_table()->mutable_source_arg_set_id()->Set(

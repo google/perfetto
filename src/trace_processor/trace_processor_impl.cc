@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/args_table.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/metadata_table.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/raw_table.h"
 #include "src/trace_processor/register_additional_modules.h"
@@ -379,7 +378,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   WindowOperatorTable::RegisterTable(*db_, context_.storage.get());
   StatsTable::RegisterTable(*db_, context_.storage.get());
   RawTable::RegisterTable(*db_, context_.storage.get());
-  MetadataTable::RegisterTable(*db_, context_.storage.get());
 
   // New style db-backed tables.
   const TraceStorage* storage = context_.storage.get();
@@ -451,6 +449,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   DbSqliteTable::RegisterTable(
       *db_, &storage->vulkan_memory_allocations_table(),
       storage->vulkan_memory_allocations_table().table_name());
+
+  DbSqliteTable::RegisterTable(*db_, &storage->metadata_table(),
+                               storage->metadata_table().table_name());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {
