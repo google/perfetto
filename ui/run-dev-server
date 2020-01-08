@@ -39,6 +39,7 @@ $ROOT_DIR/tools/dev_server \
   -i $ROOT_DIR/src/traced \
   -i $ROOT_DIR/buildtools \
   -i $ROOT_DIR/out \
+  -i $ROOT_DIR/infra \
   -i $ROOT_DIR/ui/node_modules \
   -s $UI_OUT_DIR \
   "$ROOT_DIR/tools/ninja -C $OUT_DIR ui"
