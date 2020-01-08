@@ -324,27 +324,70 @@ void HeapGraphWalker::FindSCC(Node* node) {
 }
 
 HeapGraphWalker::PathFromRoot HeapGraphWalker::FindPathsFromRoot() {
+  PathFromRoot path;
   for (Node* root : roots_)
-    FindPathFromRoot(root, &path_);
+    FindPathFromRoot(root, &path);
   for (Node& node : nodes_)
     node.find_paths_from_root_visited = false;
-  return std::move(path_);
+  return path;
 }
 
 // TODO(fmayer): Teach this to handle field names.
-void HeapGraphWalker::FindPathFromRoot(Node* n, PathFromRoot* parent) {
-  PathFromRoot& cur = parent->children[n->class_name];
-  cur.size += n->self_size;
-  cur.count++;
-  cur.parent = parent;
-  cur.class_name = n->class_name;
-  for (Node* child : n->children) {
-    if (child->distance_to_root == n->distance_to_root + 1 &&
-        !child->find_paths_from_root_visited) {
-      // Mark as visited in case there is another path with the same distance
-      // from a root.
-      child->find_paths_from_root_visited = true;
-      FindPathFromRoot(child, &cur);
+void HeapGraphWalker::FindPathFromRoot(Node* first_node, PathFromRoot* path) {
+  // We have long retention chains (e.g. from LinkedList). If we use the stack
+  // here, we risk running out of stack space. This is why we use a vector to
+  // simulate the stack.
+  struct StackElem {
+    Node* node;        // Node in the original graph.
+    size_t parent_id;  // id of parent node in the result tree.
+    size_t i;          // Index of the next child of this node to handle.
+    uint32_t depth;    // Depth in the resulting tree
+                       // (including artifical root).
+  };
+
+  std::vector<StackElem> stack{{first_node, PathFromRoot::kRoot, 0, 0}};
+
+  while (!stack.empty()) {
+    Node* n = stack.back().node;
+    size_t parent_id = stack.back().parent_id;
+    uint32_t depth = stack.back().depth;
+    size_t& i = stack.back().i;
+
+    auto it = path->nodes[parent_id].children.find(n->class_name);
+    if (it == path->nodes[parent_id].children.end()) {
+      size_t id = path->nodes.size();
+      path->nodes.emplace_back(PathFromRoot::Node{});
+      std::tie(it, std::ignore) =
+          path->nodes[parent_id].children.emplace(n->class_name, id);
+      path->nodes.back().class_name = n->class_name;
+      path->nodes.back().depth = depth;
+      path->nodes.back().parent_id = parent_id;
+    }
+    size_t id = it->second;
+    PathFromRoot::Node* output_tree_node = &path->nodes[id];
+
+    if (i == 0) {
+      // This is the first time we are looking at this node, so add its
+      // size to the relevant node in the resulting tree.
+      output_tree_node->size += n->self_size;
+      output_tree_node->count++;
+    }
+    // Otherwise we have already handled this node and just need to get its
+    // i-th child.
+    if (!n->children.empty()) {
+      Node* child = n->children[i];
+      if (++i == n->children.size())
+        stack.pop_back();
+
+      if (child->distance_to_root == n->distance_to_root + 1 &&
+          !child->find_paths_from_root_visited) {
+        // Mark as visited in case there is another path with the same distance
+        // from a root.
+        child->find_paths_from_root_visited = true;
+        stack.emplace_back(StackElem{child, id, 0, depth + 1});
+      }
+    } else {
+      stack.pop_back();
     }
   }
 }
