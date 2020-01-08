@@ -197,38 +197,45 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   uint32_t mapping_idx = *mapping_table->id().IndexOf(mapping_id);
 
   auto paths = sequence_state.walker.FindPathsFromRoot();
-  for (const auto& p : paths.children)
-    WriteFlamegraph(sequence_state, p.second, -1, 0, mapping_idx);
+  WriteFlamegraph(sequence_state, paths, mapping_idx);
 
   sequence_state_.erase(seq_id);
 }
 
 void HeapGraphTracker::WriteFlamegraph(
     const SequenceState& sequence_state,
-    const HeapGraphWalker::PathFromRoot& path,
-    int32_t parent_id,
-    uint32_t depth,
+    const HeapGraphWalker::PathFromRoot& init_path,
     uint32_t mapping_row) {
-  tables::StackProfileFrameTable::Row row{};
-  row.name = StringId(static_cast<uint32_t>(path.class_name));
-  row.mapping = mapping_row;
+  std::vector<int32_t> node_to_row_id(init_path.nodes.size());
 
-  auto id = context_->storage->mutable_stack_profile_frame_table()->Insert(row);
-  int32_t frame_id = static_cast<int32_t>(id.value);
+  node_to_row_id[0] = -1;  // We use parent_id -1 for roots.
+  for (size_t i = 1; i < init_path.nodes.size(); ++i) {
+    const HeapGraphWalker::PathFromRoot::Node& node = init_path.nodes[i];
+    PERFETTO_CHECK(node.parent_id < i);
+    const int32_t parent_row_id = node_to_row_id[node.parent_id];
+    const uint32_t depth = node.depth - 1;  // -1 because we do not have the
+                                            // artificial root in the database.
 
-  auto* callsites = context_->storage->mutable_stack_profile_callsite_table();
-  auto callsite_id = callsites->Insert({depth, parent_id, frame_id});
-  parent_id = static_cast<int32_t>(callsite_id.value);
-  depth++;
+    tables::StackProfileFrameTable::Row row{};
+    PERFETTO_CHECK(node.class_name > 0);
+    row.name = StringId(static_cast<uint32_t>(node.class_name));
+    row.mapping = mapping_row;
 
-  tables::HeapProfileAllocationTable::Row alloc_row{
-      sequence_state.current_ts, sequence_state.current_upid, parent_id,
-      static_cast<int64_t>(path.count), static_cast<int64_t>(path.size)};
-  // TODO(fmayer): Maybe add a separate table for heap graph flamegraphs.
-  context_->storage->mutable_heap_profile_allocation_table()->Insert(alloc_row);
-  for (const auto& p : path.children) {
-    const HeapGraphWalker::PathFromRoot& child = p.second;
-    WriteFlamegraph(sequence_state, child, parent_id, depth, mapping_row);
+    auto id =
+        context_->storage->mutable_stack_profile_frame_table()->Insert(row);
+    int32_t frame_id = static_cast<int32_t>(id.value);
+
+    auto* callsites = context_->storage->mutable_stack_profile_callsite_table();
+    auto callsite_id = callsites->Insert({depth, parent_row_id, frame_id});
+    int32_t row_id = static_cast<int32_t>(callsite_id.value);
+    node_to_row_id[i] = row_id;
+
+    tables::HeapProfileAllocationTable::Row alloc_row{
+        sequence_state.current_ts, sequence_state.current_upid, row_id,
+        static_cast<int64_t>(node.count), static_cast<int64_t>(node.size)};
+    // TODO(fmayer): Maybe add a separate table for heap graph flamegraphs.
+    context_->storage->mutable_heap_profile_allocation_table()->Insert(
+        alloc_row);
   }
 }
 
