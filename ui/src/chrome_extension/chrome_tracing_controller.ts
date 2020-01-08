@@ -98,6 +98,43 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.handleStartTracing(chromeConfig);
   }
 
+  toCamelCase(key: string, separator: string): string {
+    return key.split(separator)
+        .map((part, index) => {
+          return (index === 0) ? part : part[0].toUpperCase() + part.slice(1);
+        })
+        .join('');
+  }
+
+  // tslint:disable-next-line: no-any
+  convertDictKeys(obj: any): any {
+    if (Array.isArray(obj)) {
+      return obj.map(v => this.convertDictKeys(v));
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      // tslint:disable-next-line: no-any
+      const converted: any = {};
+      for (const key of Object.keys(obj)) {
+        converted[this.toCamelCase(key, '_')] = this.convertDictKeys(obj[key]);
+      }
+      return converted;
+    }
+    return obj;
+  }
+
+  // tslint:disable-next-line: no-any
+  convertToDevToolsConfig(config: any): Protocol.Tracing.TraceConfig {
+    // DevTools uses a different naming style for config properties: Dictionary
+    // keys are named "camelCase" style, rather than "underscore_case" style as
+    // in the TraceConfig.
+    config = this.convertDictKeys(config);
+    // recordMode is specified as an enum with camelCase values.
+    if (config.recordMode) {
+      config.recordMode = this.toCamelCase(config.recordMode as string, '-');
+    }
+    return config as Protocol.Tracing.TraceConfig;
+  }
+
   // TODO(nicomazz): write unit test for this
   extractChromeConfig(perfettoConfig: TraceConfig):
       Protocol.Tracing.TraceConfig {
@@ -105,8 +142,8 @@ export class ChromeTracingController extends RpcConsumerPort {
       if (ds.config && ds.config.name === 'org.chromium.trace_event' &&
           ds.config.chromeConfig && ds.config.chromeConfig.traceConfig) {
         const chromeConfigJsonString = ds.config.chromeConfig.traceConfig;
-        return JSON.parse(chromeConfigJsonString) as
-            Protocol.Tracing.TraceConfig;
+        const config = JSON.parse(chromeConfigJsonString);
+        return this.convertToDevToolsConfig(config);
       }
     }
     return {};
