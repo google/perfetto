@@ -21,6 +21,7 @@
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -207,7 +208,7 @@ void AndroidProbesParser::ParseStatsdMetadata(ConstBytes blob) {
   protos::pbzero::TraceConfig::StatsdMetadata::Decoder metadata(blob.data,
                                                                 blob.size);
   if (metadata.has_triggering_subscription_id()) {
-    context_->storage->SetMetadata(
+    context_->metadata_tracker->SetMetadata(
         metadata::statsd_triggering_subscription_id,
         Variadic::Integer(metadata.triggering_subscription_id()));
   }
@@ -226,9 +227,9 @@ void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
   for (auto it = pkg_list.packages(); it; ++it) {
     // Insert a placeholder metadata entry, which will be overwritten by the
     // arg_set_id when the arg tracker is flushed.
-    uint32_t row = context_->storage->AppendMetadata(
+    auto id = context_->metadata_tracker->AppendMetadata(
         metadata::android_packages_list, Variadic::Integer(0));
-
+    uint32_t row = *context_->storage->metadata_table().id().IndexOf(id);
     auto add_arg = [this, row](base::StringView name, Variadic value) {
       StringId key_id = context_->storage->InternString(name);
       context_->args_tracker->AddArg(TableId::kMetadataTable, row, key_id,

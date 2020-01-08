@@ -26,6 +26,7 @@
 
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/track_tracker.h"
 
@@ -67,6 +68,7 @@ class ExportJsonTest : public ::testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.storage.reset(new TraceStorage());
     context_.track_tracker.reset(new TrackTracker(&context_));
+    context_.metadata_tracker.reset(new MetadataTracker(&context_));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
@@ -254,17 +256,20 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
   StringId desc_id =
       context_.storage->InternString(base::StringView(kDescription));
   Variadic description = Variadic::String(desc_id);
-  context_.storage->SetMetadata(metadata::benchmark_description, description);
+  context_.metadata_tracker->SetMetadata(metadata::benchmark_description,
+                                         description);
 
   StringId benchmark_name_id =
       context_.storage->InternString(base::StringView(kBenchmarkName));
   Variadic benchmark_name = Variadic::String(benchmark_name_id);
-  context_.storage->SetMetadata(metadata::benchmark_name, benchmark_name);
+  context_.metadata_tracker->SetMetadata(metadata::benchmark_name,
+                                         benchmark_name);
 
   StringId story_name_id =
       context_.storage->InternString(base::StringView(kStoryName));
   Variadic story_name = Variadic::String(story_name_id);
-  context_.storage->SetMetadata(metadata::benchmark_story_name, story_name);
+  context_.metadata_tracker->SetMetadata(metadata::benchmark_story_name,
+                                         story_name);
 
   StringId tag1_id =
       context_.storage->InternString(base::StringView(kStoryTag1));
@@ -272,19 +277,22 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
       context_.storage->InternString(base::StringView(kStoryTag2));
   Variadic tag1 = Variadic::String(tag1_id);
   Variadic tag2 = Variadic::String(tag2_id);
-  context_.storage->AppendMetadata(metadata::benchmark_story_tags, tag1);
-  context_.storage->AppendMetadata(metadata::benchmark_story_tags, tag2);
+  context_.metadata_tracker->AppendMetadata(metadata::benchmark_story_tags,
+                                            tag1);
+  context_.metadata_tracker->AppendMetadata(metadata::benchmark_story_tags,
+                                            tag2);
 
   Variadic benchmark_start = Variadic::Integer(kBenchmarkStart);
-  context_.storage->SetMetadata(metadata::benchmark_start_time_us,
-                                benchmark_start);
+  context_.metadata_tracker->SetMetadata(metadata::benchmark_start_time_us,
+                                         benchmark_start);
 
   Variadic story_start = Variadic::Integer(kStoryStart);
-  context_.storage->SetMetadata(metadata::benchmark_story_run_time_us,
-                                story_start);
+  context_.metadata_tracker->SetMetadata(metadata::benchmark_story_run_time_us,
+                                         story_start);
 
   Variadic had_failures = Variadic::Integer(kHadFailures);
-  context_.storage->SetMetadata(metadata::benchmark_had_failures, had_failures);
+  context_.metadata_tracker->SetMetadata(metadata::benchmark_had_failures,
+                                         had_failures);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
