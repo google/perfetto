@@ -420,6 +420,20 @@ message AndroidPackageList {
 
 // End of protos/perfetto/metrics/android/package_list.proto
 
+// Begin of protos/perfetto/metrics/android/unmapped_java_symbols.proto
+
+message UnmappedJavaSymbols {
+  message ProcessSymbols {
+    optional AndroidProcessMetadata process_metadata = 1;
+    repeated string type_name = 2;
+    repeated string field_name = 3;
+  }
+
+  repeated ProcessSymbols process_symbols = 1;
+}
+
+// End of protos/perfetto/metrics/android/unmapped_java_symbols.proto
+
 // Begin of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
 message UnsymbolizedFrames {
@@ -475,7 +489,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 19
+// Next id: 20
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -523,6 +537,9 @@ message TraceMetrics {
 
   // Metrics used to find potential culprits of low-memory kills.
   optional AndroidLmkReasonMetric android_lmk_reason = 18;
+
+  // Java type names that have no deobfuscation mappings.
+  optional UnmappedJavaSymbols unmapped_java_symbols = 19;
 
   // Demo extensions.
   extensions 450 to 499;
