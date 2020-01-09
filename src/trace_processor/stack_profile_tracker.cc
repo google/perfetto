@@ -184,14 +184,6 @@ base::Optional<int64_t> StackProfileTracker::AddCallstack(
   // TODO(fmayer): This should be NULL.
   int64_t parent_id = -1;
   for (size_t depth = 0; depth < frame_ids.size(); ++depth) {
-    std::vector<SourceFrameId> frame_subset = frame_ids;
-    frame_subset.resize(depth + 1);
-    auto self_it = callstacks_from_frames_.find(frame_subset);
-    if (self_it != callstacks_from_frames_.end()) {
-      parent_id = self_it->second;
-      continue;
-    }
-
     SourceFrameId frame_id = frame_ids[depth];
     auto maybe_frame_row = FindFrame(frame_id, intern_lookup);
     if (!maybe_frame_row) {
@@ -337,7 +329,6 @@ base::Optional<int64_t> StackProfileTracker::FindCallstack(
 void StackProfileTracker::ClearIndices() {
   string_map_.clear();
   mappings_.clear();
-  callstacks_from_frames_.clear();
   callstacks_.clear();
   frames_.clear();
 }
