@@ -23,6 +23,19 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+#define PERFETTO_TP_ARG_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ArgTable, "args")                           \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                \
+  C(uint32_t, arg_set_id, Column::Flag::kSorted)   \
+  C(StringPool::Id, flat_key)                      \
+  C(StringPool::Id, key)                           \
+  C(base::Optional<int64_t>, int_value)            \
+  C(base::Optional<StringPool::Id>, string_value)  \
+  C(base::Optional<double>, real_value)            \
+  C(StringPool::Id, value_type)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ARG_TABLE_DEF);
+
 #define PERFETTO_TP_METADATA_TABLE_DEF(NAME, PARENT, C) \
   NAME(MetadataTable, "metadata")                       \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                     \

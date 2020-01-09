@@ -329,16 +329,18 @@ class ArgsBuilder {
         nan_value_(Json::StaticString("NaN")),
         inf_value_(Json::StaticString("Infinity")),
         neg_inf_value_(Json::StaticString("-Infinity")) {
-    const TraceStorage::Args& args = storage->args();
-    if (args.args_count() == 0) {
+    const auto& arg_table = storage->arg_table();
+    uint32_t count = arg_table.row_count();
+    if (count == 0) {
       args_sets_.resize(1, empty_value_);
       return;
     }
-    args_sets_.resize(args.set_ids().back() + 1, empty_value_);
-    for (size_t i = 0; i < args.args_count(); ++i) {
-      ArgSetId set_id = args.set_ids()[i];
-      const char* key = GetNonNullString(storage_, args.keys()[i]);
-      Variadic value = args.arg_values()[i];
+    args_sets_.resize(arg_table.arg_set_id()[count - 1] + 1, empty_value_);
+
+    for (uint32_t i = 0; i < count; ++i) {
+      ArgSetId set_id = arg_table.arg_set_id()[i];
+      const char* key = GetNonNullString(storage_, arg_table.key()[i]);
+      Variadic value = storage_->GetArgValue(i);
       AppendArg(set_id, key, VariadicToJson(value));
     }
     PostprocessArgs();

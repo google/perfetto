@@ -24,7 +24,19 @@ namespace trace_processor {
 
 // Variadic type representing value of different possible types.
 struct Variadic {
-  enum Type { kInt, kUint, kString, kReal, kPointer, kBool, kJson };
+  enum Type : size_t {
+    kInt,
+    kUint,
+    kString,
+    kReal,
+    kPointer,
+    kBool,
+    kJson,
+    kMaxType = kJson,
+  };
+
+  static constexpr const char* const kTypeNames[] = {
+      "int", "uint", "string", "real", "pointer", "bool", "json"};
 
   static Variadic Integer(int64_t int_value) {
     Variadic variadic;

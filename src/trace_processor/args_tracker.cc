@@ -43,7 +43,7 @@ void ArgsTracker::AddArg(TableId table,
 }
 
 void ArgsTracker::Flush() {
-  using Arg = TraceStorage::Args::Arg;
+  using Arg = GlobalArgsTracker::Arg;
 
   if (args_.empty())
     return;
@@ -69,7 +69,7 @@ void ArgsTracker::Flush() {
     }
 
     ArgSetId set_id =
-        storage->mutable_args()->AddArgSet(args_, i, next_rid_idx);
+        context_->global_args_tracker->AddArgSet(args_, i, next_rid_idx);
     switch (table_id) {
       case TableId::kRawEvents:
         storage->mutable_raw_events()->set_arg_set_id(row, set_id);

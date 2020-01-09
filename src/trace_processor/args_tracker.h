@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_ARGS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_ARGS_TRACKER_H_
 
+#include "src/trace_processor/global_args_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
 #include "src/trace_processor/variadic.h"
@@ -67,7 +68,7 @@ class ArgsTracker {
   virtual void Flush();
 
  private:
-  std::vector<TraceStorage::Args::Arg> args_;
+  std::vector<GlobalArgsTracker::Arg> args_;
   TraceProcessorContext* const context_;
 };
 

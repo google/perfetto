@@ -121,12 +121,16 @@ bool RawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
 void RawTable::FormatSystraceArgs(NullTermStringView event_name,
                                   ArgSetId arg_set_id,
                                   base::StringWriter* writer) {
-  const auto& set_ids = storage_->args().set_ids();
-  auto lb = std::lower_bound(set_ids.begin(), set_ids.end(), arg_set_id);
-  auto ub = std::find(lb, set_ids.end(), arg_set_id + 1);
+  const auto& set_ids = storage_->arg_table().arg_set_id();
 
-  auto start_row = static_cast<uint32_t>(std::distance(set_ids.begin(), lb));
-  auto end_row = static_cast<uint32_t>(std::distance(set_ids.begin(), ub));
+  // TODO(lalitm): this code is quite hacky for performance reasons. We assume
+  // that the row map is a contiguous range (which is always the case
+  // because arg_set_ids are contiguous by definition). We also assume that
+  // the proto field order is also the order of insertion (which happens to
+  // be true but proabably shouldn't be relied on).
+  RowMap rm = storage_->arg_table().FilterToRowMap({set_ids.eq(arg_set_id)});
+
+  uint32_t start_row = rm.Get(0);
   using ValueWriter = std::function<void(const Variadic&)>;
   auto write_value = [this, writer](const Variadic& value) {
     switch (value.type) {
@@ -159,24 +163,22 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
   };
   auto write_value_at_index = [this, start_row](uint32_t arg_idx,
                                                 ValueWriter value_fn) {
-    value_fn(storage_->args().arg_values()[start_row + arg_idx]);
+    value_fn(storage_->GetArgValue(start_row + arg_idx));
   };
   auto write_arg = [this, writer, start_row](uint32_t arg_idx,
                                              ValueWriter value_fn) {
     uint32_t arg_row = start_row + arg_idx;
-    const auto& args = storage_->args();
-    const auto& key = storage_->GetString(args.keys()[arg_row]);
+    const auto& args = storage_->arg_table();
+    const auto& key = storage_->GetString(args.key()[arg_row]);
+    auto value = storage_->GetArgValue(arg_row);
 
     writer->AppendChar(' ');
     writer->AppendString(key.c_str(), key.size());
     writer->AppendChar('=');
 
-    if (key == "gfp_flags" &&
-        ParseGfpFlags(args.arg_values()[arg_row], writer)) {
+    if (key == "gfp_flags" && ParseGfpFlags(value, writer))
       return;
-    }
-
-    value_fn(args.arg_values()[arg_row]);
+    value_fn(value);
   };
 
   if (event_name == "sched_switch") {
@@ -291,9 +293,8 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
   } else if (event_name == "print") {
     // 'ip' may be the first field or it may be dropped. We only care
     // about the 'buf' field which will always appear last.
-    uint32_t arg_row = end_row - 1;
-    const auto& args = storage_->args();
-    const auto& value = args.arg_values()[arg_row];
+    uint32_t arg_row = rm.Get(rm.size() - 1);
+    const auto& value = storage_->GetArgValue(arg_row);
     const auto& str = storage_->GetString(value.string_value);
     // If the last character is a newline in a print, just drop it.
     auto chars_to_print = !str.empty() && str.c_str()[str.size() - 1] == '\n'
@@ -365,9 +366,8 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     return;
   }
 
-  uint32_t arg = 0;
-  for (auto it = lb; it != ub; it++) {
-    write_arg(arg++, write_value);
+  for (auto it = rm.IterateRows(); it; it.Next()) {
+    write_arg(it.index(), write_value);
   }
 }
 
