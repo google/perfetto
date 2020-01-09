@@ -48,6 +48,7 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.metadata_tracker.reset(new MetadataTracker(&context_));
+  context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
 
   context_.modules.emplace_back(new FtraceModule());
   // Ftrace module is special, because it has one extra method for parsing
