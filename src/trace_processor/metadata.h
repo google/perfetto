@@ -45,7 +45,8 @@ namespace metadata {
   F(system_version,                    KeyType::kSingle,  Variadic::kString), \
   F(system_release,                    KeyType::kSingle,  Variadic::kString), \
   F(system_machine,                    KeyType::kSingle,  Variadic::kString), \
-  F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString)
+  F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString), \
+  F(trace_size_bytes,                  KeyType::kSingle,  Variadic::kInt)
 // clang-format on
 
 // Compile time list of metadata items.
