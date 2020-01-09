@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_STACK_PROFILE_TRACKER_H_
 
 #include <deque>
+#include <unordered_map>
 
 #include "perfetto/ext/base/optional.h"
 
