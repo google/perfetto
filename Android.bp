@@ -772,6 +772,7 @@ cc_library_static {
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_ipc",
     ":perfetto_src_tracing_tracing",
+    ":perfetto_test_end_to_end_integrationtests",
     ":perfetto_test_task_runner_thread",
     ":perfetto_test_task_runner_thread_delegates",
     ":perfetto_test_test_helper",

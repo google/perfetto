@@ -19,33 +19,99 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 
-#include "src/base/test/test_task_runner.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 
 #include "test/fake_producer.h"
 
+namespace {
+
+static std::mutex g_mutex;
+
+// These variables are guarded by the above mutex.
+static perfetto::base::UnixTaskRunner* g_activity_tr = nullptr;
+static perfetto::base::UnixTaskRunner* g_service_tr = nullptr;
+static perfetto::base::UnixTaskRunner* g_isolated_service_tr = nullptr;
+
+}  // namespace
+
 namespace perfetto {
 namespace {
-void ListenAndRespond(const std::string& name) {
-  base::TestTaskRunner task_runner;
+
+void ListenAndRespond(const std::string& name, base::UnixTaskRunner** tr) {
+  // Note that this lock is unlocked by a post task in the middle of the
+  // function instead of at the end of this function.
+  std::unique_lock<std::mutex> lock(g_mutex);
+
+  // Ensure that we don't create multiple instances of the same producer.
+  // If the passed task runner is non-null, that means it's still running
+  // so we don't need to create another instance.
+  if (*tr)
+    return;
+
+  // Post a task to unlock the mutex when the runner has started executing
+  // tasks.
+  base::UnixTaskRunner task_runner;
+  task_runner.PostTask([tr, &lock, &task_runner]() {
+    *tr = &task_runner;
+    lock.unlock();
+  });
+
   FakeProducer producer(name);
   producer.Connect(GetProducerSocket(), &task_runner, [] {}, [] {});
   task_runner.Run();
+
+  // Cleanup the task runner again to remove outside visibilty so we can
+  // create new instances of the producer.
+  {
+    std::lock_guard<std::mutex> guard(g_mutex);
+    *tr = nullptr;
+  }
 }
+
 }  // namespace
 }  // namespace perfetto
 
 extern "C" JNIEXPORT void JNICALL
+Java_android_perfetto_producer_ProducerActivity_quitTaskRunner(JNIEnv*,
+                                                               jclass) {
+  std::lock_guard<std::mutex> guard(g_mutex);
+  if (g_activity_tr) {
+    g_activity_tr->Quit();
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_android_perfetto_producer_ProducerIsolatedService_quitTaskRunner(JNIEnv*,
+                                                                      jclass) {
+  std::lock_guard<std::mutex> guard(g_mutex);
+  if (g_isolated_service_tr) {
+    g_isolated_service_tr->Quit();
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_android_perfetto_producer_ProducerService_quitTaskRunner(JNIEnv*, jclass) {
+  std::lock_guard<std::mutex> guard(g_mutex);
+  if (g_service_tr) {
+    g_service_tr->Quit();
+  }
+}
+
+extern "C" JNIEXPORT void JNICALL
 Java_android_perfetto_producer_ProducerActivity_setupProducer(JNIEnv*, jclass) {
-  perfetto::ListenAndRespond("android.perfetto.cts.ProducerActivity");
+  perfetto::ListenAndRespond("android.perfetto.cts.ProducerActivity",
+                             &g_activity_tr);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_android_perfetto_producer_ProducerIsolatedService_setupProducer(JNIEnv*,
                                                                      jclass) {
-  perfetto::ListenAndRespond("android.perfetto.cts.ProducerIsolatedService");
+  perfetto::ListenAndRespond("android.perfetto.cts.ProducerIsolatedService",
+                             &g_isolated_service_tr);
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_android_perfetto_producer_ProducerService_setupProducer(JNIEnv*, jclass) {
-  perfetto::ListenAndRespond("android.perfetto.cts.ProducerService");
+  perfetto::ListenAndRespond("android.perfetto.cts.ProducerService",
+                             &g_service_tr);
 }
