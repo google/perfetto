@@ -165,7 +165,6 @@ class StackProfileTracker {
   std::unordered_map<SourceStringId, std::string> string_map_;
   std::unordered_map<SourceMappingId, int64_t> mappings_;
   std::unordered_map<SourceFrameId, int64_t> frames_;
-  std::unordered_map<SourceCallstack, int64_t> callstacks_from_frames_;
   std::unordered_map<SourceCallstackId, int64_t> callstacks_;
 
   // TODO(oysteine): Share these indices between the StackProfileTrackers,
