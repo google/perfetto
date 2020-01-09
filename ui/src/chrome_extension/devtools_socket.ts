@@ -64,25 +64,20 @@ export class DevToolsSocket implements rpc.LikeSocket {
     throw new Error('Call unexpected');
   }
 
-  findTarget(then: (target: chrome.debugger.Debuggee) => void) {
-    chrome.debugger.getTargets(targets => {
-      const perfettoTab =
-          targets.find(target => target.title.includes('Perfetto'));
-      if (perfettoTab === undefined) {
-        console.log('No perfetto tab found');
-        return;
-      }
-      this.target = {targetId: perfettoTab.id};
-      then(this.target);
-    });
+  attachToBrowser(then: (error?: string) => void) {
+    this.attachToTarget({targetId: 'browser'}, then);
   }
 
-  findAndAttachTarget(then: (target: chrome.debugger.Debuggee) => void) {
-    this.findTarget(t => {
-      chrome.debugger.attach(t, /*requiredVersion=*/ '1.3', () => {
-        this.openCallback();
-        then(t);
-      });
+  private attachToTarget(
+      target: chrome.debugger.Debuggee, then: (error?: string) => void) {
+    chrome.debugger.attach(target, /*requiredVersion=*/ '1.3', () => {
+      if (chrome.runtime.lastError) {
+        then(chrome.runtime.lastError.message);
+        return;
+      }
+      this.target = target;
+      this.openCallback();
+      then();
     });
   }
 

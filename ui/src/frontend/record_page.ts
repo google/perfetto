@@ -20,6 +20,7 @@ import {Actions} from '../common/actions';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
   AdbRecordingTarget,
+  getBuiltinChromeCategoryList,
   getDefaultRecordingTargets,
   isAdbTarget,
   isAndroidTarget,
@@ -592,11 +593,13 @@ function ChromeSettings(cssClass: string) {
 }
 
 function ChromeCategoriesSelection() {
-  // The categories are displayed only if the extension is installed, because
-  // they come from the chrome.debugging API, not available from normal web
-  // pages.
-  const categories = globals.state.chromeCategories;
-  if (!categories) return [];
+  // If we are attempting to record via the Chrome extension, we receive the
+  // list of actually supported categories via DevTools. Otherwise, we fall back
+  // to an integrated list of categories from a recent version of Chrome.
+  let categories = globals.state.chromeCategories;
+  if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
+    categories = getBuiltinChromeCategoryList();
+  }
 
   // Show "disabled-by-default" categories last.
   const categoriesMap = new Map<string, string>();
@@ -613,6 +616,7 @@ function ChromeCategoriesSelection() {
     categoriesMap.set(
         cat, `${cat.replace(disabledPrefix, '')} (high overhead)`);
   });
+
   return m(Dropdown, {
     title: 'Additional Chrome categories',
     cssClass: '.multicolumn.two-columns.chrome-categories',

@@ -208,8 +208,14 @@ export class ChromeTracingController extends RpcConsumerPort {
       fetchCategories();
       return;
     }
-    // Otherwise, we find attach to the target temporarily.
-    this.devtoolsSocket.findAndAttachTarget(async _ => {
+    // Otherwise, we attach temporarily.
+    this.devtoolsSocket.attachToBrowser(async (error?: string) => {
+      if (error) {
+        this.sendErrorMessage(
+            `Could not attach to DevTools browser target ` +
+            `(req. Chrome >= M81): ${error}`);
+        return;
+      }
       fetchCategories();
       this.devtoolsSocket.detach();
     });
@@ -230,7 +236,13 @@ export class ChromeTracingController extends RpcConsumerPort {
   }
 
   handleStartTracing(traceConfig: Protocol.Tracing.TraceConfig) {
-    this.devtoolsSocket.findAndAttachTarget(async _ => {
+    this.devtoolsSocket.attachToBrowser(async (error?: string) => {
+      if (error) {
+        this.sendErrorMessage(
+            `Could not attach to DevTools browser target ` +
+            `(req. Chrome >= M81): ${error}`);
+        return;
+      }
       await this.api.Tracing.start({
         traceConfig,
         streamFormat: 'proto',
