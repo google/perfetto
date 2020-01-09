@@ -172,3 +172,7 @@ config_metadata.textproto metadata.sql config_metadata.out
 
 # Ensures process -> package matching works as expected.
 process_metadata_matching.textproto process_metadata_matching.sql process_metadata_matching.out
+
+# Trace size
+../data/android_sched_and_ps.pb trace_size.sql android_sched_and_ps_trace_size.out
+
