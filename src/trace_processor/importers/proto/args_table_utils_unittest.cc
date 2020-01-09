@@ -44,24 +44,22 @@ class ArgsTableUtilsTest : public ::testing::Test {
   ArgsTableUtilsTest() {
     context_.storage.reset(new TraceStorage);
     storage_ = context_.storage.get();
+    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     sequence_state_.reset(new PacketSequenceState(&context_));
   }
 
   bool HasArg(ArgSetId set_id, const base::StringView& key, Variadic value) {
-    const auto& args = storage_->args();
+    const auto& args = storage_->arg_table();
     auto key_id = storage_->string_pool().GetId(key);
     EXPECT_TRUE(key_id);
-    auto rows =
-        std::equal_range(args.set_ids().begin(), args.set_ids().end(), set_id);
+
+    RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
     bool found = false;
-    for (; rows.first != rows.second; rows.first++) {
-      size_t index = static_cast<size_t>(
-          std::distance(args.set_ids().begin(), rows.first));
-      if (args.keys()[index] == key_id) {
-        EXPECT_EQ(args.flat_keys()[index], key_id);
-        if (args.flat_keys()[index] == key_id &&
-            args.arg_values()[index] == value) {
+    for (auto it = rm.IterateRows(); it; it.Next()) {
+      if (args.key()[it.row()] == key_id) {
+        EXPECT_EQ(args.flat_key()[it.row()], key_id);
+        if (storage_->GetArgValue(it.row()) == value) {
           found = true;
           break;
         }

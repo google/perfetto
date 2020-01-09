@@ -82,6 +82,10 @@ TraceStorage::TraceStorage(const Config& config)
   // Upid/utid 0 is reserved for idle processes/threads.
   unique_processes_.emplace_back(0);
   unique_threads_.emplace_back(0);
+
+  for (uint32_t i = 0; i < variadic_type_ids_.size(); ++i) {
+    variadic_type_ids_[i] = InternString(Variadic::kTypeNames[i]);
+  }
 }
 
 TraceStorage::~TraceStorage() {}

@@ -86,6 +86,8 @@ source_set("storage_minimal") {
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
     "ftrace_utils.h",
+    "global_args_tracker.cc",
+    "global_args_tracker.h",
     "gzip_trace_parser.cc",
     "gzip_trace_parser.h",
     "heap_profile_tracker.cc",
@@ -136,6 +138,7 @@ source_set("storage_minimal") {
     "trace_storage.h",
     "track_tracker.cc",
     "track_tracker.h",
+    "variadic.cc",
     "variadic.h",
     "virtual_destructors.cc",
   ]
@@ -282,8 +285,6 @@ if (enable_perfetto_trace_processor_json) {
 
 source_set("lib") {
   sources = [
-    "args_table.cc",
-    "args_table.h",
     "filtered_row_index.cc",
     "filtered_row_index.h",
     "gfp_flags.cc",
@@ -368,7 +369,6 @@ perfetto_host_executable("trace_processor_shell") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "args_table_unittest.cc",
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "filtered_row_index_unittest.cc",

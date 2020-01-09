@@ -41,6 +41,7 @@ enum class FilterOp {
   kIsNull,
   kIsNotNull,
   kLike,
+  kGlob,
 };
 
 // Represents a constraint on a column.
@@ -451,6 +452,7 @@ class Column {
         rm->Intersect(RowMap(beg, row_map().size()));
         return true;
       }
+      case FilterOp::kGlob:
       case FilterOp::kNe:
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:

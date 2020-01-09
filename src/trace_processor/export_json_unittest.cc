@@ -65,6 +65,7 @@ class StringOutputWriter : public OutputWriter {
 class ExportJsonTest : public ::testing::Test {
  public:
   ExportJsonTest() {
+    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.storage.reset(new TraceStorage());
     context_.track_tracker.reset(new TrackTracker(&context_));
@@ -415,11 +416,11 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
       base::StringView("task.posted_from.file_name"));
   StringId arg_value_id =
       context_.storage->InternString(base::StringView(kSrc));
-  TraceStorage::Args::Arg arg;
+  GlobalArgsTracker::Arg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::String(arg_value_id);
-  ArgSetId args = context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -512,16 +513,15 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
       base::StringView("debug.draw_duration_ms[0]"));
   StringId arg_key1_id = context_.storage->InternString(
       base::StringView("debug.draw_duration_ms[1]"));
-  TraceStorage::Args::Arg arg0;
+  GlobalArgsTracker::Arg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Real(kValues[0]);
-  TraceStorage::Args::Arg arg1;
+  GlobalArgsTracker::Arg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Real(kValues[1]);
-  ArgSetId args =
-      context_.storage->mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -560,16 +560,15 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
       context_.storage->InternString(base::StringView("arg0"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("arg1"));
-  TraceStorage::Args::Arg arg0;
+  GlobalArgsTracker::Arg arg0;
   arg0.flat_key = arg_key0_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Pointer(kValue0);
-  TraceStorage::Args::Arg arg1;
+  GlobalArgsTracker::Arg arg1;
   arg1.flat_key = arg_key1_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Pointer(kValue1);
-  ArgSetId args =
-      context_.storage->mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -608,16 +607,15 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
       context_.storage->InternString(base::StringView("a[0].b"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("a[1].b"));
-  TraceStorage::Args::Arg arg0;
+  GlobalArgsTracker::Arg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Integer(kValues[0]);
-  TraceStorage::Args::Arg arg1;
+  GlobalArgsTracker::Arg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Integer(kValues[1]);
-  ArgSetId args =
-      context_.storage->mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -657,16 +655,15 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
       context_.storage->InternString(base::StringView("a[0][0]"));
   StringId arg_key1_id =
       context_.storage->InternString(base::StringView("a[0][1]"));
-  TraceStorage::Args::Arg arg0;
+  GlobalArgsTracker::Arg arg0;
   arg0.flat_key = arg_flat_key_id;
   arg0.key = arg_key0_id;
   arg0.value = Variadic::Integer(kValues[0]);
-  TraceStorage::Args::Arg arg1;
+  GlobalArgsTracker::Arg arg1;
   arg1.flat_key = arg_flat_key_id;
   arg1.key = arg_key1_id;
   arg1.value = Variadic::Integer(kValues[1]);
-  ArgSetId args =
-      context_.storage->mutable_args()->AddArgSet({arg0, arg1}, 0, 2);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg0, arg1}, 0, 2);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -703,11 +700,11 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   StringId arg_key_id = context_.storage->InternString(base::StringView("a"));
   StringId arg_value_id =
       context_.storage->InternString(base::StringView("{\"b\":123}"));
-  TraceStorage::Args::Arg arg;
+  GlobalArgsTracker::Arg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Json(arg_value_id);
-  ArgSetId args = context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -813,11 +810,11 @@ TEST_F(ExportJsonTest, AsyncEvents) {
       {kTimestamp, kDuration, track.value, cat_id, name_id, 0, 0, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView(kArgName));
-  TraceStorage::Args::Arg arg;
+  GlobalArgsTracker::Arg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
-  ArgSetId args = context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   // Child event with same timestamps as first one.
@@ -1002,11 +999,11 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
       {kTimestamp, 0, track.value, cat_id, name_id, 0, 0, 0});
   StringId arg_key_id =
       context_.storage->InternString(base::StringView("arg_name"));
-  TraceStorage::Args::Arg arg;
+  GlobalArgsTracker::Arg arg;
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
-  ArgSetId args = context_.storage->mutable_args()->AddArgSet({arg}, 0, 1);
+  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
   context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0, args);
 
   base::TempFile temp_file = base::TempFile::Create();

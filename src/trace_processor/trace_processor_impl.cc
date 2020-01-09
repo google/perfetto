@@ -23,7 +23,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/args_table.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/process_table.h"
 #include "src/trace_processor/raw_table.h"
@@ -369,7 +368,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   SetupMetrics(this, *db_, &sql_metrics_);
 
-  ArgsTable::RegisterTable(*db_, context_.storage.get());
   ProcessTable::RegisterTable(*db_, context_.storage.get());
   SchedSliceTable::RegisterTable(*db_, context_.storage.get());
   SqlStatsTable::RegisterTable(*db_, context_.storage.get());
@@ -381,6 +379,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   // New style db-backed tables.
   const TraceStorage* storage = context_.storage.get();
+
+  DbSqliteTable::RegisterTable(*db_, &storage->arg_table(),
+                               storage->arg_table().table_name());
 
   DbSqliteTable::RegisterTable(*db_, &storage->slice_table(),
                                storage->slice_table().table_name());

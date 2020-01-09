@@ -137,96 +137,6 @@ class TraceStorage {
     uint32_t tid = 0;
   };
 
-  // Generic key value storage which can be referenced by other tables.
-  class Args {
-   public:
-    struct Arg {
-      StringId flat_key = 0;
-      StringId key = 0;
-      Variadic value = Variadic::Integer(0);
-
-      TableId table;
-      uint32_t row;
-    };
-
-    struct ArgHasher {
-      uint64_t operator()(const Arg& arg) const noexcept {
-        base::Hash hash;
-        hash.Update(arg.key);
-        // We don't hash arg.flat_key because it's a subsequence of arg.key.
-        switch (arg.value.type) {
-          case Variadic::Type::kInt:
-            hash.Update(arg.value.int_value);
-            break;
-          case Variadic::Type::kUint:
-            hash.Update(arg.value.uint_value);
-            break;
-          case Variadic::Type::kString:
-            hash.Update(arg.value.string_value);
-            break;
-          case Variadic::Type::kReal:
-            hash.Update(arg.value.real_value);
-            break;
-          case Variadic::Type::kPointer:
-            hash.Update(arg.value.pointer_value);
-            break;
-          case Variadic::Type::kBool:
-            hash.Update(arg.value.bool_value);
-            break;
-          case Variadic::Type::kJson:
-            hash.Update(arg.value.json_value);
-            break;
-        }
-        return hash.digest();
-      }
-    };
-
-    const std::deque<ArgSetId>& set_ids() const { return set_ids_; }
-    const std::deque<StringId>& flat_keys() const { return flat_keys_; }
-    const std::deque<StringId>& keys() const { return keys_; }
-    const std::deque<Variadic>& arg_values() const { return arg_values_; }
-    uint32_t args_count() const {
-      return static_cast<uint32_t>(set_ids_.size());
-    }
-
-    ArgSetId AddArgSet(const std::vector<Arg>& args,
-                       uint32_t begin,
-                       uint32_t end) {
-      base::Hash hash;
-      for (uint32_t i = begin; i < end; i++) {
-        hash.Update(ArgHasher()(args[i]));
-      }
-
-      ArgSetHash digest = hash.digest();
-      auto it = arg_row_for_hash_.find(digest);
-      if (it != arg_row_for_hash_.end()) {
-        return set_ids_[it->second];
-      }
-
-      // The +1 ensures that nothing has an id == kInvalidArgSetId == 0.
-      ArgSetId id = static_cast<uint32_t>(arg_row_for_hash_.size()) + 1;
-      arg_row_for_hash_.emplace(digest, args_count());
-      for (uint32_t i = begin; i < end; i++) {
-        const auto& arg = args[i];
-        set_ids_.emplace_back(id);
-        flat_keys_.emplace_back(arg.flat_key);
-        keys_.emplace_back(arg.key);
-        arg_values_.emplace_back(arg.value);
-      }
-      return id;
-    }
-
-   private:
-    using ArgSetHash = uint64_t;
-
-    std::deque<ArgSetId> set_ids_;
-    std::deque<StringId> flat_keys_;
-    std::deque<StringId> keys_;
-    std::deque<Variadic> arg_values_;
-
-    std::unordered_map<ArgSetHash, uint32_t> arg_row_for_hash_;
-  };
-
   class Slices {
    public:
     inline size_t AddSlice(uint32_t cpu,
@@ -704,8 +614,8 @@ class TraceStorage {
   }
   tables::MetadataTable* mutable_metadata_table() { return &metadata_table_; }
 
-  const Args& args() const { return args_; }
-  Args* mutable_args() { return &args_; }
+  const tables::ArgTable& arg_table() const { return arg_table_; }
+  tables::ArgTable* mutable_arg_table() { return &arg_table_; }
 
   const RawEvents& raw_events() const { return raw_events_; }
   RawEvents* mutable_raw_events() { return &raw_events_; }
@@ -828,6 +738,43 @@ class TraceStorage {
     stack_profile_frame_index_[pair].emplace_back(row);
   }
 
+  Variadic GetArgValue(uint32_t row) const {
+    Variadic v;
+    v.type = *GetVariadicTypeForId(arg_table_.value_type()[row]);
+
+    // Force initialization of union to stop GCC complaining.
+    v.int_value = 0;
+
+    switch (v.type) {
+      case Variadic::Type::kBool:
+        v.bool_value = static_cast<bool>(*arg_table_.int_value()[row]);
+        break;
+      case Variadic::Type::kInt:
+        v.int_value = *arg_table_.int_value()[row];
+        break;
+      case Variadic::Type::kUint:
+        v.uint_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
+        break;
+      case Variadic::Type::kString:
+        v.string_value = arg_table_.string_value()[row];
+        break;
+      case Variadic::Type::kPointer:
+        v.pointer_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
+        break;
+      case Variadic::Type::kReal:
+        v.real_value = *arg_table_.real_value()[row];
+        break;
+      case Variadic::Type::kJson:
+        v.json_value = arg_table_.string_value()[row];
+        break;
+    }
+    return v;
+  }
+
+  StringId GetIdForVariadicType(Variadic::Type type) const {
+    return variadic_type_ids_[type];
+  }
+
  private:
   using StringHash = uint64_t;
 
@@ -836,6 +783,16 @@ class TraceStorage {
 
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;
+
+  base::Optional<Variadic::Type> GetVariadicTypeForId(StringId id) const {
+    auto it =
+        std::find(variadic_type_ids_.begin(), variadic_type_ids_.end(), id);
+    if (it == variadic_type_ids_.end())
+      return base::nullopt;
+
+    int64_t idx = std::distance(variadic_type_ids_.begin(), it);
+    return static_cast<Variadic::Type>(idx);
+  }
 
   // TODO(lalitm): remove this when we find a better home for this.
   using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
@@ -881,7 +838,7 @@ class TraceStorage {
   Slices slices_;
 
   // Args for all other tables.
-  Args args_;
+  tables::ArgTable arg_table_{&string_pool_, nullptr};
 
   // One entry for each UniquePid, with UniquePid as the index.
   // Never hold on to pointers to Process, as vector resize will
@@ -942,6 +899,10 @@ class TraceStorage {
 
   tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
       &string_pool_, nullptr};
+
+  // The below array allow us to map between enums and their string
+  // representations.
+  std::array<StringId, Variadic::kMaxType + 1> variadic_type_ids_;
 };
 
 }  // namespace trace_processor

@@ -73,6 +73,7 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
 TEST(SliceTrackerTest, OneSliceWithArgs) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.global_args_tracker.reset(new GlobalArgsTracker(&context));
   SliceTracker tracker(&context);
 
   constexpr TrackId track{22u};
@@ -97,15 +98,15 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(slices.depth()[0], 0u);
   auto set_id = slices.arg_set_id()[0];
 
-  auto args = context.storage->args();
-  EXPECT_EQ(args.set_ids()[0], set_id);
-  EXPECT_EQ(args.flat_keys()[0], 1u);
-  EXPECT_EQ(args.keys()[0], 2u);
-  EXPECT_EQ(args.arg_values()[0], Variadic::Integer(10));
-  EXPECT_EQ(args.set_ids()[1], set_id);
-  EXPECT_EQ(args.flat_keys()[1], 3u);
-  EXPECT_EQ(args.keys()[1], 4u);
-  EXPECT_EQ(args.arg_values()[1], Variadic::Integer(20));
+  const auto& args = context.storage->arg_table();
+  EXPECT_EQ(args.arg_set_id()[0], set_id);
+  EXPECT_EQ(args.flat_key()[0], 1u);
+  EXPECT_EQ(args.key()[0], 2u);
+  EXPECT_EQ(args.int_value()[0], 10);
+  EXPECT_EQ(args.arg_set_id()[1], set_id);
+  EXPECT_EQ(args.flat_key()[1], 3u);
+  EXPECT_EQ(args.key()[1], 4u);
+  EXPECT_EQ(args.int_value()[1], 20);
 }
 
 TEST(SliceTrackerTest, TwoSliceDetailed) {
