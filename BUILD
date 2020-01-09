@@ -785,8 +785,6 @@ filegroup(
 filegroup(
     name = "src_trace_processor_lib",
     srcs = [
-        "src/trace_processor/args_table.cc",
-        "src/trace_processor/args_table.h",
         "src/trace_processor/filtered_row_index.cc",
         "src/trace_processor/filtered_row_index.h",
         "src/trace_processor/gfp_flags.cc",
@@ -891,6 +889,8 @@ filegroup(
         "src/trace_processor/forwarding_trace_parser.h",
         "src/trace_processor/ftrace_utils.cc",
         "src/trace_processor/ftrace_utils.h",
+        "src/trace_processor/global_args_tracker.cc",
+        "src/trace_processor/global_args_tracker.h",
         "src/trace_processor/gzip_trace_parser.cc",
         "src/trace_processor/gzip_trace_parser.h",
         "src/trace_processor/heap_profile_tracker.cc",
@@ -954,6 +954,7 @@ filegroup(
         "src/trace_processor/trace_storage.h",
         "src/trace_processor/track_tracker.cc",
         "src/trace_processor/track_tracker.h",
+        "src/trace_processor/variadic.cc",
         "src/trace_processor/variadic.h",
         "src/trace_processor/virtual_destructors.cc",
     ],

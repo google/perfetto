@@ -38,6 +38,7 @@ class ThreadTableUnittest : public ::testing::Test {
     db_.reset(db);
 
     context_.storage.reset(new TraceStorage());
+    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.event_tracker.reset(new EventTracker(&context_));
