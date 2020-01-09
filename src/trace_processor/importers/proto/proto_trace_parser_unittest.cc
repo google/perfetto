@@ -218,6 +218,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
     context_.track_tracker.reset(new TrackTracker(&context_));
+    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     event_ = new MockEventTracker(&context_);
@@ -260,22 +261,19 @@ class ProtoTraceParserTest : public ::testing::Test {
   }
 
   bool HasArg(ArgSetId set_id, StringId key_id, Variadic value) {
-    const auto& args = storage_->args();
-    auto rows =
-        std::equal_range(args.set_ids().begin(), args.set_ids().end(), set_id);
-    for (; rows.first != rows.second; rows.first++) {
-      size_t index = static_cast<size_t>(
-          std::distance(args.set_ids().begin(), rows.first));
-      if (args.keys()[index] == key_id) {
-        EXPECT_EQ(args.flat_keys()[index], key_id);
-        EXPECT_EQ(args.arg_values()[index], value);
-        if (args.flat_keys()[index] == key_id &&
-            args.arg_values()[index] == value) {
-          return true;
+    const auto& args = storage_->arg_table();
+    RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
+    bool found = false;
+    for (auto it = rm.IterateRows(); it; it.Next()) {
+      if (args.key()[it.row()] == key_id) {
+        EXPECT_EQ(args.flat_key()[it.row()], key_id);
+        if (storage_->GetArgValue(it.row()) == value) {
+          found = true;
+          break;
         }
       }
     }
-    return false;
+    return found;
   }
 
  protected:
@@ -350,18 +348,16 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
 
   const auto& raw = context_.storage->raw_events();
   ASSERT_EQ(raw.raw_event_count(), 2u);
-  const auto& args = context_.storage->args();
-  ASSERT_EQ(args.args_count(), 6u);
-  ASSERT_EQ(args.arg_values()[0].int_value, 123);
-  ASSERT_STREQ(
-      context_.storage->GetString(args.arg_values()[1].string_value).c_str(),
-      task_newtask);
-  ASSERT_EQ(args.arg_values()[2].int_value, 12);
-  ASSERT_EQ(args.arg_values()[3].int_value, 15);
-  ASSERT_EQ(args.arg_values()[4].int_value, 20);
-  ASSERT_STREQ(
-      context_.storage->GetString(args.arg_values()[5].string_value).c_str(),
-      buf_value);
+  const auto& args = context_.storage->arg_table();
+  ASSERT_EQ(args.row_count(), 6u);
+  ASSERT_EQ(args.int_value()[0], 123);
+  ASSERT_STREQ(context_.storage->GetString(args.string_value()[1]).c_str(),
+               task_newtask);
+  ASSERT_EQ(args.int_value()[2], 12);
+  ASSERT_EQ(args.int_value()[3], 15);
+  ASSERT_EQ(args.int_value()[4], 20);
+  ASSERT_STREQ(context_.storage->GetString(args.string_value()[5]).c_str(),
+               buf_value);
 
   // TODO(taylori): Add test ftrace event with all field types
   // and test here.
@@ -409,17 +405,15 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
 
   auto set_id = raw.arg_set_ids().back();
 
-  const auto& args = storage_->args();
-  auto id_it =
-      std::equal_range(args.set_ids().begin(), args.set_ids().end(), set_id);
+  const auto& args = storage_->arg_table();
+  RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
 
   // Ignore string calls as they are handled by checking InternString calls
   // above.
 
-  auto it = id_it.first;
-  auto row = static_cast<size_t>(std::distance(args.set_ids().begin(), it));
-  ASSERT_EQ(args.arg_values()[++row].int_value, -2);
-  ASSERT_EQ(args.arg_values()[++row].int_value, 3);
+  auto row = rm.Get(0);
+  ASSERT_EQ(args.int_value()[++row], -2);
+  ASSERT_EQ(args.int_value()[++row], 3);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
@@ -2148,7 +2142,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_EQ(raw_events.utids()[0], 1u);
   EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
 
-  EXPECT_GE(storage_->args().args_count(), 13u);
+  EXPECT_GE(storage_->arg_table().row_count(), 13u);
 
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.category"),
                      Variadic::String(1u)));
@@ -2282,7 +2276,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
             storage_->InternString("chrome_event.metadata"));
   EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
 
-  EXPECT_EQ(storage_->args().args_count(), 2u);
+  EXPECT_EQ(storage_->arg_table().row_count(), 2u);
   EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
                      Variadic::String(storage_->InternString(kStringValue))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString(kIntName),
@@ -2316,7 +2310,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
             storage_->InternString("chrome_event.legacy_system_trace"));
   EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
 
-  EXPECT_EQ(storage_->args().args_count(), 1u);
+  EXPECT_EQ(storage_->arg_table().row_count(), 1u);
   EXPECT_TRUE(HasArg(1u, storage_->InternString("data"),
                      Variadic::String(storage_->InternString(kFullData))));
 }
@@ -2347,7 +2341,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
             storage_->InternString("chrome_event.legacy_user_trace"));
   EXPECT_EQ(raw_events.arg_set_ids()[0], 1u);
 
-  EXPECT_EQ(storage_->args().args_count(), 1u);
+  EXPECT_EQ(storage_->arg_table().row_count(), 1u);
   EXPECT_TRUE(
       HasArg(1u, storage_->InternString("data"),
              Variadic::String(storage_->InternString(kUserTraceEvent))));
@@ -2430,7 +2424,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   // The relevant arg sets have the info about the packages. To simplify test
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
-  const auto& args = context_.storage->args();
+  const auto& args = context_.storage->arg_table();
   const auto& metadata = context_.storage->metadata_table();
 
   Table package_list = metadata.Filter(
@@ -2443,10 +2437,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
 
   // helper to look up arg values
   auto find_arg = [&args, this](ArgSetId set_id, const char* arg_name) {
-    for (size_t i = 0; i < args.set_ids().size(); i++) {
-      if (args.set_ids()[i] == set_id &&
-          args.keys()[i] == storage_->InternString(arg_name))
-        return args.arg_values()[i];
+    for (uint32_t i = 0; i < args.row_count(); i++) {
+      if (args.arg_set_id()[i] == set_id &&
+          args.key()[i] == storage_->InternString(arg_name))
+        return storage_->GetArgValue(i);
     }
     PERFETTO_FATAL("Didn't find expected argument");
   };

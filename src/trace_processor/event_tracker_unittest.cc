@@ -35,6 +35,7 @@ class EventTrackerTest : public ::testing::Test {
  public:
   EventTrackerTest() {
     context.storage.reset(new TraceStorage());
+    context.global_args_tracker.reset(new GlobalArgsTracker(&context));
     context.args_tracker.reset(new ArgsTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
