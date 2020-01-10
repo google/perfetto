@@ -94,6 +94,7 @@ class FtraceParser {
   const StringId oom_score_adj_id_;
   const StringId lmk_id_;
   const StringId comm_name_id_;
+  const StringId signal_name_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
