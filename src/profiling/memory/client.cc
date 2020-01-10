@@ -289,7 +289,8 @@ bool Client::RecordMalloc(uint64_t sample_size,
                           uint64_t alloc_size,
                           uint64_t alloc_address) {
   if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
-    PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
+    PERFETTO_LOG(
+        "Detected post-fork child situation. Not profiling the child.");
     return false;
   }
 
