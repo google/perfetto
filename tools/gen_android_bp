@@ -62,6 +62,7 @@ default_targets = [
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//test/cts:perfetto_cts_deps',
+    '//test/cts:perfetto_cts_jni_deps',
 ]
 
 # Host targets
