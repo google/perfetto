@@ -85,6 +85,19 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_FRAME_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
 
+#define PERFETTO_TP_HEAP_GRAPH_ALLOCATION_DEF(NAME, PARENT, C) \
+  NAME(HeapGraphAllocationTable, "heap_graph_allocation")      \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                            \
+  C(int64_t, ts, Column::Flag::kSorted)                        \
+  C(uint32_t, upid)                                            \
+  C(int64_t, callsite_id)                                      \
+  C(int64_t, count)                                            \
+  C(int64_t, cumulative_count)                                 \
+  C(int64_t, size)                                             \
+  C(int64_t, cumulative_size)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_ALLOCATION_DEF);
+
 #define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)  \
   NAME(HeapGraphObjectTable, "heap_graph_object")           \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                         \
