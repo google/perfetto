@@ -61,7 +61,7 @@ TEST_F(ProcessTrackerTest, StartNewProcess) {
   TraceStorage storage;
   auto upid = context.process_tracker->StartNewProcess(1000, 0, 123, 0);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
-  ASSERT_EQ(context.storage->GetProcess(upid).start_ns, 1000);
+  ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
@@ -83,8 +83,9 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
 
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
   context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
-  ASSERT_EQ(context.storage->GetString(context.storage->GetProcess(1).name_id),
-            "test");
+  auto name =
+      context.storage->GetString(context.storage->process_table().name()[1]);
+  ASSERT_EQ(name, "test");
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
@@ -106,29 +107,24 @@ TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
   context.process_tracker->SetProcessMetadata(2, base::nullopt, "test");
   context.process_tracker->UpdateThread(4, 2);
 
-  TraceStorage::Thread thread = context.storage->GetThread(/*utid=*/1);
-  TraceStorage::Process process = context.storage->GetProcess(/*utid=*/1);
-
-  ASSERT_EQ(thread.tid, 4u);
-  ASSERT_EQ(thread.upid.value(), 1u);
-  ASSERT_EQ(process.pid, 2u);
-  ASSERT_EQ(process.start_ns, 0);
+  ASSERT_EQ(context.storage->thread_table().tid()[1], 4u);
+  ASSERT_EQ(context.storage->thread_table().upid()[1].value(), 1u);
+  ASSERT_EQ(context.storage->process_table().pid()[1], 2u);
+  ASSERT_EQ(context.storage->process_table().start_ts()[1], base::nullopt);
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   context.process_tracker->UpdateThread(12, 2);
 
-  TraceStorage::Thread thread = context.storage->GetThread(1);
-
   // We expect 3 threads: Invalid thread, main thread for pid, tid 12.
-  ASSERT_EQ(context.storage->thread_count(), 3u);
+  ASSERT_EQ(context.storage->thread_table().row_count(), 3u);
 
   auto tid_it = context.process_tracker->UtidsForTidForTesting(12);
   ASSERT_NE(tid_it.first, tid_it.second);
-  ASSERT_EQ(thread.upid.value(), 1u);
+  ASSERT_EQ(context.storage->thread_table().upid()[1].value(), 1u);
   auto pid_it = context.process_tracker->UpidsForPidForTesting(2);
   ASSERT_NE(pid_it.first, pid_it.second);
-  ASSERT_EQ(context.storage->process_count(), 2u);
+  ASSERT_EQ(context.storage->process_table().row_count(), 2u);
 }
 
 }  // namespace

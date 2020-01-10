@@ -334,7 +334,7 @@ void TrackEventParser::ParseTrackEvent(
         context_->storage->thread_track_table().id().IndexOf(track_id);
     if (thread_track_row) {
       utid = storage->thread_track_table().utid()[*thread_track_row];
-      upid = storage->GetThread(*utid).upid;
+      upid = storage->thread_table().upid()[*utid];
     } else {
       auto process_track_row =
           context_->storage->process_track_table().id().IndexOf(track_id);
@@ -352,7 +352,7 @@ void TrackEventParser::ParseTrackEvent(
       tid = static_cast<uint32_t>(legacy_event.tid_override());
 
     utid = procs->UpdateThread(tid, pid);
-    upid = storage->GetThread(*utid).upid;
+    upid = storage->thread_table().upid()[*utid];
     track_id = track_tracker->GetOrCreateDescriptorTrackForThread(*utid);
   } else {
     track_id = track_tracker->GetOrCreateDefaultDescriptorTrack();
@@ -410,7 +410,7 @@ void TrackEventParser::ParseTrackEvent(
             name_id, upid ? *upid : 0, source_id, source_id_is_process_scoped,
             id_scope);
         if (utid)
-          legacy_tid = storage->GetThread(*utid).tid;
+          legacy_tid = storage->thread_table().tid()[*utid];
         break;
       }
       case 'i':
@@ -432,7 +432,7 @@ void TrackEventParser::ParseTrackEvent(
             track_id = context_->track_tracker
                            ->GetOrCreateLegacyChromeGlobalInstantTrack();
             if (utid)
-              legacy_tid = storage->GetThread(*utid).tid;
+              legacy_tid = storage->thread_table().tid()[*utid];
             break;
           case LegacyEvent::SCOPE_PROCESS:
             if (!upid) {
@@ -446,7 +446,7 @@ void TrackEventParser::ParseTrackEvent(
                 context_->track_tracker->InternLegacyChromeProcessInstantTrack(
                     *upid);
             if (utid)
-              legacy_tid = storage->GetThread(*utid).tid;
+              legacy_tid = storage->thread_table().tid()[*utid];
             break;
         }
         break;

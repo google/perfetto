@@ -164,19 +164,10 @@ class MockTraceStorage : public TraceStorage {
     ON_CALL(*this, GetString(_)).WillByDefault(Invoke([this](StringId id) {
       return TraceStorage::GetString(id);
     }));
-
-    ON_CALL(*this, GetThread(_))
-        .WillByDefault(Invoke(this, &MockTraceStorage::GetThreadImpl));
-  }
-
-  const Thread& GetThreadImpl(UniqueTid utid) {
-    return TraceStorage::GetThread(utid);
   }
 
   MOCK_METHOD1(InternString, StringId(base::StringView));
   MOCK_CONST_METHOD1(GetString, NullTermStringView(StringId));
-
-  MOCK_CONST_METHOD1(GetThread, const Thread&(UniqueTid));
 };
 
 class MockBoundInserter : public ArgsTracker::BoundInserter {
@@ -342,7 +333,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   static const char buf_value[] = "This is a print event";
   print->set_buf(buf_value);
 
-  EXPECT_CALL(*process_, UpdateThread(123, 123));
+  EXPECT_CALL(*process_, GetOrCreateProcess(123));
 
   Tokenize();
 
@@ -401,7 +392,7 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
 
   ASSERT_EQ(raw.raw_event_count(), 1u);
   ASSERT_EQ(raw.timestamps().back(), 100);
-  ASSERT_EQ(storage_->GetThread(raw.utids().back()).tid, 10u);
+  ASSERT_EQ(storage_->thread_table().tid()[raw.utids().back()], 10u);
 
   auto set_id = raw.arg_set_ids().back();
 
@@ -748,11 +739,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
       .Times(3)
       .WillRepeatedly(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .Times(3)
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   MockBoundInserter inserter;
 
@@ -831,11 +820,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
       .Times(3)
       .WillRepeatedly(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .Times(3)
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   MockBoundInserter inserter;
 
@@ -969,10 +956,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
       .Times(5)
       .WillRepeatedly(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 2u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 2u;
+  storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId thread_1_track{0u};
   constexpr TrackId process_2_track{1u};
@@ -1135,10 +1121,9 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillRepeatedly(Return(1));
@@ -1312,14 +1297,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
   EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2));
 
-  TraceStorage::Thread thread1(16);
-  thread1.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .WillRepeatedly(testing::ReturnRef(thread1));
-  TraceStorage::Thread thread2(16);
-  thread2.upid = 2u;
-  EXPECT_CALL(*storage_, GetThread(2))
-      .WillRepeatedly(testing::ReturnRef(thread2));
+  tables::ThreadTable::Row t1(16);
+  t1.upid = 1u;
+  storage_->mutable_thread_table()->Insert(t1);
+
+  tables::ThreadTable::Row t2(16);
+  t2.upid = 2u;
+  storage_->mutable_thread_table()->Insert(t2);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("Thread track 1")))
       .WillOnce(Return(10));
@@ -1544,11 +1528,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
       .Times(2)
       .WillRepeatedly(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .Times(2)
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -1652,17 +1634,13 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
       .Times(2)
       .WillRepeatedly(Return(2));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .Times(2)
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row t1(16);
+  t1.upid = 1u;
+  storage_->mutable_thread_table()->Insert(t1);
 
-  TraceStorage::Thread thread2(17);
-  thread2.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(2))
-      .Times(2)
-      .WillRepeatedly(testing::ReturnRef(thread2));
+  tables::ThreadTable::Row t2(17);
+  t2.upid = 1u;
+  storage_->mutable_thread_table()->Insert(t2);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillRepeatedly(Return(1));
@@ -1817,11 +1795,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
       .Times(2)
       .WillRepeatedly(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1))
-      .Times(2)
-      .WillRepeatedly(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillRepeatedly(Return(1));
@@ -1948,9 +1924,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -2027,9 +2003,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId track{0};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -2112,9 +2088,9 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
       .WillOnce(Return(1));
@@ -2206,9 +2182,9 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
 
-  TraceStorage::Thread thread(16);
-  thread.upid = 1u;
-  EXPECT_CALL(*storage_, GetThread(1)).WillOnce(testing::ReturnRef(thread));
+  tables::ThreadTable::Row row(16);
+  row.upid = 1u;
+  storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.

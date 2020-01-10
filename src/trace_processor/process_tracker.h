@@ -67,8 +67,8 @@ class ProcessTracker {
   // the thread_name_id.
   virtual UniqueTid UpdateThreadName(uint32_t tid, StringId thread_name_id);
 
-  // Assigns the given name to the thread identified |utid| if it does not have
-  // a name yet.
+  // Assigns the given name to the thread identified |utid| if it does not
+  // have a name yet.
   virtual void SetThreadNameIfUnset(UniqueTid utid, StringId thread_name_id);
 
   // Called when a thread is seen the process tree. Retrieves the matching utid
@@ -130,9 +130,6 @@ class ProcessTracker {
   // process. The |pending_assocs_| vector is scanned to see if there are any
   // other threads associated to the passed thread.
   void ResolvePendingAssociations(UniqueTid, UniquePid);
-
-  std::pair<UniquePid, TraceStorage::Process*> GetOrCreateProcessPtr(
-      uint32_t pid);
 
   TraceProcessorContext* const context_;
 
