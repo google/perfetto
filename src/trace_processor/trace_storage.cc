@@ -80,8 +80,13 @@ const std::vector<NullTermStringView>& GetRefTypeStringMap() {
 TraceStorage::TraceStorage(const Config& config)
     : string_pool_(config.string_pool_block_size_bytes) {
   // Upid/utid 0 is reserved for idle processes/threads.
-  unique_processes_.emplace_back(0);
-  unique_threads_.emplace_back(0);
+  tables::ThreadTable::Row thread_row;
+  thread_row.tid = 0;
+  thread_table_.Insert(thread_row);
+
+  tables::ProcessTable::Row process_row;
+  process_row.pid = 0;
+  process_table_.Insert(process_row);
 
   for (uint32_t i = 0; i < variadic_type_ids_.size(); ++i) {
     variadic_type_ids_[i] = InternString(Variadic::kTypeNames[i]);

@@ -382,18 +382,19 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
   const auto& raw_evts = storage_->raw_events();
 
   UniqueTid utid = raw_evts.utids()[row];
-  const auto& thread = storage_->GetThread(utid);
   uint32_t tgid = 0;
-  if (thread.upid.has_value()) {
-    tgid = storage_->GetProcess(thread.upid.value()).pid;
+  auto opt_upid = storage_->thread_table().upid()[utid];
+  if (opt_upid.has_value()) {
+    tgid = storage_->process_table().pid()[*opt_upid];
   }
-  const auto& name = storage_->GetString(thread.name_id);
+  const auto& name = storage_->GetString(storage_->thread_table().name()[utid]);
 
   char line[4096];
   base::StringWriter writer(line, sizeof(line));
 
   ftrace_utils::FormatSystracePrefix(raw_evts.timestamps()[row],
-                                     raw_evts.cpus()[row], thread.tid, tgid,
+                                     raw_evts.cpus()[row],
+                                     storage_->thread_table().tid()[utid], tgid,
                                      base::StringView(name), &writer);
 
   const auto& event_name = storage_->GetString(raw_evts.name_ids()[row]);

@@ -83,7 +83,7 @@ uint32_t SchedSliceTable::EstimateQueryCost(const QueryConstraints& qc) {
     // it's actually better to do subqueries on this table. Estimate the cost
     // of filtering on utid equality constraint by dividing the number of slices
     // by the number of threads.
-    return RowCount() / storage_->thread_count();
+    return RowCount() / storage_->thread_table().row_count();
   }
 
   // If we get to this point, we do not have any special filter logic so

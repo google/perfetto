@@ -32,7 +32,7 @@ CREATE TABLE launching_events AS
 SELECT
   ts,
   package_name,
-  type
+  launching_events_helper.type
 FROM raw
 CROSS JOIN launching_events_helper
 JOIN thread USING(utid)
