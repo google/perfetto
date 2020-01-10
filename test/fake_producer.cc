@@ -16,7 +16,6 @@
 
 #include "test/fake_producer.h"
 
-#include <condition_variable>
 #include <mutex>
 
 #include "perfetto/base/logging.h"
