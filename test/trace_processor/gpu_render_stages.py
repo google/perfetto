@@ -93,6 +93,7 @@ trace.add_gpu_render_stages(
 # Test stage naming with render target handle.
 
 VK_OBJECT_TYPE_COMMAND_BUFFER = 6
+VK_OBJECT_TYPE_RENDER_PASS = 18
 VK_OBJECT_TYPE_FRAMEBUFFER = 24
 
 trace.add_gpu_render_stages(
@@ -106,9 +107,12 @@ trace.add_gpu_render_stages(
     hw_queue_id=0,
     stage_id=0,
     context=42,
-    render_target_handle=0x10)
+    render_target_handle=0x10,
+    render_pass_handle=0x20,
+    command_buffer_handle=0x30)
 
-# adding a marker with non-FRAMEBUFFER should not affect the name.
+# adding a marker with COMMAND_BUFFER and RENDER_PASS should affect only the
+# relevant handles.
 trace.add_vk_debug_marker(
     ts=91,
     pid=100,
@@ -123,16 +127,17 @@ trace.add_gpu_render_stages(
     hw_queue_id=0,
     stage_id=0,
     context=42,
-    render_target_handle=0x10)
+    render_target_handle=0x10,
+    render_pass_handle=0x10,
+    command_buffer_handle=0x10)
 
-# adding a marker with FRAMEBUFFER changes the name.
 trace.add_vk_debug_marker(
     ts=101,
     pid=100,
     vk_device=1,
-    obj_type=VK_OBJECT_TYPE_FRAMEBUFFER,
+    obj_type=VK_OBJECT_TYPE_RENDER_PASS,
     obj=0x10,
-    obj_name="framebuffer")
+    obj_name="render_pass")
 trace.add_gpu_render_stages(
     ts=110,
     event_id=10,
@@ -140,18 +145,39 @@ trace.add_gpu_render_stages(
     hw_queue_id=0,
     stage_id=0,
     context=42,
-    render_target_handle=0x10)
+    render_target_handle=0x10,
+    render_pass_handle=0x10,
+    command_buffer_handle=0x10)
 
-# setting the name again replace the name
+# adding a marker with FRAMEBUFFER changes the name of the stage as well.
 trace.add_vk_debug_marker(
     ts=111,
     pid=100,
     vk_device=1,
     obj_type=VK_OBJECT_TYPE_FRAMEBUFFER,
     obj=0x10,
-    obj_name="renamed_buffer")
+    obj_name="framebuffer")
 trace.add_gpu_render_stages(
     ts=120,
+    event_id=10,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    render_target_handle=0x10,
+    render_pass_handle=0x10,
+    command_buffer_handle=0x10)
+
+# setting the name again replace the name
+trace.add_vk_debug_marker(
+    ts=121,
+    pid=100,
+    vk_device=1,
+    obj_type=VK_OBJECT_TYPE_FRAMEBUFFER,
+    obj=0x10,
+    obj_name="renamed_buffer")
+trace.add_gpu_render_stages(
+    ts=130,
     event_id=11,
     duration=5,
     hw_queue_id=0,
@@ -161,6 +187,6 @@ trace.add_gpu_render_stages(
 
 # Check that a hw_queue_id=-1 doesn't blow up.
 trace.add_gpu_render_stages(
-    ts=120, event_id=12, duration=5, hw_queue_id=-1, stage_id=-1, context=42)
+    ts=140, event_id=12, duration=5, hw_queue_id=-1, stage_id=-1, context=42)
 
 print(trace.trace.SerializeToString())
