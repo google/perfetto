@@ -76,7 +76,8 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
     return false;
   }
   char cmdline[512];
-  ssize_t rd = read(*fd, cmdline, sizeof(cmdline) - 1);
+  const size_t max_read_size = sizeof(cmdline) - 1;
+  ssize_t rd = read(*fd, cmdline, max_read_size);
   if (rd == -1) {
     PERFETTO_DPLOG("Failed to read %s", filename.c_str());
     return false;
@@ -88,8 +89,12 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
     return false;
   }
 
-  // We did not manage to read the first argument.
-  if (memchr(cmdline, '\0', static_cast<size_t>(rd)) == nullptr) {
+  // In some buggy kernels (before http://bit.ly/37R7qwL) /proc/pid/cmdline is
+  // not NUL-terminated (see b/147438623). If we read < max_read_size bytes
+  // assume we are hitting the aforementioned kernel bug and terminate anyways.
+  const size_t rd_u = static_cast<size_t>(rd);
+  if (rd_u >= max_read_size && memchr(cmdline, '\0', rd_u) == nullptr) {
+    // We did not manage to read the first argument.
     PERFETTO_DLOG("Overflow reading cmdline for %" PRIdMAX,
                   static_cast<intmax_t>(pid));
     errno = EOVERFLOW;
@@ -98,7 +103,7 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
 
   cmdline[rd] = '\0';
   char* cmdline_start = cmdline;
-  ssize_t size = NormalizeCmdLine(&cmdline_start, static_cast<size_t>(rd));
+  ssize_t size = NormalizeCmdLine(&cmdline_start, rd_u);
   if (size == -1)
     return false;
   name->assign(cmdline_start, static_cast<size_t>(size));
