@@ -15,9 +15,9 @@
 --
 SELECT track.name AS track_name, gpu_track.description AS track_desc, ts, dur,
     gpu_slice.name AS slice_name, depth, flat_key, string_value,
-    gpu_slice.context_id, render_target, submission_id, hw_queue_id
+    gpu_slice.context_id, render_target, render_pass, command_buffer, submission_id, hw_queue_id
 FROM gpu_track
 LEFT JOIN track USING (id)
-INNER JOIN gpu_slice on gpu_track.id=gpu_slice.track_id
+INNER JOIN gpu_slice ON gpu_track.id=gpu_slice.track_id
 LEFT JOIN args ON gpu_slice.arg_set_id = args.arg_set_id
 ORDER BY ts;
