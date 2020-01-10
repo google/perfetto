@@ -46,6 +46,29 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ARG_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_METADATA_TABLE_DEF);
 
+#define PERFETTO_TP_THREAD_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ThreadTable, "internal_thread")                \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                   \
+  C(uint32_t, tid)                                    \
+  C(StringPool::Id, name)                             \
+  C(base::Optional<int64_t>, start_ts)                \
+  C(base::Optional<int64_t>, end_ts)                  \
+  C(base::Optional<uint32_t>, upid)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
+
+#define PERFETTO_TP_PROCESS_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ProcessTable, "internal_process")               \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
+  C(uint32_t, pid)                                     \
+  C(StringPool::Id, name)                              \
+  C(base::Optional<int64_t>, start_ts)                 \
+  C(base::Optional<int64_t>, end_ts)                   \
+  C(base::Optional<uint32_t>, parent_upid)             \
+  C(base::Optional<uint32_t>, uid)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TABLE_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

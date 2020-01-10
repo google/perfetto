@@ -116,27 +116,6 @@ class TraceStorage {
 
   virtual ~TraceStorage();
 
-  // Information about a unique process seen in a trace.
-  struct Process {
-    explicit Process(uint32_t p) : pid(p) {}
-    int64_t start_ns = 0;
-    int64_t end_ns = 0;
-    StringId name_id = 0;
-    uint32_t pid = 0;
-    base::Optional<UniquePid> parent_upid;
-    base::Optional<uint32_t> uid;
-  };
-
-  // Information about a unique thread seen in a trace.
-  struct Thread {
-    explicit Thread(uint32_t t) : tid(t) {}
-    int64_t start_ns = 0;
-    int64_t end_ns = 0;
-    StringId name_id = 0;
-    base::Optional<UniquePid> upid;
-    uint32_t tid = 0;
-  };
-
   class Slices {
    public:
     inline size_t AddSlice(uint32_t cpu,
@@ -392,31 +371,11 @@ class TraceStorage {
   };
   using StatsMap = std::array<Stats, stats::kNumKeys>;
 
-  UniqueTid AddEmptyThread(uint32_t tid) {
-    unique_threads_.emplace_back(tid);
-    return static_cast<UniqueTid>(unique_threads_.size() - 1);
-  }
-
-  UniquePid AddEmptyProcess(uint32_t pid) {
-    unique_processes_.emplace_back(pid);
-    return static_cast<UniquePid>(unique_processes_.size() - 1);
-  }
-
   // Return an unqiue identifier for the contents of each string.
   // The string is copied internally and can be destroyed after this called.
   // Virtual for testing.
   virtual StringId InternString(base::StringView str) {
     return string_pool_.InternString(str);
-  }
-
-  Process* GetMutableProcess(UniquePid upid) {
-    PERFETTO_DCHECK(upid < unique_processes_.size());
-    return &unique_processes_[upid];
-  }
-
-  Thread* GetMutableThread(UniqueTid utid) {
-    PERFETTO_DCHECK(utid < unique_threads_.size());
-    return &unique_threads_[utid];
   }
 
   // Example usage: SetStats(stats::android_log_num_failed, 42);
@@ -492,17 +451,11 @@ class TraceStorage {
     return string_pool_.Get(id);
   }
 
-  const Process& GetProcess(UniquePid upid) const {
-    PERFETTO_DCHECK(upid < unique_processes_.size());
-    return unique_processes_[upid];
-  }
+  const tables::ThreadTable& thread_table() const { return thread_table_; }
+  tables::ThreadTable* mutable_thread_table() { return &thread_table_; }
 
-  // Virtual for testing.
-  virtual const Thread& GetThread(UniqueTid utid) const {
-    // Allow utid == 0 for idle thread retrieval.
-    PERFETTO_DCHECK(utid < unique_threads_.size());
-    return unique_threads_[utid];
-  }
+  const tables::ProcessTable& process_table() const { return process_table_; }
+  tables::ProcessTable* mutable_process_table() { return &process_table_; }
 
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
@@ -702,14 +655,6 @@ class TraceStorage {
 
   const StringPool& string_pool() const { return string_pool_; }
 
-  // |unique_processes_| always contains at least 1 element because the 0th ID
-  // is reserved to indicate an invalid process.
-  size_t process_count() const { return unique_processes_.size(); }
-
-  // |unique_threads_| always contains at least 1 element because the 0th ID
-  // is reserved to indicate an invalid thread.
-  size_t thread_count() const { return unique_threads_.size(); }
-
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
 
@@ -848,13 +793,9 @@ class TraceStorage {
   // Args for all other tables.
   tables::ArgTable arg_table_{&string_pool_, nullptr};
 
-  // One entry for each UniquePid, with UniquePid as the index.
-  // Never hold on to pointers to Process, as vector resize will
-  // invalidate them.
-  std::vector<Process> unique_processes_;
-
-  // One entry for each UniqueTid, with UniqueTid as the index.
-  std::deque<Thread> unique_threads_;
+  // Information about all the threads and processes in the trace.
+  tables::ThreadTable thread_table_{&string_pool_, nullptr};
+  tables::ProcessTable process_table_{&string_pool_, nullptr};
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::SliceTable slice_table_{&string_pool_, nullptr};

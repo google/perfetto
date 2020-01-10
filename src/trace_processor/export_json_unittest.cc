@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/metadata_tracker.h"
+#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/track_tracker.h"
 
@@ -70,6 +71,7 @@ class ExportJsonTest : public ::testing::Test {
     context_.storage.reset(new TraceStorage());
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
+    context_.process_tracker.reset(new ProcessTracker(&context_));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
@@ -116,7 +118,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(kThreadID);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -163,7 +165,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(kThreadID);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -203,9 +205,9 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
   const int64_t kThreadID = 100;
   const char* kName = "thread";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(kThreadID);
-  StringId name_id = context_.storage->InternString(base::StringView(kName));
-  context_.storage->GetMutableThread(utid)->name_id = name_id;
+  tables::ThreadTable::Row row(kThreadID);
+  row.name = context_.storage->InternString(base::StringView(kName));
+  context_.storage->mutable_thread_table()->Insert(row);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -403,7 +405,7 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
   const char* kName = "name";
   const char* kSrc = "source_file.cc";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -448,7 +450,7 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
 
   TraceStorage* storage = context_.storage.get();
 
-  UniqueTid utid = storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -498,7 +500,7 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
   const char* kName = "name";
   double kValues[] = {1.234, 2.345};
 
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -547,7 +549,7 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
   uint64_t kValue0 = 1;
   uint64_t kValue1 = std::numeric_limits<uint64_t>::max();
 
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -592,7 +594,7 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
   const char* kName = "name";
   int kValues[] = {123, 234};
 
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -640,7 +642,7 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
   const char* kName = "name";
   int kValues[] = {123, 234};
 
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -688,7 +690,7 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -758,7 +760,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(kThreadID);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -795,7 +797,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   const char* kArgName = "arg_name";
   const int kArgValue = 123;
 
-  UniquePid upid = context_.storage->AddEmptyProcess(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   StringId name2_id = context_.storage->InternString(base::StringView(kName2));
@@ -887,7 +889,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniquePid upid = context_.storage->AddEmptyProcess(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
@@ -942,7 +944,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniquePid upid = context_.storage->AddEmptyProcess(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
@@ -985,7 +987,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   const char* kArgName = "arg_name";
   const int kArgValue = 123;
 
-  UniquePid upid = context_.storage->AddEmptyProcess(kProcessID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
@@ -1046,9 +1048,9 @@ TEST_F(ExportJsonTest, RawEvent) {
 
   TraceStorage* storage = context_.storage.get();
 
-  UniquePid upid = storage->AddEmptyProcess(kProcessID);
-  UniqueTid utid = storage->AddEmptyThread(kThreadID);
-  storage->GetMutableThread(utid)->upid = upid;
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
+  context_.storage->mutable_thread_table()->mutable_upid()->Set(utid, upid);
 
   uint32_t row = storage->mutable_raw_events()->AddRawEvent(
       kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
@@ -1169,9 +1171,9 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   TraceStorage* storage = context_.storage.get();
 
-  UniquePid upid = storage->AddEmptyProcess(kProcessID);
-  UniqueTid utid = storage->AddEmptyThread(kThreadID);
-  storage->GetMutableThread(utid)->upid = upid;
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
+  context_.storage->mutable_thread_table()->mutable_upid()->Set(utid, upid);
 
   auto module_id_1 = storage->mutable_stack_profile_mapping_table()->Insert(
       {storage->InternString("foo_module_id"), 0, 0, 0, 0, 0,
@@ -1238,7 +1240,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 }
 
 TEST_F(ExportJsonTest, ArgumentFilter) {
-  UniqueTid utid = context_.storage->AddEmptyThread(0);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(0);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.
@@ -1351,7 +1353,7 @@ TEST_F(ExportJsonTest, LabelFilter) {
   const char* kCategory = "cat";
   const char* kName = "name";
 
-  UniqueTid utid = context_.storage->AddEmptyThread(kThreadID);
+  UniqueTid utid = context_.process_tracker->GetOrCreateThread(kThreadID);
   TrackId track =
       context_.track_tracker->GetOrCreateDescriptorTrackForThread(utid);
   context_.args_tracker->Flush();  // Flush track args.

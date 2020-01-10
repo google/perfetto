@@ -91,11 +91,12 @@ InstantId EventTracker::PushInstant(int64_t timestamp,
 }
 
 void EventTracker::FlushPendingEvents() {
+  const auto& thread_table = context_->storage->thread_table();
   for (const auto& pending_counter : pending_upid_resolution_counter_) {
-    const auto& thread = context_->storage->GetThread(pending_counter.utid);
     // TODO(lalitm): having upid == 0 is probably not the correct approach here
     // but it's unclear what may be better.
-    UniquePid upid = thread.upid.value_or(0);
+    UniqueTid utid = pending_counter.utid;
+    UniquePid upid = thread_table.upid()[utid].value_or(0);
     TrackId id = context_->track_tracker->InternProcessCounterTrack(
         pending_counter.name_id, upid);
     context_->storage->mutable_counter_table()->mutable_track_id()->Set(
@@ -103,10 +104,10 @@ void EventTracker::FlushPendingEvents() {
   }
 
   for (const auto& pending_instant : pending_upid_resolution_instant_) {
-    const auto& thread = context_->storage->GetThread(pending_instant.utid);
+    UniqueTid utid = pending_instant.utid;
     // TODO(lalitm): having upid == 0 is probably not the correct approach here
     // but it's unclear what may be better.
-    UniquePid upid = thread.upid.value_or(0);
+    UniquePid upid = thread_table.upid()[utid].value_or(0);
     context_->storage->mutable_instant_table()->mutable_ref()->Set(
         pending_instant.row, upid);
   }
