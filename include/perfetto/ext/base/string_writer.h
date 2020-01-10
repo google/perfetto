@@ -19,8 +19,8 @@
 
 #include <inttypes.h>
 #include <math.h>
-#include <stdlib.h>
 #include <string.h>
+#include <cstdlib>
 #include <limits>
 
 #include "perfetto/base/logging.h"

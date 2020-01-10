@@ -82,7 +82,7 @@ if (enable_perfetto_integration_tests) {
 }
 
 if (enable_perfetto_trace_processor_json) {
-  executable("trace_processor_minimal_smoke_tests") {
+  test("trace_processor_minimal_smoke_tests") {
     testonly = true
     deps = [
       "gn:default_deps",
