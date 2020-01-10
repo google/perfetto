@@ -422,6 +422,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       *db_, &storage->heap_profile_allocation_table(),
       storage->heap_profile_allocation_table().table_name());
   DbSqliteTable::RegisterTable(
+      *db_, &storage->heap_graph_allocation_table(),
+      storage->heap_graph_allocation_table().table_name());
+  DbSqliteTable::RegisterTable(
       *db_, &storage->cpu_profile_stack_sample_table(),
       storage->cpu_profile_stack_sample_table().table_name());
   DbSqliteTable::RegisterTable(
