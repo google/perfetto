@@ -91,6 +91,25 @@ TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
   ASSERT_THAT(first_process.cmdline(), ElementsAreArray({"foo", "bar", "baz"}));
 }
 
+// Regression test for b/147438623.
+TEST_F(ProcessStatsDataSourceTest, NonNulTerminatedCmdline) {
+  auto data_source = GetProcessStatsDataSource(DataSourceConfig());
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "status"))
+      .WillOnce(Return(
+          "Name: foo\nTgid:\t42\nPid:   42\nPPid:  17\nUid:  43 44 45 56\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "cmdline"))
+      .WillOnce(Return(std::string("surfaceflinger", 14)));
+
+  data_source->OnPids({42});
+
+  auto trace = writer_raw_->GetAllTracePackets();
+  ASSERT_EQ(trace.size(), 1u);
+  auto ps_tree = trace[0].process_tree();
+  ASSERT_EQ(ps_tree.processes_size(), 1);
+  auto first_process = ps_tree.processes()[0];
+  ASSERT_THAT(first_process.cmdline(), ElementsAreArray({"surfaceflinger"}));
+}
+
 TEST_F(ProcessStatsDataSourceTest, DontRescanCachedPIDsAndTIDs) {
   // assertion helpers
   auto expected_process = [](int pid) {

@@ -241,6 +241,10 @@ void ProcessStatsDataSource::WriteProcess(int32_t pid,
 
   std::string cmdline = ReadProcPidFile(pid, "cmdline");
   if (!cmdline.empty()) {
+    if (cmdline.back() != '\0') {
+      // Some kernels can miss the NUL terminator due to a bug. b/147438623.
+      cmdline.push_back('\0');
+    }
     using base::StringSplitter;
     for (StringSplitter ss(&cmdline[0], cmdline.size(), '\0'); ss.Next();)
       proc->add_cmdline(ss.cur_token());
