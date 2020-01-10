@@ -180,18 +180,6 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 
   sqlite3_exec(db,
-               "CREATE VIEW gpu_slice AS "
-               "SELECT "
-               "* "
-               "FROM internal_gpu_slice join internal_slice "
-               "ON internal_gpu_slice.slice_id = internal_slice.id;",
-               0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-
-  sqlite3_exec(db,
                "CREATE VIEW instants AS "
                "SELECT "
                "*, "
