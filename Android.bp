@@ -773,8 +773,6 @@ cc_library_static {
     ":perfetto_src_tracing_ipc",
     ":perfetto_src_tracing_tracing",
     ":perfetto_test_end_to_end_integrationtests",
-    ":perfetto_test_task_runner_thread",
-    ":perfetto_test_task_runner_thread_delegates",
     ":perfetto_test_test_helper",
     "test/cts/device_feature_test_cts.cc",
     "test/cts/end_to_end_integrationtest_cts.cc",
@@ -1129,8 +1127,6 @@ cc_test {
     ":perfetto_src_tracing_test_api_test_support",
     ":perfetto_src_tracing_tracing",
     ":perfetto_test_end_to_end_integrationtests",
-    ":perfetto_test_task_runner_thread",
-    ":perfetto_test_task_runner_thread_delegates",
     ":perfetto_test_test_helper",
   ],
   shared_libs: [
@@ -6355,27 +6351,11 @@ filegroup {
   ],
 }
 
-// GN: //test:task_runner_thread
-filegroup {
-  name: "perfetto_test_task_runner_thread",
-  srcs: [
-    "test/task_runner_thread.cc",
-  ],
-}
-
-// GN: //test:task_runner_thread_delegates
-filegroup {
-  name: "perfetto_test_task_runner_thread_delegates",
-  srcs: [
-    "test/fake_producer.cc",
-    "test/task_runner_thread_delegates.cc",
-  ],
-}
-
 // GN: //test:test_helper
 filegroup {
   name: "perfetto_test_test_helper",
   srcs: [
+    "test/fake_producer.cc",
     "test/test_helper.cc",
   ],
 }
