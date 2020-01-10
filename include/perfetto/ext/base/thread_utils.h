@@ -64,6 +64,11 @@ using PlatformThreadID = uint64_t;
 inline PlatformThreadID GetThreadId() {
   return static_cast<uint64_t>(GetCurrentThreadId());
 }
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+using PlatformThreadID = pid_t;
+inline PlatformThreadID GetThreadId() {
+  return reinterpret_cast<int32_t>(pthread_self());
+}
 #else  // Default to pthreads in case no OS is set.
 using PlatformThreadID = pthread_t;
 inline PlatformThreadID GetThreadId() {
