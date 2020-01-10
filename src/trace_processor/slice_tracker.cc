@@ -174,20 +174,6 @@ base::Optional<SliceId> SliceTracker::CompleteSlice(
   if (!stack_idx)
     return base::nullopt;
 
-  if (*stack_idx != stack.size() - 1) {
-    // This usually happens because we have two slices that are partially
-    // overlapping.
-    // [  slice  1    ]
-    //          [     slice 2     ]
-    // This is invalid in chrome and should be fixed. Duration events should
-    // either be nested or disjoint, never partially intersecting.
-    PERFETTO_DLOG(
-        "Incorrect ordering of End slice event around timestamp "
-        "%" PRId64,
-        timestamp);
-    context_->storage->IncrementStats(stats::misplaced_end_event);
-  }
-
   uint32_t slice_idx = stack[stack_idx.value()].first;
   PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
   slices->mutable_dur()->Set(slice_idx, timestamp - slices->ts()[slice_idx]);
@@ -241,32 +227,52 @@ void SliceTracker::FlushPendingSlices() {
 }
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {
-  const auto& slices = context_->storage->slice_table();
-  bool pending_dur_descendent = false;
+  auto* slices = context_->storage->mutable_slice_table();
+  bool incomplete_descendent = false;
   for (int i = static_cast<int>(stack->size()) - 1; i >= 0; i--) {
     uint32_t slice_idx = (*stack)[static_cast<size_t>(i)].first;
 
-    int64_t start_ts = slices.ts()[slice_idx];
-    int64_t dur = slices.dur()[slice_idx];
+    int64_t start_ts = slices->ts()[slice_idx];
+    int64_t dur = slices->dur()[slice_idx];
     int64_t end_ts = start_ts + dur;
     if (dur == kPendingDuration) {
-      pending_dur_descendent = true;
+      incomplete_descendent = true;
+      continue;
     }
 
-    if (pending_dur_descendent) {
+    if (incomplete_descendent) {
       PERFETTO_DCHECK(ts >= start_ts);
-      // Some trace producers emit END events in the wrong order (even after
-      // sorting by timestamp), e.g. BEGIN A, BEGIN B, END A, END B. We discard
-      // the mismatching END A in End(). Because of this, we can end up in a
-      // situation where we attempt to close the stack on top of A at a
-      // timestamp beyond A's parent. To avoid crashing in such a case, we just
-      // emit a warning instead.
-      if (dur != kPendingDuration && ts > end_ts) {
-        PERFETTO_DLOG(
-            "Incorrect ordering of begin/end slice events around timestamp "
-            "%" PRId64,
-            ts);
+
+      // Only process slices if the ts is past the end of the slice.
+      if (ts <= end_ts)
+        continue;
+
+      // This usually happens because we have two slices that are partially
+      // overlapping.
+      // [  slice  1    ]
+      //          [     slice 2     ]
+      // This is invalid in chrome and should be fixed. Duration events should
+      // either be nested or disjoint, never partially intersecting.
+      PERFETTO_DLOG(
+          "Incorrect ordering of begin/end slice events around timestamp "
+          "%" PRId64,
+          ts);
+      context_->storage->IncrementStats(stats::misplaced_end_event);
+
+      // Every slice below this one should have a pending duration. Update
+      // of them to have the end ts of the current slice and pop them
+      // all off.
+      for (int j = static_cast<int>(stack->size()) - 1; j > i; --j) {
+        uint32_t child_idx = (*stack)[static_cast<size_t>(j)].first;
+        PERFETTO_DCHECK(slices->dur()[child_idx] == kPendingDuration);
+        slices->mutable_dur()->Set(child_idx, end_ts - slices->ts()[child_idx]);
+        stack->pop_back();
       }
+
+      // Also pop the current row itself and reset the incomplete flag.
+      stack->pop_back();
+      incomplete_descendent = false;
+
       continue;
     }
 

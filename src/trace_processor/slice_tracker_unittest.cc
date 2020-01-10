@@ -228,10 +228,13 @@ TEST(SliceTrackerTest, EndEventOutOfOrder) {
   constexpr TrackId track{22u};
   tracker.Scoped(50 /*ts*/, track, 11 /*cat*/, 21 /*name*/, 100 /*dur*/);
   tracker.Begin(100 /*ts*/, track, 12 /*cat*/, 22 /*name*/);
-  tracker.Scoped(450 /*ts*/, track, 12 /*cat*/, 22 /*name*/, 100 /*dur*/);
-  tracker.End(500 /*ts*/, track, 12 /*cat*/, 22 /*name*/);
 
   // This slice should now have depth 0.
+  tracker.Scoped(450 /*ts*/, track, 12 /*cat*/, 22 /*name*/, 100 /*dur*/);
+
+  // This slice should be ignored.
+  tracker.End(500 /*ts*/, track, 12 /*cat*/, 22 /*name*/);
+
   tracker.Begin(800 /*ts*/, track, 13 /*cat*/, 23 /*name*/);
   // Null cat and name matches everything.
   tracker.End(1000 /*ts*/, track, 0 /*cat*/, 0 /*name*/);
@@ -247,13 +250,13 @@ TEST(SliceTrackerTest, EndEventOutOfOrder) {
   tracker.FlushPendingSlices();
 
   auto slices = ToSliceInfo(context.storage->slice_table());
-  EXPECT_THAT(slices, ElementsAre(SliceInfo{50, 100}, SliceInfo{100, 400},
+  EXPECT_THAT(slices, ElementsAre(SliceInfo{50, 100}, SliceInfo{100, 50},
                                   SliceInfo{450, 100}, SliceInfo{800, 200},
                                   SliceInfo{1100, -1}, SliceInfo{1300, 0 - 1}));
 
   EXPECT_EQ(context.storage->slice_table().depth()[0], 0u);
   EXPECT_EQ(context.storage->slice_table().depth()[1], 1u);
-  EXPECT_EQ(context.storage->slice_table().depth()[2], 2u);
+  EXPECT_EQ(context.storage->slice_table().depth()[2], 0u);
   EXPECT_EQ(context.storage->slice_table().depth()[3], 0u);
 }
 
