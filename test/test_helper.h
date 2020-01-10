@@ -18,120 +18,17 @@
 #define TEST_TEST_HELPER_H_
 
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
-#include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
-#include "src/traced/probes/probes_producer.h"
 #include "test/fake_producer.h"
+#include "test/task_runner_thread.h"
 
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
-
-// This is used only in daemon starting integrations tests.
-class ServiceThread {
- public:
-  ServiceThread(const std::string& producer_socket,
-                const std::string& consumer_socket)
-      : producer_socket_(producer_socket), consumer_socket_(consumer_socket) {}
-
-  ~ServiceThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { svc_.reset(); });
-  }
-
-  void Start() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.svc");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      svc_ = ServiceIPCHost::CreateInstance(runner_->get());
-      unlink(producer_socket_.c_str());
-      unlink(consumer_socket_.c_str());
-
-      bool res =
-          svc_->Start(producer_socket_.c_str(), consumer_socket_.c_str());
-      PERFETTO_CHECK(res);
-    });
-  }
-
-  base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
-
- private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
-  std::string producer_socket_;
-  std::string consumer_socket_;
-  std::unique_ptr<ServiceIPCHost> svc_;
-};
-
-// This is used only in daemon starting integrations tests.
-class ProbesProducerThread {
- public:
-  ProbesProducerThread(const std::string& producer_socket)
-      : producer_socket_(producer_socket) {}
-
-  ~ProbesProducerThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { producer_.reset(); });
-  }
-
-  void Connect() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.probes");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(new ProbesProducer());
-      producer_->ConnectWithRetries(producer_socket_.c_str(), runner_->get());
-    });
-  }
-
- private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
-  std::string producer_socket_;
-  std::unique_ptr<ProbesProducer> producer_;
-};
-
-class FakeProducerThread {
- public:
-  FakeProducerThread(const std::string& producer_socket,
-                     std::function<void()> setup_callback,
-                     std::function<void()> connect_callback)
-      : producer_socket_(producer_socket),
-        setup_callback_(std::move(setup_callback)),
-        connect_callback_(std::move(connect_callback)) {}
-
-  ~FakeProducerThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { producer_.reset(); });
-  }
-
-  void Connect() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.fake");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(new FakeProducer("android.perfetto.FakeProducer"));
-      producer_->Connect(producer_socket_.c_str(), runner_->get(),
-                         std::move(setup_callback_),
-                         std::move(connect_callback_));
-    });
-  }
-
-  base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
-
-  FakeProducer* producer() { return producer_.get(); }
-
- private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
-  std::string producer_socket_;
-  std::unique_ptr<FakeProducer> producer_;
-  std::function<void()> setup_callback_;
-  std::function<void()> connect_callback_;
-};
 
 class TestHelper : public Consumer {
  public:
@@ -182,10 +79,8 @@ class TestHelper : public Consumer {
 
   std::function<void()> WrapTask(const std::function<void()>& function);
 
-  base::ThreadTaskRunner* service_thread() { return service_thread_.runner(); }
-  base::ThreadTaskRunner* producer_thread() {
-    return fake_producer_thread_.runner();
-  }
+  TaskRunnerThread* service_thread() { return &service_thread_; }
+  TaskRunnerThread* producer_thread() { return &producer_thread_; }
   const std::vector<protos::gen::TracePacket>& trace() { return trace_; }
 
  private:
@@ -202,9 +97,8 @@ class TestHelper : public Consumer {
 
   std::vector<protos::gen::TracePacket> trace_;
 
-  ServiceThread service_thread_;
-  FakeProducerThread fake_producer_thread_;
-
+  TaskRunnerThread service_thread_;
+  TaskRunnerThread producer_thread_;
   std::unique_ptr<TracingService::ConsumerEndpoint> endpoint_;  // Keep last.
 };
 

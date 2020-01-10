@@ -19,6 +19,8 @@ import("../gn/perfetto.gni")
 source_set("end_to_end_integrationtests") {
   testonly = true
   deps = [
+    ":task_runner_thread",
+    ":task_runner_thread_delegates",
     ":test_helper",
     "../gn:default_deps",
     "../gn:gtest_and_gmock",
@@ -71,6 +73,8 @@ perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
   ]
   testonly = true
   deps = [
+    ":task_runner_thread",
+    ":task_runner_thread_delegates",
     ":test_helper",
     "../gn:default_deps",
     "../protos/perfetto/trace:zero",
@@ -94,17 +98,26 @@ perfetto_fuzzer_test("producer_socket_fuzzer") {
   ]
 }
 
-source_set("test_helper") {
+source_set("task_runner_thread") {
   testonly = true
-  public_deps = [
-    "../protos/perfetto/trace:cpp",
-    "../src/tracing:ipc",
-  ]
   deps = [
+    "../gn:default_deps",
+    "../src/base",
+    "../src/base:test_support",
+  ]
+  sources = [
+    "task_runner_thread.cc",
+    "task_runner_thread.h",
+  ]
+}
+
+source_set("task_runner_thread_delegates") {
+  testonly = true
+  deps = [
+    ":task_runner_thread",
     "../gn:default_deps",
     "../include/perfetto/ext/traced",
     "../protos/perfetto/config:cpp",
-    "../protos/perfetto/trace:zero",
     "../src/base:test_support",
     "../src/traced/probes:probes_src",
     "../src/tracing:ipc",
@@ -112,6 +125,26 @@ source_set("test_helper") {
   sources = [
     "fake_producer.cc",
     "fake_producer.h",
+    "task_runner_thread_delegates.cc",
+    "task_runner_thread_delegates.h",
+  ]
+}
+
+source_set("test_helper") {
+  testonly = true
+  public_deps = [
+    "../protos/perfetto/trace:cpp",
+    "../src/tracing:ipc",
+  ]
+  deps = [
+    ":task_runner_thread",
+    ":task_runner_thread_delegates",
+    "../gn:default_deps",
+    "../include/perfetto/ext/traced",
+    "../protos/perfetto/trace:zero",
+    "../src/base:test_support",
+  ]
+  sources = [
     "test_helper.cc",
     "test_helper.h",
   ]
@@ -124,6 +157,8 @@ if (enable_perfetto_benchmarks) {
   source_set("end_to_end_benchmarks") {
     testonly = true
     deps = [
+      ":task_runner_thread",
+      ":task_runner_thread_delegates",
       ":test_helper",
       "../gn:benchmark",
       "../gn:default_deps",
