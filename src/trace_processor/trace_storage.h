@@ -649,6 +649,14 @@ class TraceStorage {
   tables::HeapProfileAllocationTable* mutable_heap_profile_allocation_table() {
     return &heap_profile_allocation_table_;
   }
+
+  const tables::HeapGraphAllocationTable& heap_graph_allocation_table() const {
+    return heap_graph_allocation_table_;
+  }
+  tables::HeapGraphAllocationTable* mutable_heap_graph_allocation_table() {
+    return &heap_graph_allocation_table_;
+  }
+
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return cpu_profile_stack_sample_table_;
@@ -888,6 +896,8 @@ class TraceStorage {
                                                                   nullptr};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
       &string_pool_, nullptr};
+  tables::HeapGraphAllocationTable heap_graph_allocation_table_{&string_pool_,
+                                                                nullptr};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, nullptr};
 

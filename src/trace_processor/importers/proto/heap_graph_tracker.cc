@@ -206,9 +206,21 @@ void HeapGraphTracker::WriteFlamegraph(
     const SequenceState& sequence_state,
     const HeapGraphWalker::PathFromRoot& init_path,
     uint32_t mapping_row) {
-  std::vector<int32_t> node_to_row_id(init_path.nodes.size());
+  std::vector<int32_t> node_to_cumulative_size(init_path.nodes.size());
+  std::vector<int32_t> node_to_cumulative_count(init_path.nodes.size());
+  // i > 0 is to skip the artifical root node.
+  for (size_t i = init_path.nodes.size() - 1; i > 0; --i) {
+    const HeapGraphWalker::PathFromRoot::Node& node = init_path.nodes[i];
 
+    node_to_cumulative_size[i] += node.size;
+    node_to_cumulative_count[i] += node.count;
+    node_to_cumulative_size[node.parent_id] += node_to_cumulative_size[i];
+    node_to_cumulative_count[node.parent_id] += node_to_cumulative_count[i];
+  }
+
+  std::vector<int32_t> node_to_row_id(init_path.nodes.size());
   node_to_row_id[0] = -1;  // We use parent_id -1 for roots.
+  // i = 1 is to skip the artifical root node.
   for (size_t i = 1; i < init_path.nodes.size(); ++i) {
     const HeapGraphWalker::PathFromRoot::Node& node = init_path.nodes[i];
     PERFETTO_CHECK(node.parent_id < i);
@@ -230,12 +242,15 @@ void HeapGraphTracker::WriteFlamegraph(
     int32_t row_id = static_cast<int32_t>(callsite_id.value);
     node_to_row_id[i] = row_id;
 
-    tables::HeapProfileAllocationTable::Row alloc_row{
-        sequence_state.current_ts, sequence_state.current_upid, row_id,
-        static_cast<int64_t>(node.count), static_cast<int64_t>(node.size)};
-    // TODO(fmayer): Maybe add a separate table for heap graph flamegraphs.
-    context_->storage->mutable_heap_profile_allocation_table()->Insert(
-        alloc_row);
+    tables::HeapGraphAllocationTable::Row alloc_row{
+        sequence_state.current_ts,
+        sequence_state.current_upid,
+        row_id,
+        static_cast<int64_t>(node.count),
+        static_cast<int64_t>(node_to_cumulative_count[i]),
+        static_cast<int64_t>(node.size),
+        static_cast<int64_t>(node_to_cumulative_size[i])};
+    context_->storage->mutable_heap_graph_allocation_table()->Insert(alloc_row);
   }
 }
 
