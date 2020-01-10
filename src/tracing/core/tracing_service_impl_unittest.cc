@@ -2931,4 +2931,40 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().name(), "p2_ds");
 }
 
+TEST_F(TracingServiceImplTest, LimitSessionsPerUid) {
+  std::vector<std::unique_ptr<MockConsumer>> consumers;
+
+  auto start_new_session = [&](uid_t uid) -> MockConsumer* {
+    TraceConfig trace_config;
+    trace_config.add_buffers()->set_size_kb(128);
+    trace_config.set_duration_ms(0);  // Unlimited.
+    consumers.emplace_back(CreateMockConsumer());
+    consumers.back()->Connect(svc.get(), uid);
+    consumers.back()->EnableTracing(trace_config);
+    return &*consumers.back();
+  };
+
+  const int kMaxConcurrentTracingSessionsPerUid = 5;
+  const int kUids = 2;
+
+  // Create a bunch of legit sessions (2 uids * 5 sessions).
+  for (int i = 0; i < kMaxConcurrentTracingSessionsPerUid * kUids; i++) {
+    start_new_session(/*uid=*/i % kUids);
+  }
+
+  // Any other session now should fail for the two uids.
+  for (int i = 0; i <= kUids; i++) {
+    auto* consumer = start_new_session(/*uid=*/i % kUids);
+    auto on_fail = task_runner.CreateCheckpoint("uid_" + std::to_string(i));
+    EXPECT_CALL(*consumer, OnTracingDisabled()).WillOnce(Invoke(on_fail));
+  }
+
+  // Wait for failure (only after both attempts).
+  for (int i = 0; i <= kUids; i++) {
+    task_runner.RunUntilCheckpoint("uid_" + std::to_string(i));
+  }
+
+  // The destruction of |consumers| will tear down and stop the good sessions.
+}
+
 }  // namespace perfetto
