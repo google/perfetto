@@ -54,6 +54,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_INSTANT_TABLE_DEF);
   PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)            \
   C(base::Optional<int64_t>, context_id)            \
   C(base::Optional<int64_t>, render_target)         \
+  C(base::Optional<int64_t>, render_pass)           \
+  C(base::Optional<int64_t>, command_buffer)        \
   C(base::Optional<uint32_t>, frame_id)             \
   C(base::Optional<uint32_t>, submission_id)        \
   C(base::Optional<uint32_t>, hw_queue_id)
