@@ -35,8 +35,6 @@
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
-#include "test/task_runner_thread.h"
-#include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/power/android_power_config.pbzero.h"
@@ -362,9 +360,8 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   helper.StartServiceIfRequired();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  TaskRunnerThread producer_thread("perfetto.prd");
-  producer_thread.Start(std::unique_ptr<ProbesProducerDelegate>(
-      new ProbesProducerDelegate(TEST_PRODUCER_SOCK_NAME)));
+  ProbesProducerThread probes(TEST_PRODUCER_SOCK_NAME);
+  probes.Connect();
 #endif
 
   helper.ConnectConsumer();
@@ -408,9 +405,8 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   helper.StartServiceIfRequired();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  TaskRunnerThread producer_thread("perfetto.prd");
-  producer_thread.Start(std::unique_ptr<ProbesProducerDelegate>(
-      new ProbesProducerDelegate(TEST_PRODUCER_SOCK_NAME)));
+  ProbesProducerThread probes(TEST_PRODUCER_SOCK_NAME);
+  probes.Connect();
 #endif
 
   helper.ConnectConsumer();
@@ -467,9 +463,8 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestBatteryTracing)) {
   helper.StartServiceIfRequired();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  TaskRunnerThread producer_thread("perfetto.prd");
-  producer_thread.Start(std::unique_ptr<ProbesProducerDelegate>(
-      new ProbesProducerDelegate(TEST_PRODUCER_SOCK_NAME)));
+  ProbesProducerThread probes(TEST_PRODUCER_SOCK_NAME);
+  probes.Connect();
 #else
   base::ignore_result(TEST_PRODUCER_SOCK_NAME);
 #endif
