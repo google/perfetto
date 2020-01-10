@@ -534,6 +534,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
         value = Variadic::Json(storage->InternString(metadata.json_value()));
       } else {
         context_->storage->IncrementStats(stats::empty_chrome_metadata);
+        continue;
       }
       args.AddArg(TableId::kRawEvents, row, name_id, name_id, value);
     }
