@@ -43,7 +43,7 @@ void MaybeUpdateMinMax(T begin_it,
 void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& column,
                               int64_t* min_value,
                               int64_t* max_value) {
-  if (column.row_map().size() == 0)
+  if (column.row_map().empty())
     return;
 
   SqlValue col_min = *column.Min();
