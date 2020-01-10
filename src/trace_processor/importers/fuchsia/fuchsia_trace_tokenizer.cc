@@ -443,7 +443,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
 
           UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(obj_id),
                                                static_cast<uint32_t>(pid));
-          storage->GetMutableThread(utid)->name_id = name;
+          storage->mutable_thread_table()->mutable_name()->Set(utid, name);
           break;
         }
         default: {
