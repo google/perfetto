@@ -218,12 +218,12 @@ def merge_protos(proto_paths, output_path, follow_imports):
 
 
 def main():
-  config_result = merge_protos(COMMON_PROTOS + CONFIG_PROTOS,
-                               MERGED_CONFIG_PROTO, False)
-  trace_result = merge_protos(COMMON_PROTOS + TRACE_PROTOS + CONFIG_PROTOS,
-                              MERGED_TRACE_PROTO, False)
-  trace_result = merge_protos(METRICS_PROTOS, MERGED_METRICS_PROTO, True)
-  return 0 if config_result and trace_result else 1
+  result = merge_protos(COMMON_PROTOS + CONFIG_PROTOS, MERGED_CONFIG_PROTO,
+                        False)
+  result &= merge_protos(COMMON_PROTOS + TRACE_PROTOS + CONFIG_PROTOS,
+                         MERGED_TRACE_PROTO, False)
+  result &= merge_protos(METRICS_PROTOS, MERGED_METRICS_PROTO, True)
+  return 0 if result else 1
 
 
 if __name__ == '__main__':
