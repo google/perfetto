@@ -76,6 +76,7 @@ constexpr int kMaxBuffersPerConsumer = 128;
 constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kMaxConcurrentTracingSessions = 15;
+constexpr int kMaxConcurrentTracingSessionsPerUid = 5;
 constexpr int64_t kMinSecondsBetweenTracesGuardrail = 5 * 60;
 
 constexpr uint32_t kMillisPerHour = 3600000;
@@ -464,6 +465,17 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           name.c_str(), kMinSecondsBetweenTracesGuardrail, now_s - previous_s);
       return false;
     }
+  }
+
+  const long sessions_for_uid = std::count_if(
+      tracing_sessions_.begin(), tracing_sessions_.end(),
+      [consumer](const decltype(tracing_sessions_)::value_type& s) {
+        return s.second.consumer_uid == consumer->uid_;
+      });
+  if (sessions_for_uid >= kMaxConcurrentTracingSessionsPerUid) {
+    PERFETTO_ELOG("Too many concurrent tracing sesions (%ld) for uid %d",
+                  sessions_for_uid, static_cast<int>(consumer->uid_));
+    return false;
   }
 
   // TODO(primiano): This is a workaround to prevent that a producer gets stuck
