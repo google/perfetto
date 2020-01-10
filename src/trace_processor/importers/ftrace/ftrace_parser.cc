@@ -74,7 +74,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       signal_deliver_id_(context->storage->InternString("signal_deliver")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       lmk_id_(context->storage->InternString("mem.lmk")),
-      comm_name_id_(context->storage->InternString("comm")) {
+      comm_name_id_(context->storage->InternString("comm")),
+      signal_name_id_(context_->storage->InternString("signal.sig")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -616,9 +617,8 @@ void FtraceParser::ParseSignalGenerate(int64_t ts, ConstBytes blob) {
                                                       utid, RefType::kRefUtid);
   uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
 
-  StringId key = context_->storage->InternString("signal.sig");
-  context_->args_tracker->AddArg(TableId::kInstants, row, key, key,
-                                 Variadic::Integer(sig.sig()));
+  context_->args_tracker->AddArg(TableId::kInstants, row, signal_name_id_,
+                                 signal_name_id_, Variadic::Integer(sig.sig()));
 }
 
 void FtraceParser::ParseSignalDeliver(int64_t ts,
@@ -630,9 +630,8 @@ void FtraceParser::ParseSignalDeliver(int64_t ts,
                                                       utid, RefType::kRefUtid);
   uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
 
-  StringId key = context_->storage->InternString("signal.sig");
-  context_->args_tracker->AddArg(TableId::kInstants, row, key, key,
-                                 Variadic::Integer(sig.sig()));
+  context_->args_tracker->AddArg(TableId::kInstants, row, signal_name_id_,
+                                 signal_name_id_, Variadic::Integer(sig.sig()));
 }
 
 void FtraceParser::ParseLowmemoryKill(int64_t ts, ConstBytes blob) {
