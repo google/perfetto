@@ -42,16 +42,22 @@ base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
                                              StringId category,
                                              StringId name,
                                              SetArgsCallback args_callback) {
-  // At this stage all events should be globally timestamp ordered.
-  if (timestamp < prev_timestamp_) {
-    context_->storage->IncrementStats(stats::slice_out_of_order);
-    return base::nullopt;
-  }
-  prev_timestamp_ = timestamp;
+  tables::SliceTable::Row row(timestamp, kPendingDuration, track_id.value,
+                              category, name);
+  return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
+    return context_->storage->mutable_slice_table()->Insert(row);
+  });
+}
 
-  MaybeCloseStack(timestamp, &stacks_[track_id]);
-  return StartSlice(timestamp, kPendingDuration, track_id, category, name,
-                    args_callback);
+void SliceTracker::BeginGpu(tables::GpuSliceTable::Row row,
+                            SetArgsCallback args_callback) {
+  // Ensure that the duration is pending for this row.
+  // TODO(lalitm): change this to eventually use null instead of -1.
+  row.dur = kPendingDuration;
+
+  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
+    return context_->storage->mutable_gpu_slice_table()->Insert(row);
+  });
 }
 
 base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
@@ -60,6 +66,51 @@ base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
                                               StringId name,
                                               int64_t duration,
                                               SetArgsCallback args_callback) {
+  PERFETTO_DCHECK(duration >= 0);
+
+  tables::SliceTable::Row row(timestamp, duration, track_id.value, category,
+                              name);
+  return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
+    return context_->storage->mutable_slice_table()->Insert(row);
+  });
+}
+
+void SliceTracker::ScopedGpu(const tables::GpuSliceTable::Row& row,
+                             SetArgsCallback args_callback) {
+  PERFETTO_DCHECK(row.dur >= 0);
+
+  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
+    return context_->storage->mutable_gpu_slice_table()->Insert(row);
+  });
+}
+
+base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
+                                           TrackId track_id,
+                                           StringId category,
+                                           StringId name,
+                                           SetArgsCallback args_callback) {
+  auto finder = [this, category, name](const SlicesStack& stack) {
+    return MatchingIncompleteSliceIndex(stack, name, category);
+  };
+  auto slice_id = CompleteSlice(timestamp, track_id, args_callback, finder);
+  if (!slice_id)
+    return base::nullopt;
+  return context_->storage->slice_table().id().IndexOf(*slice_id);
+}
+
+base::Optional<SliceId> SliceTracker::EndGpu(int64_t ts,
+                                             TrackId t_id,
+                                             SetArgsCallback args_callback) {
+  return CompleteSlice(ts, t_id, args_callback, [](const SlicesStack& stack) {
+    return static_cast<uint32_t>(stack.size() - 1);
+  });
+}
+
+base::Optional<uint32_t> SliceTracker::StartSlice(
+    int64_t timestamp,
+    TrackId track_id,
+    SetArgsCallback args_callback,
+    std::function<SliceId()> inserter) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
@@ -67,21 +118,9 @@ base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  PERFETTO_DCHECK(duration >= 0);
-  MaybeCloseStack(timestamp, &stacks_[track_id]);
-  return StartSlice(timestamp, duration, track_id, category, name,
-                    args_callback);
-}
-
-base::Optional<uint32_t> SliceTracker::StartSlice(
-    int64_t timestamp,
-    int64_t duration,
-    TrackId track_id,
-    StringId category,
-    StringId name,
-    SetArgsCallback args_callback) {
   auto* stack = &stacks_[track_id];
   auto* slices = context_->storage->mutable_slice_table();
+  MaybeCloseStack(timestamp, stack);
 
   const uint8_t depth = static_cast<uint8_t>(stack->size());
   if (depth >= std::numeric_limits<uint8_t>::max()) {
@@ -91,51 +130,30 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_id()[stack->back().first];
 
-  tables::SliceTable::Row row(timestamp, duration, track_id.value, category,
-                              name, depth, 0, parent_stack_id);
-  auto id = slices->Insert(row);
+  SliceId id = inserter();
   uint32_t slice_idx = *slices->id().IndexOf(id);
   stack->emplace_back(std::make_pair(slice_idx, ArgsTracker(context_)));
 
+  // Post fill all the relevant columns. All the other columns should have
+  // been filled by the inserter.
+  slices->mutable_depth()->Set(slice_idx, depth);
+  slices->mutable_parent_stack_id()->Set(slice_idx, parent_stack_id);
+  slices->mutable_stack_id()->Set(slice_idx, GetStackHash(*stack));
+
   if (args_callback) {
     ArgsTracker* tracker = &stack->back().second;
-    ArgsTracker::BoundInserter inserter(tracker, TableId::kNestableSlices,
-                                        slice_idx);
-    args_callback(&inserter);
+    ArgsTracker::BoundInserter bound_inserter(tracker, TableId::kNestableSlices,
+                                              slice_idx);
+    args_callback(&bound_inserter);
   }
-  slices->mutable_stack_id()->Set(slice_idx, GetStackHash(*stack));
   return slice_idx;
 }
 
-// Returns the first incomplete slice in the stack with matching name and
-// category. We assume null category/name matches everything. Returns
-// nullopt if no matching slice is found.
-base::Optional<size_t> SliceTracker::MatchingIncompleteSliceIndex(
-    SlicesStack& stack,
-    StringId name,
-    StringId category) {
-  auto* slices = context_->storage->mutable_slice_table();
-  for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
-    uint32_t slice_idx = stack[static_cast<size_t>(i)].first;
-    if (slices->dur()[slice_idx] != kPendingDuration)
-      continue;
-    const StringId& other_category = slices->category()[slice_idx];
-    if (!category.is_null() && !other_category.is_null() &&
-        category != other_category)
-      continue;
-    const StringId& other_name = slices->name()[slice_idx];
-    if (!name.is_null() && !other_name.is_null() && name != other_name)
-      continue;
-    return static_cast<size_t>(i);
-  }
-  return base::nullopt;
-}
-
-base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
-                                           TrackId track_id,
-                                           StringId category,
-                                           StringId name,
-                                           SetArgsCallback args_callback) {
+base::Optional<SliceId> SliceTracker::CompleteSlice(
+    int64_t timestamp,
+    TrackId track_id,
+    SetArgsCallback args_callback,
+    std::function<base::Optional<uint32_t>(const SlicesStack&)> finder) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
@@ -143,15 +161,13 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
   }
   prev_timestamp_ = timestamp;
 
-  MaybeCloseStack(timestamp, &stacks_[track_id]);
-
   auto& stack = stacks_[track_id];
+  MaybeCloseStack(timestamp, &stack);
   if (stack.empty())
     return base::nullopt;
 
   auto* slices = context_->storage->mutable_slice_table();
-  base::Optional<size_t> stack_idx =
-      MatchingIncompleteSliceIndex(stack, name, category);
+  base::Optional<uint32_t> stack_idx = finder(stack);
 
   // If we are trying to close slices that are not open on the stack (e.g.,
   // slices that began before tracing started), bail out.
@@ -173,7 +189,6 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
   }
 
   uint32_t slice_idx = stack[stack_idx.value()].first;
-
   PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
   slices->mutable_dur()->Set(slice_idx, timestamp - slices->ts()[slice_idx]);
 
@@ -184,8 +199,34 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
     args_callback(&inserter);
   }
 
-  return CompleteSlice(track_id);
-  // TODO(primiano): auto-close B slices left open at the end.
+  // If this slice is the top slice on the stack, pop it off.
+  if (*stack_idx == stack.size() - 1)
+    stack.pop_back();
+  return slices->id()[slice_idx];
+}
+
+// Returns the first incomplete slice in the stack with matching name and
+// category. We assume null category/name matches everything. Returns
+// nullopt if no matching slice is found.
+base::Optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
+    const SlicesStack& stack,
+    StringId name,
+    StringId category) {
+  auto* slices = context_->storage->mutable_slice_table();
+  for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
+    uint32_t slice_idx = stack[static_cast<size_t>(i)].first;
+    if (slices->dur()[slice_idx] != kPendingDuration)
+      continue;
+    const StringId& other_category = slices->category()[slice_idx];
+    if (!category.is_null() && !other_category.is_null() &&
+        category != other_category)
+      continue;
+    const StringId& other_name = slices->name()[slice_idx];
+    if (!name.is_null() && !other_name.is_null() && name != other_name)
+      continue;
+    return static_cast<uint32_t>(i);
+  }
+  return base::nullopt;
 }
 
 void SliceTracker::FlushPendingSlices() {
@@ -197,13 +238,6 @@ void SliceTracker::FlushPendingSlices() {
   // setting their duration to |trace_end - event_start|. Might still want some
   // additional way of flagging these events as "incomplete" to the UI.
   stacks_.clear();
-}
-
-base::Optional<uint32_t> SliceTracker::CompleteSlice(TrackId track_id) {
-  auto& stack = stacks_[track_id];
-  uint32_t slice_idx = stack.back().first;
-  stack.pop_back();
-  return slice_idx;
 }
 
 void SliceTracker::MaybeCloseStack(int64_t ts, SlicesStack* stack) {

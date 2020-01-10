@@ -860,7 +860,7 @@ class TraceStorage {
 
   // Additional attributes for gpu track slices (sub-type of
   // NestableSlices).
-  tables::GpuSliceTable gpu_slice_table_{&string_pool_, nullptr};
+  tables::GpuSliceTable gpu_slice_table_{&string_pool_, &slice_table_};
 
   // The values from the Counter events from the trace. This includes CPU
   // frequency events as well systrace trace_marker counter events.
