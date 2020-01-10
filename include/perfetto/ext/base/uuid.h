@@ -54,13 +54,13 @@ class Uuid {
     set_lsb(lsb);
     set_msb(msb);
   }
+  void set_msb(int64_t msb) { memcpy(data_.data() + 8, &msb, 8); }
+  void set_lsb(int64_t lsb) { memcpy(data_.data(), &lsb, 8); }
 
   std::string ToString() const;
   std::string ToPrettyString() const;
 
  private:
-  void set_msb(int64_t msb) { memcpy(data_.data() + 8, &msb, 8); }
-  void set_lsb(int64_t lsb) { memcpy(data_.data(), &lsb, 8); }
   std::array<uint8_t, 16> data_{};
 };
 
