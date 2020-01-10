@@ -556,6 +556,8 @@ void GraphicsEventParser::UpdateVulkanMemoryAllocationCounters(
     case VulkanMemoryEvent::SOURCE_DRIVER:
       allocation_scope = static_cast<VulkanMemoryEvent::AllocationScope>(
           event.allocation_scope());
+      if (allocation_scope == VulkanMemoryEvent::SCOPE_UNSPECIFIED)
+        return;
       switch (event.operation()) {
         case VulkanMemoryEvent::OP_CREATE:
           vulkan_driver_memory_counters_[allocation_scope] +=
