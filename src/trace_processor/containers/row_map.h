@@ -242,6 +242,9 @@ class RowMap {
     PERFETTO_FATAL("For GCC");
   }
 
+  // Returns whether this rowmap is empty.
+  bool empty() const { return size() == 0; }
+
   // Returns the row at index |row|.
   uint32_t Get(uint32_t idx) const {
     PERFETTO_DCHECK(idx < size());
@@ -421,7 +424,7 @@ class RowMap {
   void FilterInto(RowMap* out, Predicate p) const {
     PERFETTO_DCHECK(size() >= out->size());
 
-    if (out->size() == 0) {
+    if (out->empty()) {
       // If the output RowMap is empty, we don't need to do anything.
       return;
     }

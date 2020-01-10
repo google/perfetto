@@ -181,7 +181,7 @@ class Column {
   // Returns the minimum value in this column. Returns nullopt if this column
   // is empty.
   base::Optional<SqlValue> Min() const {
-    if (row_map().size() == 0)
+    if (row_map().empty())
       return base::nullopt;
 
     if (IsSorted())
@@ -195,7 +195,7 @@ class Column {
   // Returns the minimum value in this column. Returns nullopt if this column
   // is empty.
   base::Optional<SqlValue> Max() const {
-    if (row_map().size() == 0)
+    if (row_map().empty())
       return base::nullopt;
 
     if (IsSorted())
