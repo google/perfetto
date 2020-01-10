@@ -293,7 +293,7 @@ class MacroTable : public Table {
       }                                                                       \
                                                                               \
       bool operator==(const class_name::Row& other) const {                   \
-        return PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_EQUALS) true;   \
+        return PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_ROW_EQUALS) true;     \
       }                                                                       \
                                                                               \
       /*                                                                      \
