@@ -482,12 +482,17 @@ void ConvertLegacyFlowEventArgs(const Json::Value& legacy_args,
 
 util::Status ExportThreadNames(const TraceStorage* storage,
                                TraceFormatWriter* writer) {
-  for (UniqueTid i = 1; i < storage->thread_count(); ++i) {
-    auto thread = storage->GetThread(i);
-    if (!thread.name_id.is_null()) {
-      const char* thread_name = GetNonNullString(storage, thread.name_id);
-      uint32_t pid = thread.upid ? storage->GetProcess(*thread.upid).pid : 0;
-      writer->WriteMetadataEvent("thread_name", thread_name, thread.tid, pid);
+  const auto& thread_table = storage->thread_table();
+  const auto& process_table = storage->process_table();
+  for (UniqueTid i = 1; i < thread_table.row_count(); ++i) {
+    auto opt_name = thread_table.name()[i];
+    if (!opt_name.is_null()) {
+      const char* thread_name = GetNonNullString(storage, opt_name);
+
+      auto opt_upid = thread_table.upid()[i];
+      uint32_t pid = opt_upid ? process_table.pid()[*opt_upid] : 0;
+      writer->WriteMetadataEvent("thread_name", thread_name,
+                                 thread_table.tid()[i], pid);
     }
   }
   return util::OkStatus();
@@ -495,11 +500,13 @@ util::Status ExportThreadNames(const TraceStorage* storage,
 
 util::Status ExportProcessNames(const TraceStorage* storage,
                                 TraceFormatWriter* writer) {
-  for (UniquePid i = 1; i < storage->process_count(); ++i) {
-    auto process = storage->GetProcess(i);
-    if (!process.name_id.is_null()) {
-      const char* process_name = GetNonNullString(storage, process.name_id);
-      writer->WriteMetadataEvent("process_name", process_name, 0, process.pid);
+  const auto& process_table = storage->process_table();
+  for (UniquePid i = 1; i < process_table.row_count(); ++i) {
+    auto opt_name = process_table.name()[i];
+    if (!opt_name.is_null()) {
+      const char* process_name = GetNonNullString(storage, opt_name);
+      writer->WriteMetadataEvent("process_name", process_name, 0,
+                                 process_table.pid()[i]);
     }
   }
   return util::OkStatus();
@@ -554,6 +561,9 @@ util::Status ExportSlices(const TraceStorage* storage,
       continue;
     }
 
+    const auto& thread_table = storage->thread_table();
+    const auto& process_table = storage->process_table();
+
     const auto& thread_track = storage->thread_track_table();
     const auto& process_track = storage->process_track_table();
     const auto& thread_slices = storage->thread_slices();
@@ -595,11 +605,11 @@ util::Status ExportSlices(const TraceStorage* storage,
     if (opt_thread_track_row) {
       // Synchronous (thread) slice or instant event.
       UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
-      auto thread = storage->GetThread(utid);
-      event["tid"] = static_cast<int32_t>(thread.tid);
-      if (thread.upid) {
-        event["pid"] =
-            static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
+      event["tid"] = static_cast<int32_t>(thread_table.tid()[utid]);
+
+      auto opt_upid = thread_table.upid()[utid];
+      if (opt_upid) {
+        event["pid"] = static_cast<int32_t>(process_table.pid()[*opt_upid]);
       }
 
       if (duration_ns == 0) {
@@ -643,10 +653,10 @@ util::Status ExportSlices(const TraceStorage* storage,
         // Legacy async tracks are always process-associated.
         PERFETTO_DCHECK(opt_process_row);
         uint32_t upid = process_track.upid()[*opt_process_row];
-        event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);
-        event["tid"] =
-            legacy_tid ? legacy_tid
-                       : static_cast<int32_t>(storage->GetProcess(upid).pid);
+        event["pid"] = static_cast<int32_t>(process_table.pid()[upid]);
+        event["tid"] = legacy_tid
+                           ? legacy_tid
+                           : static_cast<int32_t>(process_table.pid()[upid]);
 
         // Preserve original event IDs for legacy tracks. This is so that e.g.
         // memory dump IDs show up correctly in the JSON trace.
@@ -673,10 +683,10 @@ util::Status ExportSlices(const TraceStorage* storage,
         if (opt_process_row) {
           uint32_t upid = process_track.upid()[*opt_process_row];
           event["id2"]["local"] = PrintUint64(track_id);
-          event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);
-          event["tid"] =
-              legacy_tid ? legacy_tid
-                         : static_cast<int32_t>(storage->GetProcess(upid).pid);
+          event["pid"] = static_cast<int32_t>(process_table.pid()[upid]);
+          event["tid"] = legacy_tid
+                             ? legacy_tid
+                             : static_cast<int32_t>(process_table.pid()[upid]);
         } else {
           // Some legacy importers don't understand "id2" fields, so we use the
           // "usually" global "id" field instead. This works as long as the
@@ -727,10 +737,10 @@ util::Status ExportSlices(const TraceStorage* storage,
       auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
       if (opt_process_row.has_value()) {
         uint32_t upid = process_track.upid()[*opt_process_row];
-        event["pid"] = static_cast<int32_t>(storage->GetProcess(upid).pid);
-        event["tid"] =
-            legacy_tid ? legacy_tid
-                       : static_cast<int32_t>(storage->GetProcess(upid).pid);
+        event["pid"] = static_cast<int32_t>(process_table.pid()[upid]);
+        event["tid"] = legacy_tid
+                           ? legacy_tid
+                           : static_cast<int32_t>(process_table.pid()[upid]);
         event["s"] = "p";
       } else {
         event["s"] = "g";
@@ -744,17 +754,20 @@ util::Status ExportSlices(const TraceStorage* storage,
 Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
                                         const ArgsBuilder& args_builder,
                                         uint32_t index) {
+  const auto& thread_table = storage->thread_table();
+  const auto& process_table = storage->process_table();
   const auto& events = storage->raw_events();
 
   Json::Value event;
   event["ts"] = Json::Int64(events.timestamps()[index] / 1000);
 
   UniqueTid utid = static_cast<UniqueTid>(events.utids()[index]);
-  auto thread = storage->GetThread(utid);
-  event["tid"] = static_cast<int32_t>(thread.tid);
+  event["tid"] = static_cast<int32_t>(thread_table.tid()[utid]);
   event["pid"] = 0;
-  if (thread.upid)
-    event["pid"] = static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
+
+  auto opt_upid = thread_table.upid()[utid];
+  if (opt_upid)
+    event["pid"] = static_cast<int32_t>(process_table.pid()[*opt_upid]);
 
   // Raw legacy events store all other params in the arg set. Make a copy of
   // the converted args here, parse, and then remove the legacy params.
@@ -863,6 +876,8 @@ util::Status ExportRawEvents(const TraceStorage* storage,
 
 util::Status ExportCpuProfileSamples(const TraceStorage* storage,
                                      TraceFormatWriter* writer) {
+  const auto& thread_table = storage->thread_table();
+  const auto& process_table = storage->process_table();
   const tables::CpuProfileStackSampleTable& samples =
       storage->cpu_profile_stack_sample_table();
   for (uint32_t i = 0; i < samples.row_count(); ++i) {
@@ -870,12 +885,11 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
     event["ts"] = Json::Int64(samples.ts()[i] / 1000);
 
     UniqueTid utid = static_cast<UniqueTid>(samples.utid()[i]);
-    auto thread = storage->GetThread(utid);
-    event["tid"] = static_cast<int32_t>(thread.tid);
-    if (thread.upid) {
-      event["pid"] =
-          static_cast<int32_t>(storage->GetProcess(*thread.upid).pid);
-    }
+    event["tid"] = static_cast<int32_t>(thread_table.tid()[utid]);
+
+    auto opt_upid = thread_table.upid()[utid];
+    if (opt_upid)
+      event["pid"] = static_cast<int32_t>(process_table.pid()[*opt_upid]);
 
     event["ph"] = "n";
     event["cat"] = "disabled_by_default-cpu_profiler";
@@ -944,7 +958,7 @@ util::Status ExportCpuProfileSamples(const TraceStorage* storage,
     // TODO(oysteine): Used for backwards compatibility with the memlog
     // pipeline, should remove once we've switched to looking directly at the
     // tid.
-    event["args"]["thread_id"] = thread.tid;
+    event["args"]["thread_id"] = thread_table.tid()[utid];
 
     writer->WriteCommonEvent(event);
   }

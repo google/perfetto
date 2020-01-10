@@ -81,7 +81,7 @@ void SchedEventTracker::PushSchedSwitch(uint32_t cpu,
   PERFETTO_DCHECK(cpu < kMaxCpus);
 
   StringId next_comm_id = context_->storage->InternString(next_comm);
-  auto next_utid =
+  UniqueTid next_utid =
       context_->process_tracker->UpdateThreadName(next_pid, next_comm_id);
 
   // First use this data to close the previous slice.
@@ -132,7 +132,7 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   context_->event_tracker->UpdateMaxTimestamp(ts);
   PERFETTO_DCHECK(cpu < kMaxCpus);
 
-  auto next_utid =
+  UniqueTid next_utid =
       context_->process_tracker->UpdateThreadName(next_pid, next_comm_id);
 
   auto* pending_sched = &pending_sched_per_cpu_[cpu];
@@ -167,8 +167,7 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
 
   // Do a fresh task name lookup in case it was updated by a task_rename while
   // scheduled.
-  const auto& prev_thread = context_->storage->GetThread(prev_utid);
-  StringId prev_comm_id = prev_thread.name_id;
+  StringId prev_comm_id = context_->storage->thread_table().name()[prev_utid];
 
   auto new_slice_idx = AddRawEventAndStartSlice(
       cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio, prev_state,

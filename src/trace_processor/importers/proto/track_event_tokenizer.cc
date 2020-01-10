@@ -109,7 +109,7 @@ void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     utid = context_->process_tracker->UpdateThread(
         static_cast<uint32_t>(thread_descriptor_decoder.tid()),
         static_cast<uint32_t>(thread_descriptor_decoder.pid()));
-    upid = *context_->storage->GetThread(*utid).upid;
+    upid = *context_->storage->thread_table().upid()[*utid];
 
     if (track_descriptor_decoder.has_chrome_thread()) {
       auto chrome_thread_descriptor_field =
