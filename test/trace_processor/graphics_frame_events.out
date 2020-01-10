@@ -16,5 +16,5 @@
 8,"layer3[buffer:2]",13,"Post",12,"layer_name","layer3"
 9,"layer3[buffer:3]",5,"Attach",15,"layer_name","layer3"
 10,"layer3[buffer:3]",10,"Cancel",16,"layer_name","layer3"
-16,"Displayed Frame",-1,6,17,"[NULL]","[NULL]"
+16,"Displayed Frame",-1,"6",17,"[NULL]","[NULL]"
 16,"layer5[buffer:6]",0,"PresentFenceSignaled",17,"layer_name","layer5"
