@@ -140,9 +140,8 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   int64_t end_ns = std::numeric_limits<int64_t>::min();
   MaybeUpdateMinMax(slices_.start_ns().begin(), slices_.start_ns().end(),
                     &start_ns, &end_ns);
-  MaybeUpdateMinMax(raw_events_.timestamps().begin(),
-                    raw_events_.timestamps().end(), &start_ns, &end_ns);
 
+  DbTableMaybeUpdateMinMax(raw_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(counter_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(slice_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(heap_profile_allocation_table_.ts(), &start_ns,

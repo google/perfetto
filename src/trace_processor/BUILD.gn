@@ -287,8 +287,6 @@ source_set("lib") {
   sources = [
     "filtered_row_index.cc",
     "filtered_row_index.h",
-    "raw_table.cc",
-    "raw_table.h",
     "read_trace.cc",
     "row_iterators.cc",
     "row_iterators.h",
@@ -298,6 +296,8 @@ source_set("lib") {
     "span_join_operator_table.h",
     "sql_stats_table.cc",
     "sql_stats_table.h",
+    "sqlite_raw_table.cc",
+    "sqlite_raw_table.h",
     "stats_table.cc",
     "stats_table.h",
     "storage_columns.cc",
