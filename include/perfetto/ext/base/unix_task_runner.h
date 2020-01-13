@@ -87,7 +87,7 @@ class UnixTaskRunner : public TaskRunner {
   void RunFileDescriptorWatch(int fd);
 
   ThreadChecker thread_checker_;
-  PlatformThreadID created_thread_id_ = GetThreadId();
+  PlatformThreadId created_thread_id_ = GetThreadId();
 
   // On Linux, an eventfd(2) used to waking up the task runner when a new task
   // is posted. Otherwise the read end of a pipe used for the same purpose.
