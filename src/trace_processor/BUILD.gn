@@ -138,8 +138,6 @@ source_set("storage_minimal") {
     "trace_storage.h",
     "track_tracker.cc",
     "track_tracker.h",
-    "variadic.cc",
-    "variadic.h",
     "virtual_destructors.cc",
   ]
 
@@ -151,6 +149,7 @@ source_set("storage_minimal") {
     "../protozero",
     "containers",
     "tables",
+    "types",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor:storage",
@@ -253,6 +252,7 @@ source_set("storage_full") {
     "../../protos/perfetto/trace/gpu:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../protozero",
+    "types",
   ]
   if (enable_perfetto_trace_processor_json) {
     public_deps += [ "../../gn:jsoncpp" ]
@@ -287,8 +287,6 @@ source_set("lib") {
   sources = [
     "filtered_row_index.cc",
     "filtered_row_index.h",
-    "gfp_flags.cc",
-    "gfp_flags.h",
     "raw_table.cc",
     "raw_table.h",
     "read_trace.cc",
@@ -327,6 +325,7 @@ source_set("lib") {
     "metrics:lib",
     "sqlite",
     "tables",
+    "types",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor",

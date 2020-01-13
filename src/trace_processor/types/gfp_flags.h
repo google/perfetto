@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_GFP_FLAGS_H_
-#define SRC_TRACE_PROCESSOR_GFP_FLAGS_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
+#define SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
 
 #include <tuple>
 #include "perfetto/ext/base/string_writer.h"
@@ -33,4 +33,4 @@ void WriteGfpFlag(uint64_t value,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_GFP_FLAGS_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_

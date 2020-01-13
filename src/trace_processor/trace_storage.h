@@ -42,7 +42,7 @@
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
-#include "src/trace_processor/variadic.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {

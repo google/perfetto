@@ -43,7 +43,7 @@
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/track_tracker.h"
-#include "src/trace_processor/variadic.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"

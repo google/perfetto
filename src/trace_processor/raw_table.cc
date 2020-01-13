@@ -20,9 +20,9 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/gfp_flags.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/variadic.h"
+#include "src/trace_processor/types/gfp_flags.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/clk.pbzero.h"
