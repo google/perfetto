@@ -88,6 +88,8 @@ using MappingId = tables::StackProfileMappingTable::Id;
 
 using MetadataId = tables::MetadataTable::Id;
 
+using RawId = tables::RawTable::Id;
+
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
 // will be removed when the migration is complete.
 static const TrackId kInvalidTrackId =
@@ -328,42 +330,6 @@ class TraceStorage {
     std::deque<int64_t> times_ended_;
   };
 
-  class RawEvents {
-   public:
-    inline uint32_t AddRawEvent(int64_t timestamp,
-                                StringId name_id,
-                                uint32_t cpu,
-                                UniqueTid utid) {
-      timestamps_.emplace_back(timestamp);
-      name_ids_.emplace_back(name_id);
-      cpus_.emplace_back(cpu);
-      utids_.emplace_back(utid);
-      arg_set_ids_.emplace_back(kInvalidArgSetId);
-      return static_cast<uint32_t>(raw_event_count() - 1);
-    }
-
-    void set_arg_set_id(uint32_t row, ArgSetId id) { arg_set_ids_[row] = id; }
-
-    size_t raw_event_count() const { return timestamps_.size(); }
-
-    const std::deque<int64_t>& timestamps() const { return timestamps_; }
-
-    const std::deque<StringId>& name_ids() const { return name_ids_; }
-
-    const std::deque<uint32_t>& cpus() const { return cpus_; }
-
-    const std::deque<UniqueTid>& utids() const { return utids_; }
-
-    const std::deque<ArgSetId>& arg_set_ids() const { return arg_set_ids_; }
-
-   private:
-    std::deque<int64_t> timestamps_;
-    std::deque<StringId> name_ids_;
-    std::deque<uint32_t> cpus_;
-    std::deque<UniqueTid> utids_;
-    std::deque<ArgSetId> arg_set_ids_;
-  };
-
   struct Stats {
     using IndexMap = std::map<int, int64_t>;
     int64_t value = 0;
@@ -570,8 +536,8 @@ class TraceStorage {
   const tables::ArgTable& arg_table() const { return arg_table_; }
   tables::ArgTable* mutable_arg_table() { return &arg_table_; }
 
-  const RawEvents& raw_events() const { return raw_events_; }
-  RawEvents* mutable_raw_events() { return &raw_events_; }
+  const tables::RawTable& raw_table() const { return raw_table_; }
+  tables::RawTable* mutable_raw_table() { return &raw_table_; }
 
   const tables::StackProfileMappingTable& stack_profile_mapping_table() const {
     return stack_profile_mapping_table_;
@@ -828,7 +794,7 @@ class TraceStorage {
   // the timestamp and the pid. The args for the raw event will be in the
   // args table. This table can be used to generate a text version of the
   // trace.
-  RawEvents raw_events_;
+  tables::RawTable raw_table_{&string_pool_, nullptr};
   tables::AndroidLogTable android_log_table_{&string_pool_, nullptr};
 
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,

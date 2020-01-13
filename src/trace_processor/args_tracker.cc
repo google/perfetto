@@ -72,7 +72,7 @@ void ArgsTracker::Flush() {
         context_->global_args_tracker->AddArgSet(args_, i, next_rid_idx);
     switch (table_id) {
       case TableId::kRawEvents:
-        storage->mutable_raw_events()->set_arg_set_id(row, set_id);
+        storage->mutable_raw_table()->mutable_arg_set_id()->Set(row, set_id);
         break;
       case TableId::kCounterValues:
         storage->mutable_counter_table()->mutable_arg_set_id()->Set(row,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/raw_table.h"
+#include "src/trace_processor/sqlite_raw_table.h"
 
 #include <inttypes.h>
 
@@ -50,10 +50,10 @@ std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
 }
 }  // namespace
 
-RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
-    : storage_(storage) {
+SqliteRawTable::SqliteRawTable(sqlite3* db, const TraceStorage* storage)
+    : DbSqliteTable(db, &storage->raw_table()), storage_(storage) {
   auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    auto* thiz = static_cast<RawTable*>(sqlite3_user_data(ctx));
+    auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
     thiz->ToSystrace(ctx, argc, argv);
   };
   sqlite3_create_function(db, "to_ftrace", 1,
@@ -61,41 +61,13 @@ RawTable::RawTable(sqlite3* db, const TraceStorage* storage)
                           nullptr);
 }
 
-void RawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  SqliteTable::Register<RawTable>(db, storage, "raw");
+SqliteRawTable::~SqliteRawTable() = default;
+
+void SqliteRawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
+  SqliteTable::Register<SqliteRawTable>(db, storage, "raw");
 }
 
-StorageSchema RawTable::CreateStorageSchema() {
-  const auto& raw = storage_->raw_events();
-  return StorageSchema::Builder()
-      .AddGenericNumericColumn("id", RowAccessor())
-      .AddOrderedNumericColumn("ts", &raw.timestamps())
-      .AddStringColumn("name", &raw.name_ids(), &storage_->string_pool())
-      .AddNumericColumn("cpu", &raw.cpus())
-      .AddNumericColumn("utid", &raw.utids())
-      .AddNumericColumn("arg_set_id", &raw.arg_set_ids())
-      .Build({"name", "ts"});
-}
-
-uint32_t RawTable::RowCount() {
-  return static_cast<uint32_t>(storage_->raw_events().raw_event_count());
-}
-
-int RawTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  info->estimated_cost = RowCount();
-  info->sqlite_omit_order_by = true;
-
-  // Only the string columns are handled by SQLite
-  size_t name_index = schema().ColumnIndexFromName("name");
-  for (size_t i = 0; i < qc.constraints().size(); i++) {
-    info->sqlite_omit_constraint[i] =
-        qc.constraints()[i].column != static_cast<int>(name_index);
-  }
-
-  return SQLITE_OK;
-}
-
-bool RawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
+bool SqliteRawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
   const auto& metadata_table = storage_->metadata_table();
 
   auto opt_name_idx = metadata_table.name().IndexOf(
@@ -118,9 +90,9 @@ bool RawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
   return true;
 }
 
-void RawTable::FormatSystraceArgs(NullTermStringView event_name,
-                                  ArgSetId arg_set_id,
-                                  base::StringWriter* writer) {
+void SqliteRawTable::FormatSystraceArgs(NullTermStringView event_name,
+                                        ArgSetId arg_set_id,
+                                        base::StringWriter* writer) {
   const auto& set_ids = storage_->arg_table().arg_set_id();
 
   // TODO(lalitm): this code is quite hacky for performance reasons. We assume
@@ -236,17 +208,17 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
     write_value_at_index(BT::kToThreadFieldNumber - 1, write_value);
     write_arg(BT::kReplyFieldNumber - 1, write_value);
     writer->AppendString(" flags=0x");
-    write_value_at_index(
-        BT::kFlagsFieldNumber - 1, [writer](const Variadic& value) {
-          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-          writer->AppendHexInt(value.uint_value);
-        });
+    write_value_at_index(BT::kFlagsFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
     writer->AppendString(" code=0x");
-    write_value_at_index(
-        BT::kCodeFieldNumber - 1, [writer](const Variadic& value) {
-          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-          writer->AppendHexInt(value.uint_value);
-        });
+    write_value_at_index(BT::kCodeFieldNumber - 1,
+                         [writer](const Variadic& value) {
+                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                           writer->AppendHexInt(value.uint_value);
+                         });
     return;
   } else if (event_name == "binder_transaction_alloc_buf") {
     using BTAB = protos::pbzero::BinderTransactionAllocBufFtraceEvent;
@@ -371,17 +343,17 @@ void RawTable::FormatSystraceArgs(NullTermStringView event_name,
   }
 }
 
-void RawTable::ToSystrace(sqlite3_context* ctx,
-                          int argc,
-                          sqlite3_value** argv) {
+void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
+                                int argc,
+                                sqlite3_value** argv) {
   if (argc != 1 || sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
     sqlite3_result_error(ctx, "Usage: to_ftrace(id)", -1);
     return;
   }
   uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
-  const auto& raw_evts = storage_->raw_events();
+  const auto& raw_evts = storage_->raw_table();
 
-  UniqueTid utid = raw_evts.utids()[row];
+  UniqueTid utid = raw_evts.utid()[row];
   uint32_t tgid = 0;
   auto opt_upid = storage_->thread_table().upid()[utid];
   if (opt_upid.has_value()) {
@@ -392,12 +364,11 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
   char line[4096];
   base::StringWriter writer(line, sizeof(line));
 
-  ftrace_utils::FormatSystracePrefix(raw_evts.timestamps()[row],
-                                     raw_evts.cpus()[row],
+  ftrace_utils::FormatSystracePrefix(raw_evts.ts()[row], raw_evts.cpu()[row],
                                      storage_->thread_table().tid()[utid], tgid,
                                      base::StringView(name), &writer);
 
-  const auto& event_name = storage_->GetString(raw_evts.name_ids()[row]);
+  const auto& event_name = storage_->GetString(raw_evts.name()[row]);
   writer.AppendChar(' ');
   if (event_name == "print") {
     writer.AppendString("tracing_mark_write");
@@ -406,7 +377,7 @@ void RawTable::ToSystrace(sqlite3_context* ctx,
   }
   writer.AppendChar(':');
 
-  FormatSystraceArgs(event_name, raw_evts.arg_set_ids()[row], &writer);
+  FormatSystraceArgs(event_name, raw_evts.arg_set_id()[row], &writer);
   sqlite3_result_text(ctx, writer.CreateStringCopy(), -1, free);
 }
 

@@ -799,8 +799,6 @@ filegroup(
     srcs = [
         "src/trace_processor/filtered_row_index.cc",
         "src/trace_processor/filtered_row_index.h",
-        "src/trace_processor/raw_table.cc",
-        "src/trace_processor/raw_table.h",
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/row_iterators.cc",
         "src/trace_processor/row_iterators.h",
@@ -810,6 +808,8 @@ filegroup(
         "src/trace_processor/span_join_operator_table.h",
         "src/trace_processor/sql_stats_table.cc",
         "src/trace_processor/sql_stats_table.h",
+        "src/trace_processor/sqlite_raw_table.cc",
+        "src/trace_processor/sqlite_raw_table.h",
         "src/trace_processor/stats_table.cc",
         "src/trace_processor/stats_table.h",
         "src/trace_processor/storage_columns.cc",
