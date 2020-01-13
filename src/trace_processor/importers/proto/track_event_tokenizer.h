@@ -26,6 +26,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class ChromeThreadDescriptor_Decoder;
+class ProcessDescriptor_Decoder;
 class ThreadDescriptor_Decoder;
 class TracePacket_Decoder;
 }  // namespace pbzero
@@ -42,14 +43,13 @@ class TrackEventTokenizer {
   explicit TrackEventTokenizer(TraceProcessorContext* context);
 
   void TokenizeTrackDescriptorPacket(
+      PacketSequenceState* state,
       const protos::pbzero::TracePacket_Decoder&);
   void TokenizeProcessDescriptorPacket(
       const protos::pbzero::TracePacket_Decoder&);
   void TokenizeThreadDescriptorPacket(
       PacketSequenceState* state,
       const protos::pbzero::TracePacket_Decoder&);
-  void TokenizeThreadDescriptor(
-      const protos::pbzero::ThreadDescriptor_Decoder&);
   void TokenizeChromeThreadDescriptor(
       int32_t pid,
       int32_t tid,
@@ -60,6 +60,12 @@ class TrackEventTokenizer {
                                 int64_t packet_timestamp);
 
  private:
+  UniqueTid TokenizeThreadDescriptor(
+      PacketSequenceState* state,
+      const protos::pbzero::ThreadDescriptor_Decoder&);
+  UniquePid TokenizeProcessDescriptor(
+      const protos::pbzero::ProcessDescriptor_Decoder&);
+
   TraceProcessorContext* context_;
 
   std::array<StringId, 9> process_name_ids_;

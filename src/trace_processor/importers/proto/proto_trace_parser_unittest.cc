@@ -58,6 +58,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
+#include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "protos/perfetto/trace/track_event/task_execution.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
@@ -149,6 +150,8 @@ class MockProcessTracker : public ProcessTracker {
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 
   MOCK_METHOD1(GetOrCreateProcess, UniquePid(uint32_t pid));
+  MOCK_METHOD2(SetProcessNameIfUnset,
+               void(UniquePid upid, StringId process_name_id));
 };
 
 // Mock trace storage that behaves like the real implementation, but allows for
@@ -625,6 +628,53 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
+}
+
+TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
+  context_.sorter.reset(new TraceSorter(
+      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* process_desc = packet->set_process_descriptor();
+    process_desc->set_pid(15);
+    process_desc->set_process_name("OldProcessName");
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    auto* process_desc = packet->set_process_descriptor();
+    process_desc->set_pid(15);
+    process_desc->set_process_name("NewProcessName");
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_incremental_state_cleared(true);
+    auto* process_desc = packet->set_process_descriptor();
+    process_desc->set_pid(16);
+    process_desc->set_process_name("DifferentProcessName");
+  }
+
+  EXPECT_CALL(*process_, GetOrCreateProcess(15))
+      .WillRepeatedly(testing::Return(1u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(16)).WillOnce(testing::Return(2u));
+
+  EXPECT_CALL(*storage_, InternString(base::StringView("OldProcessName")))
+      .WillOnce(Return(1));
+  EXPECT_CALL(*process_, SetProcessNameIfUnset(1u, StringId(1)));
+  // Packet with same thread, but different name should update the name.
+  EXPECT_CALL(*storage_, InternString(base::StringView("NewProcessName")))
+      .WillOnce(Return(2));
+  EXPECT_CALL(*process_, SetProcessNameIfUnset(1u, StringId(2)));
+  EXPECT_CALL(*storage_, InternString(base::StringView("DifferentProcessName")))
+      .WillOnce(Return(3));
+  EXPECT_CALL(*process_, SetProcessNameIfUnset(2u, StringId(3)));
+
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
@@ -2496,7 +2546,6 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   }
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(2)
       .WillRepeatedly(Return(1));
 
   Tokenize();
