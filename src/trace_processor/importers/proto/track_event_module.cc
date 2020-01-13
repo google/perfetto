@@ -43,7 +43,7 @@ ModuleResult TrackEventModule::TokenizePacket(
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kTrackDescriptorFieldNumber:
-      tokenizer_.TokenizeTrackDescriptorPacket(decoder);
+      tokenizer_.TokenizeTrackDescriptorPacket(state, decoder);
       return ModuleResult::Handled();
     case TracePacket::kTrackEventFieldNumber:
       tokenizer_.TokenizeTrackEventPacket(state, decoder, packet,
