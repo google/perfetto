@@ -85,8 +85,11 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_FRAME_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
 
+// This will eventually go away, when we also pre-compute the cumulative
+// sizes for native heap profiles.
 #define PERFETTO_TP_HEAP_GRAPH_ALLOCATION_DEF(NAME, PARENT, C) \
-  NAME(HeapGraphAllocationTable, "heap_graph_allocation")      \
+  NAME(ExperimentalHeapGraphAllocationTable,                   \
+       "experimental_heap_graph_allocation")                   \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                            \
   C(int64_t, ts, Column::Flag::kSorted)                        \
   C(uint32_t, upid)                                            \
