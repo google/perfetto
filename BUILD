@@ -763,6 +763,17 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/types:types
+filegroup(
+    name = "src_trace_processor_types_types",
+    srcs = [
+        "src/trace_processor/types/gfp_flags.cc",
+        "src/trace_processor/types/gfp_flags.h",
+        "src/trace_processor/types/variadic.cc",
+        "src/trace_processor/types/variadic.h",
+    ],
+)
+
 # GN target: //src/trace_processor:descriptors
 filegroup(
     name = "src_trace_processor_descriptors",
@@ -787,8 +798,6 @@ filegroup(
     srcs = [
         "src/trace_processor/filtered_row_index.cc",
         "src/trace_processor/filtered_row_index.h",
-        "src/trace_processor/gfp_flags.cc",
-        "src/trace_processor/gfp_flags.h",
         "src/trace_processor/raw_table.cc",
         "src/trace_processor/raw_table.h",
         "src/trace_processor/read_trace.cc",
@@ -950,8 +959,6 @@ filegroup(
         "src/trace_processor/trace_storage.h",
         "src/trace_processor/track_tracker.cc",
         "src/trace_processor/track_tracker.h",
-        "src/trace_processor/variadic.cc",
-        "src/trace_processor/variadic.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
 )
@@ -2571,6 +2578,7 @@ perfetto_cc_library(
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_tables_tables",
+        ":src_trace_processor_types_types",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -2654,6 +2662,7 @@ perfetto_cc_binary(
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_tables_tables",
+        ":src_trace_processor_types_types",
     ],
     visibility = [
         "//visibility:public",
@@ -2809,6 +2818,7 @@ perfetto_cc_binary(
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_tables_tables",
+        ":src_trace_processor_types_types",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",
         ":tools_trace_to_text_pprofbuilder",

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_VARIADIC_H_
-#define SRC_TRACE_PROCESSOR_VARIADIC_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_VARIADIC_H_
+#define SRC_TRACE_PROCESSOR_TYPES_VARIADIC_H_
 
 #include "src/trace_processor/containers/string_pool.h"
 
@@ -133,4 +133,4 @@ struct Variadic {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_VARIADIC_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_VARIADIC_H_

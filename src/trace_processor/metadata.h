@@ -20,7 +20,7 @@
 #include <stddef.h>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/variadic.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {

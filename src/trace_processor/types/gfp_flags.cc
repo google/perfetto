@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/gfp_flags.h"
+#include "src/trace_processor/types/gfp_flags.h"
+
 #include <array>
 
 namespace perfetto {
