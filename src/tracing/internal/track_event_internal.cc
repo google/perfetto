@@ -37,7 +37,7 @@ BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
 
 namespace {
 
-std::atomic<perfetto::base::PlatformThreadID> g_main_thread;
+std::atomic<perfetto::base::PlatformThreadId> g_main_thread;
 
 struct InternedEventCategory
     : public TrackEventInternedDataIndex<

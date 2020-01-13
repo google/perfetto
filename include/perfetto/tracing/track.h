@@ -84,7 +84,7 @@ struct Track {
   void Serialize(protos::pbzero::TrackDescriptor*) const;
 
  protected:
-  static Track MakeThreadTrack(base::PlatformThreadID tid_) {
+  static Track MakeThreadTrack(base::PlatformThreadId tid_) {
     return Track(static_cast<uint64_t>(tid_), MakeProcessTrack());
   }
 
@@ -113,19 +113,19 @@ struct ProcessTrack : public Track {
 // only threads in the current process can be referenced.
 struct ThreadTrack : public Track {
   const base::PlatformProcessId pid;
-  const base::PlatformThreadID tid;
+  const base::PlatformThreadId tid;
 
   static ThreadTrack Current() { return ThreadTrack(base::GetThreadId()); }
 
   // Represents a thread in the current process.
-  static ThreadTrack ForThread(base::PlatformThreadID tid_) {
+  static ThreadTrack ForThread(base::PlatformThreadId tid_) {
     return ThreadTrack(tid_);
   }
 
   void Serialize(protos::pbzero::TrackDescriptor*) const;
 
  private:
-  explicit ThreadTrack(base::PlatformThreadID tid_)
+  explicit ThreadTrack(base::PlatformThreadId tid_)
       : Track(MakeThreadTrack(tid_)),
         pid(ProcessTrack::Current().pid),
         tid(tid_) {}
