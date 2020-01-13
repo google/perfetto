@@ -47,23 +47,6 @@ using ::testing::AnyOf;
 using ::testing::Bool;
 using ::testing::Eq;
 
-class HeapprofdDelegate : public ThreadDelegate {
- public:
-  HeapprofdDelegate(const std::string& producer_socket)
-      : producer_socket_(producer_socket) {}
-  ~HeapprofdDelegate() override = default;
-
-  void Initialize(base::TaskRunner* task_runner) override {
-    producer_.reset(
-        new HeapprofdProducer(HeapprofdMode::kCentral, task_runner));
-    producer_->ConnectWithRetries(producer_socket_.c_str());
-  }
-
- private:
-  std::string producer_socket_;
-  std::unique_ptr<HeapprofdProducer> producer_;
-};
-
 constexpr const char* kHeapprofdModeProperty = "heapprofd.userdebug.mode";
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
