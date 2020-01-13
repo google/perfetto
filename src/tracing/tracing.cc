@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/tracing/tracing.h"
+#include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
 
 #include <condition_variable>
@@ -27,6 +28,7 @@ void Tracing::Initialize(const TracingInitArgs& args) {
   // Make sure the headers and implementation files agree on the build config.
   PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
   internal::TracingMuxerImpl::InitializeInstance(args);
+  internal::TrackRegistry::InitializeInstance();
 }
 
 //  static

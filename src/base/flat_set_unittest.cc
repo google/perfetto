@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/flat_set.h"
+#include "perfetto/base/flat_set.h"
 
 #include <random>
 #include <set>
@@ -38,7 +38,9 @@ TEST(FlatSetTest, InsertAndLookup) {
     EXPECT_EQ(flat_set.find(42), flat_set.end());
     EXPECT_EQ(flat_set.find(42), flat_set.begin());
 
-    flat_set.insert(1);
+    auto it_and_inserted = flat_set.insert(1);
+    EXPECT_EQ(it_and_inserted.first, flat_set.find(1));
+    EXPECT_TRUE(it_and_inserted.second);
     EXPECT_FALSE(flat_set.empty());
     EXPECT_EQ(flat_set.size(), 1u);
     {
@@ -52,7 +54,9 @@ TEST(FlatSetTest, InsertAndLookup) {
     EXPECT_NE(flat_set.begin(), flat_set.end());
     EXPECT_EQ(std::distance(flat_set.begin(), flat_set.end()), 1);
 
-    flat_set.insert(1);
+    it_and_inserted = flat_set.insert(1);
+    EXPECT_EQ(it_and_inserted.first, flat_set.find(1));
+    EXPECT_FALSE(it_and_inserted.second);
     EXPECT_EQ(flat_set.size(), 1u);
     EXPECT_TRUE(flat_set.count(1));
     EXPECT_FALSE(flat_set.count(0));
@@ -62,10 +66,10 @@ TEST(FlatSetTest, InsertAndLookup) {
     EXPECT_FALSE(flat_set.count(1));
     EXPECT_EQ(flat_set.size(), 0u);
 
-    flat_set.insert(7);
-    flat_set.insert(-4);
-    flat_set.insert(11);
-    flat_set.insert(-13);
+    EXPECT_TRUE(flat_set.insert(7).second);
+    EXPECT_TRUE(flat_set.insert(-4).second);
+    EXPECT_TRUE(flat_set.insert(11).second);
+    EXPECT_TRUE(flat_set.insert(-13).second);
     EXPECT_TRUE(flat_set.count(7));
     EXPECT_TRUE(flat_set.count(-4));
     EXPECT_TRUE(flat_set.count(11));
@@ -94,8 +98,11 @@ TEST(FlatSetTest, GoldenTest) {
   for (int i = 0; i < 10000; i++) {
     const int val = int_dist(rng);
     if (i % 3) {
-      flat_set.insert(val);
-      gold_set.insert(val);
+      auto flat_result = flat_set.insert(val);
+      auto gold_result = gold_set.insert(val);
+      EXPECT_EQ(flat_result.first, flat_set.find(val));
+      EXPECT_EQ(gold_result.first, gold_set.find(val));
+      EXPECT_EQ(flat_result.second, gold_result.second);
     } else {
       flat_set.erase(val);
       gold_set.erase(val);

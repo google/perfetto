@@ -16,8 +16,8 @@
 
 #include "src/tracing/test/api_test_support.h"
 
+#include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/proc_utils.h"
 
 namespace perfetto {
 namespace test {

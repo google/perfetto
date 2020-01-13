@@ -23,8 +23,8 @@
 
 #include <bitset>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/flat_set.h"
 #include "perfetto/ext/traced/data_source_types.h"
 
 namespace perfetto {

@@ -250,6 +250,7 @@ source_set("client_api") {
     "internal/track_event_internal.cc",
     "platform.cc",
     "tracing.cc",
+    "track.cc",
     "track_event_category_registry.cc",
     "virtual_destructors.cc",
   ]
