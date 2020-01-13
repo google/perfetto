@@ -50,7 +50,7 @@ inline PlatformThreadID GetThreadId() {
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 using PlatformThreadID = zx_handle_t;
 inline PlatformThreadID GetThreadId() {
-  return static_cast<pid_t>(zx_thread_self());
+  return zx_thread_self();
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 using PlatformThreadID = uint64_t;
