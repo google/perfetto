@@ -31,8 +31,10 @@ source_set("sqlite") {
     "../../../gn:default_deps",
     "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/trace/ftrace:zero",
     "../../base",
     "../db:lib",
+    "../types",
   ]
 }
 

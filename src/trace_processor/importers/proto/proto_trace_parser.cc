@@ -515,8 +515,9 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
-    uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-        ts, raw_chrome_metadata_event_id_, 0, 0);
+    RawId id = storage->mutable_raw_table()->Insert(
+        {ts, raw_chrome_metadata_event_id_, 0, 0});
+    uint32_t row = *storage->raw_table().id().IndexOf(id);
 
     // Metadata is proxied via a special event in the raw table to JSON export.
     for (auto it = bundle.metadata(); it; ++it) {
@@ -541,8 +542,9 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 
   if (bundle.has_legacy_ftrace_output()) {
-    uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-        ts, raw_chrome_legacy_system_trace_event_id_, 0, 0);
+    RawId id = storage->mutable_raw_table()->Insert(
+        {ts, raw_chrome_legacy_system_trace_event_id_, 0, 0});
+    uint32_t row = *storage->raw_table().id().IndexOf(id);
 
     std::string data;
     for (auto it = bundle.legacy_ftrace_output(); it; ++it) {
@@ -560,8 +562,9 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
-      uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-          ts, raw_chrome_legacy_user_trace_event_id_, 0, 0);
+      RawId id = storage->mutable_raw_table()->Insert(
+          {ts, raw_chrome_legacy_user_trace_event_id_, 0, 0});
+      uint32_t row = *storage->raw_table().id().IndexOf(id);
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
       args.AddArg(TableId::kRawEvents, row, data_name_id_, data_name_id_,

@@ -756,8 +756,9 @@ void TrackEventParser::ParseLegacyEventAsRawEvent(
     return;
   }
 
-  uint32_t row = context_->storage->mutable_raw_events()->AddRawEvent(
-      ts, raw_legacy_event_id_, 0, *utid);
+  RawId id = context_->storage->mutable_raw_table()->Insert(
+      {ts, raw_legacy_event_id_, 0, *utid});
+  uint32_t row = *context_->storage->raw_table().id().IndexOf(id);
 
   ArgsTracker args(context_);
   ArgsTracker::BoundInserter inserter(&args, TableId::kRawEvents, row);
