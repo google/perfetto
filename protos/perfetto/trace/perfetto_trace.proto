@@ -4234,10 +4234,11 @@ message LogMessageBody {
 // Describes a process's attributes. Emitted as part of a TrackDescriptor,
 // usually by the process's main thread.
 //
-// Next id: 6.
+// Next id: 7.
 message ProcessDescriptor {
   optional int32 pid = 1;
   repeated string cmdline = 2;
+  optional string process_name = 6;
 
   optional int32 process_priority = 5;
 
