@@ -38,40 +38,40 @@ namespace perfetto {
 namespace base {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-using PlatformThreadID = pid_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = pid_t;
+inline PlatformThreadId GetThreadId() {
   return gettid();
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
-using PlatformThreadID = pid_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = pid_t;
+inline PlatformThreadId GetThreadId() {
   return static_cast<pid_t>(syscall(__NR_gettid));
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-using PlatformThreadID = zx_handle_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = zx_handle_t;
+inline PlatformThreadId GetThreadId() {
   return zx_thread_self();
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-using PlatformThreadID = uint64_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = uint64_t;
+inline PlatformThreadId GetThreadId() {
   uint64_t tid;
   pthread_threadid_np(nullptr, &tid);
   return tid;
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-using PlatformThreadID = uint64_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = uint64_t;
+inline PlatformThreadId GetThreadId() {
   return static_cast<uint64_t>(GetCurrentThreadId());
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
-using PlatformThreadID = pid_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = pid_t;
+inline PlatformThreadId GetThreadId() {
   return reinterpret_cast<int32_t>(pthread_self());
 }
 #else  // Default to pthreads in case no OS is set.
-using PlatformThreadID = pthread_t;
-inline PlatformThreadID GetThreadId() {
+using PlatformThreadId = pthread_t;
+inline PlatformThreadId GetThreadId() {
   return pthread_self();
 }
 #endif
