@@ -19,7 +19,6 @@
 
 #include "perfetto/ext/base/thread_task_runner.h"
 
-#include <sys/prctl.h>
 #include <condition_variable>
 #include <functional>
 #include <mutex>
@@ -27,6 +26,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/prctl.h>
+#endif
 
 namespace perfetto {
 namespace base {
@@ -80,7 +84,8 @@ void ThreadTaskRunner::RunTaskThread(
   if (!name_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
     pthread_setname_np(name_.c_str());
-#else
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     prctl(PR_SET_NAME, name_.c_str());
 #endif
   }
