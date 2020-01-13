@@ -40,3 +40,13 @@ static_library("perfetto_cts_deps") {
     "utils.cc",
   ]
 }
+
+static_library("perfetto_cts_jni_deps") {
+  complete_static_lib = true
+  testonly = true
+  deps = [
+    "..:test_helper",
+    "../../gn:default_deps",
+    "../../src/base:test_support",
+  ]
+}
