@@ -95,7 +95,7 @@ class ProcessTracker {
 
   // Assigns the given name to the process identified by |upid| if it does not
   // have a name yet.
-  void SetProcessNameIfUnset(UniquePid upid, StringId process_name_id);
+  virtual void SetProcessNameIfUnset(UniquePid upid, StringId process_name_id);
 
   // Called on a task rename event to set the process name if the tid provided
   // is the main thread of the process.

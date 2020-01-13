@@ -53,13 +53,14 @@ TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context)
                          context_->storage->InternString("PpapiBroker")}} {}
 
 void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
+    PacketSequenceState* state,
     const protos::pbzero::TracePacket::Decoder& packet_decoder) {
   auto track_descriptor_field = packet_decoder.track_descriptor();
   protos::pbzero::TrackDescriptor::Decoder track_descriptor_decoder(
       track_descriptor_field.data, track_descriptor_field.size);
 
   if (!track_descriptor_decoder.has_uuid()) {
-    PERFETTO_ELOG("TrackDescriptor packet without trusted_packet_sequence_id");
+    PERFETTO_ELOG("TrackDescriptor packet without uuid");
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return;
   }
@@ -72,10 +73,7 @@ void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     protos::pbzero::ProcessDescriptor::Decoder process_descriptor_decoder(
         process_descriptor_field.data, process_descriptor_field.size);
 
-    // TODO(eseckler): Also parse process name / type here.
-
-    upid = context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(process_descriptor_decoder.pid()));
+    upid = TokenizeProcessDescriptor(process_descriptor_decoder);
 
     if (track_descriptor_decoder.has_chrome_process()) {
       auto chrome_process_descriptor_field =
@@ -93,10 +91,7 @@ void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       StringId name = process_name_ids_[name_index];
 
       // Don't override system-provided names.
-      context_->process_tracker->SetProcessNameIfUnset(
-          context_->process_tracker->GetOrCreateProcess(
-              static_cast<uint32_t>(process_descriptor_decoder.pid())),
-          name);
+      context_->process_tracker->SetProcessNameIfUnset(*upid, name);
     }
   }
 
@@ -105,10 +100,7 @@ void TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     protos::pbzero::ThreadDescriptor::Decoder thread_descriptor_decoder(
         thread_descriptor_field.data, thread_descriptor_field.size);
 
-    TokenizeThreadDescriptor(thread_descriptor_decoder);
-    utid = context_->process_tracker->UpdateThread(
-        static_cast<uint32_t>(thread_descriptor_decoder.tid()),
-        static_cast<uint32_t>(thread_descriptor_decoder.pid()));
+    utid = TokenizeThreadDescriptor(state, thread_descriptor_decoder);
     upid = *context_->storage->thread_table().upid()[*utid];
 
     if (track_descriptor_decoder.has_chrome_thread()) {
@@ -135,22 +127,36 @@ void TrackEventTokenizer::TokenizeProcessDescriptorPacket(
     const protos::pbzero::TracePacket::Decoder& packet_decoder) {
   protos::pbzero::ProcessDescriptor::Decoder process_descriptor_decoder(
       packet_decoder.process_descriptor());
+  TokenizeProcessDescriptor(process_descriptor_decoder);
+}
+
+UniquePid TrackEventTokenizer::TokenizeProcessDescriptor(
+    const protos::pbzero::ProcessDescriptor::Decoder&
+        process_descriptor_decoder) {
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(process_descriptor_decoder.pid()));
+
+  if (process_descriptor_decoder.has_process_name()) {
+    // Don't override system-provided names.
+    context_->process_tracker->SetProcessNameIfUnset(
+        upid, context_->storage->InternString(
+                  process_descriptor_decoder.process_name()));
+  }
+
   // TODO(skyostil): Remove parsing for legacy chrome_process_type field.
-  if (!process_descriptor_decoder.has_chrome_process_type())
-    return;
+  if (process_descriptor_decoder.has_chrome_process_type()) {
+    auto process_type = process_descriptor_decoder.chrome_process_type();
+    size_t name_index =
+        static_cast<size_t>(process_type) < process_name_ids_.size()
+            ? static_cast<size_t>(process_type)
+            : 0u;
+    StringId name = process_name_ids_[name_index];
 
-  auto process_type = process_descriptor_decoder.chrome_process_type();
-  size_t name_index =
-      static_cast<size_t>(process_type) < process_name_ids_.size()
-          ? static_cast<size_t>(process_type)
-          : 0u;
-  StringId name = process_name_ids_[name_index];
+    // Don't override system-provided names.
+    context_->process_tracker->SetProcessNameIfUnset(upid, name);
+  }
 
-  // Don't override system-provided names.
-  context_->process_tracker->SetProcessNameIfUnset(
-      context_->process_tracker->GetOrCreateProcess(
-          static_cast<uint32_t>(process_descriptor_decoder.pid())),
-      name);
+  return upid;
 }
 
 void TrackEventTokenizer::TokenizeThreadDescriptorPacket(
@@ -175,19 +181,27 @@ void TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   auto thread_descriptor_field = packet_decoder.thread_descriptor();
   protos::pbzero::ThreadDescriptor::Decoder thread_descriptor_decoder(
       thread_descriptor_field.data, thread_descriptor_field.size);
-
-  state->SetThreadDescriptor(
-      thread_descriptor_decoder.pid(), thread_descriptor_decoder.tid(),
-      thread_descriptor_decoder.reference_timestamp_us() * 1000,
-      thread_descriptor_decoder.reference_thread_time_us() * 1000,
-      thread_descriptor_decoder.reference_thread_instruction_count());
-
-  TokenizeThreadDescriptor(thread_descriptor_decoder);
+  TokenizeThreadDescriptor(state, thread_descriptor_decoder);
 }
 
-void TrackEventTokenizer::TokenizeThreadDescriptor(
+UniqueTid TrackEventTokenizer::TokenizeThreadDescriptor(
+    PacketSequenceState* state,
     const protos::pbzero::ThreadDescriptor::Decoder&
         thread_descriptor_decoder) {
+  UniqueTid utid = context_->process_tracker->UpdateThread(
+      static_cast<uint32_t>(thread_descriptor_decoder.tid()),
+      static_cast<uint32_t>(thread_descriptor_decoder.pid()));
+
+  // TODO(eseckler): Remove support for legacy thread descriptor-based default
+  // tracks and delta timestamps.
+  if (state->IsIncrementalStateValid()) {
+    state->SetThreadDescriptor(
+        thread_descriptor_decoder.pid(), thread_descriptor_decoder.tid(),
+        thread_descriptor_decoder.reference_timestamp_us() * 1000,
+        thread_descriptor_decoder.reference_thread_time_us() * 1000,
+        thread_descriptor_decoder.reference_thread_instruction_count());
+  }
+
   base::StringView name;
   if (thread_descriptor_decoder.has_thread_name()) {
     name = thread_descriptor_decoder.thread_name();
@@ -244,12 +258,10 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
     auto thread_name_id = context_->storage->InternString(name);
     ProcessTracker* procs = context_->process_tracker.get();
     // Don't override system-provided names.
-    procs->SetThreadNameIfUnset(
-        procs->UpdateThread(
-            static_cast<uint32_t>(thread_descriptor_decoder.tid()),
-            static_cast<uint32_t>(thread_descriptor_decoder.pid())),
-        thread_name_id);
+    procs->SetThreadNameIfUnset(utid, thread_name_id);
   }
+
+  return utid;
 }
 
 void TrackEventTokenizer::TokenizeChromeThreadDescriptor(
