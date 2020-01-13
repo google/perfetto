@@ -402,8 +402,10 @@ class PerfettoApiTest : public ::testing::Test {
         case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
           EXPECT_FALSE(track_event.type());
       }
-      slice += ":" + categories[track_event.category_iids()[0]] + "." +
-               event_names[track_event.name_iid()];
+      if (!track_event.category_iids().empty())
+        slice += ":" + categories[track_event.category_iids()[0]];
+      if (track_event.has_name_iid())
+        slice += "." + event_names[track_event.name_iid()];
 
       if (track_event.debug_annotations_size()) {
         slice += "(";
@@ -624,20 +626,19 @@ TEST_F(PerfettoApiTest, TrackEvent) {
         perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
     EXPECT_EQ(packet.timestamp_clock_id(), kClockMonotonic);
 #endif
-    EXPECT_EQ(track_event.category_iids().size(), 1u);
-    EXPECT_GE(track_event.category_iids()[0], 1u);
-
     if (track_event.type() ==
         perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
       EXPECT_FALSE(begin_found);
+      EXPECT_EQ(track_event.category_iids().size(), 1u);
+      EXPECT_GE(track_event.category_iids()[0], 1u);
       EXPECT_EQ("test", categories[track_event.category_iids()[0]]);
       EXPECT_EQ("TestEvent", event_names[track_event.name_iid()]);
       begin_found = true;
     } else if (track_event.type() ==
                perfetto::protos::gen::TrackEvent::TYPE_SLICE_END) {
       EXPECT_FALSE(end_found);
+      EXPECT_EQ(track_event.category_iids().size(), 0u);
       EXPECT_EQ(0u, track_event.name_iid());
-      EXPECT_EQ("test", categories[track_event.category_iids()[0]]);
       end_found = true;
     }
   }
@@ -1381,10 +1382,10 @@ TEST_F(PerfettoApiTest, TrackEventScoped) {
 
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
-  EXPECT_THAT(slices, ElementsAre("B:test.TestEventWithArgs", "E:test.",
-                                  "B:test.SingleLineTestEvent", "E:test.",
-                                  "B:test.TestEvent", "B:test.AnotherEvent",
-                                  "E:test.", "E:test."));
+  EXPECT_THAT(
+      slices,
+      ElementsAre("B:test.TestEventWithArgs", "E", "B:test.SingleLineTestEvent",
+                  "E", "B:test.TestEvent", "B:test.AnotherEvent", "E", "E"));
 }
 
 TEST_F(PerfettoApiTest, TrackEventInstant) {
