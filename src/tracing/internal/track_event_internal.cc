@@ -199,16 +199,18 @@ EventContext TrackEventInternal::WriteEvent(
     ResetIncrementalState(trace_writer, timestamp);
   }
   auto packet = NewTracePacket(trace_writer, timestamp);
-
-  // We assume that |category| and |name| point to strings with static lifetime.
-  // This means we can use their addresses as interning keys.
   EventContext ctx(std::move(packet), incr_state);
-  size_t category_iid = InternedEventCategory::Get(&ctx, category);
 
   auto track_event = ctx.event();
   track_event->set_type(type);
-  // TODO(skyostil): Handle multiple categories.
-  track_event->add_category_iids(category_iid);
+
+  // We assume that |category| and |name| point to strings with static lifetime.
+  // This means we can use their addresses as interning keys.
+  if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+    // TODO(skyostil): Handle multiple categories.
+    size_t category_iid = InternedEventCategory::Get(&ctx, category);
+    track_event->add_category_iids(category_iid);
+  }
   if (name) {
     size_t name_iid = InternedEventName::Get(&ctx, name);
     track_event->set_name_iid(name_iid);
