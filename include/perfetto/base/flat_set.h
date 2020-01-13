@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_FLAT_SET_H_
-#define INCLUDE_PERFETTO_EXT_BASE_FLAT_SET_H_
+#ifndef INCLUDE_PERFETTO_BASE_FLAT_SET_H_
+#define INCLUDE_PERFETTO_BASE_FLAT_SET_H_
 
 #include <algorithm>
 #include <vector>
@@ -63,14 +63,15 @@ class FlatSet {
 
   size_t count(T value) const { return find(value) == entries_.end() ? 0 : 1; }
 
-  void insert(T value) {
+  std::pair<iterator, bool> insert(T value) {
     auto entries_end = entries_.end();
     auto it = std::lower_bound(entries_.begin(), entries_end, value);
     if (it != entries_end && *it == value)
-      return;
+      return std::make_pair(it, false);
     // If the value is not found |it| is either end() or the next item strictly
     // greater than |value|. In both cases we want to insert just before that.
-    entries_.insert(it, std::move(value));
+    it = entries_.insert(it, std::move(value));
+    return std::make_pair(it, true);
   }
 
   size_t erase(T value) {
@@ -96,4 +97,4 @@ class FlatSet {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_FLAT_SET_H_
+#endif  // INCLUDE_PERFETTO_BASE_FLAT_SET_H_

@@ -18,7 +18,7 @@
 
 #include <thread>
 
-#include "perfetto/ext/base/thread_utils.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "test/gtest_and_gmock.h"
 

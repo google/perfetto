@@ -17,9 +17,9 @@
 #include "perfetto/ext/base/watchdog.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/thread_utils.h"
 #include "test/gtest_and_gmock.h"
 
 #include <signal.h>

@@ -18,7 +18,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "perfetto/ext/base/flat_set.h"
+#include "perfetto/base/flat_set.h"
 
 namespace {
 
