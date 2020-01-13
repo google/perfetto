@@ -374,8 +374,9 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
 
   TraceStorage* storage = context_.storage.get();
 
-  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-      0, storage->InternString("chrome_event.metadata"), 0, 0);
+  RawId id = storage->mutable_raw_table()->Insert(
+      {0, storage->InternString("chrome_event.metadata"), 0, 0});
+  uint32_t row = *storage->raw_table().id().IndexOf(id);
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
@@ -1052,9 +1053,10 @@ TEST_F(ExportJsonTest, RawEvent) {
   UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   context_.storage->mutable_thread_table()->mutable_upid()->Set(utid, upid);
 
-  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-      kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
-      utid);
+  RawId id = storage->mutable_raw_table()->Insert(
+      {kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
+       utid});
+  uint32_t row = *storage->raw_table().id().IndexOf(id);
 
   auto add_arg = [&](const char* key, Variadic value) {
     StringId key_id = storage->InternString(key);
@@ -1128,22 +1130,25 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
   TraceStorage* storage = context_.storage.get();
 
-  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-      0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0);
+  RawId id = storage->mutable_raw_table()->Insert(
+      {0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0});
+  uint32_t row = *storage->raw_table().id().IndexOf(id);
 
   StringId data_id = storage->InternString("data");
   StringId ftrace_data_id = storage->InternString(kLegacyFtraceData);
   context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
                                 Variadic::String(ftrace_data_id));
 
-  row = storage->mutable_raw_events()->AddRawEvent(
-      0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
+  id = storage->mutable_raw_table()->Insert(
+      {0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0});
+  row = *storage->raw_table().id().IndexOf(id);
   StringId json_data1_id = storage->InternString(kLegacyJsonData1);
   context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
                                 Variadic::String(json_data1_id));
 
-  row = storage->mutable_raw_events()->AddRawEvent(
-      0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0);
+  id = storage->mutable_raw_table()->Insert(
+      {0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0});
+  row = *storage->raw_table().id().IndexOf(id);
   StringId json_data2_id = storage->InternString(kLegacyJsonData2);
   context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
                                 Variadic::String(json_data2_id));
@@ -1319,8 +1324,9 @@ TEST_F(ExportJsonTest, MetadataFilter) {
 
   TraceStorage* storage = context_.storage.get();
 
-  uint32_t row = storage->mutable_raw_events()->AddRawEvent(
-      0, storage->InternString("chrome_event.metadata"), 0, 0);
+  RawId id = storage->mutable_raw_table()->Insert(
+      {0, storage->InternString("chrome_event.metadata"), 0, 0});
+  uint32_t row = *storage->raw_table().id().IndexOf(id);
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));

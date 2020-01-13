@@ -14,26 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_RAW_TABLE_H_
-#define SRC_TRACE_PROCESSOR_RAW_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_RAW_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_RAW_TABLE_H_
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/storage_table.h"
+#include "perfetto/ext/base/string_writer.h"
+#include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class RawTable : public StorageTable {
+class SqliteRawTable : public DbSqliteTable {
  public:
+  SqliteRawTable(sqlite3*, const TraceStorage*);
+  virtual ~SqliteRawTable();
+
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
-
-  RawTable(sqlite3*, const TraceStorage*);
-
-  // Table implementation.
-  StorageSchema CreateStorageSchema() override;
-  uint32_t RowCount() override;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
   void FormatSystraceArgs(NullTermStringView event_name,
@@ -48,4 +46,4 @@ class RawTable : public StorageTable {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_RAW_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_RAW_TABLE_H_

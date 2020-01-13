@@ -756,12 +756,12 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
                                         uint32_t index) {
   const auto& thread_table = storage->thread_table();
   const auto& process_table = storage->process_table();
-  const auto& events = storage->raw_events();
+  const auto& events = storage->raw_table();
 
   Json::Value event;
-  event["ts"] = Json::Int64(events.timestamps()[index] / 1000);
+  event["ts"] = Json::Int64(events.ts()[index] / 1000);
 
-  UniqueTid utid = static_cast<UniqueTid>(events.utids()[index]);
+  UniqueTid utid = static_cast<UniqueTid>(events.utid()[index]);
   event["tid"] = static_cast<int32_t>(thread_table.tid()[utid]);
   event["pid"] = 0;
 
@@ -771,7 +771,7 @@ Json::Value ConvertLegacyRawEventToJson(const TraceStorage* storage,
 
   // Raw legacy events store all other params in the arg set. Make a copy of
   // the converted args here, parse, and then remove the legacy params.
-  event["args"] = args_builder.GetArgs(events.arg_set_ids()[index]);
+  event["args"] = args_builder.GetArgs(events.arg_set_id()[index]);
   const Json::Value& legacy_args = event["args"][kLegacyEventArgsKey];
 
   PERFETTO_DCHECK(legacy_args.isMember(kLegacyEventCategoryKey));
@@ -849,25 +849,25 @@ util::Status ExportRawEvents(const TraceStorage* storage,
   base::Optional<StringId> raw_chrome_metadata_event_id =
       storage->string_pool().GetId("chrome_event.metadata");
 
-  const auto& events = storage->raw_events();
-  for (uint32_t i = 0; i < events.raw_event_count(); ++i) {
+  const auto& events = storage->raw_table();
+  for (uint32_t i = 0; i < events.row_count(); ++i) {
     if (raw_legacy_event_key_id &&
-        events.name_ids()[i] == *raw_legacy_event_key_id) {
+        events.name()[i] == *raw_legacy_event_key_id) {
       Json::Value event = ConvertLegacyRawEventToJson(storage, args_builder, i);
       writer->WriteCommonEvent(event);
     } else if (raw_legacy_system_trace_event_id &&
-               events.name_ids()[i] == *raw_legacy_system_trace_event_id) {
-      Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+               events.name()[i] == *raw_legacy_system_trace_event_id) {
+      Json::Value args = args_builder.GetArgs(events.arg_set_id()[i]);
       PERFETTO_DCHECK(args.isMember("data"));
       writer->AddSystemTraceData(args["data"].asString());
     } else if (raw_legacy_user_trace_event_id &&
-               events.name_ids()[i] == *raw_legacy_user_trace_event_id) {
-      Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+               events.name()[i] == *raw_legacy_user_trace_event_id) {
+      Json::Value args = args_builder.GetArgs(events.arg_set_id()[i]);
       PERFETTO_DCHECK(args.isMember("data"));
       writer->AddUserTraceData(args["data"].asString());
     } else if (raw_chrome_metadata_event_id &&
-               events.name_ids()[i] == *raw_chrome_metadata_event_id) {
-      Json::Value args = args_builder.GetArgs(events.arg_set_ids()[i]);
+               events.name()[i] == *raw_chrome_metadata_event_id) {
+      Json::Value args = args_builder.GetArgs(events.arg_set_id()[i]);
       writer->MergeMetadata(args);
     }
   }
