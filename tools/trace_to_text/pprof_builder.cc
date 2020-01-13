@@ -375,7 +375,9 @@ class GProfileBuilder {
       std::string frame_name = frame_it.Get(1).string_value;
       int64_t mapping_id = frame_it.Get(2).long_value;
       int64_t rel_pc = frame_it.Get(3).long_value;
-      int64_t symbol_set_id = frame_it.Get(4).long_value;
+      base::Optional<int64_t> symbol_set_id;
+      if (!frame_it.Get(4).is_null())
+        symbol_set_id = frame_it.Get(4).long_value;
 
       seen_mappings->emplace(mapping_id);
       auto* glocation = result_->add_location();
@@ -386,7 +388,7 @@ class GProfileBuilder {
       //                           mapping.start_offset)).
       glocation->set_address(static_cast<uint64_t>(rel_pc));
       if (symbol_set_id) {
-        for (const Line& line : LineForSymbolSetId(symbol_set_id)) {
+        for (const Line& line : LineForSymbolSetId(*symbol_set_id)) {
           seen_symbol_ids->emplace(line.symbol_id);
           auto* gline = glocation->add_line();
           gline->set_line(line.line_number);
