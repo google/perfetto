@@ -6229,6 +6229,7 @@ filegroup {
     "src/tracing/internal/track_event_internal.cc",
     "src/tracing/platform.cc",
     "src/tracing/tracing.cc",
+    "src/tracing/track.cc",
     "src/tracing/track_event_category_registry.cc",
     "src/tracing/virtual_destructors.cc",
   ],

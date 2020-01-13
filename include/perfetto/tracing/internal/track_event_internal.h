@@ -17,14 +17,16 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 
-#include <unordered_map>
-
+#include "perfetto/base/flat_set.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/trace_writer_base.h"
+#include "perfetto/tracing/track.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+
+#include <set>
 
 namespace perfetto {
 class EventContext;
@@ -70,6 +72,11 @@ struct TrackEventIncrementalState {
                 std::unique_ptr<BaseTrackEventInternedDataIndex>>;
   std::array<InternedDataIndex, kMaxInternedDataFields> interned_data_indices =
       {};
+
+  // Track uuids for which we have written descriptors into the trace. If a
+  // trace event uses a track which is not in this set, we'll write out a
+  // descriptor for it.
+  base::FlatSet<uint64_t> seen_tracks;
 };
 
 // The backend portion of the track event trace point implemention. Outlined to
@@ -101,7 +108,36 @@ class TrackEventInternal {
     WriteDebugAnnotation(annotation, value);
   }
 
+  // If the given track hasn't been seen by the trace writer yet, write a
+  // descriptor for it into the trace. Doesn't take a lock unless the track
+  // descriptor is new.
+  template <typename TrackType>
+  static void WriteTrackDescriptorIfNeeded(
+      const TrackType& track,
+      TraceWriterBase* trace_writer,
+      TrackEventIncrementalState* incr_state) {
+    auto it_and_inserted = incr_state->seen_tracks.insert(track.uuid);
+    if (PERFETTO_LIKELY(!it_and_inserted.second))
+      return;
+    WriteTrackDescriptor(track, trace_writer);
+  }
+
+  // Unconditionally write a track descriptor into the trace.
+  template <typename TrackType>
+  static void WriteTrackDescriptor(const TrackType& track,
+                                   TraceWriterBase* trace_writer) {
+    TrackRegistry::Get()->SerializeTrack(
+        track, NewTracePacket(trace_writer, GetTimeNs()));
+  }
+
  private:
+  static uint64_t GetTimeNs();
+  static void ResetIncrementalState(TraceWriterBase*, uint64_t timestamp);
+  static protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket(
+      TraceWriterBase*,
+      uint64_t timestamp,
+      uint32_t seq_flags =
+          protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
   static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
       perfetto::EventContext*,
       const char* name);
