@@ -448,8 +448,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       *db_, &storage->heap_profile_allocation_table(),
       storage->heap_profile_allocation_table().table_name());
   DbSqliteTable::RegisterTable(
-      *db_, &storage->experimental_heap_graph_allocation_table(),
-      storage->experimental_heap_graph_allocation_table().table_name());
+      *db_, &storage->experimental_flamegraph_nodes_table(),
+      storage->experimental_flamegraph_nodes_table().table_name());
   DbSqliteTable::RegisterTable(
       *db_, &storage->cpu_profile_stack_sample_table(),
       storage->cpu_profile_stack_sample_table().table_name());
