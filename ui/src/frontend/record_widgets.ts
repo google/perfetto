@@ -258,12 +258,7 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
             onclick: () => copyToClipboard(attrs.text),
           },
           m('i.material-icons', 'assignment')),
-        m('code',
-          {
-            style: {
-              'white-space': attrs.hardWhitespace ? 'pre' : null,
-            },
-          },
-          attrs.text), );
+        m('code', attrs.text),
+    );
   }
 }

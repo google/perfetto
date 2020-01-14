@@ -619,7 +619,7 @@ function ChromeCategoriesSelection() {
 
   return m(Dropdown, {
     title: 'Additional Chrome categories',
-    cssClass: '.multicolumn.two-columns.chrome-categories',
+    cssClass: '.multicolumn.two-columns',
     options: categoriesMap,
     set: (cfg, val) => cfg.chromeCategoriesSelected = val,
     get: (cfg) => cfg.chromeCategoriesSelected
@@ -854,7 +854,7 @@ function RecordingSnippet() {
          'Start Recording'.`)) :
         [];
   }
-  return m(CodeSnippet, {text: getRecordCommand(target), hardWhitespace: true});
+  return m(CodeSnippet, {text: getRecordCommand(target)});
 }
 
 function getRecordCommand(target: RecordingTarget) {
