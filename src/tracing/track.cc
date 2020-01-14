@@ -35,15 +35,15 @@ void Track::Serialize(protos::pbzero::TrackDescriptor* desc) const {
 void ProcessTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
   Track::Serialize(desc);
   auto pd = desc->set_process();
-  pd->set_pid(pid);
+  pd->set_pid(static_cast<int32_t>(pid));
   // TODO(skyostil): Record command line.
 }
 
 void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
   Track::Serialize(desc);
   auto td = desc->set_thread();
-  td->set_pid(pid);
-  td->set_tid(tid);
+  td->set_pid(static_cast<int32_t>(pid));
+  td->set_tid(static_cast<int32_t>(tid));
   // TODO(skyostil): Record thread name.
 }
 
