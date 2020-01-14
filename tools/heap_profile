@@ -99,7 +99,10 @@ data_sources {{
 duration_ms: {duration}
 write_into_file: true
 flush_timeout_ms: 30000
+flush_period_ms: 604800000
 '''
+
+# flush_period_ms of 1 week to suppress trace_processor_shell warning.
 
 CONTINUOUS_DUMP = """
       continuous_dump_config {{
@@ -118,6 +121,13 @@ def sigint_handler(sig, frame):
   global IS_INTERRUPTED
   IS_INTERRUPTED = True
 
+
+def print_no_profile_error():
+  print("No profiles generated", file=sys.stderr)
+  print(
+    "If this is unexpected, check "
+    "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
+    file=sys.stderr)
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -344,6 +354,7 @@ def main(argv):
   old_handler = signal.signal(signal.SIGINT, sigint_handler)
   print("Profiling active. Press Ctrl+C to terminate.")
   print("You may disconnect your device.")
+  print()
   exists = True
   device_connected = True
   while not device_connected or (exists and not IS_INTERRUPTED):
@@ -385,16 +396,12 @@ def main(argv):
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
-    print("Could not find trace_to_text output path.", file=sys.stderr)
+    print_no_profile_error();
     return 1
 
   profile_files = os.listdir(profile_path)
   if not profile_files:
-    print("No profiles generated", file=sys.stderr)
-    print(
-        "If this is unexpected, check "
-        "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
-        file=sys.stderr)
+    print_no_profile_error();
     return 1
 
   subprocess.check_call(
@@ -417,7 +424,8 @@ def main(argv):
               env=os.environ,
               stdout=fd)
           if ret != 0:
-              print("Failed to symbolize.", file=sys.stderr)
+              print("Failed to symbolize. Continuing without symbols.",
+                    file=sys.stderr)
 
   print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
   print("These can be viewed using pprof. Googlers: head to pprof/ and "
