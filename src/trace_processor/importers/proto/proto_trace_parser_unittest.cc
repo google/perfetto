@@ -786,7 +786,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(3)
       .WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
@@ -867,7 +866,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(3)
       .WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
@@ -1003,7 +1001,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(5)
       .WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
@@ -1234,6 +1231,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(1000000);
     auto* track_desc = packet->set_track_descriptor();
     track_desc->set_uuid(1234);
     track_desc->set_name("Thread track 1");
@@ -1244,6 +1242,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1000000);
     auto* track_desc = packet->set_track_descriptor();
     track_desc->set_uuid(5678);
     track_desc->set_name("Async track 1");
@@ -1297,18 +1296,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(2);
     packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(1000000);
     auto* track_desc = packet->set_track_descriptor();
     track_desc->set_uuid(4321);
     track_desc->set_name("Thread track 2");
     auto* thread_desc = track_desc->set_thread();
     thread_desc->set_pid(15);
     thread_desc->set_tid(17);
-  }
-  {
-    auto* packet = trace_.add_packet();
-    packet->set_trusted_packet_sequence_id(2);
-    auto* track_desc = packet->set_track_descriptor();
-    track_desc->set_uuid(5678);  // "Async track 1" defined on sequence 1.
   }
   {
     // Async event completed on "Async track 1".
@@ -1361,20 +1355,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
       .WillOnce(Return(11));
   EXPECT_CALL(*storage_, InternString(base::StringView("Thread track 2")))
       .WillOnce(Return(12));
-  EXPECT_CALL(*storage_, InternString(base::StringView("")))
-      .WillOnce(Return(0));
 
   Tokenize();
-
-  // First track is "Thread track 1"; second is "Async track 1", third is
-  // "Thread track 2".
-  EXPECT_EQ(storage_->track_table().row_count(), 3u);
-  EXPECT_EQ(storage_->track_table().name()[0], 10u);  // "Thread track 1"
-  EXPECT_EQ(storage_->track_table().name()[1], 11u);  // "Async track 1"
-  EXPECT_EQ(storage_->track_table().name()[2], 12u);  // "Thread track 2"
-  EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
-  EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
-  EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
@@ -1406,9 +1388,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 
   context_.sorter->ExtractEventsForced();
 
-  // Track tables shouldn't have changed.
+  // First track is "Thread track 1"; second is "Async track 1", third is
+  // "Thread track 2".
   EXPECT_EQ(storage_->track_table().row_count(), 3u);
+  EXPECT_EQ(storage_->track_table().name()[0], 10u);  // "Thread track 1"
+  EXPECT_EQ(storage_->track_table().name()[1], 11u);  // "Async track 1"
+  EXPECT_EQ(storage_->track_table().name()[2], 12u);  // "Thread track 2"
   EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
+  EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
+  EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], 0u);
@@ -1575,7 +1563,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(2)
       .WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
@@ -1678,10 +1665,8 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(2)
       .WillRepeatedly(Return(1));
   EXPECT_CALL(*process_, UpdateThread(17, 15))
-      .Times(2)
       .WillRepeatedly(Return(2));
 
   tables::ThreadTable::Row t1(16);
@@ -1842,7 +1827,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .Times(2)
       .WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
@@ -1972,7 +1956,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2051,7 +2035,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2136,7 +2120,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2230,7 +2214,7 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillOnce(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;

@@ -25,9 +25,7 @@ import "protos/perfetto/trace/track_event/thread_descriptor.proto";
 package perfetto.protos;
 
 // Defines a track for TrackEvents. Slices and instant events on the same track
-// will be nested based on their timestamps, see TrackEvent::Type. Additionally
-// events on tracks which represent the same thread (i.e., matching pid and tid
-// in ThreadDescriptor) will be merged onto one sequential timeline.
+// will be nested based on their timestamps, see TrackEvent::Type.
 //
 // A TrackDescriptor only needs to be emitted by one trace writer / producer and
 // is valid for the entirety of the trace. To ensure the descriptor isn't lost
@@ -57,10 +55,24 @@ message TrackDescriptor {
   // Name of the track.
   optional string name = 2;
 
-  // Associate the track with a process or thread - the UI will merge all tracks
-  // for the same process / thread into a single timeline view.
+  // Associate the track with a process, making it the process-global track.
+  // There should only be one such track per process (usually for instant
+  // events; trace processor uses this fact to detect pid reuse). If you need
+  // more (e.g. for asynchronous events), create child tracks using parent_uuid.
+  //
+  // Trace processor will merge events on a process track with slice-type events
+  // from other sources (e.g. ftrace) for the same process into a single
+  // timeline view.
   optional ProcessDescriptor process = 3;
   optional ChromeProcessDescriptor chrome_process = 6;
+
+  // Associate the track with a thread, indicating that the track's events
+  // describe synchronous code execution on the thread. There should only be one
+  // such track per thread (trace processor uses this fact to detect tid reuse).
+  //
+  // Trace processor will merge events on a thread track with slice-type events
+  // from other sources (e.g. ftrace) for the same thread into a single timeline
+  // view.
   optional ThreadDescriptor thread = 4;
   optional ChromeThreadDescriptor chrome_thread = 7;
 }

@@ -31,11 +31,16 @@
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_user_event.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
+#include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "protos/perfetto/trace/track_event/task_execution.pbzero.h"
+#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
@@ -200,7 +205,143 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
            context->storage->InternString("MEDIA_PLAYER_DELEGATE"),
            context->storage->InternString("EXTENSION_WORKER"),
            context->storage->InternString("SUBRESOURCE_FILTER"),
-           context->storage->InternString("UNFREEZABLE_FRAME")}} {}
+           context->storage->InternString("UNFREEZABLE_FRAME")}},
+      chrome_process_name_ids_{
+          {context_->storage->InternString("Unknown"),
+           context_->storage->InternString("Browser"),
+           context_->storage->InternString("Renderer"),
+           context_->storage->InternString("Utility"),
+           context_->storage->InternString("Zygote"),
+           context_->storage->InternString("SandboxHelper"),
+           context_->storage->InternString("Gpu"),
+           context_->storage->InternString("PpapiPlugin"),
+           context_->storage->InternString("PpapiBroker")}},
+      chrome_thread_name_ids_{
+          {context_->storage->InternString("ChromeUnspecified"),
+           context_->storage->InternString("CrProcessMain"),
+           context_->storage->InternString("ChromeIOThread"),
+           context_->storage->InternString("ThreadPoolBackgroundWorker&"),
+           context_->storage->InternString("ThreadPoolForegroundWorker&"),
+           context_->storage->InternString(
+               "ThreadPoolSingleThreadForegroundBlocking&"),
+           context_->storage->InternString(
+               "ThreadPoolSingleThreadBackgroundBlocking&"),
+           context_->storage->InternString("ThreadPoolService"),
+           context_->storage->InternString("Compositor"),
+           context_->storage->InternString("VizCompositorThread"),
+           context_->storage->InternString("CompositorTileWorker&"),
+           context_->storage->InternString("ServiceWorkerThread&"),
+           context_->storage->InternString("MemoryInfra"),
+           context_->storage->InternString("StackSamplingProfiler")}} {}
+
+void TrackEventParser::ParseTrackDescriptor(
+    protozero::ConstBytes track_descriptor) {
+  protos::pbzero::TrackDescriptor::Decoder decoder(track_descriptor);
+
+  // Ensure that the track and its parents are resolved. This may start a new
+  // process and/or thread (i.e. new upid/utid).
+  TrackId track_id =
+      *context_->track_tracker->GetDescriptorTrack(decoder.uuid());
+
+  if (decoder.has_process()) {
+    UniquePid upid = ParseProcessDescriptor(decoder.process());
+    if (decoder.has_chrome_process())
+      ParseChromeProcessDescriptor(upid, decoder.chrome_process());
+  }
+
+  if (decoder.has_thread()) {
+    UniqueTid utid = ParseThreadDescriptor(decoder.thread());
+    if (decoder.has_chrome_thread())
+      ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
+  }
+
+  if (decoder.has_name()) {
+    auto* tracks = context_->storage->mutable_track_table();
+    StringId name_id = context_->storage->InternString(decoder.name());
+    tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id), name_id);
+  }
+}
+
+UniquePid TrackEventParser::ParseProcessDescriptor(
+    protozero::ConstBytes process_descriptor) {
+  protos::pbzero::ProcessDescriptor::Decoder decoder(process_descriptor);
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(decoder.pid()));
+  if (decoder.has_process_name()) {
+    // Don't override system-provided names.
+    context_->process_tracker->SetProcessNameIfUnset(
+        upid, context_->storage->InternString(decoder.process_name()));
+  }
+  // TODO(skyostil): Remove parsing for legacy chrome_process_type field.
+  if (decoder.has_chrome_process_type()) {
+    auto process_type = decoder.chrome_process_type();
+    size_t name_index =
+        static_cast<size_t>(process_type) < chrome_process_name_ids_.size()
+            ? static_cast<size_t>(process_type)
+            : 0u;
+    StringId name_id = chrome_process_name_ids_[name_index];
+    // Don't override system-provided names.
+    context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+  }
+  return upid;
+}
+
+void TrackEventParser::ParseChromeProcessDescriptor(
+    UniquePid upid,
+    protozero::ConstBytes chrome_process_descriptor) {
+  protos::pbzero::ChromeProcessDescriptor::Decoder decoder(
+      chrome_process_descriptor);
+  auto process_type = decoder.process_type();
+  size_t name_index =
+      static_cast<size_t>(process_type) < chrome_process_name_ids_.size()
+          ? static_cast<size_t>(process_type)
+          : 0u;
+  StringId name_id = chrome_process_name_ids_[name_index];
+  // Don't override system-provided names.
+  context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+}
+
+UniqueTid TrackEventParser::ParseThreadDescriptor(
+    protozero::ConstBytes thread_descriptor) {
+  protos::pbzero::ThreadDescriptor::Decoder decoder(thread_descriptor);
+  UniqueTid utid = context_->process_tracker->UpdateThread(
+      static_cast<uint32_t>(decoder.tid()),
+      static_cast<uint32_t>(decoder.pid()));
+  StringId name_id = kNullStringId;
+  if (decoder.has_thread_name()) {
+    name_id = context_->storage->InternString(decoder.thread_name());
+  } else if (decoder.has_chrome_thread_type()) {
+    // TODO(skyostil): Remove parsing for legacy chrome_thread_type field.
+    auto thread_type = decoder.chrome_thread_type();
+    size_t name_index =
+        static_cast<size_t>(thread_type) < chrome_thread_name_ids_.size()
+            ? static_cast<size_t>(thread_type)
+            : 0u;
+    name_id = chrome_thread_name_ids_[name_index];
+  }
+  if (name_id != kNullStringId) {
+    // Don't override system-provided names.
+    context_->process_tracker->SetThreadNameIfUnset(utid, name_id);
+  }
+  return utid;
+}
+
+void TrackEventParser::ParseChromeThreadDescriptor(
+    UniqueTid utid,
+    protozero::ConstBytes chrome_thread_descriptor) {
+  protos::pbzero::ChromeThreadDescriptor::Decoder decoder(
+      chrome_thread_descriptor);
+  if (!decoder.has_thread_type())
+    return;
+
+  auto thread_type = decoder.thread_type();
+  size_t name_index =
+      static_cast<size_t>(thread_type) < chrome_thread_name_ids_.size()
+          ? static_cast<size_t>(thread_type)
+          : 0u;
+  StringId name_id = chrome_thread_name_ids_[name_index];
+  context_->process_tracker->SetThreadNameIfUnset(utid, name_id);
+}
 
 void TrackEventParser::ParseTrackEvent(
     int64_t ts,
@@ -353,7 +494,7 @@ void TrackEventParser::ParseTrackEvent(
 
     utid = procs->UpdateThread(tid, pid);
     upid = storage->thread_table().upid()[*utid];
-    track_id = track_tracker->GetOrCreateDescriptorTrackForThread(*utid);
+    track_id = track_tracker->InternThreadTrack(*utid);
   } else {
     track_id = track_tracker->GetOrCreateDefaultDescriptorTrack();
   }

@@ -79,7 +79,7 @@ class ProcessTracker {
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
   UniquePid StartNewProcess(int64_t timestamp,
-                            uint32_t parent_tid,
+                            base::Optional<uint32_t> parent_tid,
                             uint32_t pid,
                             StringId main_thread_name);
 
