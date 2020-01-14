@@ -977,7 +977,6 @@ source_set("libunwindstack") {
     "android-core/base/stringprintf.cpp",
     "android-core/base/strings.cpp",
     "android-core/base/threads.cpp",
-    "android-core/demangle/Demangler.cpp",
     "android-core/libunwindstack/ArmExidx.cpp",
     "android-core/libunwindstack/DwarfCfa.cpp",
     "android-core/libunwindstack/DwarfEhFrameWithHdr.cpp",
