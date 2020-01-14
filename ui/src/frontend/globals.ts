@@ -20,6 +20,7 @@ import {CallsiteInfo, createEmptyState, State} from '../common/state';
 
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
+import {ServiceWorkerController} from './service_worker_controller';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
@@ -85,6 +86,7 @@ class Globals {
   private _state?: State = undefined;
   private _frontendLocalState?: FrontendLocalState = undefined;
   private _rafScheduler?: RafScheduler = undefined;
+  private _serviceWorkerController?: ServiceWorkerController = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
@@ -126,6 +128,7 @@ class Globals {
     this._state = createEmptyState();
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
+    this._serviceWorkerController = new ServiceWorkerController();
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     this._trackDataStore = new Map<string, {}>();
@@ -155,6 +158,10 @@ class Globals {
 
   get rafScheduler() {
     return assertExists(this._rafScheduler);
+  }
+
+  get serviceWorkerController() {
+    return assertExists(this._serviceWorkerController);
   }
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
@@ -262,6 +269,7 @@ class Globals {
     this._state = undefined;
     this._frontendLocalState = undefined;
     this._rafScheduler = undefined;
+    this._serviceWorkerController = undefined;
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     this._trackDataStore = undefined;

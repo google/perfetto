@@ -78,7 +78,7 @@ class FrontendApi {
   // want to keep in the global state. Figure out a more generic and type-safe
   // mechanism to achieve this.
 
-  publishOverviewData(data: {[key: string]: QuantizedLoad | QuantizedLoad[]}) {
+  publishOverviewData(data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
     for (const [key, value] of Object.entries(data)) {
       if (!globals.overviewStore.has(key)) {
         globals.overviewStore.set(key, []);
@@ -251,6 +251,7 @@ function main() {
       dispatch);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
   globals.initialize(dispatch, controller);
+  globals.serviceWorkerController.install();
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
