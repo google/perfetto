@@ -28,23 +28,44 @@ nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
 # +----------------------------------------------------------------------------+
 # | The outer "ui" target to just ninja -C out/xxx ui                          |
 # +----------------------------------------------------------------------------+
+
 group("ui") {
   deps = [
-    ":assets_dist",
-    ":catapult_dist",
     ":chrome_extension_assets_dist",
     ":chrome_extension_bundle_dist",
-    ":controller_bundle_dist",
-    ":engine_bundle_dist",
-    ":frontend_bundle_dist",
-    ":index_dist",
-    ":scss",
+    ":dist",
+    ":gen_dist_file_map",
+    ":service_worker_bundle_dist",
     ":test_scripts",
-    ":typefaces_dist",
-    ":wasm_dist",
+
+    # IMPORTANT: Only add deps here if they are NOT part of the production UI
+    # (e.g., tests, extensions, ...). Any UI dep should go in the
+    # |ui_dist_targets| list below. The only exception is the service worker
+    # target, that depends on that list.
   ]
 }
 
+# The list of targets that produces dist/ files for the UI. This list is used
+# also by the gen_dist_file_map to generate the map of hashes of all UI files,
+# which is turn used by the service worker code for the offline caching.
+ui_dist_targets = [
+  ":assets_dist",
+  ":catapult_dist",
+  ":controller_bundle_dist",
+  ":engine_bundle_dist",
+  ":frontend_bundle_dist",
+  ":index_dist",
+  ":scss",
+  ":typefaces_dist",
+  ":wasm_dist",
+]
+
+# Buils the ui, but not service worker, tests and extensions.
+group("dist") {
+  deps = ui_dist_targets
+}
+
+# A minimal page to profile the WASM engine without the all UI.
 group("query") {
   deps = [
     ":query_bundle_dist",
@@ -182,6 +203,14 @@ bundle("engine_bundle") {
   output = "$target_out_dir/engine_bundle.js"
 }
 
+bundle("service_worker_bundle") {
+  deps = [
+    ":transpile_service_worker_ts",
+  ]
+  input = "$target_out_dir/service_worker/service_worker.js"
+  output = "$target_out_dir/service_worker.js"
+}
+
 bundle("query_bundle") {
   deps = [
     ":transpile_all_ts",
@@ -270,6 +299,7 @@ node_bin("transpile_all_ts") {
                 "--filter=*.ts",
                 "--exclude=node_modules",
                 "--exclude=dist",
+                "--exclude=service_worker",
                 "--deps=obj/ui/frontend/index.js",
                 "--output=" + rebase_path(depfile),
               ],
@@ -279,6 +309,28 @@ node_bin("transpile_all_ts") {
   args = [
     "--project",
     rebase_path(".", root_build_dir),
+    "--outDir",
+    rebase_path(target_out_dir, root_build_dir),
+  ]
+}
+
+node_bin("transpile_service_worker_ts") {
+  deps = [
+    ":dist_symlink",
+    ":gen_dist_file_map",
+  ]
+  inputs = [
+    "tsconfig.json",
+    "src/service_worker/service_worker.ts",
+  ]
+  outputs = [
+    "$target_out_dir/service_worker/service_worker.js",
+  ]
+
+  node_cmd = "tsc"
+  args = [
+    "--project",
+    rebase_path("src/service_worker", root_build_dir),
     "--outDir",
     rebase_path(target_out_dir, root_build_dir),
   ]
@@ -422,6 +474,14 @@ sorcery("engine_bundle_dist") {
   ]
   input = "$target_out_dir/engine_bundle.js"
   output = "$ui_dir/engine_bundle.js"
+}
+
+sorcery("service_worker_bundle_dist") {
+  deps = [
+    ":service_worker_bundle",
+  ]
+  input = "$target_out_dir/service_worker.js"
+  output = "$ui_dir/service_worker.js"
 }
 
 sorcery("query_bundle_dist") {
@@ -584,4 +644,33 @@ copy("copy_tests_script") {
   outputs = [
     "$root_build_dir/ui_tests",
   ]
+}
+
+# This target generates an map containing all the UI subresources and their
+# hashes. This is used by the service worker code for offline caching.
+# This taarget needs to be kept at the end of the BUILD.gn file, because of the
+# get_target_outputs() call (fails otherwise due to GN's evaluation order).
+action("gen_dist_file_map") {
+  out_file_path = "$ui_gen_dir/dist_file_map.ts"
+
+  dist_files = []
+  foreach(target, ui_dist_targets) {
+    foreach(dist_file, get_target_outputs(target)) {
+      dist_files += [ rebase_path(dist_file, root_build_dir) ]
+    }
+  }
+  deps = [
+    ":dist",
+  ]
+  script = "../gn/standalone/write_ui_dist_file_map.py"
+  inputs = []
+  outputs = [
+    out_file_path,
+  ]
+  args = [
+           "--out",
+           rebase_path(out_file_path, root_build_dir),
+           "--strip",
+           rebase_path(ui_dir, root_build_dir),
+         ] + dist_files
 }

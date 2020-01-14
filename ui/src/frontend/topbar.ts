@@ -229,8 +229,39 @@ class Progress implements m.ClassComponent {
   }
 }
 
+
+class NewVersionNotification implements m.ClassComponent {
+  view() {
+    if (!globals.frontendLocalState.newVersionAvailable) return;
+    return m(
+        '.new-version-toast',
+        'A new version of the UI is available!',
+        m('button.notification-btn.preferred',
+          {
+            onclick: () => {
+              location.reload();
+            }
+          },
+          'Reload'),
+        m('button.notification-btn',
+          {
+            onclick: () => {
+              globals.frontendLocalState.newVersionAvailable = false;
+              globals.rafScheduler.scheduleFullRedraw();
+            }
+          },
+          'Dismiss'),
+    );
+  }
+}
+
 export class Topbar implements m.ClassComponent {
   view() {
-    return m('.topbar', m(Omnibox), m(Progress));
+    return m(
+        '.topbar',
+        globals.frontendLocalState.newVersionAvailable ?
+            m(NewVersionNotification) :
+            m(Omnibox),
+        m(Progress));
   }
 }

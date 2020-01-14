@@ -107,6 +107,7 @@ export class FrontendLocalState {
   currentTab?: Tab;
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
+  newVersionAvailable = false;
   private scrollBarWidth?: number;
 
   private _omniboxState: OmniboxState = {
