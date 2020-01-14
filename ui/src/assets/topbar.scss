@@ -201,4 +201,24 @@
             right: -90%;
         }
     }
+
+    .notification-btn {
+        @include transition(0.25s);
+        font-size: 16px;
+        padding: 8px 10px;
+        margin: 0 10px;
+        border-radius: 2px;
+        background: hsl(210, 10%, 73%);
+        &:hover {
+            background: hsl(210, 10%, 83%);
+        }
+
+        &.preferred {
+            background: hsl(210, 98%, 53%);
+            color: #fff;
+            &:hover {
+                background: hsl(210, 98%, 63%);
+            }
+        }
+    }
 }

@@ -184,7 +184,7 @@
         }
       }
 
-      > .num-queued-queries {
+      > .dbg-info-square {
         width: 24px;
         height: 22px;
         line-height: 22px;
@@ -194,11 +194,15 @@
         border-radius: 5px;
         font-size: 12px;
         text-align: center;
-        &.rpc {
+        &.green {
           background: #7aca75;
           color: #12161b;
         }
-        &.failed {
+        &.amber {
+          background: #FFC107;
+          color: #333;
+        }
+        &.red {
           background: #d32f2f;
           color: #fff;
         }
