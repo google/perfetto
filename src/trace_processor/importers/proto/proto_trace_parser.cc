@@ -455,7 +455,8 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
     int64_t callstack_id = *maybe_callstack_id;
 
     tables::CpuProfileStackSampleTable::Row sample_row{
-        sequence_state->state()->IncrementAndGetTrackEventTimeNs(*timestamp_it),
+        sequence_state->state()->IncrementAndGetTrackEventTimeNs(*timestamp_it *
+                                                                 1000),
         callstack_id, utid};
     storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
