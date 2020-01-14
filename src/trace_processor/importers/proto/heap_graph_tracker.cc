@@ -242,7 +242,7 @@ void HeapGraphTracker::WriteFlamegraph(
     int32_t row_id = static_cast<int32_t>(callsite_id.value);
     node_to_row_id[i] = row_id;
 
-    tables::ExperimentalHeapGraphAllocationTable::Row alloc_row{
+    tables::ExperimentalFlamegraphNodesTable::Row alloc_row{
         sequence_state.current_ts,
         sequence_state.current_upid,
         row_id,
@@ -250,8 +250,8 @@ void HeapGraphTracker::WriteFlamegraph(
         static_cast<int64_t>(node_to_cumulative_count[i]),
         static_cast<int64_t>(node.size),
         static_cast<int64_t>(node_to_cumulative_size[i])};
-    context_->storage->mutable_experimental_heap_graph_allocation_table()
-        ->Insert(alloc_row);
+    context_->storage->mutable_experimental_flamegraph_nodes_table()->Insert(
+        alloc_row);
   }
 }
 
