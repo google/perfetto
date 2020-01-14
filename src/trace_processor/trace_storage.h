@@ -569,13 +569,13 @@ class TraceStorage {
     return &heap_profile_allocation_table_;
   }
 
-  const tables::ExperimentalHeapGraphAllocationTable&
-  experimental_heap_graph_allocation_table() const {
-    return experimental_heap_graph_allocation_table_;
+  const tables::ExperimentalFlamegraphNodesTable&
+  experimental_flamegraph_nodes_table() const {
+    return experimental_flamegraph_nodes_table_;
   }
-  tables::ExperimentalHeapGraphAllocationTable*
-  mutable_experimental_heap_graph_allocation_table() {
-    return &experimental_heap_graph_allocation_table_;
+  tables::ExperimentalFlamegraphNodesTable*
+  mutable_experimental_flamegraph_nodes_table() {
+    return &experimental_flamegraph_nodes_table_;
   }
 
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
@@ -805,8 +805,8 @@ class TraceStorage {
                                                                   nullptr};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
       &string_pool_, nullptr};
-  tables::ExperimentalHeapGraphAllocationTable
-      experimental_heap_graph_allocation_table_{&string_pool_, nullptr};
+  tables::ExperimentalFlamegraphNodesTable experimental_flamegraph_nodes_table_{
+      &string_pool_, nullptr};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, nullptr};
 
