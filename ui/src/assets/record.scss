@@ -693,7 +693,6 @@
 
       &.two-columns {
         height: 400px;
-        width: auto;
         margin: var(--record-section-padding);
         optgroup {
           display: grid;
@@ -716,10 +715,6 @@
   }
 
   .ftrace-events {
-    height: 152px;
-  }
-
-  .chrome-categories {
     height: 152px;
   }
 
@@ -774,6 +769,8 @@
       font-size: 12px;
       line-height: 20px;
       overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
 
       // 510px and not 500px, so the overflowing line gets truncated, giving
       // a clear indication that the code box scrolls.
