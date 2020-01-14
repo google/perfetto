@@ -39,9 +39,13 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+inline bool isspace(unsigned char c) {
+  return ::isspace(c);
+}
+
 std::string RemoveWhitespace(const std::string& input) {
   std::string str(input);
-  str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
+  str.erase(std::remove_if(str.begin(), str.end(), isspace), str.end());
   return str;
 }
 
