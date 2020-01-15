@@ -517,7 +517,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   if (bundle.has_metadata()) {
     RawId id = storage->mutable_raw_table()->Insert(
         {ts, raw_chrome_metadata_event_id_, 0, 0});
-    uint32_t row = *storage->raw_table().id().IndexOf(id);
+    auto inserter = args.AddArgsTo(id);
 
     // Metadata is proxied via a special event in the raw table to JSON export.
     for (auto it = bundle.metadata(); it; ++it) {
@@ -537,14 +537,13 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
         context_->storage->IncrementStats(stats::empty_chrome_metadata);
         continue;
       }
-      args.AddArg(TableId::kRawEvents, row, name_id, name_id, value);
+      args.AddArgsTo(id).AddArg(name_id, value);
     }
   }
 
   if (bundle.has_legacy_ftrace_output()) {
     RawId id = storage->mutable_raw_table()->Insert(
         {ts, raw_chrome_legacy_system_trace_event_id_, 0, 0});
-    uint32_t row = *storage->raw_table().id().IndexOf(id);
 
     std::string data;
     for (auto it = bundle.legacy_ftrace_output(); it; ++it) {
@@ -552,7 +551,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
     }
     Variadic value =
         Variadic::String(storage->InternString(base::StringView(data)));
-    args.AddArg(TableId::kRawEvents, row, data_name_id_, data_name_id_, value);
+    args.AddArgsTo(id).AddArg(data_name_id_, value);
   }
 
   if (bundle.has_legacy_json_trace()) {
@@ -564,11 +563,9 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       }
       RawId id = storage->mutable_raw_table()->Insert(
           {ts, raw_chrome_legacy_user_trace_event_id_, 0, 0});
-      uint32_t row = *storage->raw_table().id().IndexOf(id);
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
-      args.AddArg(TableId::kRawEvents, row, data_name_id_, data_name_id_,
-                  value);
+      args.AddArgsTo(id).AddArg(data_name_id_, value);
     }
   }
 }

@@ -375,15 +375,14 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
 
   RawId id = storage->mutable_raw_table()->Insert(
       {0, storage->InternString("chrome_event.metadata"), 0, 0});
-  uint32_t row = *storage->raw_table().id().IndexOf(id);
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
   StringId value1_id = storage->InternString(base::StringView(kValue1));
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, name1_id, name1_id,
-                                Variadic::String(value1_id));
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, name2_id, name2_id,
-                                Variadic::Integer(kValue2));
+
+  context_.args_tracker->AddArgsTo(id)
+      .AddArg(name1_id, Variadic::String(value1_id))
+      .AddArg(name2_id, Variadic::Integer(kValue2));
   context_.args_tracker->Flush();
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -456,12 +455,10 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
   StringId name_id = storage->InternString(base::StringView(kName));
   SliceId id = storage->mutable_slice_table()->Insert(
       {0, 0, track.value, cat_id, name_id, 0, 0, 0});
-  uint32_t row = *storage->slice_table().id().IndexOf(id);
+  auto inserter = context_.args_tracker->AddArgsTo(id);
 
   auto add_arg = [&](const char* key, Variadic value) {
-    StringId key_id = storage->InternString(key);
-    context_.args_tracker->AddArg(TableId::kNestableSlices, row, key_id, key_id,
-                                  value);
+    inserter.AddArg(storage->InternString(key), value);
   };
 
   add_arg("legacy_event.bind_id", Variadic::UnsignedInteger(kBindId));
@@ -1047,12 +1044,11 @@ TEST_F(ExportJsonTest, RawEvent) {
   RawId id = storage->mutable_raw_table()->Insert(
       {kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
        utid});
-  uint32_t row = *storage->raw_table().id().IndexOf(id);
+  auto inserter = context_.args_tracker->AddArgsTo(id);
 
   auto add_arg = [&](const char* key, Variadic value) {
     StringId key_id = storage->InternString(key);
-    context_.args_tracker->AddArg(TableId::kRawEvents, row, key_id, key_id,
-                                  value);
+    inserter.AddArg(key_id, value);
   };
 
   StringId cat_id = storage->InternString(base::StringView(kCategory));
@@ -1123,26 +1119,23 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
   RawId id = storage->mutable_raw_table()->Insert(
       {0, storage->InternString("chrome_event.legacy_system_trace"), 0, 0});
-  uint32_t row = *storage->raw_table().id().IndexOf(id);
+  auto inserter = context_.args_tracker->AddArgsTo(id);
 
   StringId data_id = storage->InternString("data");
   StringId ftrace_data_id = storage->InternString(kLegacyFtraceData);
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
-                                Variadic::String(ftrace_data_id));
+  inserter.AddArg(data_id, Variadic::String(ftrace_data_id));
 
   id = storage->mutable_raw_table()->Insert(
       {0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0});
-  row = *storage->raw_table().id().IndexOf(id);
+  inserter = context_.args_tracker->AddArgsTo(id);
   StringId json_data1_id = storage->InternString(kLegacyJsonData1);
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
-                                Variadic::String(json_data1_id));
+  inserter.AddArg(data_id, Variadic::String(json_data1_id));
 
   id = storage->mutable_raw_table()->Insert(
       {0, storage->InternString("chrome_event.legacy_user_trace"), 0, 0});
-  row = *storage->raw_table().id().IndexOf(id);
+  inserter = context_.args_tracker->AddArgsTo(id);
   StringId json_data2_id = storage->InternString(kLegacyJsonData2);
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, data_id, data_id,
-                                Variadic::String(json_data2_id));
+  inserter.AddArg(data_id, Variadic::String(json_data2_id));
 
   context_.args_tracker->Flush();
 
@@ -1249,18 +1242,16 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   StringId arg2_id = context_.storage->InternString(base::StringView("arg2"));
   StringId val_id = context_.storage->InternString(base::StringView("val"));
 
-  std::array<uint32_t, 3> slice_rows;
+  std::vector<ArgsTracker::BoundInserter> slice_inserters;
   for (size_t i = 0; i < name_ids.size(); i++) {
     auto slice_id = context_.storage->mutable_slice_table()->Insert(
         {0, 0, track.value, cat_id, name_ids[i], 0, 0, 0});
-    slice_rows[i] = *context_.storage->slice_table().id().IndexOf(slice_id);
+    slice_inserters.emplace_back(context_.args_tracker->AddArgsTo(slice_id));
   }
 
-  for (uint32_t row : slice_rows) {
-    context_.args_tracker->AddArg(TableId::kNestableSlices, row, arg1_id,
-                                  arg1_id, Variadic::Integer(5));
-    context_.args_tracker->AddArg(TableId::kNestableSlices, row, arg2_id,
-                                  arg2_id, Variadic::String(val_id));
+  for (auto& inserter : slice_inserters) {
+    inserter.AddArg(arg1_id, Variadic::Integer(5))
+        .AddArg(arg2_id, Variadic::String(val_id));
   }
   context_.args_tracker->Flush();
 
@@ -1316,15 +1307,14 @@ TEST_F(ExportJsonTest, MetadataFilter) {
 
   RawId id = storage->mutable_raw_table()->Insert(
       {0, storage->InternString("chrome_event.metadata"), 0, 0});
-  uint32_t row = *storage->raw_table().id().IndexOf(id);
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
   StringId value1_id = storage->InternString(base::StringView(kValue1));
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, name1_id, name1_id,
-                                Variadic::String(value1_id));
-  context_.args_tracker->AddArg(TableId::kRawEvents, row, name2_id, name2_id,
-                                Variadic::Integer(kValue2));
+
+  context_.args_tracker->AddArgsTo(id)
+      .AddArg(name1_id, Variadic::String(value1_id))
+      .AddArg(name2_id, Variadic::Integer(kValue2));
   context_.args_tracker->Flush();
 
   auto metadata_filter = [](const char* metadata_name) {
