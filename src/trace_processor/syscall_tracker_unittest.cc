@@ -64,8 +64,8 @@ class SyscallTrackerTest : public ::testing::Test {
 
 TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
   constexpr TrackId track{0u};
-  StringId begin_name = 0;
-  StringId end_name = 0;
+  StringId begin_name = kNullStringId;
+  StringId end_name = kNullStringId;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(base::nullopt)));
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
@@ -90,8 +90,8 @@ TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
 
 TEST_F(SyscallTrackerTest, Aarch64) {
   constexpr TrackId track{0u};
-  StringId begin_name = 0;
-  StringId end_name = 0;
+  StringId begin_name = kNullStringId;
+  StringId end_name = kNullStringId;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(base::nullopt)));
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
@@ -107,8 +107,8 @@ TEST_F(SyscallTrackerTest, Aarch64) {
 
 TEST_F(SyscallTrackerTest, x8664) {
   constexpr TrackId track{0u};
-  StringId begin_name = 0;
-  StringId end_name = 0;
+  StringId begin_name = kNullStringId;
+  StringId end_name = kNullStringId;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
       .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(base::nullopt)));
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))

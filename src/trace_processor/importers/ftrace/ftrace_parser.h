@@ -98,7 +98,7 @@ class FtraceParser {
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
-    StringId message_name_id = 0;
+    StringId message_name_id = kNullStringId;
     std::array<StringId, kMaxFtraceEventFields> field_name_ids;
   };
   std::vector<FtraceMessageStrings> ftrace_message_strings_;
@@ -108,9 +108,9 @@ class FtraceParser {
     MmEventCounterNames(StringId _count, StringId _max_lat, StringId _avg_lat)
         : count(_count), max_lat(_max_lat), avg_lat(_avg_lat) {}
 
-    StringId count = 0;
-    StringId max_lat = 0;
-    StringId avg_lat = 0;
+    StringId count = kNullStringId;
+    StringId max_lat = kNullStringId;
+    StringId avg_lat = kNullStringId;
   };
 
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.

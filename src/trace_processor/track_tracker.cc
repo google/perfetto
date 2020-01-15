@@ -81,7 +81,7 @@ TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
 }
 
 TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
-  GpuTrackTuple tuple{row.name.id, row.scope, row.context_id.value_or(0)};
+  GpuTrackTuple tuple{row.name, row.scope, row.context_id.value_or(0)};
 
   auto it = gpu_tracks_.find(tuple);
   if (it != gpu_tracks_.end())

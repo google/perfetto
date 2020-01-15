@@ -131,8 +131,8 @@ class TrackTracker {
   // Creates a counter track associated with a GPU into the storage.
   TrackId CreateGpuCounterTrack(StringId name,
                                 uint32_t gpu_id,
-                                StringId description = 0,
-                                StringId unit = 0);
+                                StringId description = StringId::Null(),
+                                StringId unit = StringId::Null());
 
  private:
   struct GpuTrackTuple {
@@ -148,7 +148,7 @@ class TrackTracker {
   struct ChromeTrackTuple {
     base::Optional<int64_t> upid;
     int64_t source_id = 0;
-    StringId source_scope = 0;
+    StringId source_scope = StringId::Null();
 
     friend bool operator<(const ChromeTrackTuple& l,
                           const ChromeTrackTuple& r) {
@@ -212,17 +212,17 @@ class TrackTracker {
   std::map<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
   std::map<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
-  const StringId source_key_ = 0;
-  const StringId source_id_key_ = 0;
-  const StringId source_id_is_process_scoped_key_ = 0;
-  const StringId source_scope_key_ = 0;
+  const StringId source_key_ = kNullStringId;
+  const StringId source_id_key_ = kNullStringId;
+  const StringId source_id_is_process_scoped_key_ = kNullStringId;
+  const StringId source_scope_key_ = kNullStringId;
 
-  const StringId fuchsia_source_ = 0;
-  const StringId chrome_source_ = 0;
-  const StringId android_source_ = 0;
-  const StringId descriptor_source_ = 0;
+  const StringId fuchsia_source_ = kNullStringId;
+  const StringId chrome_source_ = kNullStringId;
+  const StringId android_source_ = kNullStringId;
+  const StringId descriptor_source_ = kNullStringId;
 
-  const StringId default_descriptor_track_name_ = 0;
+  const StringId default_descriptor_track_name_ = kNullStringId;
 
   TraceProcessorContext* const context_;
 };

@@ -109,7 +109,8 @@ void SystraceParser::ParseSystracePoint(
       StringId name_id = context_->storage->InternString(point.name);
       UniqueTid utid = context_->process_tracker->UpdateThread(pid, point.tgid);
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->Begin(ts, track_id, 0 /* cat */, name_id);
+      context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
+                                     name_id);
       break;
     }
 
@@ -142,7 +143,7 @@ void SystraceParser::ParseSystracePoint(
       TrackId track_id = context_->track_tracker->InternAndroidAsyncTrack(
           name_id, upid, cookie);
       if (point.phase == 'S') {
-        context_->slice_tracker->Begin(ts, track_id, 0, name_id);
+        context_->slice_tracker->Begin(ts, track_id, kNullStringId, name_id);
       } else {
         context_->slice_tracker->End(ts, track_id);
       }

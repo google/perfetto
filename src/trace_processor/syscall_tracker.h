@@ -58,7 +58,8 @@ class SyscallTracker : public Destructible {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (!name.is_null()) {
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->Begin(ts, track_id, 0 /* cat */, name);
+      context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
+                                     name);
     }
   }
 
@@ -66,7 +67,7 @@ class SyscallTracker : public Destructible {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (!name.is_null()) {
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->End(ts, track_id, 0 /* cat */, name);
+      context_->slice_tracker->End(ts, track_id, kNullStringId /* cat */, name);
     }
   }
 
@@ -77,14 +78,14 @@ class SyscallTracker : public Destructible {
 
   inline StringId SyscallNumberToStringId(uint32_t syscall_num) {
     if (syscall_num > kMaxSyscalls)
-      return 0;
+      return kNullStringId;
     // We see two write sys calls around each userspace slice that is going via
     // trace_marker, this violates the assumption that userspace slices are
     // perfectly nested. For the moment ignore all write sys calls.
     // TODO(hjd): Remove this limitation.
     StringId id = arch_syscall_to_string_id_[syscall_num];
     if (id == sys_write_string_id_)
-      return 0;
+      return kNullStringId;
     return id;
   }
 
