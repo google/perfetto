@@ -114,7 +114,7 @@ TEST_F(EventTrackerTest, InsertThirdSched_SameThread) {
 TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
-  StringId name_id = 0;
+  StringId name_id = kNullStringId;
 
   TrackId track = context.track_tracker->InternCpuCounterTrack(name_id, cpu);
   context.event_tracker->PushCounter(timestamp, 1000, track);

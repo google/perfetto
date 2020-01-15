@@ -47,8 +47,8 @@ class SystraceTraceParser : public ChunkedTraceReader {
   util::Status ParseSingleSystraceEvent(const std::string& buffer);
 
   TraceProcessorContext* const context_;
-  const StringId sched_wakeup_name_id_ = 0;
-  const StringId cpu_idle_name_id_ = 0;
+  const StringId sched_wakeup_name_id_ = kNullStringId;
+  const StringId cpu_idle_name_id_ = kNullStringId;
   const std::regex line_matcher_;
 
   ParseState state_ = ParseState::kBeforeParse;

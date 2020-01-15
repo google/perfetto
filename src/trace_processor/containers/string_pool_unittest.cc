@@ -27,8 +27,6 @@ namespace trace_processor {
 class StringPoolTest : public testing::Test {
  protected:
   static constexpr size_t kNumBlockOffsetBits = StringPool::kNumBlockOffsetBits;
-  static constexpr size_t kLargeStringFlagBitMask =
-      StringPool::kLargeStringFlagBitMask;
   static constexpr size_t kBlockIndexBitMask = StringPool::kBlockIndexBitMask;
   static constexpr size_t kBlockSizeBytes = StringPool::kBlockSizeBytes;
   static constexpr size_t kMinLargeStringSizeBytes =
@@ -40,7 +38,7 @@ class StringPoolTest : public testing::Test {
 namespace {
 
 TEST_F(StringPoolTest, EmptyPool) {
-  ASSERT_EQ(pool_.Get(0).c_str(), nullptr);
+  ASSERT_EQ(pool_.Get(StringPool::Id::Null()).c_str(), nullptr);
 
   auto it = pool_.CreateIterator();
   ASSERT_TRUE(it);
@@ -58,7 +56,7 @@ TEST_F(StringPoolTest, InternAndRetrieve) {
 
 TEST_F(StringPoolTest, NullPointerHandling) {
   auto id = pool_.InternString(NullTermStringView());
-  ASSERT_EQ(id, 0u);
+  ASSERT_TRUE(id.is_null());
   ASSERT_EQ(pool_.Get(id).c_str(), nullptr);
 }
 
@@ -122,7 +120,7 @@ TEST_F(StringPoolTest, StressTest) {
     auto it_pair = string_map.equal_range(it.StringId());
     for (auto in_it = it_pair.first; in_it != it_pair.second; ++in_it) {
       ASSERT_EQ(it.StringView(), in_it->second)
-          << it.StringId().id << ": " << it.StringView().Hash() << " vs "
+          << it.StringId().raw_id() << ": " << it.StringView().Hash() << " vs "
           << in_it->second.Hash();
     }
     string_map.erase(it_pair.first, it_pair.second);
@@ -178,21 +176,21 @@ TEST_F(StringPoolTest, BigString) {
                                  big_strings[i].get(), kStringSizes[i])));
   }
 
-  ASSERT_FALSE(string_ids[0].id & kLargeStringFlagBitMask);
-  ASSERT_FALSE(string_ids[1].id & kLargeStringFlagBitMask);
-  ASSERT_TRUE(string_ids[2].id & kLargeStringFlagBitMask);
-  ASSERT_FALSE(string_ids[3].id & kLargeStringFlagBitMask);
-  ASSERT_FALSE(string_ids[4].id & kLargeStringFlagBitMask);
-  ASSERT_FALSE(string_ids[5].id & kLargeStringFlagBitMask);
-  ASSERT_TRUE(string_ids[6].id & kLargeStringFlagBitMask);
-  ASSERT_FALSE(string_ids[7].id & kLargeStringFlagBitMask);
+  ASSERT_FALSE(string_ids[0].is_large_string());
+  ASSERT_FALSE(string_ids[1].is_large_string());
+  ASSERT_TRUE(string_ids[2].is_large_string());
+  ASSERT_FALSE(string_ids[3].is_large_string());
+  ASSERT_FALSE(string_ids[4].is_large_string());
+  ASSERT_FALSE(string_ids[5].is_large_string());
+  ASSERT_TRUE(string_ids[6].is_large_string());
+  ASSERT_FALSE(string_ids[7].is_large_string());
 
-  ASSERT_EQ(string_ids[0].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
-  ASSERT_EQ(string_ids[1].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
-  ASSERT_EQ(string_ids[3].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
-  ASSERT_EQ(string_ids[4].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
-  ASSERT_EQ(string_ids[5].id & kBlockIndexBitMask, 1u << kNumBlockOffsetBits);
-  ASSERT_EQ(string_ids[7].id & kBlockIndexBitMask, 1u << kNumBlockOffsetBits);
+  ASSERT_EQ(string_ids[0].block_index(), 0u);
+  ASSERT_EQ(string_ids[1].block_index(), 0u);
+  ASSERT_EQ(string_ids[3].block_index(), 0u);
+  ASSERT_EQ(string_ids[4].block_index(), 0u);
+  ASSERT_EQ(string_ids[5].block_index(), 1u);
+  ASSERT_EQ(string_ids[7].block_index(), 1u);
 
   for (size_t i = 0; i < big_strings.size(); i++) {
     ASSERT_EQ(big_strings[i].get(), pool_.Get(string_ids[i]));

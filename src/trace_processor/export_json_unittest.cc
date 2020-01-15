@@ -226,7 +226,7 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
   constexpr int64_t kCookie = 22;
   TrackId track = context_.track_tracker->InternAndroidAsyncTrack(
-      /*name=*/0, /*upid=*/0, kCookie);
+      /*name=*/kNullStringId, /*upid=*/0, kCookie);
   context_.args_tracker->Flush();  // Flush track args.
 
   // System events have no category.
@@ -794,7 +794,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   constexpr int64_t kSourceId = 235;
   TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*source_id_is_process_scoped=*/true,
-      /*source_scope=*/0);
+      /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -885,7 +885,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   constexpr int64_t kSourceId = 235;
   TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*source_id_is_process_scoped=*/true,
-      /*source_scope=*/0);
+      /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
 
   auto slice_id = context_.storage->mutable_slice_table()->Insert(
@@ -940,7 +940,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   constexpr int64_t kSourceId = 235;
   TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*source_id_is_process_scoped=*/true,
-      /*source_scope=*/0);
+      /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
 
   auto slice_id = context_.storage->mutable_slice_table()->Insert(
@@ -983,7 +983,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   constexpr int64_t kSourceId = 235;
   TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
       name_id, upid, kSourceId, /*source_id_is_process_scoped=*/true,
-      /*source_scope=*/0);
+      /*source_scope=*/kNullStringId);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -1174,10 +1174,11 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   // TODO(140860736): Once we support null values for
   // stack_profile_frame.symbol_set_id remove this hack
-  storage->mutable_symbol_table()->Insert({0, 0, 0, 0});
+  storage->mutable_symbol_table()->Insert({0, kNullStringId, kNullStringId, 0});
 
   auto* frames = storage->mutable_stack_profile_frame_table();
-  auto frame_id_1 = frames->Insert({/*name_id=*/0, module_id_1.value, 0x42});
+  auto frame_id_1 =
+      frames->Insert({/*name_id=*/kNullStringId, module_id_1.value, 0x42});
   uint32_t frame_row_1 = *frames->id().IndexOf(frame_id_1);
 
   uint32_t symbol_set_id = storage->symbol_table().row_count();
@@ -1186,7 +1187,8 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
        storage->InternString("foo_file"), 66});
   frames->mutable_symbol_set_id()->Set(frame_row_1, symbol_set_id);
 
-  auto frame_id_2 = frames->Insert({/*name_id=*/0, module_id_2.value, 0x4242});
+  auto frame_id_2 =
+      frames->Insert({/*name_id=*/kNullStringId, module_id_2.value, 0x4242});
   uint32_t frame_row_2 = *frames->id().IndexOf(frame_id_2);
 
   symbol_set_id = storage->symbol_table().row_count();

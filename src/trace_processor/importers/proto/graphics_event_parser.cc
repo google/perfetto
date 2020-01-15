@@ -170,7 +170,7 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
         gpu_counter_track_ids_.end()) {
       auto desc = spec.description();
 
-      StringId unit_id = 0;
+      StringId unit_id = kNullStringId;
       if (spec.has_numerator_units() || spec.has_denominator_units()) {
         char buffer[1024];
         base::StringWriter unit(buffer, sizeof(buffer));
@@ -277,7 +277,7 @@ void GraphicsEventParser::InsertGpuTrack(
   StringId track_name = context_->storage->InternString(hw_queue.name());
   if (gpu_hw_queue_counter_ >= gpu_hw_queue_ids_.size() ||
       !gpu_hw_queue_ids_[gpu_hw_queue_counter_].has_value()) {
-    tables::GpuTrackTable::Row track(track_name.id);
+    tables::GpuTrackTable::Row track(track_name);
     track.scope = gpu_render_stage_scope_id_;
     track.description = context_->storage->InternString(hw_queue.description());
     if (gpu_hw_queue_counter_ >= gpu_hw_queue_ids_.size()) {
@@ -304,7 +304,7 @@ void GraphicsEventParser::InsertGpuTrack(
       context_->storage->mutable_gpu_track_table()->mutable_description()->Set(
           row, context_->storage->InternString(hw_queue.description()));
     } else {
-      tables::GpuTrackTable::Row track(track_name.id);
+      tables::GpuTrackTable::Row track(track_name);
       track.scope = gpu_render_stage_scope_id_;
       track.description =
           context_->storage->InternString(hw_queue.description());
@@ -426,7 +426,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       }
       StringId track_name =
           context_->storage->InternString(writer.GetStringView());
-      tables::GpuTrackTable::Row track(track_name.id);
+      tables::GpuTrackTable::Row track(track_name);
       track.scope = gpu_render_stage_scope_id_;
       track_id = context_->track_tracker->InternGpuTrack(track);
       gpu_hw_queue_ids_.resize(hw_queue_id + 1);
@@ -508,7 +508,7 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   const uint32_t frame_number =
       event.has_frame_number() ? event.frame_number() : 0;
 
-  tables::GpuTrackTable::Row track(track_name_id.id);
+  tables::GpuTrackTable::Row track(track_name_id);
   track.scope = graphics_event_scope_id_;
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
@@ -532,7 +532,7 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
     if (previous_timestamp_ == 0) {
       const StringId present_track_name_id =
           context_->storage->InternString("Displayed Frame");
-      tables::GpuTrackTable::Row present_track(present_track_name_id.id);
+      tables::GpuTrackTable::Row present_track(present_track_name_id);
       present_track.scope = graphics_event_scope_id_;
       present_track_id_ =
           context_->track_tracker->InternGpuTrack(present_track);
@@ -770,7 +770,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
                     sequence_state,
                     static_cast<uint64_t>(annotation.string_iid()));
 
-        inserter.AddArg(key_id, Variadic::String(string_id.id));
+        inserter.AddArg(key_id, Variadic::String(string_id));
       }
     }
   }
@@ -779,7 +779,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
 void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuLog::Decoder event(blob.data, blob.size);
 
-  tables::GpuTrackTable::Row track(gpu_log_track_name_id_.id);
+  tables::GpuTrackTable::Row track(gpu_log_track_name_id_);
   track.scope = gpu_log_scope_id_;
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
