@@ -31,8 +31,8 @@ namespace trace_processor {
 class GlobalArgsTracker {
  public:
   struct Arg {
-    StringId flat_key = 0;
-    StringId key = 0;
+    StringId flat_key = kNullStringId;
+    StringId key = kNullStringId;
     Variadic value = Variadic::Integer(0);
 
     Column* column;

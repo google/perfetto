@@ -668,15 +668,15 @@ TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
   EXPECT_CALL(*process_, GetOrCreateProcess(16)).WillOnce(testing::Return(2u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("OldProcessName")))
-      .WillOnce(Return(1));
-  EXPECT_CALL(*process_, SetProcessNameIfUnset(1u, StringId(1)));
+      .WillOnce(Return(StringId::Raw(1)));
+  EXPECT_CALL(*process_, SetProcessNameIfUnset(1u, StringId::Raw(1)));
   // Packet with same thread, but different name should update the name.
   EXPECT_CALL(*storage_, InternString(base::StringView("NewProcessName")))
-      .WillOnce(Return(2));
-  EXPECT_CALL(*process_, SetProcessNameIfUnset(1u, StringId(2)));
+      .WillOnce(Return(StringId::Raw(2)));
+  EXPECT_CALL(*process_, SetProcessNameIfUnset(1u, StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("DifferentProcessName")))
-      .WillOnce(Return(3));
-  EXPECT_CALL(*process_, SetProcessNameIfUnset(2u, StringId(3)));
+      .WillOnce(Return(StringId::Raw(3)));
+  EXPECT_CALL(*process_, SetProcessNameIfUnset(2u, StringId::Raw(3)));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -724,15 +724,15 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
   EXPECT_CALL(*process_, UpdateThread(11, 15)).WillOnce(testing::Return(2u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("OldThreadName")))
-      .WillOnce(Return(1));
-  EXPECT_CALL(*process_, SetThreadNameIfUnset(1u, StringId(1)));
+      .WillOnce(Return(StringId::Raw(1)));
+  EXPECT_CALL(*process_, SetThreadNameIfUnset(1u, StringId::Raw(1)));
   // Packet with same thread, but different name should update the name.
   EXPECT_CALL(*storage_, InternString(base::StringView("NewThreadName")))
-      .WillOnce(Return(2));
-  EXPECT_CALL(*process_, SetThreadNameIfUnset(1u, StringId(2)));
+      .WillOnce(Return(StringId::Raw(2)));
+  EXPECT_CALL(*process_, SetThreadNameIfUnset(1u, StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("DifferentThreadName")))
-      .WillOnce(Return(3));
-  EXPECT_CALL(*process_, SetThreadNameIfUnset(2u, StringId(3)));
+      .WillOnce(Return(StringId::Raw(3)));
+  EXPECT_CALL(*process_, SetThreadNameIfUnset(2u, StringId::Raw(3)));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -1017,38 +1017,38 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   constexpr TrackId process_2_track{1u};
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2,cat3")))
-      .WillOnce(Return(1));
+      .WillOnce(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
-      .WillOnce(Return(2));
+      .WillOnce(Return(StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillRepeatedly(Return(3));
+      .WillRepeatedly(Return(StringId::Raw(3)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillRepeatedly(Return(4));
+      .WillRepeatedly(Return(StringId::Raw(4)));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   MockBoundInserter inserter;
-  EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, StringId(1), StringId(2),
-                              23000, _))
+  EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, StringId::Raw(1),
+                              StringId::Raw(2), 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(9999u)));
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::Boolean(true)));
   EXPECT_CALL(inserter, AddArg(_, _, _));
 
-  EXPECT_CALL(*slice_,
-              Begin(1010000, thread_1_track, StringId(3), StringId(4), _))
+  EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, StringId::Raw(3),
+                             StringId::Raw(4), _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
-  EXPECT_CALL(*slice_,
-              End(1020000, thread_1_track, StringId(3), StringId(4), _))
+  EXPECT_CALL(*slice_, End(1020000, thread_1_track, StringId::Raw(3),
+                           StringId::Raw(4), _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
-  EXPECT_CALL(*slice_,
-              Scoped(1040000, thread_1_track, StringId(3), StringId(4), 0, _))
+  EXPECT_CALL(*slice_, Scoped(1040000, thread_1_track, StringId::Raw(3),
+                              StringId::Raw(4), 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(2u)));
 
-  EXPECT_CALL(*slice_,
-              Scoped(1050000, process_2_track, StringId(3), StringId(4), 0, _))
+  EXPECT_CALL(*slice_, Scoped(1050000, process_2_track, StringId::Raw(3),
+                              StringId::Raw(4), 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(3u)));
   // Second slice should have a legacy_event.original_tid arg.
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::Integer(16)));
@@ -1179,38 +1179,42 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   storage_->mutable_thread_table()->Insert(row);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillRepeatedly(Return(1));
+      .WillRepeatedly(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillRepeatedly(Return(2));
+      .WillRepeatedly(Return(StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
-      .WillRepeatedly(Return(4));
+      .WillRepeatedly(Return(StringId::Raw(4)));
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2")))
-      .WillRepeatedly(Return(3));
+      .WillRepeatedly(Return(StringId::Raw(3)));
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2:scope1")))
-      .WillOnce(Return(5));
-  EXPECT_CALL(*storage_, GetString(StringId(1))).WillRepeatedly(Return("cat1"));
-  EXPECT_CALL(*storage_, GetString(StringId(3))).WillRepeatedly(Return("cat2"));
+      .WillOnce(Return(StringId::Raw(5)));
+  EXPECT_CALL(*storage_, GetString(StringId::Raw(1)))
+      .WillRepeatedly(Return("cat1"));
+  EXPECT_CALL(*storage_, GetString(StringId::Raw(3)))
+      .WillRepeatedly(Return("cat2"));
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  EXPECT_CALL(*slice_, Begin(1010000, TrackId{1}, StringId(1), StringId(2), _))
+  EXPECT_CALL(*slice_,
+              Begin(1010000, TrackId{1}, StringId::Raw(1), StringId::Raw(2), _))
       .WillOnce(Return(0u));
+  EXPECT_CALL(*slice_, Scoped(1015000, TrackId{1}, StringId::Raw(1),
+                              StringId::Raw(4), 0, _));
+  EXPECT_CALL(*slice_, Scoped(1018000, TrackId{2}, StringId::Raw(3),
+                              StringId::Raw(4), 0, _));
   EXPECT_CALL(*slice_,
-              Scoped(1015000, TrackId{1}, StringId(1), StringId(4), 0, _));
-  EXPECT_CALL(*slice_,
-              Scoped(1018000, TrackId{2}, StringId(3), StringId(4), 0, _));
-  EXPECT_CALL(*slice_, End(1020000, TrackId{1}, StringId(1), StringId(2), _))
+              End(1020000, TrackId{1}, StringId::Raw(1), StringId::Raw(2), _))
       .WillOnce(Return(0u));
-  EXPECT_CALL(*slice_,
-              Scoped(1030000, TrackId{3}, StringId(3), StringId(4), 0, _));
+  EXPECT_CALL(*slice_, Scoped(1030000, TrackId{3}, StringId::Raw(3),
+                              StringId::Raw(4), 0, _));
 
   context_.sorter->ExtractEventsForced();
 
   // First track is for the thread; others are the async event tracks.
   EXPECT_EQ(storage_->track_table().row_count(), 4u);
-  EXPECT_EQ(storage_->track_table().name()[1], 2u);
-  EXPECT_EQ(storage_->track_table().name()[2], 4u);
-  EXPECT_EQ(storage_->track_table().name()[3], 4u);
+  EXPECT_EQ(storage_->track_table().name()[1], StringId::Raw(2u));
+  EXPECT_EQ(storage_->track_table().name()[2], StringId::Raw(4u));
+  EXPECT_EQ(storage_->track_table().name()[3], StringId::Raw(4u));
 
   EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
   EXPECT_EQ(storage_->process_track_table().upid()[0], 1u);
@@ -1356,40 +1360,42 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   storage_->mutable_thread_table()->Insert(t2);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("Thread track 1")))
-      .WillOnce(Return(10));
+      .WillOnce(Return(StringId::Raw(10)));
   EXPECT_CALL(*storage_, InternString(base::StringView("Async track 1")))
-      .WillOnce(Return(11));
+      .WillOnce(Return(StringId::Raw(11)));
   EXPECT_CALL(*storage_, InternString(base::StringView("Thread track 2")))
-      .WillOnce(Return(12));
+      .WillOnce(Return(StringId::Raw(12)));
 
   Tokenize();
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillOnce(Return(1));
+      .WillOnce(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, TrackId{1}, StringId(1), StringId(2), _))
+      .WillOnce(Return(StringId::Raw(2)));
+  EXPECT_CALL(*slice_,
+              Begin(1010000, TrackId{1}, StringId::Raw(1), StringId::Raw(2), _))
       .WillOnce(Return(0u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat2")))
-      .WillOnce(Return(3));
+      .WillOnce(Return(StringId::Raw(3)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
-      .WillOnce(Return(4));
-  EXPECT_CALL(*slice_,
-              Scoped(1015000, TrackId{0}, StringId(3), StringId(4), 0, _))
+      .WillOnce(Return(StringId::Raw(4)));
+  EXPECT_CALL(*slice_, Scoped(1015000, TrackId{0}, StringId::Raw(3),
+                              StringId::Raw(4), 0, _))
       .WillOnce(Return(1u));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat3")))
-      .WillOnce(Return(5));
+      .WillOnce(Return(StringId::Raw(5)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev3")))
-      .WillOnce(Return(6));
-  EXPECT_CALL(*slice_,
-              Scoped(1016000, TrackId{2}, StringId(5), StringId(6), 0, _))
+      .WillOnce(Return(StringId::Raw(6)));
+  EXPECT_CALL(*slice_, Scoped(1016000, TrackId{2}, StringId::Raw(5),
+                              StringId::Raw(6), 0, _))
       .WillOnce(Return(2u));
 
-  EXPECT_CALL(*slice_, End(1020000, TrackId{1}, StringId(0), StringId(0), _))
+  EXPECT_CALL(*slice_,
+              End(1020000, TrackId{1}, StringId::Raw(0), StringId::Raw(0), _))
       .WillOnce(Return(0u));
 
   context_.sorter->ExtractEventsForced();
@@ -1397,9 +1403,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   // First track is "Thread track 1"; second is "Async track 1", third is
   // "Thread track 2".
   EXPECT_EQ(storage_->track_table().row_count(), 3u);
-  EXPECT_EQ(storage_->track_table().name()[0], 10u);  // "Thread track 1"
-  EXPECT_EQ(storage_->track_table().name()[1], 11u);  // "Async track 1"
-  EXPECT_EQ(storage_->track_table().name()[2], 12u);  // "Thread track 2"
+  EXPECT_EQ(storage_->track_table().name()[0],
+            StringId::Raw(10u));  // "Thread track 1"
+  EXPECT_EQ(storage_->track_table().name()[1],
+            StringId::Raw(11u));  // "Async track 1"
+  EXPECT_EQ(storage_->track_table().name()[2],
+            StringId::Raw(12u));  // "Thread track 2"
   EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
   EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
   EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
@@ -1684,24 +1693,24 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   storage_->mutable_thread_table()->Insert(t2);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillRepeatedly(Return(1));
+      .WillRepeatedly(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev2")))
-      .WillRepeatedly(Return(2));
+      .WillRepeatedly(Return(StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillRepeatedly(Return(3));
+      .WillRepeatedly(Return(StringId::Raw(3)));
 
   constexpr TrackId thread_2_track{0u};
   constexpr TrackId thread_1_track{1u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  EXPECT_CALL(*slice_,
-              Begin(1005000, thread_2_track, StringId(1), StringId(2), _));
-  EXPECT_CALL(*slice_,
-              Begin(1010000, thread_1_track, StringId(1), StringId(3), _));
-  EXPECT_CALL(*slice_,
-              End(1015000, thread_2_track, StringId(1), StringId(2), _));
-  EXPECT_CALL(*slice_,
-              End(1020000, thread_1_track, StringId(1), StringId(3), _));
+  EXPECT_CALL(*slice_, Begin(1005000, thread_2_track, StringId::Raw(1),
+                             StringId::Raw(2), _));
+  EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, StringId::Raw(1),
+                             StringId::Raw(3), _));
+  EXPECT_CALL(*slice_, End(1015000, thread_2_track, StringId::Raw(1),
+                           StringId::Raw(2), _));
+  EXPECT_CALL(*slice_, End(1020000, thread_1_track, StringId::Raw(1),
+                           StringId::Raw(3), _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1840,81 +1849,86 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   storage_->mutable_thread_table()->Insert(row);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillRepeatedly(Return(1));
+      .WillRepeatedly(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillRepeatedly(Return(2));
+      .WillRepeatedly(Return(StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
-      .WillOnce(Return(3));
+      .WillOnce(Return(StringId::Raw(3)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2")))
-      .WillOnce(Return(4));
+      .WillOnce(Return(StringId::Raw(4)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child1")))
-      .WillRepeatedly(Return(5));
+      .WillRepeatedly(Return(StringId::Raw(5)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2")))
-      .WillRepeatedly(Return(6));
+      .WillRepeatedly(Return(StringId::Raw(6)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2[0]")))
-      .WillOnce(Return(7));
+      .WillOnce(Return(StringId::Raw(7)));
   EXPECT_CALL(*storage_, InternString(base::StringView("child21")))
-      .WillOnce(Return(8));
+      .WillOnce(Return(StringId::Raw(8)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2[1]")))
-      .WillOnce(Return(9));
+      .WillOnce(Return(StringId::Raw(9)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an2.child2[2]")))
-      .WillOnce(Return(10));
+      .WillOnce(Return(StringId::Raw(10)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an3")))
-      .WillOnce(Return(11));
+      .WillOnce(Return(StringId::Raw(11)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an4")))
-      .WillOnce(Return(12));
+      .WillOnce(Return(StringId::Raw(12)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an5")))
-      .WillOnce(Return(13));
+      .WillOnce(Return(StringId::Raw(13)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an6")))
-      .WillOnce(Return(14));
+      .WillOnce(Return(StringId::Raw(14)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an7")))
-      .WillOnce(Return(15));
+      .WillOnce(Return(StringId::Raw(15)));
   EXPECT_CALL(*storage_, InternString(base::StringView("val7")))
-      .WillOnce(Return(16));
+      .WillOnce(Return(StringId::Raw(16)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an8")))
-      .WillOnce(Return(17));
+      .WillOnce(Return(StringId::Raw(17)));
   EXPECT_CALL(*storage_, InternString(base::StringView("val8")))
-      .WillOnce(Return(18));
+      .WillOnce(Return(StringId::Raw(18)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an8_foo")))
-      .WillOnce(Return(19));
+      .WillOnce(Return(StringId::Raw(19)));
 
-  EXPECT_CALL(*storage_, GetString(StringId(4))).WillOnce(Return("debug.an2"));
+  EXPECT_CALL(*storage_, GetString(StringId::Raw(4)))
+      .WillOnce(Return("debug.an2"));
 
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  EXPECT_CALL(*slice_, Begin(1010000, track, StringId(1), StringId(2), _))
+  EXPECT_CALL(*slice_,
+              Begin(1010000, track, StringId::Raw(1), StringId::Raw(2), _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
-  EXPECT_CALL(inserter,
-              AddArg(StringId(3), StringId(3), Variadic::UnsignedInteger(10u)));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(3), StringId::Raw(3),
+                               Variadic::UnsignedInteger(10u)));
+
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(5), StringId::Raw(5),
+                               Variadic::Boolean(true)));
+
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(6), StringId::Raw(7),
+                               Variadic::String(StringId::Raw(8))));
 
   EXPECT_CALL(inserter,
-              AddArg(StringId(5), StringId(5), Variadic::Boolean(true)));
+              AddArg(StringId::Raw(6), StringId::Raw(9), Variadic::Real(2.2)));
 
-  EXPECT_CALL(inserter,
-              AddArg(StringId(6), StringId(7), Variadic::String(StringId(8))));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(6), StringId::Raw(10),
+                               Variadic::Integer(23)));
 
-  EXPECT_CALL(inserter, AddArg(StringId(6), StringId(9), Variadic::Real(2.2)));
-
-  EXPECT_CALL(inserter,
-              AddArg(StringId(6), StringId(10), Variadic::Integer(23)));
-
-  EXPECT_CALL(*slice_, End(1020000, track, StringId(1), StringId(2), _))
+  EXPECT_CALL(*slice_,
+              End(1020000, track, StringId::Raw(1), StringId::Raw(2), _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
-  EXPECT_CALL(inserter,
-              AddArg(StringId(11), StringId(11), Variadic::Integer(-3)));
-  EXPECT_CALL(inserter,
-              AddArg(StringId(12), StringId(12), Variadic::Boolean(true)));
-  EXPECT_CALL(inserter,
-              AddArg(StringId(13), StringId(13), Variadic::Real(-5.5)));
-  EXPECT_CALL(inserter,
-              AddArg(StringId(14), StringId(14), Variadic::Pointer(20u)));
-  EXPECT_CALL(inserter,
-              AddArg(StringId(15), StringId(15), Variadic::String(16)));
-  EXPECT_CALL(inserter, AddArg(StringId(17), StringId(17), Variadic::Json(18)));
-  EXPECT_CALL(inserter,
-              AddArg(StringId(19), StringId(19), Variadic::Integer(15)));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(11), StringId::Raw(11),
+                               Variadic::Integer(-3)));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(12), StringId::Raw(12),
+                               Variadic::Boolean(true)));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(13), StringId::Raw(13),
+                               Variadic::Real(-5.5)));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(14), StringId::Raw(14),
+                               Variadic::Pointer(20u)));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(15), StringId::Raw(15),
+                               Variadic::String(StringId::Raw(16))));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(17), StringId::Raw(17),
+                               Variadic::Json(StringId::Raw(18))));
+  EXPECT_CALL(inserter, AddArg(StringId::Raw(19), StringId::Raw(19),
+                               Variadic::Integer(15)));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1973,17 +1987,18 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   MockBoundInserter inserter;
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillOnce(Return(1));
+      .WillOnce(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillOnce(Return(2));
-  EXPECT_CALL(*slice_, Begin(1010000, track, StringId(1), StringId(2), _))
+      .WillOnce(Return(StringId::Raw(2)));
+  EXPECT_CALL(*slice_,
+              Begin(1010000, track, StringId::Raw(1), StringId::Raw(2), _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
   EXPECT_CALL(*storage_, InternString(base::StringView("file1")))
-      .WillOnce(Return(3));
+      .WillOnce(Return(StringId::Raw(3)));
   EXPECT_CALL(*storage_, InternString(base::StringView("func1")))
-      .WillOnce(Return(4));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(3)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(4)));
+      .WillOnce(Return(StringId::Raw(4)));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(StringId::Raw(3))));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(StringId::Raw(4))));
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(42)));
 
   context_.sorter->ExtractEventsForced();
@@ -2051,25 +2066,26 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillOnce(Return(1));
+      .WillOnce(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillOnce(Return(2));
+      .WillOnce(Return(StringId::Raw(2)));
 
   MockBoundInserter inserter;
-  EXPECT_CALL(*slice_, Scoped(1010000, track, StringId(1), StringId(2), 0, _))
+  EXPECT_CALL(*slice_,
+              Scoped(1010000, track, StringId::Raw(1), StringId::Raw(2), 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(1u)));
 
   EXPECT_CALL(*storage_, InternString(base::StringView("body1")))
-      .WillOnce(Return(3));
+      .WillOnce(Return(StringId::Raw(3)));
 
   // Call with logMessageBody (body1 in this case).
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(StringId(3))));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(StringId::Raw(3))));
 
   context_.sorter->ExtractEventsForced();
 
   EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
   EXPECT_EQ(context_.storage->android_log_table().ts()[0], 1010000);
-  EXPECT_EQ(context_.storage->android_log_table().msg()[0], 3u);
+  EXPECT_EQ(context_.storage->android_log_table().msg()[0], StringId::Raw(3u));
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
@@ -2133,16 +2149,16 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   storage_->mutable_thread_table()->Insert(row);
 
   EXPECT_CALL(*storage_, InternString(base::StringView("cat1")))
-      .WillOnce(Return(1));
+      .WillOnce(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView("ev1")))
-      .WillOnce(Return(2));
+      .WillOnce(Return(StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView("scope1")))
       .Times(1)
-      .WillRepeatedly(Return(3));
+      .WillRepeatedly(Return(StringId::Raw(3)));
   EXPECT_CALL(*storage_, InternString(base::StringView("?")))
-      .WillOnce(Return(4));
+      .WillOnce(Return(StringId::Raw(4)));
   EXPECT_CALL(*storage_, InternString(base::StringView("debug.an1")))
-      .WillOnce(Return(5));
+      .WillOnce(Return(StringId::Raw(5)));
 
   context_.sorter->ExtractEventsForced();
 
@@ -2161,11 +2177,11 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_GE(storage_->arg_table().row_count(), 13u);
 
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.category"),
-                     Variadic::String(1u)));
+                     Variadic::String(StringId::Raw(1u))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.name"),
-                     Variadic::String(2u)));
+                     Variadic::String(StringId::Raw(2u))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.phase"),
-                     Variadic::String(4u)));
+                     Variadic::String(StringId::Raw(4u))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.duration_ns"),
                      Variadic::Integer(23000)));
   EXPECT_TRUE(HasArg(1u,
@@ -2179,7 +2195,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.global_id"),
                      Variadic::UnsignedInteger(99u)));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.id_scope"),
-                     Variadic::String(3u)));
+                     Variadic::String(StringId::Raw(3u))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.bind_id"),
                      Variadic::UnsignedInteger(98u)));
   EXPECT_TRUE(HasArg(1u,
@@ -2187,7 +2203,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
                      Variadic::Boolean(true)));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.flow_direction"),
                      Variadic::String(storage_->InternString("inout"))));
-  EXPECT_TRUE(HasArg(1u, 5u, Variadic::UnsignedInteger(10u)));
+  EXPECT_TRUE(HasArg(1u, StringId::Raw(5u), Variadic::UnsignedInteger(10u)));
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
@@ -2379,11 +2395,11 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   Tokenize();
 
   EXPECT_CALL(*storage_, InternString(base::StringView(kName)))
-      .WillOnce(Return(1));
+      .WillOnce(Return(StringId::Raw(1)));
   EXPECT_CALL(*storage_, InternString(base::StringView(kTag1)))
-      .WillOnce(Return(2));
+      .WillOnce(Return(StringId::Raw(2)));
   EXPECT_CALL(*storage_, InternString(base::StringView(kTag2)))
-      .WillOnce(Return(3));
+      .WillOnce(Return(StringId::Raw(3)));
 
   StringId benchmark_id = *storage_->string_pool().GetId(
       metadata::kNames[metadata::benchmark_name]);
@@ -2400,10 +2416,10 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   for (uint32_t i = 0; i < storage_->metadata_table().row_count(); i++) {
     meta_entries.emplace_back(std::make_pair(meta_keys[i], meta_values[i]));
   }
-  EXPECT_THAT(meta_entries,
-              UnorderedElementsAreArray({std::make_pair(benchmark_id, 1),
-                                         std::make_pair(tags_id, 2),
-                                         std::make_pair(tags_id, 3)}));
+  EXPECT_THAT(meta_entries, UnorderedElementsAreArray(
+                                {std::make_pair(benchmark_id, StringId::Raw(1)),
+                                 std::make_pair(tags_id, StringId::Raw(2)),
+                                 std::make_pair(tags_id, StringId::Raw(3))}));
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
