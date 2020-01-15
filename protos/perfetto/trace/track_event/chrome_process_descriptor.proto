@@ -25,7 +25,7 @@ package perfetto.protos;
 // Next id: 4.
 message ChromeProcessDescriptor {
   // See chromium's content::ProcessType.
-  enum ChromeProcessType {
+  enum ProcessType {
     PROCESS_UNSPECIFIED = 0;
     PROCESS_BROWSER = 1;
     PROCESS_RENDERER = 2;
@@ -36,7 +36,7 @@ message ChromeProcessDescriptor {
     PROCESS_PPAPI_PLUGIN = 7;
     PROCESS_PPAPI_BROKER = 8;
   }
-  optional ChromeProcessType process_type = 1;
+  optional ProcessType process_type = 1;
   optional int32 process_priority = 2;
 
   // To support old UI. New UI should determine default sorting by process_type.
