@@ -746,12 +746,10 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
                                        vulkan_memory_event);
 
   auto* allocs = context_->storage->mutable_vulkan_memory_allocations_table();
-  auto id = allocs->Insert(vulkan_memory_event_row);
-  uint32_t row = *allocs->id().IndexOf(id);
+  VulkanAllocId id = allocs->Insert(vulkan_memory_event_row);
 
   if (vulkan_memory_event.has_annotations()) {
-    ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                        TableId::kVulkanMemoryAllocation, row);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
 
     for (auto it = vulkan_memory_event.annotations(); it; ++it) {
       protos::pbzero::VulkanMemoryEventAnnotation::Decoder annotation(*it);

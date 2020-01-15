@@ -899,13 +899,12 @@ void TrackEventParser::ParseLegacyEventAsRawEvent(
 
   RawId id = context_->storage->mutable_raw_table()->Insert(
       {ts, raw_legacy_event_id_, 0, *utid});
-  uint32_t row = *context_->storage->raw_table().id().IndexOf(id);
 
   ArgsTracker args(context_);
-  ArgsTracker::BoundInserter inserter(&args, TableId::kRawEvents, row);
+  auto inserter = args.AddArgsTo(id);
 
-  inserter.AddArg(legacy_event_category_key_id_, Variadic::String(category_id));
-  inserter.AddArg(legacy_event_name_key_id_, Variadic::String(name_id));
+  inserter.AddArg(legacy_event_category_key_id_, Variadic::String(category_id))
+      .AddArg(legacy_event_name_key_id_, Variadic::String(name_id));
 
   std::string phase_string(1, static_cast<char>(legacy_event.phase()));
   StringId phase_id = context_->storage->InternString(phase_string.c_str());

@@ -80,6 +80,7 @@ using ::testing::InvokeArgument;
 using ::testing::NiceMock;
 using ::testing::Pointwise;
 using ::testing::Return;
+using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAreArray;
 
 namespace {
@@ -175,10 +176,14 @@ class MockTraceStorage : public TraceStorage {
 
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
-  MockBoundInserter()
-      : ArgsTracker::BoundInserter(nullptr, TableId::kSched, 0u) {}
+  MockBoundInserter() : ArgsTracker::BoundInserter(nullptr, nullptr, 0u) {
+    ON_CALL(*this, AddArg(_, _, _)).WillByDefault(ReturnRef(*this));
+  }
 
-  MOCK_METHOD3(AddArg, void(StringId flat_key, StringId key, Variadic v));
+  MOCK_METHOD3(AddArg,
+               ArgsTracker::BoundInserter&(StringId flat_key,
+                                           StringId key,
+                                           Variadic v));
 };
 
 class MockSliceTracker : public SliceTracker {

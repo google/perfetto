@@ -60,19 +60,6 @@ using UniqueTid = uint32_t;
 using StringId = StringPool::Id;
 static const StringId kNullStringId = StringId(0);
 
-// Identifiers for all the tables in the database.
-enum class TableId : uint8_t {
-  kInvalid = 0,
-  kCounterValues = 1,
-  kRawEvents = 2,
-  kInstants = 3,
-  kSched = 4,
-  kNestableSlices = 5,
-  kMetadataTable = 6,
-  kTrack = 7,
-  kVulkanMemoryAllocation = 8,
-};
-
 using ArgSetId = uint32_t;
 static const ArgSetId kInvalidArgSetId = 0;
 
@@ -89,6 +76,8 @@ using MappingId = tables::StackProfileMappingTable::Id;
 using MetadataId = tables::MetadataTable::Id;
 
 using RawId = tables::RawTable::Id;
+
+using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
 
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
 // will be removed when the migration is complete.

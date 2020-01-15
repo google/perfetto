@@ -253,11 +253,10 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
                                   static_cast<uint32_t>(tinfo.pid));
           InstantId id = context_->event_tracker->PushInstant(
               ts, name, utid, RefType::kRefUtid);
-          uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
+          auto inserter = context_->args_tracker->AddArgsTo(id);
           for (const Arg& arg : args) {
-            context_->args_tracker->AddArg(
-                TableId::kInstants, row, arg.name, arg.name,
-                arg.value.ToStorageVariadic(context_->storage.get()));
+            inserter.AddArg(
+                arg.name, arg.value.ToStorageVariadic(context_->storage.get()));
           }
           context_->args_tracker->Flush();
           break;
@@ -379,10 +378,10 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
               name, correlation_id);
           InstantId id = context_->event_tracker->PushInstant(
               ts, name, track_id.value, RefType::kRefTrack);
-          uint32_t row = *context_->storage->instant_table().id().IndexOf(id);
+          auto inserter = context_->args_tracker->AddArgsTo(id);
           for (const Arg& arg : args) {
-            context_->args_tracker->AddArg(
-                TableId::kInstants, row, arg.name, arg.name,
+            inserter.AddArg(
+                arg.name, arg.name,
                 arg.value.ToStorageVariadic(context_->storage.get()));
           }
           context_->args_tracker->Flush();

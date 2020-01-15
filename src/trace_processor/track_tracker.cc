@@ -73,10 +73,10 @@ TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
   auto id = context_->storage->mutable_track_table()->Insert(row);
   fuchsia_async_tracks_[correlation_id] = id;
 
-  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, id.value);
-  inserter.AddArg(source_key_, Variadic::String(fuchsia_source_));
-  inserter.AddArg(source_id_key_, Variadic::Integer(correlation_id));
+  context_->args_tracker->AddArgsTo(id)
+      .AddArg(source_key_, Variadic::String(fuchsia_source_))
+      .AddArg(source_id_key_, Variadic::Integer(correlation_id));
+
   return id;
 }
 
@@ -115,13 +115,13 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   TrackId id = context_->storage->mutable_process_track_table()->Insert(track);
   chrome_tracks_[tuple] = id;
 
-  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, id.value);
-  inserter.AddArg(source_key_, Variadic::String(chrome_source_));
-  inserter.AddArg(source_id_key_, Variadic::Integer(source_id));
-  inserter.AddArg(source_id_is_process_scoped_key_,
-                  Variadic::Boolean(source_id_is_process_scoped));
-  inserter.AddArg(source_scope_key_, Variadic::String(source_scope));
+  context_->args_tracker->AddArgsTo(id)
+      .AddArg(source_key_, Variadic::String(chrome_source_))
+      .AddArg(source_id_key_, Variadic::Integer(source_id))
+      .AddArg(source_id_is_process_scoped_key_,
+              Variadic::Boolean(source_id_is_process_scoped))
+      .AddArg(source_scope_key_, Variadic::String(source_scope));
+
   return id;
 }
 
@@ -139,10 +139,10 @@ TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
   auto id = context_->storage->mutable_process_track_table()->Insert(row);
   android_async_tracks_[tuple] = id;
 
-  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, id.value);
-  inserter.AddArg(source_key_, Variadic::String(android_source_));
-  inserter.AddArg(source_id_key_, Variadic::Integer(cookie));
+  context_->args_tracker->AddArgsTo(id)
+      .AddArg(source_key_, Variadic::String(android_source_))
+      .AddArg(source_id_key_, Variadic::Integer(cookie));
+
   return id;
 }
 
@@ -156,8 +156,9 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
   auto id = context_->storage->mutable_process_track_table()->Insert(row);
   chrome_process_instant_tracks_[upid] = id;
 
-  context_->args_tracker->AddArg(TableId::kTrack, id.value, source_key_,
-                                 source_key_, Variadic::String(chrome_source_));
+  context_->args_tracker->AddArgsTo(id).AddArg(
+      source_key_, Variadic::String(chrome_source_));
+
   return id;
 }
 
@@ -166,9 +167,8 @@ TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
     chrome_global_instant_track_id_ =
         context_->storage->mutable_track_table()->Insert({});
 
-    context_->args_tracker->AddArg(
-        TableId::kTrack, chrome_global_instant_track_id_->value, source_key_,
-        source_key_, Variadic::String(chrome_source_));
+    context_->args_tracker->AddArgsTo(*chrome_global_instant_track_id_)
+        .AddArg(source_key_, Variadic::String(chrome_source_));
   }
   return *chrome_global_instant_track_id_;
 }
@@ -363,12 +363,9 @@ TrackId TrackTracker::ResolveDescriptorTrack(
     track_id = context_->storage->mutable_track_table()->Insert(track);
   }
 
-  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kTrack, track_id->value);
-  inserter.AddArg(source_key_, Variadic::String(descriptor_source_));
-  inserter.AddArg(source_id_key_,
-                  Variadic::Integer(static_cast<int64_t>(uuid)));
-
+  context_->args_tracker->AddArgsTo(*track_id)
+      .AddArg(source_key_, Variadic::String(descriptor_source_))
+      .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)));
   return *track_id;
 }
 
