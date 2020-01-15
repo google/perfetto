@@ -130,8 +130,7 @@ TEST_F(ArgsTableUtilsTest, BasicSingleLayerProto) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ArgsTracker::BoundInserter inserter(context_.args_tracker.get(),
-                                      TableId::kTrack, 0);
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
   status = helper.InternProtoIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.EveryField", &inserter);
@@ -203,8 +202,7 @@ TEST_F(ArgsTableUtilsTest, NestedProto) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ArgsTracker::BoundInserter inserter(context_.args_tracker.get(),
-                                      TableId::kTrack, 0);
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
   status = helper.InternProtoIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", &inserter);
@@ -232,8 +230,7 @@ TEST_F(ArgsTableUtilsTest, CamelCaseFieldsProto) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ArgsTracker::BoundInserter inserter(context_.args_tracker.get(),
-                                      TableId::kTrack, 0);
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
   status = helper.InternProtoIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.CamelCaseFields", &inserter);
@@ -276,8 +273,7 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideHandled) {
         return true;
       });
 
-  ArgsTracker::BoundInserter inserter(context_.args_tracker.get(),
-                                      TableId::kTrack, 0);
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
   status = helper.InternProtoIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", &inserter);
@@ -317,8 +313,7 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideSkipped) {
         return false;
       });
 
-  ArgsTracker::BoundInserter inserter(context_.args_tracker.get(),
-                                      TableId::kTrack, 0);
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
   status = helper.InternProtoIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", &inserter);
@@ -383,8 +378,7 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  ArgsTracker::BoundInserter inserter(context_.args_tracker.get(),
-                                      TableId::kTrack, 0);
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
   status = helper.InternProtoIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", &inserter);

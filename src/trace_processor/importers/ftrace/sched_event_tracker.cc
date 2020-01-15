@@ -196,15 +196,13 @@ size_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
   // not insert sched_switch.
   RawId id = context_->storage->mutable_raw_table()->Insert(
       {ts, sched_switch_id_, cpu, prev_utid});
-  uint32_t row = *context_->storage->raw_table().id().IndexOf(id);
 
   // Note: this ordering is important. The events should be pushed in the same
   // order as the order of fields in the proto; this is used by the raw table to
   // index these events using the field ids.
   using SS = protos::pbzero::SchedSwitchFtraceEvent;
 
-  ArgsTracker::BoundInserter inserter(context_->args_tracker.get(),
-                                      TableId::kRawEvents, row);
+  auto inserter = context_->args_tracker->AddArgsTo(id);
   auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
     StringId key = sched_switch_field_ids_[static_cast<size_t>(field_num)];
     inserter.AddArg(key, var);
@@ -276,15 +274,15 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   // Add an entry to the raw table.
   RawId id = context_->storage->mutable_raw_table()->Insert(
       {ts, sched_waking_id_, cpu, curr_utid});
-  uint32_t row = *context_->storage->raw_table().id().IndexOf(id);
 
   // "success" is hardcoded as always 1 by the kernel, with a TODO to remove it.
   static constexpr int32_t kHardcodedSuccess = 1;
 
   using SW = protos::pbzero::SchedWakingFtraceEvent;
-  auto add_raw_arg = [this, row](int field_num, Variadic var) {
+  auto inserter = context_->args_tracker->AddArgsTo(id);
+  auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
     StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
-    context_->args_tracker->AddArg(TableId::kRawEvents, row, key, key, var);
+    inserter.AddArg(key, var);
   };
   add_raw_arg(SW::kCommFieldNumber, Variadic::String(comm_id));
   add_raw_arg(SW::kPidFieldNumber, Variadic::Integer(wakee_pid));
