@@ -20,6 +20,7 @@ config("extra_warnings") {
   cflags = [
     "-Wall",
     "-Wextra",
+    "-Wpedantic",
   ]
 
   # Disable Weverything on fuzzers to avoid breakages when new versions of clang

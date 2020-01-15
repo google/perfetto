@@ -36,12 +36,12 @@ FtraceDataSource::FtraceDataSource(
     : ProbesDataSource(session_id, kTypeId),
       config_(config),
       writer_(std::move(writer)),
-      controller_weak_(std::move(controller_weak)){};
+      controller_weak_(std::move(controller_weak)) {}
 
 FtraceDataSource::~FtraceDataSource() {
   if (controller_weak_)
     controller_weak_->RemoveDataSource(this);
-};
+}
 
 void FtraceDataSource::Initialize(
     FtraceConfigId config_id,
