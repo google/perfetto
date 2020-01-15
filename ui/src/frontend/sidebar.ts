@@ -521,7 +521,10 @@ const ServiceWorkerWidget: m.Component = {
     let title = 'Service Worker: ';
     let label = 'N/A';
     const ctl = globals.serviceWorkerController;
-    if (ctl.bypassed) {
+    if ((!('serviceWorker' in navigator))) {
+      label = 'N/A';
+      title += 'not supported by the browser (requires HTTPS)';
+    } else if (ctl.bypassed) {
       label = 'OFF';
       cssClass = '.red';
       title += 'Bypassed, using live network. Double-click to re-enable';
