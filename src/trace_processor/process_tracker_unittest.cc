@@ -59,7 +59,7 @@ TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
   TraceStorage storage;
-  auto upid = context.process_tracker->StartNewProcess(1000, 0, 123, 0);
+  auto upid = context.process_tracker->StartNewProcess(1000, 0u, 123, 0);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
   ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
 }

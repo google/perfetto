@@ -34,8 +34,8 @@ message ChromeThreadDescriptor {
     // Scheduler:
     THREAD_POOL_BG_WORKER = 3;
     THREAD_POOL_FG_WORKER = 4;
-    THREAD_POOL_FB_BLOCKING = 5;
     THREAD_POOL_BG_BLOCKING = 6;
+    THREAD_POOL_FG_BLOCKING = 5;
     THREAD_POOL_SERVICE = 7;
 
     // Compositor:
