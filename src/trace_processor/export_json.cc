@@ -517,6 +517,12 @@ util::Status ExportSlices(const TraceStorage* storage,
                           TraceFormatWriter* writer) {
   const auto& slices = storage->slice_table();
   for (uint32_t i = 0; i < slices.row_count(); ++i) {
+    // Skip slices with empty category - these are ftrace/system slices that
+    // were also imported into the raw table and will be exported from there by
+    // trace_to_text.
+    if (slices.category()[i] == kNullStringId)
+      continue;
+
     Json::Value event;
     event["ts"] = Json::Int64(slices.ts()[i] / 1000);
     event["cat"] = GetNonNullString(storage, slices.category()[i]);
@@ -551,14 +557,11 @@ util::Status ExportSlices(const TraceStorage* storage,
 
     uint32_t track_row = *track_table.id().IndexOf(TrackId{track_id});
     auto track_args_id = track_table.source_arg_set_id()[track_row];
-    if (!track_args_id)
-      continue;
-    const auto& track_args = args_builder.GetArgs(*track_args_id);
-    bool legacy_chrome_track = track_args["source"].asString() == "chrome";
-    if (!track_args.isMember("source") ||
-        (!legacy_chrome_track &&
-         track_args["source"].asString() != "descriptor")) {
-      continue;
+    const Json::Value* track_args = nullptr;
+    bool legacy_chrome_track = false;
+    if (track_args_id) {
+      track_args = &args_builder.GetArgs(*track_args_id);
+      legacy_chrome_track = (*track_args)["source"].asString() == "chrome";
     }
 
     const auto& thread_table = storage->thread_table();
@@ -646,12 +649,13 @@ util::Status ExportSlices(const TraceStorage* storage,
       }
       writer->WriteCommonEvent(event);
     } else if (!legacy_chrome_track ||
-               (legacy_chrome_track && track_args.isMember("source_id"))) {
+               (legacy_chrome_track && track_args->isMember("source_id"))) {
       // Async event slice.
       auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
       if (legacy_chrome_track) {
-        // Legacy async tracks are always process-associated.
+        // Legacy async tracks are always process-associated and have args.
         PERFETTO_DCHECK(opt_process_row);
+        PERFETTO_DCHECK(track_args);
         uint32_t upid = process_track.upid()[*opt_process_row];
         event["pid"] = static_cast<int32_t>(process_table.pid()[upid]);
         event["tid"] = legacy_tid
@@ -660,16 +664,16 @@ util::Status ExportSlices(const TraceStorage* storage,
 
         // Preserve original event IDs for legacy tracks. This is so that e.g.
         // memory dump IDs show up correctly in the JSON trace.
-        PERFETTO_DCHECK(track_args.isMember("source_id"));
-        PERFETTO_DCHECK(track_args.isMember("source_id_is_process_scoped"));
-        PERFETTO_DCHECK(track_args.isMember("source_scope"));
+        PERFETTO_DCHECK(track_args->isMember("source_id"));
+        PERFETTO_DCHECK(track_args->isMember("source_id_is_process_scoped"));
+        PERFETTO_DCHECK(track_args->isMember("source_scope"));
         uint64_t source_id =
-            static_cast<uint64_t>(track_args["source_id"].asInt64());
-        std::string source_scope = track_args["source_scope"].asString();
+            static_cast<uint64_t>((*track_args)["source_id"].asInt64());
+        std::string source_scope = (*track_args)["source_scope"].asString();
         if (!source_scope.empty())
           event["scope"] = source_scope;
         bool source_id_is_process_scoped =
-            track_args["source_id_is_process_scoped"].asBool();
+            (*track_args)["source_id_is_process_scoped"].asBool();
         if (source_id_is_process_scoped) {
           event["id2"]["local"] = PrintUint64(source_id);
         } else {
@@ -730,6 +734,7 @@ util::Status ExportSlices(const TraceStorage* storage,
       }
     } else {
       // Global or process-scoped instant event.
+      PERFETTO_DCHECK(legacy_chrome_track);
       PERFETTO_DCHECK(duration_ns == 0);
       // Use "I" instead of "i" phase for backwards-compat with old consumers.
       event["ph"] = "I";

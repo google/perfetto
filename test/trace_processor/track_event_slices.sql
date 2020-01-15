@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 select
+  track.name as track,
+  process.name as process,
   thread.name as thread,
   slice.ts,
   slice.dur,
@@ -21,6 +23,9 @@ select
   slice.name,
   slice.arg_set_id
 from slice
+left join track on slice.track_id = track.id
+left join process_track on slice.track_id = process_track.id
+left join process on process_track.upid = process.upid
 left join thread_track on slice.track_id = thread_track.id
 left join thread on thread_track.utid = thread.utid
 order by ts asc;
