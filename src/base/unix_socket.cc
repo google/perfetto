@@ -172,6 +172,15 @@ void UnixSocketRaw::ShiftMsgHdr(size_t n, struct msghdr* msg) {
 }
 
 // static
+UnixSocketRaw UnixSocketRaw::CreateMayFail(SockFamily family, SockType type) {
+  auto fd = ScopedFile(socket(GetSockFamily(family), GetSockType(type), 0));
+  if (!fd) {
+    return UnixSocketRaw();
+  }
+  return UnixSocketRaw(std::move(fd), family, type);
+}
+
+// static
 std::pair<UnixSocketRaw, UnixSocketRaw> UnixSocketRaw::CreatePair(
     SockFamily family,
     SockType type) {
