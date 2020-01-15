@@ -112,6 +112,7 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
   }
 
   async findDevice(): Promise<USBDevice|undefined> {
+    if (!('usb' in navigator)) return undefined;
     const connectedDevice = globals.state.recordingTarget;
     if (!isAdbTarget(connectedDevice)) return undefined;
     const devices = await navigator.usb.getDevices();

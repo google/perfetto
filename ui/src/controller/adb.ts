@@ -82,6 +82,9 @@ export class AdbOverWebUsb implements Adb {
   };
 
   async findDevice() {
+    if (!('usb' in navigator)) {
+      throw new Error('WebUSB not supported by the browser (requires HTTPS)');
+    }
     return navigator.usb.requestDevice({filters: [this.filter]});
   }
 
