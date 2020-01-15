@@ -299,7 +299,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
                     reservation.min_timestamp);
 
       utid = context_->process_tracker->StartNewThread(
-          reservation.min_timestamp, *reservation.tid, kNullStringId);
+          base::nullopt, *reservation.tid, kNullStringId);
 
       descriptor_uuids_by_utid_[utid] = uuid;
     }
@@ -325,8 +325,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
                     reservation.min_timestamp);
 
       upid = context_->process_tracker->StartNewProcess(
-          reservation.min_timestamp, base::nullopt, *reservation.pid,
-          kNullStringId);
+          base::nullopt, base::nullopt, *reservation.pid, kNullStringId);
 
       descriptor_uuids_by_upid_[upid] = uuid;
     }
