@@ -25,7 +25,6 @@ import {
   isAdbTarget,
   isAndroidTarget,
   isChromeTarget,
-  isLinuxTarget,
   RecordingTarget
 } from '../common/state';
 import {MAX_TIME, RecordMode} from '../common/state';
@@ -747,7 +746,7 @@ function RecordingPlatformSelection() {
           ),
       m('.chip',
         {onclick: addAndroidDevice},
-        m('button', 'Add Device'),
+        m('button', 'Add ADB Device'),
         m('i.material-icons', 'add')));
 }
 
@@ -899,29 +898,16 @@ function recordingButtons() {
           onclick: onStartRecordingPressed
         },
         'Start Recording');
-  const showCmd =
-      m(`button`,
-        {
-          onclick: () => {
-            location.href = '#!/record?p=instructions';
-            globals.rafScheduler.scheduleFullRedraw();
-          }
-        },
-        'Show Command');
 
   const buttons: m.Children = [];
 
   if (isAndroidTarget(target)) {
-    if (!recInProgress) {
-      buttons.push(showCmd);
-      if (isAdbTarget(target)) buttons.push(start);
+    if (!recInProgress && isAdbTarget(target)) {
+      buttons.push(start);
     }
   } else if (isChromeTarget(target) && state.extensionInstalled) {
     buttons.push(start);
-  } else if (isLinuxTarget(target)) {
-    buttons.push(showCmd);
   }
-
   return m('.button', buttons);
 }
 
@@ -977,7 +963,9 @@ async function addAndroidDevice() {
   try {
     device = await new AdbOverWebUsb().findDevice();
   } catch (e) {
-    console.error(`No device found: ${e.name}: ${e.message}`);
+    const err = `No device found: ${e.name}: ${e.message}`;
+    console.error(err, e);
+    alert(err);
     return;
   }
 

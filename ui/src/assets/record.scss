@@ -136,12 +136,12 @@
         border: 1px solid #eee;
         outline: none;
         margin: 4px;
-        border-radius: 10px;
+        border-radius: 20px;
         padding: 4px;
         height: 30px;
         &:hover, &:active {
-          box-shadow: 0 0 4px 0px #999;
-          background-color: hsl(88, 50%, 84%);
+          box-shadow: 0 0 4px 0px #ccc;
+          background-color: #fafafa;
         }
         i {
           margin: 3px;
