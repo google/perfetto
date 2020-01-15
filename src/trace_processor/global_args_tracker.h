@@ -35,7 +35,7 @@ class GlobalArgsTracker {
     StringId key = 0;
     Variadic value = Variadic::Integer(0);
 
-    TableId table;
+    Column* column;
     uint32_t row;
   };
 

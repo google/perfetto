@@ -142,8 +142,7 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
 
   if (args_callback) {
     ArgsTracker* tracker = &stack->back().second;
-    ArgsTracker::BoundInserter bound_inserter(tracker, TableId::kNestableSlices,
-                                              slice_idx);
+    auto bound_inserter = tracker->AddArgsTo(id);
     args_callback(&bound_inserter);
   }
   return slice_idx;
@@ -180,9 +179,8 @@ base::Optional<SliceId> SliceTracker::CompleteSlice(
 
   if (args_callback) {
     ArgsTracker* tracker = &stack.back().second;
-    ArgsTracker::BoundInserter inserter(tracker, TableId::kNestableSlices,
-                                        slice_idx);
-    args_callback(&inserter);
+    auto bound_inserter = tracker->AddArgsTo(slices->id()[slice_idx]);
+    args_callback(&bound_inserter);
   }
 
   // If this slice is the top slice on the stack, pop it off.
