@@ -33,6 +33,7 @@ export class ServiceWorkerController {
 
   // Caller should reload().
   async setBypass(bypass: boolean) {
+    if (!('serviceWorker' in navigator)) return;  // Not supported.
     this._bypassed = bypass;
     if (bypass) {
       await caches.open(BYPASS_ID);  // Create the entry.
