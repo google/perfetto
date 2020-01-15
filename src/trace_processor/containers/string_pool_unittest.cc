@@ -16,66 +16,72 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 
+#include <array>
 #include <random>
 
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+class StringPoolTest : public testing::Test {
+ protected:
+  static constexpr size_t kNumBlockOffsetBits = StringPool::kNumBlockOffsetBits;
+  static constexpr size_t kLargeStringFlagBitMask =
+      StringPool::kLargeStringFlagBitMask;
+  static constexpr size_t kBlockIndexBitMask = StringPool::kBlockIndexBitMask;
+  static constexpr size_t kBlockSizeBytes = StringPool::kBlockSizeBytes;
+  static constexpr size_t kMinLargeStringSizeBytes =
+      StringPool::kMinLargeStringSizeBytes;
+
+  StringPool pool_;
+};
+
 namespace {
 
-TEST(StringPoolTest, EmptyPool) {
-  StringPool pool;
+TEST_F(StringPoolTest, EmptyPool) {
+  ASSERT_EQ(pool_.Get(0).c_str(), nullptr);
 
-  ASSERT_EQ(pool.Get(0).c_str(), nullptr);
-
-  auto it = pool.CreateIterator();
+  auto it = pool_.CreateIterator();
   ASSERT_TRUE(it);
   ASSERT_EQ(it.StringView().c_str(), nullptr);
   ASSERT_FALSE(++it);
 }
 
-TEST(StringPoolTest, InternAndRetrieve) {
-  StringPool pool;
-
+TEST_F(StringPoolTest, InternAndRetrieve) {
   static char kString[] = "Test String";
-  auto id = pool.InternString(kString);
-  ASSERT_STREQ(pool.Get(id).c_str(), kString);
-  ASSERT_EQ(pool.Get(id), kString);
-  ASSERT_EQ(id, pool.InternString(kString));
+  auto id = pool_.InternString(kString);
+  ASSERT_STREQ(pool_.Get(id).c_str(), kString);
+  ASSERT_EQ(pool_.Get(id), kString);
+  ASSERT_EQ(id, pool_.InternString(kString));
 }
 
-TEST(StringPoolTest, NullPointerHandling) {
-  StringPool pool;
-
-  auto id = pool.InternString(NullTermStringView());
+TEST_F(StringPoolTest, NullPointerHandling) {
+  auto id = pool_.InternString(NullTermStringView());
   ASSERT_EQ(id, 0u);
-  ASSERT_EQ(pool.Get(id).c_str(), nullptr);
+  ASSERT_EQ(pool_.Get(id).c_str(), nullptr);
 }
 
-TEST(StringPoolTest, Iterator) {
-  StringPool pool;
-
-  auto it = pool.CreateIterator();
+TEST_F(StringPoolTest, Iterator) {
+  auto it = pool_.CreateIterator();
   ASSERT_TRUE(it);
   ASSERT_EQ(it.StringView().c_str(), nullptr);
   ASSERT_FALSE(++it);
 
   static char kString[] = "Test String";
-  pool.InternString(kString);
+  pool_.InternString(kString);
 
-  it = pool.CreateIterator();
+  it = pool_.CreateIterator();
   ASSERT_TRUE(++it);
   ASSERT_STREQ(it.StringView().c_str(), kString);
   ASSERT_FALSE(++it);
 }
 
-TEST(StringPoolTest, ConstIterator) {
-  StringPool pool;
+TEST_F(StringPoolTest, ConstIterator) {
   static char kString[] = "Test String";
-  pool.InternString(kString);
+  pool_.InternString(kString);
 
-  const StringPool& const_pool = pool;
+  const StringPool& const_pool = pool_;
 
   auto it = const_pool.CreateIterator();
   ASSERT_TRUE(it);
@@ -84,9 +90,10 @@ TEST(StringPoolTest, ConstIterator) {
   ASSERT_FALSE(++it);
 }
 
-TEST(StringPoolTest, StressTest) {
-  // First create a buffer with 8MB of random characters.
-  constexpr size_t kBufferSize = 8 * 1024 * 1024;
+TEST_F(StringPoolTest, StressTest) {
+  // First create a buffer with 33MB of random characters, so that we insert
+  // into at least two chunks.
+  constexpr size_t kBufferSize = 33 * 1024 * 1024;
   std::minstd_rand0 rnd_engine(0);
   std::unique_ptr<char[]> buffer(new char[kBufferSize]);
   for (size_t i = 0; i < kBufferSize; i++)
@@ -94,7 +101,6 @@ TEST(StringPoolTest, StressTest) {
 
   // Next create strings of length 0 to 16k in length from this buffer and
   // intern them, storing their ids.
-  StringPool pool;
   std::multimap<StringPool::Id, base::StringView> string_map;
   constexpr uint16_t kMaxStrSize = 16u * 1024u - 1;
   for (size_t i = 0;;) {
@@ -103,44 +109,94 @@ TEST(StringPoolTest, StressTest) {
       break;
 
     auto str = base::StringView(&buffer.get()[i], length);
-    string_map.emplace(pool.InternString(str), str);
+    string_map.emplace(pool_.InternString(str), str);
     i += length;
   }
 
   // Finally, iterate through each string in the string pool, check that all ids
   // that match in the multimap are equal, and finish by checking we've removed
   // every item in the multimap.
-  for (auto it = pool.CreateIterator(); it; ++it) {
-    ASSERT_EQ(it.StringView(), pool.Get(it.StringId()));
+  for (auto it = pool_.CreateIterator(); it; ++it) {
+    ASSERT_EQ(it.StringView(), pool_.Get(it.StringId()));
 
     auto it_pair = string_map.equal_range(it.StringId());
     for (auto in_it = it_pair.first; in_it != it_pair.second; ++in_it) {
-      ASSERT_EQ(it.StringView(), in_it->second);
+      ASSERT_EQ(it.StringView(), in_it->second)
+          << it.StringId().id << ": " << it.StringView().Hash() << " vs "
+          << in_it->second.Hash();
     }
     string_map.erase(it_pair.first, it_pair.second);
   }
   ASSERT_EQ(string_map.size(), 0u);
 }
 
-TEST(StringPoolTest, BigString) {
-  constexpr size_t kBigStringSize = 33 * 1024 * 1024;
-  std::unique_ptr<char[]> str1(new char[kBigStringSize + 1]);
-  std::unique_ptr<char[]> str2(new char[kBigStringSize + 1]);
-  for (size_t i = 0; i < kBigStringSize; i++) {
-    str1.get()[i] = 'A' + static_cast<char>(i % 32);
-    str2.get()[i] = 'A' + static_cast<char>((i + 7) % 32);
+TEST_F(StringPoolTest, BigString) {
+  // Two of these should fit into one block, but the third one should go into
+  // the |large_strings_| list.
+  constexpr size_t kBigStringSize = 15 * 1024 * 1024;
+  // Will fit into block 1 after two kBigStringSize strings.
+  constexpr size_t kSmallStringSize = 16 * 1024;
+  // Will not fit into block 1 anymore after 2*kBigStringSize and
+  // 2*kSmallStringSize, but is smaller than kMinLargeStringSizeBytes, so will
+  // start a new block.
+  constexpr size_t kMediumStringSize = 2 * 1024 * 1024;
+  // Would not fit into a block at all, so ahs to go into |large_strings_|.
+  constexpr size_t kEnormousStringSize = 33 * 1024 * 1024;
+
+  constexpr std::array<size_t, 8> kStringSizes = {
+      kBigStringSize,       // block 1
+      kBigStringSize,       // block 1
+      kBigStringSize,       // large strings
+      kSmallStringSize,     // block 1
+      kSmallStringSize,     // block 1
+      kMediumStringSize,    // block 2
+      kEnormousStringSize,  // large strings
+      kBigStringSize        // block 2
+  };
+
+  static_assert(kBigStringSize * 2 + kSmallStringSize * 2 + kMediumStringSize >
+                    kBlockSizeBytes,
+                "medium string shouldn't fit into block 1 for this test");
+  static_assert(kMediumStringSize < kMinLargeStringSizeBytes,
+                "medium string should cause a new block for this test");
+
+  std::array<std::unique_ptr<char[]>, kStringSizes.size()> big_strings;
+  for (size_t i = 0; i < big_strings.size(); i++) {
+    big_strings[i].reset(new char[kStringSizes[i] + 1]);
+    for (size_t j = 0; j < kStringSizes[i]; j++) {
+      big_strings[i].get()[j] = 'A' + static_cast<char>((j + i) % 26);
+    }
+    big_strings[i].get()[kStringSizes[i]] = '\0';
   }
-  str1.get()[kBigStringSize] = '\0';
-  str2.get()[kBigStringSize] = '\0';
 
-  StringPool pool;
-  StringPool::Id id1 =
-      pool.InternString(base::StringView(str1.get(), kBigStringSize));
-  StringPool::Id id2 =
-      pool.InternString(base::StringView(str2.get(), kBigStringSize));
+  std::array<StringPool::Id, kStringSizes.size()> string_ids;
+  for (size_t i = 0; i < big_strings.size(); i++) {
+    string_ids[i] = pool_.InternString(
+        base::StringView(big_strings[i].get(), kStringSizes[i]));
+    // Interning it a second time should return the original id.
+    ASSERT_EQ(string_ids[i], pool_.InternString(base::StringView(
+                                 big_strings[i].get(), kStringSizes[i])));
+  }
 
-  ASSERT_EQ(str1.get(), pool.Get(id1));
-  ASSERT_EQ(str2.get(), pool.Get(id2));
+  ASSERT_FALSE(string_ids[0].id & kLargeStringFlagBitMask);
+  ASSERT_FALSE(string_ids[1].id & kLargeStringFlagBitMask);
+  ASSERT_TRUE(string_ids[2].id & kLargeStringFlagBitMask);
+  ASSERT_FALSE(string_ids[3].id & kLargeStringFlagBitMask);
+  ASSERT_FALSE(string_ids[4].id & kLargeStringFlagBitMask);
+  ASSERT_FALSE(string_ids[5].id & kLargeStringFlagBitMask);
+  ASSERT_TRUE(string_ids[6].id & kLargeStringFlagBitMask);
+  ASSERT_FALSE(string_ids[7].id & kLargeStringFlagBitMask);
+
+  ASSERT_EQ(string_ids[0].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
+  ASSERT_EQ(string_ids[1].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
+  ASSERT_EQ(string_ids[3].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
+  ASSERT_EQ(string_ids[4].id & kBlockIndexBitMask, 0u << kNumBlockOffsetBits);
+  ASSERT_EQ(string_ids[5].id & kBlockIndexBitMask, 1u << kNumBlockOffsetBits);
+  ASSERT_EQ(string_ids[7].id & kBlockIndexBitMask, 1u << kNumBlockOffsetBits);
+
+  for (size_t i = 0; i < big_strings.size(); i++) {
+    ASSERT_EQ(big_strings[i].get(), pool_.Get(string_ids[i]));
+  }
 }
 
 }  // namespace

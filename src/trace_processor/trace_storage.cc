@@ -77,8 +77,7 @@ const std::vector<NullTermStringView>& GetRefTypeStringMap() {
   return map.ref();
 }
 
-TraceStorage::TraceStorage(const Config& config)
-    : string_pool_(config.string_pool_block_size_bytes) {
+TraceStorage::TraceStorage(const Config&) {
   // Upid/utid 0 is reserved for idle processes/threads.
   tables::ThreadTable::Row thread_row;
   thread_row.tid = 0;
