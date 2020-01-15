@@ -48,7 +48,7 @@ class ProcessTracker {
 
   // Called when a task_newtask is observed. This force the tracker to start
   // a new UTID for the thread, which is needed for TID-recycling resolution.
-  UniqueTid StartNewThread(int64_t timestamp,
+  UniqueTid StartNewThread(base::Optional<int64_t> timestamp,
                            uint32_t tid,
                            StringId thread_name_id);
 
@@ -78,7 +78,7 @@ class ProcessTracker {
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
-  UniquePid StartNewProcess(int64_t timestamp,
+  UniquePid StartNewProcess(base::Optional<int64_t> timestamp,
                             base::Optional<uint32_t> parent_tid,
                             uint32_t pid,
                             StringId main_thread_name);
