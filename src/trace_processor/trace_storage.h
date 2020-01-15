@@ -58,7 +58,7 @@ using UniqueTid = uint32_t;
 
 // StringId is an offset into |string_pool_|.
 using StringId = StringPool::Id;
-static const StringId kNullStringId = StringId(0);
+static const StringId kNullStringId = StringId::Null();
 
 using ArgSetId = uint32_t;
 static const ArgSetId kInvalidArgSetId = 0;
@@ -710,7 +710,7 @@ class TraceStorage {
 
   // TODO(lalitm): remove this when we find a better home for this.
   using FrameKey = std::pair<size_t /* mapping row */, uint64_t /* rel_pc */>;
-  std::map<MappingKey, std::vector<int64_t>> stack_profile_frame_index_;
+  std::map<FrameKey, std::vector<int64_t>> stack_profile_frame_index_;
 
   // One entry for each unique string in the trace.
   StringPool string_pool_;

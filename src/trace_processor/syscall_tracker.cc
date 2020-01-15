@@ -83,7 +83,7 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
   }
 
   for (size_t i = 0; i < kMaxSyscalls; i++) {
-    StringId id = 0;
+    StringId id = kNullStringId;
     if (i < num_syscalls && syscall_table[i] && *syscall_table[i]) {
       const char* name = syscall_table[i];
       id = context_->storage->InternString(name);

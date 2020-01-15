@@ -393,7 +393,7 @@ void TrackEventParser::ParseTrackEvent(
     category_strings.push_back(*it);
   }
 
-  StringId category_id = 0;
+  StringId category_id = kNullStringId;
 
   // If there's a single category, we can avoid building a concatenated
   // string.
@@ -430,7 +430,7 @@ void TrackEventParser::ParseTrackEvent(
       category_id = storage->InternString(base::StringView(categories));
   }
 
-  StringId name_id = 0;
+  StringId name_id = kNullStringId;
 
   uint64_t name_iid = event.name_iid();
   if (!name_iid)
@@ -978,7 +978,7 @@ void TrackEventParser::ParseDebugAnnotationArgs(
   protos::pbzero::DebugAnnotation::Decoder annotation(debug_annotation.data,
                                                       debug_annotation.size);
 
-  StringId name_id = 0;
+  StringId name_id = kNullStringId;
 
   uint64_t name_iid = annotation.name_iid();
   if (PERFETTO_LIKELY(name_iid)) {
@@ -1095,8 +1095,8 @@ void TrackEventParser::ParseTaskExecutionArgs(
   if (!decoder)
     return;
 
-  StringId file_name_id = 0;
-  StringId function_name_id = 0;
+  StringId file_name_id = kNullStringId;
+  StringId function_name_id = kNullStringId;
   uint32_t line_number = 0;
 
   TraceStorage* storage = context_->storage.get();
@@ -1128,7 +1128,7 @@ void TrackEventParser::ParseLogMessage(
 
   TraceStorage* storage = context_->storage.get();
 
-  StringId log_message_id = 0;
+  StringId log_message_id = kNullStringId;
 
   auto* decoder = sequence_state->LookupInternedMessage<
       protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
@@ -1143,8 +1143,8 @@ void TrackEventParser::ParseLogMessage(
   context_->storage->mutable_android_log_table()->Insert(
       {ts, *utid,
        /*priority*/ 0,
-       /*tag_id*/ 0,  // TODO(nicomazz): Abuse tag_id to display
-                      // "file_name:line_number".
+       /*tag_id*/ kNullStringId,  // TODO(nicomazz): Abuse tag_id to display
+                                  // "file_name:line_number".
        log_message_id});
 
   inserter->AddArg(log_message_body_key_id_, Variadic::String(log_message_id));

@@ -121,7 +121,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     sequence_state.object_id_to_row.emplace(obj.object_id, row);
     class_to_rows_[type_name].emplace_back(row);
     sequence_state.walker.AddNode(row, obj.self_size,
-                                  static_cast<int32_t>(type_name.id));
+                                  static_cast<int32_t>(type_name.raw_id()));
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
@@ -230,7 +230,7 @@ void HeapGraphTracker::WriteFlamegraph(
 
     tables::StackProfileFrameTable::Row row{};
     PERFETTO_CHECK(node.class_name > 0);
-    row.name = StringId(static_cast<uint32_t>(node.class_name));
+    row.name = StringId::Raw(static_cast<uint32_t>(node.class_name));
     row.mapping = mapping_row;
 
     auto id =

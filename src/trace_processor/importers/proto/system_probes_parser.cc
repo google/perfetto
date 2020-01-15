@@ -254,7 +254,7 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
         continue;
       }
       bool is_counter_field = fld.id() < proc_stats_process_names_.size() &&
-                              proc_stats_process_names_[fld.id()] != 0;
+                              !proc_stats_process_names_[fld.id()].is_null();
       if (is_counter_field) {
         // Memory counters are in KB, keep values in bytes in the trace
         // processor.

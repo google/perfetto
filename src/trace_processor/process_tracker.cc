@@ -170,7 +170,7 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
 
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
-  StartNewThread(timestamp, /*tid=*/pid, 0);
+  StartNewThread(timestamp, /*tid=*/pid, kNullStringId);
 
   // Note that we erased the pid above so this should always return a new
   // process.
@@ -179,7 +179,7 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
   auto* process_table = context_->storage->mutable_process_table();
   auto* thread_table = context_->storage->mutable_thread_table();
 
-  PERFETTO_DCHECK(process_table->name()[upid] == 0);
+  PERFETTO_DCHECK(process_table->name()[upid].is_null());
   PERFETTO_DCHECK(!process_table->start_ts()[upid].has_value());
 
   if (timestamp) {

@@ -37,13 +37,48 @@ class StringPool {
  public:
   struct Id {
     Id() = default;
-    constexpr Id(uint32_t i) : id(i) {}
 
     bool operator==(const Id& other) const { return other.id == id; }
     bool operator!=(const Id& other) const { return !(other == *this); }
     bool operator<(const Id& other) const { return id < other.id; }
 
     bool is_null() const { return id == 0u; }
+
+    bool is_large_string() const { return id & kLargeStringFlagBitMask; }
+
+    uint32_t block_offset() const { return id & kBlockOffsetBitMask; }
+
+    uint32_t block_index() const {
+      return (id & kBlockIndexBitMask) >> kNumBlockOffsetBits;
+    }
+
+    uint32_t large_string_index() const {
+      PERFETTO_DCHECK(is_large_string());
+      return id & ~kLargeStringFlagBitMask;
+    }
+
+    uint32_t raw_id() const { return id; }
+
+    static Id LargeString(size_t index) {
+      PERFETTO_DCHECK(index <= static_cast<uint32_t>(index));
+      PERFETTO_DCHECK(!(index & kLargeStringFlagBitMask));
+      return Id(kLargeStringFlagBitMask | static_cast<uint32_t>(index));
+    }
+
+    static Id BlockString(size_t index, uint32_t offset) {
+      PERFETTO_DCHECK(index < (1u << (kNumBlockIndexBits + 1)));
+      PERFETTO_DCHECK(offset < (1u << (kNumBlockOffsetBits + 1)));
+      return Id(~kLargeStringFlagBitMask &
+                (static_cast<uint32_t>(index << kNumBlockOffsetBits) |
+                 (offset & kBlockOffsetBitMask)));
+    }
+
+    static constexpr Id Raw(uint32_t raw) { return Id(raw); }
+
+    static constexpr Id Null() { return Id(0u); }
+
+   private:
+    constexpr Id(uint32_t i) : id(i) {}
 
     uint32_t id;
   };
@@ -79,7 +114,7 @@ class StringPool {
 
   Id InternString(base::StringView str) {
     if (str.data() == nullptr)
-      return Id(0);
+      return Id::Null();
 
     auto hash = str.Hash();
     auto id_it = string_index_.find(hash);
@@ -92,7 +127,7 @@ class StringPool {
 
   base::Optional<Id> GetId(base::StringView str) const {
     if (str.data() == nullptr)
-      return Id(0u);
+      return Id::Null();
 
     auto hash = str.Hash();
     auto id_it = string_index_.find(hash);
@@ -104,9 +139,9 @@ class StringPool {
   }
 
   NullTermStringView Get(Id id) const {
-    if (id.id == 0)
+    if (id.is_null())
       return NullTermStringView();
-    if (id.id & kLargeStringFlagBitMask)
+    if (id.is_large_string())
       return GetLargeString(id);
     return GetFromBlockPtr(IdToPtr(id));
   }
@@ -199,29 +234,15 @@ class StringPool {
   const uint8_t* IdToPtr(Id id) const {
     // If the MSB is set, the ID represents an index into |large_strings_|, so
     // shouldn't be converted into a block pointer.
-    PERFETTO_DCHECK(!(id.id & kLargeStringFlagBitMask));
+    PERFETTO_DCHECK(!id.is_large_string());
 
-    size_t block_index = (id.id & kBlockIndexBitMask) >> kNumBlockOffsetBits;
-    uint32_t block_offset = id.id & kBlockOffsetBitMask;
+    size_t block_index = id.block_index();
+    uint32_t block_offset = id.block_offset();
 
     PERFETTO_DCHECK(block_index < blocks_.size());
     PERFETTO_DCHECK(block_offset < blocks_[block_index].pos());
 
     return blocks_[block_index].Get(block_offset);
-  }
-
-  static Id BlockIndexAndOffsetToId(size_t index, uint32_t offset) {
-    PERFETTO_DCHECK(index < (1u << (kNumBlockIndexBits + 1)));
-    PERFETTO_DCHECK(offset < (1u << (kNumBlockOffsetBits + 1)));
-    return Id(~kLargeStringFlagBitMask &
-              (static_cast<uint32_t>(index << kNumBlockOffsetBits) |
-               (offset & kBlockOffsetBitMask)));
-  }
-
-  static Id LargeStringIndexToId(size_t index) {
-    PERFETTO_DCHECK(index <= static_cast<uint32_t>(index) &&
-                    !(index & kLargeStringFlagBitMask));
-    return Id(kLargeStringFlagBitMask | static_cast<uint32_t>(index));
   }
 
   // |ptr| should point to the start of the string metadata (i.e. the first byte
@@ -248,8 +269,8 @@ class StringPool {
   // Lookup a string in the |large_strings_| vector. |id| should have the MSB
   // set.
   NullTermStringView GetLargeString(Id id) const {
-    PERFETTO_DCHECK(id.id & kLargeStringFlagBitMask);
-    size_t index = id.id & ~kLargeStringFlagBitMask;
+    PERFETTO_DCHECK(id.is_large_string());
+    size_t index = id.large_string_index();
     PERFETTO_DCHECK(index < large_strings_.size());
     const std::string* str = large_strings_[index].get();
     return NullTermStringView(str->c_str(), str->size());
@@ -280,7 +301,7 @@ struct hash< ::perfetto::trace_processor::StringPool::Id> {
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<uint32_t>{}(r.id);
+    return std::hash<uint32_t>{}(r.raw_id());
   }
 };
 

@@ -189,7 +189,7 @@ struct TypedColumn<base::Optional<StringPool::Id>>
     // TODO(lalitm): remove this special casing if we migrate all tables over
     // to macro tables and find that we can remove support for null stringids
     // in the stringpool.
-    return TypedColumn<StringPool::Id>::Append(v ? *v : StringPool::Id(0u));
+    return TypedColumn<StringPool::Id>::Append(v ? *v : StringPool::Id::Null());
   }
 
   // Implements equality between two items of type |T|.

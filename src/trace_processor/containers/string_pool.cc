@@ -81,7 +81,7 @@ StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
 
   // Compute the id from the block index and offset and add a mapping from the
   // hash to the id.
-  Id string_id = BlockIndexAndOffsetToId(blocks_.size() - 1, offset);
+  Id string_id = Id::BlockString(blocks_.size() - 1, offset);
   string_index_.emplace(hash, string_id);
   return string_id;
 }
@@ -90,7 +90,7 @@ StringPool::Id StringPool::InsertLargeString(base::StringView str,
                                              uint64_t hash) {
   large_strings_.emplace_back(new std::string(str.begin(), str.size()));
   // Compute id from the index and add a mapping from the hash to the id.
-  Id string_id = LargeStringIndexToId(large_strings_.size() - 1);
+  Id string_id = Id::LargeString(large_strings_.size() - 1);
   string_index_.emplace(hash, string_id);
   return string_id;
 }
@@ -172,11 +172,11 @@ StringPool::Id StringPool::Iterator::StringId() {
 
     // If we're at (0, 0), we have the null string which has id 0.
     if (block_index_ == 0 && block_offset_ == 0)
-      return 0;
-    return BlockIndexAndOffsetToId(block_index_, block_offset_);
+      return Id::Null();
+    return Id::BlockString(block_index_, block_offset_);
   }
   PERFETTO_DCHECK(large_strings_index_ < pool_->large_strings_.size());
-  return LargeStringIndexToId(large_strings_index_);
+  return Id::LargeString(large_strings_index_);
 }
 
 }  // namespace trace_processor

@@ -76,7 +76,7 @@ class EventTracker {
   // Represents a counter event which is currently pending upid resolution.
   struct PendingUpidResolutionCounter {
     uint32_t row = 0;
-    StringId name_id = 0;
+    StringId name_id = kNullStringId;
     UniqueTid utid = 0;
   };
 
