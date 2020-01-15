@@ -39,11 +39,19 @@ class TrackEventParser {
  public:
   explicit TrackEventParser(TraceProcessorContext* context);
 
+  void ParseTrackDescriptor(protozero::ConstBytes);
+  UniquePid ParseProcessDescriptor(protozero::ConstBytes);
+  UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
+
   void ParseTrackEvent(int64_t ts,
                        int64_t tts,
                        int64_t ticount,
                        PacketSequenceStateGeneration*,
                        protozero::ConstBytes);
+
+ private:
+  void ParseChromeProcessDescriptor(UniquePid upid, protozero::ConstBytes);
+  void ParseChromeThreadDescriptor(UniqueTid utid, protozero::ConstBytes);
   void ParseLegacyEventAsRawEvent(
       int64_t ts,
       int64_t tts,
@@ -80,7 +88,6 @@ class TrackEventParser {
   void ParseChromeHistogramSample(protozero::ConstBytes chrome_keyed_service,
                                   ArgsTracker::BoundInserter* inserter);
 
- private:
   TraceProcessorContext* context_;
 
   const StringId task_file_name_args_key_id_;
@@ -117,6 +124,8 @@ class TrackEventParser {
   const StringId chrome_histogram_sample_sample_args_key_id_;
 
   std::array<StringId, 38> chrome_legacy_ipc_class_ids_;
+  std::array<StringId, 9> chrome_process_name_ids_;
+  std::array<StringId, 14> chrome_thread_name_ids_;
 };
 
 }  // namespace trace_processor

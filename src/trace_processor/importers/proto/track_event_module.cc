@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 #include "src/trace_processor/importers/proto/track_event_module.h"
-#include "perfetto/base/build_config.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/track_tracker.h"
+
+#include "protos/perfetto/config/data_source_config.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -43,20 +48,15 @@ ModuleResult TrackEventModule::TokenizePacket(
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kTrackDescriptorFieldNumber:
-      tokenizer_.TokenizeTrackDescriptorPacket(state, decoder);
-      return ModuleResult::Handled();
+      return tokenizer_.TokenizeTrackDescriptorPacket(state, decoder,
+                                                      packet_timestamp);
     case TracePacket::kTrackEventFieldNumber:
       tokenizer_.TokenizeTrackEventPacket(state, decoder, packet,
                                           packet_timestamp);
       return ModuleResult::Handled();
     case TracePacket::kThreadDescriptorFieldNumber:
-      // TODO(eseckler): Remove these once Chrome has switched fully over to
-      // TrackDescriptors.
-      tokenizer_.TokenizeThreadDescriptorPacket(state, decoder);
-      return ModuleResult::Handled();
-    case TracePacket::kProcessDescriptorFieldNumber:
-      tokenizer_.TokenizeProcessDescriptorPacket(decoder);
-      return ModuleResult::Handled();
+      // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
+      return tokenizer_.TokenizeThreadDescriptorPacket(state, decoder);
   }
   return ModuleResult::Ignored();
 }
@@ -64,12 +64,28 @@ ModuleResult TrackEventModule::TokenizePacket(
 void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
                                    const TimestampedTracePiece& ttp,
                                    uint32_t field_id) {
-  if (field_id == TracePacket::kTrackEventFieldNumber) {
-    PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
-    parser_.ParseTrackEvent(
-        ttp.timestamp, ttp.track_event_data->thread_timestamp,
-        ttp.track_event_data->thread_instruction_count,
-        ttp.track_event_data->sequence_state, decoder.track_event());
+  switch (field_id) {
+    case TracePacket::kTrackDescriptorFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      parser_.ParseTrackDescriptor(decoder.track_descriptor());
+      break;
+    case TracePacket::kTrackEventFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
+      parser_.ParseTrackEvent(
+          ttp.timestamp, ttp.track_event_data->thread_timestamp,
+          ttp.track_event_data->thread_instruction_count,
+          ttp.track_event_data->sequence_state, decoder.track_event());
+      break;
+    case TracePacket::kProcessDescriptorFieldNumber:
+      // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      parser_.ParseProcessDescriptor(decoder.process_descriptor());
+      break;
+    case TracePacket::kThreadDescriptorFieldNumber:
+      // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      parser_.ParseThreadDescriptor(decoder.thread_descriptor());
+      break;
   }
 }
 
