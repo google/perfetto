@@ -229,11 +229,9 @@ void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
     // arg_set_id when the arg tracker is flushed.
     auto id = context_->metadata_tracker->AppendMetadata(
         metadata::android_packages_list, Variadic::Integer(0));
-    uint32_t row = *context_->storage->metadata_table().id().IndexOf(id);
-    auto add_arg = [this, row](base::StringView name, Variadic value) {
+    auto add_arg = [this, id](base::StringView name, Variadic value) {
       StringId key_id = context_->storage->InternString(name);
-      context_->args_tracker->AddArg(TableId::kMetadataTable, row, key_id,
-                                     key_id, value);
+      context_->args_tracker->AddArgsTo(id).AddArg(key_id, value);
     };
     protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
     add_arg("name",
