@@ -31,6 +31,9 @@ class TrackTracker {
   // Interns a thread track into the storage.
   TrackId InternThreadTrack(UniqueTid utid);
 
+  // Interns a process track into the storage.
+  TrackId InternProcessTrack(UniquePid upid);
+
   // Interns a Fuchsia async track into the storage.
   TrackId InternFuchsiaAsyncTrack(StringId name, int64_t correlation_id);
 
@@ -56,21 +59,50 @@ class TrackTracker {
   // Lazily creates the track for legacy Chrome global instant events.
   TrackId GetOrCreateLegacyChromeGlobalInstantTrack();
 
-  // Create or update the track for the TrackDescriptor with the given |uuid|.
-  // Optionally, associate the track with a process or thread.
-  TrackId UpdateDescriptorTrack(uint64_t uuid,
-                                StringId name,
-                                base::Optional<UniquePid> upid = base::nullopt,
-                                base::Optional<UniqueTid> utid = base::nullopt);
+  // Associate a TrackDescriptor track identified by the given |uuid| with a
+  // process's |pid|. This is called during tokenization. If a reservation for
+  // the same |uuid| already exists, verifies that the present reservation
+  // matches the new one.
+  //
+  // The track will be resolved to the process track (see InternProcessTrack())
+  // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
+  // time, |pid| will also be resolved to a |upid|.
+  void ReserveDescriptorProcessTrack(uint64_t uuid,
+                                     uint32_t pid,
+                                     int64_t timestamp);
+
+  // Associate a TrackDescriptor track identified by the given |uuid| with a
+  // thread's |pid| and |tid|. This is called during tokenization. If a
+  // reservation for the same |uuid| already exists, verifies that the present
+  // reservation matches the new one.
+  //
+  // The track will be resolved to the thread track (see InternThreadTrack())
+  // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
+  // time, |pid| will also be resolved to a |upid|.
+  void ReserveDescriptorThreadTrack(uint64_t uuid,
+                                    uint64_t parent_uuid,
+                                    uint32_t pid,
+                                    uint32_t tid,
+                                    int64_t timestamp);
+
+  // Associate a TrackDescriptor track identified by the given |uuid| with a
+  // parent track (usually a process- or thread-associated track). This is
+  // called during tokenization. If a reservation for the same |uuid| already
+  // exists, will attempt to update it.
+  //
+  // The track will be created upon the first call to GetDescriptorTrack() with
+  // the same |uuid|. If |parent_uuid| is 0, the track will become a global
+  // track. Otherwise, it will become a new track of the same type as its parent
+  // track.
+  void ReserveDescriptorChildTrack(uint64_t uuid, uint64_t parent_uuid);
 
   // Returns the ID of the track for the TrackDescriptor with the given |uuid|.
-  // Returns nullopt if no TrackDescriptor with this |uuid| has been parsed yet.
-  base::Optional<TrackId> GetDescriptorTrack(uint64_t uuid) const;
-
-  // Returns the ID of the TrackDescriptor track associated with the given utid.
-  // If the trace contained multiple tracks associated with the utid, the first
-  // created track is returned. Creates a new track if no such track exists.
-  TrackId GetOrCreateDescriptorTrackForThread(UniqueTid utid);
+  // This is called during parsing. The first call to GetDescriptorTrack() for
+  // each |uuid| resolves and inserts the track (and its parent tracks,
+  // following the parent_uuid chain recursively) based on reservations made for
+  // the |uuid|. Returns nullopt if no track for a descriptor with this |uuid|
+  // has been reserved.
+  base::Optional<TrackId> GetDescriptorTrack(uint64_t uuid);
 
   // Returns the ID of the implicit trace-global default TrackDescriptor track.
   TrackId GetOrCreateDefaultDescriptorTrack();
@@ -135,18 +167,37 @@ class TrackTracker {
              std::tie(r.upid, r.cookie, r.name);
     }
   };
+  struct DescriptorTrackReservation {
+    uint64_t parent_uuid = 0;
+    base::Optional<uint32_t> pid;
+    base::Optional<uint32_t> tid;
+    int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
+
+    // Whether |other| is a valid descriptor for this track reservation. A track
+    // should always remain nested underneath its original parent.
+    bool IsForSameTrack(const DescriptorTrackReservation& other) {
+      // Note that |timestamp| is ignored for this comparison.
+      return std::tie(parent_uuid, pid, tid) ==
+             std::tie(other.parent_uuid, pid, tid);
+    }
+  };
+
+  TrackId ResolveDescriptorTrack(uint64_t uuid,
+                                 const DescriptorTrackReservation&);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
-  std::map<UniqueTid /* utid */, TrackId> thread_tracks_;
+  std::map<UniqueTid, TrackId> thread_tracks_;
+  std::map<UniquePid, TrackId> process_tracks_;
   std::map<int64_t /* correlation_id */, TrackId> fuchsia_async_tracks_;
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
   std::map<AndroidAsyncTrackTuple, TrackId> android_async_tracks_;
   std::map<UniquePid, TrackId> chrome_process_instant_tracks_;
   base::Optional<TrackId> chrome_global_instant_track_id_;
-  std::map<uint64_t /* uuid */, TrackId> descriptor_tracks_;
-  std::map<UniqueTid, TrackId> descriptor_tracks_by_utid_;
+  std::map<uint64_t /* uuid */, DescriptorTrackReservation>
+      reserved_descriptor_tracks_;
+  std::map<uint64_t /* uuid */, TrackId> resolved_descriptor_tracks_;
 
   std::map<StringId, TrackId> global_counter_tracks_by_name_;
   std::map<std::pair<StringId, uint32_t>, TrackId> cpu_counter_tracks_;
@@ -155,6 +206,11 @@ class TrackTracker {
   std::map<std::pair<StringId, int32_t>, TrackId> irq_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId> softirq_counter_tracks_;
   std::map<std::pair<StringId, uint32_t>, TrackId> gpu_counter_tracks_;
+
+  // Stores the descriptor uuid used for the primary process/thread track
+  // for the given upid / utid. Used for pid/tid reuse detection.
+  std::map<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
+  std::map<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
   const StringId source_key_ = 0;
   const StringId source_id_key_ = 0;

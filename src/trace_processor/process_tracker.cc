@@ -161,7 +161,7 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
 }
 
 UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
-                                          uint32_t parent_tid,
+                                          base::Optional<uint32_t> parent_tid,
                                           uint32_t pid,
                                           StringId main_thread_name) {
   pids_.erase(pid);
@@ -181,12 +181,14 @@ UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
   process_table->mutable_start_ts()->Set(upid, timestamp);
   process_table->mutable_name()->Set(upid, main_thread_name);
 
-  UniqueTid parent_utid = GetOrCreateThread(parent_tid);
-  auto opt_parent_upid = thread_table->upid()[parent_utid];
-  if (opt_parent_upid.has_value()) {
-    process_table->mutable_parent_upid()->Set(upid, *opt_parent_upid);
-  } else {
-    pending_parent_assocs_.emplace_back(parent_utid, upid);
+  if (parent_tid) {
+    UniqueTid parent_utid = GetOrCreateThread(*parent_tid);
+    auto opt_parent_upid = thread_table->upid()[parent_utid];
+    if (opt_parent_upid.has_value()) {
+      process_table->mutable_parent_upid()->Set(upid, *opt_parent_upid);
+    } else {
+      pending_parent_assocs_.emplace_back(parent_utid, upid);
+    }
   }
   return upid;
 }
