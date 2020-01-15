@@ -33,7 +33,7 @@ ProcessTracker::ProcessTracker(TraceProcessorContext* context)
 
 ProcessTracker::~ProcessTracker() = default;
 
-UniqueTid ProcessTracker::StartNewThread(int64_t timestamp,
+UniqueTid ProcessTracker::StartNewThread(base::Optional<int64_t> timestamp,
                                          uint32_t tid,
                                          StringId thread_name_id) {
   tables::ThreadTable::Row row;
@@ -86,7 +86,8 @@ base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
 
 UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
   auto utid = GetThreadOrNull(tid);
-  return utid ? utid.value() : StartNewThread(0, tid, 0);
+  return utid ? utid.value()
+              : StartNewThread(base::nullopt, tid, kNullStringId);
 }
 
 UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
@@ -147,7 +148,8 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   }
 
   // If no matching thread was found, create a new one.
-  UniqueTid utid = opt_utid ? *opt_utid : StartNewThread(0, tid, 0);
+  UniqueTid utid =
+      opt_utid ? *opt_utid : StartNewThread(base::nullopt, tid, kNullStringId);
   PERFETTO_DCHECK(thread_table->tid()[utid] == tid);
 
   // Find matching process or create new one.
@@ -160,7 +162,7 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   return utid;
 }
 
-UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
+UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
                                           base::Optional<uint32_t> parent_tid,
                                           uint32_t pid,
                                           StringId main_thread_name) {
@@ -178,7 +180,11 @@ UniquePid ProcessTracker::StartNewProcess(int64_t timestamp,
   auto* thread_table = context_->storage->mutable_thread_table();
 
   PERFETTO_DCHECK(process_table->name()[upid] == 0);
-  process_table->mutable_start_ts()->Set(upid, timestamp);
+  PERFETTO_DCHECK(!process_table->start_ts()[upid].has_value());
+
+  if (timestamp) {
+    process_table->mutable_start_ts()->Set(upid, *timestamp);
+  }
   process_table->mutable_name()->Set(upid, main_thread_name);
 
   if (parent_tid) {
