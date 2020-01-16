@@ -39,6 +39,11 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+const char kNoZlibErr[] =
+    "Cannot open compressed trace. zlib not enabled in the build config";
+#endif
+
 inline bool isspace(unsigned char c) {
   return ::isspace(c);
 }
@@ -119,12 +124,20 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         }
       case kGzipTraceType:
         PERFETTO_DLOG("gzip trace detected");
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
         reader_.reset(new GzipTraceParser(context_));
         break;
+#else
+        return util::ErrStatus(kNoZlibErr);
+#endif
       case kCtraceTraceType:
         PERFETTO_DLOG("ctrace trace detected");
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
         reader_.reset(new GzipTraceParser(context_));
         break;
+#else
+        return util::ErrStatus(kNoZlibErr);
+#endif
       case kUnknownTraceType:
         return util::ErrStatus("Unknown trace type provided");
     }
