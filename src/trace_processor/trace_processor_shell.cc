@@ -290,15 +290,20 @@ class ErrorPrinter : public google::protobuf::io::ErrorCollector {
   }
 };
 
+// This function returns an indentifier for a metric suitable for use
+// as an SQL table name (i.e. containing no forward or backward slashes).
+std::string BaseName(std::string metric_path) {
+  std::replace(metric_path.begin(), metric_path.end(), '\\', '/');
+  auto slash_idx = metric_path.rfind('/');
+  return slash_idx == std::string::npos ? metric_path
+                                        : metric_path.substr(slash_idx + 1);
+}
+
 util::Status RegisterMetric(const std::string& register_metric) {
   std::string sql;
   base::ReadFile(register_metric, &sql);
 
-  std::string path = "shell/";
-  auto slash_idx = register_metric.rfind('/');
-  path += slash_idx == std::string::npos
-              ? register_metric
-              : register_metric.substr(slash_idx + 1);
+  std::string path = "shell/" + BaseName(register_metric);
 
   return g_tp->RegisterMetric(path, sql);
 }
@@ -321,11 +326,7 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
   google::protobuf::compiler::Parser parser;
   parser.Parse(&tokenizer, proto);
 
-  auto basename_idx = extend_metrics_proto.rfind('/');
-  auto basename = basename_idx == std::string::npos
-                      ? extend_metrics_proto
-                      : extend_metrics_proto.substr(basename_idx + 1);
-  proto->set_name(basename);
+  proto->set_name(BaseName(extend_metrics_proto));
   pool->BuildFile(*proto);
 
   std::vector<uint8_t> metric_proto;
@@ -654,30 +655,51 @@ struct CommandLineOptions {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 void PrintUsage(char** argv) {
-  PERFETTO_ELOG(
-      "Interactive trace processor shell.\n"
-      "Usage: %s [-q query_file] trace_file.pb",
-      argv[0]);
+  PERFETTO_ELOG(R"(
+Interactive trace processor shell.
+Usage: %s [OPTIONS] trace_file.pb
+
+Options:
+ -q, --query-file FILE                Read and execute an SQL query from a file.
+                                      If used with --run-metrics, the query is
+                                      executed after the selected metrics and
+                                      the metrics output is suppressed.
+ --run-metrics x,y,z                  Runs a comma separated list of metrics and
+                                      prints the result as a TraceMetrics proto
+                                      to stdout. The specified can either be
+                                      in-built metrics or SQL/proto files of
+                                      extension metrics.
+ --metrics-output [binary|text|json]  Allows the output of --run-metrics to be
+                                      specified in either proto binary, proto
+                                      text format or JSON format (default: proto
+                                      text).)",
+                argv[0]);
 }
 
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
 
-  if (argc == 2) {
-    command_line_options.trace_file_path = argv[1];
-    command_line_options.launch_shell = true;
-  } else if (argc == 4) {
-    if (strcmp(argv[1], "-q") != 0) {
-      PrintUsage(argv);
-      exit(1);
-    }
-    command_line_options.query_file_path = argv[2];
-    command_line_options.trace_file_path = argv[3];
-  } else {
+  if (argc < 2 || argc % 2 == 1) {
     PrintUsage(argv);
     exit(1);
   }
 
+  for (int i = 1; i < argc - 1; i += 2) {
+    if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--query-file") == 0) {
+      command_line_options.query_file_path = argv[i + 1];
+    } else if (strcmp(argv[i], "--run-metrics") == 0) {
+      command_line_options.metric_names = argv[i + 1];
+    } else if (strcmp(argv[i], "--metrics-output") == 0) {
+      command_line_options.metric_output = argv[i + 1];
+    } else {
+      PrintUsage(argv);
+      exit(1);
+    }
+  }
+  command_line_options.trace_file_path = argv[argc - 1];
+  command_line_options.launch_shell =
+      command_line_options.metric_names.empty() &&
+      command_line_options.query_file_path.empty();
   return command_line_options;
 }
 
@@ -1028,11 +1050,7 @@ int TraceProcessorMain(int argc, char** argv) {
         return 1;
       }
 
-      auto slash_idx = no_ext_name.rfind('/');
-      std::string basename = slash_idx == std::string::npos
-                                 ? no_ext_name
-                                 : no_ext_name.substr(slash_idx + 1);
-      metrics[i] = basename;
+      metrics[i] = BaseName(no_ext_name);
     }
 
     OutputFormat format;
