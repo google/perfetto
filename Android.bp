@@ -994,6 +994,10 @@ cc_library_static {
     ":perfetto_src_tracing_tracing",
     ":perfetto_test_test_helper",
   ],
+  static_libs: [
+    "libgmock",
+    "libgtest",
+  ],
   export_include_dirs: [
     "include",
     "include/perfetto/base/build_configs/android_tree",
