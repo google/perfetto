@@ -23,6 +23,12 @@ config("extra_warnings") {
     "-Wpedantic",
   ]
 
+  # Disable variadic macro warning as we make extensive use of them in trace
+  # processor and client API.
+  if (is_clang) {
+    cflags += [ "-Wno-gnu-zero-variadic-macro-arguments" ]
+  }
+
   # Disable Weverything on fuzzers to avoid breakages when new versions of clang
   # are rolled into OSS-fuzz.
   if (is_clang && !is_fuzzer) {
@@ -33,7 +39,6 @@ config("extra_warnings") {
       "-Wno-disabled-macro-expansion",
       "-Wno-gnu-include-next",
       "-Wno-gnu-statement-expression",
-      "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
       "-Wno-unknown-sanitizers",
