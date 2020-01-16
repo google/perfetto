@@ -19,7 +19,11 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 CREATE TABLE IF NOT EXISTS types_per_upid AS
 WITH distinct_unmapped_type_names AS (
   SELECT DISTINCT upid, type_name
-  FROM heap_graph_object WHERE deobfuscated_type_name IS NULL
+  FROM heap_graph_object
+  WHERE deobfuscated_type_name IS NULL
+  AND INSTR(type_name, '.') = 0
+  AND RTRIM(type_name, '[]') NOT IN ('byte', 'char', 'short', 'int', 'long', 'boolean', 'float', 'double')
+  AND type_name NOT LIKE '$Proxy%'
 )
 SELECT upid, RepeatedField(type_name) AS types
 FROM distinct_unmapped_type_names GROUP BY 1;
@@ -29,6 +33,8 @@ WITH distinct_unmapped_field_names AS (
   SELECT DISTINCT upid, field_name
   FROM heap_graph_object JOIN heap_graph_reference USING (reference_set_id)
   WHERE deobfuscated_type_name IS NULL
+  AND field_name NOT LIKE '%.%.%'
+  AND field_name NOT LIKE '$Proxy%'
 )
 SELECT upid, RepeatedField(field_name) AS fields
 FROM distinct_unmapped_field_names GROUP BY 1;
