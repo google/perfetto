@@ -301,6 +301,10 @@ TrackId TrackTracker::ResolveDescriptorTrack(
       utid = context_->process_tracker->StartNewThread(
           base::nullopt, *reservation.tid, kNullStringId);
 
+      // Associate the new thread with its process.
+      PERFETTO_CHECK(context_->process_tracker->UpdateThread(
+                         *reservation.tid, *reservation.pid) == utid);
+
       descriptor_uuids_by_utid_[utid] = uuid;
     }
     return InternThreadTrack(utid);
