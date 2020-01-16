@@ -146,7 +146,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   EXPECT_EQ(event["tdur"].asInt64(), kThreadDuration / 1000);
   EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
   EXPECT_EQ(event["tidelta"].asInt64(), kThreadInstructionDelta);
-  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_TRUE(event["args"].isObject());
@@ -192,7 +192,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   EXPECT_FALSE(event.isMember("tdur"));
   EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
   EXPECT_FALSE(event.isMember("tidelta"));
-  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_TRUE(event["args"].isObject());
@@ -218,7 +218,7 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "M");
-  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(event["name"].asString(), "thread_name");
   EXPECT_EQ(event["args"]["name"].asString(), kName);
 }
@@ -768,7 +768,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   EXPECT_EQ(result["traceEvents"].size(), 1u);
 
   Json::Value event = result["traceEvents"][0];
-  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(event["ph"].asString(), "I");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["s"].asString(), "t");
@@ -842,40 +842,40 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
   Json::Value result = ToJsonValue(ReadFile(output));
   EXPECT_EQ(result["traceEvents"].size(), 5u);
 
-  EXPECT_EQ(result["traceEvents"][0]["pid"].asUInt(), 1u);
-  EXPECT_EQ(result["traceEvents"][0]["tid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][0]["pid"].asInt(), 1);
+  EXPECT_EQ(result["traceEvents"][0]["tid"].asInt(), 1);
   EXPECT_EQ(result["traceEvents"][0]["ph"].asString(), "I");
   EXPECT_EQ(result["traceEvents"][0]["ts"].asInt64(), 10);
   EXPECT_EQ(result["traceEvents"][0]["cat"].asString(), "cat");
   EXPECT_EQ(result["traceEvents"][0]["name"].asString(), "name1a");
 
-  EXPECT_EQ(result["traceEvents"][1]["pid"].asUInt(), 1u);
-  EXPECT_EQ(result["traceEvents"][1]["tid"].asUInt(), 2u);
+  EXPECT_EQ(result["traceEvents"][1]["pid"].asInt(), 1);
+  EXPECT_EQ(result["traceEvents"][1]["tid"].asInt(), 2);
   EXPECT_EQ(result["traceEvents"][1]["ph"].asString(), "X");
   EXPECT_EQ(result["traceEvents"][1]["ts"].asInt64(), 20);
   EXPECT_EQ(result["traceEvents"][1]["dur"].asInt64(), 1);
   EXPECT_EQ(result["traceEvents"][1]["cat"].asString(), "cat");
   EXPECT_EQ(result["traceEvents"][1]["name"].asString(), "name1b");
 
-  EXPECT_EQ(result["traceEvents"][2]["pid"].asUInt(), 1u);
-  EXPECT_EQ(result["traceEvents"][2]["tid"].asUInt(),
-            static_cast<uint32_t>(std::numeric_limits<uint32_t>::max() - 1u));
+  EXPECT_EQ(result["traceEvents"][2]["pid"].asInt(), 1);
+  EXPECT_EQ(result["traceEvents"][2]["tid"].asInt(),
+            static_cast<int>(std::numeric_limits<uint32_t>::max() - 1u));
   EXPECT_EQ(result["traceEvents"][2]["ph"].asString(), "I");
   EXPECT_EQ(result["traceEvents"][2]["ts"].asInt64(), 30);
   EXPECT_EQ(result["traceEvents"][2]["cat"].asString(), "cat");
   EXPECT_EQ(result["traceEvents"][2]["name"].asString(), "name1c");
 
-  EXPECT_EQ(result["traceEvents"][3]["pid"].asUInt(),
-            std::numeric_limits<uint32_t>::max());
-  EXPECT_EQ(result["traceEvents"][3]["tid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][3]["pid"].asInt(),
+            static_cast<int>(std::numeric_limits<uint32_t>::max()));
+  EXPECT_EQ(result["traceEvents"][3]["tid"].asInt(), 1);
   EXPECT_EQ(result["traceEvents"][3]["ph"].asString(), "I");
   EXPECT_EQ(result["traceEvents"][3]["ts"].asInt64(), 40);
   EXPECT_EQ(result["traceEvents"][3]["cat"].asString(), "cat");
   EXPECT_EQ(result["traceEvents"][3]["name"].asString(), "name2a");
 
-  EXPECT_EQ(result["traceEvents"][4]["pid"].asUInt(),
-            std::numeric_limits<uint32_t>::max());
-  EXPECT_EQ(result["traceEvents"][4]["tid"].asUInt(), 2u);
+  EXPECT_EQ(result["traceEvents"][4]["pid"].asInt(),
+            static_cast<int>(std::numeric_limits<uint32_t>::max()));
+  EXPECT_EQ(result["traceEvents"][4]["tid"].asInt(), 2);
   EXPECT_EQ(result["traceEvents"][4]["ph"].asString(), "X");
   EXPECT_EQ(result["traceEvents"][4]["ts"].asInt64(), 50);
   EXPECT_EQ(result["traceEvents"][1]["dur"].asInt64(), 1);
@@ -931,7 +931,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value begin_event1 = result["traceEvents"][0];
   EXPECT_EQ(begin_event1["ph"].asString(), "b");
   EXPECT_EQ(begin_event1["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event1["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(begin_event1["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(begin_event1["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event1["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event1["name"].asString(), kName);
@@ -942,7 +942,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value begin_event2 = result["traceEvents"][1];
   EXPECT_EQ(begin_event2["ph"].asString(), "b");
   EXPECT_EQ(begin_event2["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event2["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(begin_event2["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(begin_event2["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event2["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event2["name"].asString(), kName2);
@@ -954,7 +954,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value end_event2 = result["traceEvents"][3];
   EXPECT_EQ(end_event2["ph"].asString(), "e");
   EXPECT_EQ(end_event2["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event2["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(end_event2["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(end_event2["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event2["cat"].asString(), kCategory);
   EXPECT_EQ(end_event2["name"].asString(), kName);
@@ -966,7 +966,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value end_event1 = result["traceEvents"][3];
   EXPECT_EQ(end_event1["ph"].asString(), "e");
   EXPECT_EQ(end_event1["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event1["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(end_event1["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(end_event1["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event1["cat"].asString(), kCategory);
   EXPECT_EQ(end_event1["name"].asString(), kName);
@@ -1014,7 +1014,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
   EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(begin_event["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(begin_event["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
@@ -1025,7 +1025,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   EXPECT_EQ(end_event["tts"].asInt64(),
             (kThreadTimestamp + kThreadDuration) / 1000);
   EXPECT_EQ(end_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(end_event["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(end_event["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event["cat"].asString(), kCategory);
   EXPECT_EQ(end_event["name"].asString(), kName);
@@ -1069,7 +1069,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
   EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(begin_event["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(begin_event["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
@@ -1116,7 +1116,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "n");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(event["pid"].asInt(), static_cast<int>(kProcessID));
   EXPECT_EQ(event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
@@ -1204,7 +1204,7 @@ TEST_F(ExportJsonTest, RawEvent) {
   EXPECT_EQ(event["tdur"].asInt64(), kThreadDuration / 1000);
   EXPECT_EQ(event["ticount"].asInt64(), kThreadInstructionCount);
   EXPECT_EQ(event["tidelta"].asInt64(), kThreadInstructionDelta);
-  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
   EXPECT_EQ(event["use_async_tts"].asInt(), 1);
@@ -1328,7 +1328,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   EXPECT_EQ(event["ph"].asString(), "n");
   EXPECT_EQ(event["id"].asString(), "0x1");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(event["cat"].asString(), "disabled_by_default-cpu_profiler");
   EXPECT_EQ(event["name"].asString(), "StackCpuSampling");
   EXPECT_EQ(event["s"].asString(), "t");
@@ -1472,13 +1472,13 @@ TEST_F(ExportJsonTest, LabelFilter) {
   EXPECT_EQ(result[0]["ph"].asString(), "X");
   EXPECT_EQ(result[0]["ts"].asInt64(), kTimestamp1 / 1000);
   EXPECT_EQ(result[0]["dur"].asInt64(), kDuration / 1000);
-  EXPECT_EQ(result[0]["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(result[0]["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(result[0]["cat"].asString(), kCategory);
   EXPECT_EQ(result[0]["name"].asString(), kName);
   EXPECT_EQ(result[1]["ph"].asString(), "X");
   EXPECT_EQ(result[1]["ts"].asInt64(), kTimestamp2 / 1000);
   EXPECT_EQ(result[1]["dur"].asInt64(), kDuration / 1000);
-  EXPECT_EQ(result[1]["tid"].asUInt(), kThreadID);
+  EXPECT_EQ(result[1]["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(result[1]["cat"].asString(), kCategory);
   EXPECT_EQ(result[1]["name"].asString(), kName);
 }
