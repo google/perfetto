@@ -63,21 +63,40 @@ export function hueForCpu(cpu: number): number {
   return (128 + (32 * cpu)) % 256;
 }
 
-export function colorForState(state: string): Color {
+const DARK_GREEN: Color = {
+  c: 'dark green',
+  h: 120,
+  s: 44,
+  l: 34
+};
+const LIME_GREEN: Color = {
+  c: 'lime green',
+  h: 75,
+  s: 55,
+  l: 47
+};
+const LIGHT_GREY: Color = {
+  c: 'light grey',
+  h: 0,
+  s: 0,
+  l: 87
+};
+
+export function colorForState(state: string): Readonly<Color> {
   switch (state) {
     case 'Running':
     case 'Busy':
-      return {c: 'dark green', h: 120, s: 44, l: 34};
+      return DARK_GREEN;
     case 'Runnable':
     case 'R':
     case 'R+':
-      return {c: 'lime green', h: 75, s: 55, l: 47};
+      return LIME_GREEN;
     default:
-      return {c: 'light grey', h: 0, s: 0, l: 87};
+      return LIGHT_GREY;
   }
 }
 
-export function colorForTid(tid: number) {
+export function colorForTid(tid: number): Color {
   const colorIdx = hash(tid.toString(), MD_PALETTE.length);
   return Object.assign({}, MD_PALETTE[colorIdx]);
 }

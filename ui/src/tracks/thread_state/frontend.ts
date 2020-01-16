@@ -54,6 +54,11 @@ class ThreadStateTrack extends Track<Config, Data> {
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
+    const shouldGroupBusyStates = groupBusyStates(data.resolution);
+
+    ctx.textAlign = 'center';
+    ctx.font = '10px Roboto Condensed';
+
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
@@ -69,18 +74,16 @@ class ThreadStateTrack extends Track<Config, Data> {
         const color = colorForState(state);
         ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
         let rectWidth = rectEnd - rectStart;
-        if (groupBusyStates(data.resolution) && rectWidth < 1) {
+        if (shouldGroupBusyStates && rectWidth < 1) {
           rectWidth = 1;
         }
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
-        // Don't render text when we have less than 5px to play with.
-        if (rectWidth < 5) continue;
-        ctx.textAlign = 'center';
+        // Don't render text when we have less than 10px to play with.
+        if (rectWidth < 10) continue;
         const title = cropText(translateState(state), charWidth, rectWidth);
         const rectXCenter = rectStart + rectWidth / 2;
         ctx.fillStyle = color.l < 80 ? '#fff' : '#404040';
-        ctx.font = '10px Roboto Condensed';
         ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
       }
     }
