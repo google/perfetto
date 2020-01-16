@@ -28,13 +28,13 @@
 #endif
 
 #define PERFETTO_EINTR(x)                                   \
-  ({                                                        \
+  ([&] {                                                    \
     decltype(x) eintr_wrapper_result;                       \
     do {                                                    \
       eintr_wrapper_result = (x);                           \
     } while (eintr_wrapper_result == -1 && errno == EINTR); \
-    eintr_wrapper_result;                                   \
-  })
+    return eintr_wrapper_result;                            \
+  }())
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 // TODO(brucedawson) - create a ::perfetto::base::IOSize to replace this.

@@ -122,6 +122,9 @@ class MacroTable : public Table {
 
 }  // namespace macros_internal
 
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
+#pragma GCC system_header
+
 // Basic helper macros.
 #define PERFETTO_TP_NOOP(...)
 

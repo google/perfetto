@@ -24,6 +24,9 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
 
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
+#pragma GCC system_header
+
 // TODO(primiano): move this to base/build_config.h, turn into
 // PERFETTO_BUILDFLAG(DCHECK_IS_ON) and update call sites to use that instead.
 #if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)

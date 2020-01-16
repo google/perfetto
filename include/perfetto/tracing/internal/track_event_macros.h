@@ -25,6 +25,9 @@
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "perfetto/tracing/track_event_category_registry.h"
 
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
+#pragma GCC system_header
+
 // Defines data structures for backing a category registry.
 //
 // Each category has one enabled/disabled bit per possible data source instance.
