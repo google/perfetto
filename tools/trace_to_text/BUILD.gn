@@ -50,10 +50,12 @@ source_set("utils") {
     "../../src/profiling/symbolizer:symbolize_database",
   ]
   public_deps = [
-    "../../gn:zlib",
     "../../include/perfetto/ext/base",
     "../../include/perfetto/profiling:deobfuscator",
   ]
+  if (enable_perfetto_zlib) {
+    public_deps += [ "../../gn:zlib" ]
+  }
   sources = [
     "utils.cc",
     "utils.h",
@@ -144,9 +146,11 @@ source_set("full") {
     ":utils",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
-    "../../gn:zlib",
     "../../protos/perfetto/trace:zero",
   ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../gn:zlib" ]
+  }
   sources = [
     "proto_full_utils.cc",
     "proto_full_utils.h",

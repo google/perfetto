@@ -26,12 +26,14 @@
 #include <memory>
 #include <vector>
 
-#include <zlib.h>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/profiling/deobfuscator.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
 
 namespace perfetto {
 
@@ -83,6 +85,7 @@ class TraceWriter {
   std::ostream* output_;
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 class DeflateTraceWriter : public TraceWriter {
  public:
   DeflateTraceWriter(std::ostream* output);
@@ -99,6 +102,17 @@ class DeflateTraceWriter : public TraceWriter {
   uint8_t* const start_;
   uint8_t* const end_;
 };
+
+#else
+
+// Fallback implementation. Will print an error and write uncompressed.
+class DeflateTraceWriter : public TraceWriter {
+ public:
+  DeflateTraceWriter(std::ostream* output);
+  ~DeflateTraceWriter() override;
+};
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace trace_to_text
 }  // namespace perfetto

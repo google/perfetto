@@ -21,8 +21,7 @@
 
 #include <random>
 
-#include <zlib.h>
-
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -33,6 +32,10 @@
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
 
 namespace perfetto {
 namespace {
@@ -51,6 +54,7 @@ TracePacket CreateTracePacket(F fill_function) {
   return packet;
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 std::string Decompress(const std::string& data) {
   uint8_t out[1024];
 
@@ -76,6 +80,7 @@ std::string Decompress(const std::string& data) {
   inflateEnd(&stream);
   return s;
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 TEST(PacketWriterTest, FilePacketWriter) {
   base::TempFile tmp = base::TempFile::Create();
@@ -104,6 +109,8 @@ TEST(PacketWriterTest, FilePacketWriter) {
   EXPECT_TRUE(trace.ParseFromString(s));
   EXPECT_EQ(trace.packet()[0].for_testing().str(), "abc");
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 TEST(PacketWriterTest, ZipPacketWriter) {
   base::TempFile tmp = base::TempFile::Create();
@@ -280,6 +287,8 @@ TEST(PacketWriterTest, ZipPacketWriter_ShouldSplitPackets) {
 
   EXPECT_EQ(packet_count, 1000u);
 }
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace
 }  // namespace perfetto
