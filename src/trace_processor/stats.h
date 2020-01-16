@@ -150,6 +150,9 @@ enum Source {
   kAnalysis
 };
 
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
+#pragma GCC system_header
+
 // Declares an enum of literals (one for each stat). The enum values of each
 // literal corresponds to the string index in the arrays below.
 #define PERFETTO_TP_STATS_ENUM(name, ...) name

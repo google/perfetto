@@ -521,12 +521,12 @@ const Event* ProtoTranslationTable::GetOrCreateEvent(
   group_to_events_[e->group].push_back(&events_.at(e->ftrace_event_id));
 
   return e;
-};
+}
 
 const char* ProtoTranslationTable::InternString(const std::string& str) {
   auto it_and_inserted = interned_strings_.insert(str);
   return it_and_inserted.first->c_str();
-};
+}
 
 uint16_t ProtoTranslationTable::CreateGenericEventField(
     const FtraceEvent::Field& ftrace_field,

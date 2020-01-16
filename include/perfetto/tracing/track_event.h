@@ -138,14 +138,19 @@
   PERFETTO_INTERNAL_DECLARE_CATEGORIES(__VA_ARGS__)            \
   /* The track event data source for this set of categories */ \
   PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE();         \
-  }  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */             \
+  PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
 
 // Allocate storage for each category by using this macro once per track event
 // namespace.
-#define PERFETTO_TRACK_EVENT_STATIC_STORAGE() \
-  namespace PERFETTO_TRACK_EVENT_NAMESPACE {  \
-  PERFETTO_INTERNAL_CATEGORY_STORAGE()        \
-  }  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
+#define PERFETTO_TRACK_EVENT_STATIC_STORAGE()      \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {       \
+  PERFETTO_INTERNAL_CATEGORY_STORAGE()             \
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */ \
+  PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
+
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
+#pragma GCC system_header
 
 // Begin a slice under |category| with the title |name|. Both strings must be
 // static constants. The track event is only recorded if |category| is enabled

@@ -453,12 +453,20 @@ thread_local internal::DataSourceThreadLocalState* DataSource<T, D>::tls_state_;
 
 }  // namespace perfetto
 
-// Not needed -- only here for backwards compatibility.
-// TODO(skyostil): Remove this macro.
-#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)
+// If placed at the end of a macro declaration, eats the semicolon at the end of
+// the macro invocation (e.g., "MACRO(...);") to avoid warnings about extra
+// semicolons.
+#define PERFETTO_INTERNAL_SWALLOW_SEMICOLON() \
+  extern int perfetto_internal_unused
 
 // Not needed -- only here for backwards compatibility.
 // TODO(skyostil): Remove this macro.
-#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)
+#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...) \
+  PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
+
+// Not needed -- only here for backwards compatibility.
+// TODO(skyostil): Remove this macro.
+#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...) \
+  PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
 
 #endif  // INCLUDE_PERFETTO_TRACING_DATA_SOURCE_H_
