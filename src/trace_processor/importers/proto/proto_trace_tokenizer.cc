@@ -18,8 +18,7 @@
 
 #include <string>
 
-#include <zlib.h>
-
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
@@ -42,6 +41,10 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -53,6 +56,7 @@ namespace {
 constexpr uint8_t kTracePacketTag =
     MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 TraceBlobView Decompress(TraceBlobView input) {
   uint8_t out[4096];
   std::string s;
@@ -81,6 +85,7 @@ TraceBlobView Decompress(TraceBlobView input) {
   memcpy(output.get(), s.data(), s.size());
   return TraceBlobView(std::move(output), 0, s.size());
 }
+#endif  //  PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace
 
@@ -309,6 +314,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_compressed_packets()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
     protozero::ConstBytes field = decoder.compressed_packets();
     const size_t field_off = packet.offset_of(field.data);
     TraceBlobView compressed_packets = packet.slice(field_off, field.size);
@@ -334,6 +340,9 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     }
 
     return util::OkStatus();
+#else
+    return util::Status("Cannot decode compressed packets. Zlib not enabled");
+#endif
   }
 
   // If we're not forcing a full sort and this is a write_into_file trace, then

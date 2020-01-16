@@ -61,7 +61,6 @@ source_set("perfetto_cmd") {
     ":perfetto_atoms",
     ":trigger_producer",
     "../../gn:default_deps",
-    "../../gn:zlib",
     "../../protos/perfetto/common:cpp",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
@@ -70,6 +69,9 @@ source_set("perfetto_cmd") {
     "../protozero",
     "../tracing:ipc",
   ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../gn:zlib" ]
+  }
   sources = [
     "config.cc",
     "config.h",
@@ -131,7 +133,6 @@ perfetto_unittest_source_set("unittests") {
     ":perfetto_cmd",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../gn:zlib",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
     "../../protos/perfetto/config:cpp",
@@ -139,6 +140,9 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace:cpp",
     "../tracing",
   ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../gn:zlib" ]
+  }
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",
