@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_TRACK_H_
 #define INCLUDE_PERFETTO_TRACING_TRACK_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/protozero/message_handle.h"
@@ -65,7 +66,7 @@ class TrackRegistry;
 //
 //   perfetto::TrackEvent::EraseTrackDescriptor(track);
 //
-struct Track {
+struct PERFETTO_EXPORT Track {
   const uint64_t uuid;
   const uint64_t parent_uuid;
   constexpr Track() : uuid(0), parent_uuid(0) {}
@@ -98,7 +99,7 @@ struct Track {
 // A process track represents events that describe the state of the entire
 // application (e.g., counter events). Currently a ProcessTrack can only
 // represent the current process.
-struct ProcessTrack : public Track {
+struct PERFETTO_EXPORT ProcessTrack : public Track {
   const base::PlatformProcessId pid;
 
   static ProcessTrack Current() { return ProcessTrack(); }
@@ -111,7 +112,7 @@ struct ProcessTrack : public Track {
 
 // A thread track is associated with a specific thread of execution. Currently
 // only threads in the current process can be referenced.
-struct ThreadTrack : public Track {
+struct PERFETTO_EXPORT ThreadTrack : public Track {
   const base::PlatformProcessId pid;
   const base::PlatformThreadId tid;
 
@@ -141,7 +142,9 @@ namespace internal {
 // descriptor for that track (see *Track::Serialize) or 2) a serialized
 // descriptor stored in the registry which may have additional metadata (e.g.,
 // track name).
-class TrackRegistry {
+// TODO(eseckler): Remove PERFETTO_EXPORT once Chromium no longer calls
+// TrackRegistry::InitializeInstance() directly.
+class PERFETTO_EXPORT TrackRegistry {
  public:
   using SerializedTrackDescriptor = std::string;
 
