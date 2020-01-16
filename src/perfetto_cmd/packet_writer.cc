@@ -24,12 +24,16 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <zlib.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#include <zlib.h>
+#endif
 
 namespace perfetto {
 namespace {
@@ -43,13 +47,19 @@ using Preamble = std::array<char, 16>;
 // ID of the |packet| field in trace.proto. Hardcoded as this we don't
 // want to depend on protos/trace:lite for binary size saving reasons.
 constexpr uint32_t kPacketId = 1;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+
 // ID of |compressed_packets| in trace_packet.proto.
 constexpr uint32_t kCompressedPacketsId = 50;
 
 // Maximum allowable size for a single packet.
 const size_t kMaxPacketSize = 500 * 1024;
+
 // After every kPendingBytesLimit we do a Z_SYNC_FLUSH in the zlib stream.
 const size_t kPendingBytesLimit = 32 * 1024;
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 template <uint32_t id>
 size_t GetPreamble(size_t sz, Preamble* preamble) {
@@ -72,6 +82,31 @@ class FilePacketWriter : public PacketWriter {
  private:
   FILE* fd_;
 };
+
+FilePacketWriter::FilePacketWriter(FILE* fd) : fd_(fd) {}
+
+FilePacketWriter::~FilePacketWriter() {
+  fflush(fd_);
+}
+
+bool FilePacketWriter::WritePackets(const std::vector<TracePacket>& packets) {
+  for (const TracePacket& packet : packets) {
+    Preamble preamble;
+    size_t size = GetPreamble<kPacketId>(packet.size(), &preamble);
+    if (fwrite(preamble.data(), 1, size, fd_) != size)
+      return false;
+    for (const Slice& slice : packet.slices()) {
+      if (fwrite(reinterpret_cast<const char*>(slice.start), 1, slice.size,
+                 fd_) != slice.size) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 class ZipPacketWriter : public PacketWriter {
  public:
@@ -101,29 +136,6 @@ class ZipPacketWriter : public PacketWriter {
   bool is_compressing_ = false;
   size_t pending_bytes_ = 0;
 };
-
-FilePacketWriter::FilePacketWriter(FILE* fd) : fd_(fd) {}
-
-FilePacketWriter::~FilePacketWriter() {
-  fflush(fd_);
-}
-
-bool FilePacketWriter::WritePackets(const std::vector<TracePacket>& packets) {
-  for (const TracePacket& packet : packets) {
-    Preamble preamble;
-    size_t size = GetPreamble<kPacketId>(packet.size(), &preamble);
-    if (fwrite(preamble.data(), 1, size, fd_) != size)
-      return false;
-    for (const Slice& slice : packet.slices()) {
-      if (fwrite(reinterpret_cast<const char*>(slice.start), 1, slice.size,
-                 fd_) != slice.size) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
 
 ZipPacketWriter::ZipPacketWriter(std::unique_ptr<PacketWriter> writer)
     : writer_(std::move(writer)),
@@ -237,6 +249,8 @@ void ZipPacketWriter::Deflate(const uint8_t* ptr, size_t size) {
   pending_bytes_ += size;
 }
 
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+
 }  // namespace
 
 PacketWriter::PacketWriter() {}
@@ -247,9 +261,11 @@ std::unique_ptr<PacketWriter> CreateFilePacketWriter(FILE* fd) {
   return std::unique_ptr<PacketWriter>(new FilePacketWriter(fd));
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 std::unique_ptr<PacketWriter> CreateZipPacketWriter(
     std::unique_ptr<PacketWriter> writer) {
   return std::unique_ptr<PacketWriter>(new ZipPacketWriter(std::move(writer)));
 }
+#endif
 
 }  // namespace perfetto

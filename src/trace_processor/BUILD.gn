@@ -88,8 +88,6 @@ source_set("storage_minimal") {
     "ftrace_utils.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
-    "gzip_trace_parser.cc",
-    "gzip_trace_parser.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
     "importers/ftrace/ftrace_module.cc",
@@ -140,11 +138,9 @@ source_set("storage_minimal") {
     "track_tracker.h",
     "virtual_destructors.cc",
   ]
-
   deps = [
     ":descriptors",
     "../../gn:default_deps",
-    "../../gn:zlib",
     "../base",
     "../protozero",
     "containers",
@@ -167,6 +163,13 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/track_event:zero",
   ]
+  if (enable_perfetto_zlib) {
+    sources += [
+      "gzip_trace_parser.cc",
+      "gzip_trace_parser.h",
+    ]
+    deps += [ "../../gn:zlib" ]
+  }
   if (enable_perfetto_trace_processor_json_import) {
     sources += [
       "importers/json/json_trace_parser.cc",
