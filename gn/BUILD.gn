@@ -85,6 +85,7 @@ action("gen_buildflags") {
     "PERFETTO_TP_JSON_IMPORT=$enable_perfetto_trace_processor_json_import",
     "PERFETTO_TP_FUCHSIA=$enable_perfetto_trace_processor_fuchsia",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
+    "PERFETTO_ZLIB=$enable_perfetto_zlib",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -306,7 +307,7 @@ if (enable_perfetto_heapprofd) {
 }
 
 # Zlib is used both by trace_processor and by perfetto_cmd.
-if (enable_perfetto_trace_processor || enable_perfetto_platform_services) {
+if (enable_perfetto_zlib) {
   group("zlib") {
     if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:zlib_config" ]

@@ -603,7 +603,11 @@ int PerfettoCmd::Main(int argc, char** argv) {
   if (trace_config_->compression_type() ==
       TraceConfig::COMPRESSION_TYPE_DEFLATE) {
     if (packet_writer_) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
       packet_writer_ = CreateZipPacketWriter(std::move(packet_writer_));
+#else
+      PERFETTO_ELOG("Cannot compress. Zlib not enabled in the build config");
+#endif
     } else {
       PERFETTO_ELOG("Cannot compress when tracing directly to file.");
     }
