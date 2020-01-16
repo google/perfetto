@@ -1017,8 +1017,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   EXPECT_CALL(*slice_, Scoped(1050000, process_2_track, cat_1, ev_1, 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(3u)));
-  // Second slice should have a legacy_event.original_tid arg.
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::Integer(16)));
+  // Second slice should have a legacy_event.passthrough_utid arg.
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(1u)));
 
   context_.sorter->ExtractEventsForced();
 
