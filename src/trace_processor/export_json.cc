@@ -226,8 +226,8 @@ class JsonExporter {
       value["cat"] = "__metadata";
       value["ts"] = 0;
       value["name"] = metadata_type;
-      value["pid"] = Json::UInt(pid);
-      value["tid"] = Json::UInt(tid);
+      value["pid"] = Json::Int(pid);
+      value["tid"] = Json::Int(tid);
 
       Json::Value args;
       args["name"] = metadata_value;
@@ -692,8 +692,8 @@ class JsonExporter {
         // Synchronous (thread) slice or instant event.
         UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
         auto pid_and_tid = UtidToPidAndTid(utid);
-        event["pid"] = Json::UInt(pid_and_tid.first);
-        event["tid"] = Json::UInt(pid_and_tid.second);
+        event["pid"] = Json::Int(pid_and_tid.first);
+        event["tid"] = Json::Int(pid_and_tid.second);
 
         if (duration_ns == 0) {
           // Use "I" instead of "i" phase for backwards-compat with old
@@ -739,10 +739,10 @@ class JsonExporter {
           PERFETTO_DCHECK(track_args);
           uint32_t upid = process_track.upid()[*opt_process_row];
           uint32_t exported_pid = UpidToPid(upid);
-          event["pid"] = Json::UInt(exported_pid);
+          event["pid"] = Json::Int(exported_pid);
           event["tid"] =
-              Json::UInt(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                     : exported_pid);
+              Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                                    : exported_pid);
 
           // Preserve original event IDs for legacy tracks. This is so that e.g.
           // memory dump IDs show up correctly in the JSON trace.
@@ -770,10 +770,10 @@ class JsonExporter {
             uint32_t upid = process_track.upid()[*opt_process_row];
             event["id2"]["local"] = PrintUint64(track_id);
             uint32_t exported_pid = UpidToPid(upid);
-            event["pid"] = Json::UInt(exported_pid);
+            event["pid"] = Json::Int(exported_pid);
             event["tid"] =
-                Json::UInt(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                       : exported_pid);
+                Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                                      : exported_pid);
           } else {
             // Some legacy importers don't understand "id2" fields, so we use
             // the "usually" global "id" field instead. This works as long as
@@ -826,10 +826,10 @@ class JsonExporter {
         if (opt_process_row.has_value()) {
           uint32_t upid = process_track.upid()[*opt_process_row];
           uint32_t exported_pid = UpidToPid(upid);
-          event["pid"] = Json::UInt(exported_pid);
+          event["pid"] = Json::Int(exported_pid);
           event["tid"] =
-              Json::UInt(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                     : exported_pid);
+              Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                                    : exported_pid);
           event["s"] = "p";
         } else {
           event["s"] = "g";
@@ -848,8 +848,8 @@ class JsonExporter {
 
     UniqueTid utid = static_cast<UniqueTid>(events.utid()[index]);
     auto pid_and_tid = UtidToPidAndTid(utid);
-    event["pid"] = Json::UInt(pid_and_tid.first);
-    event["tid"] = Json::UInt(pid_and_tid.second);
+    event["pid"] = Json::Int(pid_and_tid.first);
+    event["tid"] = Json::Int(pid_and_tid.second);
 
     // Raw legacy events store all other params in the arg set. Make a copy of
     // the converted args here, parse, and then remove the legacy params.
@@ -963,8 +963,8 @@ class JsonExporter {
 
       UniqueTid utid = static_cast<UniqueTid>(samples.utid()[i]);
       auto pid_and_tid = UtidToPidAndTid(utid);
-      event["pid"] = Json::UInt(pid_and_tid.first);
-      event["tid"] = Json::UInt(pid_and_tid.second);
+      event["pid"] = Json::Int(pid_and_tid.first);
+      event["tid"] = Json::Int(pid_and_tid.second);
 
       event["ph"] = "n";
       event["cat"] = "disabled_by_default-cpu_profiler";
@@ -1035,7 +1035,7 @@ class JsonExporter {
       // TODO(oysteine): Used for backwards compatibility with the memlog
       // pipeline, should remove once we've switched to looking directly at the
       // tid.
-      event["args"]["thread_id"] = Json::UInt(pid_and_tid.second);
+      event["args"]["thread_id"] = Json::Int(pid_and_tid.second);
 
       writer_.WriteCommonEvent(event);
     }
