@@ -39,7 +39,6 @@ using ::perfetto::protos::pbzero::ProfilePacket;
 
 constexpr char kHeapprofdDataSource[] = "android.heapprofd";
 constexpr size_t kUnwinderThreads = 5;
-constexpr int kHeapprofdSignal = 36;
 
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
@@ -48,6 +47,10 @@ constexpr uint32_t kChildModeWatchdogPeriodMs = 10 * 1000;
 
 constexpr uint64_t kDefaultShmemSize = 8 * 1048576;  // ~8 MB
 constexpr uint64_t kMaxShmemSize = 500 * 1048576;    // ~500 MB
+
+// Constants specified by bionic, hardcoded here for simplicity.
+constexpr int kProfilingSignal = __SIGRTMIN + 4;
+constexpr int kHeapprofdSignalValue = 0;
 
 std::vector<UnwindingWorker> MakeUnwindingWorkers(HeapprofdProducer* delegate,
                                                   size_t n) {
@@ -406,9 +409,12 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
       continue;
     }
 
-    PERFETTO_DLOG("Sending %d to %d", kHeapprofdSignal, pid);
-    if (kill(pid, kHeapprofdSignal) != 0) {
-      PERFETTO_DPLOG("kill");
+    PERFETTO_DLOG("Sending signal: %d (si_value: %d) to pid: %d",
+                  kProfilingSignal, kHeapprofdSignalValue, pid);
+    union sigval signal_value;
+    signal_value.sival_int = kHeapprofdSignalValue;
+    if (sigqueue(pid, kProfilingSignal, signal_value) != 0) {
+      PERFETTO_DPLOG("sigqueue");
     }
     ++pid_it;
   }
