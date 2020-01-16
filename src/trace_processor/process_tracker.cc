@@ -134,11 +134,15 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
         break;
       }
 
-      if (process_table->end_ts()[*opt_it_upid].has_value()) {
-        // If the process is already dead, don't bother choosing the associated
+      auto pid_it = pids_.find(process_table->pid()[*opt_it_upid]);
+      if (process_table->end_ts()[*opt_it_upid].has_value() ||
+          (pid_it != pids_.end() && pid_it->second != *opt_it_upid)) {
+        // If the process is already dead (i.e. either has an end_ts, or has
+        // been replaced in |pids_|), don't bother choosing the associated
         // thread.
         continue;
       }
+
       if (process_table->pid()[*opt_it_upid] == pid) {
         // We found a thread that matches both the tid and its parent pid.
         opt_utid = *it;
@@ -167,6 +171,10 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
                                           uint32_t pid,
                                           StringId main_thread_name) {
   pids_.erase(pid);
+  // TODO(eseckler): Consider erasing all old entries in |tids_| that match the
+  // |pid| (those would be for an older process with the same pid). Right now,
+  // we keep them in |tids_| (if they weren't erased by EndThread()), but ignore
+  // them in UpdateThread().
 
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
