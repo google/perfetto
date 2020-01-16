@@ -33,6 +33,7 @@ import "protos/perfetto/trace/gpu/gpu_counter_event.proto";
 import "protos/perfetto/trace/gpu/gpu_log.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
 import "protos/perfetto/trace/gpu/vulkan_memory_event.proto";
+import "protos/perfetto/trace/gpu/vulkan_api_event.proto";
 import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
@@ -58,7 +59,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 64.
+// Next id: 66.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -108,6 +109,7 @@ message TracePacket {
     GraphicsFrameEvent graphics_frame_event = 57;
     VulkanMemoryEvent vulkan_memory_event = 62;
     GpuLog gpu_log = 63;
+    VulkanApiEvent vulkan_api_event = 65;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

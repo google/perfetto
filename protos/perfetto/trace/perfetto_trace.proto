@@ -3555,7 +3555,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 64.
+// Next id: 66.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3605,6 +3605,7 @@ message TracePacket {
     GraphicsFrameEvent graphics_frame_event = 57;
     // removed field with id 62
     GpuLog gpu_log = 63;
+    VulkanApiEvent vulkan_api_event = 65;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -4702,6 +4703,43 @@ message GpuRenderStageEvent {
 }
 
 // End of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
+
+// Begin of protos/perfetto/trace/gpu/vulkan_api_event.proto
+
+// Message for recording the Vulkan call.
+message VulkanApiEvent {
+  oneof event {
+    VkDebugUtilsObjectName vk_debug_utils_object_name = 1;
+    VkQueueSubmit vk_queue_submit = 2;
+  }
+
+  // For recording vkSetDebugUtilsObjectNameEXT and
+  // vkDebugMarkerSetObjectNameEXT
+  message VkDebugUtilsObjectName {
+    optional uint32 pid = 1;
+    optional uint64 vk_device = 2;
+    // VkObjectType.  Value must match
+    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkObjectType.html.
+    optional int32 object_type = 3;
+    optional uint64 object = 4;
+    optional string object_name = 5;
+  }
+
+  // For recording vkQueueSubmit call.
+  message VkQueueSubmit {
+    optional uint64 duration_ns = 1;
+    optional uint32 pid = 2;
+    optional uint32 tid = 3;
+    optional uint64 vk_queue = 4;
+    repeated uint64 vk_command_buffers = 5;
+    // Submission ID.  An identifier unique to each vkQueueSubmit call.  This
+    // submission_id must match GpuRenderStageEvent.submission_id if the
+    // GpuRenderStageEvent is created due to this vkQueueSubmit.
+    optional uint32 submission_id = 6;
+  }
+}
+
+// End of protos/perfetto/trace/gpu/vulkan_api_event.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
