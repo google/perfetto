@@ -219,7 +219,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
         protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
-  } else if (packet_decoder.timestamp()) {
+  } else if (packet_decoder.has_timestamp()) {
     timestamp = packet_timestamp;
   } else {
     PERFETTO_ELOG("TrackEvent without valid timestamp");
