@@ -114,7 +114,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   const int64_t kThreadDuration = 20000;
   const int64_t kThreadInstructionCount = 30000000;
   const int64_t kThreadInstructionDelta = 30000;
-  const int64_t kThreadID = 100;
+  const uint32_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
 
@@ -160,7 +160,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   const int64_t kThreadDuration = -1;
   const int64_t kThreadInstructionCount = 30000000;
   const int64_t kThreadInstructionDelta = -1;
-  const int64_t kThreadID = 100;
+  const uint32_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
 
@@ -200,7 +200,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
 }
 
 TEST_F(ExportJsonTest, StorageWithThreadName) {
-  const int64_t kThreadID = 100;
+  const uint32_t kThreadID = 100;
   const char* kName = "thread";
 
   tables::ThreadTable::Row row(kThreadID);
@@ -746,7 +746,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
 TEST_F(ExportJsonTest, InstantEventOnThread) {
   const int64_t kTimestamp = 10000000;
-  const int64_t kThreadID = 100;
+  const uint32_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
 
@@ -776,10 +776,117 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   EXPECT_EQ(event["name"].asString(), kName);
 }
 
+TEST_F(ExportJsonTest, DuplicatePidAndTid) {
+  UniqueTid upid1 = context_.process_tracker->StartNewProcess(
+      base::nullopt, base::nullopt, 1, kNullStringId);
+  UniqueTid utid1a = context_.process_tracker->UpdateThread(1, 1);
+  UniqueTid utid1b = context_.process_tracker->UpdateThread(2, 1);
+  UniqueTid utid1c =
+      context_.process_tracker->StartNewThread(base::nullopt, 2, kNullStringId);
+  // Associate the new thread with its process.
+  ASSERT_EQ(utid1c, context_.process_tracker->UpdateThread(2, 1));
+
+  UniqueTid upid2 = context_.process_tracker->StartNewProcess(
+      base::nullopt, base::nullopt, 1, kNullStringId);
+  UniqueTid utid2a = context_.process_tracker->UpdateThread(1, 1);
+  UniqueTid utid2b = context_.process_tracker->UpdateThread(2, 1);
+
+  ASSERT_NE(upid1, upid2);
+  ASSERT_NE(utid1b, utid1c);
+  ASSERT_NE(utid1a, utid2a);
+  ASSERT_NE(utid1b, utid2b);
+  ASSERT_NE(utid1c, utid2b);
+
+  ASSERT_EQ(upid1, *context_.storage->thread_table().upid()[utid1a]);
+  ASSERT_EQ(upid1, *context_.storage->thread_table().upid()[utid1b]);
+  ASSERT_EQ(upid1, *context_.storage->thread_table().upid()[utid1c]);
+  ASSERT_EQ(upid2, *context_.storage->thread_table().upid()[utid2a]);
+  ASSERT_EQ(upid2, *context_.storage->thread_table().upid()[utid2b]);
+
+  TrackId track1a = context_.track_tracker->InternThreadTrack(utid1a);
+  TrackId track1b = context_.track_tracker->InternThreadTrack(utid1b);
+  TrackId track1c = context_.track_tracker->InternThreadTrack(utid1c);
+  TrackId track2a = context_.track_tracker->InternThreadTrack(utid2a);
+  TrackId track2b = context_.track_tracker->InternThreadTrack(utid2b);
+  context_.args_tracker->Flush();  // Flush track args.
+
+  StringId cat_id = context_.storage->InternString(base::StringView("cat"));
+  StringId name1a_id =
+      context_.storage->InternString(base::StringView("name1a"));
+  StringId name1b_id =
+      context_.storage->InternString(base::StringView("name1b"));
+  StringId name1c_id =
+      context_.storage->InternString(base::StringView("name1c"));
+  StringId name2a_id =
+      context_.storage->InternString(base::StringView("name2a"));
+  StringId name2b_id =
+      context_.storage->InternString(base::StringView("name2b"));
+
+  context_.storage->mutable_slice_table()->Insert(
+      {10000, 0, track1a.value, cat_id, name1a_id, 0, 0, 0});
+  context_.storage->mutable_slice_table()->Insert(
+      {20000, 1000, track1b.value, cat_id, name1b_id, 0, 0, 0});
+  context_.storage->mutable_slice_table()->Insert(
+      {30000, 0, track1c.value, cat_id, name1c_id, 0, 0, 0});
+  context_.storage->mutable_slice_table()->Insert(
+      {40000, 0, track2a.value, cat_id, name2a_id, 0, 0, 0});
+  context_.storage->mutable_slice_table()->Insert(
+      {50000, 1000, track2b.value, cat_id, name2b_id, 0, 0, 0});
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  util::Status status = ExportJson(context_.storage.get(), output);
+
+  EXPECT_TRUE(status.ok());
+
+  Json::Value result = ToJsonValue(ReadFile(output));
+  EXPECT_EQ(result["traceEvents"].size(), 5u);
+
+  EXPECT_EQ(result["traceEvents"][0]["pid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][0]["tid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][0]["ph"].asString(), "I");
+  EXPECT_EQ(result["traceEvents"][0]["ts"].asInt64(), 10);
+  EXPECT_EQ(result["traceEvents"][0]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][0]["name"].asString(), "name1a");
+
+  EXPECT_EQ(result["traceEvents"][1]["pid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][1]["tid"].asUInt(), 2u);
+  EXPECT_EQ(result["traceEvents"][1]["ph"].asString(), "X");
+  EXPECT_EQ(result["traceEvents"][1]["ts"].asInt64(), 20);
+  EXPECT_EQ(result["traceEvents"][1]["dur"].asInt64(), 1);
+  EXPECT_EQ(result["traceEvents"][1]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][1]["name"].asString(), "name1b");
+
+  EXPECT_EQ(result["traceEvents"][2]["pid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][2]["tid"].asUInt(),
+            static_cast<uint32_t>(std::numeric_limits<uint32_t>::max() - 1u));
+  EXPECT_EQ(result["traceEvents"][2]["ph"].asString(), "I");
+  EXPECT_EQ(result["traceEvents"][2]["ts"].asInt64(), 30);
+  EXPECT_EQ(result["traceEvents"][2]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][2]["name"].asString(), "name1c");
+
+  EXPECT_EQ(result["traceEvents"][3]["pid"].asUInt(),
+            std::numeric_limits<uint32_t>::max());
+  EXPECT_EQ(result["traceEvents"][3]["tid"].asUInt(), 1u);
+  EXPECT_EQ(result["traceEvents"][3]["ph"].asString(), "I");
+  EXPECT_EQ(result["traceEvents"][3]["ts"].asInt64(), 40);
+  EXPECT_EQ(result["traceEvents"][3]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][3]["name"].asString(), "name2a");
+
+  EXPECT_EQ(result["traceEvents"][4]["pid"].asUInt(),
+            std::numeric_limits<uint32_t>::max());
+  EXPECT_EQ(result["traceEvents"][4]["tid"].asUInt(), 2u);
+  EXPECT_EQ(result["traceEvents"][4]["ph"].asString(), "X");
+  EXPECT_EQ(result["traceEvents"][4]["ts"].asInt64(), 50);
+  EXPECT_EQ(result["traceEvents"][1]["dur"].asInt64(), 1);
+  EXPECT_EQ(result["traceEvents"][4]["cat"].asString(), "cat");
+  EXPECT_EQ(result["traceEvents"][4]["name"].asString(), "name2b");
+}
+
 TEST_F(ExportJsonTest, AsyncEvents) {
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = 100000;
-  const int64_t kProcessID = 100;
+  const uint32_t kProcessID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
   const char* kName2 = "name2";
@@ -824,7 +931,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value begin_event1 = result["traceEvents"][0];
   EXPECT_EQ(begin_event1["ph"].asString(), "b");
   EXPECT_EQ(begin_event1["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event1["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event1["pid"].asUInt(), kProcessID);
   EXPECT_EQ(begin_event1["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event1["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event1["name"].asString(), kName);
@@ -835,7 +942,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value begin_event2 = result["traceEvents"][1];
   EXPECT_EQ(begin_event2["ph"].asString(), "b");
   EXPECT_EQ(begin_event2["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(begin_event2["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event2["pid"].asUInt(), kProcessID);
   EXPECT_EQ(begin_event2["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event2["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event2["name"].asString(), kName2);
@@ -847,7 +954,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value end_event2 = result["traceEvents"][3];
   EXPECT_EQ(end_event2["ph"].asString(), "e");
   EXPECT_EQ(end_event2["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event2["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(end_event2["pid"].asUInt(), kProcessID);
   EXPECT_EQ(end_event2["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event2["cat"].asString(), kCategory);
   EXPECT_EQ(end_event2["name"].asString(), kName);
@@ -859,7 +966,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   Json::Value end_event1 = result["traceEvents"][3];
   EXPECT_EQ(end_event1["ph"].asString(), "e");
   EXPECT_EQ(end_event1["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
-  EXPECT_EQ(end_event1["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(end_event1["pid"].asUInt(), kProcessID);
   EXPECT_EQ(end_event1["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event1["cat"].asString(), kCategory);
   EXPECT_EQ(end_event1["name"].asString(), kName);
@@ -874,7 +981,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   const int64_t kDuration = 100000;
   const int64_t kThreadTimestamp = 10000001;
   const int64_t kThreadDuration = 99998;
-  const int64_t kProcessID = 100;
+  const uint32_t kProcessID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
 
@@ -907,7 +1014,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
   EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event["pid"].asUInt(), kProcessID);
   EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
@@ -918,7 +1025,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   EXPECT_EQ(end_event["tts"].asInt64(),
             (kThreadTimestamp + kThreadDuration) / 1000);
   EXPECT_EQ(end_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(end_event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(end_event["pid"].asUInt(), kProcessID);
   EXPECT_EQ(end_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(end_event["cat"].asString(), kCategory);
   EXPECT_EQ(end_event["name"].asString(), kName);
@@ -929,7 +1036,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   const int64_t kDuration = -1;
   const int64_t kThreadTimestamp = 10000001;
   const int64_t kThreadDuration = -1;
-  const int64_t kProcessID = 100;
+  const uint32_t kProcessID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
 
@@ -962,7 +1069,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   EXPECT_EQ(begin_event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(begin_event["tts"].asInt64(), kThreadTimestamp / 1000);
   EXPECT_EQ(begin_event["use_async_tts"].asInt(), 1);
-  EXPECT_EQ(begin_event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(begin_event["pid"].asUInt(), kProcessID);
   EXPECT_EQ(begin_event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(begin_event["cat"].asString(), kCategory);
   EXPECT_EQ(begin_event["name"].asString(), kName);
@@ -970,7 +1077,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
 
 TEST_F(ExportJsonTest, AsyncInstantEvent) {
   const int64_t kTimestamp = 10000000;
-  const int64_t kProcessID = 100;
+  const uint32_t kProcessID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
   const char* kArgName = "arg_name";
@@ -1009,7 +1116,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "n");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
-  EXPECT_EQ(event["pid"].asInt64(), kProcessID);
+  EXPECT_EQ(event["pid"].asUInt(), kProcessID);
   EXPECT_EQ(event["id2"]["local"].asString(), "0xeb");
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
@@ -1023,8 +1130,8 @@ TEST_F(ExportJsonTest, RawEvent) {
   const int64_t kThreadDuration = 20000;
   const int64_t kThreadInstructionCount = 30000000;
   const int64_t kThreadInstructionDelta = 30000;
-  const int64_t kProcessID = 100;
-  const int64_t kThreadID = 200;
+  const uint32_t kProcessID = 100;
+  const uint32_t kThreadID = 200;
   const char* kCategory = "cat";
   const char* kName = "name";
   const char* kPhase = "?";
@@ -1154,8 +1261,8 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 }
 
 TEST_F(ExportJsonTest, CpuProfileEvent) {
-  const int64_t kProcessID = 100;
-  const int64_t kThreadID = 200;
+  const uint32_t kProcessID = 100;
+  const uint32_t kThreadID = 200;
   const int64_t kTimestamp = 10000000;
 
   TraceStorage* storage = context_.storage.get();
@@ -1335,7 +1442,7 @@ TEST_F(ExportJsonTest, LabelFilter) {
   const int64_t kTimestamp1 = 10000000;
   const int64_t kTimestamp2 = 20000000;
   const int64_t kDuration = 10000;
-  const int64_t kThreadID = 100;
+  const uint32_t kThreadID = 100;
   const char* kCategory = "cat";
   const char* kName = "name";
 

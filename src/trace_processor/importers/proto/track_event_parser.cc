@@ -114,8 +114,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
           context->storage->InternString("track_event.log_message")),
       raw_legacy_event_id_(
           context->storage->InternString("track_event.legacy_event")),
-      legacy_event_original_tid_id_(
-          context->storage->InternString("legacy_event.original_tid")),
+      legacy_event_passthrough_utid_id_(
+          context->storage->InternString("legacy_event.passthrough_utid")),
       legacy_event_category_key_id_(
           context->storage->InternString("legacy_event.category")),
       legacy_event_name_key_id_(
@@ -207,8 +207,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
            context->storage->InternString("SUBRESOURCE_FILTER"),
            context->storage->InternString("UNFREEZABLE_FRAME")}},
       chrome_process_name_ids_{
-          {context_->storage->InternString("Unknown"),
-           context_->storage->InternString("Browser"),
+          {kNullStringId, context_->storage->InternString("Browser"),
            context_->storage->InternString("Renderer"),
            context_->storage->InternString("Utility"),
            context_->storage->InternString("Zygote"),
@@ -217,8 +216,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
            context_->storage->InternString("PpapiPlugin"),
            context_->storage->InternString("PpapiBroker")}},
       chrome_thread_name_ids_{
-          {context_->storage->InternString("ChromeUnspecified"),
-           context_->storage->InternString("CrProcessMain"),
+          {kNullStringId, context_->storage->InternString("CrProcessMain"),
            context_->storage->InternString("ChromeIOThread"),
            context_->storage->InternString("ThreadPoolBackgroundWorker&"),
            context_->storage->InternString("ThreadPoolForegroundWorker&"),
@@ -501,9 +499,9 @@ void TrackEventParser::ParseTrackEvent(
 
   // All events in legacy JSON require a thread ID, but for some types of events
   // (e.g. async events or process/global-scoped instants), we don't store it in
-  // the slice/track model. To pass the original tid through to the json export,
-  // we store it in an arg.
-  uint32_t legacy_tid = 0;
+  // the slice/track model. To pass the utid through to the json export, we
+  // store it in an arg.
+  base::Optional<UniqueTid> legacy_passthrough_utid;
 
   // TODO(eseckler): Replace phase with type and remove handling of
   // legacy_event.phase() once it is no longer used by producers.
@@ -550,8 +548,7 @@ void TrackEventParser::ParseTrackEvent(
         track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
             name_id, upid ? *upid : 0, source_id, source_id_is_process_scoped,
             id_scope);
-        if (utid)
-          legacy_tid = storage->thread_table().tid()[*utid];
+        legacy_passthrough_utid = utid;
         break;
       }
       case 'i':
@@ -572,8 +569,7 @@ void TrackEventParser::ParseTrackEvent(
           case LegacyEvent::SCOPE_GLOBAL:
             track_id = context_->track_tracker
                            ->GetOrCreateLegacyChromeGlobalInstantTrack();
-            if (utid)
-              legacy_tid = storage->thread_table().tid()[*utid];
+            legacy_passthrough_utid = utid;
             break;
           case LegacyEvent::SCOPE_PROCESS:
             if (!upid) {
@@ -586,8 +582,7 @@ void TrackEventParser::ParseTrackEvent(
             track_id =
                 context_->track_tracker->InternLegacyChromeProcessInstantTrack(
                     *upid);
-            if (utid)
-              legacy_tid = storage->thread_table().tid()[*utid];
+            legacy_passthrough_utid = utid;
             break;
         }
         break;
@@ -613,7 +608,8 @@ void TrackEventParser::ParseTrackEvent(
   }
 
   auto args_callback = [this, &event, &legacy_event, sequence_state, ts, utid,
-                        legacy_tid](ArgsTracker::BoundInserter* inserter) {
+                        legacy_passthrough_utid](
+                           ArgsTracker::BoundInserter* inserter) {
     for (auto it = event.debug_annotations(); it; ++it) {
       ParseDebugAnnotationArgs(*it, sequence_state, inserter);
     }
@@ -641,9 +637,9 @@ void TrackEventParser::ParseTrackEvent(
       ParseChromeHistogramSample(event.chrome_histogram_sample(), inserter);
     }
 
-    if (legacy_tid) {
-      inserter->AddArg(legacy_event_original_tid_id_,
-                       Variadic::Integer(static_cast<int32_t>(legacy_tid)));
+    if (legacy_passthrough_utid) {
+      inserter->AddArg(legacy_event_passthrough_utid_id_,
+                       Variadic::UnsignedInteger(*legacy_passthrough_utid));
     }
 
     // TODO(eseckler): Parse legacy flow events into flow events table once we
