@@ -127,6 +127,24 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   ASSERT_EQ(context.storage->process_table().row_count(), 2u);
 }
 
+TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
+  UniquePid p1 = context.process_tracker->StartNewProcess(
+      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId);
+  UniqueTid t1 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
+
+  UniquePid p2 = context.process_tracker->StartNewProcess(
+      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId);
+  UniqueTid t2 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
+
+  ASSERT_NE(p1, p2);
+  ASSERT_NE(t1, t2);
+
+  // We expect 3 processes: idle process, 2x pid 1.
+  ASSERT_EQ(context.storage->process_table().row_count(), 3u);
+  // We expect 5 threads: Invalid thread, 2x (main thread + sub thread).
+  ASSERT_EQ(context.storage->thread_table().row_count(), 5u);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
