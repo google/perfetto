@@ -539,7 +539,12 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
     auto it = ExecuteQuery(query);
     while (it.Next()) {
     }
-    PERFETTO_CHECK(it.Status().ok());
+    // Index deletion can legitimately fail. If one creates an index "i" on a
+    // table "t" but issues the deletion in the order (t, i), the DROP index i
+    // will fail with "no such index" because deleting the table "t"
+    // automatically deletes all associated indexes.
+    if (!it.Status().ok() && tn.first != "index")
+      PERFETTO_FATAL("%s -> %s", query.c_str(), it.Status().c_message());
   }
   return deletion_list.size();
 }
