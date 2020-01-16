@@ -48,9 +48,7 @@ enum class SockFamily { kUnix = 200, kInet };
 class UnixSocketRaw {
  public:
   // Creates a new unconnected unix socket.
-  static UnixSocketRaw CreateMayFail(SockFamily family, SockType type) {
-    return UnixSocketRaw(family, type);
-  }
+  static UnixSocketRaw CreateMayFail(SockFamily family, SockType type);
 
   // Crates a pair of connected sockets.
   static std::pair<UnixSocketRaw, UnixSocketRaw> CreatePair(SockFamily,
