@@ -46,6 +46,9 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
       globals.frontendLocalState.setVidTimestamp(Number.MIN_SAFE_INTEGER);
     }
   }
+  if (down && 'b' === key && (e.ctrlKey || e.metaKey)) {
+    globals.frontendLocalState.toggleSidebar();
+  }
   if (down && '?' === key) {
     toggleHelp();
   }
