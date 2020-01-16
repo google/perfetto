@@ -31,7 +31,7 @@ import {
 } from './common';
 
 const MARGIN_TOP = 4;
-const RECT_HEIGHT = 12;
+const RECT_HEIGHT = 14;
 
 class ThreadStateTrack extends Track<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;

@@ -198,7 +198,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         '.track',
         {
           style: {
-            height: `${attrs.track.getHeight()}px`,
+            height: `${Math.max(24, attrs.track.getHeight())}px`,
           },
           id: 'track_' + attrs.trackState.id,
         },
