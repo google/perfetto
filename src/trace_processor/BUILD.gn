@@ -23,11 +23,13 @@ assert(enable_perfetto_trace_processor)
 
 # The library which eases processing of Perfetto traces by exposing reading
 # friendly APIs.
-static_library("trace_processor") {
-  complete_static_lib = true
-  deps = [
-    ":lib",
-  ]
+if (enable_perfetto_trace_processor_sqlite) {
+  static_library("trace_processor") {
+    complete_static_lib = true
+    deps = [
+      ":lib",
+    ]
+  }
 }
 
 if (enable_perfetto_ui) {
@@ -286,90 +288,91 @@ if (enable_perfetto_trace_processor_json) {
   }
 }
 
-source_set("lib") {
-  sources = [
-    "filtered_row_index.cc",
-    "filtered_row_index.h",
-    "read_trace.cc",
-    "row_iterators.cc",
-    "row_iterators.h",
-    "sched_slice_table.cc",
-    "sched_slice_table.h",
-    "span_join_operator_table.cc",
-    "span_join_operator_table.h",
-    "sql_stats_table.cc",
-    "sql_stats_table.h",
-    "sqlite_raw_table.cc",
-    "sqlite_raw_table.h",
-    "stats_table.cc",
-    "stats_table.h",
-    "storage_columns.cc",
-    "storage_columns.h",
-    "storage_schema.cc",
-    "storage_schema.h",
-    "storage_table.cc",
-    "storage_table.h",
-    "trace_processor.cc",
-    "trace_processor_impl.cc",
-    "trace_processor_impl.h",
-    "window_operator_table.cc",
-    "window_operator_table.h",
-  ]
+if (enable_perfetto_trace_processor_sqlite) {
+  source_set("lib") {
+    sources = [
+      "filtered_row_index.cc",
+      "filtered_row_index.h",
+      "read_trace.cc",
+      "row_iterators.cc",
+      "row_iterators.h",
+      "sched_slice_table.cc",
+      "sched_slice_table.h",
+      "span_join_operator_table.cc",
+      "span_join_operator_table.h",
+      "sql_stats_table.cc",
+      "sql_stats_table.h",
+      "sqlite_raw_table.cc",
+      "sqlite_raw_table.h",
+      "stats_table.cc",
+      "stats_table.h",
+      "storage_columns.cc",
+      "storage_columns.h",
+      "storage_schema.cc",
+      "storage_schema.h",
+      "storage_table.cc",
+      "storage_table.h",
+      "trace_processor.cc",
+      "trace_processor_impl.cc",
+      "trace_processor_impl.h",
+      "window_operator_table.cc",
+      "window_operator_table.h",
+    ]
 
-  deps = [
-    ":storage_full",
-    "../../gn:default_deps",
-    "../../gn:sqlite",
-    "../../protos/perfetto/metrics:zero",
-    "../../protos/perfetto/metrics/android:zero",
-    "../../protos/perfetto/trace/ftrace:zero",
-    "../base",
-    "db:lib",
-    "metrics:lib",
-    "sqlite",
-    "tables",
-    "types",
-  ]
-  public_deps = [
-    "../../include/perfetto/trace_processor",
-  ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ ":export_json" ]
+    deps = [
+      ":storage_full",
+      "../../gn:default_deps",
+      "../../gn:sqlite",
+      "../../protos/perfetto/metrics:zero",
+      "../../protos/perfetto/metrics/android:zero",
+      "../../protos/perfetto/trace/ftrace:zero",
+      "../base",
+      "db:lib",
+      "metrics:lib",
+      "sqlite",
+      "tables",
+      "types",
+    ]
+    public_deps = [
+      "../../include/perfetto/trace_processor",
+    ]
+    if (enable_perfetto_trace_processor_json) {
+      deps += [ ":export_json" ]
+    }
   }
-}
 
-perfetto_host_executable("trace_processor_shell") {
-  deps = [
-    ":lib",
-    "../../gn:default_deps",
-    "../../gn:protoc_lib",
-    "../../src/profiling/symbolizer",
-    "../../src/profiling/symbolizer:symbolize_database",
-    "../base",
-    "metrics:lib",
-  ]
-  if (enable_perfetto_version_gen) {
-    deps += [ "../../gn/standalone:gen_git_revision" ]
+  perfetto_host_executable("trace_processor_shell") {
+    deps = [
+      ":lib",
+      "../../gn:default_deps",
+      "../../gn:protoc_lib",
+      "../../src/profiling/symbolizer",
+      "../../src/profiling/symbolizer:symbolize_database",
+      "../base",
+      "metrics:lib",
+    ]
+    if (enable_perfetto_version_gen) {
+      deps += [ "../../gn/standalone:gen_git_revision" ]
+    }
+    if (enable_perfetto_trace_processor_linenoise) {
+      deps += [ "../../gn:linenoise" ]
+    }
+    if (enable_perfetto_trace_processor_httpd) {
+      deps += [ "rpc:httpd" ]
+    }
+    sources = [
+      "proto_to_json.cc",
+      "proto_to_json.h",
+      "trace_processor_shell.cc",
+    ]
   }
-  if (enable_perfetto_trace_processor_linenoise) {
-    deps += [ "../../gn:linenoise" ]
-  }
-  if (enable_perfetto_trace_processor_httpd) {
-    deps += [ "rpc:httpd" ]
-  }
-  sources = [
-    "proto_to_json.cc",
-    "proto_to_json.h",
-    "trace_processor_shell.cc",
-  ]
-}
+}  # if (enable_perfetto_trace_processor_sqlite)
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
-    "filtered_row_index_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
     "ftrace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
@@ -381,18 +384,15 @@ perfetto_unittest_source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "sched_slice_table_unittest.cc",
     "slice_tracker_unittest.cc",
-    "span_join_operator_table_unittest.cc",
     "syscall_tracker_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
     ":descriptors",
-    ":lib",
     ":protozero_to_text",
     ":storage_full",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../gn:sqlite",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace:minimal_zero",
     "../../protos/perfetto/trace:zero",
@@ -410,10 +410,21 @@ perfetto_unittest_source_set("unittests") {
     "../protozero:testing_messages_zero",
     "containers:unittests",
     "db:unittests",
-    "sqlite",
-    "sqlite:unittests",
     "tables:unittests",
   ]
+
+  if (enable_perfetto_trace_processor_sqlite) {
+    sources += [
+      "filtered_row_index_unittest.cc",
+      "span_join_operator_table_unittest.cc",
+    ]
+    deps += [
+      ":lib",
+      "../../gn:sqlite",
+      "sqlite",
+      "sqlite:unittests",
+    ]
+  }
 
   if (enable_perfetto_trace_processor_json) {
     if (enable_perfetto_trace_processor_json_import) {
@@ -441,21 +452,22 @@ perfetto_unittest_source_set("unittests") {
 
 source_set("integrationtests") {
   testonly = true
-  sources = [
-    "trace_database_integrationtest.cc",
-  ]
-  deps = [
-    ":lib",
-    ":storage_full",
-    "../../gn:default_deps",
-    "../../gn:gtest_and_gmock",
-    "../base",
-    "../base:test_support",
-    "sqlite",
-  ]
-
-  if (enable_perfetto_trace_processor_json_import) {
-    deps += [ "../../gn:jsoncpp" ]
+  sources = []
+  deps = []
+  if (enable_perfetto_trace_processor_sqlite) {
+    sources += [ "trace_database_integrationtest.cc" ]
+    deps += [
+      ":lib",
+      ":storage_full",
+      "../../gn:default_deps",
+      "../../gn:gtest_and_gmock",
+      "../base",
+      "../base:test_support",
+      "sqlite",
+    ]
+    if (enable_perfetto_trace_processor_json_import) {
+      deps += [ "../../gn:jsoncpp" ]
+    }
   }
 }
 
