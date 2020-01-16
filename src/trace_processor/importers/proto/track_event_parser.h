@@ -95,7 +95,7 @@ class TrackEventParser {
   const StringId task_line_number_args_key_id_;
   const StringId log_message_body_key_id_;
   const StringId raw_legacy_event_id_;
-  const StringId legacy_event_original_tid_id_;
+  const StringId legacy_event_passthrough_utid_id_;
   const StringId legacy_event_category_key_id_;
   const StringId legacy_event_name_key_id_;
   const StringId legacy_event_phase_key_id_;
