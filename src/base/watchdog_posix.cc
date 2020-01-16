@@ -47,7 +47,8 @@ double MeanForArray(const uint64_t array[], size_t size) {
   for (size_t i = 0; i < size; i++) {
     total += array[i];
   }
-  return total / size;
+  return static_cast<double>(total / size);
+
 }
 
 }  //  namespace
@@ -164,7 +165,7 @@ void Watchdog::CheckMemory(uint64_t rss_bytes) {
   // Add the current stat value to the ring buffer and check that the mean
   // remains under our threshold.
   if (memory_window_bytes_.Push(rss_bytes)) {
-    if (memory_window_bytes_.Mean() > memory_limit_bytes_) {
+    if (memory_window_bytes_.Mean() > static_cast<double>(memory_limit_bytes_)) {
       PERFETTO_ELOG(
           "Memory watchdog trigger. Memory window of %f bytes is above the "
           "%" PRIu64 " bytes limit.",
@@ -187,7 +188,7 @@ void Watchdog::CheckCpu(uint64_t cpu_time) {
     double window_interval_ticks =
         (static_cast<double>(WindowTimeForRingBuffer(cpu_window_time_ticks_)) /
          1000.0) *
-        sysconf(_SC_CLK_TCK);
+        static_cast<double>(sysconf(_SC_CLK_TCK));
     double percentage = static_cast<double>(difference_ticks) /
                         static_cast<double>(window_interval_ticks) * 100;
     if (percentage > cpu_limit_percentage_) {
