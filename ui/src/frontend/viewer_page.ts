@@ -179,10 +179,10 @@ class TraceViewer implements m.ClassComponent {
         frontendLocalState.updateVisibleTime(newSpan);
         globals.rafScheduler.scheduleRedraw();
       },
-      shouldDrag: (currentPx: number) => {
+      editSelection: (currentPx: number) => {
         return onTimeRangeBoundary(currentPx) !== null;
       },
-      onDrag: (
+      onSelection: (
           dragStartX: number,
           dragStartY: number,
           prevX: number,
