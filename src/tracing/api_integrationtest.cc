@@ -24,6 +24,9 @@
 #include <thread>
 #include <vector>
 
+// We also want to test legacy trace events.
+#define PERFETTO_ENABLE_LEGACY_TRACE_EVENTS 1
+
 #include "perfetto/tracing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -1946,6 +1949,36 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
     packets_found |= packet.for_testing().str() == "on-stop-locked" ? 8 : 0;
   }
   EXPECT_EQ(packets_found, 1 | 2 | 4 | 8);
+}
+
+TEST_F(PerfettoApiTest, LegacyTraceEvents) {
+  // TODO(skyostil): For now we just test that all variants of legacy trace
+  // points compile. Test actual functionality when implemented.
+
+  // Basic events.
+  TRACE_EVENT_BEGIN1("cat", "LegacyEvent", "arg", 123);
+  TRACE_EVENT_END2("cat", "LegacyEvent", "arg", "string", "arg2", 0.123f);
+
+  // Scoped event.
+  { TRACE_EVENT0("cat", "ScopedLegacyEvent"); }
+
+  // Event with flow (and disabled category).
+  TRACE_EVENT_WITH_FLOW0(TRACE_DISABLED_BY_DEFAULT("cat"), "LegacyFlowEvent",
+                         0xdadacafe, TRACE_EVENT_FLAG_FLOW_IN);
+
+  // Event with timestamp.
+  TRACE_EVENT_INSTANT_WITH_TIMESTAMP0("cat", "LegacyInstantEvent",
+                                      TRACE_EVENT_SCOPE_GLOBAL, 123456789ul);
+
+  // Event with id, thread id and timestamp (and dynamic name).
+  TRACE_EVENT_COPY_BEGIN_WITH_ID_TID_AND_TIMESTAMP0(
+      "cat", std::string("LegacyWithIdTidAndTimestamp").c_str(), 1, 2, 3);
+
+  // Event with id.
+  TRACE_COUNTER_ID1("cat", "LegacyCounter", 1234, 9000);
+
+  // Metadata event.
+  TRACE_EVENT_METADATA1("cat", "LegacyMetadata", "obsolete", true);
 }
 
 }  // namespace
