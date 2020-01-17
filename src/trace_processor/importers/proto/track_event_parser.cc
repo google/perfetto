@@ -457,8 +457,12 @@ void TrackEventParser::ParseTrackEvent(
   base::Optional<UniqueTid> upid;
 
   // Determine track from track_uuid specified in either TrackEvent or
-  // TrackEventDefaults. If none is set, fall back to the track specified by the
-  // sequence's (or event's) pid + tid or a default track.
+  // TrackEventDefaults. If a non-default track is not set, we either:
+  //   a) fall back to the track specified by the sequence's (or event's) pid +
+  //      tid (only in case of legacy tracks/events, i.e. events that don't
+  //      specify an explicit track uuid or use legacy event phases instead of
+  //      TrackEvent types), or
+  //   b) a default track.
   if (track_uuid) {
     base::Optional<TrackId> opt_track_id =
         track_tracker->GetDescriptorTrack(track_uuid);
@@ -480,9 +484,10 @@ void TrackEventParser::ParseTrackEvent(
       if (process_track_row)
         upid = storage->process_track_table().upid()[*process_track_row];
     }
-  } else if (sequence_state->state()->pid_and_tid_valid() ||
-             (legacy_event.has_pid_override() &&
-              legacy_event.has_tid_override())) {
+  } else if ((!event.has_track_uuid() || !event.has_type()) &&
+             (sequence_state->state()->pid_and_tid_valid() ||
+              (legacy_event.has_pid_override() &&
+               legacy_event.has_tid_override()))) {
     uint32_t pid = static_cast<uint32_t>(sequence_state->state()->pid());
     uint32_t tid = static_cast<uint32_t>(sequence_state->state()->tid());
     if (legacy_event.has_pid_override())

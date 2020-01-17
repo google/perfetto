@@ -245,3 +245,34 @@ packet {
     type: 3
   }
 }
+
+# Override the track to the default descriptor track for an event with a
+# TrackEvent type. Should appear on the default descriptor track instead of
+# "t1".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 30000
+  track_event {
+    track_uuid: 0
+    categories: "cat"
+    name: "event1_on_t1"
+    type: 3
+  }
+}
+
+# But a legacy event without TrackEvent type falls back to legacy tracks (based
+# on ThreadDescriptor / async IDs / legacy instant scopes). This instant event
+# should appear on the process track "p2".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 31000
+  track_event {
+    track_uuid: 0
+    categories: "cat"
+    name: "event1_on_t1"
+    legacy_event {
+      phase: 73               # 'I'
+      instant_event_scope: 2  # Process scope
+    }
+  }
+}
