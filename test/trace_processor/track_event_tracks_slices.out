@@ -9,3 +9,5 @@
 "[NULL]","[NULL]","t3","p1",11000,0,"cat","event1_on_t3",0
 "[NULL]","p2","[NULL]","[NULL]",21000,0,"cat","event1_on_p2",0
 "[NULL]","[NULL]","t4","p2",22000,0,"cat","event1_on_t4",0
+"Default Track","[NULL]","[NULL]","[NULL]",30000,0,"cat","event1_on_t1",0
+"[NULL]","p2","[NULL]","[NULL]",31000,0,"cat","event1_on_t1",5
