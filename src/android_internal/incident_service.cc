@@ -16,11 +16,10 @@
 
 #include "src/android_internal/incident_service.h"
 
-#include <android/os/IIncidentManager.h>
-#include <android/os/IncidentReportArgs.h>
 #include <binder/IBinder.h>
 #include <binder/IServiceManager.h>
 #include <binder/Status.h>
+#include <incident/incident_report.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -32,11 +31,11 @@ namespace android_internal {
 bool StartIncidentReport(const char* dest_pkg,
                          const char* dest_class,
                          int privacy_level) {
-  android::os::IncidentReportArgs incidentReport;
+  android::os::IncidentReportRequest incidentReport;
   incidentReport.addSection(3026);  // system_trace only
 
-  if (privacy_level != android::os::PRIVACY_POLICY_AUTOMATIC &&
-      privacy_level != android::os::PRIVACY_POLICY_EXPLICIT) {
+  if (privacy_level != INCIDENT_REPORT_PRIVACY_POLICY_AUTOMATIC &&
+      privacy_level != INCIDENT_REPORT_PRIVACY_POLICY_EXPLICIT) {
     return false;
   }
   incidentReport.setPrivacyPolicy(privacy_level);
@@ -46,19 +45,10 @@ bool StartIncidentReport(const char* dest_pkg,
   if (pkg.size() == 0 || cls.size() == 0) {
     return false;
   }
-  incidentReport.setReceiverPkg(pkg);
-  incidentReport.setReceiverCls(cls);
+  incidentReport.setReceiverPackage(pkg);
+  incidentReport.setReceiverClass(cls);
 
-  android::sp<android::os::IIncidentManager> service =
-      android::interface_cast<android::os::IIncidentManager>(
-          android::defaultServiceManager()->getService(
-              android::String16("incident")));
-
-  if (!service) {
-    return false;
-  }
-  android::binder::Status s = service->reportIncident(incidentReport);
-  return s.isOk();
+  return incidentReport.takeReport() == 0;
 }
 
 }  // namespace android_internal
