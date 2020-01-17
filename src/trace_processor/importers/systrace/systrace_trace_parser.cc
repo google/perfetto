@@ -27,6 +27,7 @@
 #include "src/trace_processor/track_tracker.h"
 
 #include <inttypes.h>
+#include <cctype>
 #include <string>
 #include <unordered_map>
 
@@ -37,9 +38,9 @@ namespace {
 std::string SubstrTrim(const std::string& input) {
   std::string s = input;
   s.erase(s.begin(), std::find_if(s.begin(), s.end(),
-                                  [](int ch) { return !std::isspace(ch); }));
+                                  [](char ch) { return !std::isspace(ch); }));
   s.erase(std::find_if(s.rbegin(), s.rend(),
-                       [](int ch) { return !std::isspace(ch); })
+                       [](char ch) { return !std::isspace(ch); })
               .base(),
           s.end());
   return s;
