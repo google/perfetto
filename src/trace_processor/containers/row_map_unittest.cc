@@ -195,6 +195,15 @@ TEST(RowMapUnittest, SelectRangeWithBitVector) {
   ASSERT_EQ(res.Get(1u), 30u);
 }
 
+TEST(RowMapUnittest, SelectRangeWithSmallBitVector) {
+  RowMap rm(27, 31);
+  RowMap picker(BitVector{false, true});
+  auto res = rm.SelectRows(picker);
+
+  ASSERT_EQ(res.size(), 1u);
+  ASSERT_EQ(res.Get(0u), 28u);
+}
+
 TEST(RowMapUnittest, SelectBitVectorWithBitVector) {
   RowMap rm(BitVector{true, false, true, true, false, true});
   RowMap picker(BitVector{true, false, false, true});
@@ -203,6 +212,15 @@ TEST(RowMapUnittest, SelectBitVectorWithBitVector) {
   ASSERT_EQ(res.size(), 2u);
   ASSERT_EQ(res.Get(0u), 0u);
   ASSERT_EQ(res.Get(1u), 5u);
+}
+
+TEST(RowMapUnittest, SelectBitVectorWithSmallBitVector) {
+  RowMap rm(BitVector{true, false, true, true, false, true});
+  RowMap picker(BitVector{false, true});
+  auto res = rm.SelectRows(picker);
+
+  ASSERT_EQ(res.size(), 1u);
+  ASSERT_EQ(res.Get(0u), 2u);
 }
 
 TEST(RowMapUnittest, SelectIndexVectorWithBitVector) {
