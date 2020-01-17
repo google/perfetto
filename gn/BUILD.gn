@@ -254,16 +254,18 @@ if (perfetto_build_standalone && (is_linux || is_android)) {
   }
 }
 
-group("sqlite") {
-  if (perfetto_root_path == "//") {
-    public_deps = [
-      "//buildtools:sqlite",
-    ]
-  } else {
-    public_deps = [
-      "//third_party/sqlite:sqlite",
-    ]
-    public_configs = [ ":sqlite_third_party_include_path" ]
+if (enable_perfetto_trace_processor_sqlite) {
+  group("sqlite") {
+    if (perfetto_root_path == "//") {
+      public_deps = [
+        "//buildtools:sqlite",
+      ]
+    } else {
+      public_deps = [
+        "//third_party/sqlite:sqlite",
+      ]
+      public_configs = [ ":sqlite_third_party_include_path" ]
+    }
   }
 }
 
