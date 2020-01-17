@@ -237,6 +237,22 @@ TEST(BitVectorUnittest, UpdateSetBits) {
   ASSERT_TRUE(bv.IsSet(4));
 }
 
+TEST(BitVectorUnittest, UpdateSetBitsSmallerPicker) {
+  BitVector bv(6, false);
+  bv.Set(1);
+  bv.Set(2);
+  bv.Set(4);
+
+  BitVector picker(2u, true);
+  picker.Clear(1);
+
+  bv.UpdateSetBits(picker);
+
+  ASSERT_TRUE(bv.IsSet(1));
+  ASSERT_FALSE(bv.IsSet(2));
+  ASSERT_FALSE(bv.IsSet(4));
+}
+
 TEST(BitVectorUnittest, IterateAllBitsConst) {
   BitVector bv;
   for (uint32_t i = 0; i < 12345; ++i) {

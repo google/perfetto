@@ -54,19 +54,19 @@ BitVector::SetBitsIterator BitVector::IterateSetBits() const {
   return SetBitsIterator(this);
 }
 
-void BitVector::UpdateSetBits(const BitVector& other) {
-  PERFETTO_DCHECK(other.size() == GetNumBitsSet());
+void BitVector::UpdateSetBits(const BitVector& o) {
+  PERFETTO_DCHECK(o.size() <= GetNumBitsSet());
 
-  // For each set bit in this bitvector, we lookup whether |other| has the
-  // bit set. If not, we clear the bit.
+  // For each set bit in this bitvector, we lookup whether the bit in |other|
+  // at that index (if in bounds) is set. If not, we clear the bit.
   for (auto it = IterateSetBits(); it; it.Next()) {
-    if (!other.IsSet(it.ordinal()))
+    if (it.ordinal() >= o.size() || !o.IsSet(it.ordinal()))
       it.Clear();
   }
 
   // After the loop, we should have precisely the same number of bits
   // set as |other|.
-  PERFETTO_DCHECK(GetNumBitsSet() == other.GetNumBitsSet());
+  PERFETTO_DCHECK(o.GetNumBitsSet() == GetNumBitsSet());
 }
 
 }  // namespace trace_processor
