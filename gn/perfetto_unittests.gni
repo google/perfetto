@@ -61,8 +61,9 @@ if (enable_perfetto_traced_perf) {
 }
 
 if (enable_perfetto_trace_processor) {
-  perfetto_unittests_targets += [
-    "src/trace_processor:unittests",
-    "src/trace_processor/metrics:unittests",
-  ]
+  perfetto_unittests_targets += [ "src/trace_processor:unittests" ]
+
+  if (enable_perfetto_trace_processor_sqlite) {
+    perfetto_unittests_targets += [ "src/trace_processor/metrics:unittests" ]
+  }
 }
