@@ -47,7 +47,7 @@ class InternedMessageView {
  public:
   InternedMessageView(TraceBlobView msg) : message_(std::move(msg)) {}
 
-  InternedMessageView(InternedMessageView&&) noexcept = default;
+  InternedMessageView(InternedMessageView&&) = default;
   InternedMessageView& operator=(InternedMessageView&&) = default;
 
   // Allow copy by cloning the TraceBlobView. This is required for
