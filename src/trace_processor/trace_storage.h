@@ -558,15 +558,6 @@ class TraceStorage {
     return &heap_profile_allocation_table_;
   }
 
-  const tables::ExperimentalFlamegraphNodesTable&
-  experimental_flamegraph_nodes_table() const {
-    return experimental_flamegraph_nodes_table_;
-  }
-  tables::ExperimentalFlamegraphNodesTable*
-  mutable_experimental_flamegraph_nodes_table() {
-    return &experimental_flamegraph_nodes_table_;
-  }
-
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return cpu_profile_stack_sample_table_;
@@ -611,6 +602,7 @@ class TraceStorage {
   }
 
   const StringPool& string_pool() const { return string_pool_; }
+  StringPool* mutable_string_pool() { return &string_pool_; }
 
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
@@ -793,8 +785,6 @@ class TraceStorage {
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
                                                                   nullptr};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
-      &string_pool_, nullptr};
-  tables::ExperimentalFlamegraphNodesTable experimental_flamegraph_nodes_table_{
       &string_pool_, nullptr};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, nullptr};

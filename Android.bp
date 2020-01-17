@@ -6096,6 +6096,7 @@ filegroup {
     "src/trace_processor/heap_profile_tracker_unittest.cc",
     "src/trace_processor/importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "src/trace_processor/importers/proto/args_table_utils_unittest.cc",
+    "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
     "src/trace_processor/importers/proto/heap_graph_walker_unittest.cc",
     "src/trace_processor/importers/proto/proto_trace_parser_unittest.cc",
     "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
