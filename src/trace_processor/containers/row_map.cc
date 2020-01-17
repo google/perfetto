@@ -36,9 +36,9 @@ RowMap SelectRangeWithBv(uint32_t start,
                          uint32_t end,
                          const BitVector& selector) {
   PERFETTO_DCHECK(start <= end);
-  PERFETTO_DCHECK(end - start == selector.size());
+  PERFETTO_DCHECK(selector.size() <= end - start);
 
-  // If |start| == 0 and |end - start| == |selector.size()| (which is a
+  // If |start| == 0 and |selector.size()| <= |end - start| (which is a
   // precondition for this function), the BitVector we generate is going to be
   // exactly |selector|.
   //
@@ -49,8 +49,11 @@ RowMap SelectRangeWithBv(uint32_t start,
   if (start == 0u)
     return RowMap(selector.Copy());
 
+  // We only need to resize to |start| + |selector.size()| as we know any rows
+  // not covered by |selector| are going to be removed below.
   BitVector bv(start, false);
-  bv.Resize(end, true);
+  bv.Resize(start + selector.size(), true);
+
   bv.UpdateSetBits(selector);
   return RowMap(std::move(bv));
 }
