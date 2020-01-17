@@ -30,10 +30,20 @@
 
 #else  // PERFETTO_DCHECK_IS_ON()
 
+// Since PERFETTO_DCHECK_IS_ON() is false these statements should not die (if
+// they should/do we should use EXPECT/ASSERT DEATH_TEST_IF_SUPPORTED directly).
+// Therefore if the platform supports DEATH_TESTS we can use the handy
+// GTEST_EXECUTE_STATEMENT_ which prevents optimizing the code away, and if not
+// we just fall back on executing the code directly.
+#if defined(GTEST_EXECUTE_STATEMENT_)
 #define EXPECT_DCHECK_DEATH(statement) \
     GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
 #define ASSERT_DCHECK_DEATH(statement) \
     GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
+#else
+#define EXPECT_DCHECK_DEATH(statement) [&]() { statement }()
+#define ASSERT_DCHECK_DEATH(statement) [&]() { statement }()
+#endif  //  defined(GTEST_EXECUTE_STATEMENT_)
 
 #endif  // PERFETTO_DCHECK_IS_ON()
 
