@@ -107,8 +107,8 @@ class BitVector {
     PERFETTO_DCHECK(it != counts_.begin());
 
     // Go back one block to find the block which has the bit we are looking for.
-    uint16_t block_idx =
-        static_cast<uint16_t>(std::distance(counts_.begin(), it) - 1);
+    uint32_t block_idx =
+        static_cast<uint32_t>(std::distance(counts_.begin(), it) - 1);
 
     // Figure out how many set bits forward we are looking inside the block
     // by taking away the number of bits at the start of the block from n.
