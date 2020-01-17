@@ -77,10 +77,10 @@ class HeapProfileTracker {
   struct SequenceState {
     std::vector<SourceAllocation> pending_allocs;
 
-    std::unordered_map<std::pair<UniquePid, int64_t>,
+    std::unordered_map<std::pair<UniquePid, CallsiteId>,
                        tables::HeapProfileAllocationTable::Row>
         prev_alloc;
-    std::unordered_map<std::pair<UniquePid, int64_t>,
+    std::unordered_map<std::pair<UniquePid, CallsiteId>,
                        tables::HeapProfileAllocationTable::Row>
         prev_free;
 

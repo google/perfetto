@@ -181,11 +181,11 @@ TEST_F(HeapProfileTrackerDupTest, Callstack) {
 int64_t FindCallstack(const TraceStorage& storage,
                       int64_t depth,
                       int64_t parent,
-                      int64_t frame_id) {
+                      FrameId frame_id) {
   const auto& callsites = storage.stack_profile_callsite_table();
   for (uint32_t i = 0; i < callsites.row_count(); ++i) {
     if (callsites.depth()[i] == depth && callsites.parent_id()[i] == parent &&
-        callsites.frame_id()[i] == frame_id) {
+        callsites.frame_id()[i] == frame_id.value) {
       return static_cast<int64_t>(i);
     }
   }
@@ -327,7 +327,6 @@ TEST(HeapProfileTrackerTest, Functional) {
     const StackProfileTracker::SourceCallstack& callstack = callstacks[i];
     for (size_t depth = 0; depth < callstack.size(); ++depth) {
       auto frame_id = spt->GetDatabaseFrameIdForTesting(callstack[depth]);
-      ASSERT_NE(frame_id, -1);
       int64_t self = FindCallstack(
           *context.storage, static_cast<int64_t>(depth), parent, frame_id);
       ASSERT_NE(self, -1);
