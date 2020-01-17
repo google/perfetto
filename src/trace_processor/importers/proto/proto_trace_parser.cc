@@ -445,15 +445,15 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
       break;
     }
 
-    auto maybe_callstack_id =
-        stack_profile_tracker.FindCallstack(*callstack_it, &intern_lookup);
+    auto maybe_callstack_id = stack_profile_tracker.FindOrInsertCallstack(
+        *callstack_it, &intern_lookup);
     if (!maybe_callstack_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);
       PERFETTO_ELOG("StreamingProfilePacket referencing invalid callstack!");
       continue;
     }
 
-    int64_t callstack_id = *maybe_callstack_id;
+    uint32_t callstack_id = maybe_callstack_id->value;
 
     tables::CpuProfileStackSampleTable::Row sample_row{
         sequence_state->state()->IncrementAndGetTrackEventTimeNs(*timestamp_it *
@@ -631,10 +631,10 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
   std::string hex_build_id = base::ToHex(module_symbols.build_id().data,
                                          module_symbols.build_id().size);
-  auto mapping_rows = context_->storage->FindMappingRow(
+  auto mapping_ids = context_->storage->FindMappingRow(
       context_->storage->InternString(module_symbols.path()),
       context_->storage->InternString(base::StringView(hex_build_id)));
-  if (mapping_rows.empty()) {
+  if (mapping_ids.empty()) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
   }
@@ -643,16 +643,14 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
 
     uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
     bool frame_found = false;
-    for (int64_t mapping_row : mapping_rows) {
-      std::vector<int64_t> frame_rows = context_->storage->FindFrameRow(
-          static_cast<size_t>(mapping_row), address_symbols.address());
+    for (MappingId mapping_id : mapping_ids) {
+      std::vector<FrameId> frame_ids = context_->storage->FindFrameIds(
+          mapping_id, address_symbols.address());
 
-      for (const int64_t frame_row : frame_rows) {
-        PERFETTO_DCHECK(frame_row >= 0);
-
-        uint32_t row_idx = static_cast<uint32_t>(frame_row);
+      for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();
-        frames->mutable_symbol_set_id()->Set(row_idx, symbol_set_id);
+        uint32_t frame_row = *frames->id().IndexOf(frame_id);
+        frames->mutable_symbol_set_id()->Set(frame_row, symbol_set_id);
         frame_found = true;
       }
     }

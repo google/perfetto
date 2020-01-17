@@ -264,6 +264,7 @@ class MacroTable : public Table {
       explicit constexpr DefinedId(uint32_t v) : value(v) {}                  \
                                                                               \
       bool operator==(const DefinedId& o) const { return o.value == value; }  \
+      bool operator<(const DefinedId& o) const { return value < o.value; }    \
                                                                               \
       uint32_t value;                                                         \
     };                                                                        \

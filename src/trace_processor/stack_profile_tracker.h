@@ -39,6 +39,41 @@ struct hash<std::pair<uint32_t, int64_t>> {
 };
 
 template <>
+struct hash<std::pair<uint32_t, perfetto::trace_processor::CallsiteId>> {
+  using argument_type =
+      std::pair<uint32_t, perfetto::trace_processor::CallsiteId>;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& p) const {
+    return std::hash<uint32_t>{}(p.first) ^
+           std::hash<uint32_t>{}(p.second.value);
+  }
+};
+
+template <>
+struct hash<std::pair<uint32_t, perfetto::trace_processor::MappingId>> {
+  using argument_type =
+      std::pair<uint32_t, perfetto::trace_processor::MappingId>;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& p) const {
+    return std::hash<uint32_t>{}(p.first) ^
+           std::hash<uint32_t>{}(p.second.value);
+  }
+};
+
+template <>
+struct hash<std::pair<uint32_t, perfetto::trace_processor::FrameId>> {
+  using argument_type = std::pair<uint32_t, perfetto::trace_processor::FrameId>;
+  using result_type = size_t;
+
+  result_type operator()(const argument_type& p) const {
+    return std::hash<uint32_t>{}(p.first) ^
+           std::hash<uint32_t>{}(p.second.value);
+  }
+};
+
+template <>
 struct hash<std::vector<uint64_t>> {
   using argument_type = std::vector<uint64_t>;
   using result_type = size_t;
@@ -119,19 +154,19 @@ class StackProfileTracker {
   ~StackProfileTracker();
 
   void AddString(SourceStringId, base::StringView);
-  base::Optional<int64_t> AddMapping(
+  base::Optional<MappingId> AddMapping(
       SourceMappingId,
       const SourceMapping&,
       const InternLookup* intern_lookup = nullptr);
-  base::Optional<int64_t> AddFrame(SourceFrameId,
+  base::Optional<FrameId> AddFrame(SourceFrameId,
                                    const SourceFrame&,
                                    const InternLookup* intern_lookup = nullptr);
-  base::Optional<int64_t> AddCallstack(
+  base::Optional<CallsiteId> AddCallstack(
       SourceCallstackId,
       const SourceCallstack&,
       const InternLookup* intern_lookup = nullptr);
 
-  int64_t GetDatabaseFrameIdForTesting(SourceFrameId);
+  FrameId GetDatabaseFrameIdForTesting(SourceFrameId);
 
   // Gets the row number of string / mapping / frame / callstack previously
   // added through AddString / AddMapping/ AddFrame / AddCallstack.
@@ -147,15 +182,18 @@ class StackProfileTracker {
       SourceStringId,
       const InternLookup* intern_lookup,
       InternedStringType type);
-  base::Optional<std::string> FindString(SourceStringId,
-                                         const InternLookup* intern_lookup,
-                                         InternedStringType type);
-  base::Optional<int64_t> FindMapping(SourceMappingId,
-                                      const InternLookup* intern_lookup);
-  base::Optional<int64_t> FindFrame(SourceFrameId,
-                                    const InternLookup* intern_lookup);
-  base::Optional<int64_t> FindCallstack(SourceCallstackId,
-                                        const InternLookup* intern_lookup);
+  base::Optional<std::string> FindOrInsertString(
+      SourceStringId,
+      const InternLookup* intern_lookup,
+      InternedStringType type);
+  base::Optional<MappingId> FindOrInsertMapping(
+      SourceMappingId,
+      const InternLookup* intern_lookup);
+  base::Optional<FrameId> FindOrInsertFrame(SourceFrameId,
+                                            const InternLookup* intern_lookup);
+  base::Optional<CallsiteId> FindOrInsertCallstack(
+      SourceCallstackId,
+      const InternLookup* intern_lookup);
 
   // Clear indices when they're no longer needed.
   void ClearIndices();
@@ -164,16 +202,21 @@ class StackProfileTracker {
   StringId GetEmptyStringId();
 
   std::unordered_map<SourceStringId, std::string> string_map_;
-  std::unordered_map<SourceMappingId, int64_t> mappings_;
-  std::unordered_map<SourceFrameId, int64_t> frames_;
-  std::unordered_map<SourceCallstackId, int64_t> callstacks_;
+
+  // Mapping from ID of mapping / frame / callstack in original trace and the
+  // index in the respective table it was inserted into.
+  std::unordered_map<SourceMappingId, MappingId> mapping_ids_;
+  std::unordered_map<SourceFrameId, FrameId> frame_ids_;
+  std::unordered_map<SourceCallstackId, CallsiteId> callstack_ids_;
 
   // TODO(oysteine): Share these indices between the StackProfileTrackers,
   // since they're not sequence-specific.
-  std::unordered_map<tables::StackProfileMappingTable::Row, int64_t>
+  //
+  // Mapping from content of database row to the index of the raw.
+  std::unordered_map<tables::StackProfileMappingTable::Row, MappingId>
       mapping_idx_;
-  std::unordered_map<tables::StackProfileFrameTable::Row, int64_t> frame_idx_;
-  std::unordered_map<tables::StackProfileCallsiteTable::Row, int64_t>
+  std::unordered_map<tables::StackProfileFrameTable::Row, FrameId> frame_idx_;
+  std::unordered_map<tables::StackProfileCallsiteTable::Row, CallsiteId>
       callsite_idx_;
 
   TraceProcessorContext* const context_;

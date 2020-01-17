@@ -45,23 +45,23 @@ void HeapProfileTracker::AddAllocation(
     const SourceAllocation& alloc,
     const StackProfileTracker::InternLookup* intern_lookup) {
   SequenceState& sequence_state = sequence_state_[seq_id];
-  auto maybe_callstack_id =
-      stack_profile_tracker->FindCallstack(alloc.callstack_id, intern_lookup);
+  auto maybe_callstack_id = stack_profile_tracker->FindOrInsertCallstack(
+      alloc.callstack_id, intern_lookup);
   if (!maybe_callstack_id)
     return;
 
-  int64_t callstack_id = *maybe_callstack_id;
+  CallsiteId callstack_id = *maybe_callstack_id;
 
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(alloc.pid));
 
   tables::HeapProfileAllocationTable::Row alloc_row{
-      alloc.timestamp, upid, callstack_id,
+      alloc.timestamp, upid, callstack_id.value,
       static_cast<int64_t>(alloc.alloc_count),
       static_cast<int64_t>(alloc.self_allocated)};
 
   tables::HeapProfileAllocationTable::Row free_row{
-      alloc.timestamp, upid, callstack_id,
+      alloc.timestamp, upid, callstack_id.value,
       -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 
