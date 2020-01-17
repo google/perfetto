@@ -22,7 +22,9 @@ load("@perfetto//bazel:proto_gen.bzl", "proto_gen")
 def default_cc_args():
     return {
         "deps": PERFETTO_CONFIG.deps.build_config,
-        "copts": [],
+        "copts": [
+            "-Wno-pragma-system-header-outside-header",
+        ],
         "includes": ["include"],
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
