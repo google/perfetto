@@ -234,6 +234,16 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const ctx = assertExists(this.ctx);
     const canvas = assertExists(ctx.canvas);
     canvas.style.height = `${this.canvasHeight}px`;
+
+    // If're we're non-scrolling canvas and the scroll-limiter should always
+    // have the same height. Enforce this by explicitly setting the height.
+    if (!this.attrs.doesScroll) {
+      const scrollLimiter = canvas.parentElement;
+      if (scrollLimiter) {
+        scrollLimiter.style.height = `${this.canvasHeight}px`;
+      }
+    }
+
     const dpr = window.devicePixelRatio;
     // On non-MacOS if there is a solid scroll bar it can cover important
     // pixels, reduce the size of the canvas so it doesn't overlap with
