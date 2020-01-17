@@ -60,7 +60,7 @@ base::Optional<int64_t> StackProfileTracker::AddMapping(
                                           InternedStringType::kBuildId);
   if (!opt_build_id) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
-    PERFETTO_DFATAL("Invalid string.");
+    PERFETTO_DLOG("Invalid string.");
     return base::nullopt;
   }
   const StringId raw_build_id = opt_build_id.value();
@@ -127,7 +127,7 @@ base::Optional<int64_t> StackProfileTracker::AddFrame(
                                         InternedStringType::kFunctionName);
   if (!opt_str_id) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
-    PERFETTO_DFATAL("Invalid string.");
+    PERFETTO_DLOG("Invalid string.");
     return base::nullopt;
   }
   const StringId& str_id = opt_str_id.value();
@@ -217,7 +217,7 @@ int64_t StackProfileTracker::GetDatabaseFrameIdForTesting(
     SourceFrameId frame_id) {
   auto it = frames_.find(frame_id);
   if (it == frames_.end()) {
-    PERFETTO_DFATAL("Invalid frame.");
+    PERFETTO_DLOG("Invalid frame.");
     return -1;
   }
   return it->second;
@@ -251,7 +251,7 @@ base::Optional<std::string> StackProfileTracker::FindString(
       if (!str) {
         context_->storage->IncrementStats(
             stats::stackprofile_invalid_string_id);
-        PERFETTO_DFATAL("Invalid string.");
+        PERFETTO_DLOG("Invalid string.");
         return base::nullopt;
       }
       return str->ToStdString();
@@ -298,8 +298,7 @@ base::Optional<int64_t> StackProfileTracker::FindFrame(
       }
     }
     context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
-    PERFETTO_DFATAL("Unknown frame %" PRIu64 " : %zu", frame_id,
-                    frames_.size());
+    PERFETTO_DLOG("Unknown frame %" PRIu64 " : %zu", frame_id, frames_.size());
     return res;
   }
   res = it->second;
@@ -318,8 +317,8 @@ base::Optional<int64_t> StackProfileTracker::FindCallstack(
       return res;
     }
     context_->storage->IncrementStats(stats::stackprofile_invalid_callstack_id);
-    PERFETTO_DFATAL("Unknown callstack %" PRIu64 " : %zu", callstack_id,
-                    callstacks_.size());
+    PERFETTO_DLOG("Unknown callstack %" PRIu64 " : %zu", callstack_id,
+                  callstacks_.size());
     return res;
   }
   res = it->second;
