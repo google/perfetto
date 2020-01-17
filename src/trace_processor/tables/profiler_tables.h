@@ -87,18 +87,21 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
 
 // This will eventually go away, when we also pre-compute the cumulative
 // sizes for native heap profiles.
-#define PERFETTO_TP_HEAP_GRAPH_ALLOCATION_DEF(NAME, PARENT, C)            \
+#define PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES(NAME, PARENT, C)        \
   NAME(ExperimentalFlamegraphNodesTable, "experimental_flamegraph_nodes") \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                       \
   C(int64_t, ts, Column::Flag::kSorted)                                   \
   C(uint32_t, upid)                                                       \
-  C(int64_t, callsite_id)                                                 \
+  C(uint32_t, depth)                                                      \
+  C(StringPool::Id, name)                                                 \
+  C(StringPool::Id, map_name)                                             \
   C(int64_t, count)                                                       \
   C(int64_t, cumulative_count)                                            \
   C(int64_t, size)                                                        \
-  C(int64_t, cumulative_size)
+  C(int64_t, cumulative_size)                                             \
+  C(base::Optional<uint32_t>, parent_id)
 
-PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_ALLOCATION_DEF);
+PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 
 #define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)  \
   NAME(HeapGraphObjectTable, "heap_graph_object")           \

@@ -86,6 +86,10 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
     return &it->second;
   }
 
+  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildFlamegraph(
+      const UniquePid current_upid,
+      const int64_t current_ts);
+
  private:
   struct SequenceState {
     SequenceState(HeapGraphTracker* tracker) : walker(tracker) {}
@@ -104,12 +108,10 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
   bool SetPidAndTimestamp(SequenceState* seq, UniquePid upid, int64_t ts);
 
-  void WriteFlamegraph(const SequenceState& sequence_state,
-                       const HeapGraphWalker::PathFromRoot& path,
-                       uint32_t mapping_row);
 
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
+  std::map<std::pair<UniquePid, int64_t /* ts */>, HeapGraphWalker> walkers_;
 
   std::map<StringPool::Id, std::vector<int64_t>> class_to_rows_;
   std::map<StringPool::Id, std::vector<int64_t>> field_to_rows_;
