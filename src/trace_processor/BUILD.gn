@@ -377,6 +377,7 @@ perfetto_unittest_source_set("unittests") {
     "ftrace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
+    "importers/proto/heap_graph_tracker_unittest.cc",
     "importers/proto/heap_graph_walker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",

@@ -67,6 +67,13 @@ struct TypedColumn : public Column {
     return Column::IndexOf(NumericToSqlValue(v));
   }
 
+  std::vector<T> ToVectorForTesting() const {
+    std::vector<T> result(row_map().size());
+    for (uint32_t i = 0; i < row_map().size(); ++i)
+      result[i] = (*this)[i];
+    return result;
+  }
+
   // Implements equality between two items of type |T|.
   static bool Equals(T a, T b) {
     // We need to use equal_to here as it could be T == double and because we
@@ -103,6 +110,13 @@ struct TypedColumn<base::Optional<T>> : public Column {
 
   // Inserts the value at the end of the column.
   void Append(base::Optional<T> v) { mutable_sparse_vector<T>()->Append(v); }
+
+  std::vector<base::Optional<T>> ToVectorForTesting() const {
+    std::vector<T> result(row_map().size());
+    for (uint32_t i = 0; i < row_map().size(); ++i)
+      result[i] = (*this)[i];
+    return result;
+  }
 
   // Implements equality between two items of type |T|.
   static bool Equals(base::Optional<T> a, base::Optional<T> b) {
