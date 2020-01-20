@@ -302,6 +302,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "span_join_operator_table.h",
       "sql_stats_table.cc",
       "sql_stats_table.h",
+      "sqlite_experimental_flamegraph_table.cc",
+      "sqlite_experimental_flamegraph_table.h",
       "sqlite_raw_table.cc",
       "sqlite_raw_table.h",
       "stats_table.cc",

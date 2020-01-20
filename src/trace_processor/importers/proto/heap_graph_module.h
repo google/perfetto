@@ -40,7 +40,6 @@ class HeapGraphModule : public ProtoImporterModule {
   void ParseDeobfuscationMapping(protozero::ConstBytes);
 
   TraceProcessorContext* context_;
-  HeapGraphTracker heap_graph_tracker_;
 };
 
 }  // namespace trace_processor
