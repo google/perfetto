@@ -32,7 +32,7 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-class HeapGraphTracker : public HeapGraphWalker::Delegate {
+class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
  public:
   struct SourceObject {
     // All ids in this are in the trace iid space, not in the trace processor
@@ -53,6 +53,13 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
   };
 
   explicit HeapGraphTracker(TraceProcessorContext* context);
+
+  static HeapGraphTracker* GetOrCreate(TraceProcessorContext* context) {
+    if (!context->heap_graph_tracker) {
+      context->heap_graph_tracker.reset(new HeapGraphTracker(context));
+    }
+    return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
+  }
 
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);
   void AddObject(uint32_t seq_id, UniquePid upid, int64_t ts, SourceObject obj);
@@ -87,8 +94,8 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate {
   }
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildFlamegraph(
-      const UniquePid current_upid,
-      const int64_t current_ts);
+      const int64_t current_ts,
+      const UniquePid current_upid);
 
  private:
   struct SequenceState {
