@@ -92,6 +92,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                       \
   C(int64_t, ts, Column::Flag::kSorted)                                   \
   C(uint32_t, upid)                                                       \
+  C(StringPool::Id, profile_type)                                         \
   C(uint32_t, depth)                                                      \
   C(StringPool::Id, name)                                                 \
   C(StringPool::Id, map_name)                                             \

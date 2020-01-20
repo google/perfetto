@@ -196,8 +196,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 }
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-HeapGraphTracker::BuildFlamegraph(const UniquePid current_upid,
-                                  const int64_t current_ts) {
+HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
+                                  const UniquePid current_upid) {
   auto it = walkers_.find(std::make_pair(current_upid, current_ts));
   if (it == walkers_.end())
     return nullptr;
@@ -207,6 +207,7 @@ HeapGraphTracker::BuildFlamegraph(const UniquePid current_upid,
           context_->storage->mutable_string_pool(), nullptr));
 
   HeapGraphWalker::PathFromRoot init_path = it->second.FindPathsFromRoot();
+  auto profile_type = context_->storage->InternString("graph");
   auto java_mapping = context_->storage->InternString("JAVA");
 
   std::vector<int32_t> node_to_cumulative_size(init_path.nodes.size());
@@ -235,6 +236,7 @@ HeapGraphTracker::BuildFlamegraph(const UniquePid current_upid,
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{
         current_ts,
         current_upid,
+        profile_type,
         depth,
         StringId::Raw(static_cast<uint32_t>(node.class_name)),
         java_mapping,

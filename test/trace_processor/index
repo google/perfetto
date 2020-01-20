@@ -151,6 +151,7 @@ heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
 heap_graph_interleaved.textproto heap_graph_object.sql heap_graph_interleaved_object.out
 heap_graph_interleaved.textproto heap_graph_reference.sql heap_graph_interleaved_reference.out
+../data/system-server-heap-graph.pftrace heap_graph_flamegraph.sql heap_graph_flamegraph_system-server-heap-graph.out
 
 # TrackEvent tests.
 track_event_same_tids.textproto process_tracking.sql track_event_same_tids_threads.out
@@ -175,4 +176,3 @@ process_metadata_matching.textproto process_metadata_matching.sql process_metada
 
 # Trace size
 ../data/android_sched_and_ps.pb trace_size.sql android_sched_and_ps_trace_size.out
-
