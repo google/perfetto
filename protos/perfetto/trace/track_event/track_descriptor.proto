@@ -15,7 +15,6 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/trace/track_event/chrome_process_descriptor.proto";
 import "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto";

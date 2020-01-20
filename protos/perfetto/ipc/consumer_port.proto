@@ -15,7 +15,6 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/common/observable_events.proto";
 import "protos/perfetto/common/tracing_service_state.proto";

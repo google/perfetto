@@ -19,7 +19,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-option optimize_for = LITE_RUNTIME;
 
 // The protocol compiler can output a FileDescriptorSet containing the .proto
 // files it parses.
