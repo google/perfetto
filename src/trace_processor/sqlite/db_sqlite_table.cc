@@ -258,6 +258,45 @@ std::unique_ptr<SqliteTable::Cursor> DbSqliteTable::CreateCursor() {
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* table)
     : SqliteTable::Cursor(table), initial_db_table_(table->table_) {}
 
+void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
+    const QueryConstraints& qc,
+    FilterHistory history) {
+  if (history == FilterHistory::kDifferent) {
+    // Every time we get a new constraint set, reset the state of any caching
+    // structures.
+    sorted_cache_table_ = base::nullopt;
+    repeated_cache_count_ = 0;
+    return;
+  }
+
+  PERFETTO_DCHECK(history == FilterHistory::kSame);
+
+  // Only try and create the cached table on exactly the third time we see this
+  // constraint set.
+  constexpr uint32_t kRepeatedThreshold = 3;
+  if (repeated_cache_count_++ != kRepeatedThreshold)
+    return;
+
+  // If we have more than one constraint, we can't cache the table using
+  // this method.
+  if (qc.constraints().size() != 1)
+    return;
+
+  // If the constraing is not an equality constraint, there's little
+  // benefit to caching
+  const auto& c = qc.constraints().front();
+  if (!sqlite_utils::IsOpEq(c.op))
+    return;
+
+  // If the column is already sorted, we don't need to cache at all.
+  uint32_t col = static_cast<uint32_t>(c.column);
+  if (initial_db_table_->GetColumn(col).IsSorted())
+    return;
+
+  // Create the cached table, sorting on the column which has the constraint.
+  sorted_cache_table_ = initial_db_table_->Sort({Order{col, false}});
+}
+
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   sqlite3_value** argv,
                                   FilterHistory history) {
@@ -265,23 +304,9 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   // before the table's destructor.
   iterator_ = base::nullopt;
 
-  if (history == FilterHistory::kSame && qc.constraints().size() == 1 &&
-      sqlite_utils::IsOpEq(qc.constraints().front().op)) {
-    // If we've seen the same constraint set with a single equality constraint
-    // more than |kRepeatedThreshold| times, we assume we will see it more
-    // in the future and thus cache a table sorted on the column. That way,
-    // future equality constraints can binary search for the value instead of
-    // doing a full table scan.
-    constexpr uint32_t kRepeatedThreshold = 3;
-    if (!sorted_cache_table_ && repeated_cache_count_++ > kRepeatedThreshold) {
-      const auto& c = qc.constraints().front();
-      uint32_t col = static_cast<uint32_t>(c.column);
-      sorted_cache_table_ = initial_db_table_->Sort({Order{col, false}});
-    }
-  } else {
-    sorted_cache_table_ = base::nullopt;
-    repeated_cache_count_ = 0;
-  }
+  // Tries to create a sorted cached table which can be used to speed up
+  // filters below.
+  TryCacheCreateSortedTable(qc, history);
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   constraints_.resize(qc.constraints().size());
