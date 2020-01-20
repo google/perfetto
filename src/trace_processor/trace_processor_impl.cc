@@ -32,6 +32,7 @@
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/sqlite_experimental_flamegraph_table.h"
 #include "src/trace_processor/sqlite_raw_table.h"
 #include "src/trace_processor/stats_table.h"
 #include "src/trace_processor/types/variadic.h"
@@ -384,11 +385,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   SchedSliceTable::RegisterTable(*db_, storage);
   SqlStatsTable::RegisterTable(*db_, storage);
-  SpanJoinOperatorTable::RegisterTable(*db_, storage);
-  WindowOperatorTable::RegisterTable(*db_, storage);
   StatsTable::RegisterTable(*db_, storage);
 
+  // Operator tables.
+  SpanJoinOperatorTable::RegisterTable(*db_, storage);
+  WindowOperatorTable::RegisterTable(*db_, storage);
+
   // New style tables but with some custom logic.
+  SqliteExperimentalFlamegraphTable::RegisterTable(*db_, &context_);
   SqliteRawTable::RegisterTable(*db_, context_.storage.get());
 
   // New style db-backed tables.
