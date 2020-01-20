@@ -291,7 +291,14 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
     hash.Update(slices.category()[slice_idx]);
     hash.Update(slices.name()[slice_idx]);
   }
-  return static_cast<int64_t>(hash.digest());
+
+  // For clients which don't have an integer type (i.e. Javascript), returning
+  // hashes which have the top 11 bits set leads to numbers which are
+  // unrepresenatble. This means that clients cannot filter using this number as
+  // it will be meaningless when passed back to us. For this reason, make sure
+  // that the hash is always less than 2^53 - 1.
+  constexpr uint64_t kSafeBitmask = (1ull << 53) - 1;
+  return static_cast<int64_t>(hash.digest() & kSafeBitmask);
 }
 
 }  // namespace trace_processor
