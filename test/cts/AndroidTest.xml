@@ -33,7 +33,6 @@
         <option name="append-bitness" value="true" />
     </target_preparer>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <option name="run-command" value="setprop persist.traced.enable 1" />
         <option name="run-command" value="setprop persist.heapprofd.enable 1" />
         <option name="run-command" value="am start -n android.perfetto.producer/.ProducerActivity" />
     </target_preparer>
