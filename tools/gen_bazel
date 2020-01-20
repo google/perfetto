@@ -165,7 +165,10 @@ class BazelLabel(object):
         continue
       res += '    %s = ' % k
       if isinstance(v, basestring):
-        res += '"%s",\n' % v
+        if v.startswith('PERFETTO_CONFIG.'):
+          res += '%s,\n' % v
+        else:
+          res += '"%s",\n' % v
       elif isinstance(v, bool):
         res += '%s,\n' % v
       elif isinstance(v, list):
@@ -198,7 +201,7 @@ class BazelLabel(object):
 
 
 # Public visibility for targets in Bazel.
-PUBLIC_VISIBILITY = ['//visibility:public']
+PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
 
 def get_bazel_label_name(gn_name):

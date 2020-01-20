@@ -55,6 +55,13 @@ PERFETTO_CONFIG = struct(
         sqlite = [],
     ),
 
+    # Allow Bazel embedders to change the visibility of "public" targets.
+    # This variable has been introduced to limit the change to Bazel and avoid
+    # making the targets fully public in the google internal tree.
+    public_visibility = [
+        "//visibility:public",
+    ],
+
     # Allow Bazel embedders to change the visibility of the proto targets.
     # This variable has been introduced to limit the change to Bazel and avoid
     # making the targets public in the google internal tree.
