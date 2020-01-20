@@ -309,6 +309,12 @@ class MacroTable : public Table {
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_DEFINITION)              \
     };                                                                        \
                                                                               \
+    enum class ColumnIndex : uint32_t {                                       \
+      id,                                                                     \
+      type, /* Expands to col1, col2, ... */                                  \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
+    };                                                                        \
+                                                                              \
     class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
@@ -364,12 +370,6 @@ class MacroTable : public Table {
     PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_COL_ACCESSOR)              \
                                                                               \
    private:                                                                   \
-    enum class ColumnIndex : uint32_t {                                       \
-      id,                                                                     \
-      type, /* Expands to col1, col2, ... */                                  \
-      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
-    };                                                                        \
-                                                                              \
     parent_class_name* parent_;                                               \
                                                                               \
     /*                                                                        \

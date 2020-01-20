@@ -93,26 +93,31 @@ void DbSqliteTable::RegisterTable(sqlite3* db,
 }
 
 util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
+  *schema = ComputeSchema(*table_, name().c_str());
+  return util::OkStatus();
+}
+
+SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table& table,
+                                                 const char* table_name) {
   std::vector<SqliteTable::Column> schema_cols;
-  for (uint32_t i = 0; i < table_->GetColumnCount(); ++i) {
-    const auto& col = table_->GetColumn(i);
+  for (uint32_t i = 0; i < table.GetColumnCount(); ++i) {
+    const auto& col = table.GetColumn(i);
     schema_cols.emplace_back(i, col.name(), col.type());
   }
+
   // TODO(lalitm): this is hardcoded to be the id column but change this to be
   // more generic in the future.
-  const auto* col = table_->GetColumnByName("id");
+  const auto* col = table.GetColumnByName("id");
   if (!col) {
     PERFETTO_FATAL(
         "id column not found in %s. Currently all db Tables need to contain an "
         "id column; this constraint will be relaxed in the future.",
-        name().c_str());
+        table_name);
   }
 
   std::vector<size_t> primary_keys;
   primary_keys.emplace_back(col->index_in_table());
-
-  *schema = Schema(std::move(schema_cols), std::move(primary_keys));
-  return util::OkStatus();
+  return Schema(std::move(schema_cols), std::move(primary_keys));
 }
 
 int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
@@ -252,11 +257,11 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
 }
 
 std::unique_ptr<SqliteTable::Cursor> DbSqliteTable::CreateCursor() {
-  return std::unique_ptr<Cursor>(new Cursor(this));
+  return std::unique_ptr<Cursor>(new Cursor(this, table_));
 }
 
-DbSqliteTable::Cursor::Cursor(DbSqliteTable* table)
-    : SqliteTable::Cursor(table), initial_db_table_(table->table_) {}
+DbSqliteTable::Cursor::Cursor(SqliteTable* sqlite_table, const Table* table)
+    : SqliteTable::Cursor(sqlite_table), initial_db_table_(table) {}
 
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   sqlite3_value** argv,
