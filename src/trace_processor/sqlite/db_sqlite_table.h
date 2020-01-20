@@ -47,6 +47,10 @@ class DbSqliteTable : public SqliteTable {
       kTable,
     };
 
+    // Tries to create a sorted table to cache in |sorted_cache_table_| if the
+    // constraint set matches the requirements.
+    void TryCacheCreateSortedTable(const QueryConstraints&, FilterHistory);
+
     const Table* SourceTable() const {
       // Try and use the sorted cache table (if it exists) to speed up the
       // sorting. Otherwise, just use the original table.
