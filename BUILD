@@ -1495,9 +1495,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/config/perfetto_config.proto",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
 )
 
 # GN target: //protos/perfetto/config/power:cpp
@@ -1616,9 +1614,7 @@ perfetto_proto_library(
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
@@ -1789,9 +1785,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/unmapped_java_symbols.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
 )
 
 # GN target: //protos/perfetto/metrics/android:zero
@@ -1816,9 +1810,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/metrics/metrics.proto",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_metrics_android_protos",
     ],
@@ -2059,9 +2051,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/perfetto_trace.proto",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
 )
 
 # GN target: //protos/perfetto/trace:minimal_lite
@@ -2122,9 +2112,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/trace_packet.proto",
         "protos/perfetto/trace/trace_packet_defaults.proto",
     ],
-    visibility = [
-        "//visibility:public",
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
