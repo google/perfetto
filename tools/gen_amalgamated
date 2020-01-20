@@ -117,6 +117,7 @@ system_library_map = {
 # ----------------------------------------------------------------------------
 
 tool_name = os.path.basename(__file__)
+project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 preamble = """// Copyright (C) 2019 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -141,6 +142,12 @@ def apply_blacklist(blacklist, items):
 
 def apply_whitelist(whitelist, items):
   return [item for item in items if re.match(whitelist, item)]
+
+
+def normalize_path(path):
+  path = os.path.relpath(path, project_root)
+  path = re.sub(r'^out/[^/]+/', '', path)
+  return path
 
 
 class Error(Exception):
@@ -332,7 +339,8 @@ class AmalgamatedProject(object):
         if not rel_path in allowed_files:
           return
         with open(full_path) as f:
-          self.source.append('// %s begin header: %s' % (tool_name, rel_path))
+          self.source.append(
+              '// %s begin header: %s' % (tool_name, normalize_path(full_path)))
           self.source.extend(
               self._process_source_includes(include_dirs, allowed_files, f))
         return
@@ -351,12 +359,13 @@ class AmalgamatedProject(object):
     if not os.path.exists(full_path):
       raise Error('Source file %s not found' % source_name)
     with open(full_path) as f:
-      self.source.append('// %s begin source: %s' % (tool_name, source_name))
+      self.source.append(
+          '// %s begin source: %s' % (tool_name, normalize_path(full_path)))
       try:
         self.source.extend(
             self._patch_source(
-                source_name,
-                self._process_source_includes(include_dirs, deps, f)))
+                source_name, self._process_source_includes(
+                    include_dirs, deps, f)))
       except Error as e:
         raise Error('Failed adding source %s: %s' % (source_name, e.message))
 
@@ -368,7 +377,8 @@ class AmalgamatedProject(object):
       full_path = os.path.join(gn_utils.repo_root(), include_dir, header_name)
       if os.path.exists(full_path):
         with open(full_path) as f:
-          self.header.append('// %s begin header: %s' % (tool_name, full_path))
+          self.header.append(
+              '// %s begin header: %s' % (tool_name, normalize_path(full_path)))
           self.header.extend(self._process_header_includes(include_dirs, f))
         return
     if self._compute_deps_only:
@@ -387,7 +397,8 @@ class AmalgamatedProject(object):
         return
       raise Error('Header file %s not found' % header_name)
     with open(full_path) as f:
-      self.header.append('// %s begin header: %s' % (tool_name, header_name))
+      self.header.append(
+          '// %s begin header: %s' % (tool_name, normalize_path(full_path)))
       try:
         self.header.extend(self._process_header_includes(include_dirs, f))
       except Error as e:
@@ -507,8 +518,8 @@ Build settings:
 Example build command:
 
 %s
-""" % (header_file, source_file, ' '.join(self.cflags), ' '.join(
-        self.ldflags), ' '.join(self.libs), ' '.join(build_cmd))
+""" % (header_file, source_file, ' '.join(self.cflags), ' '.join(self.ldflags),
+       ' '.join(self.libs), ' '.join(build_cmd))
 
   def get_build_command(self, output_prefix):
     """Returns an example command line for building the output source."""
