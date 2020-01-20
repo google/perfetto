@@ -25,10 +25,20 @@ namespace perfetto {
 
 // static
 void Tracing::Initialize(const TracingInitArgs& args) {
+  static bool was_initialized = false;
+  static TracingInitArgs init_args;
+  if (was_initialized) {
+    // Should not be reinitialized with different args.
+    PERFETTO_DCHECK(init_args == args);
+    return;
+  }
+
   // Make sure the headers and implementation files agree on the build config.
   PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
   internal::TracingMuxerImpl::InitializeInstance(args);
   internal::TrackRegistry::InitializeInstance();
+  was_initialized = true;
+  init_args = args;
 }
 
 //  static
