@@ -53,7 +53,7 @@ StringPool::StringPool() {
 
 StringPool::~StringPool() = default;
 
-StringPool::StringPool(StringPool&&) noexcept = default;
+StringPool::StringPool(StringPool&&) = default;
 StringPool& StringPool::operator=(StringPool&&) = default;
 
 StringPool::Id StringPool::InsertString(base::StringView str, uint64_t hash) {
