@@ -839,9 +839,9 @@ export class TraceController extends Controller<States> {
       select first_thread.ts as ts,
       coalesce(min(runnable.ts), (select end_ts from trace_bounds)) -
       first_thread.ts as dur,
-      runnable.utid as utid
-      from runnable
-      JOIN first_thread using(utid) group by utid`);
+      first_thread.utid as utid
+      from first_thread
+      LEFT JOIN runnable using(utid) group by utid`);
 
     await engine.query(`create view full_runnable as
         select * from runnable UNION
