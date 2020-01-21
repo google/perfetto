@@ -6198,6 +6198,22 @@ filegroup {
   ],
 }
 
+// GN: //src/traced/probes/ftrace/kallsyms:kallsyms
+filegroup {
+  name: "perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
+  srcs: [
+    "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.cc",
+  ],
+}
+
+// GN: //src/traced/probes/ftrace/kallsyms:unittests
+filegroup {
+  name: "perfetto_src_traced_probes_ftrace_kallsyms_unittests",
+  srcs: [
+    "src/traced/probes/ftrace/kallsyms/kernel_symbol_map_unittest.cc",
+  ],
+}
+
 // GN: //src/traced/probes/ftrace:test_messages_cpp
 genrule {
   name: "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen",
@@ -6850,6 +6866,8 @@ cc_test {
     ":perfetto_src_traced_probes_filesystem_unittests",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_unittests",
     ":perfetto_src_traced_probes_ftrace_test_messages_cpp_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_lite_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_zero_gen",
