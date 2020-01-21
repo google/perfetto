@@ -146,6 +146,10 @@ def enumerate_data_deps():
     lines = f.readlines()
   for line in (line.strip() for line in lines if not line.startswith('#')):
     assert os.path.exists(line), line
+    if line.startswith('test/data/'):
+        # Skip test data files that require GCS. They are only for benchmarks.
+        # We don't run benchmarks in the android tree.
+        continue
     if line.endswith('/'):
       yield line + '**/*'
     else:
