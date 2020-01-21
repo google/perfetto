@@ -19,7 +19,6 @@
 // Do not edit.
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/trace/ftrace/binder.proto";
 import "protos/perfetto/trace/ftrace/block.proto";

@@ -138,9 +138,13 @@ template("proto_library") {
       rebase_path(proto_in_dir, root_build_dir),
     ]
     if (generate_cc) {
+      cc_generator_options_ = ""
+      if (defined(invoker.cc_generator_options)) {
+        cc_generator_options_ = invoker.cc_generator_options
+      }
       args += [
         "--cpp_out",
-        rel_cc_out_dir,
+        cc_generator_options_ + rel_cc_out_dir,
       ]
     }
     if (generate_descriptor != "") {

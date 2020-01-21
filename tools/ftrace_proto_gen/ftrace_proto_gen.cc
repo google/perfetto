@@ -49,7 +49,7 @@ const char kCopyrightHeader[] = R"(/*
  * limitations under the License.
  */
 
- )";
+)";
 
 }  // namespace
 
@@ -124,8 +124,7 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
   *fout << std::string("// ") + __FILE__ + "\n";
   *fout << "// Do not edit.\n\n";
   *fout << R"(syntax = "proto2";)"
-        << "\n";
-  *fout << "option optimize_for = LITE_RUNTIME;\n\n";
+        << "\n\n";
 
   for (const std::string& group : groups) {
     *fout << R"(import "protos/perfetto/trace/ftrace/)" << group
@@ -267,7 +266,6 @@ std::string ProtoHeader() {
 
   s += R"(
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 )";
