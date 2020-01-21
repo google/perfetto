@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/metrics/custom_options.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/proto_to_json.h"
 
@@ -322,12 +323,12 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
   ErrorPrinter printer;
   google::protobuf::io::Tokenizer tokenizer(&stream, &printer);
 
-  auto* proto = desc_set.add_file();
+  auto* file_desc = desc_set.add_file();
   google::protobuf::compiler::Parser parser;
-  parser.Parse(&tokenizer, proto);
+  parser.Parse(&tokenizer, file_desc);
 
-  proto->set_name(BaseName(extend_metrics_proto));
-  pool->BuildFile(*proto);
+  file_desc->set_name(BaseName(extend_metrics_proto));
+  pool->BuildFile(*file_desc);
 
   std::vector<uint8_t> metric_proto;
   metric_proto.resize(static_cast<size_t>(desc_set.ByteSize()));
@@ -376,7 +377,13 @@ int RunMetrics(const std::vector<std::string>& metric_names,
       break;
     }
     case OutputFormat::kJson: {
-      auto out = proto_to_json::MessageToJson(*metrics) + "\n";
+      // We need to instantiate field options from dynamic message factory
+      // because otherwise it cannot parse our custom extensions.
+      const google::protobuf::Message* field_options_prototype =
+          factory.GetPrototype(
+              pool.FindMessageTypeByName("google.protobuf.FieldOptions"));
+      auto out = proto_to_json::MessageToJsonWithAnnotations(
+          *metrics, field_options_prototype, 0);
       fwrite(out.c_str(), sizeof(char), out.size(), stdout);
       break;
     }
@@ -917,6 +924,16 @@ util::Status RegisterExtraMetrics(const std::string& path,
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
+void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
+                                    const void* data,
+                                    int size) {
+  google::protobuf::FileDescriptorSet desc_set;
+  desc_set.ParseFromArray(data, size);
+  for (const auto& desc : desc_set.file()) {
+    pool.BuildFile(desc);
+  }
+}
+
 int TraceProcessorMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
@@ -992,13 +1009,14 @@ int TraceProcessorMain(int argc, char** argv) {
   auto t_run_start = base::GetWallTimeNs();
 
   // Descriptor pool used for printing output as textproto.
-  google::protobuf::DescriptorPool pool;
-  google::protobuf::FileDescriptorSet root_desc_set;
-  root_desc_set.ParseFromArray(kMetricsDescriptor.data(),
-                               kMetricsDescriptor.size());
-  for (const auto& desc : root_desc_set.file()) {
-    pool.BuildFile(desc);
-  }
+  // Building on top of generated pool so default protos in
+  // google.protobuf.descriptor.proto are available.
+  google::protobuf::DescriptorPool pool(
+      google::protobuf::DescriptorPool::generated_pool());
+  ExtendPoolWithBinaryDescriptor(pool, kMetricsDescriptor.data(),
+                                 kMetricsDescriptor.size());
+  ExtendPoolWithBinaryDescriptor(pool, kCustomOptionsDescriptor.data(),
+                                 kCustomOptionsDescriptor.size());
 
   if (!options.metric_extra.empty()) {
     util::Status status = RegisterExtraMetrics(options.metric_extra, "");
