@@ -235,6 +235,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generate_python = false
         deps = deps_
+        cc_generator_options = "lite=true:"
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "descriptor") {
