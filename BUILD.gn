@@ -222,25 +222,16 @@ if (!build_with_chromium) {
 # Rationalize them with eseckler@. For now seems this one is only used from
 # chromium and the other one only from the Android tree.
 if (build_with_chromium) {
-  # Effectively a no-op copy target, which depends on any targets that generate
-  # headers or files that any dependent target of libperfetto needs. This
-  # indirection allows us to depend on the generation step via libperfetto's
-  # public_deps, but avoid propagating all the public_configs of the individual
-  # proto_library targets - which would bloat the command line arguments with
-  # many superfluous -Igen/third_party/perfetto, and caused windows bots to fail
-  # in the past (due to exceeding cmd line char limits): crbug.com/1043279.
-  # We propgate the include directory via "gn:public_config" instead. Only
-  # "copy" and "action" targets avoid passing on public_configs to their
-  # dependents.
-  # TODO(eseckler): Add an option to proto_library targets to prevent
-  # propagation of configs instead and move these deps back into public_deps of
-  # libperfetto.
-  copy("libperfetto_gen") {
-    # The exact file copied here is irrelevant, we just have to choose an
-    # arbitrary one to make gn happy.
-    sources = [ "OWNERS" ]
-    outputs = [ "${target_gen_dir}/OWNERS" ]
+  component("libperfetto") {
+    public_configs = [ "gn:public_config" ]
     deps = [
+      "src/trace_processor:export_json",
+      "src/trace_processor:storage_minimal",
+      "src/tracing",
+    ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+    public_deps = [
       "include/perfetto/ext/trace_processor:export_json",
       "include/perfetto/ext/tracing/core",
       "include/perfetto/trace_processor:storage",
@@ -252,23 +243,6 @@ if (build_with_chromium) {
       "protos/perfetto/trace/track_event:zero",
     ]
   }
-
-  component("libperfetto") {
-    public_configs = [ "gn:public_config" ]
-    deps = [
-      "src/trace_processor:export_json",
-      "src/trace_processor:storage_minimal",
-      "src/tracing",
-    ]
-    configs -= [ "//build/config/compiler:chromium_code" ]
-    configs += [ "//build/config/compiler:no_chromium_code" ]
-    public_deps = [
-      # Public dep so it is run (and all headers generated) before any
-      # dependents are compiled (whose headers might include generated headers).
-      ":libperfetto_gen"
-    ]
-  }
-
   component("libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [ "src/trace_processor:lib" ]
