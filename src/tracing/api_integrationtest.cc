@@ -246,16 +246,13 @@ class PerfettoApiTest : public ::testing::Test {
 
   void SetUp() override {
     instance = this;
-    // Perfetto can only be initialized once in a process.
-    static bool was_initialized;
-    if (!was_initialized) {
-      perfetto::TracingInitArgs args;
-      args.backends = perfetto::kInProcessBackend;
-      perfetto::Tracing::Initialize(args);
-      was_initialized = true;
-      RegisterDataSource<MockDataSource>("my_data_source");
-      perfetto::TrackEvent::Register();
-    }
+
+    perfetto::TracingInitArgs args;
+    args.backends = perfetto::kInProcessBackend;
+    perfetto::Tracing::Initialize(args);
+    RegisterDataSource<MockDataSource>("my_data_source");
+    perfetto::TrackEvent::Register();
+
     // Make sure our data source always has a valid handle.
     data_sources_["my_data_source"];
   }
