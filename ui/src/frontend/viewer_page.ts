@@ -32,6 +32,7 @@ import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {computeZoom} from './time_scale';
 import {TimeSelectionPanel} from './time_selection_panel';
+import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {VideoPanel} from './video_panel';
@@ -167,6 +168,8 @@ class TraceViewer implements m.ClassComponent {
           tStart = tEnd - origDelta;
         }
         frontendLocalState.updateVisibleTime(new TimeSpan(tStart, tEnd));
+        // If the user has panned they no longer need the hint.
+        localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
         globals.rafScheduler.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
