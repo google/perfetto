@@ -15,7 +15,6 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 message FakeFtraceEvent {
   optional uint32 common_field = 1;

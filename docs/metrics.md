@@ -117,7 +117,6 @@ Putting everything together, along with some boilerplate header information
 gives:
 ```protobuf
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 

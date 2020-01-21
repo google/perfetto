@@ -71,7 +71,7 @@ def _proto_gen_impl(ctx):
         plugin_deps += [ctx.executable.plugin]
     else:
         arguments += [
-            "--cpp_out=" + out_dir,
+            "--cpp_out=lite=true:" + out_dir,
         ]
 
     arguments += [src.path for src in proto_src]
