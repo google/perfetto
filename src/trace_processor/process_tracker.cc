@@ -70,24 +70,26 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
 }
 
 base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
-  auto vector_it = tids_.find(tid);
-  if (vector_it == tids_.end() || vector_it->second.empty()) {
+  auto opt_utid = GetThreadOrNull(tid, base::nullopt);
+  if (!opt_utid)
     return base::nullopt;
-  }
+
+  auto* threads = context_->storage->mutable_thread_table();
+  UniqueTid utid = *opt_utid;
+
+  // Ensure that the tid matches the tid we were looking for.
+  PERFETTO_DCHECK(threads->tid()[utid] == tid);
 
   // If the thread is being tracked by the process tracker, it should not be
   // known to have ended.
-  auto* thread_table = context_->storage->mutable_thread_table();
-  UniqueTid utid = vector_it->second.back();
-  PERFETTO_DCHECK(thread_table->tid()[utid] == tid);
-  PERFETTO_DCHECK(!thread_table->end_ts()[utid].has_value());
+  PERFETTO_DCHECK(!threads->end_ts()[utid].has_value());
+
   return utid;
 }
 
 UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
   auto utid = GetThreadOrNull(tid);
-  return utid ? utid.value()
-              : StartNewThread(base::nullopt, tid, kNullStringId);
+  return utid ? *utid : StartNewThread(base::nullopt, tid, kNullStringId);
 }
 
 UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
@@ -106,50 +108,75 @@ void ProcessTracker::SetThreadNameIfUnset(UniqueTid utid,
     thread_table->mutable_name()->Set(utid, thread_name_id);
 }
 
-UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
-  auto* thread_table = context_->storage->mutable_thread_table();
-  auto* process_table = context_->storage->mutable_process_table();
+bool ProcessTracker::IsThreadAlive(UniqueTid utid) {
+  auto* threads = context_->storage->mutable_thread_table();
+  auto* processes = context_->storage->mutable_process_table();
+
+  // If the thread has an end ts, it's certainly dead.
+  if (threads->end_ts()[utid].has_value())
+    return false;
+
+  // If we don't know the parent process, we have to consider this thread alive.
+  auto opt_current_upid = threads->upid()[utid];
+  if (!opt_current_upid)
+    return true;
+
+  // If the process is already dead, the thread can't be alive.
+  UniquePid current_upid = *opt_current_upid;
+  if (processes->end_ts()[current_upid].has_value())
+    return false;
+
+  // If the process has been replaced in |pids_|, this thread is dead.
+  uint32_t current_pid = processes->pid()[current_upid];
+  auto pid_it = pids_.find(current_pid);
+  if (pid_it != pids_.end() && pid_it->second != current_upid)
+    return false;
+
+  return true;
+}
+
+base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(
+    uint32_t tid,
+    base::Optional<uint32_t> pid) {
+  auto* threads = context_->storage->mutable_thread_table();
+  auto* processes = context_->storage->mutable_process_table();
 
   auto vector_it = tids_.find(tid);
+  if (vector_it == tids_.end())
+    return base::nullopt;
+
+  // Iterate backwards through the threads so ones later in the trace are more
+  // likely to be picked.
+  const auto& vector = vector_it->second;
+  for (auto it = vector.rbegin(); it != vector.rend(); it++) {
+    UniqueTid current_utid = *it;
+
+    // If we finished this thread, we should have removed it from the vector
+    // entirely.
+    PERFETTO_DCHECK(!threads->end_ts()[current_utid].has_value());
+
+    // If the thread is dead, ignore it.
+    if (!IsThreadAlive(current_utid))
+      continue;
+
+    // If we don't know the parent process, we have to choose this thread.
+    auto opt_current_upid = threads->upid()[current_utid];
+    if (!opt_current_upid)
+      return current_utid;
+
+    // We found a thread that matches both the tid and its parent pid.
+    uint32_t current_pid = processes->pid()[*opt_current_upid];
+    if (!pid || current_pid == *pid)
+      return current_utid;
+  }
+  return base::nullopt;
+}
+
+UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
+  auto* thread_table = context_->storage->mutable_thread_table();
 
   // Try looking for a thread that matches both tid and thread group id (pid).
-  base::Optional<UniqueTid> opt_utid;
-  if (vector_it != tids_.end()) {
-    const auto& vector = vector_it->second;
-
-    // Iterate backwards through the threads so ones later in the trace are more
-    // likely to be picked.
-    for (auto it = vector.rbegin(); it != vector.rend(); it++) {
-      UniqueTid it_utid = *it;
-
-      // If we finished this thread, we should have removed it from the vector
-      // entirely.
-      PERFETTO_DCHECK(!thread_table->end_ts()[it_utid].has_value());
-
-      auto opt_it_upid = thread_table->upid()[it_utid];
-      if (!opt_it_upid.has_value()) {
-        // We haven't discovered the parent process for the thread. Assign it
-        // now and use this thread.
-        opt_utid = *it;
-        break;
-      }
-
-      auto pid_it = pids_.find(process_table->pid()[*opt_it_upid]);
-      if (process_table->end_ts()[*opt_it_upid].has_value() ||
-          (pid_it != pids_.end() && pid_it->second != *opt_it_upid)) {
-        // If the process is already dead (i.e. either has an end_ts, or has
-        // been replaced in |pids_|), don't bother choosing the associated
-        // thread.
-        continue;
-      }
-
-      if (process_table->pid()[*opt_it_upid] == pid) {
-        // We found a thread that matches both the tid and its parent pid.
-        opt_utid = *it;
-        break;
-      }
-    }  // for(tids).
-  }
+  base::Optional<UniqueTid> opt_utid = GetThreadOrNull(tid, pid);
 
   // If no matching thread was found, create a new one.
   UniqueTid utid =
@@ -174,7 +201,7 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
   // TODO(eseckler): Consider erasing all old entries in |tids_| that match the
   // |pid| (those would be for an older process with the same pid). Right now,
   // we keep them in |tids_| (if they weren't erased by EndThread()), but ignore
-  // them in UpdateThread().
+  // them in GetThreadOrNull().
 
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
