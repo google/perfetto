@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#include "perfetto/base/export.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 
@@ -34,7 +35,7 @@ class TracingService;
 //   The code in the tracing client that will host the service e.g., traced.
 // Implemented in:
 //   src/tracing/ipc/service/service_ipc_host_impl.cc
-class ServiceIPCHost {
+class PERFETTO_EXPORT ServiceIPCHost {
  public:
   static std::unique_ptr<ServiceIPCHost> CreateInstance(base::TaskRunner*);
   virtual ~ServiceIPCHost();
