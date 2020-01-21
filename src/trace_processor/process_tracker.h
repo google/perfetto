@@ -126,6 +126,15 @@ class ProcessTracker {
   void AssociateThreads(UniqueTid, UniqueTid);
 
  private:
+  // Returns the utid of a thread having |tid| and |pid| as the parent process.
+  // pid == base::nullopt matches all processes.
+  // Returns base::nullopt if such a thread doesn't exist.
+  base::Optional<uint32_t> GetThreadOrNull(uint32_t tid,
+                                           base::Optional<uint32_t> pid);
+
+  // Returns whether a thread is considered alive by the process tracker.
+  bool IsThreadAlive(UniqueTid utid);
+
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any
   // other threads associated to the passed thread.
