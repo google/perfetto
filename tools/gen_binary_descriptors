@@ -37,6 +37,8 @@ SOURCE_TARGET = {
         'src/protozero/test/example_proto/test_messages.descriptor.h',
     'protos/perfetto/trace/track_event/track_event.proto':
         'src/trace_processor/importers/proto/track_event.descriptor.h',
+    'protos/perfetto/metrics/custom_options.proto':
+        'src/trace_processor/metrics/custom_options.descriptor.h',
 }
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -83,6 +85,8 @@ def generate(source, target, protoc_path):
         protoc_path,
         '--include_imports',
         '--proto_path=.',
+        '--proto_path=' + \
+            os.path.join(ROOT_DIR, "buildtools", "protobuf", "src"),
         '--descriptor_set_out={}'.format(fdescriptor.name),
         source,
     ],
