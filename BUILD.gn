@@ -242,6 +242,10 @@ if (build_with_chromium) {
       "protos/perfetto/trace/profiling:zero",
       "protos/perfetto/trace/track_event:zero",
     ]
+    if (enable_perfetto_ipc) {
+      deps += [ "src/tracing:ipc" ]
+      public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
+    }
   }
   component("libtrace_processor") {
     public_configs = [ "gn:public_config" ]

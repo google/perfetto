@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
@@ -41,15 +42,15 @@ class ProducerIPCClient {
   // callbacks invoked on the Producer interface: no more Producer callbacks are
   // invoked immediately after its destruction and any pending callback will be
   // dropped.
-  static std::unique_ptr<TracingService::ProducerEndpoint> Connect(
-      const char* service_sock_name,
-      Producer*,
-      const std::string& producer_name,
-      base::TaskRunner*,
-      TracingService::ProducerSMBScrapingMode smb_scraping_mode =
-          TracingService::ProducerSMBScrapingMode::kDefault,
-      size_t shared_memory_size_hint_bytes = 0,
-      size_t shared_memory_page_size_hint_bytes = 0);
+  PERFETTO_EXPORT static std::unique_ptr<TracingService::ProducerEndpoint>
+  Connect(const char* service_sock_name,
+          Producer*,
+          const std::string& producer_name,
+          base::TaskRunner*,
+          TracingService::ProducerSMBScrapingMode smb_scraping_mode =
+              TracingService::ProducerSMBScrapingMode::kDefault,
+          size_t shared_memory_size_hint_bytes = 0,
+          size_t shared_memory_page_size_hint_bytes = 0);
 
  protected:
   ProducerIPCClient() = delete;
