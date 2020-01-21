@@ -139,6 +139,11 @@ config("public_config") {
 
     # For perfetto_build_flags.h
     buildflag_gen_dir_,
+
+    # For generated files (proto libraries etc). We add the include here because
+    # we stop propagation of the configs for individual proto libraries in
+    # the libperfetto target, see comment in //BUILD.gn.
+    "$root_gen_dir/$perfetto_root_path",
   ]
 }
 
