@@ -28,6 +28,7 @@ import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/heap_profile_callsites.proto";
+import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/unmapped_java_symbols.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
@@ -51,7 +52,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 20
+// Next id: 21
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -102,6 +103,8 @@ message TraceMetrics {
 
   // Java type names that have no deobfuscation mappings.
   optional UnmappedJavaSymbols unmapped_java_symbols = 19;
+
+  optional AndroidHwuiMetric android_hwui_metric = 20;
 
   // Demo extensions.
   extensions 450 to 499;
