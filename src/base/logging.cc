@@ -125,11 +125,11 @@ void LogMessage(LogLev level,
   // to correlated events across differrent processses (e.g. traced and
   // traced_probes). The wall time % 1000 is good enough.
   char timestamp[32];
-  int t_ms = static_cast<int>(GetWallTimeMs().count());
-  int t_sec = t_ms / 1000;
+  uint32_t t_ms = static_cast<uint32_t>(GetWallTimeMs().count());
+  uint32_t t_sec = t_ms / 1000;
   t_ms -= t_sec * 1000;
   t_sec = t_sec % 1000;
-  snprintf(timestamp, sizeof(timestamp), "[%03d.%03d] ", t_sec, t_ms);
+  snprintf(timestamp, sizeof(timestamp), "[%03u.%03u] ", t_sec, t_ms);
 
   if (use_colors) {
     fprintf(stderr, "%s%s%s%s %s%s%s\n", kLightGray, timestamp, file_and_line,
