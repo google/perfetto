@@ -57,7 +57,10 @@ TrackRegistry::~TrackRegistry() = default;
 
 // static
 void TrackRegistry::InitializeInstance() {
-  PERFETTO_DCHECK(!instance_);
+  // TODO(eseckler): Chrome may call this more than once. Once Chrome doesn't
+  // call this directly anymore, bring back DCHECK(!instance_) instead.
+  if (instance_)
+    return;
   instance_ = new TrackRegistry();
   Track::process_uuid = static_cast<uint64_t>(base::Uuidv4().lsb());
 }
