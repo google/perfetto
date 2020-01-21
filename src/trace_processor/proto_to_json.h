@@ -26,6 +26,11 @@ namespace proto_to_json {
 std::string MessageToJson(const google::protobuf::Message& message,
                           uint32_t indent = 0);
 
+std::string MessageToJsonWithAnnotations(
+    const google::protobuf::Message& message,
+    const google::protobuf::Message* field_options_prototype,
+    uint32_t indent = 0);
+
 }  // namespace proto_to_json
 }  // namespace trace_processor
 }  // namespace perfetto

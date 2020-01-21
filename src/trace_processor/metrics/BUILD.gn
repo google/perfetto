@@ -65,6 +65,7 @@ action("gen_merged_sql_metrics") {
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
+      "custom_options.descriptor.h",
       "metrics.cc",
       "metrics.descriptor.h",
       "metrics.h",
