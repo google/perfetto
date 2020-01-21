@@ -75,6 +75,14 @@ struct TracingInitArgs {
   // Must be one of [4, 8, 16, 32].
   uint32_t shmem_page_size_hint_kb = 0;
 
+  bool operator==(const TracingInitArgs& other) const {
+    return std::tie(backends, custom_backend, platform, shmem_size_hint_kb,
+                    shmem_page_size_hint_kb, dcheck_is_on_) ==
+           std::tie(other.backends, other.custom_backend, other.platform,
+                    other.shmem_size_hint_kb, other.shmem_page_size_hint_kb,
+                    other.dcheck_is_on_);
+  }
+
  protected:
   friend class Tracing;
   bool dcheck_is_on_ = PERFETTO_DCHECK_IS_ON();
@@ -84,7 +92,7 @@ struct TracingInitArgs {
 class PERFETTO_EXPORT Tracing {
  public:
   // Initializes Perfetto with the given backends in the calling process and/or
-  // with a user-provided backend. Can only be called once.
+  // with a user-provided backend. No-op if called more than once.
   static void Initialize(const TracingInitArgs&);
 
   // Start a new tracing session using the given tracing backend. Use
