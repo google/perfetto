@@ -80,7 +80,6 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     TraceStorage* storage,
-    NativeFlamegraphType type,
     UniquePid upid,
     int64_t timestamp) {
   const tables::HeapProfileAllocationTable& allocation_tbl =
@@ -88,15 +87,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
   const tables::StackProfileCallsiteTable& callsites_tbl =
       storage->stack_profile_callsite_table();
 
-  StringId profile_type;
-  switch (type) {
-    case NativeFlamegraphType::kNotFreed:
-      profile_type = storage->InternString("native");
-      break;
-    case NativeFlamegraphType::kAlloc:
-      profile_type = storage->InternString("native_alloc");
-      break;
-  }
+  StringId profile_type = storage->InternString("native");
 
   std::vector<uint32_t> callsite_to_merged_callsite(callsites_tbl.row_count(),
                                                     0);
@@ -174,13 +165,18 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
             .long_value;
 
     PERFETTO_CHECK((size < 0 && count < 0) || (size >= 0 && count >= 0));
-    if (type == NativeFlamegraphType::kAlloc && size < 0)
-      continue;
-
-    // TODO(fmayer): Clean up types and remove the static_cast.
     uint32_t merged_idx =
         callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
             CallsiteId(static_cast<uint32_t>(callsite_id)))];
+    if (size > 0) {
+      // TODO(fmayer): Clean up types and remove the static_cast.
+      tbl->mutable_alloc_size()->Set(merged_idx,
+                                     tbl->alloc_size()[merged_idx] + size);
+      tbl->mutable_alloc_count()->Set(merged_idx,
+                                      tbl->alloc_count()[merged_idx] + count);
+    }
+
+    // TODO(fmayer): Clean up types and remove the static_cast.
     tbl->mutable_size()->Set(merged_idx, tbl->size()[merged_idx] + size);
     tbl->mutable_count()->Set(merged_idx, tbl->count()[merged_idx] + count);
   }
@@ -195,6 +191,11 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     tbl->mutable_cumulative_count()->Set(
         idx, tbl->cumulative_count()[idx] + tbl->count()[idx]);
 
+    tbl->mutable_cumulative_alloc_size()->Set(
+        idx, tbl->cumulative_alloc_size()[idx] + tbl->alloc_size()[idx]);
+    tbl->mutable_cumulative_alloc_count()->Set(
+        idx, tbl->cumulative_alloc_count()[idx] + tbl->alloc_count()[idx]);
+
     auto parent = tbl->parent_id()[idx];
     if (parent) {
       uint32_t parent_idx = *tbl->id().IndexOf(
@@ -205,6 +206,13 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
       tbl->mutable_cumulative_count()->Set(
           parent_idx,
           tbl->cumulative_count()[parent_idx] + tbl->cumulative_count()[idx]);
+
+      tbl->mutable_cumulative_alloc_size()->Set(
+          parent_idx, tbl->cumulative_alloc_size()[parent_idx] +
+                          tbl->cumulative_alloc_size()[idx]);
+      tbl->mutable_cumulative_alloc_count()->Set(
+          parent_idx, tbl->cumulative_alloc_count()[parent_idx] +
+                          tbl->cumulative_alloc_count()[idx]);
     }
   }
 
