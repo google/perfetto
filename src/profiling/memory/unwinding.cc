@@ -58,6 +58,8 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+constexpr base::TimeMillis kMapsReparseInterval{500};
+
 constexpr size_t kMaxFrames = 1000;
 
 // We assume average ~300us per unwind. If we handle up to 1000 unwinds, this
@@ -204,8 +206,14 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   uint8_t error_code = 0;
   for (int attempt = 0; attempt < 2; ++attempt) {
     if (attempt > 0) {
+      if (metadata->last_maps_reparse_time + kMapsReparseInterval >
+          base::GetWallTimeMs()) {
+        PERFETTO_DLOG("Skipping reparse due to rate limit.");
+        break;
+      }
       PERFETTO_DLOG("Reparsing maps");
       metadata->ReparseMaps();
+      metadata->last_maps_reparse_time = base::GetWallTimeMs();
       // Regs got invalidated by libuwindstack's speculative jump.
       // Reset.
       ReadFromRawData(regs.get(), alloc_metadata->register_data);

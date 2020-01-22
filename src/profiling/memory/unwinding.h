@@ -27,6 +27,7 @@
 #include <unwindstack/JitDebug.h>
 #endif
 
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -129,6 +130,7 @@ struct UnwindingMetadata {
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
   uint64_t reparses = 0;
+  base::TimeMillis last_maps_reparse_time{0};
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   std::unique_ptr<unwindstack::JitDebug> jit_debug;
   std::unique_ptr<unwindstack::DexFiles> dex_files;
