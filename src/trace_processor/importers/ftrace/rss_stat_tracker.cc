@@ -69,24 +69,34 @@ void RssStatTracker::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
 base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
                                                           bool is_curr,
                                                           uint32_t pid) {
-  auto it = mm_id_to_utid_.find(mm_id);
-  if (!is_curr) {
-    return it == mm_id_to_utid_.end() ? base::nullopt
-                                      : base::make_optional(it->second);
+  // If curr is true, we can just overwrite the state in the map and return
+  // the utid correspodning to |pid|.
+  if (is_curr) {
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+    mm_id_to_utid_[mm_id] = utid;
+    return utid;
   }
 
+  // If curr is false, try and lookup the utid we previously saw for this
+  // mm id.
+  auto it = mm_id_to_utid_.find(mm_id);
+  if (it == mm_id_to_utid_.end())
+    return base::nullopt;
+
+  // If the utid in the map is the same as our current utid but curr is false,
+  // that means we are in the middle of a process changing mm structs (i.e. in
+  // the middle of a vfork + exec). Therefore, we should discard the association
+  // of this vm struct with this thread.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  if (it != mm_id_to_utid_.end() && it->second != utid) {
-    // Since both of these structs have the same mm hash and both say that
-    // the mm hash is for the current project, we can assume they belong to
-    // the same process so we can associate them together.
-    // TODO(lalitm): investigate if it's possible for mm_id to be reused
-    // between different processes if we have pid reuse and get unlucky. If
-    // so, we'll need to do some more careful tracking here.
-    context_->process_tracker->AssociateThreads(it->second, utid);
+  if (it->second == utid) {
+    mm_id_to_utid_.erase(it);
+    return base::nullopt;
   }
-  mm_id_to_utid_[mm_id] = utid;
-  return utid;
+
+  // This case happens when a process is changing the VM of another process and
+  // we know that the utid corresponding to the target process. Just return that
+  // utid.
+  return it->second;
 }
 
 }  // namespace trace_processor
