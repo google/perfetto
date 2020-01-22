@@ -51,9 +51,23 @@ declare var self: ServiceWorkerGlobalScope;
 const CACHE_NAME = 'dist-' + UI_DIST_MAP.hex_digest.substr(0, 16);
 const LOG_TAG = `ServiceWorker[${UI_DIST_MAP.hex_digest.substr(0, 16)}]: `;
 
-async function handleHttpRequest(req: Request): Promise<Response> {
-  let fetchReason = 'N/A';
+
+function shouldHandleHttpRequest(req: Request): boolean {
+  // Suppress warning: 'only-if-cached' can be set only with 'same-origin' mode.
+  // This seems to be a chromium bug. An internal code search suggests this is a
+  // socially acceptable workaround.
+  if (req.cache === 'only-if-cached' && req.mode !== 'same-origin') {
+    return false;
+  }
+
   const url = new URL(req.url);
+  return req.method === 'GET' && url.origin === self.location.origin;
+}
+
+async function handleHttpRequest(req: Request): Promise<Response> {
+  if (!shouldHandleHttpRequest(req)) {
+    throw new Error(LOG_TAG + `${req.url} shouldn't have been handled`);
+  }
 
   // We serve from the cache even if req.cache == 'no-cache'. It's a bit
   // contra-intuitive but it's the most consistent option. If the user hits the
@@ -65,28 +79,21 @@ async function handleHttpRequest(req: Request): Promise<Response> {
   // resources, which is undesirable.
   // * Only Ctrl+R. Ctrl+Shift+R will always bypass service-worker for all the
   // requests (index.html and the rest) made in that tab.
-  const cacheable = req.method === 'GET' && url.origin === self.location.origin;
-  if (cacheable) {
-    try {
-      const cacheOps = {cacheName: CACHE_NAME} as CacheQueryOptions;
-      const cachedRes = await caches.match(req, cacheOps);
-      if (cachedRes) {
-        console.debug(LOG_TAG + `serving ${req.url} from cache`);
-        return cachedRes;
-      }
-      console.warn(LOG_TAG + `cache miss on ${req.url}`);
-      fetchReason = 'cache miss';
-    } catch (exc) {
-      console.error(LOG_TAG + `Fetch failed for ${req.url}`, exc);
-      fetchReason = 'fetch failed';
+  try {
+    const cacheOps = {cacheName: CACHE_NAME} as CacheQueryOptions;
+    const cachedRes = await caches.match(req, cacheOps);
+    if (cachedRes) {
+      console.debug(LOG_TAG + `serving ${req.url} from cache`);
+      return cachedRes;
     }
-  } else {
-    fetchReason = `not cacheable (${req.method}, ${req.cache}, ${url.origin})`;
+    console.warn(LOG_TAG + `cache miss on ${req.url}`);
+  } catch (exc) {
+    console.error(LOG_TAG + `Cache request failed for ${req.url}`, exc);
   }
 
   // In any other case, just propagate the fetch on the network, which is the
   // safe behavior.
-  console.debug(LOG_TAG + `serving ${req.url} from network: ${fetchReason}`);
+  console.debug(LOG_TAG + `falling back on network fetch() for ${req.url}`);
   return fetch(req);
 }
 
@@ -106,16 +113,14 @@ self.addEventListener('install', event => {
     const cache = await caches.open(CACHE_NAME);
     const urlsToCache: RequestInfo[] = [];
     for (const [file, integrity] of Object.entries(UI_DIST_MAP.files)) {
-      const reqOpts: RequestInit = {cache: 'reload', integrity};
+      const reqOpts:
+          RequestInit = {cache: 'reload', mode: 'same-origin', integrity};
       urlsToCache.push(new Request(file, reqOpts));
-      if (file === 'index.html') {
-        const indexPage = location.href.split('service_worker.js')[0];
-        // Disable cachinig of '/' for cases where the UI is hosted in a
-        // subdirectory, because the ci-artifacts GCS bucket doesn't support
-        // auto indexes (it has a fallback 404 page that fails the check).
-        if (indexPage === '/') {
-          urlsToCache.push(new Request(indexPage, reqOpts));
-        }
+      if (file === 'index.html' && location.host !== 'storage.googleapis.com') {
+        // Disable cachinig of '/' for cases where the UI is hosted on GCS.
+        // GCS doesn't support auto indexes. GCS returns a 404 page on / that
+        // fails the integrity check.
+        urlsToCache.push(new Request('/', reqOpts));
       }
     }
     await cache.addAll(urlsToCache);
@@ -150,5 +155,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', event => {
+  // The early return here will cause the browser to fall back on standard
+  // network-based fetch.
+  if (!shouldHandleHttpRequest(event.request)) {
+    console.debug(LOG_TAG + `serving ${event.request.url} from network`);
+    return;
+  }
+
   event.respondWith(handleHttpRequest(event.request));
 });
