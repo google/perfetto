@@ -139,6 +139,12 @@ config("public_config") {
 
     # For perfetto_build_flags.h
     buildflag_gen_dir_,
+
+    # For generated files (proto libraries etc). We add the directory here
+    # because we stop propagation of the configs for individual proto libraries
+    # to avoid duplicate include directory command line flags in compiler
+    # invocations, see proto_library.gni, crbug.com/1043279, crbug.com/gn/142.
+    "$root_gen_dir/$perfetto_root_path",
   ]
 }
 
