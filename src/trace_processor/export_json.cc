@@ -27,6 +27,7 @@
 #include <json/writer.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -187,26 +188,146 @@ class JsonExporter {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
-      // Pop end events with smaller or equal timestamps.
-      PopEndEvents(event["ts"].asInt64());
-
       DoWriteEvent(event);
     }
 
-    void PushEndEvent(const Json::Value& event) {
+    void AddAsyncBeginEvent(const Json::Value& event) {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
-      // Pop any end events that end before the new one.
-      PopEndEvents(event["ts"].asInt64() - 1);
+      async_begin_events_.push_back(event);
+    }
 
+    void AddAsyncInstantEvent(const Json::Value& event) {
+      if (label_filter_ && !label_filter_("traceEvents"))
+        return;
+
+      async_instant_events_.push_back(event);
+    }
+
+    void AddAsyncEndEvent(const Json::Value& event) {
+      if (label_filter_ && !label_filter_("traceEvents"))
+        return;
+
+      async_end_events_.push_back(event);
+    }
+
+    void SortAndEmitAsyncEvents() {
       // Catapult doesn't handle out-of-order begin/end events well, especially
       // when their timestamps are the same, but their order is incorrect. Since
-      // our events are sorted by begin timestamp, we only have to reorder end
-      // events. We do this by buffering them into a stack, so that both begin &
-      // end events of potential child events have been emitted before we emit
-      // the end of a parent event.
-      end_events_.push_back(event);
+      // we process events sorted by begin timestamp, |async_begin_events_| and
+      // |async_instant_events_| are already sorted. We now only have to sort
+      // |async_end_events_| and merge-sort all events into a single sequence.
+
+      // Sort |async_end_events_|. Note that we should order by ascending
+      // timestamp, but in reverse-stable order. This way, a child slices's end
+      // is emitted before its parent's end event, even if both end events have
+      // the same timestamp. To accomplish this, we perform a stable sort in
+      // descending order and later iterate via reverse iterators.
+      struct {
+        bool operator()(const Json::Value& a, const Json::Value& b) const {
+          return a["ts"].asInt64() > b["ts"].asInt64();
+        }
+      } CompareEvents;
+      std::stable_sort(async_end_events_.begin(), async_end_events_.end(),
+                       CompareEvents);
+
+      // Merge sort by timestamp. If events share the same timestamp, prefer
+      // instant events, then end events, so that old slices close before new
+      // ones are opened, but instant events remain in their deepest nesting
+      // level.
+      auto instant_event_it = async_instant_events_.begin();
+      auto end_event_it = async_end_events_.rbegin();
+      auto begin_event_it = async_begin_events_.begin();
+
+      auto has_instant_event = instant_event_it != async_instant_events_.end();
+      auto has_end_event = end_event_it != async_end_events_.rend();
+      auto has_begin_event = begin_event_it != async_begin_events_.end();
+
+      auto emit_next_instant = [&instant_event_it, &has_instant_event, this]() {
+        DoWriteEvent(*instant_event_it);
+        instant_event_it++;
+        has_instant_event = instant_event_it != async_instant_events_.end();
+      };
+      auto emit_next_end = [&end_event_it, &has_end_event, this]() {
+        DoWriteEvent(*end_event_it);
+        end_event_it++;
+        has_end_event = end_event_it != async_end_events_.rend();
+      };
+      auto emit_next_begin = [&begin_event_it, &has_begin_event, this]() {
+        DoWriteEvent(*begin_event_it);
+        begin_event_it++;
+        has_begin_event = begin_event_it != async_begin_events_.end();
+      };
+
+      auto emit_next_instant_or_end = [&instant_event_it, &end_event_it,
+                                       &emit_next_instant, &emit_next_end]() {
+        if ((*instant_event_it)["ts"].asInt64() <=
+            (*end_event_it)["ts"].asInt64()) {
+          emit_next_instant();
+        } else {
+          emit_next_end();
+        }
+      };
+      auto emit_next_instant_or_begin = [&instant_event_it, &begin_event_it,
+                                         &emit_next_instant,
+                                         &emit_next_begin]() {
+        if ((*instant_event_it)["ts"].asInt64() <=
+            (*begin_event_it)["ts"].asInt64()) {
+          emit_next_instant();
+        } else {
+          emit_next_begin();
+        }
+      };
+      auto emit_next_end_or_begin = [&end_event_it, &begin_event_it,
+                                     &emit_next_end, &emit_next_begin]() {
+        if ((*end_event_it)["ts"].asInt64() <=
+            (*begin_event_it)["ts"].asInt64()) {
+          emit_next_end();
+        } else {
+          emit_next_begin();
+        }
+      };
+
+      // While we still have events in all iterators, consider each.
+      while (has_instant_event && has_end_event && has_begin_event) {
+        if ((*instant_event_it)["ts"].asInt64() <=
+            (*end_event_it)["ts"].asInt64()) {
+          emit_next_instant_or_begin();
+        } else {
+          emit_next_end_or_begin();
+        }
+      }
+
+      // Only instant and end events left.
+      while (has_instant_event && has_end_event) {
+        emit_next_instant_or_end();
+      }
+
+      // Only instant and begin events left.
+      while (has_instant_event && has_begin_event) {
+        emit_next_instant_or_begin();
+      }
+
+      // Only end and begin events left.
+      while (has_end_event && has_begin_event) {
+        emit_next_end_or_begin();
+      }
+
+      // Remaining instant events.
+      while (has_instant_event) {
+        emit_next_instant();
+      }
+
+      // Remaining end events.
+      while (has_end_event) {
+        emit_next_end();
+      }
+
+      // Remaining begin events.
+      while (has_begin_event) {
+        emit_next_begin();
+      }
     }
 
     void WriteMetadataEvent(const char* metadata_type,
@@ -300,7 +421,7 @@ class JsonExporter {
     }
 
     void WriteFooter() {
-      PopEndEvents(std::numeric_limits<int64_t>::max());
+      SortAndEmitAsyncEvents();
 
       // Filter metadata entries.
       if (metadata_filter_) {
@@ -372,16 +493,6 @@ class JsonExporter {
       first_event_ = false;
     }
 
-    void PopEndEvents(int64_t max_ts) {
-      while (!end_events_.empty()) {
-        int64_t ts = end_events_.back()["ts"].asInt64();
-        if (ts > max_ts)
-          break;
-        DoWriteEvent(end_events_.back());
-        end_events_.pop_back();
-      }
-    }
-
     OutputWriter* output_;
     ArgumentFilterPredicate argument_filter_;
     MetadataFilterPredicate metadata_filter_;
@@ -391,7 +502,9 @@ class JsonExporter {
     Json::Value metadata_;
     std::string system_trace_data_;
     std::string user_trace_data_;
-    std::deque<Json::Value> end_events_;
+    std::vector<Json::Value> async_begin_events_;
+    std::vector<Json::Value> async_instant_events_;
+    std::vector<Json::Value> async_end_events_;
   };
 
   class ArgsBuilder {
@@ -794,10 +907,10 @@ class JsonExporter {
 
         if (duration_ns == 0) {  // Instant async event.
           event["ph"] = "n";
-          writer_.WriteCommonEvent(event);
+          writer_.AddAsyncInstantEvent(event);
         } else {  // Async start and end.
           event["ph"] = "b";
-          writer_.WriteCommonEvent(event);
+          writer_.AddAsyncBeginEvent(event);
           // If the slice didn't finish, the duration may be negative. Don't
           // write the end event in this case.
           if (duration_ns > 0) {
@@ -812,7 +925,7 @@ class JsonExporter {
                   (thread_instruction_count + thread_instruction_delta));
             }
             event["args"].clear();
-            writer_.PushEndEvent(event);
+            writer_.AddAsyncEndEvent(event);
           }
         }
       } else {
