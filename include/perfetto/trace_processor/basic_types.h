@@ -39,6 +39,16 @@ struct PERFETTO_EXPORT Config {
   // When set to true, this option forces trace processor to perform a full
   // sort ignoring any internal heureustics to skip sorting parts of the data.
   bool force_full_sort = false;
+
+  // When set to false, this option makes the trace processor not include ftrace
+  // events in the raw table; this makes converting events back to the systrace
+  // text format impossible. On the other hand, it also saves ~50% of memory
+  // usage of trace processor. For reference, Studio intends to use this option.
+  //
+  // Note: "generic" ftrace events will be parsed into the raw table even if
+  // this flag is false and all other events which parse into the raw table are
+  // unaffected by this flag.
+  bool ingest_ftrace_in_raw_table = true;
 };
 
 // Represents a dynamically typed value returned by SQL.

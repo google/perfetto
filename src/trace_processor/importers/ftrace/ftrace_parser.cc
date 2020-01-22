@@ -383,6 +383,9 @@ void FtraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
                                          uint32_t cpu,
                                          uint32_t tid,
                                          ConstBytes blob) {
+  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
+    return;
+
   ProtoDecoder decoder(blob.data, blob.size);
   if (ftrace_id >= GetDescriptorsSize()) {
     PERFETTO_DLOG("Event with id: %d does not exist and cannot be parsed.",
