@@ -68,9 +68,18 @@ base::Optional<MappingId> StackProfileTracker::AddMapping(
       context_->storage->GetString(raw_build_id);
   StringId build_id = GetEmptyStringId();
   if (raw_build_id_str.size() > 0) {
-    std::string hex_build_id =
-        base::ToHex(raw_build_id_str.c_str(), raw_build_id_str.size());
-    build_id = context_->storage->InternString(base::StringView(hex_build_id));
+    // If the build_id is 33 characters long, we assume it's a Breakpad debug
+    // identifier which is already in Hex and doesn't need conversion.
+    // TODO(b/148109467): Remove workaround once all active Chrome versions
+    // write raw bytes instead of a string as build_id.
+    if (raw_build_id_str.size() == 33) {
+      build_id = raw_build_id;
+    } else {
+      std::string hex_build_id =
+          base::ToHex(raw_build_id_str.c_str(), raw_build_id_str.size());
+      build_id =
+          context_->storage->InternString(base::StringView(hex_build_id));
+    }
   }
 
   tables::StackProfileMappingTable::Row row{
