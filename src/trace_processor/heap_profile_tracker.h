@@ -30,6 +30,17 @@
 namespace perfetto {
 namespace trace_processor {
 
+enum class NativeFlamegraphType {
+  kAlloc,
+  kNotFreed,
+};
+
+std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
+    TraceStorage* storage,
+    NativeFlamegraphType type,
+    UniquePid upid,
+    int64_t timestamp);
+
 class TraceProcessorContext;
 
 class HeapProfileTracker {
