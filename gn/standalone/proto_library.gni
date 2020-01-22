@@ -230,6 +230,18 @@ template("proto_library") {
         ":$config_name",
       ]
 
+      # By default, propagate the config for |include_dirs| to dependent
+      # targets, so that public imports can be resolved to corresponding header
+      # files. In some cases, the embedder target handles include directory
+      # propagation itself, e.g. via a common config.
+      propagate_imports_configs = !defined(invoker.propagate_imports_configs) ||
+                                  invoker.propagate_imports_configs
+      if (propagate_imports_configs) {
+        public_configs += [ ":$config_name" ]
+      } else {
+        configs += [ ":$config_name" ]
+      }
+
       # Use protobuf_full only for tests.
       if (defined(invoker.use_protobuf_full) &&
           invoker.use_protobuf_full == true) {
