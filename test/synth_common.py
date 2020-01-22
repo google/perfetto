@@ -19,6 +19,8 @@ from google.protobuf import descriptor, descriptor_pb2, message_factory, reflect
 from google.protobuf.pyext import _message
 
 CLONE_THREAD = 0x00010000
+CLONE_VFORK = 0x00004000
+CLONE_VM = 0x00000100
 
 
 class Trace(object):
