@@ -24,6 +24,193 @@
 namespace perfetto {
 namespace trace_processor {
 
+namespace {
+struct MergedCallsite {
+  StringId frame_name;
+  StringId mapping_name;
+  base::Optional<uint32_t> parent_idx;
+  bool operator<(const MergedCallsite& o) const {
+    return std::tie(frame_name, mapping_name, parent_idx) <
+           std::tie(o.frame_name, o.mapping_name, o.parent_idx);
+  }
+};
+
+std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
+                                               uint32_t callstack_row) {
+  const tables::StackProfileCallsiteTable& callsites_tbl =
+      storage->stack_profile_callsite_table();
+  const tables::StackProfileFrameTable& frames_tbl =
+      storage->stack_profile_frame_table();
+  const tables::SymbolTable& symbols_tbl = storage->symbol_table();
+  const tables::StackProfileMappingTable& mapping_tbl =
+      storage->stack_profile_mapping_table();
+
+  // TODO(fmayer): Clean up types and remove the static_cast.
+  uint32_t frame_idx = *frames_tbl.id().IndexOf(
+      FrameId(static_cast<uint32_t>(callsites_tbl.frame_id()[callstack_row])));
+
+  // TODO(fmayer): Clean up types and remove the static_cast.
+  uint32_t mapping_idx = *mapping_tbl.id().IndexOf(
+      MappingId(static_cast<uint32_t>(frames_tbl.mapping()[frame_idx])));
+  StringId mapping_name = mapping_tbl.name()[mapping_idx];
+
+  base::Optional<uint32_t> symbol_set_id =
+      frames_tbl.symbol_set_id()[frame_idx];
+
+  if (!symbol_set_id) {
+    StringId frame_name = frames_tbl.name()[frame_idx];
+    return {{frame_name, mapping_name, base::nullopt}};
+  }
+
+  std::vector<MergedCallsite> result;
+  // id == symbol_set_id for the bottommost frame.
+  // TODO(lalitm): Encode this optimization in the table and remove this
+  // custom optimization.
+  uint32_t symbol_set_idx = *symbols_tbl.id().IndexOf(SymbolId(*symbol_set_id));
+  for (uint32_t i = symbol_set_idx;
+       i < symbols_tbl.row_count() &&
+       symbols_tbl.symbol_set_id()[i] == *symbol_set_id;
+       ++i) {
+    result.emplace_back(
+        MergedCallsite{symbols_tbl.name()[i], mapping_name, base::nullopt});
+  }
+  return result;
+}
+}  // namespace
+
+std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
+    TraceStorage* storage,
+    NativeFlamegraphType type,
+    UniquePid upid,
+    int64_t timestamp) {
+  const tables::HeapProfileAllocationTable& allocation_tbl =
+      storage->heap_profile_allocation_table();
+  const tables::StackProfileCallsiteTable& callsites_tbl =
+      storage->stack_profile_callsite_table();
+
+  StringId profile_type;
+  switch (type) {
+    case NativeFlamegraphType::kNotFreed:
+      profile_type = storage->InternString("native");
+      break;
+    case NativeFlamegraphType::kAlloc:
+      profile_type = storage->InternString("native_alloc");
+      break;
+  }
+
+  std::vector<uint32_t> callsite_to_merged_callsite(callsites_tbl.row_count(),
+                                                    0);
+  std::map<MergedCallsite, uint32_t> merged_callsites_to_table_idx;
+
+  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
+      new tables::ExperimentalFlamegraphNodesTable(
+          storage->mutable_string_pool(), nullptr));
+
+  // FORWARD PASS:
+  // Aggregate callstacks by frame name / mapping name. Use symbolization data.
+  for (uint32_t i = 0; i < callsites_tbl.row_count(); ++i) {
+    base::Optional<uint32_t> parent_idx;
+    // TODO(fmayer): Clean up types and remove the conditional and static_cast.
+    if (callsites_tbl.parent_id()[i] != -1) {
+      auto parent_id = static_cast<uint32_t>(callsites_tbl.parent_id()[i]);
+      parent_idx = callsites_tbl.id().IndexOf(CallsiteId(parent_id));
+      parent_idx = callsite_to_merged_callsite[*parent_idx];
+      PERFETTO_CHECK(*parent_idx < i);
+    }
+
+    auto callsites = GetMergedCallsites(storage, i);
+    for (MergedCallsite& merged_callsite : callsites) {
+      merged_callsite.parent_idx = parent_idx;
+      auto it = merged_callsites_to_table_idx.find(merged_callsite);
+      if (it == merged_callsites_to_table_idx.end()) {
+        std::tie(it, std::ignore) = merged_callsites_to_table_idx.emplace(
+            merged_callsite, merged_callsites_to_table_idx.size());
+        tables::ExperimentalFlamegraphNodesTable::Row row{};
+        if (parent_idx) {
+          row.depth = tbl->depth()[*parent_idx] + 1;
+        } else {
+          row.depth = 0;
+        }
+        row.ts = timestamp;
+        row.upid = upid;
+        row.profile_type = profile_type;
+        row.name = merged_callsite.frame_name;
+        row.map_name = merged_callsite.mapping_name;
+        if (parent_idx)
+          row.parent_id = tbl->id()[*parent_idx].value;
+
+        parent_idx = *tbl->id().IndexOf(tbl->Insert(std::move(row)));
+        PERFETTO_CHECK(merged_callsites_to_table_idx.size() ==
+                       tbl->row_count());
+      }
+      parent_idx = it->second;
+    }
+    PERFETTO_CHECK(parent_idx);
+    callsite_to_merged_callsite[i] = *parent_idx;
+  }
+
+  // PASS OVER ALLOCATIONS:
+  // Aggregate allocations into the newly built tree.
+  auto filtered = allocation_tbl.Filter(
+      {allocation_tbl.ts().eq(timestamp), allocation_tbl.upid().eq(upid)});
+
+  if (filtered.row_count() == 0) {
+    return nullptr;
+  }
+
+  for (auto it = filtered.IterateRows(); it; it.Next()) {
+    int64_t size =
+        it.Get(static_cast<uint32_t>(
+                   tables::HeapProfileAllocationTable::ColumnIndex::size))
+            .long_value;
+    int64_t count =
+        it.Get(static_cast<uint32_t>(
+                   tables::HeapProfileAllocationTable::ColumnIndex::count))
+            .long_value;
+    int64_t callsite_id =
+        it
+            .Get(static_cast<uint32_t>(
+                tables::HeapProfileAllocationTable::ColumnIndex::callsite_id))
+            .long_value;
+
+    PERFETTO_CHECK((size < 0 && count < 0) || (size >= 0 && count >= 0));
+    if (type == NativeFlamegraphType::kAlloc && size < 0)
+      continue;
+
+    // TODO(fmayer): Clean up types and remove the static_cast.
+    uint32_t merged_idx =
+        callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
+            CallsiteId(static_cast<uint32_t>(callsite_id)))];
+    tbl->mutable_size()->Set(merged_idx, tbl->size()[merged_idx] + size);
+    tbl->mutable_count()->Set(merged_idx, tbl->count()[merged_idx] + count);
+  }
+
+  // BACKWARD PASS:
+  // Propagate sizes to parents.
+  for (int64_t i = tbl->row_count() - 1; i >= 0; --i) {
+    uint32_t idx = static_cast<uint32_t>(i);
+
+    tbl->mutable_cumulative_size()->Set(
+        idx, tbl->cumulative_size()[idx] + tbl->size()[idx]);
+    tbl->mutable_cumulative_count()->Set(
+        idx, tbl->cumulative_count()[idx] + tbl->count()[idx]);
+
+    auto parent = tbl->parent_id()[idx];
+    if (parent) {
+      uint32_t parent_idx = *tbl->id().IndexOf(
+          tables::ExperimentalFlamegraphNodesTable::Id(*parent));
+      tbl->mutable_cumulative_size()->Set(
+          parent_idx,
+          tbl->cumulative_size()[parent_idx] + tbl->cumulative_size()[idx]);
+      tbl->mutable_cumulative_count()->Set(
+          parent_idx,
+          tbl->cumulative_count()[parent_idx] + tbl->cumulative_count()[idx]);
+    }
+  }
+
+  return tbl;
+}
+
 HeapProfileTracker::HeapProfileTracker(TraceProcessorContext* context)
     : context_(context), empty_(context_->storage->InternString({"", 0})) {}
 
