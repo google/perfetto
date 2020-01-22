@@ -2390,6 +2390,11 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
 
     auto mapping = interned_data->add_mappings();
     mapping->set_iid(1);
+    mapping->set_build_id(1);
+
+    auto build_id = interned_data->add_build_ids();
+    build_id->set_iid(1);
+    build_id->set_str("3BBCFBD372448A727265C3E7C4D954F91");
 
     auto frame = interned_data->add_frames();
     frame->set_iid(1);
@@ -2451,6 +2456,13 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   EXPECT_EQ(samples.ts()[2], 68000);
   EXPECT_EQ(samples.callsite_id()[2], 0);
   EXPECT_EQ(samples.utid()[2], 1u);
+
+  // Breakpad build_ids should not be modified/mangled.
+  ASSERT_STREQ(
+      context_.storage
+          ->GetString(storage_->stack_profile_mapping_table().build_id()[0])
+          .c_str(),
+      "3BBCFBD372448A727265C3E7C4D954F91");
 }
 
 }  // namespace
