@@ -8,8 +8,10 @@ various format and expose them in a massaged, higher level format, queryable
 through SQL queries. The trace processor is used:
 * By the [Perfetto UI](https://ui.perfetto.dev/), in the form of a
   Web Assembly module.
-* Standalone, using the `trace_processor_shell` target
-  (`ninja -C out/xxx trace_processor_shell`).
+* Standalone:
+  * using the [prebuilt](http://get.perfetto.dev/trace_processor) binaries.
+  * using the `trace_processor_shell` target from source
+    (`ninja -C out/xxx trace_processor_shell`).
 * In internal pipelines for batch processing.
 
 Supported input formats:
