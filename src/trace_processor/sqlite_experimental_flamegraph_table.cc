@@ -161,13 +161,7 @@ int SqliteExperimentalFlamegraphTable::Cursor::Filter(
   }
   if (values_.profile_type == "native") {
     table_ = BuildNativeFlamegraph(context_->storage.get(),
-                                   NativeFlamegraphType::kNotFreed,
                                    values_.upid, values_.ts);
-  }
-  if (values_.profile_type == "native_alloc") {
-    table_ = BuildNativeFlamegraph(context_->storage.get(),
-                                   NativeFlamegraphType::kAlloc, values_.upid,
-                                   values_.ts);
   }
 
   // table_ can be nullptr precisely where the constraints passed to us don't
