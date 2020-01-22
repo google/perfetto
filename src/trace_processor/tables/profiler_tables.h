@@ -100,6 +100,10 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
   C(int64_t, cumulative_count)                                            \
   C(int64_t, size)                                                        \
   C(int64_t, cumulative_size)                                             \
+  C(int64_t, alloc_count)                                                 \
+  C(int64_t, cumulative_alloc_count)                                      \
+  C(int64_t, alloc_size)                                                  \
+  C(int64_t, cumulative_alloc_size)                                       \
   C(base::Optional<uint32_t>, parent_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
