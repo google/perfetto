@@ -222,9 +222,12 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
     } else if (sqlite_utils::IsOpEq(c.op)) {
       // If there is only a single equality constraint, we have special logic
       // to sort by that column and then binary search if we see the constraint
-      // set often. Model this by dividing but the log of the number of rows as
+      // set often. Model this by dividing by the log of the number of rows as
       // a good approximation. Otherwise, we'll need to do a full table scan.
-      filter_cost += cs.size() == 1
+      // Alternatively, if the column is sorted, we can use the same binary
+      // search logic so we have the same low cost (even better because we don't
+      // have to sort at all).
+      filter_cost += cs.size() == 1 || col.IsSorted()
                          ? (2 * current_row_count) / log2(current_row_count)
                          : current_row_count;
 
