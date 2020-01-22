@@ -66,6 +66,10 @@ if (!defined(build_with_chromium)) {
   build_with_chromium = false
 }
 
+if (!defined(is_nacl)) {
+  is_nacl = false
+}
+
 declare_args() {
   # The Android blueprint file generator set this to true (as well as
   # is_perfetto_build_generator). This is just about being built in the
@@ -135,7 +139,7 @@ declare_args() {
   # system backend in the client library.
   # This includes building things that rely on POSIX sockets, this places
   # limitations on the supported operating systems.
-  enable_perfetto_ipc = !is_win && !is_fuchsia &&
+  enable_perfetto_ipc = !is_win && !is_fuchsia && !is_nacl &&
                         (perfetto_build_standalone ||
                          perfetto_build_with_android || build_with_chromium)
 
