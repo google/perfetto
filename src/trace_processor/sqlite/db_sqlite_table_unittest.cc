@@ -33,12 +33,18 @@ class TestTable : public Table {
         Column("a", &a_, Column::Flag::kNoFlag, this, 1u, 0u));
     columns_.emplace_back(
         Column("sorted", &sorted_, Column::Flag::kSorted, this, 2u, 0u));
+    columns_.emplace_back(
+        Column("other", &other_, Column::Flag::kNoFlag, this, 3u, 0u));
+    columns_.emplace_back(
+        Column("other2", &other_, Column::Flag::kNoFlag, this, 4u, 0u));
   }
 
  private:
   StringPool pool_;
   SparseVector<uint32_t> a_;
   SparseVector<uint32_t> sorted_;
+  SparseVector<uint32_t> other_;
+  SparseVector<uint32_t> other2_;
 };
 
 TEST(DbSqliteTable, IdEqCheaperThanOtherEq) {
@@ -93,6 +99,27 @@ TEST(DbSqliteTable, SingleEqCheaperThanMultipleConstraint) {
   // handling of single equality). But the number of rows should be greater.
   ASSERT_LT(single_cost.cost, multi_cost.cost);
   ASSERT_GT(single_cost.rows, multi_cost.rows);
+}
+
+TEST(DbSqliteTable, MultiSortedEqCheaperThanMultiUnsortedEq) {
+  TestTable table(1234);
+
+  QueryConstraints sorted_eq;
+  sorted_eq.AddConstraint(2u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  sorted_eq.AddConstraint(3u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+
+  auto sorted_cost = DbSqliteTable::EstimateCost(table, sorted_eq);
+
+  QueryConstraints unsorted_eq;
+  unsorted_eq.AddConstraint(3u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  unsorted_eq.AddConstraint(4u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+
+  auto unsorted_cost = DbSqliteTable::EstimateCost(table, unsorted_eq);
+
+  // The number of rows should be the same but the cost of the sorted
+  // query should be less.
+  ASSERT_LT(sorted_cost.cost, unsorted_cost.cost);
+  ASSERT_EQ(sorted_cost.rows, unsorted_cost.rows);
 }
 
 TEST(DbSqliteTable, EmptyTableCosting) {
