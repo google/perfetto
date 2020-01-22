@@ -75,6 +75,8 @@ using MappingId = tables::StackProfileMappingTable::Id;
 
 using FrameId = tables::StackProfileFrameTable::Id;
 
+using SymbolId = tables::SymbolTable::Id;
+
 using CallsiteId = tables::StackProfileCallsiteTable::Id;
 
 using MetadataId = tables::MetadataTable::Id;
