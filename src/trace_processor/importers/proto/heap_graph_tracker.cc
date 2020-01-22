@@ -234,17 +234,17 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
                                             // artificial root in the database.
 
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{
-        current_ts,
-        current_upid,
-        profile_type,
-        depth,
-        StringId::Raw(static_cast<uint32_t>(node.class_name)),
-        java_mapping,
+        current_ts, current_upid, profile_type, depth,
+        StringId::Raw(static_cast<uint32_t>(node.class_name)), java_mapping,
         static_cast<int64_t>(node.count),
         static_cast<int64_t>(node_to_cumulative_count[i]),
         static_cast<int64_t>(node.size),
         static_cast<int64_t>(node_to_cumulative_size[i]),
-        parent_id};
+        // For java dumps, set alloc_count == count, etc.
+        static_cast<int64_t>(node.count),
+        static_cast<int64_t>(node_to_cumulative_count[i]),
+        static_cast<int64_t>(node.size),
+        static_cast<int64_t>(node_to_cumulative_size[i]), parent_id};
     node_to_row_idx[i] = *tbl->id().IndexOf(tbl->Insert(alloc_row));
   }
   return tbl;
