@@ -57,6 +57,8 @@ kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 
 # Rss stats
 rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
+rss_stat_mm_id_clone.py rss_stat.sql rss_stat_mm_id_clone.out
+rss_stat_mm_id_reuse.py rss_stat.sql rss_stat_mm_id_reuse.out
 rss_stat_legacy.py rss_stat.sql rss_stat_legacy.out
 
 # Memory counters
