@@ -18,8 +18,6 @@ export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
 export interface Config {
   maxDepth: number;
-  upid: number;
-  utid: number;
   trackId: number;
 }
 
