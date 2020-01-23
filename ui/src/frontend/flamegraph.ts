@@ -307,7 +307,7 @@ export class Flamegraph {
     if (unit === '') return totalSize.toLocaleString();
     if (totalSize === 0) return `0 ${unit}`;
     const units = [
-      ['', 0],
+      ['', 1],
       ['K', step],
       ['M', Math.pow(step, 2)],
       ['G', Math.pow(step, 3)]
