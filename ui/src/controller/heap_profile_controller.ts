@@ -211,8 +211,8 @@ export class HeapProfileController extends Controller<'main'> {
     }
 
     const callsites = await this.args.engine.query(
-        `SELECT id, name, IFNULL(parent_id, -1), depth, cumulative_size,
-        cumulative_alloc_size, cumulative_count,
+        `SELECT id, IFNULL(DEMANGLE(name), name), IFNULL(parent_id, -1), depth,
+        cumulative_size, cumulative_alloc_size, cumulative_count,
         cumulative_alloc_count, map_name, size from ${tableName} ${orderBy}`);
 
     const flamegraphData: CallsiteInfo[] = new Array();
