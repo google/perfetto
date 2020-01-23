@@ -228,6 +228,10 @@ if (build_with_chromium) {
       "src/trace_processor:export_json",
       "src/trace_processor:storage_minimal",
       "src/tracing",
+      "src/tracing:client_api",
+
+      # TODO(eseckler): Create a platform for chrome and hook it up somehow.
+      "src/tracing:platform_fake",
     ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
@@ -235,6 +239,7 @@ if (build_with_chromium) {
       "include/perfetto/ext/trace_processor:export_json",
       "include/perfetto/ext/tracing/core",
       "include/perfetto/trace_processor:storage",
+      "include/perfetto/tracing",
       "protos/perfetto/common:zero",
       "protos/perfetto/trace:zero",
       "protos/perfetto/trace/chrome:zero",
