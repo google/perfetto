@@ -426,18 +426,26 @@ export const StateActions = {
       },
 
   selectHeapProfile(
-      state: StateDraft, args: {id: number, upid: number, ts: number}): void {
-    state.currentSelection =
-        {kind: 'HEAP_PROFILE', id: args.id, upid: args.upid, ts: args.ts};
+      state: StateDraft,
+      args: {id: number, upid: number, ts: number, type: string}): void {
+    state.currentSelection = {
+      kind: 'HEAP_PROFILE',
+      id: args.id,
+      upid: args.upid,
+      ts: args.ts,
+      type: args.type
+    };
   },
 
   showHeapProfileFlamegraph(
-      state: StateDraft, args: {id: number, upid: number, ts: number}): void {
+      state: StateDraft,
+      args: {id: number, upid: number, ts: number, type: string}): void {
     state.currentHeapProfileFlamegraph = {
       kind: 'HEAP_PROFILE_FLAMEGRAPH',
       id: args.id,
       upid: args.upid,
       ts: args.ts,
+      type: args.type,
     };
   },
 
