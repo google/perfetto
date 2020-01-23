@@ -66,6 +66,7 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
     copiedCallsite.parentId =
         getCallsitesParentHash(copiedCallsite, mergedCallsites);
 
+    let mergedAny = false;
     // If current callsite is small, find other small callsites with same depth
     // and parent and merge them into the current one, marking them as merged.
     if (copiedCallsite.totalSize <= minSizeDisplayed && i + 1 < data.length) {
@@ -77,9 +78,13 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
             nextCallsite.totalSize <= minSizeDisplayed) {
           copiedCallsite.totalSize += nextCallsite.totalSize;
           mergedCallsites.set(nextCallsite.id, copiedCallsite.id);
+          mergedAny = true;
         }
         j++;
         nextCallsite = data[j];
+      }
+      if (mergedAny) {
+        copiedCallsite.name = '[merged]';
       }
     }
     mergedData.push(copiedCallsite);
