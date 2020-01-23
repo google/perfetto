@@ -28,11 +28,23 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
     if (this.config.upid === undefined) {
-      return {start, end, resolution, length: 0, tsStarts: new Float64Array()};
+      return {
+        start,
+        end,
+        resolution,
+        length: 0,
+        tsStarts: new Float64Array(),
+        types: new Array<string>()
+      };
     }
     const result = await this.query(`
-    select distinct(ts) from heap_profile_allocation where upid = ${
-        this.config.upid}`);
+    select * from
+    (select distinct(ts) as ts, 'native' as type from heap_profile_allocation
+     where upid = ${this.config.upid}
+        union
+        select distinct(graph_sample_ts) as ts, 'graph' as type from
+        heap_graph_object
+        where upid = ${this.config.upid}) order by ts`);
     const numRows = +result.numRecords;
     const data: Data = {
       start,
@@ -40,10 +52,12 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       tsStarts: new Float64Array(numRows),
+      types: new Array<string>(numRows),
     };
 
     for (let row = 0; row < numRows; row++) {
       data.tsStarts[row] = +result.columns[0].longValues![row];
+      data.types[row] = result.columns[1].stringValues![row];
     }
 
     return data;

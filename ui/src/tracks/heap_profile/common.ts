@@ -17,6 +17,7 @@ export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
 export interface Data extends TrackData {
   tsStarts: Float64Array;
+  types: string[];
 }
 
 export interface Config {

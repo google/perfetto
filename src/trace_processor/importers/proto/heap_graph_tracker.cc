@@ -230,8 +230,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
     base::Optional<uint32_t> parent_id;
     if (node.parent_id != 0)
       parent_id = node_to_row_idx[node.parent_id];
-    const uint32_t depth = node.depth - 1;  // -1 because we do not have the
-                                            // artificial root in the database.
+    const uint32_t depth = node.depth;
 
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{
         current_ts, current_upid, profile_type, depth,
