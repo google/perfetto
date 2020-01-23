@@ -8,6 +8,7 @@
   * [Advanced trace config](trace-config.md)
   * [Running in detached mode](detached-mode.md)
   * [Native Heap Profiling](heapprofd.md)
+  * [Java Heap Profiling](java-hprof.md)
 * Trace analysis
   * [Trace processor](trace-processor.md)
   * [Trace-based metrics](metrics.md)
