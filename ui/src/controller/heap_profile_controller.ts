@@ -178,24 +178,31 @@ export class HeapProfileController extends Controller<'main'> {
       tableName: string, viewingOption = DEFAULT_VIEWING_OPTION) {
     let orderBy = '';
     let sizeIndex = 4;
+    // TODO(fmayer): Improve performance so this is no longer necessary.
+    // Alternatively consider collapsing frames of the same label.
+    const maxDepth = 100;
     switch (viewingOption) {
       case SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
-        orderBy = `where cumulative_size > 0 order by depth, parent_id,
+        orderBy = `where cumulative_size > 0 and depth < ${
+            maxDepth} order by depth, parent_id,
             cumulative_size desc, name`;
         sizeIndex = 4;
         break;
       case ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
-        orderBy = `where cumulative_alloc_size > 0 order by depth, parent_id,
+        orderBy = `where cumulative_alloc_size > 0 and depth < ${
+            maxDepth} order by depth, parent_id,
             cumulative_alloc_size desc, name`;
         sizeIndex = 5;
         break;
       case OBJECTS_ALLOCATED_NOT_FREED_KEY:
-        orderBy = `where cumulative_count > 0 order by depth, parent_id,
+        orderBy = `where cumulative_count > 0 and depth < ${
+            maxDepth} order by depth, parent_id,
             cumulative_count desc, name`;
         sizeIndex = 6;
         break;
       case OBJECTS_ALLOCATED_KEY:
-        orderBy = `where cumulative_alloc_count > 0 order by depth, parent_id,
+        orderBy = `where cumulative_alloc_count > 0 and depth < ${
+            maxDepth} order by depth, parent_id,
             cumulative_alloc_count desc, name`;
         sizeIndex = 7;
         break;
@@ -212,7 +219,7 @@ export class HeapProfileController extends Controller<'main'> {
     const hashToindex: Map<number, number> = new Map();
     for (let i = 0; i < callsites.numRecords; i++) {
       const hash = callsites.columns[0].longValues![i];
-      const name = callsites.columns[1].stringValues![i];
+      let name = callsites.columns[1].stringValues![i];
       const parentHash = callsites.columns[2].longValues![i];
       const depth = +callsites.columns[3].longValues![i];
       const totalSize = +callsites.columns[sizeIndex].longValues![i];
@@ -220,6 +227,9 @@ export class HeapProfileController extends Controller<'main'> {
       const selfSize = +callsites.columns[9].longValues![i];
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
+      if (depth === maxDepth - 1) {
+        name += ' [tree truncated]';
+      }
       hashToindex.set(+hash, i);
       // Instead of hash, we will store index of callsite in this original array
       // as an id of callsite. That way, we have quicker access to parent and it
