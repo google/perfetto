@@ -27,6 +27,7 @@ namespace {
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
   C(uint32_t, root_sorted, Column::Flag::kSorted)    \
   C(uint32_t, root_non_null)                         \
+  C(uint32_t, root_non_null_2)                       \
   C(base::Optional<uint32_t>, root_nullable)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
@@ -199,6 +200,28 @@ static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)->Apply(TableFilterArgs);
+
+static void BM_TableFilterRootMultipleNonNull(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 512;
+
+  std::minstd_rand0 rnd_engine;
+  for (uint32_t i = 0; i < size; ++i) {
+    RootTestTable::Row row;
+    row.root_non_null = rnd_engine() % partitions;
+    row.root_non_null_2 = rnd_engine() % partitions;
+    root.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Filter(
+        {root.root_non_null().lt(4), root.root_non_null_2().lt(10)}));
+  }
+}
+BENCHMARK(BM_TableFilterRootMultipleNonNull)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   StringPool pool;
