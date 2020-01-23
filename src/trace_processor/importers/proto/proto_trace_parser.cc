@@ -629,11 +629,18 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
 
 void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
-  std::string hex_build_id = base::ToHex(module_symbols.build_id().data,
-                                         module_symbols.build_id().size);
+  StringId build_id;
+  // TODO(b/148109467): Remove workaround once all active Chrome versions
+  // write raw bytes instead of a string as build_id.
+  if (module_symbols.build_id().size == 33) {
+    build_id = context_->storage->InternString(module_symbols.build_id());
+  } else {
+    build_id = context_->storage->InternString(base::StringView(base::ToHex(
+        module_symbols.build_id().data, module_symbols.build_id().size)));
+  }
+
   auto mapping_ids = context_->storage->FindMappingRow(
-      context_->storage->InternString(module_symbols.path()),
-      context_->storage->InternString(base::StringView(hex_build_id)));
+      context_->storage->InternString(module_symbols.path()), build_id);
   if (mapping_ids.empty()) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
