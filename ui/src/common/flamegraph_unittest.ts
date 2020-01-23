@@ -162,7 +162,7 @@ test('twoCallsitesMerged', () => {
     {
       id: 2,
       parentId: 1,
-      name: 'A2',
+      name: '[merged]',
       depth: 1,
       totalSize: 10,
       selfSize: 0,
@@ -269,7 +269,7 @@ test('manyCallsitesMerged', () => {
     {
       id: 3,
       parentId: 1,
-      name: 'A3',
+      name: '[merged]',
       depth: 1,
       totalSize: 5,
       selfSize: 0,
@@ -278,7 +278,7 @@ test('manyCallsitesMerged', () => {
     {
       id: 6,
       parentId: 3,
-      name: 'A36',
+      name: '[merged]',
       depth: 2,
       totalSize: 3,
       selfSize: 0,
@@ -392,7 +392,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
     {
       id: 3,
       parentId: 1,
-      name: 'A3',
+      name: '[merged]',
       depth: 1,
       totalSize: 5,
       selfSize: 0,
@@ -507,7 +507,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
     {
       id: 3,
       parentId: 1,
-      name: 'A3',
+      name: '[merged]',
       depth: 1,
       totalSize: 4,
       selfSize: 0,
@@ -597,7 +597,7 @@ test('mergingRootCallsites', () => {
     {
       id: 1,
       parentId: -1,
-      name: 'A',
+      name: '[merged]',
       depth: 0,
       totalSize: 12,
       selfSize: 0,
@@ -821,7 +821,7 @@ test('largerFlamegraph', () => {
     {
       id: 4,
       parentId: 1,
-      name: 'A4',
+      name: '[merged]',
       depth: 1,
       totalSize: 35,
       selfSize: 0,
@@ -857,7 +857,7 @@ test('largerFlamegraph', () => {
     {
       id: 10,
       parentId: 4,
-      name: 'A410',
+      name: '[merged]',
       depth: 2,
       totalSize: 25,
       selfSize: 0,
@@ -866,7 +866,7 @@ test('largerFlamegraph', () => {
     {
       id: 15,
       parentId: 7,
-      name: 'A715',
+      name: '[merged]',
       depth: 2,
       totalSize: 25,
       selfSize: 0,
