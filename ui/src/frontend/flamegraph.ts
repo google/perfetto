@@ -312,8 +312,11 @@ export class Flamegraph {
     ];
     let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
     unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
-    return `${(totalSize / +units[unitsIndex][1]).toLocaleString()} ${
-        units[unitsIndex][0]}${unit}`;
+    const result = totalSize / +units[unitsIndex][1];
+    const resultString = totalSize % +units[unitsIndex][1] === 0 ?
+        result.toString() :
+        result.toFixed(2);
+    return `${resultString} ${units[unitsIndex][0]}${unit}`;
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
