@@ -973,10 +973,13 @@ source_set("libunwindstack") {
   ]
   sources = [
     "android-core/base/file.cpp",
+    "android-core/base/liblog_symbols.cpp",
     "android-core/base/logging.cpp",
     "android-core/base/stringprintf.cpp",
     "android-core/base/strings.cpp",
     "android-core/base/threads.cpp",
+    "android-core/liblog/fake_log_device.cpp",
+    "android-core/liblog/logger_write.cpp",
     "android-core/libunwindstack/ArmExidx.cpp",
     "android-core/libunwindstack/DwarfCfa.cpp",
     "android-core/libunwindstack/DwarfEhFrameWithHdr.cpp",
@@ -1002,7 +1005,6 @@ source_set("libunwindstack") {
     "android-core/libunwindstack/RegsX86_64.cpp",
     "android-core/libunwindstack/Symbols.cpp",
     "android-core/libunwindstack/Unwinder.cpp",
-    "android-core/libunwindstack/tests/LogFake.cpp",
   ]
   if (current_cpu == "x86") {
     sources += [ "android-core/libunwindstack/AsmGetRegsX86.S" ]
@@ -1014,6 +1016,7 @@ source_set("libunwindstack") {
     "//gn/standalone:c++11",
     "//gn/standalone:visibility_hidden",
   ]
+  cflags = [ "-DFAKE_LOG_DEVICE=1" ]
   configs += [ "//gn/standalone:c++17" ]
   public_configs = [ ":libunwindstack_config" ]
 }
