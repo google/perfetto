@@ -85,7 +85,8 @@ export class HeapProfileController extends Controller<'main'> {
                           selectedHeapProfile.viewingOption :
                           DEFAULT_VIEWING_OPTION,
                       selection.ts,
-                      selectedHeapProfile.upid)
+                      selectedHeapProfile.upid,
+                      selectedHeapProfile.type)
                   .then(flamegraphData => {
                     if (flamegraphData !== undefined && selection &&
                         selection.kind === selectedHeapProfile.kind &&
@@ -119,6 +120,7 @@ export class HeapProfileController extends Controller<'main'> {
       id: heapProfile.id,
       upid: heapProfile.upid,
       ts: heapProfile.ts,
+      type: heapProfile.type,
       expandedCallsite: heapProfile.expandedCallsite,
       viewingOption: heapProfile.viewingOption
     };
@@ -130,6 +132,7 @@ export class HeapProfileController extends Controller<'main'> {
          (this.lastSelectedHeapProfile !== undefined &&
           (this.lastSelectedHeapProfile.id !== selection.id ||
            this.lastSelectedHeapProfile.ts !== selection.ts ||
+           this.lastSelectedHeapProfile.type !== selection.type ||
            this.lastSelectedHeapProfile.upid !== selection.upid ||
            this.lastSelectedHeapProfile.viewingOption !==
                selection.viewingOption ||
@@ -151,8 +154,8 @@ export class HeapProfileController extends Controller<'main'> {
 
 
   async getFlamegraphData(
-      baseKey: string, viewingOption: string, ts: number,
-      upid: number): Promise<CallsiteInfo[]> {
+      baseKey: string, viewingOption: string, ts: number, upid: number,
+      type: string): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
     const key = `${baseKey}-${viewingOption}`;
     if (this.flamegraphDatasets.has(key)) {
@@ -163,7 +166,7 @@ export class HeapProfileController extends Controller<'main'> {
       // Collecting data for drawing flamegraph for selected heap profile.
       // Data needs to be in following format:
       // id, name, parent_id, depth, total_size
-      const tableName = await this.prepareViewsAndTables(ts, upid);
+      const tableName = await this.prepareViewsAndTables(ts, upid, type);
       currentData =
           await this.getFlamegraphDataFromTables(tableName, viewingOption);
       this.flamegraphDatasets.set(key, currentData);
@@ -201,7 +204,7 @@ export class HeapProfileController extends Controller<'main'> {
     }
 
     const callsites = await this.args.engine.query(
-        `SELECT id, name, parent_id, depth, cumulative_size,
+        `SELECT id, name, IFNULL(parent_id, -1), depth, cumulative_size,
         cumulative_alloc_size, cumulative_count,
         cumulative_alloc_count, map_name, size from ${tableName} ${orderBy}`);
 
@@ -227,7 +230,7 @@ export class HeapProfileController extends Controller<'main'> {
     return flamegraphData;
   }
 
-  private async prepareViewsAndTables(ts: number, upid: number):
+  private async prepareViewsAndTables(ts: number, upid: number, type: string):
       Promise<string> {
     // Creating unique names for views so we can reuse and not delete them
     // for each marker.
@@ -239,7 +242,7 @@ export class HeapProfileController extends Controller<'main'> {
         select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count
-        from experimental_flamegraph(${ts}, ${upid}, 'native')`);
+        from experimental_flamegraph(${ts}, ${upid}, '${type}')`);
     return tableNameGroupedCallsitesForFlamegraph;
   }
 
