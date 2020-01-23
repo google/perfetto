@@ -72,7 +72,8 @@
 // Trace categories used in the tests.
 PERFETTO_DEFINE_CATEGORIES(PERFETTO_CATEGORY(test),
                            PERFETTO_CATEGORY(foo),
-                           PERFETTO_CATEGORY(bar));
+                           PERFETTO_CATEGORY(bar),
+                           PERFETTO_CATEGORY(cat));
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 
 // For testing interning of complex objects.
@@ -237,6 +238,16 @@ struct TestTracingSessionHandle {
   WaitableTestEvent on_stop;
 };
 
+class MyDebugAnnotation : public perfetto::DebugAnnotation {
+ public:
+  ~MyDebugAnnotation() override = default;
+
+  void Add(
+      perfetto::protos::pbzero::DebugAnnotation* annotation) const override {
+    annotation->set_legacy_json_value(R"({"key": 123})");
+  }
+};
+
 // -------------------------
 // Declaration of test class
 // -------------------------
@@ -398,9 +409,16 @@ class PerfettoApiTest : public ::testing::Test {
         case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
           slice += "I";
           break;
-        default:
-        case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
+        case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED: {
+          EXPECT_TRUE(track_event.has_legacy_event());
           EXPECT_FALSE(track_event.type());
+          auto legacy_event = track_event.legacy_event();
+          slice += "Legacy_" +
+                   std::string(1, static_cast<char>(legacy_event.phase()));
+          break;
+        }
+        default:
+          ADD_FAILURE();
       }
       if (!track_event.category_iids().empty())
         slice += ":" + categories[track_event.category_iids()[0]];
@@ -1455,23 +1473,15 @@ TEST_F(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
   ds_cfg->set_name("track_event");
   ds_cfg->set_legacy_config("test");
 
-  class MyDebugAnnotation : public perfetto::DebugAnnotation {
-   public:
-    ~MyDebugAnnotation() override = default;
-
-    void Add(
-        perfetto::protos::pbzero::DebugAnnotation* annotation) const override {
-      annotation->set_legacy_json_value(R"({"key": 123})");
-    }
-  };
-
   // Create a new trace session.
   auto* tracing_session = NewTrace(cfg);
   tracing_session->get()->StartBlocking();
 
+  std::unique_ptr<MyDebugAnnotation> owned_annotation(new MyDebugAnnotation());
+
   TRACE_EVENT_BEGIN("test", "E", "custom_arg", MyDebugAnnotation());
   TRACE_EVENT_BEGIN("test", "E", "normal_arg", "x", "custom_arg",
-                    MyDebugAnnotation());
+                    std::move(owned_annotation));
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
@@ -1952,7 +1962,19 @@ TEST_F(PerfettoApiTest, LegacyTraceEvents) {
   // TODO(skyostil): For now we just test that all variants of legacy trace
   // points compile. Test actual functionality when implemented.
 
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
   // Basic events.
+  TRACE_EVENT_INSTANT0("cat", "LegacyEvent", TRACE_EVENT_SCOPE_GLOBAL);
   TRACE_EVENT_BEGIN1("cat", "LegacyEvent", "arg", 123);
   TRACE_EVENT_END2("cat", "LegacyEvent", "arg", "string", "arg2", 0.123f);
 
@@ -1972,10 +1994,79 @@ TEST_F(PerfettoApiTest, LegacyTraceEvents) {
       "cat", std::string("LegacyWithIdTidAndTimestamp").c_str(), 1, 2, 3);
 
   // Event with id.
-  TRACE_COUNTER_ID1("cat", "LegacyCounter", 1234, 9000);
+  TRACE_COUNTER1("cat", "LegacyCounter", 1234);
+  TRACE_COUNTER_ID1("cat", "LegacyCounterWithId", 1234, 9000);
 
   // Metadata event.
   TRACE_EVENT_METADATA1("cat", "LegacyMetadata", "obsolete", true);
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(
+      slices,
+      ElementsAre("I:cat.LegacyEvent", "B:cat.LegacyEvent(arg=(int)123)",
+                  "E.LegacyEvent(arg=(string)string,arg2=(double)0.123)",
+                  "B:cat.ScopedLegacyEvent", "E",
+                  "Legacy_C:cat.LegacyCounter(value=(int)1234)"));
+}
+
+TEST_F(PerfettoApiTest, LegacyTraceEventsWithCustomAnnotation) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  MyDebugAnnotation annotation;
+  TRACE_EVENT_BEGIN1("cat", "LegacyEvent", "arg", annotation);
+
+  std::unique_ptr<MyDebugAnnotation> owned_annotation(new MyDebugAnnotation());
+  TRACE_EVENT_BEGIN1("cat", "LegacyEvent", "arg", std::move(owned_annotation));
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices,
+              ElementsAre("B:cat.LegacyEvent(arg=(json){\"key\": 123})",
+                          "B:cat.LegacyEvent(arg=(json){\"key\": 123})"));
+}
+
+TEST_F(PerfettoApiTest, LegacyTraceEventsWithConcurrentSessions) {
+  // Make sure that a uniquely owned debug annotation can be written into
+  // multiple concurrent tracing sessions.
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  auto* tracing_session2 = NewTrace(cfg);
+  tracing_session2->get()->StartBlocking();
+
+  std::unique_ptr<MyDebugAnnotation> owned_annotation(new MyDebugAnnotation());
+  TRACE_EVENT_BEGIN1("cat", "LegacyEvent", "arg", std::move(owned_annotation));
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices,
+              ElementsAre("B:cat.LegacyEvent(arg=(json){\"key\": 123})"));
+
+  tracing_session2->get()->StopBlocking();
+  slices = ReadSlicesFromTrace(tracing_session2->get());
+  EXPECT_THAT(slices,
+              ElementsAre("B:cat.LegacyEvent(arg=(json){\"key\": 123})"));
 }
 
 }  // namespace
