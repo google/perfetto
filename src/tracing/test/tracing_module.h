@@ -39,6 +39,10 @@ void FunctionWithOneScopedTrackEvent();
 void FunctionWithOneTrackEventWithDebugAnnotations();
 void FunctionWithOneTrackEventWithCustomTrack();
 
+// Legacy events.
+void FunctionWithOneLegacyEvent();
+void FunctionWithOneScopedLegacyEvent();
+
 }  // namespace tracing_module
 
 #endif  // SRC_TRACING_TEST_TRACING_MODULE_H_

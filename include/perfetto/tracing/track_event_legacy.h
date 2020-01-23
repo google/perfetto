@@ -23,6 +23,7 @@
 // to 1 activate the compatibility layer.
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/tracing/track_event.h"
 
 #include <stdint.h>
 
@@ -118,6 +119,81 @@ static constexpr char TRACE_EVENT_SCOPE_NAME_THREAD = 't';
 // Internal legacy trace point implementation.
 // ----------------------------------------------------------------------------
 
+namespace perfetto {
+namespace internal {
+
+class TrackEventLegacy {
+ public:
+  static constexpr protos::pbzero::TrackEvent::Type PhaseToType(char phase) {
+    // clang-format off
+    return (phase == TRACE_EVENT_PHASE_BEGIN) ?
+               protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN :
+           (phase == TRACE_EVENT_PHASE_END) ?
+               protos::pbzero::TrackEvent::TYPE_SLICE_END :
+           (phase == TRACE_EVENT_PHASE_INSTANT) ?
+               protos::pbzero::TrackEvent::TYPE_INSTANT :
+           protos::pbzero::TrackEvent::TYPE_UNSPECIFIED;
+    // clang-format on
+  }
+
+  // Reduce binary size overhead by outlining most of the code for writing a
+  // legacy trace event.
+  template <typename... Args>
+  static void WriteLegacyEvent(EventContext ctx,
+                               char phase,
+                               uint32_t flags,
+                               Args&&... args) PERFETTO_NO_INLINE {
+    AddDebugAnnotations(&ctx, std::forward<Args>(args)...);
+    SetTrackIfNeeded(&ctx, flags);
+    if (PhaseToType(phase) == protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
+      auto legacy_event = ctx.event()->set_legacy_event();
+      legacy_event->set_phase(phase);
+    }
+  }
+
+  // No arguments.
+  static void AddDebugAnnotations(EventContext*) {}
+
+  // One argument.
+  template <typename ArgType>
+  static void AddDebugAnnotations(EventContext* ctx,
+                                  const char* arg_name,
+                                  ArgType&& arg_value) {
+    TrackEventInternal::AddDebugAnnotation(ctx, arg_name, arg_value);
+  }
+
+  // Two arguments.
+  template <typename ArgType, typename ArgType2>
+  static void AddDebugAnnotations(EventContext* ctx,
+                                  const char* arg_name,
+                                  ArgType&& arg_value,
+                                  const char* arg_name2,
+                                  ArgType2&& arg_value2) {
+    TrackEventInternal::AddDebugAnnotation(ctx, arg_name, arg_value);
+    TrackEventInternal::AddDebugAnnotation(ctx, arg_name2, arg_value2);
+  }
+
+ private:
+  static void SetTrackIfNeeded(EventContext* ctx, uint32_t flags) {
+    auto scope = flags & TRACE_EVENT_FLAG_SCOPE_MASK;
+    switch (scope) {
+      case TRACE_EVENT_SCOPE_GLOBAL:
+        ctx->event()->set_track_uuid(0);
+        break;
+      case TRACE_EVENT_SCOPE_PROCESS:
+        ctx->event()->set_track_uuid(ProcessTrack::Current().uuid);
+        break;
+      default:
+      case TRACE_EVENT_SCOPE_THREAD:
+        // Thread scope is already the default.
+        break;
+    }
+  }
+};
+
+}  // namespace internal
+}  // namespace perfetto
+
 // A black hole trace point where unsupported trace events are routed.
 #define PERFETTO_INTERNAL_EVENT_NOOP(cat, name, ...) \
   do {                                               \
@@ -129,9 +205,23 @@ static constexpr char TRACE_EVENT_SCOPE_NAME_THREAD = 't';
 
 // Implementations for the INTERNAL_* adapter macros used by the trace points
 // below.
-#define INTERNAL_TRACE_EVENT_ADD(...) PERFETTO_INTERNAL_EVENT_NOOP(__VA_ARGS__)
-#define INTERNAL_TRACE_EVENT_ADD_SCOPED(...) \
-  PERFETTO_INTERNAL_EVENT_NOOP(__VA_ARGS__)
+#define INTERNAL_TRACE_EVENT_ADD(phase, category, name, flags, ...)      \
+  PERFETTO_INTERNAL_TRACK_EVENT(                                         \
+      category, name,                                                    \
+      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),        \
+      [&](perfetto::EventContext ctx) {                                  \
+        using ::perfetto::internal::TrackEventLegacy;                    \
+        TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags, \
+                                           ##__VA_ARGS__);               \
+      })
+
+#define INTERNAL_TRACE_EVENT_ADD_SCOPED(category, name, ...)        \
+  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                             \
+      category, name, [&](perfetto::EventContext ctx) {             \
+        using ::perfetto::internal::TrackEventLegacy;               \
+        TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__); \
+      })
+
 #define INTERNAL_TRACE_EVENT_ADD_SCOPED_WITH_FLOW(...) \
   PERFETTO_INTERNAL_EVENT_NOOP(__VA_ARGS__)
 #define INTERNAL_TRACE_EVENT_ADD_WITH_TIMESTAMP(...) \
