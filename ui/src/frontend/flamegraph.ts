@@ -259,11 +259,13 @@ export class Flamegraph {
 
       let selfSizeWidth = 0;
       if (this.hoveredCallsite.selfSize > 0) {
+        const selfPercentage =
+            this.hoveredCallsite.selfSize / this.totalSize * 100;
         const selfSizeText = `self: ${
             this.displaySize(
                 this.hoveredCallsite.selfSize,
                 unit,
-                unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
+                unit === 'B' ? 1024 : 1000)} (${selfPercentage.toFixed(2)}%)`;
         lineSplitter = splitIfTooBig(
             selfSizeText, width, ctx.measureText(selfSizeText).width);
         selfSizeWidth = lineSplitter.lineWidth;
