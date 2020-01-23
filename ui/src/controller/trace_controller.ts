@@ -407,7 +407,9 @@ export class TraceController extends Controller<States> {
     }
 
     const heapProfiles = await engine.query(`
-      select distinct(upid) from heap_profile_allocation`);
+      select distinct(upid) from heap_profile_allocation
+      union
+      select distinct(upid) from heap_graph_object`);
 
     const heapUpids: Set<number> = new Set();
     for (let i = 0; i < heapProfiles.numRecords; i++) {

@@ -163,6 +163,7 @@ export interface HeapProfileSelection {
   id: number;
   upid: number;
   ts: number;
+  type: string;
 }
 
 export interface HeapProfileFlamegraph {
@@ -170,6 +171,7 @@ export interface HeapProfileFlamegraph {
   id: number;
   upid: number;
   ts: number;
+  type: string;
   expandedCallsite?: CallsiteInfo;
   viewingOption?: string;
 }
