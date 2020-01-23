@@ -164,11 +164,11 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
                 tables::HeapProfileAllocationTable::ColumnIndex::callsite_id))
             .long_value;
 
-    PERFETTO_CHECK((size < 0 && count < 0) || (size >= 0 && count >= 0));
+    PERFETTO_CHECK((size <= 0 && count <= 0) || (size >= 0 && count >= 0));
     uint32_t merged_idx =
         callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
             CallsiteId(static_cast<uint32_t>(callsite_id)))];
-    if (size > 0) {
+    if (count > 0) {
       // TODO(fmayer): Clean up types and remove the static_cast.
       tbl->mutable_alloc_size()->Set(merged_idx,
                                      tbl->alloc_size()[merged_idx] + size);
