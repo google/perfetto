@@ -336,6 +336,31 @@ static void BM_TableFilterParentSortedEq(benchmark::State& state) {
 }
 BENCHMARK(BM_TableFilterParentSortedEq)->Apply(TableFilterArgs);
 
+static void BM_TableFilterParentSortedAndOther(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  for (uint32_t i = 0; i < size; ++i) {
+    // Group the rows into rows of 10. This emulates the behaviour of e.g.
+    // args.
+    RootTestTable::Row row;
+    row.root_sorted = (i / 10) * 10;
+    row.root_non_null = i;
+    root.Insert(row);
+  }
+
+  // We choose to search for the last group as if there is O(n^2), it will
+  // be more easily visible.
+  uint32_t last_group = ((size - 1) / 10) * 10;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Filter({root.root_sorted().eq(last_group),
+                                          root.root_non_null().eq(size - 1)}));
+  }
+}
+BENCHMARK(BM_TableFilterParentSortedAndOther)->Apply(TableFilterArgs);
+
 static void BM_TableFilterChildSortedEq(benchmark::State& state) {
   StringPool pool;
   RootTestTable root(&pool, nullptr);
