@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <string>
 
 namespace perfetto {
@@ -55,6 +56,12 @@ void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, const std::string&);
 void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, const void*);
 void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*,
                           const DebugAnnotation&);
+
+template <typename T>
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
+                          const std::unique_ptr<T>& value) {
+  WriteDebugAnnotation(annotation, *value);
+}
 
 }  // namespace internal
 }  // namespace perfetto

@@ -202,7 +202,8 @@ EventContext TrackEventInternal::WriteEvent(
   EventContext ctx(std::move(packet), incr_state);
 
   auto track_event = ctx.event();
-  track_event->set_type(type);
+  if (type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED)
+    track_event->set_type(type);
 
   // We assume that |category| and |name| point to strings with static lifetime.
   // This means we can use their addresses as interning keys.

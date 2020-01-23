@@ -23,6 +23,7 @@
 // categories can be written to the same trace writer.
 
 #define PERFETTO_TRACK_EVENT_NAMESPACE tracing_module
+#define PERFETTO_ENABLE_LEGACY_TRACE_EVENTS 1
 
 #include "perfetto/tracing.h"
 
