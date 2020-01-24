@@ -245,25 +245,6 @@ const StringId GraphicsEventParser::GetFullStageName(
     snprintf(buffer, sizeof(buffer), "render stage(%zu)", stage_id);
     stage_name = context_->storage->InternString(buffer);
   }
-  // If the slice has a render target handle, we append the hex value of the
-  // handle to the name.  If a debug marker is available, we append the name
-  // of the render target.
-  if (event.has_render_target_handle()) {
-    char buffer[256];
-    base::StringWriter str_writer(buffer, sizeof(buffer));
-    str_writer.AppendString(context_->storage->GetString(stage_name));
-    auto debug_marker_name =
-        FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER, event.render_target_handle());
-    str_writer.AppendChar('[');
-    if (debug_marker_name.has_value()) {
-      str_writer.AppendString(base::StringView(debug_marker_name.value()));
-    } else {
-      str_writer.AppendLiteral("0x");
-      str_writer.AppendHexInt(event.render_target_handle());
-    }
-    str_writer.AppendChar(']');
-    stage_name = context_->storage->InternString(str_writer.GetStringView());
-  }
   return stage_name;
 }
 
