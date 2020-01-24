@@ -101,6 +101,8 @@ void SqliteRawTable::FormatSystraceArgs(NullTermStringView event_name,
   // the proto field order is also the order of insertion (which happens to
   // be true but proabably shouldn't be relied on).
   RowMap rm = storage_->arg_table().FilterToRowMap({set_ids.eq(arg_set_id)});
+  if (rm.empty())
+    return;
 
   uint32_t start_row = rm.Get(0);
   using ValueWriter = std::function<void(const Variadic&)>;
