@@ -265,7 +265,7 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
   protos::pbzero::ProcessDescriptor::Decoder decoder(process_descriptor);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(decoder.pid()));
-  if (decoder.has_process_name()) {
+  if (decoder.has_process_name() && decoder.process_name().size) {
     // Don't override system-provided names.
     context_->process_tracker->SetProcessNameIfUnset(
         upid, context_->storage->InternString(decoder.process_name()));
@@ -306,7 +306,7 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
       static_cast<uint32_t>(decoder.tid()),
       static_cast<uint32_t>(decoder.pid()));
   StringId name_id = kNullStringId;
-  if (decoder.has_thread_name()) {
+  if (decoder.has_thread_name() && decoder.thread_name().size) {
     name_id = context_->storage->InternString(decoder.thread_name());
   } else if (decoder.has_chrome_thread_type()) {
     // TODO(skyostil): Remove parsing for legacy chrome_thread_type field.
@@ -493,7 +493,7 @@ void TrackEventParser::ParseTrackEvent(
           uint32_t pid = static_cast<uint32_t>(sequence_state->state()->pid());
           uint32_t tid = static_cast<uint32_t>(sequence_state->state()->tid());
           UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
-          if (storage->thread_table().upid()[*utid] == upid)
+          if (storage->thread_table().upid()[utid_candidate] == upid)
             legacy_passthrough_utid = utid_candidate;
         }
       }
