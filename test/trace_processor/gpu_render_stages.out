@@ -10,17 +10,17 @@
 "queue 0","queue desc 0",60,5,"stage 0",0,"key1","value1",42,0,0,0,0,0
 "queue 0","queue desc 0",70,5,"stage 0",0,"key1","[NULL]",42,0,0,0,0,0
 "queue 0","queue desc 0",80,5,"stage 2",0,"[NULL]","[NULL]",42,0,0,0,0,0
-"queue 0","queue desc 0",90,5,"stage 0[0x10]",0,"VkCommandBuffer","0x0000000000000030",42,16,32,48,0,0
-"queue 0","queue desc 0",90,5,"stage 0[0x10]",0,"VkFramebuffer","0x0000000000000010",42,16,32,48,0,0
-"queue 0","queue desc 0",90,5,"stage 0[0x10]",0,"VkRenderPass","0x0000000000000020",42,16,32,48,0,0
-"queue 0","queue desc 0",100,5,"stage 0[0x10]",0,"VkCommandBuffer","0x0000000000000010 (command_buffer)",42,16,16,16,0,0
-"queue 0","queue desc 0",100,5,"stage 0[0x10]",0,"VkFramebuffer","0x0000000000000010",42,16,16,16,0,0
-"queue 0","queue desc 0",100,5,"stage 0[0x10]",0,"VkRenderPass","0x0000000000000010",42,16,16,16,0,0
-"queue 0","queue desc 0",110,5,"stage 0[0x10]",0,"VkCommandBuffer","0x0000000000000010 (command_buffer)",42,16,16,16,0,0
-"queue 0","queue desc 0",110,5,"stage 0[0x10]",0,"VkFramebuffer","0x0000000000000010",42,16,16,16,0,0
-"queue 0","queue desc 0",110,5,"stage 0[0x10]",0,"VkRenderPass","0x0000000000000010 (render_pass)",42,16,16,16,0,0
-"queue 0","queue desc 0",120,5,"stage 0[framebuffer]",0,"VkCommandBuffer","0x0000000000000010 (command_buffer)",42,16,16,16,0,0
-"queue 0","queue desc 0",120,5,"stage 0[framebuffer]",0,"VkFramebuffer","0x0000000000000010 (framebuffer)",42,16,16,16,0,0
-"queue 0","queue desc 0",120,5,"stage 0[framebuffer]",0,"VkRenderPass","0x0000000000000010 (render_pass)",42,16,16,16,0,0
-"queue 0","queue desc 0",130,5,"stage 0[renamed_buffer]",0,"VkFramebuffer","0x0000000000000010 (renamed_buffer)",42,16,0,0,0,0
+"queue 0","queue desc 0",90,5,"stage 0",0,"VkCommandBuffer","0x0000000000000030",42,16,32,48,0,0
+"queue 0","queue desc 0",90,5,"stage 0",0,"VkFramebuffer","0x0000000000000010",42,16,32,48,0,0
+"queue 0","queue desc 0",90,5,"stage 0",0,"VkRenderPass","0x0000000000000020",42,16,32,48,0,0
+"queue 0","queue desc 0",100,5,"stage 0",0,"VkCommandBuffer","0x0000000000000010 (command_buffer)",42,16,16,16,0,0
+"queue 0","queue desc 0",100,5,"stage 0",0,"VkFramebuffer","0x0000000000000010",42,16,16,16,0,0
+"queue 0","queue desc 0",100,5,"stage 0",0,"VkRenderPass","0x0000000000000010",42,16,16,16,0,0
+"queue 0","queue desc 0",110,5,"stage 0",0,"VkCommandBuffer","0x0000000000000010 (command_buffer)",42,16,16,16,0,0
+"queue 0","queue desc 0",110,5,"stage 0",0,"VkFramebuffer","0x0000000000000010",42,16,16,16,0,0
+"queue 0","queue desc 0",110,5,"stage 0",0,"VkRenderPass","0x0000000000000010 (render_pass)",42,16,16,16,0,0
+"queue 0","queue desc 0",120,5,"stage 0",0,"VkCommandBuffer","0x0000000000000010 (command_buffer)",42,16,16,16,0,0
+"queue 0","queue desc 0",120,5,"stage 0",0,"VkFramebuffer","0x0000000000000010 (framebuffer)",42,16,16,16,0,0
+"queue 0","queue desc 0",120,5,"stage 0",0,"VkRenderPass","0x0000000000000010 (render_pass)",42,16,16,16,0,0
+"queue 0","queue desc 0",130,5,"stage 0",0,"VkFramebuffer","0x0000000000000010 (renamed_buffer)",42,16,0,0,0,0
 "Unknown GPU Queue ","[NULL]",140,5,"render stage(18446744073709551615)",0,"[NULL]","[NULL]",42,0,0,0,0,1024
