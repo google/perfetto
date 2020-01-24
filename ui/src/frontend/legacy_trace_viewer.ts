@@ -18,12 +18,48 @@ import {assertTrue} from '../base/logging';
 
 import {globals} from './globals';
 
-export function isLegacyTrace(fileName: string): boolean {
-  fileName = fileName.toLowerCase();
-  return (
-      fileName.endsWith('.json') || fileName.endsWith('.json.gz') ||
+function readText(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        return resolve(reader.result);
+      }
+    };
+    reader.onerror = err => {
+      reject(err);
+    };
+    reader.readAsText(blob);
+  });
+}
+
+export async function isLegacyTrace(file: File): Promise<boolean> {
+  const fileName = file.name.toLowerCase();
+  if (fileName.endsWith('.json') || fileName.endsWith('.json.gz') ||
       fileName.endsWith('.zip') || fileName.endsWith('.ctrace') ||
-      fileName.endsWith('.html'));
+      fileName.endsWith('.html')) {
+    return true;
+  }
+
+  // Sometimes systrace formatted traces end with '.trace'. This is a
+  // little generic to assume all such traces are systrace format though
+  // so we read the beginning of the file and check to see if is has the
+  // systrace header (several comment lines):
+  if (fileName.endsWith('.trace')) {
+    const header = await readText(file.slice(0, 512));
+    const lines = header.split('\n');
+    let commentCount = 0;
+    for (const line of lines) {
+      if (line.startsWith('#')) {
+        commentCount++;
+      }
+    }
+    if (commentCount > 5) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function openFileWithLegacyTraceViewer(file: File) {
