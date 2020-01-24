@@ -311,12 +311,7 @@ function onInputElementFileSelectionChanged(e: Event) {
   globals.frontendLocalState.localOnlyMode = false;
 
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    // Switch back to the old catapult UI.
-    if (isLegacyTrace(file.name)) {
-      openFileWithLegacyTraceViewer(file);
-      return;
-    }
-    openInOldUIWithSizeCheck(file);
+    openWithLegacyUi(file);
     return;
   }
 
@@ -343,7 +338,15 @@ function onInputElementFileSelectionChanged(e: Event) {
   }
 
   globals.dispatch(Actions.openTraceFromFile({file}));
+}
 
+async function openWithLegacyUi(file: File) {
+  // Switch back to the old catapult UI.
+  if (await isLegacyTrace(file)) {
+    openFileWithLegacyTraceViewer(file);
+    return;
+  }
+  openInOldUIWithSizeCheck(file);
 }
 
 function openInOldUIWithSizeCheck(trace: Blob) {
