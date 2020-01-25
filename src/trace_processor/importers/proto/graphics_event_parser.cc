@@ -98,10 +98,6 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
       description_id_(context->storage->InternString("description")),
       gpu_render_stage_scope_id_(
           context->storage->InternString("gpu_render_stage")),
-      command_buffer_handle_id_(
-          context->storage->InternString("VkCommandBuffer")),
-      render_target_handle_id_(context->storage->InternString("VkFramebuffer")),
-      render_pass_handle_id_(context->storage->InternString("VkRenderPass")),
       graphics_event_scope_id_(
           context->storage->InternString("graphics_frame_event")),
       unknown_event_name_id_(context->storage->InternString("unknown_event")),
@@ -309,23 +305,6 @@ base::Optional<std::string> GraphicsEventParser::FindDebugName(
   }
 }
 
-void GraphicsEventParser::AddVulkanHandleArg(
-    ArgsTracker::BoundInserter* inserter,
-    StringId key,
-    int32_t vk_object_type,
-    uint64_t vk_handle) {
-  char buf[256];
-  auto debug_marker_name = FindDebugName(vk_object_type, vk_handle);
-  if (debug_marker_name.has_value()) {
-    snprintf(buf, base::ArraySize(buf), "0x%016" PRIx64 " (%s)", vk_handle,
-             debug_marker_name.value().c_str());
-  } else {
-    snprintf(buf, base::ArraySize(buf), "0x%016" PRIx64, vk_handle);
-  }
-  StringId value = context_->storage->InternString(buf);
-  inserter->AddArg(key, Variadic::String(value));
-}
-
 void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
                                                    ConstBytes blob) {
   protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
@@ -358,21 +337,6 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       if (description != kNullStringId) {
         inserter->AddArg(description_id_, Variadic::String(description));
       }
-    }
-    if (event.has_command_buffer_handle()) {
-      AddVulkanHandleArg(inserter, command_buffer_handle_id_,
-                         VK_OBJECT_TYPE_COMMAND_BUFFER,
-                         event.command_buffer_handle());
-    }
-    if (event.has_render_target_handle()) {
-      AddVulkanHandleArg(inserter, render_target_handle_id_,
-                         VK_OBJECT_TYPE_FRAMEBUFFER,
-                         event.render_target_handle());
-    }
-    if (event.has_render_pass_handle()) {
-      AddVulkanHandleArg(inserter, render_pass_handle_id_,
-                         VK_OBJECT_TYPE_RENDER_PASS,
-                         event.render_pass_handle());
     }
     for (auto it = event.extra_data(); it; ++it) {
       protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
@@ -414,6 +378,22 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
       gpu_hw_queue_ids_[hw_queue_id] = track_id;
     }
 
+    auto render_target_name = FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER, event.render_target_handle());
+    auto render_target_name_id = render_target_name.has_value()
+                                  ? context_->storage->InternString(
+                                      render_target_name.value().c_str())
+                                  : kNullStringId;
+    auto render_pass_name = FindDebugName(VK_OBJECT_TYPE_RENDER_PASS, event.render_pass_handle());
+    auto render_pass_name_id = render_pass_name.has_value()
+                                  ? context_->storage->InternString(
+                                      render_pass_name.value().c_str())
+                                  : kNullStringId;
+    auto command_buffer_name = FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER, event.command_buffer_handle());
+    auto command_buffer_name_id = command_buffer_name.has_value()
+                                  ? context_->storage->InternString(
+                                      command_buffer_name.value().c_str())
+                                  : kNullStringId;
+
     tables::GpuSliceTable::Row row;
     row.ts = ts;
     row.track_id = track_id.value;
@@ -421,8 +401,11 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
     row.dur = static_cast<int64_t>(event.duration());
     row.context_id = static_cast<int64_t>(event.context());
     row.render_target = static_cast<int64_t>(event.render_target_handle());
+    row.render_target_name = render_target_name_id;
     row.render_pass = static_cast<int64_t>(event.render_pass_handle());
+    row.render_pass_name = render_pass_name_id;
     row.command_buffer = static_cast<int64_t>(event.command_buffer_handle());
+    row.command_buffer_name = command_buffer_name_id;
     row.submission_id = event.submission_id();
     row.hw_queue_id = hw_queue_id;
 
