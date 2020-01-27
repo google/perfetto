@@ -185,6 +185,9 @@ base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
     SourceCallstackId id,
     const SourceCallstack& frame_ids,
     const InternLookup* intern_lookup) {
+  if (frame_ids.size() == 0)
+    return base::nullopt;
+
   // TODO(fmayer): This should be NULL.
   base::Optional<CallsiteId> parent_id;
   for (size_t depth = 0; depth < frame_ids.size(); ++depth) {
@@ -215,6 +218,7 @@ base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
     }
     parent_id = self_id;
   }
+  PERFETTO_DCHECK(parent_id);  // The loop ran at least once.
   callstack_ids_.emplace(id, *parent_id);
   return parent_id;
 }
