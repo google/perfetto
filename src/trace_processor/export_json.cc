@@ -33,6 +33,7 @@
 #include <limits>
 
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/metadata.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
@@ -592,7 +593,10 @@ class JsonExporter {
         } else {  // A list item
           target = &(*target)[key_part.substr(0, bracketpos)];
           while (bracketpos != key_part.npos) {
-            std::string index =
+            // We constructed this string from an int earlier in trace_processor
+            // so it shouldn't be possible for this (or the StringToUInt32
+            // below) to fail.
+            std::string s =
                 key_part.substr(bracketpos + 1, key_part.find(']', bracketpos) -
                                                     bracketpos - 1);
             if (PERFETTO_UNLIKELY(!target->isNull() && !target->isArray())) {
@@ -601,7 +605,13 @@ class JsonExporter {
                             args_sets_[set_id].toStyledString().c_str());
               return;
             }
-            target = &(*target)[stoi(index)];
+            base::Optional<uint32_t> index = base::StringToUInt32(s);
+            if (PERFETTO_UNLIKELY(!index)) {
+              PERFETTO_ELOG("Expected to be able to extract index from %s",
+                            key_part.c_str());
+              return;
+            }
+            target = &(*target)[index.value()];
             bracketpos = key_part.find('[', bracketpos + 1);
           }
         }
