@@ -248,7 +248,10 @@ if (build_with_chromium) {
       "protos/perfetto/trace/track_event:zero",
     ]
     if (enable_perfetto_ipc) {
-      deps += [ "src/tracing/ipc/producer" ]
+      deps += [
+        "src/tracing/ipc/producer",
+        "src/tracing/ipc/service",
+      ]
       public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
     }
   }
