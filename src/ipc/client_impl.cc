@@ -27,6 +27,8 @@
 #include "perfetto/ext/ipc/service_descriptor.h"
 #include "perfetto/ext/ipc/service_proxy.h"
 
+#include "protos/perfetto/ipc/wire_protocol.gen.h"
+
 // TODO(primiano): Add ThreadChecker everywhere.
 
 // TODO(primiano): Add timeouts.

@@ -57,7 +57,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/trace/ftrace:cpp",
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../base:test_support",
-    "../../../tracing:test_support",
+    "../../../tracing/test:test_support",
   ]
   sources = [
     "cpu_reader_unittest.cc",
@@ -94,7 +94,7 @@ source_set("integrationtests") {
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",
-    "../../../tracing",
+    "../../../tracing/core",
   ]
   sources = [
     "ftrace_procfs_integrationtest.cc",
@@ -105,13 +105,14 @@ source_set("ftrace") {
   public_deps = [
     "../../../../protos/perfetto/config/ftrace:cpp",
     "../../../../protos/perfetto/trace/ftrace:zero",
-    "../../../tracing",
+    "../../../tracing/core",
   ]
   deps = [
     ":format_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/trace:zero",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero",

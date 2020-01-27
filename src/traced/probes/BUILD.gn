@@ -37,7 +37,7 @@ source_set("probes") {
   deps = [
     ":probes_src",
     "../../../gn:default_deps",
-    "../../tracing:ipc",
+    "../../tracing/ipc/producer",
   ]
   if (enable_perfetto_version_gen) {
     deps += [ "//gn/standalone:gen_git_revision" ]
@@ -56,10 +56,11 @@ source_set("probes_src") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/traced",
     "../../../protos/perfetto/config/ftrace:cpp",
+    "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ps:zero",
     "../../base",
-    "../../tracing:ipc",
-    "../../tracing:tracing",
+    "../../tracing/core",
+    "../../tracing/ipc/producer",
     "android_log",
     "filesystem",
     "metatrace",
@@ -79,7 +80,7 @@ source_set("probes_src") {
 source_set("data_source") {
   deps = [
     "../../../gn:default_deps",
-    "../../tracing",
+    "../../tracing/core",
   ]
   sources = [
     "probes_data_source.cc",
@@ -93,7 +94,7 @@ perfetto_unittest_source_set("unittests") {
     ":probes_src",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../tracing:test_support",
+    "../../tracing/test:test_support",
     "android_log:unittests",
     "filesystem:unittests",
     "packages_list:unittests",

@@ -42,8 +42,9 @@ source_set("service") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
-    "../../tracing",
-    "../../tracing:ipc",
+    "../../tracing/core",
+    "../../tracing/core:service",
+    "../../tracing/ipc/service",
   ]
   if (enable_perfetto_version_gen) {
     deps += [ "//gn/standalone:gen_git_revision" ]
@@ -63,7 +64,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../base",
     "../../base:test_support",
-    "../../tracing",
+    "../../tracing/core",
   ]
   sources = [
     "builtin_producer_unittest.cc",

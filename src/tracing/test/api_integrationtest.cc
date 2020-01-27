@@ -1288,22 +1288,21 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByHashing) {
   tracing_session->get()->StartBlocking();
 
   size_t body_iid;
-  TRACE_EVENT_BEGIN(
-      "foo", "EventWithState", [&](perfetto::EventContext ctx) {
-        // Test using a dynamically created interned value.
-        body_iid = InternedLogMessageBodyHashed::Get(
-            &ctx, std::string("Though this ") + "be madness,");
-        auto log = ctx.event()->set_log_message();
-        log->set_body_iid(body_iid);
+  TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
+    // Test using a dynamically created interned value.
+    body_iid = InternedLogMessageBodyHashed::Get(
+        &ctx, std::string("Though this ") + "be madness,");
+    auto log = ctx.event()->set_log_message();
+    log->set_body_iid(body_iid);
 
-        auto body_iid2 =
-            InternedLogMessageBodyHashed::Get(&ctx, "Though this be madness,");
-        EXPECT_EQ(body_iid, body_iid2);
+    auto body_iid2 =
+        InternedLogMessageBodyHashed::Get(&ctx, "Though this be madness,");
+    EXPECT_EQ(body_iid, body_iid2);
 
-        auto body_iid3 =
-            InternedLogMessageBodyHashed::Get(&ctx, "yet there is method in’t");
-        EXPECT_NE(body_iid, body_iid3);
-      });
+    auto body_iid3 =
+        InternedLogMessageBodyHashed::Get(&ctx, "yet there is method in’t");
+    EXPECT_NE(body_iid, body_iid3);
+  });
   TRACE_EVENT_END("foo");
 
   tracing_session->get()->StopBlocking();

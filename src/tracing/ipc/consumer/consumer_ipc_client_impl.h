@@ -29,6 +29,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/tracing/core/forward_decls.h"
+
 #include "protos/perfetto/ipc/consumer_port.ipc.h"
 
 namespace perfetto {
