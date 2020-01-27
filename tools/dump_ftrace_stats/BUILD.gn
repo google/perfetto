@@ -19,7 +19,5 @@ executable("dump_ftrace_stats") {
     "../../include/perfetto/base",
     "../../src/base",
   ]
-  sources = [
-    "main.cc",
-  ]
+  sources = [ "main.cc" ]
 }

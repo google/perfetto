@@ -35,9 +35,7 @@ source_set("end_to_end_integrationtests") {
     "../src/base:test_support",
     "../src/traced/probes/ftrace",
   ]
-  sources = [
-    "end_to_end_integrationtest.cc",
-  ]
+  sources = [ "end_to_end_integrationtest.cc" ]
   if (start_daemons_for_testing) {
     cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
 
@@ -52,9 +50,7 @@ source_set("end_to_end_integrationtests") {
 }
 
 executable("client_api_example") {
-  sources = [
-    "client_api_example.cc",
-  ]
+  sources = [ "client_api_example.cc" ]
   deps = [
     "..:libperfetto_client_experimental",
     "../gn:default_deps",
@@ -66,9 +62,7 @@ executable("client_api_example") {
 }
 
 perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
-  sources = [
-    "end_to_end_shared_memory_fuzzer.cc",
-  ]
+  sources = [ "end_to_end_shared_memory_fuzzer.cc" ]
   testonly = true
   deps = [
     ":test_helper",
@@ -83,9 +77,7 @@ perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
 }
 
 perfetto_fuzzer_test("producer_socket_fuzzer") {
-  sources = [
-    "producer_socket_fuzzer.cc",
-  ]
+  sources = [ "producer_socket_fuzzer.cc" ]
   testonly = true
   deps = [
     ":test_helper",
@@ -136,9 +128,7 @@ if (enable_perfetto_benchmarks) {
       "../protos/perfetto/trace:zero",
       "../src/base:test_support",
     ]
-    sources = [
-      "end_to_end_benchmark.cc",
-    ]
+    sources = [ "end_to_end_benchmark.cc" ]
     if (start_daemons_for_testing) {
       cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
     }
@@ -150,8 +140,6 @@ if (enable_perfetto_benchmarks) {
       "../gn:benchmark",
       "../gn:default_deps",
     ]
-    sources = [
-      "benchmark_main.cc",
-    ]
+    sources = [ "benchmark_main.cc" ]
   }
 }  # if (enable_perfetto_benchmarks)

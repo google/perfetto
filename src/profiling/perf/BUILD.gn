@@ -26,9 +26,7 @@ executable("traced_perf") {
     ":traced_perf_main",
     "../../../gn:default_deps",
   ]
-  sources = [
-    "main.cc",
-  ]
+  sources = [ "main.cc" ]
 }
 
 source_set("traced_perf_main") {
@@ -55,9 +53,7 @@ source_set("producer") {
     "../../../src/base:unix_socket",
     "../../../src/tracing/ipc/producer",
   ]
-  public_deps = [
-    "../../../include/perfetto/tracing/core",
-  ]
+  public_deps = [ "../../../include/perfetto/tracing/core" ]
   sources = [
     "event_config.h",
     "event_reader.cc",
@@ -91,7 +87,5 @@ source_set("producer_unittests") {
     "../../../src/protozero",
     "../../base",
   ]
-  sources = [
-    "event_config_unittest.cc",
-  ]
+  sources = [ "event_config_unittest.cc" ]
 }

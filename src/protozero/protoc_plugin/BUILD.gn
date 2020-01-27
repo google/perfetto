@@ -17,9 +17,7 @@ import("../../../gn/perfetto_host_executable.gni")
 # The plugin that generates zero-copy serializers and deserializers. Those are
 # the xxx.pbzero.h headers used all over the codebase.
 perfetto_host_executable("protozero_plugin") {
-  sources = [
-    "protozero_plugin.cc",
-  ]
+  sources = [ "protozero_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
     "../../../gn:protoc_lib",
@@ -31,9 +29,7 @@ perfetto_host_executable("protozero_plugin") {
 # This is used for core classes traced needs to know about such as
 # DataSourceDescriptor.
 perfetto_host_executable("cppgen_plugin") {
-  sources = [
-    "cppgen_plugin.cc",
-  ]
+  sources = [ "cppgen_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
     "../../../gn:protoc_lib",

@@ -13,7 +13,5 @@
 # limitations under the License.
 
 source_set("public") {
-  sources = [
-    "consumer_api.h",
-  ]
+  sources = [ "consumer_api.h" ]
 }

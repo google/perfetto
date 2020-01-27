@@ -74,9 +74,7 @@ source_set("common") {
 }
 
 perfetto_fuzzer_test("buffered_frame_deserializer_fuzzer") {
-  sources = [
-    "buffered_frame_deserializer_fuzzer.cc",
-  ]
+  sources = [ "buffered_frame_deserializer_fuzzer.cc" ]
   deps = [
     ":common",
     "../../gn:default_deps",

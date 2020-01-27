@@ -146,9 +146,8 @@ template("gcc_like_toolchain") {
       depfile = "{{output}}.d"
       command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${extra_cflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
-      outputs = [
-        "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o",
-      ]
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
       description = "compile {{source}}"
     }
 
@@ -156,9 +155,8 @@ template("gcc_like_toolchain") {
       depfile = "{{output}}.d"
       command = "$cc_wrapper $cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}}  ${extra_cflags} ${extra_cxxflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
-      outputs = [
-        "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o",
-      ]
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
       description = "compile {{source}}"
     }
 
@@ -166,9 +164,8 @@ template("gcc_like_toolchain") {
       depfile = "{{output}}.d"
       command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{asmflags}} -c {{source}} -o {{output}}"
       depsformat = "gcc"
-      outputs = [
-        "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o",
-      ]
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
       description = "assemble {{source}}"
     }
 
@@ -181,9 +178,8 @@ template("gcc_like_toolchain") {
         rspfile_content = "{{inputs}}"
         command = "rm -f {{output}} && $ar rcsD {{output}} @$rspfile"
       }
-      outputs = [
-        "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
-      ]
+      outputs =
+          [ "{{root_out_dir}}/{{target_output_name}}{{output_extension}}" ]
       default_output_extension = ".a"
       output_prefix = "lib"
       description = "link {{output}}"
@@ -198,9 +194,7 @@ template("gcc_like_toolchain") {
       }
 
       command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${extra_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o {{output}}"
-      outputs = [
-        "{{root_out_dir}}/$soname",
-      ]
+      outputs = [ "{{root_out_dir}}/$soname" ]
       output_prefix = "lib"
       default_output_extension = ".so"
       description = "link {{output}}"
@@ -208,9 +202,8 @@ template("gcc_like_toolchain") {
 
     tool("link") {
       command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${extra_ldflags} {{inputs}} {{solibs}} {{libs}} -o {{output}}"
-      outputs = [
-        "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
-      ]
+      outputs =
+          [ "{{root_out_dir}}/{{target_output_name}}{{output_extension}}" ]
       description = "link {{output}}"
     }
 

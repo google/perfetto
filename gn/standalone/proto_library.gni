@@ -174,13 +174,9 @@ template("proto_library") {
 
     args += rebase_path(proto_sources, root_build_dir)
 
-    inputs = [
-      protoc_path,
-    ]
+    inputs = [ protoc_path ]
 
-    deps = [
-      protoc_label,
-    ]
+    deps = [ protoc_label ]
 
     # TODO(hjd): Avoid adding to deps here this.
     # When we generate BUILD files we need find the transitive proto,
@@ -245,13 +241,9 @@ template("proto_library") {
       # Use protobuf_full only for tests.
       if (defined(invoker.use_protobuf_full) &&
           invoker.use_protobuf_full == true) {
-        deps = [
-          "//gn:protobuf_full",
-        ]
+        deps = [ "//gn:protobuf_full" ]
       } else if (generate_cc) {
-        deps = [
-          "//gn:protobuf_lite",
-        ]
+        deps = [ "//gn:protobuf_lite" ]
       } else {
         deps = []
       }

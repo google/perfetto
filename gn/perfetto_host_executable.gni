@@ -36,27 +36,19 @@ template("perfetto_host_executable") {
       # (See crbug.com/1002599).
       group(target_name) {
         testonly = _testonly
-        deps = [
-          _host_target,
-        ]
+        deps = [ _host_target ]
       }
     } else {
       copy(target_name) {
         testonly = _testonly
-        deps = [
-          _host_target,
-        ]
+        deps = [ _host_target ]
         _host_out_dir = get_label_info(_host_target, "root_out_dir")
         _extension = ""
         if (host_os == "win") {
           _extension = ".exe"
         }
-        sources = [
-          "$_host_out_dir/$target_name${_extension}",
-        ]
-        outputs = [
-          "$root_out_dir/$target_name${_extension}",
-        ]
+        sources = [ "$_host_out_dir/$target_name${_extension}" ]
+        outputs = [ "$root_out_dir/$target_name${_extension}" ]
       }
     }
   }

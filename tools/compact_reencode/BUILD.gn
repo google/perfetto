@@ -31,7 +31,5 @@ source_set("common") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../src/base",
   ]
-  sources = [
-    "main.cc",
-  ]
+  sources = [ "main.cc" ]
 }

@@ -13,19 +13,13 @@
 # limitations under the License.
 
 source_set("pprof_builder") {
-  sources = [
-    "pprof_builder.h",
-  ]
+  sources = [ "pprof_builder.h" ]
 }
 
 source_set("normalize") {
-  sources = [
-    "normalize.h",
-  ]
+  sources = [ "normalize.h" ]
 }
 
 source_set("deobfuscator") {
-  sources = [
-    "deobfuscator.h",
-  ]
+  sources = [ "deobfuscator.h" ]
 }

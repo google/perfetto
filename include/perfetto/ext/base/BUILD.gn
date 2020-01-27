@@ -51,7 +51,5 @@ source_set("base") {
     sources += [ "unix_socket.h" ]
   }
   public_configs = [ "../../../../gn:asan_instrumentation" ]
-  public_deps = [
-    "../../base",
-  ]
+  public_deps = [ "../../base" ]
 }

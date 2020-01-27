@@ -39,9 +39,7 @@ source_set("headers") {
 }
 
 source_set("lazy_library_loader") {
-  public_deps = [
-    ":headers",
-  ]
+  public_deps = [ ":headers" ]
   deps = [
     "../../gn:default_deps",
     "../../src/base",
@@ -90,8 +88,8 @@ source_set("android_internal") {
   # This target should never depend on any other perfetto target to avoid ODR
   # violation by doubly linking code in two .so(s) loaded in the same exe.
   assert_no_deps = [
+    "//include/*",
     "//src/base/*",
     "//src/tracing/*",
-    "//include/*",
   ]
 }
