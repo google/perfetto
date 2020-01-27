@@ -273,10 +273,17 @@ if (enable_perfetto_trace_processor_linenoise) {
 }  # if (enable_perfetto_trace_processor_linenoise)
 
 # Only used by src/profiling in standalone and android builds.
-if (enable_perfetto_heapprofd) {
+if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
   group("libunwindstack") {
     public_configs = [ "//buildtools:libunwindstack_config" ]
     public_deps = [ "//buildtools:libunwindstack" ]
+  }
+}
+
+# Used by src/profiling/perf for perf_regs.h.
+if (enable_perfetto_traced_perf) {
+  group("bionic_kernel_uapi_headers") {
+    public_configs = [ "//buildtools:bionic_kernel_uapi_headers" ]
   }
 }
 
