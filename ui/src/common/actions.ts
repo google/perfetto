@@ -15,7 +15,7 @@
 import {Draft} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {CallsiteInfo} from '../common/state';
+import {Area, CallsiteInfo} from '../common/state';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 
 import {
@@ -337,17 +337,32 @@ export const StateActions = {
       args: {timestamp: number, color: string, isMovie: boolean}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
+      noteType: 'DEFAULT',
       id,
       timestamp: args.timestamp,
       color: args.color,
       text: '',
-      isMovie: args.isMovie
     };
     if (args.isMovie) {
       state.videoNoteIds.push(id);
     }
     this.selectNote(state, {id});
   },
+
+  addAreaNote(
+      state: StateDraft, args: {timestamp: number, area: Area, color: string}):
+      void {
+        const id = `${state.nextId++}`;
+        state.notes[id] = {
+          noteType: 'AREA',
+          id,
+          timestamp: args.timestamp,
+          area: args.area,
+          color: args.color,
+          text: '',
+        };
+        this.selectNote(state, {id});
+      },
 
   toggleVideo(state: StateDraft, _: {}): void {
     state.videoEnabled = !state.videoEnabled;
@@ -391,7 +406,7 @@ export const StateActions = {
   },
 
   removeNote(state: StateDraft, args: {id: string}): void {
-    if (state.notes[args.id].isMovie) {
+    if (state.notes[args.id].noteType === 'MOVIE') {
       state.videoNoteIds = state.videoNoteIds.filter(id => {
         return id !== args.id;
       });
