@@ -56,7 +56,8 @@ static int perf_event_open(perf_event_attr* attr,
 // cpu-scoped?
 base::ScopedFile PerfEventOpen(const EventConfig& event_cfg) {
   base::ScopedFile perf_fd{
-      perf_event_open(event_cfg.perf_attr(), /*pid=*/-1, event_cfg.target_cpu(),
+      perf_event_open(event_cfg.perf_attr(), /*pid=*/-1,
+                      static_cast<int>(event_cfg.target_cpu()),
                       /*group_fd=*/-1, PERF_FLAG_FD_CLOEXEC)};
   return perf_fd;
 }

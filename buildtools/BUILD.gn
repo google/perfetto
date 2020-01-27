@@ -999,6 +999,14 @@ source_set("libunwindstack") {
   public_configs = [ ":libunwindstack_config" ]
 }
 
+config("bionic_kernel_uapi_headers") {
+  visibility = _buildtools_visibility
+  cflags = [
+    "-isystem",
+    rebase_path("bionic/libc/kernel", root_build_dir),
+  ]
+}
+
 config("jsoncpp_config") {
   visibility = _buildtools_visibility
   cflags = [
