@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <iterator>
 
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
@@ -65,6 +66,28 @@ std::pair<std::string, std::string> EventToStringGroupAndName(
     return std::make_pair("", event);
   return std::make_pair(event.substr(0, slash_pos),
                         event.substr(slash_pos + 1));
+}
+
+void UnionInPlace(const std::vector<std::string>& unsorted_a,
+                  std::vector<std::string>* out) {
+  std::vector<std::string> a = unsorted_a;
+  std::sort(a.begin(), a.end());
+  std::sort(out->begin(), out->end());
+  std::vector<std::string> v;
+  std::set_union(a.begin(), a.end(), out->begin(), out->end(),
+                 std::back_inserter(v));
+  *out = std::move(v);
+}
+
+void IntersectInPlace(const std::vector<std::string>& unsorted_a,
+                      std::vector<std::string>* out) {
+  std::vector<std::string> a = unsorted_a;
+  std::sort(a.begin(), a.end());
+  std::sort(out->begin(), out->end());
+  std::vector<std::string> v;
+  std::set_intersection(a.begin(), a.end(), out->begin(), out->end(),
+                        std::back_inserter(v));
+  *out = std::move(v);
 }
 
 }  // namespace
@@ -453,10 +476,14 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
   auto compact_sched =
       CreateCompactSchedConfig(request, table_->compact_sched_format());
 
-  FtraceConfigId id = ++last_id_;
-  ds_configs_.emplace(std::piecewise_construct, std::forward_as_tuple(id),
-                      std::forward_as_tuple(std::move(filter), compact_sched));
+  std::vector<std::string> apps(request.atrace_apps());
+  std::vector<std::string> categories(request.atrace_categories());
 
+  FtraceConfigId id = ++last_id_;
+  ds_configs_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(id),
+      std::forward_as_tuple(std::move(filter), compact_sched, std::move(apps),
+                            std::move(categories)));
   return id;
 }
 
@@ -487,9 +514,29 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   if (!config_id || !ds_configs_.erase(config_id))
     return false;
   EventFilter expected_ftrace_events;
-  for (const auto& ds_config : ds_configs_) {
-    expected_ftrace_events.EnableEventsFrom(ds_config.second.event_filter);
+  std::vector<std::string> expected_apps;
+  std::vector<std::string> expected_categories;
+  for (const auto& id_config : ds_configs_) {
+    const perfetto::FtraceDataSourceConfig& config = id_config.second;
+    expected_ftrace_events.EnableEventsFrom(config.event_filter);
+    UnionInPlace(config.atrace_apps, &expected_apps);
+    UnionInPlace(config.atrace_categories, &expected_categories);
   }
+  // At this point expected_{apps,categories} contains the union of the
+  // leftover configs (if any) that should be still on. However we did not
+  // necessarily succeed in turning on atrace for each of those configs
+  // previously so we now intersect the {apps,categories} that we *did* manage
+  // to turn on with those we want on to determine the new state we should aim
+  // for:
+  IntersectInPlace(current_state_.atrace_apps, &expected_apps);
+  IntersectInPlace(current_state_.atrace_categories, &expected_categories);
+  // Work out if there is any difference between the current state and the
+  // desired state: It's sufficient to compare sizes here (since we know from
+  // above that expected_{apps,categories} is now a subset of
+  // atrace_{apps,categories}:
+  bool atrace_changed =
+      (current_state_.atrace_apps.size() != expected_apps.size()) ||
+      (current_state_.atrace_categories.size() != expected_categories.size());
 
   // Disable any events that are currently enabled, but are not in any configs
   // anymore.
@@ -524,8 +571,22 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       current_state_.cpu_buffer_size_pages = 1;
     ftrace_->DisableAllEvents();
     ftrace_->ClearTrace();
-    if (current_state_.atrace_on)
+  }
+
+  if (current_state_.atrace_on) {
+    if (expected_apps.empty() && expected_categories.empty()) {
       DisableAtrace();
+    } else if (atrace_changed) {
+      // Update atrace to remove the no longer wanted categories/apps. For
+      // some categories this won't disable them (e.g. categories that just
+      // enable ftrace events) for those there is nothing we can do till the
+      // last ftrace config is removed.
+      if (StartAtrace(expected_apps, expected_categories)) {
+        // Update current_state_ to reflect this change.
+        current_state_.atrace_apps = expected_apps;
+        current_state_.atrace_categories = expected_categories;
+      }
+    }
   }
 
   return true;
@@ -564,29 +625,58 @@ size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
 }
 
 void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
+  // We want to avoid poisoning current_state_.atrace_{categories, apps}
+  // if for some reason these args make atrace unhappy so we stash the
+  // union into temps and only update current_state_ if we successfully
+  // run atrace.
+
+  std::vector<std::string> combined_categories = request.atrace_categories();
+  UnionInPlace(current_state_.atrace_categories, &combined_categories);
+
+  std::vector<std::string> combined_apps = request.atrace_apps();
+  UnionInPlace(current_state_.atrace_apps, &combined_apps);
+
+  if (current_state_.atrace_on &&
+      combined_apps.size() == current_state_.atrace_apps.size() &&
+      combined_categories.size() == current_state_.atrace_categories.size()) {
+    return;
+  }
+
+  if (StartAtrace(combined_apps, combined_categories)) {
+    current_state_.atrace_categories = combined_categories;
+    current_state_.atrace_apps = combined_apps;
+    current_state_.atrace_on = true;
+  }
+}
+
+// static
+bool FtraceConfigMuxer::StartAtrace(
+    const std::vector<std::string>& apps,
+    const std::vector<std::string>& categories) {
   PERFETTO_DLOG("Update atrace config...");
 
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
   args.push_back("--only_userspace");
-  for (const auto& category : request.atrace_categories())
+
+  for (const auto& category : categories)
     args.push_back(category);
-  if (!request.atrace_apps().empty()) {
+
+  if (!apps.empty()) {
     args.push_back("-a");
     std::string arg = "";
-    for (const auto& app : request.atrace_apps()) {
+    for (const auto& app : apps) {
       arg += app;
-      if (app != request.atrace_apps().back())
-        arg += ",";
+      arg += ",";
     }
+    arg.resize(arg.size() - 1);
     args.push_back(arg);
   }
 
-  if (RunAtrace(args))
-    current_state_.atrace_on = true;
-
-  PERFETTO_DLOG("...done");
+  bool result = RunAtrace(args);
+  PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
+  return result;
 }
 
 void FtraceConfigMuxer::DisableAtrace() {
@@ -594,8 +684,11 @@ void FtraceConfigMuxer::DisableAtrace() {
 
   PERFETTO_DLOG("Stop atrace...");
 
-  if (RunAtrace({"atrace", "--async_stop", "--only_userspace"}))
+  if (RunAtrace({"atrace", "--async_stop", "--only_userspace"})) {
+    current_state_.atrace_categories.clear();
+    current_state_.atrace_apps.clear();
     current_state_.atrace_on = false;
+  }
 
   PERFETTO_DLOG("...done");
 }

@@ -60,6 +60,11 @@ namespace perfetto {
 
 namespace {
 
+FtraceDataSourceConfig EmptyConfig() {
+  return FtraceDataSourceConfig{
+      EventFilter{}, DisabledCompactSchedConfigForTesting(), {}, {}};
+}
+
 constexpr uint64_t kNanoInSecond = 1000 * 1000 * 1000;
 constexpr uint64_t kNanoInMicro = 1000;
 
@@ -378,8 +383,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
@@ -507,8 +511,7 @@ TEST(CpuReaderTest, ReallyLongEvent) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
@@ -557,8 +560,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
@@ -598,8 +600,7 @@ TEST(CpuReaderTest, FilterByEvent) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
 
   FtraceMetadata metadata{};
   CompactSchedBuffer compact_buffer;
@@ -662,8 +663,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
@@ -772,8 +772,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -819,8 +818,8 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   EnabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config{
+      EventFilter{}, EnabledCompactSchedConfigForTesting(), {}, {}};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -1160,8 +1159,7 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
   BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable("synthetic");
   FtraceMetadata metadata{};
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -1618,8 +1616,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -2063,8 +2060,7 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
