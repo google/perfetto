@@ -156,6 +156,8 @@ heap_graph_interleaved.textproto heap_graph_reference.sql heap_graph_interleaved
 ../data/system-server-heap-graph.pftrace heap_graph_flamegraph.sql heap_graph_flamegraph_system-server-heap-graph.out
 ../data/system-server-native-profile heap_profile_flamegraph.sql heap_profile_flamegraph_system-server-native-profile.out
 
+stack_profile_tracker_empty_callstack.textproto stack_profile_tracker_empty_callstack.sql stack_profile_tracker_empty_callstack.out
+
 # TrackEvent tests.
 track_event_same_tids.textproto process_tracking.sql track_event_same_tids_threads.out
 track_event_same_tids.textproto track_event_slices.sql track_event_same_tids_slices.out
