@@ -150,12 +150,6 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   DbTableMaybeUpdateMinMax(heap_graph_object_table_.graph_sample_ts(),
                            &start_ns, &end_ns);
 
-  if (heap_graph_object_table_.row_count() != 0) {
-    // TODO(fmayer): Remove this.
-    // Work around UI bug that the heap marker is not displayed.
-    end_ns += 50000000;  // 50 ms
-  }
-
   if (start_ns == std::numeric_limits<int64_t>::max()) {
     return std::make_pair(0, 0);
   }
