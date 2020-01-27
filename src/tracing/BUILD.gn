@@ -57,6 +57,7 @@ source_set("client_api") {
     "../../protos/perfetto/config:cpp",
     "../base",
     "core",
+    "core:service",
   ]
   public_deps = [
     "../../gn:default_deps",
