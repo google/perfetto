@@ -36,7 +36,7 @@ source_set("traced_perf_main") {
     ":producer",
     "../../../gn:default_deps",
     "../../../src/base",
-    "../../../src/tracing:ipc",
+    "../../../src/tracing/ipc/producer",
   ]
   sources = [
     "traced_perf.cc",
@@ -53,7 +53,7 @@ source_set("producer") {
     "../../../protos/perfetto/trace:zero",
     "../../../src/base",
     "../../../src/base:unix_socket",
-    "../../../src/tracing:ipc",
+    "../../../src/tracing/ipc/producer",
   ]
   public_deps = [
     "../../../include/perfetto/tracing/core",

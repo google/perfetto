@@ -76,8 +76,9 @@ perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
     "../src/protozero",
-    "../src/tracing",
-    "../src/tracing:ipc",
+    "../src/tracing/core",
+    "../src/tracing/ipc/producer",
+    "../src/tracing/ipc/service",
   ]
 }
 
@@ -98,7 +99,9 @@ source_set("test_helper") {
   testonly = true
   public_deps = [
     "../protos/perfetto/trace:cpp",
-    "../src/tracing:ipc",
+    "../src/tracing/ipc/consumer",
+    "../src/tracing/ipc/producer",
+    "../src/tracing/ipc/service",
   ]
   deps = [
     "../gn:default_deps",
@@ -107,7 +110,6 @@ source_set("test_helper") {
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
     "../src/traced/probes:probes_src",
-    "../src/tracing:ipc",
   ]
   sources = [
     "fake_producer.cc",

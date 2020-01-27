@@ -108,7 +108,8 @@ cc_binary {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
     ":perfetto_src_profiling_memory_daemon",
     ":perfetto_src_profiling_memory_proc_utils",
     ":perfetto_src_profiling_memory_ring_buffer",
@@ -116,8 +117,9 @@ cc_binary {
     ":perfetto_src_profiling_memory_wire_protocol",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_producer_producer",
     "src/profiling/memory/main.cc",
   ],
   shared_libs: [
@@ -297,7 +299,9 @@ cc_library_shared {
     ":perfetto_src_android_internal_lazy_library_loader",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
+    ":perfetto_src_ipc_host",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -314,9 +318,13 @@ cc_library_shared {
     ":perfetto_src_traced_probes_sys_stats_sys_stats",
     ":perfetto_src_traced_service_service",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_consumer_api_deprecated",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_consumer_api_deprecated_consumer_api_deprecated",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
+    ":perfetto_src_tracing_ipc_service_service",
   ],
   shared_libs: [
     "liblog",
@@ -466,13 +474,19 @@ cc_library_static {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
+    ":perfetto_src_ipc_host",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_client_api",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
+    ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_platform_posix",
-    ":perfetto_src_tracing_tracing",
   ],
   export_include_dirs: [
     "include",
@@ -620,15 +634,18 @@ cc_binary {
     ":perfetto_src_android_internal_lazy_library_loader",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_producer",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
     "src/perfetto_cmd/main.cc",
   ],
   shared_libs: [
@@ -756,7 +773,9 @@ cc_library_static {
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
+    ":perfetto_src_ipc_host",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -771,8 +790,12 @@ cc_library_static {
     ":perfetto_src_traced_probes_ps_ps",
     ":perfetto_src_traced_probes_sys_stats_sys_stats",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
+    ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_test_end_to_end_integrationtests",
     ":perfetto_test_test_helper",
     "test/cts/device_feature_test_cts.cc",
@@ -976,7 +999,9 @@ cc_library_static {
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
+    ":perfetto_src_ipc_host",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -991,8 +1016,12 @@ cc_library_static {
     ":perfetto_src_traced_probes_ps_ps",
     ":perfetto_src_traced_probes_sys_stats_sys_stats",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
+    ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_test_test_helper",
   ],
   export_include_dirs: [
@@ -1306,7 +1335,9 @@ cc_test {
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
+    ":perfetto_src_ipc_host",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_daemon",
@@ -1330,12 +1361,16 @@ cc_test {
     ":perfetto_src_traced_probes_ps_ps",
     ":perfetto_src_traced_probes_sys_stats_sys_stats",
     ":perfetto_src_tracing_client_api",
-    ":perfetto_src_tracing_client_api_integrationtests",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
+    ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_platform_posix",
     ":perfetto_src_tracing_test_api_test_support",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_test_client_api_integrationtests",
     ":perfetto_test_end_to_end_integrationtests",
     ":perfetto_test_test_helper",
   ],
@@ -5333,16 +5368,30 @@ filegroup {
   ],
 }
 
-// GN: //src/ipc:ipc
+// GN: //src/ipc:client
 filegroup {
-  name: "perfetto_src_ipc_ipc",
+  name: "perfetto_src_ipc_client",
+  srcs: [
+    "src/ipc/client_impl.cc",
+    "src/ipc/service_proxy.cc",
+  ],
+}
+
+// GN: //src/ipc:common
+filegroup {
+  name: "perfetto_src_ipc_common",
   srcs: [
     "src/ipc/buffered_frame_deserializer.cc",
-    "src/ipc/client_impl.cc",
     "src/ipc/deferred.cc",
-    "src/ipc/host_impl.cc",
-    "src/ipc/service_proxy.cc",
     "src/ipc/virtual_destructors.cc",
+  ],
+}
+
+// GN: //src/ipc:host
+filegroup {
+  name: "perfetto_src_ipc_host",
+  srcs: [
+    "src/ipc/host_impl.cc",
   ],
 }
 
@@ -6470,16 +6519,6 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:client_api_integrationtests
-filegroup {
-  name: "perfetto_src_tracing_client_api_integrationtests",
-  srcs: [
-    "src/tracing/api_integrationtest.cc",
-    "src/tracing/test/tracing_module.cc",
-    "src/tracing/test/tracing_module2.cc",
-  ],
-}
-
 // GN: //src/tracing:common
 filegroup {
   name: "perfetto_src_tracing_common",
@@ -6488,25 +6527,107 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:consumer_api_deprecated
+// GN: //src/tracing/consumer_api_deprecated:consumer_api_deprecated
 filegroup {
-  name: "perfetto_src_tracing_consumer_api_deprecated",
+  name: "perfetto_src_tracing_consumer_api_deprecated_consumer_api_deprecated",
   srcs: [
-    "src/tracing/api_impl/consumer_api.cc",
+    "src/tracing/consumer_api_deprecated/consumer_api_deprecated.cc",
   ],
 }
 
-// GN: //src/tracing:ipc
+// GN: //src/tracing/core:core
 filegroup {
-  name: "perfetto_src_tracing_ipc",
+  name: "perfetto_src_tracing_core_core",
   srcs: [
-    "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+    "src/tracing/core/id_allocator.cc",
+    "src/tracing/core/null_trace_writer.cc",
+    "src/tracing/core/shared_memory_abi.cc",
+    "src/tracing/core/shared_memory_arbiter_impl.cc",
+    "src/tracing/core/startup_trace_writer.cc",
+    "src/tracing/core/startup_trace_writer_registry.cc",
+    "src/tracing/core/trace_packet.cc",
+    "src/tracing/core/trace_writer_impl.cc",
+    "src/tracing/core/virtual_destructors.cc",
+  ],
+}
+
+// GN: //src/tracing/core:service
+filegroup {
+  name: "perfetto_src_tracing_core_service",
+  srcs: [
+    "src/tracing/core/metatrace_writer.cc",
+    "src/tracing/core/packet_stream_validator.cc",
+    "src/tracing/core/trace_buffer.cc",
+    "src/tracing/core/tracing_service_impl.cc",
+  ],
+}
+
+// GN: //src/tracing/core:test_support
+filegroup {
+  name: "perfetto_src_tracing_core_test_support",
+  srcs: [
+    "src/tracing/core/trace_writer_for_testing.cc",
+  ],
+}
+
+// GN: //src/tracing/core:unittests
+filegroup {
+  name: "perfetto_src_tracing_core_unittests",
+  srcs: [
+    "src/tracing/core/id_allocator_unittest.cc",
+    "src/tracing/core/null_trace_writer_unittest.cc",
+    "src/tracing/core/packet_stream_validator_unittest.cc",
+    "src/tracing/core/patch_list_unittest.cc",
+    "src/tracing/core/shared_memory_abi_unittest.cc",
+    "src/tracing/core/shared_memory_arbiter_impl_unittest.cc",
+    "src/tracing/core/startup_trace_writer_unittest.cc",
+    "src/tracing/core/trace_buffer_unittest.cc",
+    "src/tracing/core/trace_packet_unittest.cc",
+    "src/tracing/core/trace_writer_impl_unittest.cc",
+    "src/tracing/core/tracing_service_impl_unittest.cc",
+  ],
+}
+
+// GN: //src/tracing/ipc:common
+filegroup {
+  name: "perfetto_src_tracing_ipc_common",
+  srcs: [
     "src/tracing/ipc/default_socket.cc",
     "src/tracing/ipc/posix_shared_memory.cc",
+  ],
+}
+
+// GN: //src/tracing/ipc/consumer:consumer
+filegroup {
+  name: "perfetto_src_tracing_ipc_consumer_consumer",
+  srcs: [
+    "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+  ],
+}
+
+// GN: //src/tracing/ipc/producer:producer
+filegroup {
+  name: "perfetto_src_tracing_ipc_producer_producer",
+  srcs: [
     "src/tracing/ipc/producer/producer_ipc_client_impl.cc",
+  ],
+}
+
+// GN: //src/tracing/ipc/service:service
+filegroup {
+  name: "perfetto_src_tracing_ipc_service_service",
+  srcs: [
     "src/tracing/ipc/service/consumer_ipc_service.cc",
     "src/tracing/ipc/service/producer_ipc_service.cc",
     "src/tracing/ipc/service/service_ipc_host_impl.cc",
+  ],
+}
+
+// GN: //src/tracing/ipc:unittests
+filegroup {
+  name: "perfetto_src_tracing_ipc_unittests",
+  srcs: [
+    "src/tracing/ipc/posix_shared_memory_unittest.cc",
   ],
 }
 
@@ -6526,55 +6647,32 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:test_support
+// GN: //src/tracing/test:client_api_integrationtests
 filegroup {
-  name: "perfetto_src_tracing_test_support",
+  name: "perfetto_src_tracing_test_client_api_integrationtests",
   srcs: [
-    "src/tracing/core/trace_writer_for_testing.cc",
+    "src/tracing/test/api_integrationtest.cc",
+    "src/tracing/test/tracing_module.cc",
+    "src/tracing/test/tracing_module2.cc",
   ],
 }
 
-// GN: //src/tracing:tracing
+// GN: //src/tracing/test:test_support
 filegroup {
-  name: "perfetto_src_tracing_tracing",
+  name: "perfetto_src_tracing_test_test_support",
   srcs: [
-    "src/tracing/core/id_allocator.cc",
-    "src/tracing/core/metatrace_writer.cc",
-    "src/tracing/core/null_trace_writer.cc",
-    "src/tracing/core/packet_stream_validator.cc",
-    "src/tracing/core/shared_memory_abi.cc",
-    "src/tracing/core/shared_memory_arbiter_impl.cc",
-    "src/tracing/core/startup_trace_writer.cc",
-    "src/tracing/core/startup_trace_writer_registry.cc",
-    "src/tracing/core/trace_buffer.cc",
-    "src/tracing/core/trace_packet.cc",
-    "src/tracing/core/trace_writer_impl.cc",
-    "src/tracing/core/tracing_service_impl.cc",
-    "src/tracing/core/virtual_destructors.cc",
-  ],
-}
-
-// GN: //src/tracing:unittests
-filegroup {
-  name: "perfetto_src_tracing_unittests",
-  srcs: [
-    "src/tracing/core/id_allocator_unittest.cc",
-    "src/tracing/core/null_trace_writer_unittest.cc",
-    "src/tracing/core/packet_stream_validator_unittest.cc",
-    "src/tracing/core/patch_list_unittest.cc",
-    "src/tracing/core/shared_memory_abi_unittest.cc",
-    "src/tracing/core/shared_memory_arbiter_impl_unittest.cc",
-    "src/tracing/core/startup_trace_writer_unittest.cc",
-    "src/tracing/core/trace_buffer_unittest.cc",
-    "src/tracing/core/trace_packet_unittest.cc",
-    "src/tracing/core/trace_writer_impl_unittest.cc",
-    "src/tracing/core/tracing_service_impl_unittest.cc",
-    "src/tracing/ipc/posix_shared_memory_unittest.cc",
     "src/tracing/test/aligned_buffer_test.cc",
     "src/tracing/test/fake_packet.cc",
     "src/tracing/test/mock_consumer.cc",
     "src/tracing/test/mock_producer.cc",
     "src/tracing/test/test_shared_memory.cc",
+  ],
+}
+
+// GN: //src/tracing/test:tracing_integration_test
+filegroup {
+  name: "perfetto_src_tracing_test_tracing_integration_test",
+  srcs: [
     "src/tracing/test/tracing_integration_test.cc",
   ],
 }
@@ -6820,7 +6918,9 @@ cc_test {
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unittests",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
+    ":perfetto_src_ipc_host",
     ":perfetto_src_ipc_test_messages_cpp_gen",
     ":perfetto_src_ipc_test_messages_ipc_gen",
     ":perfetto_src_ipc_unittests",
@@ -6891,10 +6991,17 @@ cc_test {
     ":perfetto_src_traced_service_service",
     ":perfetto_src_traced_service_unittests",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_test_support",
-    ":perfetto_src_tracing_tracing",
-    ":perfetto_src_tracing_unittests",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_core_test_support",
+    ":perfetto_src_tracing_core_unittests",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_consumer_consumer",
+    ":perfetto_src_tracing_ipc_producer_producer",
+    ":perfetto_src_tracing_ipc_service_service",
+    ":perfetto_src_tracing_ipc_unittests",
+    ":perfetto_src_tracing_test_test_support",
+    ":perfetto_src_tracing_test_tracing_integration_test",
     ":perfetto_tools_sanitizers_unittests_sanitizers_unittests",
   ],
   shared_libs: [
@@ -7314,14 +7421,16 @@ cc_binary {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
     ":perfetto_src_profiling_perf_producer",
     ":perfetto_src_profiling_perf_traced_perf_main",
     ":perfetto_src_profiling_perf_unwind_support",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_producer_producer",
     "src/profiling/perf/main.cc",
   ],
   shared_libs: [
@@ -7454,14 +7563,16 @@ cc_binary {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
-    ":perfetto_src_ipc_ipc",
+    ":perfetto_src_ipc_client",
+    ":perfetto_src_ipc_common",
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_trigger_producer",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_common",
-    ":perfetto_src_tracing_ipc",
-    ":perfetto_src_tracing_tracing",
+    ":perfetto_src_tracing_core_core",
+    ":perfetto_src_tracing_ipc_common",
+    ":perfetto_src_tracing_ipc_producer_producer",
     "src/perfetto_cmd/trigger_perfetto_main.cc",
   ],
   shared_libs: [

@@ -14,15 +14,17 @@
 
 source_set("metatrace") {
   public_deps = [
-    "../../../tracing",
+    "../../../tracing/core",
+    "../../../tracing/core:service",
   ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/perfetto:zero",
     "../../../base",
-    "../../../tracing",
+    "../../../tracing/core",
   ]
   sources = [
     "metatrace_data_source.cc",

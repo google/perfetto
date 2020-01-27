@@ -17,7 +17,7 @@ import("perfetto.gni")
 perfetto_integrationtests_targets = [
   "gn:default_deps",
   "gn:gtest_main",
-  "src/tracing:client_api_integrationtests",
+  "src/tracing/test:client_api_integrationtests",
 ]
 
 if (enable_perfetto_platform_services) {
