@@ -20,7 +20,7 @@ perfetto_benchmarks_targets = [
   "src/traced/probes/ftrace:benchmarks",
   "src/trace_processor/containers:benchmarks",
   "src/trace_processor/tables:benchmarks",
-  "src/tracing:benchmarks",
+  "src/tracing/core:benchmarks",
   "src/traced/probes/ftrace/kallsyms:benchmarks",
   "test:benchmark_main",
   "test:end_to_end_benchmarks",

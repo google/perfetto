@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,22 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("power") {
+import("../../../../gn/perfetto.gni")
+
+assert(enable_perfetto_ipc)
+
+# Posix specialization of the tracing library for Linux / Android / Mac.
+# Provides an IPC transport over a UNIX socket for the producer interface.
+source_set("producer") {
   public_deps = [
-    "../../../tracing/core",
-  ]
-  deps = [
-    "..:data_source",
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/traced",
-    "../../../../protos/perfetto/config/power:zero",
-    "../../../../protos/perfetto/trace:zero",
-    "../../../../protos/perfetto/trace/power:zero",
-    "../../../android_internal:lazy_library_loader",
-    "../../../base",
+    "../../../../include/perfetto/ext/tracing/core",
+    "../../../../include/perfetto/ext/tracing/ipc",
+    "../../../../protos/perfetto/ipc",
   ]
   sources = [
-    "android_power_data_source.cc",
-    "android_power_data_source.h",
+    "producer_ipc_client_impl.cc",
+    "producer_ipc_client_impl.h",
+  ]
+  deps = [
+    "..:common",
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../../ipc:client",
   ]
 }

@@ -67,7 +67,7 @@ source_set("perfetto_cmd") {
     "../android_internal:lazy_library_loader",
     "../base",
     "../protozero",
-    "../tracing:ipc",
+    "../tracing/ipc/consumer",
   ]
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
@@ -99,7 +99,7 @@ source_set("trigger_perfetto_cmd") {
     ":trigger_producer",
     "../../gn:default_deps",
     "../base",
-    "../tracing:ipc",
+    "../tracing/ipc/producer",
   ]
   sources = [
     "trigger_perfetto.cc",
@@ -114,7 +114,7 @@ source_set("trigger_producer") {
   deps = [
     "../../gn:default_deps",
     "../base",
-    "../tracing:ipc",
+    "../tracing/ipc/producer",
   ]
 }
 
@@ -138,7 +138,7 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../../protos/perfetto/trace:cpp",
-    "../tracing",
+    "../tracing/core",
   ]
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
