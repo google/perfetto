@@ -16,7 +16,7 @@ import("../../../../gn/test.gni")
 
 source_set("android_log") {
   public_deps = [
-    "../../../tracing",
+    "../../../tracing/core",
   ]
   deps = [
     "..:data_source",
@@ -24,6 +24,7 @@ source_set("android_log") {
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config/android:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/android:zero",
     "../../../base",
   ]
@@ -43,7 +44,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/config/android:cpp",
     "../../../../protos/perfetto/trace/android:cpp",
     "../../../../src/base:test_support",
-    "../../../../src/tracing:test_support",
+    "../../../../src/tracing/test:test_support",
   ]
   sources = [
     "android_log_data_source_unittest.cc",

@@ -27,7 +27,7 @@ executable("heapprofd") {
     "../../../src/base:unix_socket",
     "../../../src/profiling/memory:daemon",
     "../../../src/profiling/memory:wire_protocol",
-    "../../../src/tracing:ipc",
+    "../../../src/tracing/ipc/producer",
   ]
   sources = [
     "main.cc",
@@ -148,8 +148,8 @@ source_set("daemon") {
     "../../../protos/perfetto/config/profiling:cpp",
     "../../base",
     "../../base:unix_socket",
-    "../../tracing",
-    "../../tracing:ipc",
+    "../../tracing/core",
+    "../../tracing/ipc/producer",
   ]
   public_deps = [
     "../../../gn:libunwindstack",
@@ -213,7 +213,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../include/perfetto/profiling:normalize",
     "../../base",
     "../../base:test_support",
-    "../../tracing",
+    "../../tracing/core",
   ]
   sources = [
     "bookkeeping_unittest.cc",
@@ -263,7 +263,7 @@ perfetto_fuzzer_test("unwinding_fuzzer") {
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
-    "../../tracing",
+    "../../tracing/core",
   ]
 }
 
