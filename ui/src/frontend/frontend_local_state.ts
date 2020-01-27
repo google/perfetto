@@ -100,8 +100,6 @@ export class FrontendLocalState {
   localOnlyMode = false;
   sidebarVisible = true;
   showPanningHint = false;
-  // This is used to calculate the tracks within a Y range for area selection.
-  areaY: Range = {};
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
@@ -109,6 +107,12 @@ export class FrontendLocalState {
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
+
+  // This is used to calculate the tracks within a Y range for area selection.
+  areaY: Range = {};
+  // True if the user is in the process of doing an area selection.
+  selectingArea = false;
+
   private scrollBarWidth?: number;
 
   private _omniboxState: OmniboxState = {

@@ -343,8 +343,85 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       this.ctx.restore();
       panelYStart += panelHeight;
     }
+
+    this.drawTopLayerOnCanvas();
     const redrawDur = debugNow() - redrawStart;
     this.updatePerfStats(redrawDur, panels.length, totalOnCanvas);
+  }
+
+  // The panels each draw on the canvas but some details need to be drawn across
+  // the whole canvas rather than per panel.
+  private drawTopLayerOnCanvas() {
+    if (!this.ctx) return;
+    if (this.attrs.kind !== 'TRACKS') return;
+    const selection = globals.frontendLocalState.selectedArea;
+    const area = selection.area;
+    if (area === undefined ||
+        globals.frontendLocalState.areaY.start === undefined ||
+        globals.frontendLocalState.areaY.end === undefined ||
+        !globals.frontendLocalState.selectingArea) {
+      return;
+    }
+    if (this.panelPositions.length === 0) return;
+    this.ctx.save();
+    this.ctx.strokeStyle = 'rgba(52,69,150)';
+    this.ctx.lineWidth = 1;
+    const canvasYStart =
+        Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
+    this.ctx.translate(TRACK_SHELL_WIDTH, -canvasYStart);
+
+    const startX = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
+    const endX = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
+    const firstPanelY = this.panelPositions[0].y;
+    const boxTop = Math.min(
+                       globals.frontendLocalState.areaY.start,
+                       globals.frontendLocalState.areaY.end) +
+        TOPBAR_HEIGHT;
+    const boxBottom = Math.max(
+                          globals.frontendLocalState.areaY.start,
+                          globals.frontendLocalState.areaY.end) +
+        TOPBAR_HEIGHT;
+
+    let snapStartY = -1;
+    let snapEndY = -1;
+    for (let i = 0; i < this.panelPositions.length; i++) {
+      const y = this.panelPositions[i].y;
+      // If the box top is within this panel set the snapStart to the top of
+      // the panel.
+      if (y <= boxTop && y + this.panelPositions[i].height >= boxTop) {
+        snapStartY = y;
+      }
+      // If the box bottom is within this panel set the snapBottom to the bottom
+      // of the panel.
+      if (y <= boxBottom && y + this.panelPositions[i].height >= boxBottom) {
+        snapEndY = y + this.panelPositions[i].height;
+        break;
+      }
+    }
+
+    // If the y selection is outside all panels, do not draw a box.
+    if (snapStartY === -1 && snapEndY === -1) {
+      this.ctx.restore();
+      return;
+    }
+
+    // If the y selection starts above all panels, snap to the first panel.
+    if (snapStartY === -1) {
+      snapStartY = firstPanelY;
+    }
+    // If the y selection ends after all panels, snap to the bottom of the
+    // last panel.
+    if (snapEndY === -1) {
+      snapEndY = this.totalPanelHeight;
+    }
+
+    // The areaY values are given from the top of the pan and zoom handler.
+    // To align with the current panel container subtract the first panel Y.
+    snapStartY -= firstPanelY;
+    snapEndY -= firstPanelY;
+    this.ctx.strokeRect(
+        startX, snapStartY, endX - startX, snapEndY - snapStartY);
+    this.ctx.restore();
   }
 
   private updatePanelStats(
