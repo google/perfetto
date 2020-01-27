@@ -16,13 +16,14 @@ import("../../../../gn/test.gni")
 
 source_set("ps") {
   public_deps = [
-    "../../../tracing",
+    "../../../tracing/core",
   ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/config/process_stats:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/ps:zero",
     "../../../base",
   ]
@@ -41,7 +42,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/config/process_stats:cpp",
     "../../../../protos/perfetto/trace/ps:cpp",
     "../../../../src/base:test_support",
-    "../../../../src/tracing:test_support",
+    "../../../../src/tracing/test:test_support",
   ]
   sources = [
     "process_stats_data_source_unittest.cc",

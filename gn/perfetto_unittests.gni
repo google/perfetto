@@ -19,8 +19,9 @@ perfetto_unittests_targets = [
   "gn:gtest_main",
   "src/base:unittests",
   "src/protozero:unittests",
-  "src/tracing:unittests",
+  "src/tracing/core:unittests",
   "src/profiling:unittests",
+  "src/tracing/test:tracing_integration_test",
 ]
 
 if (enable_perfetto_tools && current_toolchain == host_toolchain) {
@@ -36,7 +37,10 @@ if ((is_linux || is_android) && !perfetto_build_with_embedder) {
 }
 
 if (enable_perfetto_ipc) {
-  perfetto_unittests_targets += [ "src/ipc:unittests" ]
+  perfetto_unittests_targets += [
+    "src/tracing/ipc:unittests",
+    "src/ipc:unittests",
+  ]
 }
 
 if (enable_perfetto_platform_services) {
