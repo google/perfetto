@@ -21,8 +21,11 @@ perfetto_unittests_targets = [
   "src/protozero:unittests",
   "src/tracing/core:unittests",
   "src/profiling:unittests",
-  "src/tracing/test:tracing_integration_test",
 ]
+
+if (enable_perfetto_ipc) {
+  perfetto_unittests_targets += [ "src/tracing/test:tracing_integration_test" ]
+}
 
 if (enable_perfetto_tools && current_toolchain == host_toolchain) {
   perfetto_unittests_targets += [ "tools/ftrace_proto_gen:unittests" ]
