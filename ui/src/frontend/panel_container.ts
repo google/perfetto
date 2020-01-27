@@ -245,12 +245,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     }
 
     const dpr = window.devicePixelRatio;
-    // On non-MacOS if there is a solid scroll bar it can cover important
-    // pixels, reduce the size of the canvas so it doesn't overlap with
-    // the scroll bar.
-    ctx.canvas.width =
-        (this.parentWidth - globals.frontendLocalState.getScrollbarWidth()) *
-        dpr;
+    ctx.canvas.width = this.parentWidth * dpr;
     ctx.canvas.height = this.canvasHeight * dpr;
     ctx.scale(dpr, dpr);
   }
@@ -270,7 +265,11 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const oldWidth = this.parentWidth;
     const oldHeight = this.parentHeight;
     const clientRect = assertExists(dom.parentElement).getBoundingClientRect();
-    this.parentWidth = clientRect.width;
+    // On non-MacOS if there is a solid scroll bar it can cover important
+    // pixels, reduce the size of the canvas so it doesn't overlap with
+    // the scroll bar.
+    this.parentWidth =
+        clientRect.width - globals.frontendLocalState.getScrollbarWidth();
     this.parentHeight = clientRect.height;
     return this.parentHeight !== oldHeight || this.parentWidth !== oldWidth;
   }
