@@ -53,24 +53,22 @@ perfetto_unittest_source_set("test_support") {
   }
 }
 
-perfetto_unittest_source_set("tracing_integration_test") {
-  testonly = true
-  deps = [
-    ":test_support",
-    "../../../gn:default_deps",
-    "../../../gn:gtest_and_gmock",
-    "../../base",
-    "../../base:test_support",
-    "../core:service",
-  ]
-  if (enable_perfetto_ipc) {
-    deps += [
+if (enable_perfetto_ipc) {
+  perfetto_unittest_source_set("tracing_integration_test") {
+    testonly = true
+    deps = [
+      ":test_support",
+      "../../../gn:default_deps",
+      "../../../gn:gtest_and_gmock",
+      "../../base",
+      "../../base:test_support",
+      "../core:service",
       "../ipc/consumer",
       "../ipc/producer",
       "../ipc/service",
     ]
+    sources = [ "tracing_integration_test.cc" ]
   }
-  sources = [ "tracing_integration_test.cc" ]
 }
 
 if (enable_perfetto_integration_tests) {
