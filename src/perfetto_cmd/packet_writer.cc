@@ -191,7 +191,7 @@ bool ZipPacketWriter::WritePacket(const TracePacket& packet) {
   // Reinitialize the compresser if needed:
   if (!is_compressing_) {
     memset(&stream_, 0, sizeof(stream_));
-    CheckEq(deflateInit(&stream_, 9), Z_OK);
+    CheckEq(deflateInit(&stream_, 6), Z_OK);
     is_compressing_ = true;
     stream_.next_out = start_;
     stream_.avail_out = static_cast<unsigned int>(end_ - start_);
