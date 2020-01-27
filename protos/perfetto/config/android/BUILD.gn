@@ -16,9 +16,7 @@ import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [
-    "../../common:@TYPE@",
-  ]
+  deps = [ "../../common:@TYPE@" ]
   sources = [
     "android_log_config.proto",
     "packages_list_config.proto",

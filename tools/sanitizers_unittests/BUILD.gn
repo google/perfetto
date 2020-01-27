@@ -18,7 +18,5 @@ source_set("sanitizers_unittests") {
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
   ]
-  sources = [
-    "sanitizers_unittest.cc",
-  ]
+  sources = [ "sanitizers_unittest.cc" ]
 }

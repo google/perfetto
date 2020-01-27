@@ -54,9 +54,7 @@ if (enable_perfetto_trace_processor_httpd) {
 
 if (enable_perfetto_ui && is_wasm) {
   source_set("wasm_bridge") {
-    sources = [
-      "wasm_bridge.cc",
-    ]
+    sources = [ "wasm_bridge.cc" ]
     deps = [
       ":rpc",
       "../../../gn:default_deps",

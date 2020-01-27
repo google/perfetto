@@ -25,7 +25,5 @@ perfetto_proto_library("@TYPE@") {
 
 perfetto_proto_library("metrics_impl_zero") {
   proto_generators = [ "zero" ]
-  sources = [
-    "metrics_impl.proto",
-  ]
+  sources = [ "metrics_impl.proto" ]
 }

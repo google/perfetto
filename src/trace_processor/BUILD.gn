@@ -26,9 +26,7 @@ assert(enable_perfetto_trace_processor)
 if (enable_perfetto_trace_processor_sqlite) {
   static_library("trace_processor") {
     complete_static_lib = true
-    deps = [
-      ":lib",
-    ]
+    deps = [ ":lib" ]
   }
 }
 
@@ -245,9 +243,7 @@ source_set("storage_full") {
     "syscalls_armeabi.h",
     "syscalls_x86_64.h",
   ]
-  public_deps = [
-    ":storage_minimal",
-  ]
+  public_deps = [ ":storage_minimal" ]
   deps = [
     "../../include/perfetto/ext/base:base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
@@ -282,9 +278,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../gn:jsoncpp",
       "../base",
     ]
-    public_deps = [
-      "../../include/perfetto/ext/trace_processor:export_json",
-    ]
+    public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
   }
 }
 
@@ -335,9 +329,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "tables",
       "types",
     ]
-    public_deps = [
-      "../../include/perfetto/trace_processor",
-    ]
+    public_deps = [ "../../include/perfetto/trace_processor" ]
     if (enable_perfetto_trace_processor_json) {
       deps += [ ":export_json" ]
     }
@@ -477,9 +469,7 @@ source_set("integrationtests") {
 if (enable_perfetto_trace_processor_json) {
   source_set("storage_minimal_smoke_tests") {
     testonly = true
-    sources = [
-      "storage_minimal_smoke_test.cc",
-    ]
+    sources = [ "storage_minimal_smoke_test.cc" ]
     deps = [
       ":export_json",
       ":storage_minimal",
@@ -494,9 +484,7 @@ if (enable_perfetto_trace_processor_json) {
 
 perfetto_fuzzer_test("trace_processor_fuzzer") {
   testonly = true
-  sources = [
-    "trace_parsing_fuzzer.cc",
-  ]
+  sources = [ "trace_parsing_fuzzer.cc" ]
   deps = [
     ":storage_full",
     "../../gn:default_deps",

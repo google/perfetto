@@ -15,12 +15,8 @@
 import("../../../gn/perfetto.gni")
 
 source_set("symbolizer") {
-  public_deps = [
-    "../../../include/perfetto/ext/base",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-  ]
+  public_deps = [ "../../../include/perfetto/ext/base" ]
+  deps = [ "../../../gn:default_deps" ]
   sources = [
     "local_symbolizer.cc",
     "local_symbolizer.h",

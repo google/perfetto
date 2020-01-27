@@ -15,9 +15,7 @@
 import("../../../../gn/test.gni")
 
 source_set("android_log") {
-  public_deps = [
-    "../../../tracing/core",
-  ]
+  public_deps = [ "../../../tracing/core" ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
@@ -46,7 +44,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../../src/base:test_support",
     "../../../../src/tracing/test:test_support",
   ]
-  sources = [
-    "android_log_data_source_unittest.cc",
-  ]
+  sources = [ "android_log_data_source_unittest.cc" ]
 }

@@ -20,21 +20,15 @@ group("deps") {
   if (using_sanitizer) {
     public_configs = [ ":sanitizers_ldflags" ]
     if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
-      deps = [
-        ":copy_sanitizer_lib",
-      ]
+      deps = [ ":copy_sanitizer_lib" ]
     }
   }
 }
 
 if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
   copy("copy_sanitizer_lib") {
-    sources = [
-      "${sanitizer_lib_dir}/lib${sanitizer_lib}.so",
-    ]
-    outputs = [
-      "${root_out_dir}/sanitizer_libs/lib${sanitizer_lib}.so",
-    ]
+    sources = [ "${sanitizer_lib_dir}/lib${sanitizer_lib}.so" ]
+    outputs = [ "${root_out_dir}/sanitizer_libs/lib${sanitizer_lib}.so" ]
   }
 }
 
