@@ -153,7 +153,11 @@ declare_args() {
 
   # Build the perf event profiler (traced_perf).
   # TODO(b/144281346): under development.
-  enable_perfetto_traced_perf = perfetto_build_with_android
+  # TODO(rsavitski): figure out how to make the android-core dependencies build
+  # under gcc (_Atomic and other issues).
+  enable_perfetto_traced_perf =
+      perfetto_build_with_android ||
+      (perfetto_build_standalone && is_clang && is_linux)
 
   # The Trace Processor: offline analytical engine to process traces and compute
   # metrics using a SQL engine.

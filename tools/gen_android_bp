@@ -171,9 +171,6 @@ additional_args = {
         ('required', {'libperfetto_android_internal', 'trigger_perfetto'}),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
-    'traced_perf': [
-        ('include_dirs', {'bionic/libc/kernel'}),
-    ],
     'trace_processor_shell': [
       ('dist', {'targets': ['sdk_repo']}),
       ('stl', 'libc++_static'),
@@ -231,6 +228,10 @@ def enable_zlib(module):
     module.shared_libs.add('libz')
 
 
+def enable_uapi_headers(module):
+  module.include_dirs.add('bionic/libc/kernel')
+
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -245,6 +246,7 @@ builtin_deps = {
     '//gn:libunwindstack': enable_libunwindstack,
     '//gn:sqlite': enable_sqlite,
     '//gn:zlib': enable_zlib,
+    '//gn:bionic_kernel_uapi_headers' : enable_uapi_headers,
 }
 
 # ----------------------------------------------------------------------------
