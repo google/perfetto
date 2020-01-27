@@ -96,7 +96,7 @@ BUILD_DEPS_HOST = [
     # tools/clang/scripts/update.py.
     ('buildtools/clang.tgz',
      'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-n332890-c2443155-2.tgz',
-     'fe1b1e5bd7381ae655661cb9658487389561568d', 'linux'),
+     'd6501ffdb5dbb0ffe8a4b873cc092a9929e661ec', 'linux'),
 
     # Keep in sync with chromium DEPS.
     ('buildtools/libfuzzer',
