@@ -63,9 +63,7 @@ source_set("utils") {
 }
 
 source_set("pprofbuilder") {
-  public_deps = [
-    "../../include/perfetto/profiling:pprof_builder",
-  ]
+  public_deps = [ "../../include/perfetto/profiling:pprof_builder" ]
   deps = [
     ":utils",
     "../../gn:default_deps",
@@ -78,17 +76,13 @@ source_set("pprofbuilder") {
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
   ]
-  sources = [
-    "pprof_builder.cc",
-  ]
+  sources = [ "pprof_builder.cc" ]
 }
 
 # Exposed in bazel builds.
 static_library("libpprofbuilder") {
   complete_static_lib = true
-  deps = [
-    ":pprofbuilder",
-  ]
+  deps = [ ":pprofbuilder" ]
 }
 
 # The core source files that are used both by the "full" version (the host
@@ -133,9 +127,7 @@ source_set("lite") {
     "../../gn:default_deps",
     "../../include/perfetto/base",
   ]
-  sources = [
-    "lite_fallbacks.cc",
-  ]
+  sources = [ "lite_fallbacks.cc" ]
 }
 
 # Full target for the host. Depends on libprotobuf-full.

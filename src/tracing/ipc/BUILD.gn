@@ -49,7 +49,5 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../../base:test_support",
   ]
-  sources = [
-    "posix_shared_memory_unittest.cc",
-  ]
+  sources = [ "posix_shared_memory_unittest.cc" ]
 }

@@ -96,18 +96,14 @@ action("gen_buildflags") {
     "{{response_file_name}}",
   ]
 
-  outputs = [
-    gen_header_path,
-  ]
+  outputs = [ gen_header_path ]
 }
 
 # All targets should depend on this target to inherit the right flags and
 # include directories.
 group("default_deps") {
   public_configs = [ ":default_config" ]
-  deps = [
-    ":gen_buildflags",
-  ]
+  deps = [ ":gen_buildflags" ]
   if (perfetto_build_standalone) {
     public_deps = [
       "//gn/standalone/libc++:deps",
@@ -184,33 +180,25 @@ group("gtest_main") {
   testonly = true
 
   if (perfetto_root_path == "//") {
-    public_deps = [
-      "//buildtools:gtest_main",
-    ]
+    public_deps = [ "//buildtools:gtest_main" ]
   } else if (build_with_chromium) {
-    public_deps = [
-      "//base/test:run_all_unittests",
-    ]
+    public_deps = [ "//base/test:run_all_unittests" ]
   } else {
-    public_deps = [
-      "//testing/gtest:gtest_main",
-    ]
+    public_deps = [ "//testing/gtest:gtest_main" ]
   }
 }
 
 # Full protobuf is just for host tools .No binary shipped on device should
 # depend on this.
 whitelisted_protobuf_full_deps = [
-  "../tools/*",
   "../src/ipc/protoc_plugin:*",
   "../src/protozero/protoc_plugin:*",
   "../src/trace_processor:trace_processor_shell",
+  "../tools/*",
 ]
 
 group("protoc") {
-  public_deps = [
-    "${perfetto_protobuf_target_prefix}:protoc($host_toolchain)",
-  ]
+  public_deps = [ "${perfetto_protobuf_target_prefix}:protoc($host_toolchain)" ]
 }
 
 # protoc compiler library, it's used for building protoc plugins and by
@@ -218,25 +206,19 @@ group("protoc") {
 group("protoc_lib") {
   visibility = whitelisted_protobuf_full_deps
   if (current_toolchain == host_toolchain) {
-    public_deps = [
-      "${perfetto_protobuf_target_prefix}:protoc_lib",
-    ]
+    public_deps = [ "${perfetto_protobuf_target_prefix}:protoc_lib" ]
   }
 }
 
 group("protobuf_full") {
   visibility = whitelisted_protobuf_full_deps
   if (current_toolchain == host_toolchain) {
-    public_deps = [
-      "${perfetto_protobuf_target_prefix}:protobuf_full",
-    ]
+    public_deps = [ "${perfetto_protobuf_target_prefix}:protobuf_full" ]
   }
 }
 
 group("protobuf_lite") {
-  public_deps = [
-    "${perfetto_protobuf_target_prefix}:protobuf_lite",
-  ]
+  public_deps = [ "${perfetto_protobuf_target_prefix}:protobuf_lite" ]
 }
 
 # The Google C++ Benchmark library.
@@ -244,9 +226,7 @@ group("protobuf_lite") {
 if (enable_perfetto_benchmarks) {
   group("benchmark") {
     testonly = true
-    public_deps = [
-      "//buildtools:benchmark",
-    ]
+    public_deps = [ "//buildtools:benchmark" ]
   }
 }
 
@@ -254,22 +234,16 @@ if (enable_perfetto_benchmarks) {
 # standalone debug builds.
 if (perfetto_build_standalone && (is_linux || is_android)) {
   group("libbacktrace") {
-    public_deps = [
-      "//buildtools:libbacktrace",
-    ]
+    public_deps = [ "//buildtools:libbacktrace" ]
   }
 }
 
 if (enable_perfetto_trace_processor_sqlite) {
   group("sqlite") {
     if (perfetto_root_path == "//") {
-      public_deps = [
-        "//buildtools:sqlite",
-      ]
+      public_deps = [ "//buildtools:sqlite" ]
     } else {
-      public_deps = [
-        "//third_party/sqlite:sqlite",
-      ]
+      public_deps = [ "//third_party/sqlite:sqlite" ]
       public_configs = [ ":sqlite_third_party_include_path" ]
     }
   }
@@ -283,13 +257,9 @@ if (enable_perfetto_trace_processor_json) {
   group("jsoncpp") {
     if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:jsoncpp_config" ]
-      public_deps = [
-        "//buildtools:jsoncpp",
-      ]
+      public_deps = [ "//buildtools:jsoncpp" ]
     } else {
-      public_deps = [
-        "//third_party/jsoncpp:jsoncpp",
-      ]
+      public_deps = [ "//third_party/jsoncpp:jsoncpp" ]
     }
   }
 }
@@ -298,9 +268,7 @@ if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
   # Only available in standalone builds.
   group("linenoise") {
-    public_deps = [
-      "//buildtools:linenoise",
-    ]
+    public_deps = [ "//buildtools:linenoise" ]
   }
 }  # if (enable_perfetto_trace_processor_linenoise)
 
@@ -308,9 +276,7 @@ if (enable_perfetto_trace_processor_linenoise) {
 if (enable_perfetto_heapprofd) {
   group("libunwindstack") {
     public_configs = [ "//buildtools:libunwindstack_config" ]
-    public_deps = [
-      "//buildtools:libunwindstack",
-    ]
+    public_deps = [ "//buildtools:libunwindstack" ]
   }
 }
 
@@ -319,14 +285,10 @@ if (enable_perfetto_zlib) {
   group("zlib") {
     if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:zlib_config" ]
-      public_deps = [
-        "//buildtools:zlib",
-      ]
+      public_deps = [ "//buildtools:zlib" ]
     } else {
       public_configs = [ "//third_party/zlib:zlib_config" ]
-      public_deps = [
-        "//third_party/zlib",
-      ]
+      public_deps = [ "//third_party/zlib" ]
     }
   }
 }
@@ -335,8 +297,6 @@ if (enable_perfetto_zlib) {
 if (enable_perfetto_fuzzers && use_libfuzzer) {
   group("libfuzzer") {
     assert(perfetto_root_path == "//")
-    public_deps = [
-      "//buildtools:libfuzzer",
-    ]
+    public_deps = [ "//buildtools:libfuzzer" ]
   }
 }

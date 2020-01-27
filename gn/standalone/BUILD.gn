@@ -268,8 +268,6 @@ action("gen_git_revision") {
   generated_header = "${root_gen_dir}/perfetto_version.gen.h"
   args = [ rebase_path(generated_header, root_build_dir) ]
   inputs = []
-  outputs = [
-    generated_header,
-  ]
+  outputs = [ generated_header ]
   public_configs = [ ":gen_include_path" ]
 }

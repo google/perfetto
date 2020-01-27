@@ -15,9 +15,7 @@
 import("../../../../gn/test.gni")
 
 source_set("packages_list") {
-  public_deps = [
-    "../../../tracing/core",
-  ]
+  public_deps = [ "../../../tracing/core" ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
@@ -45,7 +43,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../../src/base:test_support",
     "../../../../src/tracing/test:test_support",
   ]
-  sources = [
-    "packages_list_data_source_unittest.cc",
-  ]
+  sources = [ "packages_list_data_source_unittest.cc" ]
 }

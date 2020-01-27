@@ -155,9 +155,7 @@ group("all") {
 # depending on other GN files.
 group("default") {
   testonly = true
-  deps = [
-    ":all",
-  ]
+  deps = [ ":all" ]
 }
 
 # +----------------------------------------------------------------------------+
@@ -166,9 +164,7 @@ group("default") {
 
 if (enable_perfetto_ui) {
   group("ui") {
-    deps = [
-      "ui",
-    ]
+    deps = [ "ui" ]
   }
 }
 
@@ -216,9 +212,7 @@ if (!build_with_chromium) {
       "src/tracing:platform_posix",
       "src/tracing/core",
     ]
-    sources = [
-      "include/perfetto/tracing.h",
-    ]
+    sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "//gn:protobuf_lite" ]
   }
 }
@@ -260,13 +254,9 @@ if (build_with_chromium) {
   }
   component("libtrace_processor") {
     public_configs = [ "gn:public_config" ]
-    deps = [
-      "src/trace_processor:lib",
-    ]
+    deps = [ "src/trace_processor:lib" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
-    public_deps = [
-      "include/perfetto/trace_processor",
-    ]
+    public_deps = [ "include/perfetto/trace_processor" ]
   }
 }

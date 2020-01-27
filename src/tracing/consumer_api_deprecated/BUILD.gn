@@ -31,9 +31,7 @@ source_set("consumer_api_deprecated") {
     "../core",
     "../ipc/consumer",
   ]
-  sources = [
-    "consumer_api_deprecated.cc",
-  ]
+  sources = [ "consumer_api_deprecated.cc" ]
 }
 
 executable("consumer_api_test") {
@@ -48,7 +46,5 @@ executable("consumer_api_test") {
     "../../../protos/perfetto/trace/ftrace:cpp",
     "../../base",
   ]
-  sources = [
-    "consumer_api_deprecated_test.cc",
-  ]
+  sources = [ "consumer_api_deprecated_test.cc" ]
 }

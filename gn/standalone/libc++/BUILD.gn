@@ -42,8 +42,6 @@ config("config") {
 
 group("deps") {
   if (use_custom_libcxx) {
-    public_deps = [
-      "//buildtools:libc++",
-    ]
+    public_deps = [ "//buildtools:libc++" ]
   }
 }

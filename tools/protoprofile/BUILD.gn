@@ -30,10 +30,6 @@ source_set("common") {
     "../../src/base",
     "../../src/protozero",
   ]
-  sources = [
-    "main.cc",
-  ]
-  deps = [
-    "../../gn:protobuf_full",
-  ]
+  sources = [ "main.cc" ]
+  deps = [ "../../gn:protobuf_full" ]
 }

@@ -42,9 +42,7 @@ action_foreach("configs") {
     "sys_stats.cfg",
   ]
 
-  outputs = [
-    "$root_out_dir/{{source_file_part}}.protobuf",
-  ]
+  outputs = [ "$root_out_dir/{{source_file_part}}.protobuf" ]
 
   # Retrieves the path where protoc is built relative to the dir where commands
   # are ran (root_build_dir == out/xxx). protoc_rel_dir ends up being "." for
