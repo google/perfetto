@@ -43,9 +43,7 @@ source_set("protozero") {
 
 static_library("libprotozero") {
   complete_static_lib = true
-  deps = [
-    ":protozero",
-  ]
+  deps = [ ":protozero" ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -87,9 +85,7 @@ perfetto_proto_library("testing_messages_@TYPE@") {
 }
 
 perfetto_fuzzer_test("protozero_decoder_fuzzer") {
-  sources = [
-    "proto_decoder_fuzzer.cc",
-  ]
+  sources = [ "proto_decoder_fuzzer.cc" ]
   deps = [
     ":protozero",
     "../../gn:default_deps",

@@ -20,9 +20,7 @@ import("../../gn/wasm.gni")
 enable_stack_trace = is_debug && perfetto_build_standalone && !is_wasm
 
 source_set("base") {
-  deps = [
-    "../../gn:default_deps",
-  ]
+  deps = [ "../../gn:default_deps" ]
   public_deps = [
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
@@ -61,9 +59,7 @@ source_set("base") {
 
 if (enable_stack_trace) {
   source_set("debug_crash_stack_trace") {
-    sources = [
-      "debug_crash_stack_trace.cc",
-    ]
+    sources = [ "debug_crash_stack_trace.cc" ]
     deps = [
       "../../gn:default_deps",
       "../../include/perfetto/ext/base",
@@ -84,9 +80,7 @@ if (enable_perfetto_ipc) {
       "../../include/perfetto/ext/base",
       "../../include/perfetto/ext/base",
     ]
-    sources = [
-      "unix_socket.cc",
-    ]
+    sources = [ "unix_socket.cc" ]
   }
 }
 
@@ -165,8 +159,6 @@ if (enable_perfetto_benchmarks) {
       "../../gn:benchmark",
       "../../gn:default_deps",
     ]
-    sources = [
-      "flat_set_benchmark.cc",
-    ]
+    sources = [ "flat_set_benchmark.cc" ]
   }
 }

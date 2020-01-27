@@ -25,9 +25,7 @@ if (is_linux || is_mac || is_android) {
       "../../include/perfetto/tracing",
       "../base",
     ]
-    sources = [
-      "platform_posix.cc",
-    ]
+    sources = [ "platform_posix.cc" ]
   }
 }
 
@@ -38,9 +36,7 @@ source_set("platform_fake") {
     "../../gn:default_deps",
     "../../include/perfetto/tracing",
   ]
-  sources = [
-    "platform_fake.cc",
-  ]
+  sources = [ "platform_fake.cc" ]
 }
 
 # Code that both public headers and other non-public sources (e.g.
@@ -52,9 +48,7 @@ source_set("common") {
     "../../gn:default_deps",
     "../../include/perfetto/tracing",
   ]
-  sources = [
-    "trace_writer_base.cc",
-  ]
+  sources = [ "trace_writer_base.cc" ]
 }
 
 source_set("client_api") {

@@ -23,9 +23,7 @@ executable("perfetto") {
     ":perfetto_cmd",
     "../../gn:default_deps",
   ]
-  sources = [
-    "main.cc",
-  ]
+  sources = [ "main.cc" ]
 }
 
 # Tool to finalize long running traces.
@@ -39,15 +37,11 @@ executable("trigger_perfetto") {
     ":trigger_perfetto_cmd",
     "../../gn:default_deps",
   ]
-  sources = [
-    "trigger_perfetto_main.cc",
-  ]
+  sources = [ "trigger_perfetto_main.cc" ]
 }
 
 source_set("perfetto_atoms") {
-  sources = [
-    "perfetto_atoms.h",
-  ]
+  sources = [ "perfetto_atoms.h" ]
 }
 
 # Contains all the implementation but not the main() entry point. This target
@@ -101,9 +95,7 @@ source_set("trigger_perfetto_cmd") {
     "../base",
     "../tracing/ipc/producer",
   ]
-  sources = [
-    "trigger_perfetto.cc",
-  ]
+  sources = [ "trigger_perfetto.cc" ]
 }
 
 source_set("trigger_producer") {
@@ -120,9 +112,7 @@ source_set("trigger_producer") {
 
 perfetto_proto_library("protos") {
   proto_generators = [ "cpp" ]
-  sources = [
-    "perfetto_cmd_state.proto",
-  ]
+  sources = [ "perfetto_cmd_state.proto" ]
   proto_path = perfetto_root_path
 }
 

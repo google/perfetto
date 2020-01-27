@@ -137,16 +137,12 @@ if (enable_perfetto_benchmarks) {
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../protozero",
     ]
-    sources = [
-      "packet_stream_validator_benchmark.cc",
-    ]
+    sources = [ "packet_stream_validator_benchmark.cc" ]
   }
 }
 
 perfetto_fuzzer_test("packet_stream_validator_fuzzer") {
-  sources = [
-    "packet_stream_validator_fuzzer.cc",
-  ]
+  sources = [ "packet_stream_validator_fuzzer.cc" ]
   deps = [
     ":service",
     "../../../../../gn:default_deps",

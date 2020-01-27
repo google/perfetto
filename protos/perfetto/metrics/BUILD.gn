@@ -16,20 +16,14 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [
-    "android:@TYPE@",
-  ]
-  sources = [
-    "metrics.proto",
-  ]
+  deps = [ "android:@TYPE@" ]
+  sources = [ "metrics.proto" ]
 }
 
 if (perfetto_build_standalone) {
   perfetto_proto_library("descriptor") {
     proto_generators = [ "descriptor" ]
     generate_descriptor = "metrics.descriptor"
-    sources = [
-      "metrics.proto",
-    ]
+    sources = [ "metrics.proto" ]
   }
 }

@@ -13,9 +13,7 @@
 # limitations under the License.
 
 source_set("power") {
-  public_deps = [
-    "../../../tracing/core",
-  ]
+  public_deps = [ "../../../tracing/core" ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",

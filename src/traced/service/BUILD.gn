@@ -27,18 +27,14 @@ executable("traced") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/traced",
   ]
-  sources = [
-    "main.cc",
-  ]
+  sources = [ "main.cc" ]
   assert_no_deps = [ "//gn:protobuf_lite" ]
 }
 
 # Contains all the implementation but not the main() entry point. This target
 # is shared both by the executable and tests.
 source_set("service") {
-  public_deps = [
-    "../../../include/perfetto/ext/traced",
-  ]
+  public_deps = [ "../../../include/perfetto/ext/traced" ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
@@ -66,7 +62,5 @@ perfetto_unittest_source_set("unittests") {
     "../../base:test_support",
     "../../tracing/core",
   ]
-  sources = [
-    "builtin_producer_unittest.cc",
-  ]
+  sources = [ "builtin_producer_unittest.cc" ]
 }

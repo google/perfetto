@@ -32,9 +32,7 @@ source_set("test_support") {
     "../../../base:test_support",
     "../../../protozero",
   ]
-  public_deps = [
-    "../../../protozero",
-  ]
+  public_deps = [ "../../../protozero" ]
 
   sources = [
     "test/cpu_reader_support.cc",
@@ -78,9 +76,7 @@ perfetto_proto_library("test_messages_@TYPE@") {
     "lite",
     "zero",
   ]
-  sources = [
-    "test/test_messages.proto",
-  ]
+  sources = [ "test/test_messages.proto" ]
   proto_path = perfetto_root_path
 }
 
@@ -96,9 +92,7 @@ source_set("integrationtests") {
     "../../../base",
     "../../../tracing/core",
   ]
-  sources = [
-    "ftrace_procfs_integrationtest.cc",
-  ]
+  sources = [ "ftrace_procfs_integrationtest.cc" ]
 }
 
 source_set("ftrace") {
@@ -170,17 +164,13 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:benchmark",
       "../../../../gn:default_deps",
     ]
-    sources = [
-      "cpu_reader_benchmark.cc",
-    ]
+    sources = [ "cpu_reader_benchmark.cc" ]
   }
 }
 
 perfetto_fuzzer_test("cpu_reader_fuzzer") {
   testonly = true
-  sources = [
-    "cpu_reader_fuzzer.cc",
-  ]
+  sources = [ "cpu_reader_fuzzer.cc" ]
   deps = [
     ":ftrace",
     ":test_support",

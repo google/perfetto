@@ -44,11 +44,11 @@ from compat import urlretrieve
 BUILD_DEPS_HOST = [
     # GN
     ('buildtools/mac/gn',
-     'https://storage.googleapis.com/perfetto/gn-mac-b5b65ca39d93a7cde9fa713be31b114755252f28',
-     'b5b65ca39d93a7cde9fa713be31b114755252f28', 'darwin'),
+     'https://storage.googleapis.com/perfetto/gn-mac-1695-83dad00a',
+     '4c0d45772aea4146699772165e8112fa76ceb295', 'darwin'),
     ('buildtools/linux64/gn',
-     'https://storage.googleapis.com/perfetto/gn-linux64-1370d9c5358868b7b66292821b6fe61950826870',
-     '1370d9c5358868b7b66292821b6fe61950826870', 'linux'),
+     'https://storage.googleapis.com/perfetto/gn-linux64-1695-83dad00a',
+     'fcabfc379bccaa65b4e2fc791594ba124dafc7d0', 'linux'),
 
     # clang-format
     ('buildtools/mac/clang-format',
