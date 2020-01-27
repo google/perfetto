@@ -360,13 +360,22 @@ void SetupMetrics(TraceProcessor* tp,
       PERFETTO_ELOG("Error initializing RepeatedField");
   }
 }
+
+void EnsureSqliteInitialized() {
+  // sqlite3_initialize isn't actually thread-safe despite being documented
+  // as such; we need to make sure multiple TraceProcessorImpl instances don't
+  // call it concurrently and only gets called once per process, instead.
+  static bool init_once = [] { return sqlite3_initialize() == SQLITE_OK; };
+  PERFETTO_CHECK(init_once);
+}
+
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg) {
   RegisterAdditionalModules(&context_);
   sqlite3* db = nullptr;
-  PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
+  EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqlite(db);
   CreateBuiltinTables(db);
