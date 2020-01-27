@@ -52,8 +52,8 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   memcpy(g_page, data, std::min(base::kPageSize, size));
 
   FtraceMetadata metadata{};
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config{
+      EventFilter{}, DisabledCompactSchedConfigForTesting(), {}, {}};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(
