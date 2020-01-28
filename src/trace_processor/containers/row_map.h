@@ -495,28 +495,9 @@ class RowMap {
   template <typename Predicate>
   void Filter(Predicate p) {
     switch (mode_) {
-      case Mode::kRange: {
-        // TODO(lalitm): rewrite this to make this a lot more efficient in
-        // future CL.
-        BitVector bv(end_idx_, false);
-
-        // We need the block scoping so the iterator is destroyed before the
-        // BitVector is moved.
-        {
-          auto it = bv.IterateAllBits();
-          if (start_idx_ > 0)
-            it.Skip(start_idx_);
-
-          PERFETTO_DCHECK(it.index() == start_idx_);
-          for (; it; it.Next()) {
-            if (p(it.index())) {
-              it.Set();
-            }
-          }
-        }
-        *this = RowMap(std::move(bv));
+      case Mode::kRange:
+        FilterRange(p);
         break;
-      }
       case Mode::kBitVector: {
         for (auto it = bit_vector_.IterateSetBits(); it; it.Next()) {
           if (!p(it.index()))
@@ -584,6 +565,69 @@ class RowMap {
         break;
       }
     }
+  }
+
+  template <typename Predicate>
+  void FilterRange(Predicate p) {
+    uint32_t count = end_idx_ - start_idx_;
+
+    // Optimization: if we are only going to scan a few rows, it's not
+    // worth the haslle of working with a BitVector.
+    constexpr uint32_t kSmallRangeLimit = 2048;
+    bool is_small_range = count < kSmallRangeLimit;
+
+    // Optimization: weif the cost of a BitVector is more than the highest
+    // possible cost an index vector could have, use the index vector.
+    uint32_t bit_vector_cost = BitVector::ApproxBytesCost(end_idx_);
+    uint32_t index_vector_cost_ub = sizeof(uint32_t) * count;
+
+    // If either of the conditions hold which make it better to use an
+    // index vector, use it instead.
+    if (is_small_range || index_vector_cost_ub <= bit_vector_cost) {
+      // Try and strike a good balance between not making the vector too
+      // big and good performance.
+      std::vector<uint32_t> iv(std::min(kSmallRangeLimit, count));
+
+      uint32_t out_idx = 0;
+      for (uint32_t i = 0; i < count; ++i) {
+        // If we reach the capacity add another small set of indices.
+        if (PERFETTO_UNLIKELY(out_idx == iv.size()))
+          iv.resize(iv.size() + kSmallRangeLimit);
+
+        // We keep this branch free by always writing the index but only
+        // incrementing the out index if the return value is true.
+        bool value = p(i + start_idx_);
+        iv[out_idx] = i + start_idx_;
+        out_idx += value;
+      }
+
+      // Make the vector the correct size and as small as possible.
+      iv.resize(out_idx);
+      iv.shrink_to_fit();
+
+      *this = RowMap(std::move(iv));
+      return;
+    }
+
+    // TODO(lalitm): rewrite this to make this a lot more efficient in
+    // future CL.
+    BitVector bv(end_idx_, false);
+
+    // We need the block scoping so the iterator is destroyed before the
+    // BitVector is moved.
+    {
+      auto it = bv.IterateAllBits();
+      if (start_idx_ > 0)
+        it.Skip(start_idx_);
+
+      PERFETTO_DCHECK(it.index() == start_idx_);
+      for (; it; it.Next()) {
+        if (p(it.index())) {
+          it.Set();
+        }
+      }
+    }
+    *this = RowMap(std::move(bv));
   }
 
   void InsertIntoBitVector(uint32_t row) {

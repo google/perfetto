@@ -296,6 +296,17 @@ class BitVector {
   // }
   SetBitsIterator IterateSetBits() const;
 
+  // Returns the approximate cost (in bytes) of storing a bitvector with size
+  // |n|. This can be used to make decisions about whether using a BitVector is
+  // worthwhile.
+  // This cost should not be treated as exact - it just gives an indication of
+  // the memory needed.
+  static constexpr uint32_t ApproxBytesCost(uint32_t n) {
+    // The two main things making up a bitvector is the cost of the blocks of
+    // bits and the cost of the counts vector.
+    return BlocksNeeded(n) * Block::kBits + BlocksNeeded(n) * sizeof(uint32_t);
+  }
+
  private:
   friend class internal::BaseIterator;
   friend class internal::AllBitsIterator;
@@ -645,6 +656,14 @@ class BitVector {
     return addr.block_idx * Block::kBits +
            addr.block_offset.word_idx * BitWord::kBits +
            addr.block_offset.bit_idx;
+  }
+
+  // Returns the number of blocks needed to store |n| bits.
+  static constexpr uint32_t BlocksNeeded(uint32_t n) {
+    // Adding |Block::kBits - 1| gives us a quick way to get the ceil. We
+    // do this instead of adding 1 at the end because that gives incorrect
+    // answers for n % Block::kBits == 0.
+    return (n + Block::kBits - 1) / Block::kBits;
   }
 
   uint32_t size_ = 0;
