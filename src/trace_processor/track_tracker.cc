@@ -31,6 +31,7 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       source_id_is_process_scoped_key_(
           context->storage->InternString("source_id_is_process_scoped")),
       source_scope_key_(context->storage->InternString("source_scope")),
+      parent_track_id_key_(context->storage->InternString("parent_track_id")),
       fuchsia_source_(context->storage->InternString("fuchsia")),
       chrome_source_(context->storage->InternString("chrome")),
       android_source_(context->storage->InternString("android")),
@@ -364,11 +365,20 @@ TrackId TrackTracker::ResolveDescriptorTrack(
   if (!track_id) {
     tables::TrackTable::Row track;
     track_id = context_->storage->mutable_track_table()->Insert(track);
+    // The global track with no uuid is the default global track (e.g. for
+    // global instant events). Any other global tracks are considered children
+    // of the default track.
+    if (!parent_track_id && uuid)
+      parent_track_id = GetOrCreateDefaultDescriptorTrack();
   }
 
-  context_->args_tracker->AddArgsTo(*track_id)
-      .AddArg(source_key_, Variadic::String(descriptor_source_))
+  auto args = context_->args_tracker->AddArgsTo(*track_id);
+  args.AddArg(source_key_, Variadic::String(descriptor_source_))
       .AddArg(source_id_key_, Variadic::Integer(static_cast<int64_t>(uuid)));
+  if (parent_track_id) {
+    args.AddArg(parent_track_id_key_,
+                Variadic::Integer(parent_track_id->value));
+  }
   return *track_id;
 }
 
