@@ -421,6 +421,12 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);  // Rebind the thread checker.
 
   auto add_backend = [this, &args](TracingBackend* backend, BackendType type) {
+    if (!backend) {
+      // We skip the log in release builds because the *_backend_fake.cc code
+      // has already an ELOG before returning a nullptr.
+      PERFETTO_DLOG("Backend creation failed, type %d", static_cast<int>(type));
+      return;
+    }
     TracingBackendId backend_id = backends_.size();
     backends_.emplace_back();
     RegisteredBackend& rb = backends_.back();
@@ -437,13 +443,12 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
     rb.producer->Initialize(rb.backend->ConnectProducer(conn_args));
   };
 
-  if (args.backends & kSystemBackend) {
-#if (PERFETTO_BUILDFLAG(PERFETTO_IPC))
+  // Both the system and the in-process backends can be disabled at build-time
+  // and replaced with the _fake.cc versions. The "fake" versions will just
+  // ELOG() and return nullptr.
+
+  if (args.backends & kSystemBackend)
     add_backend(SystemTracingBackend::GetInstance(), kSystemBackend);
-#else
-    PERFETTO_ELOG("System backend not supporteed in the current configuration");
-#endif
-  }
 
   if (args.backends & kInProcessBackend)
     add_backend(InProcessTracingBackend::GetInstance(), kInProcessBackend);
