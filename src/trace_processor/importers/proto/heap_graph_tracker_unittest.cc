@@ -142,6 +142,42 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   EXPECT_THAT(counts, UnorderedElementsAre(1, 2, 1, 1));
 }
 
+static const char kArray[] = "X[]";
+static const char kDoubleArray[] = "X[][]";
+static const char kNoArray[] = "X";
+static const char kLongNoArray[] = "ABCDE";
+
+TEST(HeapGraphTrackerTest, NormalizeTypeName) {
+  // sizeof(...) - 1 below to get rid of the null-byte.
+  EXPECT_EQ(NormalizeTypeName(base::StringView(kArray, sizeof(kArray) - 1))
+                .ToStdString(),
+            "X");
+  EXPECT_EQ(NormalizeTypeName(
+                base::StringView(kDoubleArray, sizeof(kDoubleArray) - 1))
+                .ToStdString(),
+            "X");
+  EXPECT_EQ(NormalizeTypeName(base::StringView(kNoArray, sizeof(kNoArray) - 1))
+                .ToStdString(),
+            "X");
+  EXPECT_EQ(NormalizeTypeName(
+                base::StringView(kLongNoArray, sizeof(kLongNoArray) - 1))
+                .ToStdString(),
+            "ABCDE");
+}
+
+TEST(HeapGraphTrackerTest, NumberOfArray) {
+  // sizeof(...) - 1 below to get rid of the null-byte.
+  EXPECT_EQ(NumberOfArrays(base::StringView(kArray, sizeof(kArray) - 1)), 1u);
+  EXPECT_EQ(
+      NumberOfArrays(base::StringView(kDoubleArray, sizeof(kDoubleArray) - 1)),
+      2u);
+  EXPECT_EQ(NumberOfArrays(base::StringView(kNoArray, sizeof(kNoArray) - 1)),
+            0u);
+  EXPECT_EQ(
+      NumberOfArrays(base::StringView(kLongNoArray, sizeof(kLongNoArray) - 1)),
+      0u);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
