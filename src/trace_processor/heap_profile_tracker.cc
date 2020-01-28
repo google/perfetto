@@ -240,6 +240,7 @@ void HeapProfileTracker::AddAllocation(
     const SourceAllocation& alloc,
     const StackProfileTracker::InternLookup* intern_lookup) {
   SequenceState& sequence_state = sequence_state_[seq_id];
+
   auto maybe_callstack_id = stack_profile_tracker->FindOrInsertCallstack(
       alloc.callstack_id, intern_lookup);
   if (!maybe_callstack_id)
@@ -260,9 +261,6 @@ void HeapProfileTracker::AddAllocation(
       -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 
-  tables::HeapProfileAllocationTable::Row alloc_delta = alloc_row;
-  tables::HeapProfileAllocationTable::Row free_delta = free_row;
-
   auto prev_alloc_it = sequence_state.prev_alloc.find({upid, callstack_id});
   if (prev_alloc_it == sequence_state.prev_alloc.end()) {
     std::tie(prev_alloc_it, std::ignore) = sequence_state.prev_alloc.emplace(
@@ -271,8 +269,6 @@ void HeapProfileTracker::AddAllocation(
   }
 
   tables::HeapProfileAllocationTable::Row& prev_alloc = prev_alloc_it->second;
-  alloc_delta.count -= prev_alloc.count;
-  alloc_delta.size -= prev_alloc.size;
 
   auto prev_free_it = sequence_state.prev_free.find({upid, callstack_id});
   if (prev_free_it == sequence_state.prev_free.end()) {
@@ -282,8 +278,46 @@ void HeapProfileTracker::AddAllocation(
   }
 
   tables::HeapProfileAllocationTable::Row& prev_free = prev_free_it->second;
+
+  std::set<CallsiteId>& callstacks_for_source_callstack_id =
+      sequence_state.seen_callstacks[std::make_pair(upid, alloc.callstack_id)];
+  bool new_callstack;
+  std::tie(std::ignore, new_callstack) =
+      callstacks_for_source_callstack_id.emplace(callstack_id);
+
+  if (new_callstack) {
+    sequence_state.alloc_correction[alloc.callstack_id] = prev_alloc;
+    sequence_state.free_correction[alloc.callstack_id] = prev_free;
+  }
+
+  auto alloc_correction_it =
+      sequence_state.alloc_correction.find(alloc.callstack_id);
+  if (alloc_correction_it != sequence_state.alloc_correction.end()) {
+    const auto& alloc_correction = alloc_correction_it->second;
+    alloc_row.count += alloc_correction.count;
+    alloc_row.size += alloc_correction.size;
+  }
+
+  auto free_correction_it =
+      sequence_state.free_correction.find(alloc.callstack_id);
+  if (free_correction_it != sequence_state.free_correction.end()) {
+    const auto& free_correction = free_correction_it->second;
+    free_row.count += free_correction.count;
+    free_row.size += free_correction.size;
+  }
+
+  tables::HeapProfileAllocationTable::Row alloc_delta = alloc_row;
+  tables::HeapProfileAllocationTable::Row free_delta = free_row;
+
+  alloc_delta.count -= prev_alloc.count;
+  alloc_delta.size -= prev_alloc.size;
+  PERFETTO_DCHECK(alloc_delta.count >= 0);
+  PERFETTO_DCHECK(alloc_delta.size >= 0);
+
   free_delta.count -= prev_free.count;
   free_delta.size -= prev_free.size;
+  PERFETTO_DCHECK(free_delta.count <= 0);
+  PERFETTO_DCHECK(free_delta.size <= 0);
 
   if (alloc_delta.count)
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
