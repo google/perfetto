@@ -766,9 +766,11 @@ class JsonExporter {
       auto track_args_id = track_table.source_arg_set_id()[track_row];
       const Json::Value* track_args = nullptr;
       bool legacy_chrome_track = false;
+      bool is_child_track = false;
       if (track_args_id) {
         track_args = &args_builder_.GetArgs(*track_args_id);
         legacy_chrome_track = (*track_args)["source"].asString() == "chrome";
+        is_child_track = track_args->isMember("parent_track_id");
       }
 
       const auto& thread_track = storage_->thread_track_table();
@@ -811,7 +813,7 @@ class JsonExporter {
 
       auto opt_thread_track_row = thread_track.id().IndexOf(TrackId{track_id});
 
-      if (opt_thread_track_row) {
+      if (opt_thread_track_row && !is_child_track) {
         // Synchronous (thread) slice or instant event.
         UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
         auto pid_and_tid = UtidToPidAndTid(utid);
@@ -852,7 +854,7 @@ class JsonExporter {
           }
         }
         writer_.WriteCommonEvent(event);
-      } else if (!legacy_chrome_track ||
+      } else if (is_child_track ||
                  (legacy_chrome_track && track_args->isMember("source_id"))) {
         // Async event slice.
         auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
@@ -889,14 +891,20 @@ class JsonExporter {
             event["id"] = PrintUint64(source_id);
           }
         } else {
-          if (opt_process_row) {
-            uint32_t upid = process_track.upid()[*opt_process_row];
+          if (opt_thread_track_row) {
+            UniqueTid utid = thread_track.utid()[*opt_thread_track_row];
+            auto pid_and_tid = UtidToPidAndTid(utid);
+            event["pid"] = Json::Int(pid_and_tid.first);
+            event["tid"] = Json::Int(pid_and_tid.second);
             event["id2"]["local"] = PrintUint64(track_id);
+          } else if (opt_process_row) {
+            uint32_t upid = process_track.upid()[*opt_process_row];
             uint32_t exported_pid = UpidToPid(upid);
             event["pid"] = Json::Int(exported_pid);
             event["tid"] =
                 Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
                                       : exported_pid);
+            event["id2"]["local"] = PrintUint64(track_id);
           } else {
             // Some legacy importers don't understand "id2" fields, so we use
             // the "usually" global "id" field instead. This works as long as
@@ -940,24 +948,31 @@ class JsonExporter {
         }
       } else {
         // Global or process-scoped instant event.
-        PERFETTO_DCHECK(legacy_chrome_track);
-        PERFETTO_DCHECK(duration_ns == 0);
-        // Use "I" instead of "i" phase for backwards-compat with old consumers.
-        event["ph"] = "I";
-
-        auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
-        if (opt_process_row.has_value()) {
-          uint32_t upid = process_track.upid()[*opt_process_row];
-          uint32_t exported_pid = UpidToPid(upid);
-          event["pid"] = Json::Int(exported_pid);
-          event["tid"] =
-              Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
-                                    : exported_pid);
-          event["s"] = "p";
+        PERFETTO_DCHECK(legacy_chrome_track || !is_child_track);
+        if (duration_ns != 0) {
+          // We don't support exporting slices on the default global or process
+          // track to JSON (JSON only supports instant events on these tracks).
+          PERFETTO_DLOG(
+              "skipping non-instant slice on global or process track");
         } else {
-          event["s"] = "g";
+          // Use "I" instead of "i" phase for backwards-compat with old
+          // consumers.
+          event["ph"] = "I";
+
+          auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
+          if (opt_process_row.has_value()) {
+            uint32_t upid = process_track.upid()[*opt_process_row];
+            uint32_t exported_pid = UpidToPid(upid);
+            event["pid"] = Json::Int(exported_pid);
+            event["tid"] =
+                Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
+                                      : exported_pid);
+            event["s"] = "p";
+          } else {
+            event["s"] = "g";
+          }
+          writer_.WriteCommonEvent(event);
         }
-        writer_.WriteCommonEvent(event);
       }
     }
     return util::OkStatus();
