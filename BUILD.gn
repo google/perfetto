@@ -132,6 +132,9 @@ if (perfetto_build_standalone) {
 
     # Used in the when updating the ftrace protos
     "protos/perfetto/trace/ftrace:descriptor",
+
+    # Checks that the "fake" backend implementations build.
+    "src/tracing:client_api_no_backends_compile_test",
   ]
 }
 
@@ -200,7 +203,7 @@ if (enable_perfetto_platform_services) {
 }
 
 if (!build_with_chromium) {
-  # Client library target.
+  # Client library target exposed to the Android tree.
   # Still in experimental stage and not API stable yet.
   # See "libperfetto_client_example" (in Android.bp.extras) for an example
   # on how to use the Perfetto Client API from the android tree.
@@ -208,10 +211,18 @@ if (!build_with_chromium) {
     complete_static_lib = true
     public_deps = [
       "gn:default_deps",
-      "src/tracing:client_api",
       "src/tracing:platform_posix",
       "src/tracing/core",
     ]
+
+    if (perfetto_build_with_android) {
+      # Android in-tree builds expose only the system backend and don't expose
+      # the in-process backend. This is to save binary size and memory (see
+      # b/148198993).
+      public_deps += [ "src/tracing:client_api_system_backend_only" ]
+    } else {
+      public_deps += [ "src/tracing:client_api" ]
+    }
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "//gn:protobuf_lite" ]
   }

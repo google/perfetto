@@ -478,15 +478,18 @@ cc_library_static {
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
     ":perfetto_src_protozero_protozero",
-    ":perfetto_src_tracing_client_api",
+    ":perfetto_src_tracing_client_api_base",
+    ":perfetto_src_tracing_client_api_system_backend_only",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_in_process_backend_fake",
     ":perfetto_src_tracing_ipc_common",
     ":perfetto_src_tracing_ipc_consumer_consumer",
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_platform_posix",
+    ":perfetto_src_tracing_system_process_backend",
   ],
   export_include_dirs: [
     "include",
@@ -1360,15 +1363,17 @@ cc_test {
     ":perfetto_src_traced_probes_probes_src",
     ":perfetto_src_traced_probes_ps_ps",
     ":perfetto_src_traced_probes_sys_stats_sys_stats",
-    ":perfetto_src_tracing_client_api",
+    ":perfetto_src_tracing_client_api_base",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",
+    ":perfetto_src_tracing_in_process_backend",
     ":perfetto_src_tracing_ipc_common",
     ":perfetto_src_tracing_ipc_consumer_consumer",
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_platform_posix",
+    ":perfetto_src_tracing_system_process_backend",
     ":perfetto_src_tracing_test_api_test_support",
     ":perfetto_src_tracing_test_client_api_integrationtests",
     ":perfetto_test_end_to_end_integrationtests",
@@ -6500,15 +6505,13 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:client_api
+// GN: //src/tracing:client_api_base
 filegroup {
-  name: "perfetto_src_tracing_client_api",
+  name: "perfetto_src_tracing_client_api_base",
   srcs: [
     "src/tracing/data_source.cc",
     "src/tracing/debug_annotation.cc",
     "src/tracing/event_context.cc",
-    "src/tracing/internal/in_process_tracing_backend.cc",
-    "src/tracing/internal/system_tracing_backend.cc",
     "src/tracing/internal/tracing_muxer_impl.cc",
     "src/tracing/internal/track_event_internal.cc",
     "src/tracing/platform.cc",
@@ -6517,6 +6520,11 @@ filegroup {
     "src/tracing/track_event_category_registry.cc",
     "src/tracing/virtual_destructors.cc",
   ],
+}
+
+// GN: //src/tracing:client_api_system_backend_only
+filegroup {
+  name: "perfetto_src_tracing_client_api_system_backend_only",
 }
 
 // GN: //src/tracing:common
@@ -6588,6 +6596,22 @@ filegroup {
   ],
 }
 
+// GN: //src/tracing:in_process_backend
+filegroup {
+  name: "perfetto_src_tracing_in_process_backend",
+  srcs: [
+    "src/tracing/internal/in_process_tracing_backend.cc",
+  ],
+}
+
+// GN: //src/tracing:in_process_backend_fake
+filegroup {
+  name: "perfetto_src_tracing_in_process_backend_fake",
+  srcs: [
+    "src/tracing/internal/in_process_tracing_backend_fake.cc",
+  ],
+}
+
 // GN: //src/tracing/ipc:common
 filegroup {
   name: "perfetto_src_tracing_ipc_common",
@@ -6636,6 +6660,14 @@ filegroup {
   name: "perfetto_src_tracing_platform_posix",
   srcs: [
     "src/tracing/platform_posix.cc",
+  ],
+}
+
+// GN: //src/tracing:system_process_backend
+filegroup {
+  name: "perfetto_src_tracing_system_process_backend",
+  srcs: [
+    "src/tracing/internal/system_tracing_backend.cc",
   ],
 }
 
