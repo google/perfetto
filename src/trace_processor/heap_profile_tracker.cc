@@ -311,13 +311,17 @@ void HeapProfileTracker::AddAllocation(
 
   alloc_delta.count -= prev_alloc.count;
   alloc_delta.size -= prev_alloc.size;
-  PERFETTO_DCHECK(alloc_delta.count >= 0);
-  PERFETTO_DCHECK(alloc_delta.size >= 0);
 
   free_delta.count -= prev_free.count;
   free_delta.size -= prev_free.size;
-  PERFETTO_DCHECK(free_delta.count <= 0);
-  PERFETTO_DCHECK(free_delta.size <= 0);
+
+  if (alloc_delta.count < 0 || alloc_delta.size < 0 || free_delta.count > 0 ||
+      free_delta.size > 0) {
+    PERFETTO_DLOG("Non-monotonous allocation.");
+    context_->storage->IncrementIndexedStats(stats::heapprofd_malformed_packet,
+                                             static_cast<int>(upid));
+    return;
+  }
 
   if (alloc_delta.count) {
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
