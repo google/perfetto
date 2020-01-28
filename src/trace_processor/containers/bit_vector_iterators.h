@@ -132,6 +132,16 @@ class AllBitsIterator : public BaseIterator {
   // Increments the iterator to point to the next bit.
   void Next() { SetIndex(index() + 1); }
 
+  // Increments the iterator to skip the next |n| bits and point to the
+  // following one.
+  // Precondition: n >= 1 & index() + n <= size().
+  void Skip(uint32_t n) {
+    PERFETTO_DCHECK(n >= 1);
+    PERFETTO_DCHECK(index() + n <= size());
+
+    SetIndex(index() + n);
+  }
+
   // Returns whether the iterator is valid.
   operator bool() const { return index() < size(); }
 };
