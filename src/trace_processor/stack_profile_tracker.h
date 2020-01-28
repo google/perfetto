@@ -191,6 +191,7 @@ class StackProfileTracker {
       const InternLookup* intern_lookup);
   base::Optional<FrameId> FindOrInsertFrame(SourceFrameId,
                                             const InternLookup* intern_lookup);
+
   base::Optional<CallsiteId> FindOrInsertCallstack(
       SourceCallstackId,
       const InternLookup* intern_lookup);
