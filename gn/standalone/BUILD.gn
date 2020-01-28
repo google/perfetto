@@ -16,6 +16,15 @@ import("//gn/standalone/android.gni")
 import("//gn/standalone/sanitizers/sanitizers.gni")
 import("//gn/standalone/wasm.gni")
 
+# These warnings have been introduced with the newest version of clang (only in
+# the hermetic build) and are enabled just with -Werror.
+# TODO(primiano): we should look into Wimplicit-int-float-conversion. Seems
+# failing mostly in tests though.
+hermetic_clang_suppressions = [
+  "-Wno-c99-designator",
+  "-Wno-implicit-int-float-conversion",
+]
+
 config("extra_warnings") {
   cflags = [
     "-Wall",
@@ -94,6 +103,12 @@ config("default") {
       "-fcolor-diagnostics",
       "-fdiagnostics-show-template-tree",
     ]
+  }
+
+  if (is_hermetic_clang && is_linux && !is_wasm) {
+    cflags += hermetic_clang_suppressions
+  } else {
+    not_needed([ "hermetic_clang_suppressions" ])
   }
 
   if (is_lto) {
