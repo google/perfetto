@@ -1230,16 +1230,14 @@ filegroup(
     ],
 )
 
-# GN target: //src/tracing:client_api
+# GN target: //src/tracing:client_api_base
 filegroup(
-    name = "src_tracing_client_api",
+    name = "src_tracing_client_api_base",
     srcs = [
         "src/tracing/data_source.cc",
         "src/tracing/debug_annotation.cc",
         "src/tracing/event_context.cc",
-        "src/tracing/internal/in_process_tracing_backend.cc",
         "src/tracing/internal/in_process_tracing_backend.h",
-        "src/tracing/internal/system_tracing_backend.cc",
         "src/tracing/internal/system_tracing_backend.h",
         "src/tracing/internal/tracing_muxer_impl.cc",
         "src/tracing/internal/tracing_muxer_impl.h",
@@ -1260,11 +1258,27 @@ filegroup(
     ],
 )
 
+# GN target: //src/tracing:in_process_backend
+filegroup(
+    name = "src_tracing_in_process_backend",
+    srcs = [
+        "src/tracing/internal/in_process_tracing_backend.cc",
+    ],
+)
+
 # GN target: //src/tracing:platform_posix
 filegroup(
     name = "src_tracing_platform_posix",
     srcs = [
         "src/tracing/platform_posix.cc",
+    ],
+)
+
+# GN target: //src/tracing:system_process_backend
+filegroup(
+    name = "src_tracing_system_process_backend",
+    srcs = [
+        "src/tracing/internal/system_tracing_backend.cc",
     ],
 )
 
@@ -2474,15 +2488,17 @@ perfetto_cc_library(
         ":src_ipc_common",
         ":src_ipc_host",
         ":src_protozero_protozero",
-        ":src_tracing_client_api",
+        ":src_tracing_client_api_base",
         ":src_tracing_common",
         ":src_tracing_core_core",
         ":src_tracing_core_service",
+        ":src_tracing_in_process_backend",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_platform_posix",
+        ":src_tracing_system_process_backend",
     ],
     hdrs = [
         ":include_perfetto_base_base",
