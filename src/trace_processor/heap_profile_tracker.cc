@@ -319,12 +319,14 @@ void HeapProfileTracker::AddAllocation(
   PERFETTO_DCHECK(free_delta.count <= 0);
   PERFETTO_DCHECK(free_delta.size <= 0);
 
-  if (alloc_delta.count)
+  if (alloc_delta.count) {
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
         alloc_delta);
-  if (free_delta.count)
+  }
+  if (free_delta.count) {
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
         free_delta);
+  }
 
   prev_alloc = alloc_row;
   prev_free = free_row;
