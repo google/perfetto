@@ -250,11 +250,11 @@ class RowMap {
     PERFETTO_DCHECK(idx < size());
     switch (mode_) {
       case Mode::kRange:
-        return start_idx_ + idx;
+        return GetRange(idx);
       case Mode::kBitVector:
-        return bit_vector_.IndexOfNthSet(idx);
+        return GetBitVector(idx);
       case Mode::kIndexVector:
-        return index_vector_[idx];
+        return GetIndexVector(idx);
     }
     PERFETTO_FATAL("For GCC");
   }
@@ -395,7 +395,7 @@ class RowMap {
     }
 
     // TODO(lalitm): improve efficiency of this if we end up needing it.
-    RemoveIf([&other](uint32_t row) { return !other.Contains(row); });
+    Filter([&other](uint32_t row) { return other.Contains(row); });
   }
 
   // Filters the current RowMap into the RowMap given by |out| based on the
@@ -441,38 +441,40 @@ class RowMap {
     // cases where |out| has only a few entries so we can scan |out| instead of
     // scanning |this|.
 
-    // TODO(lalit): investigate whether we should also scan |out| if |this| is
-    // a range or index vector as, in those cases, it would be fast to lookup
-    // |this| by index.
-
-    // We choose to full scan |this| rather than |out| as the performance
-    // penalty of incorrectly scanning |out| is much worse than mistakely
-    // scanning |this|.
-    // This is because scans on |out| involve an indexed lookup on |this| which
-    // (in the case of a bitvector) can be very expensive. On the other hand,
-    // scanning |this| means we never have to do indexed lookups but we may
-    // scan many more rows than necessary (as they may have already been
-    // excluded in out).
-    FilterIntoScanSelf(out, p);
+    // Ideally, we'd always just scan the rows in |out| and keep those which
+    // meet |p|. However, if |this| is a BitVector, we end up needing expensive
+    // |IndexOfNthSet| calls (as we need to lookup the row before passing it to
+    // |p|).
+    switch (mode_) {
+      case Mode::kRange: {
+        auto ip = [this, p](uint32_t idx) { return p(GetRange(idx)); };
+        out->Filter(ip);
+        break;
+      }
+      case Mode::kBitVector: {
+        FilterIntoScanSelfBv(out, p);
+        break;
+      }
+      case Mode::kIndexVector: {
+        auto ip = [this, p](uint32_t row) { return p(GetIndexVector(row)); };
+        out->Filter(ip);
+        break;
+      }
+    }
   }
 
   template <typename Comparator>
   void StableSort(std::vector<uint32_t>* out, Comparator c) const {
     switch (mode_) {
-      case Mode::kRange: {
-        StableSort(out, c, [this](uint32_t off) { return start_idx_ + off; });
+      case Mode::kRange:
+        StableSort(out, c, &RowMap::GetRange);
         break;
-      }
-      case Mode::kBitVector: {
-        StableSort(out, c, [this](uint32_t off) {
-          return bit_vector_.IndexOfNthSet(off);
-        });
+      case Mode::kBitVector:
+        StableSort(out, c, &RowMap::GetBitVector);
         break;
-      }
-      case Mode::kIndexVector: {
-        StableSort(out, c, [this](uint32_t off) { return index_vector_[off]; });
+      case Mode::kIndexVector:
+        StableSort(out, c, &RowMap::GetIndexVector);
         break;
-      }
     }
   }
 
@@ -489,29 +491,54 @@ class RowMap {
     kIndexVector,
   };
 
-  // Filters the current RowMap into |out| by performing a full scan on |this|.
-  // See |FilterInto| for a full breakdown of the semantics of this function.
+  // Filters the indices in |out| by keeping those which meet |p|.
   template <typename Predicate>
-  void FilterIntoScanSelf(RowMap* out, Predicate p) const {
+  void Filter(Predicate p) {
     switch (mode_) {
-      case Mode::kRange:
-        FilterIntoScanSelf(out, RangeIterator(this), p);
+      case Mode::kRange: {
+        // TODO(lalitm): rewrite this to make this a lot more efficient in
+        // future CL.
+        BitVector bv(end_idx_, false);
+
+        // We need the block scoping so the iterator is destroyed before the
+        // BitVector is moved.
+        {
+          auto it = bv.IterateAllBits();
+          if (start_idx_ > 0)
+            it.Skip(start_idx_);
+
+          PERFETTO_DCHECK(it.index() == start_idx_);
+          for (; it; it.Next()) {
+            if (p(it.index())) {
+              it.Set();
+            }
+          }
+        }
+        *this = RowMap(std::move(bv));
         break;
-      case Mode::kBitVector:
-        FilterIntoScanSelf(out, bit_vector_.IterateSetBits(), p);
+      }
+      case Mode::kBitVector: {
+        for (auto it = bit_vector_.IterateSetBits(); it; it.Next()) {
+          if (!p(it.index()))
+            it.Clear();
+        }
         break;
-      case Mode::kIndexVector:
-        FilterIntoScanSelf(out, IndexVectorIterator(this), p);
+      }
+      case Mode::kIndexVector: {
+        auto ret = std::remove_if(index_vector_.begin(), index_vector_.end(),
+                                  [p](uint32_t i) { return !p(i); });
+        index_vector_.erase(ret, index_vector_.end());
         break;
+      }
     }
   }
 
   // Filters the current RowMap into |out| by performing a full scan on |this|
-  // using the |it|, a strongly typed iterator on |this| (a strongly typed
-  // iterator is used for performance reasons).
+  // where |this| is a BitVector.
   // See |FilterInto| for a full breakdown of the semantics of this function.
-  template <typename Iterator, typename Predicate>
-  void FilterIntoScanSelf(RowMap* out, Iterator it, Predicate p) const {
+  template <typename Predicate>
+  void FilterIntoScanSelfBv(RowMap* out, Predicate p) const {
+    auto it = bit_vector_.IterateSetBits();
     switch (out->mode_) {
       case Mode::kRange: {
         // TODO(lalitm): investigate whether we can reuse the data inside
@@ -567,41 +594,25 @@ class RowMap {
     bit_vector_.Set(row);
   }
 
-  // Removes any row where |p(row)| returns false from this RowMap.
-  template <typename Predicate>
-  void RemoveIf(Predicate p) {
-    switch (mode_) {
-      case Mode::kRange: {
-        bit_vector_.Resize(start_idx_, false);
-        for (uint32_t i = start_idx_; i < end_idx_; ++i) {
-          if (p(i))
-            bit_vector_.AppendFalse();
-          else
-            bit_vector_.AppendTrue();
-        }
-        *this = RowMap(std::move(bit_vector_));
-        break;
-      }
-      case Mode::kBitVector: {
-        for (auto it = bit_vector_.IterateSetBits(); it; it.Next()) {
-          if (p(it.index()))
-            it.Clear();
-        }
-        break;
-      }
-      case Mode::kIndexVector: {
-        auto it = std::remove_if(index_vector_.begin(), index_vector_.end(), p);
-        index_vector_.erase(it, index_vector_.end());
-        break;
-      }
-    }
-  }
-
   template <typename Comparator, typename Indexer>
   void StableSort(std::vector<uint32_t>* out, Comparator c, Indexer i) const {
-    std::stable_sort(
-        out->begin(), out->end(),
-        [&c, &i](uint32_t a, uint32_t b) { return c(i(a), i(b)); });
+    std::stable_sort(out->begin(), out->end(),
+                     [this, &c, &i](uint32_t a, uint32_t b) {
+                       return c((this->*i)(a), (this->*i)(b));
+                     });
+  }
+
+  uint32_t GetRange(uint32_t idx) const {
+    PERFETTO_DCHECK(mode_ == Mode::kRange);
+    return start_idx_ + idx;
+  }
+  uint32_t GetBitVector(uint32_t idx) const {
+    PERFETTO_DCHECK(mode_ == Mode::kBitVector);
+    return bit_vector_.IndexOfNthSet(idx);
+  }
+  uint32_t GetIndexVector(uint32_t idx) const {
+    PERFETTO_DCHECK(mode_ == Mode::kIndexVector);
+    return index_vector_[idx];
   }
 
   RowMap SelectRowsSlow(const RowMap& selector) const;
