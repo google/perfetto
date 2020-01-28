@@ -217,12 +217,22 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
           heap_graph_tracker->RowsForType(*obfuscated_class_name_id);
 
       if (cls_objects) {
-        auto interned_deobfuscated_name =
-            context_->storage->InternString(cls.deobfuscated_name());
         for (int64_t row : *cls_objects) {
+          const base::StringView obfuscated_type_name =
+              context_->storage->GetString(
+                  context_->storage->mutable_heap_graph_object_table()
+                      ->type_name()[static_cast<uint32_t>(row)]);
+          size_t array_count = NumberOfArrays(obfuscated_type_name);
+          std::string arrayed_deobfuscated_name =
+              cls.deobfuscated_name().ToStdString();
+          for (size_t i = 0; i < array_count; ++i)
+            arrayed_deobfuscated_name += "[]";
+          const StringId arrayed_deobfuscated_name_id =
+              context_->storage->InternString(
+                  base::StringView(arrayed_deobfuscated_name));
           context_->storage->mutable_heap_graph_object_table()
               ->mutable_deobfuscated_type_name()
-              ->Set(static_cast<uint32_t>(row), interned_deobfuscated_name);
+              ->Set(static_cast<uint32_t>(row), arrayed_deobfuscated_name_id);
         }
       } else {
         PERFETTO_DLOG("Class %s not found",

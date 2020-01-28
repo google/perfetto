@@ -19,6 +19,23 @@
 namespace perfetto {
 namespace trace_processor {
 
+size_t NumberOfArrays(base::StringView type) {
+  if (type.size() < 2)
+    return 0;
+
+  size_t arrays = 0;
+  while (type.size() >= 2 * (arrays + 1) &&
+         memcmp(type.end() - 2 * (arrays + 1), "[]", 2) == 0) {
+    arrays++;
+  }
+
+  return arrays;
+}
+
+base::StringView NormalizeTypeName(base::StringView type) {
+  return base::StringView(type.data(), type.size() - NumberOfArrays(type) * 2);
+}
+
 HeapGraphTracker::HeapGraphTracker(TraceProcessorContext* context)
     : context_(context) {}
 
@@ -119,7 +136,10 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
          /*root_type=*/base::nullopt});
     int64_t row = context_->storage->heap_graph_object_table().row_count() - 1;
     sequence_state.object_id_to_row.emplace(obj.object_id, row);
-    class_to_rows_[type_name].emplace_back(row);
+    base::StringView normalized_type =
+        NormalizeTypeName(context_->storage->GetString(type_name));
+    class_to_rows_[context_->storage->InternString(normalized_type)]
+        .emplace_back(row);
     sequence_state.walker.AddNode(row, obj.self_size,
                                   static_cast<int32_t>(type_name.raw_id()));
   }

@@ -32,6 +32,9 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+size_t NumberOfArrays(base::StringView type);
+base::StringView NormalizeTypeName(base::StringView type);
+
 class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
  public:
   struct SourceObject {
