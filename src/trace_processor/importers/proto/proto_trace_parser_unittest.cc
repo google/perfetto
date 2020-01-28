@@ -1328,7 +1328,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_CALL(*slice_, Scoped(1015000, TrackId{0}, cat_2, ev_2, 0, _))
       .WillOnce(Return(1u));
 
-  EXPECT_CALL(*slice_, Scoped(1016000, TrackId{2}, cat_3, ev_3, 0, _))
+  EXPECT_CALL(*slice_, Scoped(1016000, TrackId{3}, cat_3, ev_3, 0, _))
       .WillOnce(Return(2u));
 
   EXPECT_CALL(*slice_,
@@ -1337,12 +1337,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 
   context_.sorter->ExtractEventsForced();
 
-  // First track is "Thread track 1"; second is "Async track 1", third is
-  // "Thread track 2".
-  EXPECT_EQ(storage_->track_table().row_count(), 3u);
+  // First track is "Thread track 1"; second is "Async track 1", third is global
+  // default track (parent of async track), fourth is "Thread track 2".
+  EXPECT_EQ(storage_->track_table().row_count(), 4u);
   EXPECT_EQ(storage_->track_table().name().GetString(0), "Thread track 1");
   EXPECT_EQ(storage_->track_table().name().GetString(1), "Async track 1");
-  EXPECT_EQ(storage_->track_table().name().GetString(2), "Thread track 2");
+  EXPECT_EQ(storage_->track_table().name().GetString(2), "Default Track");
+  EXPECT_EQ(storage_->track_table().name().GetString(3), "Thread track 2");
   EXPECT_EQ(storage_->thread_track_table().row_count(), 2u);
   EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
   EXPECT_EQ(storage_->thread_track_table().utid()[1], 2u);
