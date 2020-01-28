@@ -382,6 +382,9 @@ void ProtoTraceParser::ParseProfilePacket(
 
     int pid = static_cast<int>(entry.pid());
 
+    if (entry.disconnected())
+      context_->storage->IncrementIndexedStats(
+          stats::heapprofd_client_disconnected, pid);
     if (entry.buffer_corrupted())
       context_->storage->IncrementIndexedStats(
           stats::heapprofd_buffer_corrupted, pid);
