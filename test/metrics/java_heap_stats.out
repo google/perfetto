@@ -7,7 +7,7 @@ java_heap_stats {
     }
     samples {
       ts: 10
-      heap_size: 480
+      heap_size: 736
       reachable_heap_size: 96
     }
   }
