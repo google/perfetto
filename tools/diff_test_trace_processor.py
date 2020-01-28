@@ -295,7 +295,7 @@ def main():
   elif args.test_type == 'metrics':
     index = os.path.join(test_dir, 'metrics', 'index')
   else:
-    print('Unknown test type {}. Supported: queries, metircs'.format(
+    print('Unknown test type {}. Supported: queries, metrics'.format(
         args.test_type))
     return 1
 
