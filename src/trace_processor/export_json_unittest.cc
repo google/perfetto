@@ -716,9 +716,12 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
 
 TEST_F(ExportJsonTest, InstantEvent) {
   const int64_t kTimestamp = 10000000;
+  const int64_t kTimestamp2 = 10001000;
+  const int64_t kTimestamp3 = 10002000;
   const char* kCategory = "cat";
   const char* kName = "name";
 
+  // Global legacy track.
   TrackId track =
       context_.track_tracker->GetOrCreateLegacyChromeGlobalInstantTrack();
   context_.args_tracker->Flush();  // Flush track args.
@@ -727,6 +730,19 @@ TEST_F(ExportJsonTest, InstantEvent) {
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp, 0, track.value, cat_id, name_id, 0, 0, 0});
 
+  // Global track.
+  TrackId track2 = context_.track_tracker->GetOrCreateDefaultDescriptorTrack();
+  context_.args_tracker->Flush();  // Flush track args.
+  context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp2, 0, track2.value, cat_id, name_id, 0, 0, 0});
+
+  // Async event track.
+  context_.track_tracker->ReserveDescriptorChildTrack(1234, 0);
+  TrackId track3 = *context_.track_tracker->GetDescriptorTrack(1234);
+  context_.args_tracker->Flush();  // Flush track args.
+  context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp3, 0, track3.value, cat_id, name_id, 0, 0, 0});
+
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
   util::Status status = ExportJson(context_.storage.get(), output);
@@ -734,7 +750,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   EXPECT_TRUE(status.ok());
 
   Json::Value result = ToJsonValue(ReadFile(output));
-  EXPECT_EQ(result["traceEvents"].size(), 1u);
+  EXPECT_EQ(result["traceEvents"].size(), 3u);
 
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "I");
@@ -742,6 +758,20 @@ TEST_F(ExportJsonTest, InstantEvent) {
   EXPECT_EQ(event["s"].asString(), "g");
   EXPECT_EQ(event["cat"].asString(), kCategory);
   EXPECT_EQ(event["name"].asString(), kName);
+
+  Json::Value event2 = result["traceEvents"][1];
+  EXPECT_EQ(event2["ph"].asString(), "I");
+  EXPECT_EQ(event2["ts"].asInt64(), kTimestamp2 / 1000);
+  EXPECT_EQ(event2["s"].asString(), "g");
+  EXPECT_EQ(event2["cat"].asString(), kCategory);
+  EXPECT_EQ(event2["name"].asString(), kName);
+
+  Json::Value event3 = result["traceEvents"][2];
+  EXPECT_EQ(event3["ph"].asString(), "n");
+  EXPECT_EQ(event3["ts"].asInt64(), kTimestamp3 / 1000);
+  EXPECT_EQ(event3["id"].asString(), "0x2");
+  EXPECT_EQ(event3["cat"].asString(), kCategory);
+  EXPECT_EQ(event3["name"].asString(), kName);
 }
 
 TEST_F(ExportJsonTest, InstantEventOnThread) {
