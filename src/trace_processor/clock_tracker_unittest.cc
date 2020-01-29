@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/clock_tracker.h"
 
+#include <random>
+
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_storage.h"
@@ -205,6 +207,55 @@ TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   EXPECT_EQ(*ct_.Convert(c66_2, 2 /* abs 26 */, BOOTTIME), 125000);
   EXPECT_EQ(*ct_.ToTraceTime(c66_1, 2 /* abs 25 */), 124000);
   EXPECT_EQ(*ct_.ToTraceTime(c66_2, 4 /* abs 30 */), 129000);
+}
+
+// Tests that the cache doesn't affect the results of Convert() in unexpected
+// ways.
+TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
+  std::minstd_rand rnd;
+  int last_mono = 0;
+  int last_boot = 0;
+  int last_raw = 0;
+  static const int increments[] = {1, 2, 10};
+  for (int i = 0; i < 1000; i++) {
+    last_mono += increments[rnd() % base::ArraySize(increments)];
+    last_boot += increments[rnd() % base::ArraySize(increments)];
+    ct_.AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
+
+    last_raw += increments[rnd() % base::ArraySize(increments)];
+    last_boot += increments[rnd() % base::ArraySize(increments)];
+    ct_.AddSnapshot({{MONOTONIC_RAW, last_raw}, {BOOTTIME, last_boot}});
+  }
+
+  for (int i = 0; i < 1000; i++) {
+    int64_t val = static_cast<int64_t>(rnd()) % 10000;
+    for (int j = 0; j < 5; j++) {
+      ClockTracker::ClockId src;
+      ClockTracker::ClockId tgt;
+      if (j == 0) {
+        std::tie(src, tgt) = std::make_tuple(MONOTONIC, BOOTTIME);
+      } else if (j == 1) {
+        std::tie(src, tgt) = std::make_tuple(MONOTONIC_RAW, BOOTTIME);
+      } else if (j == 2) {
+        std::tie(src, tgt) = std::make_tuple(BOOTTIME, MONOTONIC);
+      } else if (j == 3) {
+        std::tie(src, tgt) = std::make_tuple(BOOTTIME, MONOTONIC_RAW);
+      } else if (j == 4) {
+        std::tie(src, tgt) = std::make_tuple(MONOTONIC_RAW, MONOTONIC);
+      } else {
+        PERFETTO_FATAL("j out of bounds");
+      }
+      // It will still write the cache, just not lookup.
+      ct_.set_cache_lookups_disabled_for_testing(true);
+      auto not_cached = ct_.Convert(src, val, tgt);
+
+      // This should 100% hit the cache.
+      ct_.set_cache_lookups_disabled_for_testing(false);
+      auto cached = ct_.Convert(src, val, tgt);
+
+      ASSERT_EQ(not_cached, cached);
+    }
+  }
 }
 
 }  // namespace

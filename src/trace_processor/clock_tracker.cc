@@ -41,6 +41,10 @@ ClockTracker::~ClockTracker() = default;
 void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
   const auto snapshot_id = cur_snapshot_id_++;
 
+  // Clear the cache
+  static_assert(std::is_trivial<decltype(cache_)>::value, "must be trivial");
+  memset(&cache_[0], 0, sizeof(cache_));
+
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
   base::Hash hasher;
@@ -192,15 +196,13 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
   return ClockPath();  // invalid path.
 }
 
-base::Optional<int64_t> ClockTracker::Convert(ClockId src_clock_id,
-                                              int64_t src_timestamp,
-                                              ClockId target_clock_id) {
-  // TODO(primiano): optimization: I bet A simple LRU cache of the form
-  // (src_clock_id, target_clock_id, latest_timestamp, translation_ns) might
-  // speed up most conversion allowing to skip FindPath and the iterations.
-
+base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
+                                                      int64_t src_timestamp,
+                                                      ClockId target_clock_id) {
   PERFETTO_DCHECK(!IsReservedSeqScopedClockId(src_clock_id));
   PERFETTO_DCHECK(!IsReservedSeqScopedClockId(target_clock_id));
+
+  context_->storage->IncrementStats(stats::clock_sync_cache_miss);
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {
@@ -208,9 +210,19 @@ base::Optional<int64_t> ClockTracker::Convert(ClockId src_clock_id,
     return base::nullopt;
   }
 
+  // We can cache only single-path resolutions between two clocks.
+  // Caching multi-path resolutions is harder because the (src,target) tuple
+  // is not enough as a cache key: at any step the |ns| value can yield to a
+  // different choice of the next snapshot. Multi-path resolutions don't seem
+  // too frequent these days, so we focus only on caching the more frequent
+  // one-step resolutions (typically from any clock to the trace clock).
+  const bool cacheable = path.len == 1;
+  CachedClockPath cache_entry{};
+
   // Iterate trough the path found and translate timestamps onto the new clock
   // domain on each step, until the target domain is reached.
-  int64_t ns = GetClock(src_clock_id)->ToNs(src_timestamp);
+  ClockDomain* src_domain = GetClock(src_clock_id);
+  int64_t ns = src_domain->ToNs(src_timestamp);
   for (uint32_t i = 0; i < path.len; ++i) {
     const ClockGraphEdge edge = path.at(i);
     ClockDomain* cur_clock = GetClock(std::get<0>(edge));
@@ -246,10 +258,31 @@ base::Optional<int64_t> ClockTracker::Convert(ClockId src_clock_id,
     // The translated timestamp is the relative delta of the source timestamp
     // from the closest snapshot found (ns - *it), plus the timestamp in
     // the new clock domain for the same snapshot id.
-    ns = (ns - *it) + next_timestamp_ns;
+    const int64_t adj = next_timestamp_ns - *it;
+    ns += adj;
+
+    // On the first iteration, keep track of the bounds for the cache entry.
+    // This will allow future Convert() calls to skip the pathfinder logic
+    // as long as the query stays within the bound.
+    if (cacheable) {
+      PERFETTO_DCHECK(i == 0);
+      const int64_t kInt64Min = std::numeric_limits<int64_t>::min();
+      const int64_t kInt64Max = std::numeric_limits<int64_t>::max();
+      cache_entry.min_ts_ns = it == ts_vec.begin() ? kInt64Min : *it;
+      auto ubound = it + 1;
+      cache_entry.max_ts_ns = ubound == ts_vec.end() ? kInt64Max : *ubound;
+      cache_entry.translation_ns = adj;
+    }
 
     // The last clock in the path must be the target clock.
     PERFETTO_DCHECK(i < path.len - 1 || std::get<1>(edge) == target_clock_id);
+  }
+
+  if (cacheable) {
+    cache_entry.src = src_clock_id;
+    cache_entry.src_domain = src_domain;
+    cache_entry.target = target_clock_id;
+    cache_[rnd_() % cache_.size()] = cache_entry;
   }
 
   return ns;
