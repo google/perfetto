@@ -110,7 +110,7 @@ class HeapProfileTracker {
              tables::HeapProfileAllocationTable::Row>
         free_correction;
 
-    uint64_t last_profile_packet_index = 0;
+    base::Optional<uint64_t> prev_index;
   };
   std::map<uint32_t, SequenceState> sequence_state_;
   TraceProcessorContext* const context_;
