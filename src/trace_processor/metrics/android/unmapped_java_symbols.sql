@@ -19,11 +19,21 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 CREATE TABLE IF NOT EXISTS types_per_upid AS
 WITH distinct_unmapped_type_names AS (
   SELECT DISTINCT upid, type_name
-  FROM heap_graph_object
-  WHERE deobfuscated_type_name IS NULL
-  AND INSTR(type_name, '.') = 0
-  AND RTRIM(type_name, '[]') NOT IN ('byte', 'char', 'short', 'int', 'long', 'boolean', 'float', 'double')
+  FROM (
+    SELECT upid, RTRIM(type_name, '[]') AS type_name
+    FROM heap_graph_object
+    WHERE deobfuscated_type_name IS NULL
+  )
+  WHERE type_name NOT IN ('byte', 'char', 'short', 'int', 'long', 'boolean', 'float', 'double')
   AND type_name NOT LIKE '$Proxy%'
+  AND type_name NOT LIKE 'java.%'
+  AND type_name NOT LIKE 'javax.%'
+  AND type_name NOT LIKE 'j$.%'
+  AND type_name NOT LIKE 'android.%'
+  AND type_name NOT LIKE 'com.android.%'
+  AND type_name NOT LIKE 'sun.%'
+  AND type_name NOT LIKE 'dalvik.%'
+  AND type_name NOT LIKE 'libcore.%'
   AND LENGTH(type_name) > 0
 )
 SELECT upid, RepeatedField(type_name) AS types
@@ -34,8 +44,15 @@ WITH distinct_unmapped_field_names AS (
   SELECT DISTINCT upid, field_name
   FROM heap_graph_object JOIN heap_graph_reference USING (reference_set_id)
   WHERE deobfuscated_type_name IS NULL
-  AND field_name NOT LIKE '%.%.%'
   AND field_name NOT LIKE '$Proxy%'
+  AND field_name NOT LIKE 'java.%'
+  AND field_name NOT LIKE 'javax.%'
+  AND field_name NOT LIKE 'j$.%'
+  AND field_name NOT LIKE 'android.%'
+  AND field_name NOT LIKE 'com.android.%'
+  AND field_name NOT LIKE 'sun.%'
+  AND field_name NOT LIKE 'dalvik.%'
+  AND field_name NOT LIKE 'libcore.%'
   AND LENGTH(field_name) > 0
 )
 SELECT upid, RepeatedField(field_name) AS fields
