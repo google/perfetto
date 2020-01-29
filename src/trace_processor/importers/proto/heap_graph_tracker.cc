@@ -104,10 +104,24 @@ void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
 
 void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
-  if (sequence_state.prev_index != 0 &&
-      sequence_state.prev_index + 1 != index) {
-    PERFETTO_ELOG("Missing packets between %" PRIu64 " and %" PRIu64,
-                  sequence_state.prev_index, index);
+  bool dropped_packet = false;
+  // perfetto_hprof starts counting at index = 0.
+  if (!sequence_state.prev_index && index != 0) {
+    dropped_packet = true;
+  }
+
+  if (sequence_state.prev_index && *sequence_state.prev_index + 1 != index) {
+    dropped_packet = true;
+  }
+
+  if (dropped_packet) {
+    if (sequence_state.prev_index) {
+      PERFETTO_ELOG("Missing packets between %" PRIu64 " and %" PRIu64,
+                    *sequence_state.prev_index, index);
+    } else {
+      PERFETTO_ELOG("Invalid first packet index %" PRIu64 " (!= 0)", index);
+    }
+
     context_->storage->IncrementIndexedStats(
         stats::heap_graph_missing_packet,
         static_cast<int>(sequence_state.current_upid));
