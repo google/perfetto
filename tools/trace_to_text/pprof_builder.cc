@@ -214,7 +214,8 @@ class GProfileBuilder {
         max_symbol_id_(max_symbol_id) {
     // The pprof format expects the first entry in the string table to be the
     // empty string.
-    Intern("");
+    int64_t empty_id = Intern("");
+    PERFETTO_CHECK(empty_id == 0);
   }
 
   std::vector<Iterator> BuildViewIterators(trace_processor::TraceProcessor* tp,
