@@ -67,7 +67,7 @@ class GraphicsEventParser {
   void UpdateVulkanMemoryAllocationCounters(UniquePid,
                                             const VulkanMemoryEvent::Decoder&);
 
-  void ParseVulkanApiEvent(ConstBytes);
+  void ParseVulkanApiEvent(int64_t, ConstBytes);
 
  private:
   const StringId GetFullStageName(
@@ -118,10 +118,15 @@ class GraphicsEventParser {
   const StringId log_message_id_;
   std::array<StringId, 7> log_severity_ids_;
   // For Vulkan events.
+  // For VulkanApiEvent.VkDebugUtilsObjectName.
   // Map of vk handle -> vk object name.
   using DebugMarkerMap = std::unordered_map<uint64_t, std::string>;
   // Map of VkObjectType -> DebugMarkerMap.
   std::unordered_map<int32_t, DebugMarkerMap> debug_marker_names_;
+  // For VulkanApiEvent.VkQueueSubmit.
+  StringId vk_event_track_id_;
+  StringId vk_event_scope_id_;
+  StringId vk_queue_submit_id_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
