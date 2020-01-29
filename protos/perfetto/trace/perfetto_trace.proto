@@ -4150,6 +4150,9 @@ message ChromeUserEvent {
   // Chrome, these are usually static strings known at compile time, or
   // concatenations of multiple such static strings).
   optional string action = 1;
+
+  // MD5 hash of the action string.
+  optional uint64 action_hash = 2;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_user_event.proto
