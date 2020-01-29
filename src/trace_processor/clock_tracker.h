@@ -21,6 +21,7 @@
 
 #include <array>
 #include <map>
+#include <random>
 #include <set>
 #include <vector>
 
@@ -154,9 +155,27 @@ class ClockTracker {
   // This is typically called by the code that reads the ClockSnapshot packet.
   void AddSnapshot(const std::vector<ClockValue>&);
 
+  // Converts a timestamp between two clock domains. Tries to use the cache
+  // first (only for single-path resolutions), then falls back on path finding
+  // as described in the header.
   base::Optional<int64_t> Convert(ClockId src_clock_id,
                                   int64_t src_timestamp,
-                                  ClockId target_clock_id);
+                                  ClockId target_clock_id) {
+    if (PERFETTO_LIKELY(!cache_lookups_disabled_for_testing_)) {
+      for (const auto& ce : cache_) {
+        if (ce.src != src_clock_id || ce.target != target_clock_id)
+          continue;
+        int64_t ns = ce.src_domain->ToNs(src_timestamp);
+        if (ns >= ce.min_ts_ns && ns < ce.max_ts_ns)
+          return ns + ce.translation_ns;
+      }
+    }
+    return ConvertSlowpath(src_clock_id, src_timestamp, target_clock_id);
+  }
+
+  base::Optional<int64_t> ConvertSlowpath(ClockId src_clock_id,
+                                          int64_t src_timestamp,
+                                          ClockId target_clock_id);
 
   base::Optional<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
     if (clock_id == trace_time_clock_id_)
@@ -167,6 +186,10 @@ class ClockTracker {
   void SetTraceTimeClock(ClockId clock_id) {
     PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
     trace_time_clock_id_ = clock_id;
+  }
+
+  void set_cache_lookups_disabled_for_testing(bool v) {
+    cache_lookups_disabled_for_testing_ = v;
   }
 
  private:
@@ -245,6 +268,17 @@ class ClockTracker {
     }
   };
 
+  // Holds data for cached entries. At the moment only single-path resolution
+  // are cached.
+  struct CachedClockPath {
+    ClockId src;
+    ClockId target;
+    ClockDomain* src_domain;
+    int64_t min_ts_ns;
+    int64_t max_ts_ns;
+    int64_t translation_ns;
+  };
+
   ClockTracker(const ClockTracker&) = delete;
   ClockTracker& operator=(const ClockTracker&) = delete;
 
@@ -261,6 +295,9 @@ class ClockTracker {
   std::map<ClockId, ClockDomain> clocks_;
   std::set<ClockGraphEdge> graph_;
   std::set<ClockId> non_monotonic_clocks_;
+  std::array<CachedClockPath, 2> cache_{};
+  bool cache_lookups_disabled_for_testing_ = false;
+  std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
 };
 
