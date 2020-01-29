@@ -117,61 +117,72 @@ class TrackEventDataSource
 
   // Once we've determined tracing to be enabled for this category, actually
   // write a trace event onto this thread's default track. Outlined to avoid
-  // bloating code at the actual trace point.
-  // TODO(skyostil): Investigate whether this should be fully outlined to reduce
-  // binary size.
+  // bloating code (mostly stack depth) at the actual trace point.
+  //
+  // To minimize call overhead at each trace point, we provide the following
+  // trace point argument variants:
+  //
+  // - None
+  // - Lambda
+  // - One debug annotation
+  // - Two debug annotations
+  // - Track
+  // - Track + Lambda
+  // - Track + one debug annotation
+  // - Track + two debug annotations
+
+  // Trace point which takes no arguments.
+  template <size_t CategoryIndex>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type)
+      PERFETTO_NO_INLINE {
+    TraceForCategoryImpl<CategoryIndex>(instances, event_name, type);
+  }
+
+  // Trace point which takes a lambda function argument.
   template <size_t CategoryIndex,
-            typename ArgumentFunction = void (*)(EventContext)>
-  static void TraceForCategory(
-      uint32_t instances,
-      const char* event_name,
-      perfetto::protos::pbzero::TrackEvent::Type type,
-      ArgumentFunction arg_function = [](EventContext) {},
-      typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type* =
-          nullptr) PERFETTO_NO_INLINE {
-    // We don't simply call TraceForCategory(..., Track(), ...) here, since that
-    // would add extra binary bloat to all trace points that target the default
-    // track.
-    Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
-        instances, [&](typename Base::TraceContext ctx) {
-          // TODO(skyostil): Intern categories at compile time.
-          arg_function(TrackEventInternal::WriteEvent(
-              ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
-              Registry->GetCategory(CategoryIndex)->name, event_name, type));
-          // There's no need to emit a track descriptor for the default track
-          // here since that's done in ResetIncrementalState().
-        });
+            typename ArgumentFunction = void (*)(EventContext),
+            typename ArgumentFunctionCheck = typename std::enable_if<
+                IsValidTraceLambda<ArgumentFunction>()>::type>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               ArgumentFunction arg_function)
+      PERFETTO_NO_INLINE {
+    TraceForCategoryImpl<CategoryIndex>(instances, event_name, type, Track(),
+                                        std::move(arg_function));
   }
 
   // This variant of the inner trace point takes a Track argument which can be
   // used to emit events on a non-default track.
   template <size_t CategoryIndex,
             typename TrackType,
-            typename ArgumentFunction = void (*)(EventContext)>
-  static void TraceForCategory(
-      uint32_t instances,
-      const char* event_name,
-      perfetto::protos::pbzero::TrackEvent::Type type,
-      const TrackType& track,
-      ArgumentFunction arg_function = [](EventContext) {},
-      typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type* =
-          nullptr,
-      typename std::enable_if<
-          std::is_convertible<TrackType, Track>::value>::type* = nullptr)
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               const TrackType& track) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl<CategoryIndex>(instances, event_name, type, track);
+  }
+
+  // Trace point with a track and a lambda function.
+  template <size_t CategoryIndex,
+            typename TrackType,
+            typename ArgumentFunction = void (*)(EventContext),
+            typename ArgumentFunctionCheck = typename std::enable_if<
+                IsValidTraceLambda<ArgumentFunction>()>::type,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               const TrackType& track,
+                               ArgumentFunction arg_function)
       PERFETTO_NO_INLINE {
-    PERFETTO_DCHECK(track);
-    Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
-        instances, [&](typename Base::TraceContext ctx) {
-          // TODO(skyostil): Intern categories at compile time.
-          auto event_ctx = TrackEventInternal::WriteEvent(
-              ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
-              Registry->GetCategory(CategoryIndex)->name, event_name, type);
-          event_ctx.event()->set_track_uuid(track.uuid);
-          arg_function(std::move(event_ctx));
-          TrackEventInternal::WriteTrackDescriptorIfNeeded(
-              track, ctx.tls_inst_->trace_writer.get(),
-              ctx.GetIncrementalState());
-        });
+    TraceForCategoryImpl<CategoryIndex>(instances, event_name, type, track,
+                                        std::move(arg_function));
   }
 
   // Trace point with one debug annotation.
@@ -356,6 +367,41 @@ class TrackEventDataSource
       return Registry->GetCategoryState(CategoryIndex);
     }
   };
+
+  // TODO(skyostil): Make |CategoryIndex| a regular parameter to reuse trace
+  // point code across different categories.
+  template <size_t CategoryIndex,
+            typename TrackType = Track,
+            typename ArgumentFunction = void (*)(EventContext),
+            typename ArgumentFunctionCheck = typename std::enable_if<
+                IsValidTraceLambda<ArgumentFunction>()>::type,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryImpl(
+      uint32_t instances,
+      const char* event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      const TrackType& track = Track(),
+      ArgumentFunction arg_function = [](EventContext) {
+      }) PERFETTO_ALWAYS_INLINE {
+    Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
+        instances, [&](typename Base::TraceContext ctx) {
+          {
+            // TODO(skyostil): Intern categories at compile time.
+            auto event_ctx = TrackEventInternal::WriteEvent(
+                ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+                Registry->GetCategory(CategoryIndex)->name, event_name, type);
+            if (track)
+              event_ctx.event()->set_track_uuid(track.uuid);
+            arg_function(std::move(event_ctx));
+          }
+          if (track) {
+            TrackEventInternal::WriteTrackDescriptorIfNeeded(
+                track, ctx.tls_inst_->trace_writer.get(),
+                ctx.GetIncrementalState());
+          }
+        });
+  }
 
   // Records a track descriptor into the track descriptor registry and, if we
   // are tracing, also mirrors the descriptor into the trace.
