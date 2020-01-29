@@ -609,25 +609,9 @@ class RowMap {
       return;
     }
 
-    // TODO(lalitm): rewrite this to make this a lot more efficient in
-    // future CL.
-    BitVector bv(end_idx_, false);
-
-    // We need the block scoping so the iterator is destroyed before the
-    // BitVector is moved.
-    {
-      auto it = bv.IterateAllBits();
-      if (start_idx_ > 0)
-        it.Skip(start_idx_);
-
-      PERFETTO_DCHECK(it.index() == start_idx_);
-      for (; it; it.Next()) {
-        if (p(it.index())) {
-          it.Set();
-        }
-      }
-    }
-    *this = RowMap(std::move(bv));
+    // Otherwise, create a bitvector which spans the full range using
+    // |p| as the filler for the bits between start and end.
+    *this = RowMap(BitVector::Range(start_idx_, end_idx_, p));
   }
 
   void InsertIntoBitVector(uint32_t row) {

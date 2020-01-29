@@ -399,6 +399,18 @@ TEST(BitVectorUnittest, IterateSetBitsStartsCorrectly) {
   ASSERT_FALSE(it);
 }
 
+TEST(BitVectorUnittest, Range) {
+  BitVector bv =
+      BitVector::Range(1, 1025, [](uint32_t t) { return t % 3 == 0; });
+
+  ASSERT_FALSE(bv.IsSet(0));
+  for (uint32_t i = 1; i < 1025; ++i) {
+    ASSERT_EQ(i % 3 == 0, bv.IsSet(i));
+  }
+  ASSERT_EQ(bv.size(), 1025u);
+  ASSERT_EQ(bv.GetNumBitsSet(), 341u);
+}
+
 TEST(BitVectorUnittest, QueryStressTest) {
   BitVector bv;
   std::vector<bool> bool_vec;
