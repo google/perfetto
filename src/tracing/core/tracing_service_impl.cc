@@ -2820,7 +2820,7 @@ void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
 }
 
 SharedMemoryArbiter*
-TracingServiceImpl::ProducerEndpointImpl::GetInProcessShmemArbiter() {
+TracingServiceImpl::ProducerEndpointImpl::MaybeSharedMemoryArbiter() {
   if (!inproc_shmem_arbiter_) {
     PERFETTO_FATAL(
         "The in-process SharedMemoryArbiter can only be used when "
@@ -2837,14 +2837,16 @@ std::unique_ptr<TraceWriter>
 TracingServiceImpl::ProducerEndpointImpl::CreateTraceWriter(
     BufferID buf_id,
     BufferExhaustedPolicy buffer_exhausted_policy) {
-  return GetInProcessShmemArbiter()->CreateTraceWriter(buf_id,
+  PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
+  return MaybeSharedMemoryArbiter()->CreateTraceWriter(buf_id,
                                                        buffer_exhausted_policy);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
     FlushRequestID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  return GetInProcessShmemArbiter()->NotifyFlushComplete(id);
+  PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
+  return MaybeSharedMemoryArbiter()->NotifyFlushComplete(id);
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {

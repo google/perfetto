@@ -44,7 +44,7 @@ class FakeProducerEndpoint : public TracingService::ProducerEndpoint {
       BufferExhaustedPolicy) override {
     return nullptr;
   }
-  SharedMemoryArbiter* GetInProcessShmemArbiter() override { return nullptr; }
+  SharedMemoryArbiter* MaybeSharedMemoryArbiter() override { return nullptr; }
 
   CommitDataRequest last_commit_data_request;
   CommitDataCallback last_commit_data_callback;
