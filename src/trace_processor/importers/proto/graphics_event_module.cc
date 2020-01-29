@@ -57,7 +57,7 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
                                      decoder.vulkan_memory_event());
       return;
     case TracePacket::kVulkanApiEventFieldNumber:
-      parser_.ParseVulkanApiEvent(decoder.vulkan_api_event());
+      parser_.ParseVulkanApiEvent(ttp.timestamp, decoder.vulkan_api_event());
       return;
   }
 }
