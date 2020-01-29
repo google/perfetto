@@ -227,11 +227,27 @@ HeapProfileTracker::~HeapProfileTracker() = default;
 void HeapProfileTracker::SetProfilePacketIndex(uint32_t seq_id,
                                                uint64_t index) {
   SequenceState& sequence_state = sequence_state_[seq_id];
-  if (sequence_state.last_profile_packet_index != 0 &&
-      sequence_state.last_profile_packet_index + 1 != index) {
+  bool dropped_packet = false;
+  // heapprofd starts counting at index = 0.
+  if (!sequence_state.prev_index && index != 0) {
+    dropped_packet = true;
+  }
+
+  if (sequence_state.prev_index && *sequence_state.prev_index + 1 != index) {
+    dropped_packet = true;
+  }
+
+  if (dropped_packet) {
+    if (sequence_state.prev_index) {
+      PERFETTO_ELOG("Missing packets between %" PRIu64 " and %" PRIu64,
+                    *sequence_state.prev_index, index);
+    } else {
+      PERFETTO_ELOG("Invalid first packet index %" PRIu64 " (!= 0)", index);
+    }
+
     context_->storage->IncrementStats(stats::heapprofd_missing_packet);
   }
-  sequence_state.last_profile_packet_index = index;
+  sequence_state.prev_index = index;
 }
 
 void HeapProfileTracker::AddAllocation(
