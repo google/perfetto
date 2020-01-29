@@ -309,13 +309,6 @@ class Column {
   JoinKey join_key() const { return JoinKey{col_idx_in_table_}; }
 
  protected:
-  // Returns the string at the index |idx|.
-  // Should only be called when |type_| == ColumnType::kString.
-  NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
-    PERFETTO_DCHECK(type_ == ColumnType::kString);
-    return string_pool_->Get(sparse_vector<StringPool::Id>().GetNonNull(idx));
-  }
-
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
@@ -330,17 +323,6 @@ class Column {
   const SparseVector<T>& sparse_vector() const {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
     return *static_cast<const SparseVector<T>*>(sparse_vector_);
-  }
-
-  // Converts a primitive numeric value to an SqlValue of the correct type.
-  template <typename T>
-  static SqlValue NumericToSqlValue(T value) {
-    if (std::is_same<T, double>::value) {
-      return SqlValue::Double(value);
-    } else if (std::is_convertible<T, int64_t>::value) {
-      return SqlValue::Long(value);
-    }
-    PERFETTO_FATAL("Invalid type");
   }
 
   const StringPool& string_pool() const { return *string_pool_; }
@@ -539,6 +521,13 @@ class Column {
     } else {
       PERFETTO_FATAL("Unsupported type of column");
     }
+  }
+
+  // Returns the string at the index |idx|.
+  // Should only be called when |type_| == ColumnType::kString.
+  NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
+    PERFETTO_DCHECK(type_ == ColumnType::kString);
+    return string_pool_->Get(sparse_vector<StringPool::Id>().GetNonNull(idx));
   }
 
   // type_ is used to cast sparse_vector_ to the correct type.
