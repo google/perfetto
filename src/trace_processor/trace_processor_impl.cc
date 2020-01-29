@@ -365,7 +365,7 @@ void EnsureSqliteInitialized() {
   // sqlite3_initialize isn't actually thread-safe despite being documented
   // as such; we need to make sure multiple TraceProcessorImpl instances don't
   // call it concurrently and only gets called once per process, instead.
-  static bool init_once = [] { return sqlite3_initialize() == SQLITE_OK; };
+  static bool init_once = [] { return sqlite3_initialize() == SQLITE_OK; }();
   PERFETTO_CHECK(init_once);
 }
 
