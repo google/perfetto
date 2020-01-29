@@ -41,7 +41,7 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
   MOCK_CONST_METHOD0(shared_buffer_page_size_kb, size_t());
   MOCK_METHOD2(CreateTraceWriter,
                std::unique_ptr<TraceWriter>(BufferID, BufferExhaustedPolicy));
-  MOCK_METHOD0(GetInProcessShmemArbiter, SharedMemoryArbiter*());
+  MOCK_METHOD0(MaybeSharedMemoryArbiter, SharedMemoryArbiter*());
   MOCK_METHOD1(ActivateTriggers, void(const std::vector<std::string>&));
 
   MOCK_METHOD1(RegisterDataSource, void(const DataSourceDescriptor&));

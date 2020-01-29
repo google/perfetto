@@ -106,11 +106,12 @@ class PERFETTO_EXPORT ProducerEndpoint {
       BufferExhaustedPolicy buffer_exhausted_policy =
           BufferExhaustedPolicy::kDefault) = 0;
 
-  // If TracingService::ConnectProducer is called with |in_process=true|,
-  // this returns the producer's SharedMemoryArbiter which can be used
-  // to create TraceWriters which is able to directly commit chunks
-  // without going through an IPC layer.
-  virtual SharedMemoryArbiter* GetInProcessShmemArbiter() = 0;
+  // In some cases you can access the producer's SharedMemoryArbiter (for
+  // example if TracingService::ConnectProducer is called with
+  // |in_process=true|). The SharedMemoryArbiter can be used to create
+  // TraceWriters which is able to directly commit chunks. For the
+  // |in_process=true| case this can be done without going through an IPC layer.
+  virtual SharedMemoryArbiter* MaybeSharedMemoryArbiter() = 0;
 
   // Called in response to a Producer::Flush(request_id) call after all data
   // for the flush request has been committed.

@@ -358,9 +358,8 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
                                                    buffer_exhausted_policy);
 }
 
-SharedMemoryArbiter* ProducerIPCClientImpl::GetInProcessShmemArbiter() {
-  PERFETTO_DLOG("Cannot GetInProcessShmemArbiter() via the IPC layer.");
-  return nullptr;
+SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {
+  return shared_memory_arbiter_.get();
 }
 
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {

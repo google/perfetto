@@ -50,7 +50,7 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
       BufferExhaustedPolicy) override {
     return nullptr;
   }
-  SharedMemoryArbiter* GetInProcessShmemArbiter() override { return nullptr; }
+  SharedMemoryArbiter* MaybeSharedMemoryArbiter() override { return nullptr; }
 
   MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
   MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
