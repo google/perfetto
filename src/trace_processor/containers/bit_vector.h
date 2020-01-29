@@ -265,6 +265,42 @@ class BitVector {
     size_ = size;
   }
 
+  // Creates a BitVector of size |end| with the bits between |start| and |end|
+  // filled by calling the filler function |f(index of bit)|.
+  //
+  // As an example, suppose Range(3, 7, [](x) { return x < 5 }). This would
+  // result in the following bitvector:
+  // [0 0 0 1 1 0 0 0]
+  template <typename Filler = bool(uint32_t)>
+  static BitVector Range(uint32_t start, uint32_t end, Filler f) {
+    // Compute the block index and bitvector index where we start and end
+    // working one block at a time.
+    uint32_t start_fast_block = BlockCeil(start);
+    uint32_t start_fast_idx = BlockToIndex(start_fast_block);
+    uint32_t end_fast_block = BlockFloor(end);
+    uint32_t end_fast_idx = BlockToIndex(end_fast_block);
+
+    // First, create the BitVector up to |start| then fill up to
+    // |start_fast_index| with values from the filler.
+    BitVector bv(start, false);
+    for (uint32_t i = start; i < start_fast_idx; ++i) {
+      bv.Append(f(i));
+    }
+
+    // At this point we can work one block at a time.
+    for (uint32_t i = start_fast_block; i < end_fast_block; ++i) {
+      bv.counts_.emplace_back(bv.GetNumBitsSet());
+      bv.blocks_.emplace_back(Block::FromFiller(bv.size_, f));
+      bv.size_ += Block::kBits;
+    }
+
+    // Add the last few elements to finish up to |end|.
+    for (uint32_t i = end_fast_idx; i < end; ++i) {
+      bv.Append(f(i));
+    }
+    return bv;
+  }
+
   // Updates the ith set bit of this bitvector with the value of
   // |other.IsSet(i)|.
   //
@@ -304,7 +340,7 @@ class BitVector {
   static constexpr uint32_t ApproxBytesCost(uint32_t n) {
     // The two main things making up a bitvector is the cost of the blocks of
     // bits and the cost of the counts vector.
-    return BlocksNeeded(n) * Block::kBits + BlocksNeeded(n) * sizeof(uint32_t);
+    return BlockCeil(n) * Block::kBits + BlockCeil(n) * sizeof(uint32_t);
   }
 
  private:
@@ -336,15 +372,18 @@ class BitVector {
     // Returns whether the bit at the given index is set.
     bool IsSet(uint32_t idx) const {
       PERFETTO_DCHECK(idx < kBits);
-      return (word >> idx) & 1ull;
+      return (word_ >> idx) & 1ull;
     }
+
+    // Bitwise ors the given |mask| to the current value.
+    void Or(uint64_t mask) { word_ |= mask; }
 
     // Sets the bit at the given index to true.
     void Set(uint32_t idx) {
       PERFETTO_DCHECK(idx < kBits);
 
       // Or the value for the true shifted up to |idx| with the word.
-      word |= 1ull << idx;
+      Or(1ull << idx);
     }
 
     // Sets the bit at the given index to false.
@@ -352,11 +391,11 @@ class BitVector {
       PERFETTO_DCHECK(idx < kBits);
 
       // And the integer of all bits set apart from |idx| with the word.
-      word &= ~(1ull << idx);
+      word_ &= ~(1ull << idx);
     }
 
     // Clears all the bits (i.e. sets the atom to zero).
-    void ClearAll() { word = 0; }
+    void ClearAll() { word_ = 0; }
 
     // Returns the index of the nth set bit.
     // Undefined if |n| >= |GetNumBitsSet()|.
@@ -378,13 +417,13 @@ class BitVector {
       //
       // The code below was taken from the paper
       // http://vigna.di.unimi.it/ftp/papers/Broadword.pdf
-      uint64_t s = word - ((word & 0xAAAAAAAAAAAAAAAA) >> 1);
+      uint64_t s = word_ - ((word_ & 0xAAAAAAAAAAAAAAAA) >> 1);
       s = (s & 0x3333333333333333) + ((s >> 2) & 0x3333333333333333);
       s = ((s + (s >> 4)) & 0x0F0F0F0F0F0F0F0F) * L8;
 
       uint64_t b = (BwLessThan(s, n * L8) >> 7) * L8 >> 53 & ~7ull;
       uint64_t l = n - ((s << 8) >> b & 0xFF);
-      s = (BwGtZero(((word >> b & 0xFF) * L8) & 0x8040201008040201) >> 7) * L8;
+      s = (BwGtZero(((word_ >> b & 0xFF) * L8) & 0x8040201008040201) >> 7) * L8;
 
       uint64_t ret = b + ((BwLessThan(s, l * L8) >> 7) * L8 >> 56);
 
@@ -395,7 +434,7 @@ class BitVector {
     uint32_t GetNumBitsSet() const {
       // We use __builtin_popcountll here as it's available natively for the two
       // targets we care most about (x64 and WASM).
-      return static_cast<uint32_t>(__builtin_popcountll(word));
+      return static_cast<uint32_t>(__builtin_popcountll(word_));
     }
 
     // Returns the number of set bits up to and including the bit at |idx|.
@@ -411,13 +450,13 @@ class BitVector {
     // all bits after this point.
     void ClearAfter(uint32_t idx) {
       PERFETTO_DCHECK(idx < kBits);
-      word = WordUntil(idx);
+      word_ = WordUntil(idx);
     }
 
     // Sets all bits between the bit at |start| and |end| (inclusive).
     void Set(uint32_t start, uint32_t end) {
       uint32_t diff = end - start;
-      word |= (MaskAllBitsSetUntil(diff) << static_cast<uint64_t>(start));
+      word_ |= (MaskAllBitsSetUntil(diff) << static_cast<uint64_t>(start));
     }
 
    private:
@@ -458,7 +497,7 @@ class BitVector {
       uint64_t mask = MaskAllBitsSetUntil(idx);
 
       // Finish up by anding the the atom with the computed msk.
-      return word & mask;
+      return word_ & mask;
     }
 
     // Return a mask of all the bits up to and including bit at |idx|.
@@ -479,7 +518,7 @@ class BitVector {
       return top - 1u;
     }
 
-    uint64_t word = 0;
+    uint64_t word_ = 0;
   };
 
   // Represents a group of bits with a bitcount such that it is
@@ -494,7 +533,7 @@ class BitVector {
   class Block {
    public:
     // See class documentation for how these constants are chosen.
-    static constexpr uint32_t kWords = 8;
+    static constexpr uint16_t kWords = 8;
     static constexpr uint32_t kBits = kWords * BitWord::kBits;
 
     // Returns whether the bit at the given address is set.
@@ -600,6 +639,24 @@ class BitVector {
       words_[end.word_idx].Set(0, end.bit_idx);
     }
 
+    template <typename Filler>
+    static Block FromFiller(uint32_t offset, Filler f) {
+      // We choose to iterate the bits as the outer loop as this allows us
+      // to reuse the mask and the bit offset between iterations of the loop.
+      // This makes a small (but noticable) impact in the performance of this
+      // function.
+      Block b;
+      for (uint32_t i = 0; i < BitWord::kBits; ++i) {
+        uint64_t mask = 1ull << i;
+        uint32_t offset_with_bit = offset + i;
+        for (uint32_t j = 0; j < Block::kWords; ++j) {
+          bool res = f(offset_with_bit + j * BitWord::kBits);
+          b.words_[j].Or(res ? mask : 0);
+        }
+      }
+      return b;
+    }
+
    private:
     std::array<BitWord, kWords> words_{};
   };
@@ -642,6 +699,17 @@ class BitVector {
     blocks_[end.block_idx].Set(kFirstBlockOffset, end.block_offset);
   }
 
+  // Helper function to append a bit. Generally, prefer to call AppendTrue
+  // or AppendFalse instead of this function if you know the type - they will
+  // be faster.
+  void Append(bool value) {
+    if (value) {
+      AppendTrue();
+    } else {
+      AppendFalse();
+    }
+  }
+
   static Address IndexToAddress(uint32_t idx) {
     Address a;
     a.block_idx = idx / Block::kBits;
@@ -658,12 +726,27 @@ class BitVector {
            addr.block_offset.bit_idx;
   }
 
-  // Returns the number of blocks needed to store |n| bits.
-  static constexpr uint32_t BlocksNeeded(uint32_t n) {
+  // Rounds |idx| up to the nearest block boundary and returns the block
+  // index. If |idx| is already on a block boundary, the current block is
+  // returned.
+  //
+  // This is useful to be able to find indices where "fast" algorithms can start
+  // which work on entire blocks.
+  static constexpr uint32_t BlockCeil(uint32_t idx) {
     // Adding |Block::kBits - 1| gives us a quick way to get the ceil. We
     // do this instead of adding 1 at the end because that gives incorrect
-    // answers for n % Block::kBits == 0.
-    return (n + Block::kBits - 1) / Block::kBits;
+    // answers for index % Block::kBits == 0.
+    return (idx + Block::kBits - 1) / Block::kBits;
+  }
+
+  // Returns the index of the block which would store |idx|.
+  static constexpr uint32_t BlockFloor(uint32_t idx) {
+    return idx / Block::kBits;
+  }
+
+  // Converts a block index to a index in the BitVector.
+  static constexpr uint32_t BlockToIndex(uint32_t block) {
+    return block * Block::kBits;
   }
 
   uint32_t size_ = 0;
