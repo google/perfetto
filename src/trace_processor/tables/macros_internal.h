@@ -194,7 +194,7 @@ class MacroTable : public Table {
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
-  SparseVector<TypedColumn<type>::StoredType> name##_;
+  SparseVector<TypedColumn<type>::serialized_type> name##_;
 
 // Constructs the column in the Table constructor when flags are specified.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS(type, name, flags)          \
