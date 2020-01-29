@@ -344,6 +344,18 @@ class Trace(object):
     debug_marker.object = obj
     debug_marker.object_name = obj_name
 
+  def add_vk_queue_submit(self, ts, dur, pid, tid, vk_queue, vk_command_buffers,
+                          submission_id):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    submit = (self.packet.vulkan_api_event.vk_queue_submit)
+    submit.duration_ns = dur
+    submit.pid = pid
+    submit.tid = tid
+    for cmd in vk_command_buffers:
+      submit.vk_command_buffers.append(cmd)
+    submit.submission_id = submission_id
+
   def add_gpu_log(self, ts, severity, tag, message):
     packet = self.add_packet()
     packet.timestamp = ts

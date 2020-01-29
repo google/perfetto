@@ -140,7 +140,10 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
                          context_->storage->InternString("WARNING"),
                          context_->storage->InternString("ERROR"),
                          context_->storage->InternString(
-                             "UNKNOWN_SEVERITY") /* must be last */}} {}
+                             "UNKNOWN_SEVERITY") /* must be last */}},
+      vk_event_track_id_(context->storage->InternString("Vulkan Events")),
+      vk_event_scope_id_(context->storage->InternString("vulkan_events")),
+      vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
 void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::GpuCounterEvent::Decoder event(blob.data, blob.size);
@@ -774,13 +777,39 @@ void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
   context_->slice_tracker->ScopedGpu(row, args_callback);
 }
 
-void GraphicsEventParser::ParseVulkanApiEvent(ConstBytes blob) {
+void GraphicsEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::VulkanApiEvent::Decoder vk_event(blob.data, blob.size);
   if (vk_event.has_vk_debug_utils_object_name()) {
     protos::pbzero::VulkanApiEvent_VkDebugUtilsObjectName::Decoder event(
         vk_event.vk_debug_utils_object_name());
     debug_marker_names_[event.object_type()][event.object()] =
         event.object_name().ToStdString();
+  }
+  if (vk_event.has_vk_queue_submit()) {
+    protos::pbzero::VulkanApiEvent_VkQueueSubmit::Decoder event(
+        vk_event.vk_queue_submit());
+    // Once flow table is implemented, we can create a nice UI that link the
+    // vkQueueSubmit to GpuRenderStageEvent.  For now, just add it as in a GPU
+    // track so that they can appear close to the render stage slices.
+    tables::GpuTrackTable::Row track(vk_event_track_id_);
+    track.scope = vk_event_scope_id_;
+    TrackId track_id = context_->track_tracker->InternGpuTrack(track);
+    tables::GpuSliceTable::Row row;
+    row.ts = ts;
+    row.dur = static_cast<int64_t>(event.duration_ns());
+    row.track_id = track_id.value;
+    row.name = vk_queue_submit_id_;
+    if (event.has_vk_command_buffers()) {
+      row.command_buffer = static_cast<int64_t>(*event.vk_command_buffers());
+    }
+    row.submission_id = event.submission_id();
+    auto args_callback = [this, &event](ArgsTracker::BoundInserter* inserter) {
+      inserter->AddArg(context_->storage->InternString("pid"),
+                       Variadic::Integer(event.pid()));
+      inserter->AddArg(context_->storage->InternString("tid"),
+                       Variadic::Integer(event.tid()));
+    };
+    context_->slice_tracker->ScopedGpu(row, args_callback);
   }
 }
 
