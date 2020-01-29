@@ -463,17 +463,26 @@ class RowMap {
     }
   }
 
-  template <typename Comparator>
+  template <typename Comparator = bool(uint32_t, uint32_t)>
   void StableSort(std::vector<uint32_t>* out, Comparator c) const {
     switch (mode_) {
       case Mode::kRange:
-        StableSort(out, c, &RowMap::GetRange);
+        std::stable_sort(out->begin(), out->end(),
+                         [this, c](uint32_t a, uint32_t b) {
+                           return c(GetRange(a), GetRange(b));
+                         });
         break;
       case Mode::kBitVector:
-        StableSort(out, c, &RowMap::GetBitVector);
+        std::stable_sort(out->begin(), out->end(),
+                         [this, c](uint32_t a, uint32_t b) {
+                           return c(GetBitVector(a), GetBitVector(b));
+                         });
         break;
       case Mode::kIndexVector:
-        StableSort(out, c, &RowMap::GetIndexVector);
+        std::stable_sort(out->begin(), out->end(),
+                         [this, c](uint32_t a, uint32_t b) {
+                           return c(GetIndexVector(a), GetIndexVector(b));
+                         });
         break;
     }
   }
@@ -622,23 +631,15 @@ class RowMap {
     bit_vector_.Set(row);
   }
 
-  template <typename Comparator, typename Indexer>
-  void StableSort(std::vector<uint32_t>* out, Comparator c, Indexer i) const {
-    std::stable_sort(out->begin(), out->end(),
-                     [this, &c, &i](uint32_t a, uint32_t b) {
-                       return c((this->*i)(a), (this->*i)(b));
-                     });
-  }
-
-  uint32_t GetRange(uint32_t idx) const {
+  PERFETTO_ALWAYS_INLINE uint32_t GetRange(uint32_t idx) const {
     PERFETTO_DCHECK(mode_ == Mode::kRange);
     return start_idx_ + idx;
   }
-  uint32_t GetBitVector(uint32_t idx) const {
+  PERFETTO_ALWAYS_INLINE uint32_t GetBitVector(uint32_t idx) const {
     PERFETTO_DCHECK(mode_ == Mode::kBitVector);
     return bit_vector_.IndexOfNthSet(idx);
   }
-  uint32_t GetIndexVector(uint32_t idx) const {
+  PERFETTO_ALWAYS_INLINE uint32_t GetIndexVector(uint32_t idx) const {
     PERFETTO_DCHECK(mode_ == Mode::kIndexVector);
     return index_vector_[idx];
   }
