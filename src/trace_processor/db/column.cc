@@ -454,8 +454,8 @@ void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
     auto a_val = sv.GetNonNull(a_idx);
     auto b_val = sv.GetNonNull(b_idx);
 
-    int res = compare::Numeric(a_val, b_val);
-    return desc ? res > 0 : res < 0;
+    return desc ? compare::Numeric(a_val, b_val) > 0
+                : compare::Numeric(a_val, b_val) < 0;
   });
 }
 
