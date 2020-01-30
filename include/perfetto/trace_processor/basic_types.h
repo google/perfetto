@@ -86,8 +86,20 @@ struct PERFETTO_EXPORT SqlValue {
   }
 
   double AsDouble() {
-    assert(type == kDouble);
+    PERFETTO_CHECK(type == kDouble);
     return double_value;
+  }
+  int64_t AsLong() {
+    PERFETTO_CHECK(type == kLong);
+    return long_value;
+  }
+  const char* AsString() {
+    PERFETTO_CHECK(type == kString);
+    return string_value;
+  }
+  const void* AsBytes() {
+    PERFETTO_CHECK(type == kBytes);
+    return bytes_value;
   }
 
   bool is_null() const { return type == Type::kNull; }
