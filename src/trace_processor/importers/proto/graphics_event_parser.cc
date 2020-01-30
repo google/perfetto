@@ -399,7 +399,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
 
     tables::GpuSliceTable::Row row;
     row.ts = ts;
-    row.track_id = track_id.value;
+    row.track_id = track_id;
     row.name = GetFullStageName(event);
     row.dur = static_cast<int64_t>(event.duration());
     row.context_id = static_cast<int64_t>(event.context());
@@ -487,7 +487,7 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
 
     tables::GpuSliceTable::Row row;
     row.ts = timestamp;
-    row.track_id = track_id.value;
+    row.track_id = track_id;
     row.name = event_name_id;
     row.dur = duration;
     row.frame_id = frame_number;
@@ -558,7 +558,7 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
 
       tables::GpuSliceTable::Row row;
       row.ts = timestamp;
-      row.track_id = present_track_id_.value;
+      row.track_id = present_track_id_;
       row.name = present_event_name_id_;
       row.frame_id = frame_number;
       context_->slice_tracker->BeginGpu(row);
@@ -713,7 +713,7 @@ void GraphicsEventParser::ParseVulkanMemoryEvent(
                                        vulkan_memory_event);
 
   auto* allocs = context_->storage->mutable_vulkan_memory_allocations_table();
-  VulkanAllocId id = allocs->Insert(vulkan_memory_event_row);
+  VulkanAllocId id = allocs->Insert(vulkan_memory_event_row).id;
 
   if (vulkan_memory_event.has_annotations()) {
     auto inserter = context_->args_tracker->AddArgsTo(id);
@@ -771,7 +771,7 @@ void GraphicsEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
 
   tables::GpuSliceTable::Row row;
   row.ts = ts;
-  row.track_id = track_id.value;
+  row.track_id = track_id;
   row.name = severity_id;
   row.dur = 0;
   context_->slice_tracker->ScopedGpu(row, args_callback);
@@ -797,7 +797,7 @@ void GraphicsEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
     tables::GpuSliceTable::Row row;
     row.ts = ts;
     row.dur = static_cast<int64_t>(event.duration_ns());
-    row.track_id = track_id.value;
+    row.track_id = track_id;
     row.name = vk_queue_submit_id_;
     if (event.has_vk_command_buffers()) {
       row.command_buffer = static_cast<int64_t>(*event.vk_command_buffers());
