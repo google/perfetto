@@ -109,7 +109,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     // TODO(hjd): Remove LIMIT
     const LIMIT = 10000;
 
-    const query = `select ts,dur,utid,row_id from ${this.tableName('span')}
+    const query = `select ts,dur,utid,id from ${this.tableName('span')}
         where cpu = ${this.config.cpu}
         and utid != 0
         limit ${LIMIT};`;

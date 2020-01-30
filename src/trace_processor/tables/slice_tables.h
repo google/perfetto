@@ -50,6 +50,18 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_INSTANT_TABLE_DEF);
 
+#define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
+  NAME(SchedSliceTable, "sched_slice")                     \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
+  C(int64_t, ts, Column::Flag::kSorted)                    \
+  C(int64_t, dur)                                          \
+  C(uint32_t, cpu)                                         \
+  C(uint32_t, utid)                                        \
+  C(StringPool::Id, end_state)                             \
+  C(int32_t, priority)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_SCHED_SLICE_TABLE_DEF);
+
 #define PERFETTO_TP_GPU_SLICES_DEF(NAME, PARENT, C) \
   NAME(GpuSliceTable, "gpu_slice")                  \
   PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)            \
