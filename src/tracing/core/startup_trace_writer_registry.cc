@@ -69,7 +69,22 @@ StartupTraceWriterRegistry::CreateUnboundTraceWriter(
 
 void StartupTraceWriterRegistry::ReturnTraceWriter(
     std::unique_ptr<StartupTraceWriter> trace_writer) {
-  std::lock_guard<std::mutex> lock(lock_);
+  std::unique_lock<std::mutex> lock(lock_);
+
+  // We can only bind the writer on task_runner_.
+  if (task_runner_ && !task_runner_->RunsTasksOnCurrentThread()) {
+    // We shouldn't post tasks while holding a lock. |task_runner_| is only set
+    // once, so will remain valid.
+    lock.release();
+    auto weak_this = weak_ptr_factory_->GetWeakPtr();
+    auto* trace_writer_raw = trace_writer.get();
+    task_runner_->PostTask([weak_this, trace_writer_raw]() {
+      std::unique_ptr<StartupTraceWriter> owned_writer(trace_writer_raw);
+      weak_this->ReturnTraceWriter(std::move(owned_writer));
+    });
+    return;
+  }
+
   PERFETTO_DCHECK(!trace_writer->write_in_progress_);
   auto it = std::find(unbound_writers_.begin(), unbound_writers_.end(),
                       trace_writer.get());
