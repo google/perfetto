@@ -47,7 +47,7 @@ TrackId TrackTracker::InternThreadTrack(UniqueTid utid) {
 
   tables::ThreadTrackTable::Row row;
   row.utid = utid;
-  auto id = context_->storage->mutable_thread_track_table()->Insert(row);
+  auto id = context_->storage->mutable_thread_track_table()->Insert(row).id;
   thread_tracks_[utid] = id;
   return id;
 }
@@ -59,7 +59,7 @@ TrackId TrackTracker::InternProcessTrack(UniquePid upid) {
 
   tables::ProcessTrackTable::Row row;
   row.upid = upid;
-  auto id = context_->storage->mutable_process_track_table()->Insert(row);
+  auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
   process_tracks_[upid] = id;
   return id;
 }
@@ -71,7 +71,7 @@ TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
     return it->second;
 
   tables::TrackTable::Row row(name);
-  auto id = context_->storage->mutable_track_table()->Insert(row);
+  auto id = context_->storage->mutable_track_table()->Insert(row).id;
   fuchsia_async_tracks_[correlation_id] = id;
 
   context_->args_tracker->AddArgsTo(id)
@@ -88,7 +88,7 @@ TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
   if (it != gpu_tracks_.end())
     return it->second;
 
-  auto id = context_->storage->mutable_gpu_track_table()->Insert(row);
+  auto id = context_->storage->mutable_gpu_track_table()->Insert(row).id;
   gpu_tracks_[tuple] = id;
   return id;
 }
@@ -113,7 +113,8 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   // the ID's scope is global.
   tables::ProcessTrackTable::Row track(name);
   track.upid = upid;
-  TrackId id = context_->storage->mutable_process_track_table()->Insert(track);
+  TrackId id =
+      context_->storage->mutable_process_track_table()->Insert(track).id;
   chrome_tracks_[tuple] = id;
 
   context_->args_tracker->AddArgsTo(id)
@@ -137,7 +138,7 @@ TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
 
   tables::ProcessTrackTable::Row row(name);
   row.upid = upid;
-  auto id = context_->storage->mutable_process_track_table()->Insert(row);
+  auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
   android_async_tracks_[tuple] = id;
 
   context_->args_tracker->AddArgsTo(id)
@@ -154,7 +155,7 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
 
   tables::ProcessTrackTable::Row row;
   row.upid = upid;
-  auto id = context_->storage->mutable_process_track_table()->Insert(row);
+  auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
   chrome_process_instant_tracks_[upid] = id;
 
   context_->args_tracker->AddArgsTo(id).AddArg(
@@ -166,7 +167,7 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
 TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
   if (!chrome_global_instant_track_id_) {
     chrome_global_instant_track_id_ =
-        context_->storage->mutable_track_table()->Insert({});
+        context_->storage->mutable_track_table()->Insert({}).id;
 
     context_->args_tracker->AddArgsTo(*chrome_global_instant_track_id_)
         .AddArg(source_key_, Variadic::String(chrome_source_));
@@ -346,7 +347,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
       auto* thread_tracks = context_->storage->mutable_thread_track_table();
       tables::ThreadTrackTable::Row row;
       row.utid = thread_tracks->utid()[*thread_track_index];
-      track_id = thread_tracks->Insert(row);
+      track_id = thread_tracks->Insert(row).id;
     } else {
       // If parent is a process track, create another process-associated track.
       base::Optional<uint32_t> process_track_index =
@@ -356,7 +357,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
         auto* process_tracks = context_->storage->mutable_process_track_table();
         tables::ProcessTrackTable::Row track;
         track.upid = process_tracks->upid()[*process_track_index];
-        track_id = process_tracks->Insert(track);
+        track_id = process_tracks->Insert(track).id;
       }
     }
   }
@@ -364,7 +365,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
   // Otherwise create a global track.
   if (!track_id) {
     tables::TrackTable::Row track;
-    track_id = context_->storage->mutable_track_table()->Insert(track);
+    track_id = context_->storage->mutable_track_table()->Insert(track).id;
     // The global track with no uuid is the default global track (e.g. for
     // global instant events). Any other global tracks are considered children
     // of the default track.
@@ -407,7 +408,8 @@ TrackId TrackTracker::InternGlobalCounterTrack(StringId name) {
   }
 
   tables::CounterTrackTable::Row row(name);
-  TrackId track = context_->storage->mutable_counter_track_table()->Insert(row);
+  TrackId track =
+      context_->storage->mutable_counter_track_table()->Insert(row).id;
   global_counter_tracks_by_name_[name] = track;
   return track;
 }
@@ -422,7 +424,7 @@ TrackId TrackTracker::InternCpuCounterTrack(StringId name, uint32_t cpu) {
   row.cpu = cpu;
 
   TrackId track =
-      context_->storage->mutable_cpu_counter_track_table()->Insert(row);
+      context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;
   cpu_counter_tracks_[std::make_pair(name, cpu)] = track;
   return track;
 }
@@ -437,7 +439,7 @@ TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
   row.utid = utid;
 
   TrackId track =
-      context_->storage->mutable_thread_counter_track_table()->Insert(row);
+      context_->storage->mutable_thread_counter_track_table()->Insert(row).id;
   utid_counter_tracks_[std::make_pair(name, utid)] = track;
   return track;
 }
@@ -452,7 +454,7 @@ TrackId TrackTracker::InternProcessCounterTrack(StringId name, UniquePid upid) {
   row.upid = upid;
 
   TrackId track =
-      context_->storage->mutable_process_counter_track_table()->Insert(row);
+      context_->storage->mutable_process_counter_track_table()->Insert(row).id;
   upid_counter_tracks_[std::make_pair(name, upid)] = track;
   return track;
 }
@@ -467,7 +469,7 @@ TrackId TrackTracker::InternIrqCounterTrack(StringId name, int32_t irq) {
   row.irq = irq;
 
   TrackId track =
-      context_->storage->mutable_irq_counter_track_table()->Insert(row);
+      context_->storage->mutable_irq_counter_track_table()->Insert(row).id;
   irq_counter_tracks_[std::make_pair(name, irq)] = track;
   return track;
 }
@@ -483,7 +485,7 @@ TrackId TrackTracker::InternSoftirqCounterTrack(StringId name,
   row.softirq = softirq;
 
   TrackId track =
-      context_->storage->mutable_softirq_counter_track_table()->Insert(row);
+      context_->storage->mutable_softirq_counter_track_table()->Insert(row).id;
   softirq_counter_tracks_[std::make_pair(name, softirq)] = track;
   return track;
 }
@@ -507,7 +509,7 @@ TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
   row.description = description;
   row.unit = unit;
 
-  return context_->storage->mutable_gpu_counter_track_table()->Insert(row);
+  return context_->storage->mutable_gpu_counter_track_table()->Insert(row).id;
 }
 
 }  // namespace trace_processor

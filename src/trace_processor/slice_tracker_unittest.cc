@@ -65,7 +65,7 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track.value);
+  EXPECT_EQ(slices.track_id()[0], track);
   EXPECT_EQ(slices.category()[0].raw_id(), 0u);
   EXPECT_EQ(slices.name()[0].raw_id(), 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
@@ -98,7 +98,7 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
-  EXPECT_EQ(slices.track_id()[0], track.value);
+  EXPECT_EQ(slices.track_id()[0], track);
   EXPECT_EQ(slices.category()[0].raw_id(), 0u);
   EXPECT_EQ(slices.name()[0].raw_id(), 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
@@ -135,14 +135,14 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   uint32_t idx = 0;
   EXPECT_EQ(slices.ts()[idx], 2);
   EXPECT_EQ(slices.dur()[idx], 8);
-  EXPECT_EQ(slices.track_id()[idx], track.value);
+  EXPECT_EQ(slices.track_id()[idx], track);
   EXPECT_EQ(slices.category()[idx].raw_id(), 0u);
   EXPECT_EQ(slices.name()[idx].raw_id(), 1u);
   EXPECT_EQ(slices.depth()[idx++], 0u);
 
   EXPECT_EQ(slices.ts()[idx], 3);
   EXPECT_EQ(slices.dur()[idx], 2);
-  EXPECT_EQ(slices.track_id()[idx], track.value);
+  EXPECT_EQ(slices.track_id()[idx], track);
   EXPECT_EQ(slices.category()[idx].raw_id(), 0u);
   EXPECT_EQ(slices.name()[idx].raw_id(), 2u);
   EXPECT_EQ(slices.depth()[idx], 1u);
@@ -228,9 +228,9 @@ TEST(SliceTrackerTest, DifferentTracks) {
   EXPECT_THAT(slices,
               ElementsAre(SliceInfo{0, 10}, SliceInfo{2, 6}, SliceInfo{3, 4}));
 
-  EXPECT_EQ(context.storage->slice_table().track_id()[0], track_a.value);
-  EXPECT_EQ(context.storage->slice_table().track_id()[1], track_b.value);
-  EXPECT_EQ(context.storage->slice_table().track_id()[2], track_b.value);
+  EXPECT_EQ(context.storage->slice_table().track_id()[0], track_a);
+  EXPECT_EQ(context.storage->slice_table().track_id()[1], track_b);
+  EXPECT_EQ(context.storage->slice_table().track_id()[2], track_b);
   EXPECT_EQ(context.storage->slice_table().depth()[0], 0u);
   EXPECT_EQ(context.storage->slice_table().depth()[1], 0u);
   EXPECT_EQ(context.storage->slice_table().depth()[2], 1u);

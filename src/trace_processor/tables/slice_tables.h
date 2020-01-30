@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TABLES_SLICE_TABLES_H_
 
 #include "src/trace_processor/tables/macros.h"
+#include "src/trace_processor/tables/track_tables.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,7 +29,7 @@ namespace tables {
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
   C(int64_t, ts, Column::Flag::kSorted)              \
   C(int64_t, dur)                                    \
-  C(uint32_t, track_id)                              \
+  C(TrackTable::Id, track_id)                        \
   C(StringPool::Id, category)                        \
   C(StringPool::Id, name)                            \
   C(uint32_t, depth)                                 \
