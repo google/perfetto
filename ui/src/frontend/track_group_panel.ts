@@ -81,8 +81,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
     }
 
     const selectedArea = globals.frontendLocalState.selectedArea.area;
-    const markSelectedClass =
-        selectedArea && selectedArea.tracks.includes(attrs.trackGroupId) ?
+    const markSelectedClass = selectedArea &&
+            selectedArea.tracks.includes(attrs.trackGroupId) &&
+            !globals.frontendLocalState.selectingArea ?
         'selected' :
         '';
 
@@ -121,6 +122,19 @@ export class TrackGroupPanel extends Panel<Attrs> {
         getComputedStyle(dom).getPropertyValue('--collapsed-background');
   }
 
+  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    const localState = globals.frontendLocalState;
+    const area = localState.selectedArea.area;
+    if (area && area.tracks.includes(this.trackGroupId)) {
+      ctx.fillStyle = '#ebeef9';
+      ctx.fillRect(
+          localState.timeScale.timeToPx(area.startSec) + this.shellWidth,
+          0,
+          localState.timeScale.deltaTimeToPx(area.endSec - area.startSec),
+          size.height);
+    }
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const collapsed = this.trackGroupState.collapsed;
     if (!collapsed) return;
@@ -130,6 +144,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     ctx.fillStyle = this.backgroundColor;
     ctx.fillRect(0, 0, size.width, size.height);
 
+    this.highlightIfTrackSelected(ctx, size);
+
     drawGridLines(
         ctx,
         globals.frontendLocalState.timeScale,
@@ -138,6 +154,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
         size.height);
 
     ctx.translate(this.shellWidth, 0);
+
     if (this.summaryTrack) {
       this.summaryTrack.render(ctx);
     }
@@ -160,7 +177,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
                             size.height,
                             `rgb(52,69,150)`);
     }
-    if (localState.selectedArea.area !== undefined) {
+    if (localState.selectedArea.area !== undefined &&
+        !globals.frontendLocalState.selectingArea) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
