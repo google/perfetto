@@ -50,8 +50,9 @@ std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
 }
 }  // namespace
 
-SqliteRawTable::SqliteRawTable(sqlite3* db, const TraceStorage* storage)
-    : DbSqliteTable(db, &storage->raw_table()), storage_(storage) {
+SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
+    : DbSqliteTable(db, {context.cache, &context.storage->raw_table()}),
+      storage_(context.storage) {
   auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
     thiz->ToSystrace(ctx, argc, argv);
@@ -63,8 +64,11 @@ SqliteRawTable::SqliteRawTable(sqlite3* db, const TraceStorage* storage)
 
 SqliteRawTable::~SqliteRawTable() = default;
 
-void SqliteRawTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  SqliteTable::Register<SqliteRawTable>(db, storage, "raw");
+void SqliteRawTable::RegisterTable(sqlite3* db,
+                                   QueryCache* cache,
+                                   const TraceStorage* storage) {
+  SqliteTable::Register<SqliteRawTable, Context>(db, Context{cache, storage},
+                                                 "raw");
 }
 
 bool SqliteRawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
