@@ -88,29 +88,37 @@ export class NotesPanel extends Panel {
 
     for (const note of Object.values(globals.state.notes)) {
       const timestamp = note.timestamp;
-      if (!timeScale.timeInBounds(timestamp)) continue;
+      if ((note.noteType !== 'AREA' && !timeScale.timeInBounds(timestamp)) ||
+          (note.noteType === 'AREA' &&
+           !timeScale.timeInBounds(note.area.endSec) &&
+           !timeScale.timeInBounds(note.area.startSec))) {
+        continue;
+      }
       const x = timeScale.timeToPx(timestamp);
-
       const currentIsHovered =
         this.hoveredX &&
         x - MOUSE_OFFSET <= this.hoveredX &&
         this.hoveredX < x - MOUSE_OFFSET + FLAG_WIDTH;
+      if (currentIsHovered) aNoteIsHovered = true;
+
       const selection = globals.state.currentSelection;
       const isSelected = selection !== null && selection.kind === 'NOTE' &&
-                         selection.id === note.id;
+          selection.id === note.id;
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
 
-      // Draw flag.
-      if (!aNoteIsHovered && currentIsHovered) {
-        aNoteIsHovered = true;
-        this.drawFlag(ctx, left, size.height, note.color, isSelected,
-          note.isMovie);
-      } else if (isSelected) {
-        this.drawFlag(ctx, left, size.height, note.color, /* fill */ true,
-          note.isMovie);
+      // Draw flag or marker.
+      if (note.noteType === 'AREA') {
+        this.drawAreaMarker(
+            ctx,
+            left,
+            Math.floor(
+                timeScale.timeToPx(note.area.endSec) + TRACK_SHELL_WIDTH),
+            size.height,
+            note.color,
+            isSelected);
       } else {
-        this.drawFlag(ctx, left, size.height, note.color, false,
-          note.isMovie);
+        this.drawFlag(
+            ctx, left, size.height, note.color, note.noteType, isSelected);
       }
 
       if (note.text) {
@@ -119,13 +127,14 @@ export class NotesPanel extends Panel {
         // Add a white semi-transparent background for the text.
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.fillRect(
-            left + FLAG_WIDTH + 2, size.height, measured.width + 2, -12);
+            left + FLAG_WIDTH + 2, size.height + 2, measured.width + 2, -12);
         ctx.fillStyle = '#3c4b5d';
-        ctx.fillText(summary, left + FLAG_WIDTH + 3, size.height - 1);
+        ctx.fillText(summary, left + FLAG_WIDTH + 3, size.height + 1);
       }
     }
 
     // A real note is hovered so we don't need to see the preview line.
+    // TODO(taylori): Change cursor to pointer here.
     if (aNoteIsHovered) globals.frontendLocalState.setShowNotePreview(false);
 
     // View preview note flag when hovering on notes panel.
@@ -136,27 +145,65 @@ export class NotesPanel extends Panel {
         globals.frontendLocalState.setShowNotePreview(true);
         const x = timeScale.timeToPx(timestamp);
         const left = Math.floor(x + TRACK_SHELL_WIDTH);
-        this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
+        this.drawFlag(
+            ctx, left, size.height, '#aaa', 'DEFAULT', /* fill */ true);
       }
     }
   }
 
+  private drawAreaMarker(
+      ctx: CanvasRenderingContext2D, x: number, xEnd: number, height: number,
+      color: string, fill: boolean) {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    const topOffset = 10;
+    const markerHeight = height - topOffset;
+    // Don't draw in the track shell section.
+    if (x >= globals.frontendLocalState.timeScale.startPx + TRACK_SHELL_WIDTH) {
+      // Draw left triangle.
+      ctx.beginPath();
+      ctx.moveTo(x, topOffset);
+      ctx.lineTo(x, height);
+      ctx.lineTo(x + markerHeight, topOffset);
+      ctx.lineTo(x, topOffset);
+      if (fill) ctx.fill();
+      ctx.stroke();
+    }
+    // Draw right triangle.
+    ctx.beginPath();
+    ctx.moveTo(xEnd, topOffset);
+    ctx.lineTo(xEnd, height);
+    ctx.lineTo(xEnd - height + topOffset, topOffset);
+    ctx.lineTo(xEnd, topOffset);
+    if (fill) ctx.fill();
+    ctx.stroke();
+
+    // Start line after track shell section, join triangles.
+    const startDraw =
+        Math.max(
+            x,
+            globals.frontendLocalState.timeScale.startPx + TRACK_SHELL_WIDTH) -
+        1;
+    ctx.fillRect(startDraw, topOffset - 1, xEnd - startDraw + 1, 1);
+  }
+
   private drawFlag(
       ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-      fill?: boolean, isMovie = globals.state.flagPauseEnabled) {
+      noteType: 'DEFAULT'|'AREA'|'MOVIE', fill?: boolean) {
     const prevFont = ctx.font;
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
+    // Adjust height for icon font.
+    ctx.font = '24px Material Icons';
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+
     if (fill) {
-      ctx.font = '24px Material Icons';
-      ctx.fillStyle = color;
-      // Adjust height for icon font.
-      ctx.fillText(isMovie ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2);
+      ctx.fillText(
+          noteType === 'MOVIE' ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2);
     } else {
-      ctx.strokeStyle = color;
-      ctx.font = '24px Material Icons';
-      // Adjust height for icon font.
-      ctx.strokeText(isMovie ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2.5);
+      ctx.strokeText(
+          noteType === 'MOVIE' ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2.5);
     }
     ctx.font = prevFont;
     ctx.textBaseline = prevBaseline;
@@ -170,8 +217,11 @@ export class NotesPanel extends Panel {
     for (const note of Object.values(globals.state.notes)) {
       const noteX = timeScale.timeToPx(note.timestamp);
       if (noteX <= x && x < noteX + width) {
-        if (note.isMovie) {
+        if (note.noteType === 'MOVIE') {
           globals.frontendLocalState.setVidTimestamp(note.timestamp);
+        } else if (note.noteType === 'AREA') {
+          globals.frontendLocalState.selectArea(
+              note.area.startSec, note.area.endSec, note.area.tracks);
         }
         globals.makeSelection(Actions.selectNote({id: note.id}));
         return;
@@ -225,10 +275,14 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
             })),
           m('button',
             {
-              onclick: () =>
-                  globals.dispatch(Actions.removeNote({id: attrs.id})),
+              onclick: () => {
+                globals.dispatch(Actions.removeNote({id: attrs.id}));
+                globals.frontendLocalState.currentTab = undefined;
+                globals.rafScheduler.scheduleFullRedraw();
+              }
             },
-            'Remove')), );
+            'Remove')),
+    );
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
