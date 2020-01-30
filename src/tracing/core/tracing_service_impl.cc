@@ -149,6 +149,42 @@ void SerializeAndAppendPacket(std::vector<TracePacket>* packets,
   packets->back().AddSlice(std::move(slice));
 }
 
+std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
+    size_t shm_size,
+    size_t page_size) {
+  // Theoretically the max page size supported by the ABI is 64KB.
+  // However, the current implementation of TraceBuffer (the non-shared
+  // userspace buffer where the service copies data) supports at most
+  // 32K. Setting 64K "works" from the producer<>consumer viewpoint
+  // but then causes the data to be discarded when copying it into
+  // TraceBuffer.
+  constexpr size_t kMaxPageSize = 32 * 1024;
+  static_assert(kMaxPageSize <= SharedMemoryABI::kMaxPageSize, "");
+
+  if (page_size == 0)
+    page_size = TracingServiceImpl::kDefaultShmPageSize;
+  if (shm_size == 0)
+    shm_size = TracingServiceImpl::kDefaultShmSize;
+
+  page_size = std::min<size_t>(page_size, kMaxPageSize);
+  shm_size = std::min<size_t>(shm_size, TracingServiceImpl::kMaxShmSize);
+
+  // Page size has to be multiple of system's page size.
+  bool page_size_is_valid = page_size >= base::kPageSize;
+  page_size_is_valid &= page_size % base::kPageSize == 0;
+
+  // Only allow power of two numbers of pages, i.e. 1, 2, 4, 8 pages.
+  size_t num_pages = page_size / base::kPageSize;
+  page_size_is_valid &= (num_pages & (num_pages - 1)) == 0;
+
+  if (!page_size_is_valid || shm_size < page_size ||
+      shm_size % page_size != 0) {
+    return std::make_tuple(TracingServiceImpl::kDefaultShmSize,
+                           TracingServiceImpl::kDefaultShmPageSize);
+  }
+  return std::make_tuple(shm_size, page_size);
+}
+
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
@@ -1961,15 +1997,9 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     // 1. Give priority to what is defined in the trace config.
     // 2. If unset give priority to the hint passed by the producer.
     // 3. Keep within bounds and ensure it's a multiple of 4k.
-    size_t page_size = std::min<size_t>(producer_config.page_size_kb() * 1024,
-                                        SharedMemoryABI::kMaxPageSize);
-    if (page_size == 0) {
-      page_size = std::min<size_t>(producer->shmem_page_size_hint_bytes_,
-                                   SharedMemoryABI::kMaxPageSize);
-    }
-    if (page_size < base::kPageSize || page_size % base::kPageSize != 0)
-      page_size = kDefaultShmPageSize;
-    producer->shared_buffer_page_size_kb_ = page_size / 1024;
+    size_t page_size = producer_config.page_size_kb() * 1024;
+    if (page_size == 0)
+      page_size = producer->shmem_page_size_hint_bytes_;
 
     // Determine the SMB size. Must be an integer multiple of the SMB page size.
     // The decision tree is as follows:
@@ -1979,9 +2009,16 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     size_t shm_size = producer_config.shm_size_kb() * 1024;
     if (shm_size == 0)
       shm_size = producer->shmem_size_hint_bytes_;
-    shm_size = std::min<size_t>(shm_size, kMaxShmSize);
-    if (shm_size < page_size || shm_size % page_size)
-      shm_size = kDefaultShmSize;
+
+    auto valid_sizes = EnsureValidShmSizes(shm_size, page_size);
+    if (valid_sizes != std::tie(shm_size, page_size)) {
+      PERFETTO_DLOG(
+          "Invalid configured SMB sizes: shm_size %zu page_size %zu. Falling "
+          "back to shm_size %zu page_size %zu.",
+          shm_size, page_size, std::get<0>(valid_sizes),
+          std::get<1>(valid_sizes));
+    }
+    std::tie(shm_size, page_size) = valid_sizes;
 
     // TODO(primiano): right now Create() will suicide in case of OOM if the
     // mmap fails. We should instead gracefully fail the request and tell the
@@ -1989,9 +2026,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"", shm_size / 1024,
                   producer->name_.c_str());
     auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
-    producer->SetSharedMemory(std::move(shared_memory));
-    producer->OnTracingSetup();
-    UpdateMemoryGuardrail();
+    producer->SetupSharedMemory(std::move(shared_memory), page_size);
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
@@ -2777,10 +2812,15 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     callback();
 }
 
-void TracingServiceImpl::ProducerEndpointImpl::SetSharedMemory(
-    std::unique_ptr<SharedMemory> shared_memory) {
+void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
+    std::unique_ptr<SharedMemory> shared_memory,
+    size_t page_size_bytes) {
   PERFETTO_DCHECK(!shared_memory_ && !shmem_abi_.is_valid());
+  PERFETTO_DCHECK(page_size_bytes % 1024 == 0);
+
   shared_memory_ = std::move(shared_memory);
+  shared_buffer_page_size_kb_ = page_size_bytes / 1024;
+
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
                         shared_buffer_page_size_kb() * 1024);
@@ -2789,6 +2829,9 @@ void TracingServiceImpl::ProducerEndpointImpl::SetSharedMemory(
         shared_memory_->start(), shared_memory_->size(),
         shared_buffer_page_size_kb_ * 1024, this, task_runner_));
   }
+
+  OnTracingSetup();
+  service_->UpdateMemoryGuardrail();
 }
 
 SharedMemory* TracingServiceImpl::ProducerEndpointImpl::shared_memory() const {
