@@ -45,7 +45,6 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   StartAppActivity(app_name, "target.app.running", &task_runner,
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
-  // TODO(b/143467832): Remove this workaround.
   // If we try to dump too early in app initialization, we sometimes deadlock.
   sleep(1);
 
