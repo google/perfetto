@@ -906,8 +906,9 @@ void TrackEventParser::ParseLegacyEventAsRawEvent(
     return;
   }
 
-  RawId id = context_->storage->mutable_raw_table()->Insert(
-      {ts, raw_legacy_event_id_, 0, *utid});
+  RawId id = context_->storage->mutable_raw_table()
+                 ->Insert({ts, raw_legacy_event_id_, 0, *utid})
+                 .id;
 
   ArgsTracker args(context_);
   auto inserter = args.AddArgsTo(id);

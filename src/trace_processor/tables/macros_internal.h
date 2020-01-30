@@ -40,7 +40,15 @@ class RootParentTable : public Table {
    protected:
     const char* type_ = nullptr;
   };
-  uint32_t Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
+  // This class only exists to allow typechecking to work correctly in Insert
+  // below. If we had C++17 and if constexpr, we could statically verify that
+  // this was never created but for now, we still need to define it to satisfy
+  // the typechecker.
+  struct IdAndRow {
+    uint32_t id;
+    uint32_t row;
+  };
+  IdAndRow Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
 };
 
 // IdHelper is used to figure out the Id type for a table.
@@ -310,6 +318,12 @@ class MacroTable : public Table {
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
     };                                                                        \
                                                                               \
+    /* Return value of Insert giving access to id and row number */           \
+    struct IdAndRow {                                                         \
+      Id id;                                                                  \
+      uint32_t row;                                                           \
+    };                                                                        \
+                                                                              \
     class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
@@ -324,13 +338,14 @@ class MacroTable : public Table {
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
                                                                               \
-    Id Insert(const Row& row) {                                               \
+    IdAndRow Insert(const Row& row) {                                         \
       Id id;                                                                  \
+      uint32_t row_number = row_count();                                      \
       if (parent_ == nullptr) {                                               \
-        id = Id{row_count()};                                                 \
+        id = Id{row_number};                                                  \
         type_.Append(string_pool_->InternString(row.type()));                 \
       } else {                                                                \
-        id = Id{parent_->Insert(row)};                                        \
+        id = Id{parent_->Insert(row).id};                                     \
       }                                                                       \
       UpdateRowMapsAfterParentInsert();                                       \
                                                                               \
@@ -341,7 +356,7 @@ class MacroTable : public Table {
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_APPEND);              \
-      return id;                                                              \
+      return {id, row_number};                                                \
     }                                                                         \
                                                                               \
     const IdColumn<Id>& id() const {                                          \

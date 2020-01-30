@@ -358,8 +358,9 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RawId id =
-      context_->storage->mutable_raw_table()->Insert({ts, event_id, cpu, utid});
+  RawId id = context_->storage->mutable_raw_table()
+                 ->Insert({ts, event_id, cpu, utid})
+                 .id;
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
@@ -396,8 +397,9 @@ void FtraceParser::ParseTypedFtraceToRaw(uint32_t ftrace_id,
   MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RawId id = context_->storage->mutable_raw_table()->Insert(
-      {ts, message_strings.message_name_id, cpu, utid});
+  RawId id = context_->storage->mutable_raw_table()
+                 ->Insert({ts, message_strings.message_name_id, cpu, utid})
+                 .id;
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {

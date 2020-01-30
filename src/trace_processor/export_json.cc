@@ -758,11 +758,11 @@ class JsonExporter {
       // or chrome tracks (i.e. TrackEvent slices). Slices on other tracks may
       // also be present as raw events and handled by trace_to_text. Only add
       // more track types here if they are not already covered by trace_to_text.
-      uint32_t track_id = slices.track_id()[i];
+      TrackId track_id = slices.track_id()[i];
 
       const auto& track_table = storage_->track_table();
 
-      uint32_t track_row = *track_table.id().IndexOf(TrackId{track_id});
+      uint32_t track_row = *track_table.id().IndexOf(track_id);
       auto track_args_id = track_table.source_arg_set_id()[track_row];
       const Json::Value* track_args = nullptr;
       bool legacy_chrome_track = false;
@@ -896,7 +896,7 @@ class JsonExporter {
             auto pid_and_tid = UtidToPidAndTid(utid);
             event["pid"] = Json::Int(pid_and_tid.first);
             event["tid"] = Json::Int(pid_and_tid.second);
-            event["id2"]["local"] = PrintUint64(track_id);
+            event["id2"]["local"] = PrintUint64(track_id.value);
           } else if (opt_process_row) {
             uint32_t upid = process_track.upid()[*opt_process_row];
             uint32_t exported_pid = UpidToPid(upid);
@@ -904,13 +904,13 @@ class JsonExporter {
             event["tid"] =
                 Json::Int(legacy_utid ? UtidToPidAndTid(*legacy_utid).second
                                       : exported_pid);
-            event["id2"]["local"] = PrintUint64(track_id);
+            event["id2"]["local"] = PrintUint64(track_id.value);
           } else {
             // Some legacy importers don't understand "id2" fields, so we use
             // the "usually" global "id" field instead. This works as long as
             // the event phase is not in {'N', 'D', 'O', '(', ')'}, see
             // "LOCAL_ID_PHASES" in catapult.
-            event["id"] = PrintUint64(track_id);
+            event["id"] = PrintUint64(track_id.value);
           }
         }
 
