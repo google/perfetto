@@ -64,7 +64,7 @@ base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
   max_timestamp_ = timestamp;
 
   auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values->Insert({timestamp, track_id, value});
+  return counter_values->Insert({timestamp, track_id, value}).id;
 }
 
 InstantId EventTracker::PushInstant(int64_t timestamp,
@@ -77,15 +77,16 @@ InstantId EventTracker::PushInstant(int64_t timestamp,
   if (resolve_utid_to_upid) {
     auto ref_type_id = context_->storage->InternString(
         GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUpid)]);
-    id = instants->Insert({timestamp, name_id, 0, ref_type_id});
+    auto id_and_row = instants->Insert({timestamp, name_id, 0, ref_type_id});
+    id = id_and_row.id;
     PendingUpidResolutionInstant pending;
-    pending.row = *instants->id().IndexOf(id);
+    pending.row = id_and_row.row;
     pending.utid = static_cast<UniqueTid>(ref);
     pending_upid_resolution_instant_.emplace_back(pending);
   } else {
     auto ref_type_id = context_->storage->InternString(
         GetRefTypeStringMap()[static_cast<size_t>(ref_type)]);
-    id = instants->Insert({timestamp, name_id, ref, ref_type_id});
+    id = instants->Insert({timestamp, name_id, ref, ref_type_id}).id;
   }
   return id;
 }

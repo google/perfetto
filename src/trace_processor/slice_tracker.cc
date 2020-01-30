@@ -42,10 +42,10 @@ base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
                                              StringId category,
                                              StringId name,
                                              SetArgsCallback args_callback) {
-  tables::SliceTable::Row row(timestamp, kPendingDuration, track_id.value,
-                              category, name);
+  tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
+                              name);
   return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_slice_table()->Insert(row);
+    return context_->storage->mutable_slice_table()->Insert(row).id;
   });
 }
 
@@ -55,8 +55,8 @@ void SliceTracker::BeginGpu(tables::GpuSliceTable::Row row,
   // TODO(lalitm): change this to eventually use null instead of -1.
   row.dur = kPendingDuration;
 
-  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
-    return context_->storage->mutable_gpu_slice_table()->Insert(row);
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
+    return context_->storage->mutable_gpu_slice_table()->Insert(row).id;
   });
 }
 
@@ -68,10 +68,9 @@ base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
                                               SetArgsCallback args_callback) {
   PERFETTO_DCHECK(duration >= 0);
 
-  tables::SliceTable::Row row(timestamp, duration, track_id.value, category,
-                              name);
+  tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
   return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_slice_table()->Insert(row);
+    return context_->storage->mutable_slice_table()->Insert(row).id;
   });
 }
 
@@ -80,7 +79,7 @@ void SliceTracker::ScopedGpu(const tables::GpuSliceTable::Row& row,
   PERFETTO_DCHECK(row.dur >= 0);
 
   StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
-    return context_->storage->mutable_gpu_slice_table()->Insert(row);
+    return context_->storage->mutable_gpu_slice_table()->Insert(row).id;
   });
 }
 

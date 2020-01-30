@@ -116,7 +116,7 @@ base::Optional<MappingId> StackProfileTracker::AddMapping(
       }
     }
     if (!cur_id) {
-      MappingId mapping_id = mappings->Insert(row);
+      MappingId mapping_id = mappings->Insert(row).id;
       context_->storage->InsertMappingId(row.name, row.build_id, mapping_id);
       cur_id = mapping_id;
     }
@@ -171,7 +171,7 @@ base::Optional<FrameId> StackProfileTracker::AddFrame(
       }
     }
     if (!cur_id) {
-      cur_id = frames->Insert(row);
+      cur_id = frames->Insert(row).id;
       context_->storage->InsertFrameRow(
           mapping_id, static_cast<uint64_t>(row.rel_pc), *cur_id);
     }
@@ -206,7 +206,7 @@ base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
     } else {
       auto* callsite =
           context_->storage->mutable_stack_profile_callsite_table();
-      self_id = callsite->Insert(row);
+      self_id = callsite->Insert(row).id;
       callsite_idx_.emplace(row, self_id);
     }
     parent_id = self_id;

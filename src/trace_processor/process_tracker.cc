@@ -42,7 +42,7 @@ UniqueTid ProcessTracker::StartNewThread(base::Optional<int64_t> timestamp,
   row.start_ts = timestamp;
 
   auto* thread_table = context_->storage->mutable_thread_table();
-  UniqueTid new_utid = thread_table->Insert(row).value;
+  UniqueTid new_utid = thread_table->Insert(row).row;
   tids_[tid].emplace_back(new_utid);
   return new_utid;
 }
@@ -289,7 +289,7 @@ UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {
   } else {
     tables::ProcessTable::Row row;
     row.pid = pid;
-    upid = context_->storage->mutable_process_table()->Insert(row).value;
+    upid = context_->storage->mutable_process_table()->Insert(row).row;
 
     pids_.emplace(pid, upid);
 

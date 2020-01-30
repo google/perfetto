@@ -278,7 +278,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
         static_cast<int64_t>(node_to_cumulative_count[i]),
         static_cast<int64_t>(node.size),
         static_cast<int64_t>(node_to_cumulative_size[i]), parent_id};
-    node_to_id[i] = tbl->Insert(alloc_row);
+    node_to_id[i] = tbl->Insert(alloc_row).id;
   }
   return tbl;
 }
