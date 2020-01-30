@@ -225,6 +225,16 @@ class TraceViewer implements m.ClassComponent {
           frontendLocalState.areaY.end = currentY;
         }
         globals.rafScheduler.scheduleRedraw();
+      },
+      selectingStarted: () => {
+        globals.frontendLocalState.selectingArea = true;
+      },
+      selectingEnded: () => {
+        globals.frontendLocalState.selectingArea = false;
+        globals.frontendLocalState.areaY.start = undefined;
+        globals.frontendLocalState.areaY.end = undefined;
+        // Full redraw to color track shell.
+        globals.rafScheduler.scheduleFullRedraw();
       }
     });
   }
