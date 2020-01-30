@@ -110,7 +110,7 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
     std::vector<SourceRoot> current_roots;
     std::map<uint64_t, StringPool::Id> interned_type_names;
     std::map<uint64_t, StringPool::Id> interned_field_names;
-    std::map<uint64_t, int64_t> object_id_to_row;
+    std::map<uint64_t, uint32_t> object_id_to_row;
     base::Optional<uint64_t> prev_index;
     HeapGraphWalker walker;
   };

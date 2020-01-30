@@ -149,7 +149,7 @@ TEST_F(HeapProfileTrackerDupTest, Frame) {
 
   const auto& frames = context.storage->stack_profile_frame_table();
   EXPECT_THAT(frames.name()[0], frame_name);
-  EXPECT_THAT(frames.mapping()[0], 0);
+  EXPECT_THAT(frames.mapping()[0], MappingId{0});
   EXPECT_THAT(frames.rel_pc()[0], kFrameRelPc);
 }
 
@@ -168,28 +168,28 @@ TEST_F(HeapProfileTrackerDupTest, Callstack) {
   const auto& parent_id = callsite_table.parent_id();
   const auto& frame_id = callsite_table.frame_id();
 
-  EXPECT_EQ(depth[0], 0);
-  EXPECT_EQ(depth[1], 1);
+  EXPECT_EQ(depth[0], 0u);
+  EXPECT_EQ(depth[1], 1u);
 
-  EXPECT_EQ(parent_id[0], -1);
-  EXPECT_EQ(parent_id[1], 0);
+  EXPECT_EQ(parent_id[0], base::nullopt);
+  EXPECT_EQ(parent_id[1], CallsiteId{0});
 
-  EXPECT_EQ(frame_id[0], 0);
-  EXPECT_EQ(frame_id[1], 0);
+  EXPECT_EQ(frame_id[0], FrameId{0});
+  EXPECT_EQ(frame_id[1], FrameId{0});
 }
 
-int64_t FindCallstack(const TraceStorage& storage,
-                      int64_t depth,
-                      int64_t parent,
-                      FrameId frame_id) {
+base::Optional<CallsiteId> FindCallstack(const TraceStorage& storage,
+                                         int64_t depth,
+                                         base::Optional<CallsiteId> parent,
+                                         FrameId frame_id) {
   const auto& callsites = storage.stack_profile_callsite_table();
   for (uint32_t i = 0; i < callsites.row_count(); ++i) {
     if (callsites.depth()[i] == depth && callsites.parent_id()[i] == parent &&
-        callsites.frame_id()[i] == frame_id.value) {
-      return static_cast<int64_t>(i);
+        callsites.frame_id()[i] == frame_id) {
+      return callsites.id()[i];
     }
   }
-  return -1;
+  return base::nullopt;
 }
 
 TEST(HeapProfileTrackerTest, SourceMappingPath) {
@@ -323,13 +323,13 @@ TEST(HeapProfileTrackerTest, Functional) {
   hpt->CommitAllocations(kDefaultSequence, spt.get(), nullptr);
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
-    int64_t parent = -1;
+    base::Optional<CallsiteId> parent;
     const StackProfileTracker::SourceCallstack& callstack = callstacks[i];
     for (size_t depth = 0; depth < callstack.size(); ++depth) {
       auto frame_id = spt->GetDatabaseFrameIdForTesting(callstack[depth]);
-      int64_t self = FindCallstack(
+      base::Optional<CallsiteId> self = FindCallstack(
           *context.storage, static_cast<int64_t>(depth), parent, frame_id);
-      ASSERT_NE(self, -1);
+      ASSERT_TRUE(self.has_value());
       parent = self;
     }
   }

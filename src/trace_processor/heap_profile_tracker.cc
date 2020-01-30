@@ -45,13 +45,11 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
   const tables::StackProfileMappingTable& mapping_tbl =
       storage->stack_profile_mapping_table();
 
-  // TODO(fmayer): Clean up types and remove the static_cast.
-  uint32_t frame_idx = *frames_tbl.id().IndexOf(
-      FrameId(static_cast<uint32_t>(callsites_tbl.frame_id()[callstack_row])));
+  uint32_t frame_idx =
+      *frames_tbl.id().IndexOf(callsites_tbl.frame_id()[callstack_row]);
 
-  // TODO(fmayer): Clean up types and remove the static_cast.
-  uint32_t mapping_idx = *mapping_tbl.id().IndexOf(
-      MappingId(static_cast<uint32_t>(frames_tbl.mapping()[frame_idx])));
+  uint32_t mapping_idx =
+      *mapping_tbl.id().IndexOf(frames_tbl.mapping()[frame_idx]);
   StringId mapping_name = mapping_tbl.name()[mapping_idx];
 
   base::Optional<uint32_t> symbol_set_id =
@@ -101,10 +99,10 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
   // Aggregate callstacks by frame name / mapping name. Use symbolization data.
   for (uint32_t i = 0; i < callsites_tbl.row_count(); ++i) {
     base::Optional<uint32_t> parent_idx;
-    // TODO(fmayer): Clean up types and remove the conditional and static_cast.
-    if (callsites_tbl.parent_id()[i] != -1) {
-      auto parent_id = static_cast<uint32_t>(callsites_tbl.parent_id()[i]);
-      parent_idx = callsites_tbl.id().IndexOf(CallsiteId(parent_id));
+
+    auto opt_parent_id = callsites_tbl.parent_id()[i];
+    if (opt_parent_id) {
+      parent_idx = callsites_tbl.id().IndexOf(*opt_parent_id);
       parent_idx = callsite_to_merged_callsite[*parent_idx];
       PERFETTO_CHECK(*parent_idx < i);
     }
@@ -128,7 +126,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
         row.name = merged_callsite.frame_name;
         row.map_name = merged_callsite.mapping_name;
         if (parent_idx)
-          row.parent_id = tbl->id()[*parent_idx].value;
+          row.parent_id = tbl->id()[*parent_idx];
 
         parent_idx = *tbl->id().IndexOf(tbl->Insert(std::move(row)));
         PERFETTO_CHECK(merged_callsites_to_table_idx.size() ==
@@ -169,14 +167,12 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
         callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
             CallsiteId(static_cast<uint32_t>(callsite_id)))];
     if (count > 0) {
-      // TODO(fmayer): Clean up types and remove the static_cast.
       tbl->mutable_alloc_size()->Set(merged_idx,
                                      tbl->alloc_size()[merged_idx] + size);
       tbl->mutable_alloc_count()->Set(merged_idx,
                                       tbl->alloc_count()[merged_idx] + count);
     }
 
-    // TODO(fmayer): Clean up types and remove the static_cast.
     tbl->mutable_size()->Set(merged_idx, tbl->size()[merged_idx] + size);
     tbl->mutable_count()->Set(merged_idx, tbl->count()[merged_idx] + count);
   }
@@ -257,23 +253,23 @@ void HeapProfileTracker::AddAllocation(
     const StackProfileTracker::InternLookup* intern_lookup) {
   SequenceState& sequence_state = sequence_state_[seq_id];
 
-  auto maybe_callstack_id = stack_profile_tracker->FindOrInsertCallstack(
+  auto opt_callstack_id = stack_profile_tracker->FindOrInsertCallstack(
       alloc.callstack_id, intern_lookup);
-  if (!maybe_callstack_id)
+  if (!opt_callstack_id)
     return;
 
-  CallsiteId callstack_id = *maybe_callstack_id;
+  CallsiteId callstack_id = *opt_callstack_id;
 
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(alloc.pid));
 
   tables::HeapProfileAllocationTable::Row alloc_row{
-      alloc.timestamp, upid, callstack_id.value,
+      alloc.timestamp, upid, callstack_id,
       static_cast<int64_t>(alloc.alloc_count),
       static_cast<int64_t>(alloc.self_allocated)};
 
   tables::HeapProfileAllocationTable::Row free_row{
-      alloc.timestamp, upid, callstack_id.value,
+      alloc.timestamp, upid, callstack_id,
       -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 

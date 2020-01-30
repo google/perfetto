@@ -83,6 +83,8 @@ using MetadataId = tables::MetadataTable::Id;
 
 using RawId = tables::RawTable::Id;
 
+using FlamegraphId = tables::ExperimentalFlamegraphNodesTable::Id;
+
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
 
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
@@ -817,14 +819,27 @@ class TraceStorage {
 namespace std {
 
 template <>
-struct hash<::perfetto::trace_processor::TrackId> {
-  using argument_type = ::perfetto::trace_processor::TrackId;
+struct hash<::perfetto::trace_processor::BaseId> {
+  using argument_type = ::perfetto::trace_processor::BaseId;
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
     return std::hash<uint32_t>{}(r.value);
   }
 };
+
+template <>
+struct hash<::perfetto::trace_processor::TrackId>
+    : hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct hash<::perfetto::trace_processor::MappingId>
+    : hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct hash<::perfetto::trace_processor::CallsiteId>
+    : hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct hash<::perfetto::trace_processor::FrameId>
+    : hash<::perfetto::trace_processor::BaseId> {};
 
 template <>
 struct hash<::perfetto::trace_processor::tables::StackProfileFrameTable::Row> {
@@ -834,7 +849,9 @@ struct hash<::perfetto::trace_processor::tables::StackProfileFrameTable::Row> {
 
   result_type operator()(const argument_type& r) const {
     return std::hash<::perfetto::trace_processor::StringId>{}(r.name) ^
-           std::hash<int64_t>{}(r.mapping) ^ std::hash<int64_t>{}(r.rel_pc);
+           std::hash<::perfetto::base::Optional<
+               ::perfetto::trace_processor::MappingId>>{}(r.mapping) ^
+           std::hash<int64_t>{}(r.rel_pc);
   }
 };
 
@@ -846,8 +863,10 @@ struct hash<
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<int64_t>{}(r.depth) ^ std::hash<int64_t>{}(r.parent_id) ^
-           std::hash<int64_t>{}(r.frame_id);
+    return std::hash<int64_t>{}(r.depth) ^
+           std::hash<::perfetto::base::Optional<
+               ::perfetto::trace_processor::CallsiteId>>{}(r.parent_id) ^
+           std::hash<::perfetto::trace_processor::FrameId>{}(r.frame_id);
   }
 };
 

@@ -259,14 +259,9 @@ class MacroTable : public Table {
      * using declaration of Id below.                                         \
      * Note: This type will only used if this table is a root table.          \
      */                                                                       \
-    struct DefinedId {                                                        \
+    struct DefinedId : public BaseId {                                        \
       DefinedId() = default;                                                  \
-      explicit constexpr DefinedId(uint32_t v) : value(v) {}                  \
-                                                                              \
-      bool operator==(const DefinedId& o) const { return o.value == value; }  \
-      bool operator<(const DefinedId& o) const { return value < o.value; }    \
-                                                                              \
-      uint32_t value;                                                         \
+      explicit constexpr DefinedId(uint32_t v) : BaseId(v) {}                 \
     };                                                                        \
                                                                               \
    public:                                                                    \
