@@ -134,11 +134,20 @@ export interface Status {
 }
 
 export interface Note {
+  noteType: 'DEFAULT'|'MOVIE';
   id: string;
   timestamp: number;
   color: string;
   text: string;
-  isMovie: boolean;
+}
+
+export interface AreaNote {
+  noteType: 'AREA';
+  id: string;
+  timestamp: number;
+  area: Area;
+  color: string;
+  text: string;
 }
 
 export interface NoteSelection {
@@ -233,7 +242,7 @@ export interface State {
   pinnedTracks: string[];
   queries: ObjectById<QueryConfig>;
   permalink: PermalinkConfig;
-  notes: ObjectById<Note>;
+  notes: ObjectById<Note|AreaNote>;
   status: Status;
   currentSelection: Selection|null;
   currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
@@ -667,7 +676,7 @@ export function createEmptyState(): State {
       },
       selectedArea: {
         lastUpdate: 0,
-      },
+      }
     },
 
     logsPagination: {
