@@ -128,7 +128,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
         if (parent_idx)
           row.parent_id = tbl->id()[*parent_idx];
 
-        parent_idx = *tbl->id().IndexOf(tbl->Insert(std::move(row)));
+        parent_idx = tbl->Insert(std::move(row)).row;
         PERFETTO_CHECK(merged_callsites_to_table_idx.size() ==
                        tbl->row_count());
       }

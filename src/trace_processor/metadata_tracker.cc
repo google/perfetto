@@ -50,9 +50,9 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyIDs key, Variadic value) {
   row.name = key_ids_[key_idx];
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kSingle)];
 
-  MetadataId id = metadata_table->Insert(row);
-  WriteValue(*metadata_table->id().IndexOf(id), value);
-  return id;
+  auto id_and_row = metadata_table->Insert(row);
+  WriteValue(id_and_row.row, value);
+  return id_and_row.id;
 }
 
 MetadataId MetadataTracker::AppendMetadata(metadata::KeyIDs key,
@@ -67,9 +67,9 @@ MetadataId MetadataTracker::AppendMetadata(metadata::KeyIDs key,
   row.key_type = key_type_ids_[static_cast<size_t>(metadata::KeyType::kMulti)];
 
   auto* metadata_table = context_->storage->mutable_metadata_table();
-  MetadataId id = metadata_table->Insert(row);
-  WriteValue(*metadata_table->id().IndexOf(id), value);
-  return id;
+  auto id_and_row = metadata_table->Insert(row);
+  WriteValue(id_and_row.row, value);
+  return id_and_row.id;
 }
 
 void MetadataTracker::WriteValue(uint32_t row, Variadic value) {
