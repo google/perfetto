@@ -140,7 +140,9 @@ enum Type {
 enum Severity {
   kInfo,      // Diagnostic counters
   kDataLoss,  // Correct operation that still resulted in data loss
-  kError      // If any kError counter is > 0 the UI will raise an error
+  kError      // If any kError counter is > 0 trace_processor_shell will
+              // raise an error. This is *not* surfaced in the web UI.
+              // TODO(b/148587181): Surface these errors in the UI.
 };
 
 enum Source {
