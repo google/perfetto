@@ -64,8 +64,9 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const dragClass = this.dragging ? `drag` : '';
     const dropClass = this.dropping ? `drop-${this.dropping}` : '';
     const selectedArea = globals.frontendLocalState.selectedArea.area;
-    const markSelectedClass =
-        selectedArea && selectedArea.tracks.includes(attrs.trackState.id) ?
+    const markSelectedClass = selectedArea &&
+            selectedArea.tracks.includes(attrs.trackState.id) &&
+            !globals.frontendLocalState.selectingArea ?
         'selected' :
         '';
     return m(
@@ -253,8 +254,25 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     return m(TrackComponent, {trackState: this.trackState, track: this.track});
   }
 
+  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    const localState = globals.frontendLocalState;
+    const area = localState.selectedArea.area;
+    if (area && area.tracks.includes(this.trackState.id)) {
+      const timeScale = localState.timeScale;
+      ctx.fillStyle = '#ebeef9';
+      ctx.fillRect(
+          timeScale.timeToPx(area.startSec) + TRACK_SHELL_WIDTH,
+          0,
+          timeScale.deltaTimeToPx(area.endSec - area.startSec),
+          size.height);
+    }
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.save();
+
+    this.highlightIfTrackSelected(ctx, size);
+
     drawGridLines(
         ctx,
         globals.frontendLocalState.timeScale,
@@ -286,7 +304,8 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
                              size.height,
                              `rgb(52,69,150)`);
     }
-    if (localState.selectedArea.area !== undefined) {
+    if (localState.selectedArea.area !== undefined &&
+        !globals.frontendLocalState.selectingArea) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
