@@ -144,7 +144,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         {sequence_state.current_upid, sequence_state.current_ts,
          static_cast<int64_t>(obj.object_id),
          static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
-         /*unique_retained_size=*/-1, /*reference_set_id=*/-1,
+         /*unique_retained_size=*/-1, /*reference_set_id=*/base::nullopt,
          /*reachable=*/0, /*type_name=*/type_name,
          /*deobfuscated_type_name=*/base::nullopt,
          /*root_type=*/base::nullopt});
@@ -162,9 +162,9 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     auto it = sequence_state.object_id_to_row.find(obj.object_id);
     if (it == sequence_state.object_id_to_row.end())
       continue;
-    int64_t owner_row = it->second;
+    uint32_t owner_row = it->second;
 
-    int64_t reference_set_id =
+    uint32_t reference_set_id =
         context_->storage->heap_graph_reference_table().row_count();
     std::set<int64_t> seen_owned;
     for (const SourceObject::Reference& ref : obj.references) {
@@ -196,13 +196,13 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       context_->storage->mutable_heap_graph_reference_table()->Insert(
           {reference_set_id, owner_row, owned_row, field_name,
            /*deobfuscated_field_name=*/base::nullopt});
-      int64_t row =
+      uint32_t row =
           context_->storage->heap_graph_reference_table().row_count() - 1;
       field_to_rows_[field_name].emplace_back(row);
     }
     context_->storage->mutable_heap_graph_object_table()
         ->mutable_reference_set_id()
-        ->Set(static_cast<uint32_t>(owner_row), reference_set_id);
+        ->Set(owner_row, reference_set_id);
   }
 
   for (const SourceRoot& root : sequence_state.current_roots) {
@@ -256,14 +256,14 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
     node_to_cumulative_count[node.parent_id] += node_to_cumulative_count[i];
   }
 
-  std::vector<uint32_t> node_to_row_idx(init_path.nodes.size());
+  std::vector<FlamegraphId> node_to_id(init_path.nodes.size());
   // i = 1 is to skip the artifical root node.
   for (size_t i = 1; i < init_path.nodes.size(); ++i) {
     const HeapGraphWalker::PathFromRoot::Node& node = init_path.nodes[i];
     PERFETTO_CHECK(node.parent_id < i);
-    base::Optional<uint32_t> parent_id;
+    base::Optional<FlamegraphId> parent_id;
     if (node.parent_id != 0)
-      parent_id = node_to_row_idx[node.parent_id];
+      parent_id = node_to_id[node.parent_id];
     const uint32_t depth = node.depth;
 
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{
@@ -278,7 +278,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
         static_cast<int64_t>(node_to_cumulative_count[i]),
         static_cast<int64_t>(node.size),
         static_cast<int64_t>(node_to_cumulative_size[i]), parent_id};
-    node_to_row_idx[i] = *tbl->id().IndexOf(tbl->Insert(alloc_row));
+    node_to_id[i] = tbl->Insert(alloc_row);
   }
   return tbl;
 }
