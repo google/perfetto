@@ -28,10 +28,15 @@ namespace trace_processor {
 
 class SqliteRawTable : public DbSqliteTable {
  public:
-  SqliteRawTable(sqlite3*, const TraceStorage*);
+  struct Context {
+    QueryCache* cache;
+    const TraceStorage* storage;
+  };
+
+  SqliteRawTable(sqlite3*, Context);
   virtual ~SqliteRawTable();
 
-  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
+  static void RegisterTable(sqlite3* db, QueryCache*, const TraceStorage*);
 
  private:
   void FormatSystraceArgs(NullTermStringView event_name,

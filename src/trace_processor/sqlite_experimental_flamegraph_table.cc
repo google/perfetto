@@ -141,7 +141,8 @@ SqliteExperimentalFlamegraphTable::CreateCursor() {
 SqliteExperimentalFlamegraphTable::Cursor::Cursor(
     SqliteTable* sqlite_table,
     TraceProcessorContext* context)
-    : DbSqliteTable::Cursor(sqlite_table, nullptr), context_(context) {}
+    : DbSqliteTable::Cursor(sqlite_table, nullptr, nullptr),
+      context_(context) {}
 
 int SqliteExperimentalFlamegraphTable::Cursor::Filter(
     const QueryConstraints& qc,

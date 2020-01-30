@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
+#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
@@ -83,13 +84,16 @@ SqlValue SqliteValueToSqlValue(sqlite3_value* sqlite_val) {
 
 }  // namespace
 
-DbSqliteTable::DbSqliteTable(sqlite3*, const Table* table) : table_(table) {}
+DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
+    : cache_(context.cache), table_(context.table) {}
 DbSqliteTable::~DbSqliteTable() = default;
 
 void DbSqliteTable::RegisterTable(sqlite3* db,
+                                  QueryCache* cache,
                                   const Table* table,
                                   const std::string& name) {
-  SqliteTable::Register<DbSqliteTable, const Table*>(db, table, name);
+  SqliteTable::Register<DbSqliteTable, Context>(db, Context{cache, table},
+                                                name);
 }
 
 util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
@@ -260,29 +264,43 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
 }
 
 std::unique_ptr<SqliteTable::Cursor> DbSqliteTable::CreateCursor() {
-  return std::unique_ptr<Cursor>(new Cursor(this, table_));
+  return std::unique_ptr<Cursor>(new Cursor(this, cache_, table_));
 }
 
-DbSqliteTable::Cursor::Cursor(SqliteTable* sqlite_table, const Table* table)
-    : SqliteTable::Cursor(sqlite_table), initial_db_table_(table) {}
+DbSqliteTable::Cursor::Cursor(SqliteTable* sqlite_table,
+                              QueryCache* cache,
+                              const Table* table)
+    : SqliteTable::Cursor(sqlite_table),
+      cache_(cache),
+      initial_db_table_(table) {}
 
 void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     const QueryConstraints& qc,
     FilterHistory history) {
+  // Check if we have a cache. Some subclasses (e.g. the flamegraph table) may
+  // pass nullptr to disable caching.
+  if (!cache_)
+    return;
+
   if (history == FilterHistory::kDifferent) {
-    // Every time we get a new constraint set, reset the state of any caching
-    // structures.
-    sorted_cache_table_ = base::nullopt;
     repeated_cache_count_ = 0;
+
+    // Check if the new constraint set is cached by another cursor.
+    sorted_cache_table_ =
+        cache_->GetIfCached(initial_db_table_, qc.constraints());
     return;
   }
 
   PERFETTO_DCHECK(history == FilterHistory::kSame);
 
+  // TODO(lalitm): all of the caching policy below should live in QueryCache and
+  // not here. This is only here temporarily to allow migration of sched without
+  // regressing UI performance and should be removed ASAP.
+
   // Only try and create the cached table on exactly the third time we see this
   // constraint set.
   constexpr uint32_t kRepeatedThreshold = 3;
-  if (repeated_cache_count_++ != kRepeatedThreshold)
+  if (sorted_cache_table_ || repeated_cache_count_++ != kRepeatedThreshold)
     return;
 
   // If we have more than one constraint, we can't cache the table using
@@ -301,8 +319,11 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
   if (initial_db_table_->GetColumn(col).IsSorted())
     return;
 
-  // Create the cached table, sorting on the column which has the constraint.
-  sorted_cache_table_ = initial_db_table_->Sort({Order{col, false}});
+  // Try again to get the result or start caching it.
+  sorted_cache_table_ =
+      cache_->GetOrCache(initial_db_table_, qc.constraints(), [this, col]() {
+        return initial_db_table_->Sort({Order{col, false}});
+      });
 }
 
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
@@ -311,10 +332,6 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   // Clear out the iterator before filtering to ensure the destructor is run
   // before the table's destructor.
   iterator_ = base::nullopt;
-
-  // Tries to create a sorted cached table which can be used to speed up
-  // filters below.
-  TryCacheCreateSortedTable(qc, history);
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   constraints_.resize(qc.constraints().size());
@@ -335,6 +352,10 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     uint32_t col = static_cast<uint32_t>(ob.iColumn);
     orders_[i] = Order{col, static_cast<bool>(ob.desc)};
   }
+
+  // Tries to create a sorted cached table which can be used to speed up
+  // filters below.
+  TryCacheCreateSortedTable(qc, history);
 
   // Attempt to filter into a RowMap first - we'll figure out whether to apply
   // this to the table or we should use the RowMap directly.
