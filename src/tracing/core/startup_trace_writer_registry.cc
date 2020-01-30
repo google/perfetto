@@ -75,9 +75,9 @@ void StartupTraceWriterRegistry::ReturnTraceWriter(
   if (task_runner_ && !task_runner_->RunsTasksOnCurrentThread()) {
     // We shouldn't post tasks while holding a lock. |task_runner_| is only set
     // once, so will remain valid.
-    lock.release();
+    lock.unlock();
     auto weak_this = weak_ptr_factory_->GetWeakPtr();
-    auto* trace_writer_raw = trace_writer.get();
+    auto* trace_writer_raw = trace_writer.release();
     task_runner_->PostTask([weak_this, trace_writer_raw]() {
       std::unique_ptr<StartupTraceWriter> owned_writer(trace_writer_raw);
       if (weak_this)
