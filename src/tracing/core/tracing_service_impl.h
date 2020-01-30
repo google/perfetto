@@ -86,7 +86,7 @@ class TracingServiceImpl : public TracingService {
                              uint32_t target_buffer) override;
     void UnregisterTraceWriter(uint32_t writer_id) override;
     void CommitData(const CommitDataRequest&, CommitDataCallback) override;
-    void SetSharedMemory(std::unique_ptr<SharedMemory>);
+    void SetupSharedMemory(std::unique_ptr<SharedMemory>, size_t page_size);
     std::unique_ptr<TraceWriter> CreateTraceWriter(
         BufferID,
         BufferExhaustedPolicy) override;
