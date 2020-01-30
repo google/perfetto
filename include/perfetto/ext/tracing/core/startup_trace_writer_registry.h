@@ -138,7 +138,7 @@ class PERFETTO_EXPORT StartupTraceWriterRegistry {
 
   SharedMemoryArbiterImpl* arbiter_ = nullptr;  // |nullptr| while unbound.
   BufferID target_buffer_ = 0;
-  base::TaskRunner* task_runner_;
+  base::TaskRunner* task_runner_ = nullptr;
   size_t chunks_per_batch_ = 0;
   std::function<void(StartupTraceWriterRegistry*)> on_bound_callback_ = nullptr;
 
