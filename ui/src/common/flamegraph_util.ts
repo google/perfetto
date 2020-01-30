@@ -85,6 +85,7 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
       }
       if (mergedAny) {
         copiedCallsite.name = '[merged]';
+        copiedCallsite.merged = true;
       }
     }
     mergedData.push(copiedCallsite);
@@ -100,7 +101,8 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
     name: callsite.name,
     totalSize: callsite.totalSize,
     mapping: callsite.mapping,
-    selfSize: callsite.selfSize
+    selfSize: callsite.selfSize,
+    merged: callsite.merged,
   };
 }
 

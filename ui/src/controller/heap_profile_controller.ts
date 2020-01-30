@@ -234,8 +234,16 @@ export class HeapProfileController extends Controller<'main'> {
       // Instead of hash, we will store index of callsite in this original array
       // as an id of callsite. That way, we have quicker access to parent and it
       // will stay unique.
-      flamegraphData.push(
-          {id: i, totalSize, depth, parentId, name, selfSize, mapping});
+      flamegraphData.push({
+        id: i,
+        totalSize,
+        depth,
+        parentId,
+        name,
+        selfSize,
+        mapping,
+        merged: false
+      });
     }
     return flamegraphData;
   }
