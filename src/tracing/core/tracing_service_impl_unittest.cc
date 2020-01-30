@@ -1439,42 +1439,57 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
-  const size_t kMaxPageSizeKb = SharedMemoryABI::kMaxPageSize / 1024;
-  const size_t kConfigPageSizesKb[] = /**/ {16, 0, 3, 2, 16, 8, 0, 4096, 0};
-  const size_t kPageHintSizesKb[] = /****/ {0, 4, 0, 0, 8, 0, 4096, 0, 0};
-  const size_t kExpectedPageSizesKb[] = {
-      16,                     // Use config value.
-      4,                      // Config is 0, use hint.
-      kDefaultShmPageSizeKb,  // Config % 4 != 0, take default.
-      kDefaultShmPageSizeKb,  // Less than page size, take default.
-      16,                     // Ignore the hint.
-      8,                      // Use config value.
-      kMaxPageSizeKb,         // Hint too big, take max value.
-      kMaxPageSizeKb,         // Config too high, take max value.
-      4                       // Fallback to default.
+  const size_t kMaxPageSizeKb = 32;
+
+  struct ConfiguredAndExpectedSizes {
+    size_t config_page_size_kb;
+    size_t hint_page_size_kb;
+    size_t expected_page_size_kb;
+
+    size_t config_size_kb;
+    size_t hint_size_kb;
+    size_t expected_size_kb;
   };
 
-  const size_t kConfigSizesKb[] = /**/ {0, 16, 0, 20, 32, 7, 0, 96, 4096000};
-  const size_t kHintSizesKb[] = /****/ {0, 0, 16, 32, 16, 0, 7, 96, 4096000};
-  const size_t kExpectedSizesKb[] = {
-      kDefaultShmSizeKb,  // Both hint and config are 0, use default.
-      16,                 // Hint is 0, use config.
-      16,                 // Config is 0, use hint.
-      20,                 // Hint is takes precedence over the config.
-      32,                 // Ditto, even if config is higher than hint.
-      kDefaultShmSizeKb,  // Config is invalid and hint is 0, use default.
-      kDefaultShmSizeKb,  // Config is 0 and hint is invalid, use default.
-      kDefaultShmSizeKb,  // 96 KB isn't a multiple of the page size (64 KB).
-      kMaxShmSizeKb       // Too big, cap at kMaxShmSize.
+  ConfiguredAndExpectedSizes kSizes[] = {
+      // Config and hint are 0, fallback to default values.
+      {0, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
+      // Use configured sizes.
+      {16, 0, 16, 16, 0, 16},
+      // Config is 0, use hint.
+      {0, 4, 4, 0, 16, 16},
+      // Config takes precendence over hint.
+      {4, 8, 4, 16, 32, 16},
+      // Config takes precendence over hint, even if it's larger.
+      {8, 4, 8, 32, 16, 32},
+      // Config page size % 4 != 0, fallback to defaults.
+      {3, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
+      // Config page size less than system page size, fallback to defaults.
+      {2, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
+      // Config sizes too large, use max.
+      {4096, 0, kMaxPageSizeKb, 4096000, 0, kMaxShmSizeKb},
+      // Hint sizes too large, use max.
+      {0, 4096, kMaxPageSizeKb, 0, 4096000, kMaxShmSizeKb},
+      // Config buffer size isn't a multiple of 4KB, fallback to defaults.
+      {0, 0, kDefaultShmPageSizeKb, 18, 0, kDefaultShmSizeKb},
+      // Invalid page size -> also ignore buffer size config.
+      {2, 0, kDefaultShmPageSizeKb, 32, 0, kDefaultShmSizeKb},
+      // Invalid buffer size -> also ignore page size config.
+      {16, 0, kDefaultShmPageSizeKb, 18, 0, kDefaultShmSizeKb},
+      // Config page size % buffer size != 0, fallback to defaults.
+      {8, 0, kDefaultShmPageSizeKb, 20, 0, kDefaultShmSizeKb},
+      // Config page size % default buffer size != 0, fallback to defaults.
+      {28, 0, kDefaultShmPageSizeKb, 0, 0, kDefaultShmSizeKb},
   };
 
-  const size_t kNumProducers = base::ArraySize(kHintSizesKb);
+  const size_t kNumProducers = base::ArraySize(kSizes);
   std::unique_ptr<MockProducer> producer[kNumProducers];
   for (size_t i = 0; i < kNumProducers; i++) {
     auto name = "mock_producer_" + std::to_string(i);
     producer[i] = CreateMockProducer();
-    producer[i]->Connect(svc.get(), name, geteuid(), kHintSizesKb[i] * 1024,
-                         kPageHintSizesKb[i] * 1024);
+    producer[i]->Connect(svc.get(), name, geteuid(),
+                         kSizes[i].hint_size_kb * 1024,
+                         kSizes[i].hint_page_size_kb * 1024);
     producer[i]->RegisterDataSource("data_source");
   }
 
@@ -1485,15 +1500,21 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   for (size_t i = 0; i < kNumProducers; i++) {
     auto* producer_config = trace_config.add_producers();
     producer_config->set_producer_name("mock_producer_" + std::to_string(i));
-    producer_config->set_shm_size_kb(static_cast<uint32_t>(kConfigSizesKb[i]));
+    producer_config->set_shm_size_kb(
+        static_cast<uint32_t>(kSizes[i].config_size_kb));
     producer_config->set_page_size_kb(
-        static_cast<uint32_t>(kConfigPageSizesKb[i]));
+        static_cast<uint32_t>(kSizes[i].config_page_size_kb));
   }
 
   consumer->EnableTracing(trace_config);
+  size_t expected_shm_sizes_kb[kNumProducers]{};
+  size_t expected_page_sizes_kb[kNumProducers]{};
   size_t actual_shm_sizes_kb[kNumProducers]{};
   size_t actual_page_sizes_kb[kNumProducers]{};
   for (size_t i = 0; i < kNumProducers; i++) {
+    expected_shm_sizes_kb[i] = kSizes[i].expected_size_kb;
+    expected_page_sizes_kb[i] = kSizes[i].expected_page_size_kb;
+
     producer[i]->WaitForTracingSetup();
     producer[i]->WaitForDataSourceSetup("data_source");
     actual_shm_sizes_kb[i] =
@@ -1504,8 +1525,8 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   for (size_t i = 0; i < kNumProducers; i++) {
     producer[i]->WaitForDataSourceStart("data_source");
   }
-  ASSERT_THAT(actual_page_sizes_kb, ElementsAreArray(kExpectedPageSizesKb));
-  ASSERT_THAT(actual_shm_sizes_kb, ElementsAreArray(kExpectedSizesKb));
+  ASSERT_THAT(actual_page_sizes_kb, ElementsAreArray(expected_page_sizes_kb));
+  ASSERT_THAT(actual_shm_sizes_kb, ElementsAreArray(expected_shm_sizes_kb));
 }
 
 TEST_F(TracingServiceImplTest, ExplicitFlush) {
