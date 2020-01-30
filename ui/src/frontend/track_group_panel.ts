@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {hex} from 'color-convert';
 import * as m from 'mithril';
 
 import {assertExists} from '../base/logging';
@@ -195,6 +196,14 @@ export class TrackGroupPanel extends Panel<Attrs> {
                                note.timestamp,
                                size.height,
                                note.color);
+        if (note.noteType === 'AREA') {
+          drawVerticalLineAtTime(
+              ctx,
+              localState.timeScale,
+              note.area.endSec,
+              size.height,
+              note.color);
+        }
       }
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
@@ -204,6 +213,28 @@ export class TrackGroupPanel extends Panel<Attrs> {
             globals.sliceDetails.wakeupTs,
             size.height,
             `black`);
+      }
+    }
+    // All marked areas should have semi-transparent vertical lines
+    // marking the start and end.
+    for (const note of Object.values(globals.state.notes)) {
+      if (note.noteType === 'AREA') {
+        const transparentNoteColor =
+            'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
+        drawVerticalLineAtTime(
+            ctx,
+            localState.timeScale,
+            note.area.startSec,
+            size.height,
+            transparentNoteColor,
+            1);
+        drawVerticalLineAtTime(
+            ctx,
+            localState.timeScale,
+            note.area.endSec,
+            size.height,
+            transparentNoteColor,
+            1);
       }
     }
   }
