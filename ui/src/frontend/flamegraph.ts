@@ -343,6 +343,12 @@ export class Flamegraph {
       return undefined;
     }
     const clickedCallsite = this.findSelectedCallsite(x, y);
+    // TODO(b/148596659): Allow to expand [merged] callsites. Currently,
+    // this expands to the biggest of the nodes that were merged, which
+    // is confusing, so we disallow clicking on them.
+    if (clickedCallsite === undefined || clickedCallsite.merged) {
+      return undefined;
+    }
     return clickedCallsite;
   }
 
