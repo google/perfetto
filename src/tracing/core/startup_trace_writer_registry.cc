@@ -80,7 +80,8 @@ void StartupTraceWriterRegistry::ReturnTraceWriter(
     auto* trace_writer_raw = trace_writer.get();
     task_runner_->PostTask([weak_this, trace_writer_raw]() {
       std::unique_ptr<StartupTraceWriter> owned_writer(trace_writer_raw);
-      weak_this->ReturnTraceWriter(std::move(owned_writer));
+      if (weak_this)
+        weak_this->ReturnTraceWriter(std::move(owned_writer));
     });
     return;
   }
