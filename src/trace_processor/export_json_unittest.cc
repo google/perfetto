@@ -1354,7 +1354,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   auto* frames = storage->mutable_stack_profile_frame_table();
   auto frame_id_1 =
-      frames->Insert({/*name_id=*/kNullStringId, module_id_1.value, 0x42});
+      frames->Insert({/*name_id=*/kNullStringId, module_id_1, 0x42});
   uint32_t frame_row_1 = *frames->id().IndexOf(frame_id_1);
 
   uint32_t symbol_set_id = storage->symbol_table().row_count();
@@ -1364,7 +1364,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   frames->mutable_symbol_set_id()->Set(frame_row_1, symbol_set_id);
 
   auto frame_id_2 =
-      frames->Insert({/*name_id=*/kNullStringId, module_id_2.value, 0x4242});
+      frames->Insert({/*name_id=*/kNullStringId, module_id_2, 0x4242});
   uint32_t frame_row_2 = *frames->id().IndexOf(frame_id_2);
 
   symbol_set_id = storage->symbol_table().row_count();
@@ -1375,14 +1375,14 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   auto frame_callsite_id_1 =
       storage->mutable_stack_profile_callsite_table()->Insert(
-          {0, -1, frame_id_1.value});
+          {0, base::nullopt, frame_id_1});
 
   auto frame_callsite_id_2 =
       storage->mutable_stack_profile_callsite_table()->Insert(
-          {1, frame_callsite_id_1.value, frame_id_2.value});
+          {1, frame_callsite_id_1, frame_id_2});
 
   storage->mutable_cpu_profile_stack_sample_table()->Insert(
-      {kTimestamp, frame_callsite_id_2.value, utid});
+      {kTimestamp, frame_callsite_id_2, utid});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
