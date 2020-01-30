@@ -64,7 +64,7 @@ base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
   max_timestamp_ = timestamp;
 
   auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values->Insert({timestamp, track_id.value, value});
+  return counter_values->Insert({timestamp, track_id, value});
 }
 
 InstantId EventTracker::PushInstant(int64_t timestamp,
@@ -100,7 +100,7 @@ void EventTracker::FlushPendingEvents() {
     TrackId id = context_->track_tracker->InternProcessCounterTrack(
         pending_counter.name_id, upid);
     context_->storage->mutable_counter_table()->mutable_track_id()->Set(
-        pending_counter.row, id.value);
+        pending_counter.row, id);
   }
 
   for (const auto& pending_instant : pending_upid_resolution_instant_) {

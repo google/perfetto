@@ -158,13 +158,14 @@ std::vector<std::vector<int64_t>> GetCallsiteToFrames(
   std::vector<std::vector<int64_t>> result(static_cast<size_t>(count));
   while (it.Next()) {
     int64_t id = it.Get(0).long_value;
-    int64_t parent_id = it.Get(1).long_value;
     int64_t frame_id = it.Get(2).long_value;
     std::vector<int64_t>& path = result[static_cast<size_t>(id)];
     path.push_back(frame_id);
-    if (parent_id != -1) {
+
+    auto parent_id_value = it.Get(1);
+    if (!parent_id_value.is_null()) {
       const std::vector<int64_t>& parent_path =
-          result[static_cast<size_t>(parent_id)];
+          result[static_cast<size_t>(parent_id_value.long_value)];
       path.insert(path.end(), parent_path.begin(), parent_path.end());
     }
   }

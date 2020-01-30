@@ -448,20 +448,17 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
       break;
     }
 
-    auto maybe_callstack_id = stack_profile_tracker.FindOrInsertCallstack(
+    auto opt_cs_id = stack_profile_tracker.FindOrInsertCallstack(
         *callstack_it, &intern_lookup);
-    if (!maybe_callstack_id) {
+    if (!opt_cs_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);
       PERFETTO_ELOG("StreamingProfilePacket referencing invalid callstack!");
       continue;
     }
 
-    uint32_t callstack_id = maybe_callstack_id->value;
-
-    tables::CpuProfileStackSampleTable::Row sample_row{
-        sequence_state->state()->IncrementAndGetTrackEventTimeNs(*timestamp_it *
-                                                                 1000),
-        callstack_id, utid};
+    int64_t ts = sequence_state->state()->IncrementAndGetTrackEventTimeNs(
+        *timestamp_it * 1000);
+    tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid};
     storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
 }

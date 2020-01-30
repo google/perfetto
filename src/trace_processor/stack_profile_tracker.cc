@@ -139,15 +139,15 @@ base::Optional<FrameId> StackProfileTracker::AddFrame(
   }
   const StringId& str_id = opt_str_id.value();
 
-  auto maybe_mapping = FindOrInsertMapping(frame.mapping_id, intern_lookup);
-  if (!maybe_mapping) {
+  auto opt_mapping = FindOrInsertMapping(frame.mapping_id, intern_lookup);
+  if (!opt_mapping) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     PERFETTO_ELOG("Invalid mapping for frame %" PRIu64, id);
     return base::nullopt;
   }
-  MappingId mapping_id = *maybe_mapping;
+  MappingId mapping_id = *opt_mapping;
 
-  tables::StackProfileFrameTable::Row row{str_id, mapping_id.value,
+  tables::StackProfileFrameTable::Row row{str_id, mapping_id,
                                           static_cast<int64_t>(frame.rel_pc)};
 
   auto* frames = context_->storage->mutable_stack_profile_frame_table();
@@ -188,24 +188,17 @@ base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
   if (frame_ids.size() == 0)
     return base::nullopt;
 
-  // TODO(fmayer): This should be NULL.
   base::Optional<CallsiteId> parent_id;
-  for (size_t depth = 0; depth < frame_ids.size(); ++depth) {
-    auto maybe_frame_id = FindOrInsertFrame(frame_ids[depth], intern_lookup);
-    if (!maybe_frame_id) {
+  for (uint32_t depth = 0; depth < frame_ids.size(); ++depth) {
+    auto opt_frame_id = FindOrInsertFrame(frame_ids[depth], intern_lookup);
+    if (!opt_frame_id) {
       context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
       PERFETTO_ELOG("Unknown frame in callstack; ignoring.");
       return base::nullopt;
     }
-    FrameId frame_id = *maybe_frame_id;
+    FrameId frame_id = *opt_frame_id;
 
-    // TODO(fmayer): Store roots as having null parent_id instead of -1.
-    int64_t db_parent_id = -1;
-    if (parent_id)
-      db_parent_id = parent_id->value;
-    tables::StackProfileCallsiteTable::Row row{static_cast<int64_t>(depth),
-                                               db_parent_id, frame_id.value};
-
+    tables::StackProfileCallsiteTable::Row row{depth, parent_id, frame_id};
     CallsiteId self_id;
     auto callsite_it = callsite_idx_.find(row);
     if (callsite_it != callsite_idx_.end()) {

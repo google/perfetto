@@ -40,6 +40,25 @@ struct Serializer {
   }
 };
 
+template <typename T>
+using is_id = std::is_base_of<BaseId, T>;
+
+// Specialization of Serializer for id types.
+template <typename T>
+struct Serializer<T, typename std::enable_if<is_id<T>::value>::type> {
+  using serialized_type = uint32_t;
+
+  static serialized_type Serialize(T value) { return value.value; }
+  static T Deserialize(serialized_type value) { return T{value}; }
+
+  static base::Optional<serialized_type> Serialize(base::Optional<T> value) {
+    return value ? base::make_optional(Serialize(*value)) : base::nullopt;
+  }
+  static base::Optional<T> Deserialize(base::Optional<serialized_type> value) {
+    return value ? base::make_optional(Deserialize(*value)) : base::nullopt;
+  }
+};
+
 // Specialization of Serializer for StringPool types.
 template <>
 struct Serializer<StringPool::Id> {

@@ -1121,45 +1121,43 @@ class JsonExporter {
       static size_t g_id_counter = 0;
       event["id"] = PrintUint64(++g_id_counter);
 
-      std::vector<std::string> callstack;
       const auto& callsites = storage_->stack_profile_callsite_table();
-      int64_t maybe_callsite_id = samples.callsite_id()[i];
-      PERFETTO_DCHECK(maybe_callsite_id >= 0 &&
-                      maybe_callsite_id < callsites.row_count());
-      while (maybe_callsite_id >= 0) {
-        uint32_t callsite_id = static_cast<uint32_t>(maybe_callsite_id);
+      const auto& frames = storage_->stack_profile_frame_table();
+      const auto& mappings = storage_->stack_profile_mapping_table();
 
-        const auto& frames = storage_->stack_profile_frame_table();
-        PERFETTO_DCHECK(callsites.frame_id()[callsite_id] >= 0 &&
-                        callsites.frame_id()[callsite_id] < frames.row_count());
-        uint32_t frame_id =
-            static_cast<uint32_t>(callsites.frame_id()[callsite_id]);
+      std::vector<std::string> callstack;
+      base::Optional<CallsiteId> opt_callsite_id = samples.callsite_id()[i];
 
-        const auto& mappings = storage_->stack_profile_mapping_table();
-        PERFETTO_DCHECK(frames.mapping()[frame_id] >= 0 &&
-                        frames.mapping()[frame_id] < mappings.row_count());
-        uint32_t mapping_id = static_cast<uint32_t>(frames.mapping()[frame_id]);
+      while (opt_callsite_id) {
+        CallsiteId callsite_id = *opt_callsite_id;
+        uint32_t callsite_row = *callsites.id().IndexOf(callsite_id);
+
+        FrameId frame_id = callsites.frame_id()[callsite_row];
+        uint32_t frame_row = *frames.id().IndexOf(frame_id);
+
+        MappingId mapping_id = frames.mapping()[frame_row];
+        uint32_t mapping_row = *mappings.id().IndexOf(mapping_id);
 
         NullTermStringView symbol_name;
-        auto opt_symbol_set_id = frames.symbol_set_id()[frame_id];
+        auto opt_symbol_set_id = frames.symbol_set_id()[frame_row];
         if (opt_symbol_set_id) {
           symbol_name = storage_->GetString(
               storage_->symbol_table().name()[*opt_symbol_set_id]);
         }
 
         char frame_entry[1024];
-        snprintf(
-            frame_entry, sizeof(frame_entry), "%s - %s [%s]\n",
-            (symbol_name.empty()
-                 ? PrintUint64(static_cast<uint64_t>(frames.rel_pc()[frame_id]))
-                       .c_str()
-                 : symbol_name.c_str()),
-            GetNonNullString(storage_, mappings.name()[mapping_id]),
-            GetNonNullString(storage_, mappings.build_id()[mapping_id]));
+        snprintf(frame_entry, sizeof(frame_entry), "%s - %s [%s]\n",
+                 (symbol_name.empty()
+                      ? PrintUint64(
+                            static_cast<uint64_t>(frames.rel_pc()[frame_row]))
+                            .c_str()
+                      : symbol_name.c_str()),
+                 GetNonNullString(storage_, mappings.name()[mapping_row]),
+                 GetNonNullString(storage_, mappings.build_id()[mapping_row]));
 
         callstack.emplace_back(frame_entry);
 
-        maybe_callsite_id = callsites.parent_id()[callsite_id];
+        opt_callsite_id = callsites.parent_id()[callsite_row];
       }
 
       std::string merged_callstack;
