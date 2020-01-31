@@ -5991,17 +5991,12 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_lib",
   srcs: [
-    "src/trace_processor/filtered_row_index.cc",
     "src/trace_processor/read_trace.cc",
-    "src/trace_processor/row_iterators.cc",
     "src/trace_processor/span_join_operator_table.cc",
     "src/trace_processor/sql_stats_table.cc",
     "src/trace_processor/sqlite_experimental_flamegraph_table.cc",
     "src/trace_processor/sqlite_raw_table.cc",
     "src/trace_processor/stats_table.cc",
-    "src/trace_processor/storage_columns.cc",
-    "src/trace_processor/storage_schema.cc",
-    "src/trace_processor/storage_table.cc",
     "src/trace_processor/trace_processor.cc",
     "src/trace_processor/trace_processor_impl.cc",
     "src/trace_processor/window_operator_table.cc",
@@ -6149,7 +6144,6 @@ filegroup {
   srcs: [
     "src/trace_processor/clock_tracker_unittest.cc",
     "src/trace_processor/event_tracker_unittest.cc",
-    "src/trace_processor/filtered_row_index_unittest.cc",
     "src/trace_processor/forwarding_trace_parser_unittest.cc",
     "src/trace_processor/ftrace_utils_unittest.cc",
     "src/trace_processor/heap_profile_tracker_unittest.cc",
