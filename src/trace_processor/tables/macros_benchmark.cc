@@ -73,8 +73,10 @@ void TableSortArgs(benchmark::internal::Benchmark* b) {
 
 using perfetto::trace_processor::ChildTestTable;
 using perfetto::trace_processor::RootTestTable;
+using perfetto::trace_processor::RowMap;
 using perfetto::trace_processor::SqlValue;
 using perfetto::trace_processor::StringPool;
+using perfetto::trace_processor::Table;
 
 static void BM_TableInsert(benchmark::State& state) {
   StringPool pool;
@@ -125,8 +127,10 @@ static void BM_TableFilterAndSortRoot(benchmark::State& state) {
   }
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(root.Filter({root.root_non_null().eq(5)})
-                                 .Sort({root.root_non_null_2().ascending()}));
+    Table filtered = root.Filter({root.root_non_null().eq(5)},
+                                 RowMap::OptimizeFor::kLookupSpeed);
+    benchmark::DoNotOptimize(
+        filtered.Sort({root.root_non_null_2().ascending()}));
   }
 }
 BENCHMARK(BM_TableFilterAndSortRoot)->Apply(TableFilterArgs);

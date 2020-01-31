@@ -140,8 +140,11 @@ RowMap SelectIvWithIv(const std::vector<uint32_t>& iv,
 
 RowMap::RowMap() : RowMap(0, 0) {}
 
-RowMap::RowMap(uint32_t start, uint32_t end)
-    : mode_(Mode::kRange), start_idx_(start), end_idx_(end) {}
+RowMap::RowMap(uint32_t start, uint32_t end, OptimizeFor optimize_for)
+    : mode_(Mode::kRange),
+      start_idx_(start),
+      end_idx_(end),
+      optimize_for_(optimize_for) {}
 
 RowMap::RowMap(BitVector bit_vector)
     : mode_(Mode::kBitVector), bit_vector_(std::move(bit_vector)) {}
