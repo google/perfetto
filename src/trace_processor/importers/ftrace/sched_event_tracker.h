@@ -85,7 +85,7 @@ class SchedEventTracker : public Destructible {
   // Information retained from the preceding sched_switch seen on a given cpu.
   struct PendingSchedInfo {
     // The pending scheduling slice that the next event will complete.
-    size_t pending_slice_storage_idx = std::numeric_limits<size_t>::max();
+    uint32_t pending_slice_storage_idx = std::numeric_limits<uint32_t>::max();
 
     // pid/utid/prio corresponding to the last sched_switch seen on this cpu
     // (its "next_*" fields). There is some duplication with respect to the
@@ -96,19 +96,19 @@ class SchedEventTracker : public Destructible {
     int32_t last_prio = std::numeric_limits<int32_t>::max();
   };
 
-  size_t AddRawEventAndStartSlice(uint32_t cpu,
-                                  int64_t ts,
-                                  UniqueTid prev_utid,
-                                  uint32_t prev_pid,
-                                  StringId prev_comm_id,
-                                  int32_t prev_prio,
-                                  int64_t prev_state,
-                                  UniqueTid next_utid,
-                                  uint32_t next_pid,
-                                  StringId next_comm_id,
-                                  int32_t next_prio);
+  uint32_t AddRawEventAndStartSlice(uint32_t cpu,
+                                    int64_t ts,
+                                    UniqueTid prev_utid,
+                                    uint32_t prev_pid,
+                                    StringId prev_comm_id,
+                                    int32_t prev_prio,
+                                    int64_t prev_state,
+                                    UniqueTid next_utid,
+                                    uint32_t next_pid,
+                                    StringId next_comm_id,
+                                    int32_t next_prio);
 
-  void ClosePendingSlice(size_t slice_idx, int64_t ts, int64_t prev_state);
+  void ClosePendingSlice(uint32_t slice_idx, int64_t ts, int64_t prev_state);
 
   // Infromation retained from the preceding sched_switch seen on a given cpu.
   std::array<PendingSchedInfo, kMaxCpus> pending_sched_per_cpu_{};

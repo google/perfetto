@@ -31,7 +31,6 @@ reused_thread_print.py process_tracking.sql process_tracking_reused_thread_print
 # Sched reason
 ../data/android_sched_and_ps.pb end_reason_eq.sql android_sched_and_ps_end_reason_eq.out
 ../data/android_sched_and_ps.pb end_reason_neq.sql android_sched_and_ps_end_reason_neq.out
-../data/android_sched_and_ps.pb end_reason_match.sql android_sched_and_ps_end_reason_match.out
 
 # Sched wakeup
 ../data/android_sched_and_ps.pb sched_wakeup.sql sched_wakeup_android_sched_and_ps.out

@@ -87,8 +87,8 @@ void SchedEventTracker::PushSchedSwitch(uint32_t cpu,
   // First use this data to close the previous slice.
   bool prev_pid_match_prev_next_pid = false;
   auto* pending_sched = &pending_sched_per_cpu_[cpu];
-  size_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
-  if (pending_slice_idx < std::numeric_limits<size_t>::max()) {
+  uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
+  if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
       ClosePendingSlice(pending_slice_idx, ts, prev_state);
@@ -154,8 +154,8 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
 
   // Close the pending slice if any (we won't have one when processing the first
   // two compact events for a given cpu).
-  size_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
-  if (pending_slice_idx < std::numeric_limits<size_t>::max())
+  uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
+  if (pending_slice_idx < std::numeric_limits<uint32_t>::max())
     ClosePendingSlice(pending_slice_idx, ts, prev_state);
 
   // Use the previous event's values to infer this event's "prev_*" fields.
@@ -181,17 +181,17 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
 }
 
 PERFETTO_ALWAYS_INLINE
-size_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
-                                                   int64_t ts,
-                                                   UniqueTid prev_utid,
-                                                   uint32_t prev_pid,
-                                                   StringId prev_comm_id,
-                                                   int32_t prev_prio,
-                                                   int64_t prev_state,
-                                                   UniqueTid next_utid,
-                                                   uint32_t next_pid,
-                                                   StringId next_comm_id,
-                                                   int32_t next_prio) {
+uint32_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
+                                                     int64_t ts,
+                                                     UniqueTid prev_utid,
+                                                     uint32_t prev_pid,
+                                                     StringId prev_comm_id,
+                                                     int32_t prev_prio,
+                                                     int64_t prev_state,
+                                                     UniqueTid next_utid,
+                                                     uint32_t next_pid,
+                                                     StringId next_comm_id,
+                                                     int32_t next_prio) {
   if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
     // Push the raw event - this is done as the raw ftrace event codepath does
     // not insert sched_switch.
@@ -220,19 +220,21 @@ size_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
 
   // Open a new scheduling slice, corresponding to the task that was
   // just switched to.
-  return context_->storage->mutable_slices()->AddSlice(
-      cpu, ts, 0 /* duration */, next_utid, ftrace_utils::TaskState(),
-      next_prio);
+  auto* sched = context_->storage->mutable_sched_slice_table();
+  auto row_and_id = sched->Insert(
+      {ts, 0 /* duration */, cpu, next_utid, kNullStringId, next_prio});
+  SchedId sched_id = row_and_id.id;
+  return *sched->id().IndexOf(sched_id);
 }
 
 PERFETTO_ALWAYS_INLINE
-void SchedEventTracker::ClosePendingSlice(size_t pending_slice_idx,
+void SchedEventTracker::ClosePendingSlice(uint32_t pending_slice_idx,
                                           int64_t ts,
                                           int64_t prev_state) {
-  auto* slices = context_->storage->mutable_slices();
+  auto* slices = context_->storage->mutable_sched_slice_table();
 
-  int64_t duration = ts - slices->start_ns()[pending_slice_idx];
-  slices->set_duration(pending_slice_idx, duration);
+  int64_t duration = ts - slices->ts()[pending_slice_idx];
+  slices->mutable_dur()->Set(pending_slice_idx, duration);
 
   // We store the state as a uint16 as we only consider values up to 2048
   // when unpacking the information inside; this allows savings of 48 bits
@@ -241,7 +243,10 @@ void SchedEventTracker::ClosePendingSlice(size_t pending_slice_idx,
   if (!task_state.is_valid()) {
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
-  slices->set_end_state(pending_slice_idx, task_state);
+  auto id = task_state.is_valid()
+                ? context_->storage->InternString(task_state.ToString().data())
+                : kNullStringId;
+  slices->mutable_end_state()->Set(pending_slice_idx, id);
 }
 
 // Processes a sched_waking that was decoded from a compact representation,
@@ -310,16 +315,18 @@ void SchedEventTracker::FlushPendingEvents() {
   // flush the sched events as they will probably be pushed in the next round
   // of ftrace events.
   int64_t end_ts = context_->storage->GetTraceTimestampBoundsNs().second;
-  auto* slices = context_->storage->mutable_slices();
+  auto* slices = context_->storage->mutable_sched_slice_table();
   for (const auto& pending_sched : pending_sched_per_cpu_) {
-    size_t row = pending_sched.pending_slice_storage_idx;
-    if (row == std::numeric_limits<size_t>::max())
+    uint32_t row = pending_sched.pending_slice_storage_idx;
+    if (row == std::numeric_limits<uint32_t>::max())
       continue;
 
-    int64_t duration = end_ts - slices->start_ns()[row];
-    slices->set_duration(row, duration);
-    slices->set_end_state(
-        row, ftrace_utils::TaskState(ftrace_utils::TaskState::kRunnable));
+    int64_t duration = end_ts - slices->ts()[row];
+    slices->mutable_dur()->Set(row, duration);
+
+    auto state = ftrace_utils::TaskState(ftrace_utils::TaskState::kRunnable);
+    auto id = context_->storage->InternString(state.ToString().data());
+    slices->mutable_end_state()->Set(row, id);
   }
 
   pending_sched_per_cpu_ = {};
