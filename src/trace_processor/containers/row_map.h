@@ -205,13 +205,22 @@ class RowMap {
     const RowMap* rm_ = nullptr;
   };
 
+  // Enum to allow users of RowMap to decide whether they want to optimize for
+  // memory usage or for speed of lookups.
+  enum class OptimizeFor {
+    kMemory,
+    kLookupSpeed,
+  };
+
   // Creates an empty RowMap.
   // By default this will be implemented using a range.
   RowMap();
 
   // Creates a RowMap containing the range of rows between |start| and |end|
   // i.e. all rows between |start| (inclusive) and |end| (exclusive).
-  explicit RowMap(uint32_t start, uint32_t end);
+  explicit RowMap(uint32_t start,
+                  uint32_t end,
+                  OptimizeFor optimize_for = OptimizeFor::kMemory);
 
   // Creates a RowMap backed by a BitVector.
   explicit RowMap(BitVector bit_vector);
@@ -591,8 +600,10 @@ class RowMap {
     uint32_t index_vector_cost_ub = sizeof(uint32_t) * count;
 
     // If either of the conditions hold which make it better to use an
-    // index vector, use it instead.
-    if (is_small_range || index_vector_cost_ub <= bit_vector_cost) {
+    // index vector, use it instead. Alternatively, if we are optimizing for
+    // lookup speed, we also want to use an index vector.
+    if (is_small_range || index_vector_cost_ub <= bit_vector_cost ||
+        optimize_for_ == OptimizeFor::kLookupSpeed) {
       // Try and strike a good balance between not making the vector too
       // big and good performance.
       std::vector<uint32_t> iv(std::min(kSmallRangeLimit, count));
@@ -657,6 +668,8 @@ class RowMap {
 
   // Only valid when |mode_| == Mode::kIndexVector.
   std::vector<uint32_t> index_vector_;
+
+  OptimizeFor optimize_for_ = OptimizeFor::kMemory;
 };
 
 }  // namespace trace_processor
