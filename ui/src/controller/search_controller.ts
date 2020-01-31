@@ -205,7 +205,7 @@ export class SearchController extends Controller<'main'> {
 
     const rawResult = await this.query(`
     select
-      row_id as slice_id,
+      id as slice_id,
       ts,
       'cpu' as source,
       cpu as source_id,

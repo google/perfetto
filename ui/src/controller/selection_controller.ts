@@ -37,7 +37,7 @@ export class SelectionController extends Controller<'main'> {
     // TODO(taylori): Ideally thread_state should not be special cased, it
     // should have some form of id like everything else.
     if (selection.kind === 'THREAD_STATE') {
-      const sqlQuery = `SELECT row_id FROM sched WHERE utid = ${selection.utid}
+      const sqlQuery = `SELECT id FROM sched WHERE utid = ${selection.utid}
                         and ts = ${toNs(selection.ts)}`;
       this.args.engine.query(sqlQuery).then(result => {
         const id = result.columns[0].longValues![0] as number;
@@ -101,7 +101,7 @@ export class SelectionController extends Controller<'main'> {
 
   async sliceDetails(id: number) {
     const sqlQuery = `SELECT ts, dur, priority, end_state, utid, cpu FROM sched
-    WHERE row_id = ${id}`;
+    WHERE id = ${id}`;
     this.args.engine.query(sqlQuery).then(result => {
       // Check selection is still the same on completion of query.
       const selection = globals.state.currentSelection;

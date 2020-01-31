@@ -131,7 +131,7 @@ SELECT
       'time_activity_manager', AndroidStartupMetric_Slice(
         'dur_ns', (
           SELECT launching_events.ts - launches.ts FROM launching_events
-          WHERE launching_events.type = 'S'
+          WHERE launching_events.launch_type = 'S'
           AND launching_events.ts BETWEEN launches.ts AND launches.ts + launches.dur
         )
       ),
