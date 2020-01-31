@@ -358,8 +358,13 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   TryCacheCreateSortedTable(qc, history);
 
   // Attempt to filter into a RowMap first - we'll figure out whether to apply
-  // this to the table or we should use the RowMap directly.
-  RowMap filter_map = SourceTable()->FilterToRowMap(constraints_);
+  // this to the table or we should use the RowMap directly. Also, if we are
+  // going to sort on the RowMap, it makes sense that we optimize for lookup
+  // speed so our sorting is not super slow.
+  RowMap::OptimizeFor optimize_for = orders_.empty()
+                                         ? RowMap::OptimizeFor::kMemory
+                                         : RowMap::OptimizeFor::kLookupSpeed;
+  RowMap filter_map = SourceTable()->FilterToRowMap(constraints_, optimize_for);
 
   // If we have no order by constraints and it's cheap for us to use the
   // RowMap, just use the RowMap directoy.
