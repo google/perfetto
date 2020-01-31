@@ -829,8 +829,6 @@ filegroup(
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/row_iterators.cc",
         "src/trace_processor/row_iterators.h",
-        "src/trace_processor/sched_slice_table.cc",
-        "src/trace_processor/sched_slice_table.h",
         "src/trace_processor/span_join_operator_table.cc",
         "src/trace_processor/span_join_operator_table.h",
         "src/trace_processor/sql_stats_table.cc",

@@ -542,9 +542,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           }
         }
 
-        storage->mutable_slices()->AddSlice(cpu, previous_thread.start_ts,
-                                            ts - previous_thread.start_ts, utid,
-                                            end_state, outgoing_priority);
+        auto id =
+            end_state.is_valid()
+                ? context_->storage->InternString(end_state.ToString().data())
+                : kNullStringId;
+        storage->mutable_sched_slice_table()->Insert(
+            {previous_thread.start_ts, ts - previous_thread.start_ts, cpu, utid,
+             id, outgoing_priority});
       }
 
       RunningThread new_running;

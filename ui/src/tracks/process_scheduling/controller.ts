@@ -53,7 +53,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
           select utid, upid from thread
             where utid != 0 and upid = ${this.config.upid}) using(utid);`);
       await this.query(`create virtual table ${this.tableName('span')}
-              using span_join(${this.tableName('process')} PARTITIONED cpu,
+              using span_join(${this.tableName('process')} PARTITIONED utid,
                               ${this.tableName('window')});`);
       this.maxCpu = Math.max(...await this.engine.getCpus()) + 1;
       this.setup = true;
@@ -89,15 +89,10 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
     const numBuckets = Math.ceil((endNs - startNs) / bucketSizeNs);
 
-    // cpu < maxCpu improves performance a lot since the window table can
-    // avoid generating many rows.
     const query = `select
         quantum_ts as bucket,
         sum(dur)/cast(${bucketSizeNs * this.maxCpu} as float) as utilization
         from ${this.tableName('span')}
-        where upid = ${this.config.upid}
-        and utid != 0
-        and cpu < ${this.maxCpu}
         group by quantum_ts
         limit ${LIMIT}`;
 
@@ -123,17 +118,8 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   private async computeSlices(start: number, end: number, resolution: number):
       Promise<SliceData> {
-    // cpu < maxCpu improves performance a lot since the window table can
-    // avoid generating many rows.
     const query = `select ts,dur,cpu,utid from ${this.tableName('span')}
-        join
-        (select utid from thread where upid = ${this.config.upid})
-        using(utid)
-        where
-        cpu < ${this.maxCpu}
-        order by
-        cpu,
-        ts
+        order by cpu, ts
         limit ${LIMIT};`;
     const rawResult = await this.query(query);
 

@@ -71,6 +71,8 @@ using SliceId = tables::SliceTable::Id;
 
 using InstantId = tables::InstantTable::Id;
 
+using SchedId = tables::SchedSliceTable::Id;
+
 using MappingId = tables::StackProfileMappingTable::Id;
 
 using FrameId = tables::StackProfileFrameTable::Id;
@@ -114,69 +116,6 @@ class TraceStorage {
   TraceStorage(const Config& = Config());
 
   virtual ~TraceStorage();
-
-  class Slices {
-   public:
-    inline size_t AddSlice(uint32_t cpu,
-                           int64_t start_ns,
-                           int64_t duration_ns,
-                           UniqueTid utid,
-                           ftrace_utils::TaskState end_state,
-                           int32_t priority) {
-      cpus_.emplace_back(cpu);
-      start_ns_.emplace_back(start_ns);
-      durations_.emplace_back(duration_ns);
-      utids_.emplace_back(utid);
-      end_states_.emplace_back(end_state);
-      priorities_.emplace_back(priority);
-
-      if (utid >= rows_for_utids_.size())
-        rows_for_utids_.resize(utid + 1);
-      rows_for_utids_[utid].emplace_back(slice_count() - 1);
-      return slice_count() - 1;
-    }
-
-    void set_duration(size_t index, int64_t duration_ns) {
-      durations_[index] = duration_ns;
-    }
-
-    void set_end_state(size_t index, ftrace_utils::TaskState end_state) {
-      end_states_[index] = end_state;
-    }
-
-    size_t slice_count() const { return start_ns_.size(); }
-
-    const std::deque<uint32_t>& cpus() const { return cpus_; }
-
-    const std::deque<int64_t>& start_ns() const { return start_ns_; }
-
-    const std::deque<int64_t>& durations() const { return durations_; }
-
-    const std::deque<UniqueTid>& utids() const { return utids_; }
-
-    const std::deque<ftrace_utils::TaskState>& end_state() const {
-      return end_states_;
-    }
-
-    const std::deque<int32_t>& priorities() const { return priorities_; }
-
-    const std::deque<std::vector<uint32_t>>& rows_for_utids() const {
-      return rows_for_utids_;
-    }
-
-   private:
-    // Each deque below has the same number of entries (the number of slices
-    // in the trace for the CPU).
-    std::deque<uint32_t> cpus_;
-    std::deque<int64_t> start_ns_;
-    std::deque<int64_t> durations_;
-    std::deque<UniqueTid> utids_;
-    std::deque<ftrace_utils::TaskState> end_states_;
-    std::deque<int32_t> priorities_;
-
-    // One row per utid.
-    std::deque<std::vector<uint32_t>> rows_for_utids_;
-  };
 
   class ThreadSlices {
    public:
@@ -486,8 +425,12 @@ class TraceStorage {
     return &gpu_counter_track_table_;
   }
 
-  const Slices& slices() const { return slices_; }
-  Slices* mutable_slices() { return &slices_; }
+  const tables::SchedSliceTable& sched_slice_table() const {
+    return sched_slice_table_;
+  }
+  tables::SchedSliceTable* mutable_sched_slice_table() {
+    return &sched_slice_table_;
+  }
 
   const tables::SliceTable& slice_table() const { return slice_table_; }
   tables::SliceTable* mutable_slice_table() { return &slice_table_; }
@@ -746,9 +689,6 @@ class TraceStorage {
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
 
-  // One entry for each CPU in the trace.
-  Slices slices_;
-
   // Args for all other tables.
   tables::ArgTable arg_table_{&string_pool_, nullptr};
 
@@ -758,6 +698,9 @@ class TraceStorage {
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::SliceTable slice_table_{&string_pool_, nullptr};
+
+  // Slices from CPU scheduling data.
+  tables::SchedSliceTable sched_slice_table_{&string_pool_, nullptr};
 
   // Additional attributes for threads slices (sub-type of NestableSlices).
   ThreadSlices thread_slices_;

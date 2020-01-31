@@ -26,11 +26,11 @@
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/register_additional_modules.h"
-#include "src/trace_processor/sched_slice_table.h"
 #include "src/trace_processor/span_join_operator_table.h"
 #include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite_experimental_flamegraph_table.h"
 #include "src/trace_processor/sqlite_raw_table.h"
 #include "src/trace_processor/stats_table.h"
@@ -184,6 +184,20 @@ void CreateBuiltinViews(sqlite3* db) {
                "0.0 as value "
                "FROM instant;",
                0, 0, &error);
+
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+
+  sqlite3_exec(db,
+               "CREATE VIEW sched AS "
+               "SELECT "
+               "*, "
+               "ts + dur as ts_end "
+               "FROM sched_slice;",
+               0, 0, &error);
+
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
@@ -394,7 +408,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   const TraceStorage* storage = context_.storage.get();
 
-  SchedSliceTable::RegisterTable(*db_, storage);
   SqlStatsTable::RegisterTable(*db_, storage);
   StatsTable::RegisterTable(*db_, storage);
 
@@ -413,6 +426,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->process_table());
 
   RegisterDbTable(storage->slice_table());
+  RegisterDbTable(storage->sched_slice_table());
   RegisterDbTable(storage->instant_table());
   RegisterDbTable(storage->gpu_slice_table());
 
