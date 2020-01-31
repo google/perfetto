@@ -215,14 +215,15 @@ if (!build_with_chromium) {
       "src/tracing/core",
     ]
 
-    if (perfetto_build_with_android) {
-      # Android in-tree builds expose only the system backend and don't expose
-      # the in-process backend. This is to save binary size and memory (see
-      # b/148198993).
-      public_deps += [ "src/tracing:client_api_system_backend_only" ]
-    } else {
-      public_deps += [ "src/tracing:client_api" ]
-    }
+    # TODO(primiano): in Android this target should be split in full / light,
+    # where light depends on client_api_system_backend_only instead of
+    # client_api (see r.android.com/1218897).
+    # The full client_api is too big binary-size-wise for production (see
+    # b/148198993). However, tests want to use the full library because having
+    # an in-house service is more convenient.
+    # As a stop-gap solution to b/148517641 we re-link the full library by
+    # default in Android.
+    public_deps += [ "src/tracing:client_api" ]
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "//gn:protobuf_lite" ]
   }
