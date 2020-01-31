@@ -56,8 +56,12 @@ inline bool IsMainThread() {
   return getpid() == base::GetThreadId();
 }
 
-// TODO(b/117203899): Remove this after making bionic implementation safe to
-// use.
+// The implementation of pthread_getattr_np for the main thread uses malloc,
+// so we cannot use it in GetStackBase, which we use inside of RecordMalloc
+// (which is called from malloc). We would re-enter malloc if we used it.
+//
+// This is why we find the stack base for the main-thread when constructing
+// the client and remember it.
 char* FindMainThreadStack() {
   base::ScopedFstream maps(fopen("/proc/self/maps", "r"));
   if (!maps) {
