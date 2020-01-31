@@ -27,19 +27,6 @@ namespace trace_processor {
 
 namespace {
 
-template <typename T>
-void MaybeUpdateMinMax(T begin_it,
-                       T end_it,
-                       int64_t* min_value,
-                       int64_t* max_value) {
-  if (begin_it == end_it) {
-    return;
-  }
-  std::pair<T, T> minmax = std::minmax_element(begin_it, end_it);
-  *min_value = std::min(*min_value, *minmax.first);
-  *max_value = std::max(*max_value, *minmax.second);
-}
-
 void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& column,
                               int64_t* min_value,
                               int64_t* max_value) {
@@ -137,10 +124,9 @@ void TraceStorage::SqlStats::RecordQueryEnd(uint32_t row, int64_t time_ended) {
 std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   int64_t start_ns = std::numeric_limits<int64_t>::max();
   int64_t end_ns = std::numeric_limits<int64_t>::min();
-  MaybeUpdateMinMax(slices_.start_ns().begin(), slices_.start_ns().end(),
-                    &start_ns, &end_ns);
 
   DbTableMaybeUpdateMinMax(raw_table_.ts(), &start_ns, &end_ns);
+  DbTableMaybeUpdateMinMax(sched_slice_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(counter_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(slice_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(heap_profile_allocation_table_.ts(), &start_ns,
