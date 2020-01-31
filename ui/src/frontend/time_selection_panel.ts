@@ -44,6 +44,11 @@ function drawHBar(
   const yMid = Math.floor(target.height / 2 + target.y);
   const xWidth = xRight - xLeft;
 
+  // Don't draw in the track shell.
+  ctx.beginPath();
+  ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+  ctx.clip();
+
   // Draw horizontal bar of the H.
   ctx.fillRect(xLeft, yMid, xWidth, 1);
   // Draw left vertical bar of the H.
@@ -80,35 +85,6 @@ function drawHBar(
   ctx.fillText(label, labelXLeft, yMid);
 }
 
-function drawIBar(
-    ctx: CanvasRenderingContext2D, xPos: number, bounds: BBox, label: string) {
-  if (xPos < bounds.x) return;
-
-  ctx.fillStyle = '#222';
-  ctx.fillRect(xPos, 0, 1, bounds.width);
-
-  const yMid = Math.floor(bounds.height / 2 + bounds.y);
-  const labelWidth = ctx.measureText(label).width;
-  const padding = 3;
-
-  let xPosLabel;
-  if (xPos + padding + labelWidth > bounds.width) {
-    xPosLabel = xPos - padding;
-    ctx.textAlign = 'right';
-  } else {
-    xPosLabel = xPos + padding;
-    ctx.textAlign = 'left';
-  }
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(xPosLabel - 1, 0, labelWidth + 2, bounds.height);
-
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#222';
-  ctx.font = '10px Roboto Condensed';
-  ctx.fillText(label, xPosLabel, yMid);
-}
-
 export class TimeSelectionPanel extends Panel {
   view() {
     return m('.time-selection-panel');
@@ -129,18 +105,7 @@ export class TimeSelectionPanel extends Panel {
       const start = Math.min(selectedArea.startSec, selectedArea.endSec);
       const end = Math.max(selectedArea.startSec, selectedArea.endSec);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
-    } else if (globals.frontendLocalState.showTimeSelectPreview) {
-      this.renderHover(ctx, size, globals.frontendLocalState.hoveredTimestamp);
     }
-  }
-
-  renderHover(ctx: CanvasRenderingContext2D, size: PanelSize, ts: number) {
-    const timeScale = globals.frontendLocalState.timeScale;
-    const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(ts));
-    const offsetTime = timeToString(ts - globals.state.traceTime.startSec);
-    const timeFromStart = timeToString(ts);
-    const label = `${offsetTime} (${timeFromStart})`;
-    drawIBar(ctx, xPos, this.bounds(size), label);
   }
 
   renderSpan(ctx: CanvasRenderingContext2D, size: PanelSize, span: TimeSpan) {
@@ -161,6 +126,11 @@ export class TimeSelectionPanel extends Panel {
   }
 
   private bounds(size: PanelSize): BBox {
-    return {x: TRACK_SHELL_WIDTH, y: 0, width: size.width, height: size.height};
+    return {
+      x: TRACK_SHELL_WIDTH,
+      y: 0,
+      width: size.width - TRACK_SHELL_WIDTH,
+      height: size.height
+    };
   }
 }
