@@ -110,8 +110,8 @@ start-workers: .deps/gce-template
 	gcloud beta compute --quiet --project=${PROJECT} \
 		instance-groups managed set-autoscaling ${GCE_GROUP_NAME} \
 		--zone ${ZONE} \
-		--min-num-replicas "2" \
-		--max-num-replicas "2" \
+		--min-num-replicas "${NUM_VMS}" \
+		--max-num-replicas "${NUM_VMS}" \
 		--cool-down-period "1800" \
 		--stackdriver-metric-filter "resource.type = \"global\"" \
 		--update-stackdriver-metric "custom.googleapis.com/perfetto-ci/ci_job_queue_len" \

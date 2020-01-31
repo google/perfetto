@@ -47,10 +47,11 @@ LOGS_TTL_DAYS = 15
 TRUSTED_EMAILS = '^.*@google.com$'
 
 GCE_VM_NAME = 'ci-worker'
-GCE_VM_TYPE = 'n1-standard-64'
+GCE_VM_TYPE = 'e2-standard-16'
 GCE_TEMPLATE = 'ci-worker-template'
 GCE_GROUP_NAME = 'ci'
-NUM_WORKERS_PER_VM = 10
+NUM_VMS = 6
+NUM_WORKERS_PER_VM = 5
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
