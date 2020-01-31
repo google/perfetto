@@ -18,7 +18,6 @@
 // The actual service worker code is in src/service_worker.
 // Design doc: http://go/perfetto-offline.
 
-import {reportError} from '../base/logging';
 import {globals} from './globals';
 
 // We use a dedicated |caches| object to share a global boolean beween the main
@@ -71,15 +70,18 @@ export class ServiceWorkerController {
       // SW installation. This can happen, for instance, if the subresource
       // integrity check fails. In that case there doesn't seem to be any easy
       // way to get the failure output from the service worker.
-      reportError(
-          'Service Worker installation failed.\n' +
-          'Please attach the JavaScript console output to the bug.');
+      // TODO(primiano): This seems to fail in some weird ways, suppress error
+      // until the root cause is found (b/148675312).
+      // reportError(
+      //     'Service Worker installation failed.\n' +
+      //     'Please attach the JavaScript console output to the bug.');
     }
   }
 
   monitorWorker(sw: ServiceWorker|null) {
     if (!sw) return;
-    sw.addEventListener('error', (e) => reportError(e));
+    // TODO(primiano): b/148675312
+    // sw.addEventListener('error', (e) => reportError(e));
     sw.addEventListener('statechange', () => this.onStateChange(sw));
     this.onStateChange(sw);  // Trigger updates for the current state.
   }
