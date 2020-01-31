@@ -308,8 +308,8 @@ button.close {
         padding-left: 10px;
         display: grid;
         cursor: grab;
-        grid-template-areas: "title pin";
-        grid-template-columns: 1fr auto auto;
+        grid-template-areas: "title buttons";
+        grid-template-columns: 1fr auto;
         align-items: center;
         width: var(--track-shell-width);
         background: #fff;
@@ -335,11 +335,17 @@ button.close {
             color: hsl(213, 22%, 30%);
             @include track_shell_title();
         }
+        .track-buttons {
+          grid-area: buttons;
+          // This is necessary to center the buttons - but shouldn't be?
+          height: 18px;
+        }
         .track-button {
           @include transition();
-          color: #495767;
+          color: rgb(60, 86, 136);
           cursor: pointer;
-          width: 24px;
+          width: 22px;
+          font-size: 18px;
           opacity: 0;
         }
 
@@ -540,6 +546,9 @@ button.query-ctrl {
       border-right: 1px solid #c7d0db;
       background-color: var(--collapsed-background);
     }
+    .track-button {
+      color: rgb(60, 86, 136);
+    };
   }
   &[collapsed=false] {
     background-color: var(--expanded-background);
@@ -548,12 +557,15 @@ button.query-ctrl {
     .shell.flash {
       color: #121212;
     }
+    .track-button {
+      color: white;
+    }
   }
   .shell {
-    padding: 4px 10px;
+    padding: 4px 4px;
     display: grid;
-    grid-template-areas: "title fold-button";
-    grid-template-columns: 1fr 24px;
+    grid-template-areas: "fold-button title check";
+    grid-template-columns: 28px 1fr 20px;
     align-items: center;
     line-height: 1;
     width: var(--track-shell-width);
@@ -564,6 +576,9 @@ button.query-ctrl {
     }
     .fold-button {
       grid-area: fold-button;
+    }
+    .track-button {
+      font-size: 20px;
     }
     &:hover {
       cursor: pointer;
