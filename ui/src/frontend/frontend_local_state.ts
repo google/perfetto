@@ -96,7 +96,6 @@ export class FrontendLocalState {
   hoveredPid = -1;
   hoveredTimestamp = -1;
   vidTimestamp = -1;
-  showTimeSelectPreview = false;
   showNotePreview = false;
   localOnlyMode = false;
   sidebarVisible = true;
@@ -170,11 +169,6 @@ export class FrontendLocalState {
 
   setShowNotePreview(show: boolean) {
     this.showNotePreview = show;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  setShowTimeSelectPreview(show: boolean) {
-    this.showTimeSelectPreview = show;
     globals.rafScheduler.scheduleRedraw();
   }
 
