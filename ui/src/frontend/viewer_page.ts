@@ -245,19 +245,21 @@ class TraceViewer implements m.ClassComponent {
   }
 
   view() {
-    const scrollingPanels: AnyAttrsVnode[] =
-        globals.state.scrollingTracks.map(id => m(TrackPanel, {key: id, id}));
+    const scrollingPanels: AnyAttrsVnode[] = globals.state.scrollingTracks.map(
+        id => m(TrackPanel, {key: id, id, selectable: true}));
 
     for (const group of Object.values(globals.state.trackGroups)) {
       scrollingPanels.push(m(TrackGroupPanel, {
         trackGroupId: group.id,
         key: `trackgroup-${group.id}`,
+        selectable: true,
       }));
       if (group.collapsed) continue;
       for (const trackId of group.tracks) {
         scrollingPanels.push(m(TrackPanel, {
           key: `track-${group.id}-${trackId}`,
           id: trackId,
+          selectable: true,
         }));
       }
     }
@@ -286,7 +288,7 @@ class TraceViewer implements m.ClassComponent {
                   m(NotesPanel, {key: 'notes'}),
                   m(TickmarkPanel, {key: 'searchTickmarks'}),
                   ...globals.state.pinnedTracks.map(
-                      id => m(TrackPanel, {key: id, id})),
+                      id => m(TrackPanel, {key: id, id, selectable: true})),
                 ],
                 kind: 'OVERVIEW',
               })),
