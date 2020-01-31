@@ -37,6 +37,7 @@ import {
 
 interface Attrs {
   trackGroupId: string;
+  selectable: boolean;
 }
 
 export class TrackGroupPanel extends Panel<Attrs> {
