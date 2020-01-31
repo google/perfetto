@@ -239,6 +239,7 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
 
 interface TrackPanelAttrs {
   id: string;
+  selectable: boolean;
 }
 
 export class TrackPanel extends Panel<TrackPanelAttrs> {
