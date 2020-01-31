@@ -76,15 +76,20 @@ class Table {
   Table& operator=(Table&& other) noexcept;
 
   // Filters the Table using the specified filter constraints.
-  Table Filter(const std::vector<Constraint>& cs) const {
-    return Apply(FilterToRowMap(cs));
+  Table Filter(
+      const std::vector<Constraint>& cs,
+      RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
+    return Apply(FilterToRowMap(cs, optimize_for));
   }
 
-  // Filters the Table using the specified filter constraints.
+  // Filters the Table using the specified filter constraints optionally
+  // specifying what the returned RowMap should optimize for.
   // Returns a RowMap which, if applied to the table, would contain the rows
   // post filter.
-  RowMap FilterToRowMap(const std::vector<Constraint>& cs) const {
-    RowMap rm(0, row_count_);
+  RowMap FilterToRowMap(
+      const std::vector<Constraint>& cs,
+      RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
+    RowMap rm(0, row_count_, optimize_for);
     for (const Constraint& c : cs) {
       columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
     }
