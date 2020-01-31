@@ -178,6 +178,7 @@ export class HeapProfileController extends Controller<'main'> {
       tableName: string, viewingOption = DEFAULT_VIEWING_OPTION) {
     let orderBy = '';
     let sizeIndex = 4;
+    let selfIndex = 9;
     // TODO(fmayer): Improve performance so this is no longer necessary.
     // Alternatively consider collapsing frames of the same label.
     const maxDepth = 100;
@@ -187,24 +188,28 @@ export class HeapProfileController extends Controller<'main'> {
             maxDepth} order by depth, parent_id,
             cumulative_size desc, name`;
         sizeIndex = 4;
+        selfIndex = 9;
         break;
       case ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_size > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_alloc_size desc, name`;
         sizeIndex = 5;
+        selfIndex = 9;
         break;
       case OBJECTS_ALLOCATED_NOT_FREED_KEY:
         orderBy = `where cumulative_count > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_count desc, name`;
         sizeIndex = 6;
+        selfIndex = 10;
         break;
       case OBJECTS_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_count > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_alloc_count desc, name`;
         sizeIndex = 7;
+        selfIndex = 10;
         break;
       default:
         break;
@@ -213,7 +218,8 @@ export class HeapProfileController extends Controller<'main'> {
     const callsites = await this.args.engine.query(
         `SELECT id, IFNULL(DEMANGLE(name), name), IFNULL(parent_id, -1), depth,
         cumulative_size, cumulative_alloc_size, cumulative_count,
-        cumulative_alloc_count, map_name, size from ${tableName} ${orderBy}`);
+        cumulative_alloc_count, map_name, size, count from ${tableName} ${
+            orderBy}`);
 
     const flamegraphData: CallsiteInfo[] = new Array();
     const hashToindex: Map<number, number> = new Map();
@@ -224,7 +230,7 @@ export class HeapProfileController extends Controller<'main'> {
       const depth = +callsites.columns[3].longValues![i];
       const totalSize = +callsites.columns[sizeIndex].longValues![i];
       const mapping = callsites.columns[8].stringValues![i];
-      const selfSize = +callsites.columns[9].longValues![i];
+      const selfSize = +callsites.columns[selfIndex].longValues![i];
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
       if (depth === maxDepth - 1) {
