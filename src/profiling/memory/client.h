@@ -25,6 +25,7 @@
 #include <mutex>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
@@ -67,10 +68,10 @@ class Client {
 
   bool RecordMalloc(uint64_t sample_size,
                     uint64_t alloc_size,
-                    uint64_t alloc_address);
+                    uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
 
   // Add address to buffer of deallocations. Flushes the buffer if necessary.
-  bool RecordFree(uint64_t alloc_address);
+  bool RecordFree(uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
 
   // Returns the number of bytes to assign to an allocation with the given
   // |alloc_size|, based on the current sampling rate. A return value of zero
@@ -98,9 +99,10 @@ class Client {
  private:
   const char* GetStackBase();
   // Flush the contents of free_batch_. Must hold free_batch_lock_.
-  bool FlushFreesLocked();
-  bool SendControlSocketByte();
-  bool SendWireMessageWithRetriesIfBlocking(const WireMessage&);
+  bool FlushFreesLocked() PERFETTO_WARN_UNUSED_RESULT;
+  bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;
+  bool SendWireMessageWithRetriesIfBlocking(const WireMessage&)
+      PERFETTO_WARN_UNUSED_RESULT;
 
   // This is only valid for non-blocking sockets. This is when
   // client_config_.block_client is true.
