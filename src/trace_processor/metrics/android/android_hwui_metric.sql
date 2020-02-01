@@ -143,7 +143,7 @@ SELECT
   process_counter_track.upid as process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI GPU Memory' AND counter.value >= 0
+WHERE name='HWUI Misc Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 CREATE VIEW hwui_texture_mem AS
