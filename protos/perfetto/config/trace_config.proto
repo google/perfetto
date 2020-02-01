@@ -82,6 +82,9 @@ message TraceConfig {
   optional BuiltinDataSource builtin_data_sources = 20;
 
   // If specified, the trace will be stopped |duration_ms| after starting.
+  // This does *not* count the time the system is suspended, so we will run
+  // for duration_ms of system activity, not wall time.
+  //
   // However in case of traces with triggers, see
   // TriggerConfig.trigger_timeout_ms instead.
   optional uint32 duration_ms = 3;
