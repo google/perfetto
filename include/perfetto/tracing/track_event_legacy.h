@@ -74,19 +74,17 @@ static constexpr char TRACE_EVENT_PHASE_LEAVE_CONTEXT = ')';
 static constexpr uint32_t TRACE_EVENT_FLAG_NONE = 0;
 static constexpr uint32_t TRACE_EVENT_FLAG_COPY = 1u << 0;
 static constexpr uint32_t TRACE_EVENT_FLAG_HAS_ID = 1u << 1;
-// TODO(crbug.com/639003): Free this bit after ID mangling is deprecated.
-static constexpr uint32_t TRACE_EVENT_FLAG_MANGLE_ID = 1u << 2;
-static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_OFFSET = 1u << 3;
-static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_EXTRA = 1u << 4;
-static constexpr uint32_t TRACE_EVENT_FLAG_EXPLICIT_TIMESTAMP = 1u << 5;
-static constexpr uint32_t TRACE_EVENT_FLAG_ASYNC_TTS = 1u << 6;
-static constexpr uint32_t TRACE_EVENT_FLAG_BIND_TO_ENCLOSING = 1u << 7;
-static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_IN = 1u << 8;
-static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_OUT = 1u << 9;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_CONTEXT_ID = 1u << 10;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_PROCESS_ID = 1u << 11;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_LOCAL_ID = 1u << 12;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_GLOBAL_ID = 1u << 13;
+static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_OFFSET = 1u << 2;
+static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_EXTRA = 1u << 3;
+static constexpr uint32_t TRACE_EVENT_FLAG_EXPLICIT_TIMESTAMP = 1u << 4;
+static constexpr uint32_t TRACE_EVENT_FLAG_ASYNC_TTS = 1u << 5;
+static constexpr uint32_t TRACE_EVENT_FLAG_BIND_TO_ENCLOSING = 1u << 6;
+static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_IN = 1u << 7;
+static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_OUT = 1u << 8;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_CONTEXT_ID = 1u << 9;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_PROCESS_ID = 1u << 10;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_LOCAL_ID = 1u << 11;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_GLOBAL_ID = 1u << 12;
 // TODO(eseckler): Remove once we have native support for typed proto events in
 // TRACE_EVENT macros.
 static constexpr uint32_t TRACE_EVENT_FLAG_TYPED_PROTO_ARGS = 1u << 15;
@@ -107,9 +105,9 @@ static constexpr uint8_t TRACE_VALUE_TYPE_CONVERTABLE = 8;
 
 // Enum reflecting the scope of an INSTANT event. Must fit within
 // TRACE_EVENT_FLAG_SCOPE_MASK.
-static constexpr uint8_t TRACE_EVENT_SCOPE_GLOBAL = 0u << 3;
-static constexpr uint8_t TRACE_EVENT_SCOPE_PROCESS = 1u << 3;
-static constexpr uint8_t TRACE_EVENT_SCOPE_THREAD = 2u << 3;
+static constexpr uint8_t TRACE_EVENT_SCOPE_GLOBAL = 0u << 2;
+static constexpr uint8_t TRACE_EVENT_SCOPE_PROCESS = 1u << 2;
+static constexpr uint8_t TRACE_EVENT_SCOPE_THREAD = 2u << 2;
 
 static constexpr char TRACE_EVENT_SCOPE_NAME_GLOBAL = 'g';
 static constexpr char TRACE_EVENT_SCOPE_NAME_PROCESS = 'p';
