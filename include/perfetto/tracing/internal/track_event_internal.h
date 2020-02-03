@@ -98,7 +98,8 @@ class TrackEventInternal {
       TrackEventIncrementalState*,
       const char* category,
       const char* name,
-      perfetto::protos::pbzero::TrackEvent::Type);
+      perfetto::protos::pbzero::TrackEvent::Type,
+      uint64_t timestamp = GetTimeNs());
 
   template <typename T>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
@@ -130,8 +131,10 @@ class TrackEventInternal {
         track, NewTracePacket(trace_writer, GetTimeNs()));
   }
 
- private:
+  // Get the current time in nanoseconds in the trace clock timebase.
   static uint64_t GetTimeNs();
+
+ private:
   static void ResetIncrementalState(TraceWriterBase*, uint64_t timestamp);
   static protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket(
       TraceWriterBase*,
