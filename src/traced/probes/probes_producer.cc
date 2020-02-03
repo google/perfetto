@@ -58,6 +58,9 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 // Should be larger than FtraceController::kControllerFlushTimeoutMs.
 constexpr uint32_t kFlushTimeoutMs = 1000;
 
+constexpr size_t kTracingSharedMemSizeHintBytes = 1024 * 1024;
+constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
+
 constexpr char kFtraceSourceName[] = "linux.ftrace";
 constexpr char kProcessStatsSourceName[] = "linux.process_stats";
 constexpr char kInodeMapSourceName[] = "linux.inode_file_map";
@@ -529,7 +532,9 @@ void ProbesProducer::Connect() {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
   endpoint_ = ProducerIPCClient::Connect(
-      socket_name_, this, "perfetto.traced_probes", task_runner_);
+      socket_name_, this, "perfetto.traced_probes", task_runner_,
+      TracingService::ProducerSMBScrapingMode::kDisabled,
+      kTracingSharedMemSizeHintBytes, kTracingSharedMemPageSizeHintBytes);
 }
 
 void ProbesProducer::IncreaseConnectionBackoff() {
