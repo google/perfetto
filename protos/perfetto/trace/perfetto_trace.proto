@@ -4072,6 +4072,14 @@ message ChromeLegacyIpc {
 
 // End of protos/perfetto/trace/track_event/chrome_legacy_ipc.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_latency_info.proto
+
+message ChromeLatencyInfo {
+  optional int64 trace_id = 1;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_latency_info.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_process_descriptor.proto
 
 // Describes the attributes for a Chrome process. Must be paired with a
@@ -4473,7 +4481,7 @@ message TrackDescriptor {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 12 (up to 15). Next id: 29.
+// Next reserved id: 12 (up to 15). Next id: 30.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -4573,6 +4581,7 @@ message TrackEvent {
   optional ChromeKeyedService chrome_keyed_service = 26;
   optional ChromeLegacyIpc chrome_legacy_ipc = 27;
   optional ChromeHistogramSample chrome_histogram_sample = 28;
+  optional ChromeLatencyInfo chrome_latency_info = 29;
   // New argument types go here :)
 
   // ---------------------------------------------------------------------------
