@@ -18,6 +18,8 @@
 // The actual service worker code is in src/service_worker.
 // Design doc: http://go/perfetto-offline.
 
+import {reportError} from '../base/logging';
+
 import {globals} from './globals';
 
 // We use a dedicated |caches| object to share a global boolean beween the main
@@ -59,29 +61,12 @@ export class ServiceWorkerController {
       if (sw !== this._initialWorker && this._initialWorker) {
         globals.frontendLocalState.newVersionAvailable = true;
       }
-    } else if (
-        sw.state === 'redundant' && sw !== this._initialWorker &&
-        !this._bypassed) {
-      // Note that upon updates, the initial SW will hit the 'redundant'
-      // state by design once the new one is activated. That's why the
-      // != _initialWorker above.
-
-      // In the other cases, the 'redundant' state signals a failure in the
-      // SW installation. This can happen, for instance, if the subresource
-      // integrity check fails. In that case there doesn't seem to be any easy
-      // way to get the failure output from the service worker.
-      // TODO(primiano): This seems to fail in some weird ways, suppress error
-      // until the root cause is found (b/148675312).
-      // reportError(
-      //     'Service Worker installation failed.\n' +
-      //     'Please attach the JavaScript console output to the bug.');
     }
   }
 
   monitorWorker(sw: ServiceWorker|null) {
     if (!sw) return;
-    // TODO(primiano): b/148675312
-    // sw.addEventListener('error', (e) => reportError(e));
+    sw.addEventListener('error', (e) => reportError(e));
     sw.addEventListener('statechange', () => this.onStateChange(sw));
     this.onStateChange(sw);  // Trigger updates for the current state.
   }

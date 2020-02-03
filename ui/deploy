@@ -81,7 +81,7 @@ runtime: python27
 api_version: 1
 threadsafe: yes
 instance_class: B1
-default_expiration: "1s"
+default_expiration: "1m"
 manual_scaling:
   instances: 1
 handlers:
