@@ -124,6 +124,7 @@ class TrackEventDataSource
   //
   // - None
   // - Lambda
+  // - Lambda + timestamp
   // - One debug annotation
   // - Two debug annotations
   // - Track
@@ -151,7 +152,24 @@ class TrackEventDataSource
                                ArgumentFunction arg_function)
       PERFETTO_NO_INLINE {
     TraceForCategoryImpl<CategoryIndex>(instances, event_name, type, Track(),
+                                        TrackEventInternal::GetTimeNs(),
                                         std::move(arg_function));
+  }
+
+  // Trace point which takes a lambda function argument and an overridden
+  // timestamp. |timestamp| must be in nanoseconds in the trace clock timebase.
+  template <size_t CategoryIndex,
+            typename ArgumentFunction = void (*)(EventContext),
+            typename ArgumentFunctionCheck = typename std::enable_if<
+                IsValidTraceLambda<ArgumentFunction>()>::type>
+  static void TraceForCategory(uint32_t instances,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               uint64_t timestamp,
+                               ArgumentFunction arg_function)
+      PERFETTO_NO_INLINE {
+    TraceForCategoryImpl<CategoryIndex>(instances, event_name, type, Track(),
+                                        timestamp, std::move(arg_function));
   }
 
   // This variant of the inner trace point takes a Track argument which can be
@@ -182,6 +200,7 @@ class TrackEventDataSource
                                ArgumentFunction arg_function)
       PERFETTO_NO_INLINE {
     TraceForCategoryImpl<CategoryIndex>(instances, event_name, type, track,
+                                        TrackEventInternal::GetTimeNs(),
                                         std::move(arg_function));
   }
 
@@ -382,6 +401,7 @@ class TrackEventDataSource
       const char* event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       const TrackType& track = Track(),
+      uint64_t timestamp = TrackEventInternal::GetTimeNs(),
       ArgumentFunction arg_function = [](EventContext) {
       }) PERFETTO_ALWAYS_INLINE {
     Base::template TraceWithInstances<CategoryTracePointTraits<CategoryIndex>>(
@@ -390,7 +410,8 @@ class TrackEventDataSource
             // TODO(skyostil): Intern categories at compile time.
             auto event_ctx = TrackEventInternal::WriteEvent(
                 ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
-                Registry->GetCategory(CategoryIndex)->name, event_name, type);
+                Registry->GetCategory(CategoryIndex)->name, event_name, type,
+                timestamp);
             if (track)
               event_ctx.event()->set_track_uuid(track.uuid);
             arg_function(std::move(event_ctx));

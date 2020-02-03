@@ -125,6 +125,7 @@ source_set("client_api_base") {
     "tracing.cc",
     "track.cc",
     "track_event_category_registry.cc",
+    "track_event_legacy.cc",
     "virtual_destructors.cc",
   ]
 }
