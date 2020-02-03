@@ -3,3 +3,4 @@
 2,"legacy_ipc.class","legacy_ipc.class","[NULL]","AUTOMATION"
 2,"legacy_ipc.line","legacy_ipc.line",10,"[NULL]"
 3,"keyed_service.name","keyed_service.name","[NULL]","MediaRouter"
+4,"latency_info.trace_id","latency_info.trace_id",7,"[NULL]"

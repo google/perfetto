@@ -81,6 +81,8 @@ class TrackEventParser {
                         ArgsTracker::BoundInserter* inserter);
   void ParseChromeUserEvent(protozero::ConstBytes chrome_user_event,
                             ArgsTracker::BoundInserter* inserter);
+  void ParseChromeLatencyInfo(protozero::ConstBytes chrome_latency_info,
+                              ArgsTracker::BoundInserter* inserter);
   void ParseChromeLegacyIpc(protozero::ConstBytes chrome_legacy_ipc,
                             ArgsTracker::BoundInserter* inserter);
   void ParseChromeKeyedService(protozero::ConstBytes chrome_keyed_service,
@@ -122,6 +124,7 @@ class TrackEventParser {
   const StringId chrome_histogram_sample_name_hash_args_key_id_;
   const StringId chrome_histogram_sample_name_args_key_id_;
   const StringId chrome_histogram_sample_sample_args_key_id_;
+  const StringId chrome_latency_info_trace_id_key_id_;
 
   std::array<StringId, 38> chrome_legacy_ipc_class_ids_;
   std::array<StringId, 9> chrome_process_name_ids_;

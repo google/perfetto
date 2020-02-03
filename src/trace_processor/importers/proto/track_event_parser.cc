@@ -30,6 +30,7 @@
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_latency_info.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
@@ -167,6 +168,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
           context->storage->InternString("histogram_sample.name")),
       chrome_histogram_sample_sample_args_key_id_(
           context->storage->InternString("histogram_sample.sample")),
+      chrome_latency_info_trace_id_key_id_(
+          context->storage->InternString("latency_info.trace_id")),
       chrome_legacy_ipc_class_ids_{
           {context->storage->InternString("UNSPECIFIED"),
            context->storage->InternString("AUTOMATION"),
@@ -648,6 +651,9 @@ void TrackEventParser::ParseTrackEvent(
     }
     if (event.has_chrome_histogram_sample()) {
       ParseChromeHistogramSample(event.chrome_histogram_sample(), inserter);
+    }
+    if (event.has_chrome_latency_info()) {
+      ParseChromeLatencyInfo(event.chrome_latency_info(), inserter);
     }
 
     if (legacy_passthrough_utid) {
@@ -1245,6 +1251,18 @@ void TrackEventParser::ParseChromeKeyedService(
     inserter->AddArg(chrome_keyed_service_name_args_key_id_,
 
                      Variadic::String(action_id));
+  }
+}
+
+void TrackEventParser::ParseChromeLatencyInfo(
+    protozero::ConstBytes chrome_latency_info,
+    ArgsTracker::BoundInserter* inserter) {
+  protos::pbzero::ChromeLatencyInfo::Decoder event(chrome_latency_info.data,
+                                                   chrome_latency_info.size);
+
+  if (event.has_trace_id()) {
+    inserter->AddArg(chrome_latency_info_trace_id_key_id_,
+                     Variadic::Integer(event.trace_id()));
   }
 }
 
