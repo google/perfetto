@@ -51,3 +51,16 @@ packet {
     }
   }
 }
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name4"
+    type: 3
+    chrome_latency_info {
+      trace_id: 7
+    }
+  }
+}

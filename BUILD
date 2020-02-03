@@ -2400,6 +2400,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
         "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
+        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
         "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
         "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
         "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
