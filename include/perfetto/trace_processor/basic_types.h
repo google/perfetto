@@ -85,19 +85,19 @@ struct PERFETTO_EXPORT SqlValue {
     return value;
   }
 
-  double AsDouble() {
+  double AsDouble() const {
     PERFETTO_CHECK(type == kDouble);
     return double_value;
   }
-  int64_t AsLong() {
+  int64_t AsLong() const {
     PERFETTO_CHECK(type == kLong);
     return long_value;
   }
-  const char* AsString() {
+  const char* AsString() const {
     PERFETTO_CHECK(type == kString);
     return string_value;
   }
-  const void* AsBytes() {
+  const void* AsBytes() const {
     PERFETTO_CHECK(type == kBytes);
     return bytes_value;
   }
