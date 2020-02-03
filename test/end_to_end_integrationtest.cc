@@ -414,7 +414,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
 
   const uint32_t kTestTimeoutMs = 30000;
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(16);
+  trace_config.add_buffers()->set_size_kb(32);
   trace_config.set_duration_ms(kTestTimeoutMs);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
