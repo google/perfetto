@@ -186,7 +186,9 @@ void ProducerIPCClientImpl::OnServiceRequest(
     PERFETTO_CHECK(shmem_fd);
 
     // TODO(primiano): handle mmap failure in case of OOM.
-    shared_memory_ = PosixSharedMemory::AttachToFd(std::move(shmem_fd));
+    shared_memory_ =
+        PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                      /*require_seals_if_supported=*/false);
     shared_buffer_page_size_kb_ =
         cmd.setup_tracing().shared_buffer_page_size_kb();
     shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
