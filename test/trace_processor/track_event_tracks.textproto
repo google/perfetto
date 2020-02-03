@@ -269,10 +269,26 @@ packet {
   track_event {
     track_uuid: 0
     categories: "cat"
-    name: "event1_on_t1"
+    name: "event2_on_p2"
     legacy_event {
       phase: 73               # 'I'
       instant_event_scope: 2  # Process scope
+    }
+  }
+}
+
+# And pid/tid overrides take effect even for TrackEvent type events.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 32000
+  track_event {
+    track_uuid: 0
+    categories: "cat"
+    name: "event2_on_t4"
+    type: 3
+    legacy_event {
+      pid_override: 5
+      tid_override: 4
     }
   }
 }
