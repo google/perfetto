@@ -6608,6 +6608,7 @@ filegroup {
   name: "perfetto_src_tracing_ipc_common",
   srcs: [
     "src/tracing/ipc/default_socket.cc",
+    "src/tracing/ipc/memfd.cc",
     "src/tracing/ipc/posix_shared_memory.cc",
   ],
 }

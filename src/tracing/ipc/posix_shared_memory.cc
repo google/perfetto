@@ -27,50 +27,55 @@
 #include <memory>
 #include <utility>
 
-#include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/temp_file.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <linux/memfd.h>
-#include <sys/syscall.h>
-#endif
+#include "src/tracing/ipc/memfd.h"
 
 namespace perfetto {
 
+namespace {
+int kFileSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
+}  // namespace
+
 // static
 std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
-  base::ScopedFile fd;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  bool is_memfd = false;
-  fd.reset(static_cast<int>(syscall(__NR_memfd_create, "perfetto_shmem",
-                                    MFD_CLOEXEC | MFD_ALLOW_SEALING)));
-  is_memfd = !!fd;
+  base::ScopedFile fd =
+      CreateMemfd("perfetto_shmem", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+  bool is_memfd = !!fd;
 
   if (!fd) {
     // TODO: if this fails on Android we should fall back on ashmem.
     PERFETTO_DPLOG("memfd_create() failed");
-  }
-#endif
-
-  if (!fd)
     fd = base::TempFile::CreateUnlinked().ReleaseFD();
+  }
 
   PERFETTO_CHECK(fd);
   int res = ftruncate(fd.get(), static_cast<off_t>(size));
   PERFETTO_CHECK(res == 0);
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
   if (is_memfd) {
-    res = fcntl(*fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL);
+    // When memfd is supported, file seals should be, too.
+    res = fcntl(*fd, F_ADD_SEALS, kFileSeals);
     PERFETTO_DCHECK(res == 0);
   }
-#endif
+
   return MapFD(std::move(fd), size);
 }
 
 // static
 std::unique_ptr<PosixSharedMemory> PosixSharedMemory::AttachToFd(
-    base::ScopedFile fd) {
+    base::ScopedFile fd,
+    bool require_seals_if_supported) {
+  if (require_seals_if_supported && HasMemfdSupport()) {
+    // If the system supports memfd, we require a sealed memfd.
+    int res = fcntl(*fd, F_GET_SEALS);
+    if (res == -1 || (res & kFileSeals) != kFileSeals) {
+      PERFETTO_PLOG("Couldn't verify file seals on shmem FD");
+      return nullptr;
+    }
+  }
+
   struct stat stat_buf = {};
   int res = fstat(fd.get(), &stat_buf);
   PERFETTO_CHECK(res == 0 && stat_buf.st_size > 0);
