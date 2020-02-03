@@ -28,6 +28,8 @@ source_set("common") {
   ]
   sources = [
     "default_socket.cc",
+    "memfd.cc",
+    "memfd.h",
     "posix_shared_memory.cc",
     "posix_shared_memory.h",
   ]
