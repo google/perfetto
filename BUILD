@@ -1215,6 +1215,8 @@ filegroup(
     name = "src_tracing_ipc_common",
     srcs = [
         "src/tracing/ipc/default_socket.cc",
+        "src/tracing/ipc/memfd.cc",
+        "src/tracing/ipc/memfd.h",
         "src/tracing/ipc/posix_shared_memory.cc",
         "src/tracing/ipc/posix_shared_memory.h",
     ],

@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/vm_test_utils.h"
+#include "src/tracing/ipc/memfd.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -43,6 +44,7 @@ TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
   PosixSharedMemory::Factory factory;
   std::unique_ptr<SharedMemory> shm =
       factory.CreateSharedMemory(base::kPageSize);
+  ASSERT_NE(shm.get(), nullptr);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
@@ -58,6 +60,7 @@ TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
 TEST(PosixSharedMemoryTest, DestructorClosesFD) {
   std::unique_ptr<PosixSharedMemory> shm =
       PosixSharedMemory::Create(base::kPageSize);
+  ASSERT_NE(shm.get(), nullptr);
   int fd = shm->fd();
   ASSERT_GE(fd, 0);
   ASSERT_EQ(static_cast<off_t>(base::kPageSize), lseek(fd, 0, SEEK_END));
@@ -66,14 +69,15 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
   ASSERT_TRUE(IsFileDescriptorClosed(fd));
 }
 
-TEST(PosixSharedMemoryTest, AttachToFd) {
+TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
   base::TempFile tmp_file = base::TempFile::CreateUnlinked();
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
   ASSERT_EQ(7, base::WriteAll(fd_num, "foobar", 7));
 
-  std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::AttachToFd(tmp_file.ReleaseFD());
+  std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::AttachToFd(
+      tmp_file.ReleaseFD(), /*require_seals_if_supported=*/false);
+  ASSERT_NE(shm.get(), nullptr);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
@@ -84,6 +88,54 @@ TEST(PosixSharedMemoryTest, AttachToFd) {
 
   shm.reset();
   ASSERT_TRUE(IsFileDescriptorClosed(fd_num));
+  ASSERT_FALSE(base::vm_test_utils::IsMapped(shm_start, shm_size));
+}
+
+TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
+  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  const int fd_num = tmp_file.fd();
+  ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
+
+  std::unique_ptr<PosixSharedMemory> shm =
+      PosixSharedMemory::AttachToFd(tmp_file.ReleaseFD());
+
+  if (HasMemfdSupport()) {
+    EXPECT_EQ(shm.get(), nullptr);
+  } else {
+    ASSERT_NE(shm.get(), nullptr);
+    EXPECT_NE(shm->start(), nullptr);
+  }
+}
+
+TEST(PosixSharedMemoryTest, CreateAndMap) {
+  std::unique_ptr<PosixSharedMemory> shm =
+      PosixSharedMemory::Create(base::kPageSize);
+  void* const shm_start = shm->start();
+  const size_t shm_size = shm->size();
+  ASSERT_NE(shm_start, nullptr);
+  ASSERT_EQ(shm_size, base::kPageSize);
+
+  memcpy(shm_start, "test", 5);
+  ASSERT_TRUE(base::vm_test_utils::IsMapped(shm_start, shm_size));
+
+  base::ScopedFile shm_fd2(dup(shm->fd()));
+  std::unique_ptr<PosixSharedMemory> shm2 =
+      PosixSharedMemory::AttachToFd(std::move(shm_fd2));
+  ASSERT_NE(shm2.get(), nullptr);
+  void* const shm2_start = shm2->start();
+  const size_t shm2_size = shm2->size();
+  ASSERT_NE(shm2_start, nullptr);
+  ASSERT_EQ(shm2_size, shm_size);
+
+  ASSERT_EQ(0, memcmp("test", shm2->start(), 5));
+  ASSERT_TRUE(base::vm_test_utils::IsMapped(shm2_start, shm2_size));
+
+  shm2.reset();
+  ASSERT_FALSE(base::vm_test_utils::IsMapped(shm2_start, shm2_size));
+  ASSERT_TRUE(base::vm_test_utils::IsMapped(shm_start, shm_size));
+
+  shm.reset();
+  ASSERT_FALSE(base::vm_test_utils::IsMapped(shm2_start, shm2_size));
   ASSERT_FALSE(base::vm_test_utils::IsMapped(shm_start, shm_size));
 }
 
