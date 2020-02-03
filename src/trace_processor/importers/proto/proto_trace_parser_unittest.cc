@@ -2466,6 +2466,75 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
       "3BBCFBD372448A727265C3E7C4D954F91");
 }
 
+TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(0);
+
+    // 1000 us monotonic == 10000 us boottime.
+    auto* clock_snapshot = packet->set_clock_snapshot();
+    auto* clock_boot = clock_snapshot->add_clocks();
+    clock_boot->set_clock_id(protos::pbzero::ClockSnapshot::Clock::BOOTTIME);
+    clock_boot->set_timestamp(10000000);
+    auto* clock_monotonic = clock_snapshot->add_clocks();
+    clock_monotonic->set_clock_id(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+    clock_monotonic->set_timestamp(1000000);
+  }
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    thread_desc->set_reference_timestamp_us(1000);
+    thread_desc->set_reference_thread_time_us(2000);
+
+    auto* interned_data = packet->set_interned_data();
+
+    auto mapping = interned_data->add_mappings();
+    mapping->set_iid(1);
+    mapping->set_build_id(1);
+
+    auto build_id = interned_data->add_build_ids();
+    build_id->set_iid(1);
+    build_id->set_str("3BBCFBD372448A727265C3E7C4D954F91");
+
+    auto frame = interned_data->add_frames();
+    frame->set_iid(1);
+    frame->set_rel_pc(0x42);
+    frame->set_mapping_id(1);
+
+    auto callstack = interned_data->add_callstacks();
+    callstack->set_iid(1);
+    callstack->add_frame_ids(1);
+  }
+
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+
+    auto* samples = packet->set_streaming_profile_packet();
+    samples->add_callstack_iid(1);
+    samples->add_timestamp_delta_us(15);
+  }
+
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+
+  Tokenize();
+
+  const auto& samples = storage_->cpu_profile_stack_sample_table();
+  EXPECT_EQ(samples.row_count(), 1u);
+
+  // Should have been translated to boottime, i.e. 10015 us absolute.
+  EXPECT_EQ(samples.ts()[0], 10015000);
+  EXPECT_EQ(samples.callsite_id()[0], CallsiteId{0});
+  EXPECT_EQ(samples.utid()[0], 1u);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
