@@ -175,8 +175,8 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
                                    uint32_t seq_flags) {
   auto packet = trace_writer->NewTracePacket();
   packet->set_timestamp(timestamp);
-  // TODO(skyostil): Stop emitting this for every event once the trace processor
-  // understands trace packet defaults.
+  // TODO(skyostil): Stop emitting this for every event once the trace
+  // processor understands trace packet defaults.
   if (GetClockType() != protos::pbzero::ClockSnapshot::Clock::BOOTTIME)
     packet->set_timestamp_clock_id(GetClockType());
   packet->set_sequence_flags(seq_flags);
@@ -189,10 +189,10 @@ EventContext TrackEventInternal::WriteEvent(
     TrackEventIncrementalState* incr_state,
     const char* category,
     const char* name,
-    perfetto::protos::pbzero::TrackEvent::Type type) {
+    perfetto::protos::pbzero::TrackEvent::Type type,
+    uint64_t timestamp) {
   PERFETTO_DCHECK(category);
   PERFETTO_DCHECK(g_main_thread);
-  auto timestamp = GetTimeNs();
 
   if (incr_state->was_cleared) {
     incr_state->was_cleared = false;

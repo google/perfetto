@@ -1236,6 +1236,7 @@ filegroup(
         "src/tracing/tracing.cc",
         "src/tracing/track.cc",
         "src/tracing/track_event_category_registry.cc",
+        "src/tracing/track_event_legacy.cc",
         "src/tracing/virtual_destructors.cc",
     ],
 )
