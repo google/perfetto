@@ -669,23 +669,16 @@ void UnixSocket::OnEvent() {
 bool UnixSocket::Send(const void* msg,
                       size_t len,
                       const int* send_fds,
-                      size_t num_fds,
-                      BlockingMode blocking_mode) {
-  // TODO(b/117139237): Non-blocking sends are broken because we do not
-  // properly handle partial sends.
-  PERFETTO_DCHECK(blocking_mode == BlockingMode::kBlocking);
-
+                      size_t num_fds) {
   if (state_ != State::kConnected) {
     errno = last_error_ = ENOTCONN;
     return false;
   }
 
-  if (blocking_mode == BlockingMode::kBlocking)
-    sock_raw_.SetBlocking(true);
+  sock_raw_.SetBlocking(true);
   const ssize_t sz = sock_raw_.Send(msg, len, send_fds, num_fds);
   int saved_errno = errno;
-  if (blocking_mode == BlockingMode::kBlocking)
-    sock_raw_.SetBlocking(false);
+  sock_raw_.SetBlocking(false);
 
   if (sz == static_cast<ssize_t>(len)) {
     last_error_ = 0;
