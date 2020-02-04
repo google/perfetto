@@ -478,7 +478,7 @@ cc_library_static {
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
     ":perfetto_src_protozero_protozero",
-    ":perfetto_src_tracing_client_api_base",
+    ":perfetto_src_tracing_client_api_without_backends",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",
@@ -488,7 +488,7 @@ cc_library_static {
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_platform_posix",
-    ":perfetto_src_tracing_system_process_backend",
+    ":perfetto_src_tracing_system_backend",
   ],
   export_include_dirs: [
     "include",
@@ -1362,7 +1362,7 @@ cc_test {
     ":perfetto_src_traced_probes_probes_src",
     ":perfetto_src_traced_probes_ps_ps",
     ":perfetto_src_traced_probes_sys_stats_sys_stats",
-    ":perfetto_src_tracing_client_api_base",
+    ":perfetto_src_tracing_client_api_without_backends",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",
@@ -1372,7 +1372,7 @@ cc_test {
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_platform_posix",
-    ":perfetto_src_tracing_system_process_backend",
+    ":perfetto_src_tracing_system_backend",
     ":perfetto_src_tracing_test_api_test_support",
     ":perfetto_src_tracing_test_client_api_integrationtests",
     ":perfetto_test_end_to_end_integrationtests",
@@ -6508,9 +6508,9 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:client_api_base
+// GN: //src/tracing:client_api_without_backends
 filegroup {
-  name: "perfetto_src_tracing_client_api_base",
+  name: "perfetto_src_tracing_client_api_without_backends",
   srcs: [
     "src/tracing/data_source.cc",
     "src/tracing/debug_annotation.cc",
@@ -6655,9 +6655,9 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:system_process_backend
+// GN: //src/tracing:system_backend
 filegroup {
-  name: "perfetto_src_tracing_system_process_backend",
+  name: "perfetto_src_tracing_system_backend",
   srcs: [
     "src/tracing/internal/system_tracing_backend.cc",
   ],
