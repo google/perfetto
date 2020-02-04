@@ -185,8 +185,8 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
   if (uiCfg.memHiFreq) {
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
+    ftraceEvents.add('mm_event/mm_event_record');
     ftraceEvents.add('kmem/rss_stat');
-    ftraceEvents.add('kmem/mm_event');
     ftraceEvents.add('kmem/ion_heap_grow');
     ftraceEvents.add('kmem/ion_heap_shrink');
   }
