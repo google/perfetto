@@ -2988,4 +2988,77 @@ TEST_F(TracingServiceImplTest, LimitSessionsPerUid) {
   // The destruction of |consumers| will tear down and stop the good sessions.
 }
 
+TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
+  static constexpr size_t kShmSizeBytes = 1024 * 1024;
+  static constexpr size_t kShmPageSizeBytes = 4 * 1024;
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+
+  TestSharedMemory::Factory factory;
+  auto shm = factory.CreateSharedMemory(kShmSizeBytes);
+  SharedMemory* shm_raw = shm.get();
+
+  // Service should adopt the SMB provided by the producer.
+  producer->Connect(svc.get(), "mock_producer", /*uid=*/42,
+                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                    std::move(shm));
+  EXPECT_TRUE(producer->endpoint()->IsShmemProvidedByProducer());
+  EXPECT_NE(producer->endpoint()->MaybeSharedMemoryArbiter(), nullptr);
+  EXPECT_EQ(producer->endpoint()->shared_memory(), shm_raw);
+
+  producer->WaitForTracingSetup();
+  producer->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  // Verify that data written to the producer-provided SMB ends up in trace
+  // buffer correctly.
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  EXPECT_THAT(consumer->ReadBuffers(),
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload")))));
+}
+
+TEST_F(TracingServiceImplTest, ProducerProvidedSMBInvalidSizes) {
+  static constexpr size_t kShmSizeBytes = 1024 * 1024;
+  static constexpr size_t kShmPageSizeBytes = 20 * 1024;
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+
+  TestSharedMemory::Factory factory;
+  auto shm = factory.CreateSharedMemory(kShmSizeBytes);
+
+  // Service should not adopt the SMB provided by the producer, because the SMB
+  // size isn't a multiple of the page size.
+  producer->Connect(svc.get(), "mock_producer", /*uid=*/42,
+                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                    std::move(shm));
+  EXPECT_FALSE(producer->endpoint()->IsShmemProvidedByProducer());
+  EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
+}
+
 }  // namespace perfetto

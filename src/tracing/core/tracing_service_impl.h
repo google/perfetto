@@ -86,11 +86,14 @@ class TracingServiceImpl : public TracingService {
                              uint32_t target_buffer) override;
     void UnregisterTraceWriter(uint32_t writer_id) override;
     void CommitData(const CommitDataRequest&, CommitDataCallback) override;
-    void SetupSharedMemory(std::unique_ptr<SharedMemory>, size_t page_size);
+    void SetupSharedMemory(std::unique_ptr<SharedMemory>,
+                           size_t page_size_bytes,
+                           bool provided_by_producer);
     std::unique_ptr<TraceWriter> CreateTraceWriter(
         BufferID,
         BufferExhaustedPolicy) override;
     SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
+    bool IsShmemProvidedByProducer() const override;
     void NotifyFlushComplete(FlushRequestID) override;
     void NotifyDataSourceStarted(DataSourceInstanceID) override;
     void NotifyDataSourceStopped(DataSourceInstanceID) override;
@@ -136,6 +139,7 @@ class TracingServiceImpl : public TracingService {
     SharedMemoryABI shmem_abi_;
     size_t shmem_size_hint_bytes_ = 0;
     size_t shmem_page_size_hint_bytes_ = 0;
+    bool is_shmem_provided_by_producer_ = false;
     const std::string name_;
     bool in_process_;
     bool smb_scraping_enabled_;
@@ -271,7 +275,8 @@ class TracingServiceImpl : public TracingService {
       bool in_process = false,
       ProducerSMBScrapingMode smb_scraping_mode =
           ProducerSMBScrapingMode::kDefault,
-      size_t shared_memory_page_size_hint_bytes = 0) override;
+      size_t shared_memory_page_size_hint_bytes = 0,
+      std::unique_ptr<SharedMemory> shm = nullptr) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
