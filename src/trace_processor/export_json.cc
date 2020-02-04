@@ -1105,7 +1105,7 @@ class JsonExporter {
       event["tid"] = Json::Int(pid_and_tid.second);
 
       event["ph"] = "n";
-      event["cat"] = "disabled_by_default-cpu_profiler";
+      event["cat"] = "disabled-by-default-cpu_profiler";
       event["name"] = "StackCpuSampling";
       event["s"] = "t";
 

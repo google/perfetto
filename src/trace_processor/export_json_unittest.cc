@@ -1402,7 +1402,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   EXPECT_EQ(event["id"].asString(), "0x1");
   EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
   EXPECT_EQ(event["tid"].asInt(), static_cast<int>(kThreadID));
-  EXPECT_EQ(event["cat"].asString(), "disabled_by_default-cpu_profiler");
+  EXPECT_EQ(event["cat"].asString(), "disabled-by-default-cpu_profiler");
   EXPECT_EQ(event["name"].asString(), "StackCpuSampling");
   EXPECT_EQ(event["s"].asString(), "t");
   EXPECT_EQ(event["args"]["frames"].asString(),
