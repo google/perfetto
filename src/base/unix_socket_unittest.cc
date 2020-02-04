@@ -45,7 +45,6 @@ using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
 
 constexpr char kSocketName[] = TEST_SOCK_NAME("unix_socket_unittest");
-constexpr auto kBlocking = UnixSocket::BlockingMode::kBlocking;
 
 class MockEventListener : public UnixSocket::EventListener {
  public:
@@ -123,7 +122,7 @@ TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
   auto cli_disconnected = task_runner_.CreateCheckpoint("cli_disconnected");
   EXPECT_CALL(event_listener_, OnDisconnect(cli.get()))
       .WillOnce(InvokeWithoutArgs(cli_disconnected));
-  EXPECT_FALSE(cli->Send("whatever", kBlocking));
+  EXPECT_FALSE(cli->Send("whatever"));
   task_runner_.RunUntilCheckpoint("cli_disconnected");
 }
 
@@ -163,8 +162,8 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
         ASSERT_EQ("cli>srv", s->ReceiveString());
         srv_did_recv();
       }));
-  ASSERT_TRUE(cli->Send("cli>srv", kBlocking));
-  ASSERT_TRUE(srv_conn->Send("srv>cli", kBlocking));
+  ASSERT_TRUE(cli->Send("cli>srv"));
+  ASSERT_TRUE(srv_conn->Send("srv>cli"));
   task_runner_.RunUntilCheckpoint("cli_did_recv");
   task_runner_.RunUntilCheckpoint("srv_did_recv");
 
@@ -178,8 +177,8 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   ASSERT_EQ("", cli->ReceiveString());
   ASSERT_EQ(0u, srv_conn->Receive(&msg, sizeof(msg)));
   ASSERT_EQ("", srv_conn->ReceiveString());
-  ASSERT_FALSE(cli->Send("foo", kBlocking));
-  ASSERT_FALSE(srv_conn->Send("bar", kBlocking));
+  ASSERT_FALSE(cli->Send("foo"));
+  ASSERT_FALSE(srv_conn->Send("bar"));
   srv->Shutdown(true);
   task_runner_.RunUntilCheckpoint("cli_disconnected");
   task_runner_.RunUntilCheckpoint("srv_disconnected");
@@ -256,10 +255,10 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
 
   int buf_fd[2] = {null_fd.get(), zero_fd.get()};
 
-  ASSERT_TRUE(cli->Send(cli_str, sizeof(cli_str), buf_fd,
-                        base::ArraySize(buf_fd), kBlocking));
+  ASSERT_TRUE(
+      cli->Send(cli_str, sizeof(cli_str), buf_fd, base::ArraySize(buf_fd)));
   ASSERT_TRUE(srv_conn->Send(srv_str, sizeof(srv_str), buf_fd,
-                             base::ArraySize(buf_fd), kBlocking));
+                             base::ArraySize(buf_fd)));
   task_runner_.RunUntilCheckpoint("srv_did_recv");
   task_runner_.RunUntilCheckpoint("cli_did_recv");
 
@@ -318,7 +317,7 @@ TEST_F(UnixSocketTest, SeveralClients) {
         EXPECT_CALL(event_listener_, OnDataAvailable(s))
             .WillOnce(Invoke([](UnixSocket* t) {
               ASSERT_EQ("PING", t->ReceiveString());
-              ASSERT_TRUE(t->Send("PONG", kBlocking));
+              ASSERT_TRUE(t->Send("PONG"));
             }));
       }));
 
@@ -328,7 +327,7 @@ TEST_F(UnixSocketTest, SeveralClients) {
     EXPECT_CALL(event_listener_, OnConnect(cli[i].get(), true))
         .WillOnce(Invoke([](UnixSocket* s, bool success) {
           ASSERT_TRUE(success);
-          ASSERT_TRUE(s->Send("PING", kBlocking));
+          ASSERT_TRUE(s->Send("PING"));
         }));
 
     auto checkpoint = task_runner_.CreateCheckpoint(std::to_string(i));
@@ -374,7 +373,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
         .WillOnce(Invoke(
             [this, tmp_fd, checkpoint, mem](UnixSocket*, UnixSocket* new_conn) {
               ASSERT_EQ(geteuid(), static_cast<uint32_t>(new_conn->peer_uid()));
-              ASSERT_TRUE(new_conn->Send("txfd", 5, tmp_fd, kBlocking));
+              ASSERT_TRUE(new_conn->Send("txfd", 5, tmp_fd));
               // Wait for the client to change this again.
               EXPECT_CALL(event_listener_, OnDataAvailable(new_conn))
                   .WillOnce(Invoke([checkpoint, mem](UnixSocket* s) {
@@ -409,7 +408,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
 
           // Now change the shared memory and ping the other process.
           memcpy(mem, "rock more", 10);
-          ASSERT_TRUE(s->Send("change notify", kBlocking));
+          ASSERT_TRUE(s->Send("change notify"));
           checkpoint();
         }));
     task_runner_.RunUntilCheckpoint("change_seen_by_client");
@@ -513,7 +512,7 @@ TEST_F(UnixSocketTest, BlockingSend) {
     char buf[1024 * 32] = {};
     tx_task_runner.PostTask([&cli, &buf, all_sent] {
       for (size_t i = 0; i < kTotalBytes / sizeof(buf); i++)
-        cli->Send(buf, sizeof(buf), -1 /*fd*/, kBlocking);
+        cli->Send(buf, sizeof(buf));
       all_sent();
     });
     tx_task_runner.RunUntilCheckpoint("all_sent", kTimeoutMs);
@@ -562,7 +561,7 @@ TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
     static constexpr size_t kBufSize = 32 * 1024 * 1024;
     std::unique_ptr<char[]> buf(new char[kBufSize]());
     tx_task_runner.PostTask([&cli, &buf, send_done] {
-      bool send_res = cli->Send(buf.get(), kBufSize, -1 /*fd*/, kBlocking);
+      bool send_res = cli->Send(buf.get(), kBufSize);
       ASSERT_FALSE(send_res);
       send_done();
     });
@@ -754,7 +753,7 @@ TEST_F(UnixSocketTest, ReleaseSocket) {
   task_runner_.RunUntilCheckpoint("connected");
   srv->Shutdown(true);
 
-  cli->Send("test", UnixSocket::BlockingMode::kBlocking);
+  cli->Send("test");
 
   ASSERT_NE(peer, nullptr);
   auto raw_sock = peer->ReleaseSocket();
@@ -794,7 +793,7 @@ TEST_F(UnixSocketTest, TcpStream) {
             .WillRepeatedly(Invoke([](UnixSocket* cli_sock) {
               cli_sock->ReceiveString();  // Read connection EOF;
             }));
-        ASSERT_TRUE(s->Send("welcome", kBlocking));
+        ASSERT_TRUE(s->Send("welcome"));
       }));
 
   for (size_t i = 0; i < kNumClients; i++) {
