@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_PERF_UNWIND_SUPPORT_H_
-#define SRC_PROFILING_PERF_UNWIND_SUPPORT_H_
+#ifndef SRC_PROFILING_PERF_REGS_PARSING_H_
+#define SRC_PROFILING_PERF_REGS_PARSING_H_
 
 #include <stdint.h>
 #include <unwindstack/Regs.h>
@@ -29,7 +29,7 @@ namespace profiling {
 
 // Returns a bitmask for sampling the userspace register set, used when
 // configuring perf events.
-uint64_t PerfUserRegsMaskForCurrentArch();
+uint64_t PerfUserRegsMaskForArch(unwindstack::ArchEnum arch);
 
 // Converts the raw sampled register bytes to libunwindstack's representation
 // (correct arch-dependent subclass). Advances |data| pointer to past the
@@ -42,4 +42,4 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data);
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_PERF_UNWIND_SUPPORT_H_
+#endif  // SRC_PROFILING_PERF_REGS_PARSING_H_

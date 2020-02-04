@@ -23,12 +23,14 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/perf/unwind_support.h"
+#include "src/profiling/perf/regs_parsing.h"
 
 namespace perfetto {
 namespace profiling {
 
 namespace {
+
+constexpr size_t kDataPagesPerRingBuffer = 256;  // 1 MB (256 x 4k pages)
 
 template <typename T>
 const char* ReadValue(T* value_out, const char* ptr) {
@@ -121,42 +123,59 @@ base::Optional<PerfRingBuffer> PerfRingBuffer::Allocate(
   return base::make_optional(std::move(ret));
 }
 
-// TODO(rsavitski): look into more specific barrier builtins. Copying simpleperf
-// for now. See |perf_output_put_handle| in the kernel for the barrier
-// requirements.
+// TODO(rsavitski): should be possible to use address-specific atomics, see
+// libperf's explanation on why the kernel uses barriers.
 #pragma GCC diagnostic push
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Watomic-implicit-seq-cst"
 #endif
-std::vector<char> PerfRingBuffer::ReadAvailable() {
-  if (!valid())
-    return {};
+char* PerfRingBuffer::ReadRecordNonconsuming() {
+  PERFETTO_CHECK(valid());
 
   uint64_t write_offset = metadata_page_->data_head;
   uint64_t read_offset = metadata_page_->data_tail;
   __sync_synchronize();  // needs to be rmb()
 
+  PERFETTO_DCHECK(read_offset <= write_offset);
+  if (write_offset == read_offset)
+    return nullptr;  // no new data
+
   size_t read_pos = static_cast<size_t>(read_offset & (data_buf_sz_ - 1));
-  size_t data_sz = static_cast<size_t>(write_offset - read_offset);
 
-  if (data_sz == 0) {
-    return {};
+  // event header (64 bits) guaranteed to be contiguous
+  PERFETTO_DCHECK(read_pos <= data_buf_sz_ - sizeof(perf_event_header));
+  PERFETTO_DCHECK(0 == reinterpret_cast<size_t>(data_buf_ + read_pos) %
+                           alignof(perf_event_header));
+
+  perf_event_header* evt_header =
+      reinterpret_cast<perf_event_header*>(data_buf_ + read_pos);
+  uint16_t evt_size = evt_header->size;
+
+  // event wrapped - reconstruct it, and return a pointer to the buffer
+  if (read_pos + evt_size > data_buf_sz_) {
+    PERFETTO_DCHECK(read_pos + evt_size !=
+                    ((read_pos + evt_size) & (data_buf_sz_ - 1)));
+    PERFETTO_DLOG("PerfRingBuffer: returning reconstructed event");
+
+    size_t prefix_sz = data_buf_sz_ - read_pos;
+    memcpy(&reconstructed_record_[0], data_buf_ + read_pos, prefix_sz);
+    memcpy(&reconstructed_record_[0] + prefix_sz, data_buf_,
+           evt_size - prefix_sz);
+    return &reconstructed_record_[0];
+  } else {
+    // usual case - contiguous sample
+    PERFETTO_DCHECK(read_pos + evt_size ==
+                    ((read_pos + evt_size) & (data_buf_sz_ - 1)));
+
+    return data_buf_ + read_pos;
   }
+}
 
-  // memcpy accounting for wrapping
-  std::vector<char> data(data_sz);
-  size_t copy_sz = std::min(data_sz, data_buf_sz_ - read_pos);
-  memcpy(data.data(), data_buf_ + read_pos, copy_sz);
-  if (copy_sz < data_sz) {
-    memcpy(data.data() + copy_sz, data_buf_, data_sz - copy_sz);
-  }
+void PerfRingBuffer::Consume(size_t bytes) {
+  PERFETTO_CHECK(valid());
 
-  // consume the data
   __sync_synchronize();  // needs to be mb()
-  metadata_page_->data_tail += data_sz;
-
-  PERFETTO_LOG("WIP: consumed [%zu] bytes from ring buffer", data_sz);
-  return data;
+  metadata_page_->data_tail += bytes;
 }
 #pragma GCC diagnostic pop
 
@@ -190,7 +209,7 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
   }
 
   auto ring_buffer =
-      PerfRingBuffer::Allocate(perf_fd.get(), /*data_page_count=*/128);
+      PerfRingBuffer::Allocate(perf_fd.get(), kDataPagesPerRingBuffer);
   if (!ring_buffer.has_value()) {
     return base::nullopt;
   }
@@ -199,89 +218,95 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
                                           std::move(ring_buffer.value()));
 }
 
-void EventReader::ParseNextSampleBatch() {
-  std::vector<char> data = ring_buffer_.ReadAvailable();
-  if (data.size() == 0) {
-    PERFETTO_LOG("no samples (work in progress)");
-    return;
-  }
+base::Optional<ParsedSample> EventReader::ReadUntilSample(
+    std::function<void(uint64_t)> lost_events_callback) {
+  for (;;) {
+    char* event = ring_buffer_.ReadRecordNonconsuming();
+    if (!event)
+      return base::nullopt;  // caught up with the writer
 
-  for (const char* ptr = data.data(); ptr < data.data() + data.size();) {
-    if (!ParseSampleAndAdvance(&ptr))
-      break;
+    auto* event_hdr = reinterpret_cast<const perf_event_header*>(event);
+    PERFETTO_DLOG("record header: [%zu][%zu][%zu]",
+                  static_cast<size_t>(event_hdr->type),
+                  static_cast<size_t>(event_hdr->misc),
+                  static_cast<size_t>(event_hdr->size));
+
+    if (event_hdr->type == PERF_RECORD_SAMPLE) {
+      ParsedSample sample = ParseSampleRecord(event, event_hdr->size);
+      ring_buffer_.Consume(event_hdr->size);
+      return base::make_optional(std::move(sample));
+    }
+
+    if (event_hdr->type == PERF_RECORD_LOST) {
+      uint64_t lost_events = *reinterpret_cast<const uint64_t*>(
+          event + sizeof(perf_event_header) + sizeof(uint64_t));
+
+      lost_events_callback(lost_events);
+      // advance ring buffer position and keep looking for a sample
+      ring_buffer_.Consume(event_hdr->size);
+      continue;
+    }
+
+    PERFETTO_FATAL("Unsupported event type");
   }
 }
 
-bool EventReader::ParseSampleAndAdvance(const char** ptr) {
-  const char* sample_start = *ptr;
-  auto* event_hdr = reinterpret_cast<const perf_event_header*>(sample_start);
-
-  PERFETTO_LOG("WIP: event_header[%zu][%zu][%zu]",
-               static_cast<size_t>(event_hdr->type),
-               static_cast<size_t>(event_hdr->misc),
-               static_cast<size_t>(event_hdr->size));
-
-  if (event_hdr->type == PERF_RECORD_SAMPLE) {
-    ParsePerfRecordSample(sample_start, event_hdr->size);
-  } else {
-    PERFETTO_ELOG("Unsupported event type (work in progress)");
-  }
-
-  *ptr = sample_start + event_hdr->size;
-  return true;
-}
-
-// TODO(rsavitski): actually handle the samples instead of logging.
-void EventReader::ParsePerfRecordSample(const char* sample_start,
-                                        size_t sample_size) {
+ParsedSample EventReader::ParseSampleRecord(const char* sample_start,
+                                            size_t sample_size) {
   const perf_event_attr* cfg = event_cfg_.perf_attr();
 
-  if (cfg->sample_type & (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER |
-                                    PERF_SAMPLE_REGS_USER))) {
-    PERFETTO_ELOG("Unsupported sampling option (work in progress)");
-    return;
+  if (cfg->sample_type &
+      (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_STACK_USER |
+                 PERF_SAMPLE_REGS_USER))) {
+    PERFETTO_FATAL("Unsupported sampling option");
   }
 
   // Parse the payload, which consists of concatenated data for each
   // |attr.sample_type| flag.
+  ParsedSample sample = {};
   const char* parse_pos = sample_start + sizeof(perf_event_header);
 
   if (cfg->sample_type & PERF_SAMPLE_TID) {
-    uint32_t pid;
+    uint32_t pid = 0;
+    uint32_t tid = 0;
     parse_pos = ReadValue(&pid, parse_pos);
-    PERFETTO_LOG("pid: %" PRIu32 "", pid);
-
-    uint32_t tid;
     parse_pos = ReadValue(&tid, parse_pos);
-    PERFETTO_LOG("tid: %" PRIu32 "", tid);
+    sample.pid = static_cast<pid_t>(pid);
+    sample.tid = static_cast<pid_t>(tid);
+  }
+
+  if (cfg->sample_type & PERF_SAMPLE_TIME) {
+    parse_pos = ReadValue(&sample.timestamp, parse_pos);
   }
 
   if (cfg->sample_type & PERF_SAMPLE_REGS_USER) {
-    auto parsed_regs = ReadPerfUserRegsData(&parse_pos);
-
-    if (parsed_regs) {
-      parsed_regs->IterateRegisters([](const char* name, uint64_t value) {
-        PERFETTO_LOG("reg[%s]: %" PRIx64 "", name, value);
-      });
-    }
+    // Can be empty, e.g. if we sampled a kernel thread.
+    sample.regs = ReadPerfUserRegsData(&parse_pos);
   }
 
   if (cfg->sample_type & PERF_SAMPLE_STACK_USER) {
     uint64_t max_stack_size;  // the requested size
     parse_pos = ReadValue(&max_stack_size, parse_pos);
-    PERFETTO_LOG("max_stack_size: %" PRIu64 "", max_stack_size);
+    PERFETTO_DLOG("max_stack_size: %" PRIu64 "", max_stack_size);
 
-    parse_pos += max_stack_size;  // skip raw data
+    const char* stack_start = parse_pos;
+    parse_pos += max_stack_size;  // skip to dyn_size
 
-    // not written if requested stack sampling size is zero
+    // written only if requested stack sampling size is nonzero
     if (max_stack_size > 0) {
       uint64_t filled_stack_size;
       parse_pos = ReadValue(&filled_stack_size, parse_pos);
-      PERFETTO_LOG("filled_stack_size: %" PRIu64 "", filled_stack_size);
+      PERFETTO_DLOG("filled_stack_size: %" PRIu64 "", filled_stack_size);
+
+      // copy stack bytes into a vector
+      size_t payload_sz = static_cast<size_t>(filled_stack_size);
+      sample.stack.resize(payload_sz);
+      memcpy(sample.stack.data(), stack_start, payload_sz);
     }
   }
 
   PERFETTO_CHECK(parse_pos == sample_start + sample_size);
+  return sample;
 }
 
 }  // namespace profiling
