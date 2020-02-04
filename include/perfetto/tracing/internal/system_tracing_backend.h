@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
-#define SRC_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
+#ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
+#define INCLUDE_PERFETTO_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
 
 #include "perfetto/tracing/tracing_backend.h"
 
@@ -36,7 +36,7 @@ class Producer;
 namespace internal {
 class SystemTracingBackend : public TracingBackend {
  public:
-  static SystemTracingBackend* GetInstance();
+  static TracingBackend* GetInstance();
 
   // TracingBackend implementation.
   std::unique_ptr<ProducerEndpoint> ConnectProducer(
@@ -51,4 +51,4 @@ class SystemTracingBackend : public TracingBackend {
 }  // namespace internal
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
+#endif  // INCLUDE_PERFETTO_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
