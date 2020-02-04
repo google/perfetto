@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/internal/in_process_tracing_backend.h"
+#include "perfetto/tracing/internal/in_process_tracing_backend.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
@@ -75,7 +75,7 @@ std::unique_ptr<SharedMemory> InProcessShmFactory::CreateSharedMemory(
 }  // namespace
 
 // static
-InProcessTracingBackend* InProcessTracingBackend::GetInstance() {
+TracingBackend* InProcessTracingBackend::GetInstance() {
   static auto* instance = new InProcessTracingBackend();
   return instance;
 }
