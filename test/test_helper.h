@@ -26,6 +26,7 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/probes_producer.h"
+#include "src/tracing/ipc/posix_shared_memory.h"
 #include "test/fake_producer.h"
 
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -99,10 +100,10 @@ class FakeProducerThread {
  public:
   FakeProducerThread(const std::string& producer_socket,
                      std::function<void()> setup_callback,
-                     std::function<void()> connect_callback)
+                     std::function<void()> start_callback)
       : producer_socket_(producer_socket),
         setup_callback_(std::move(setup_callback)),
-        connect_callback_(std::move(connect_callback)) {}
+        start_callback_(std::move(start_callback)) {}
 
   ~FakeProducerThread() {
     if (!runner_)
@@ -115,8 +116,8 @@ class FakeProducerThread {
     runner_->PostTaskAndWaitForTesting([this]() {
       producer_.reset(new FakeProducer("android.perfetto.FakeProducer"));
       producer_->Connect(producer_socket_.c_str(), runner_->get(),
-                         std::move(setup_callback_),
-                         std::move(connect_callback_));
+                         std::move(setup_callback_), std::move(start_callback_),
+                         std::move(shm_));
     });
   }
 
@@ -124,13 +125,19 @@ class FakeProducerThread {
 
   FakeProducer* producer() { return producer_.get(); }
 
+  void CreateProducerProvidedSmb() {
+    PosixSharedMemory::Factory factory;
+    shm_ = factory.CreateSharedMemory(1024 * 1024);
+  }
+
  private:
   base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
 
   std::string producer_socket_;
   std::unique_ptr<FakeProducer> producer_;
   std::function<void()> setup_callback_;
-  std::function<void()> connect_callback_;
+  std::function<void()> start_callback_;
+  std::unique_ptr<SharedMemory> shm_;
 };
 
 class TestHelper : public Consumer {
@@ -160,6 +167,8 @@ class TestHelper : public Consumer {
   void ReadData(uint32_t read_count = 0);
   void DetachConsumer(const std::string& key);
   bool AttachConsumer(const std::string& key);
+  void CreateProducerProvidedSmb();
+  bool IsShmemProvidedByProducer();
 
   void WaitForConsumerConnect();
   void WaitForProducerSetup();

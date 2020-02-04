@@ -21,6 +21,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/ipc/host.h"
+#include "perfetto/ext/ipc/service.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -94,12 +95,31 @@ void ProducerIPCService::InitializeConnection(
         "DEBUG/NDEBUG flags. This will likely cause crashes.");
   }
 
+  // If the producer provided an SMB, tell the service to attempt to adopt it.
+  std::unique_ptr<SharedMemory> shmem;
+  if (req.producer_provided_shmem()) {
+    base::ScopedFile shmem_fd = ipc::Service::TakeReceivedFD();
+    if (shmem_fd) {
+      shmem = PosixSharedMemory::AttachToFd(
+          std::move(shmem_fd), /*require_seals_if_supported=*/true);
+      if (!shmem) {
+        PERFETTO_ELOG(
+            "Couldn't map producer-provided SMB, falling back to "
+            "service-provided SMB");
+      }
+    } else {
+      PERFETTO_DLOG(
+          "InitializeConnectionRequest's producer_provided_shmem flag is set "
+          "but the producer didn't provide an FD");
+    }
+  }
+
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
       producer.get(), client_info.uid(), req.producer_name(),
       req.shared_memory_size_hint_bytes(),
       /*in_process=*/false, smb_scraping_mode,
-      req.shared_memory_page_size_hint_bytes());
+      req.shared_memory_page_size_hint_bytes(), std::move(shmem));
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint) {
@@ -107,11 +127,15 @@ void ProducerIPCService::InitializeConnection(
     return;
   }
 
+  bool using_producer_shmem =
+      producer->service_endpoint->IsShmemProvidedByProducer();
+
   producers_.emplace(ipc_client_id, std::move(producer));
   // Because of the std::move() |producer| is invalid after this point.
 
   auto async_res =
       ipc::AsyncResult<protos::gen::InitializeConnectionResponse>::Create();
+  async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
   response.Resolve(std::move(async_res));
 }
 
@@ -324,6 +348,11 @@ void ProducerIPCService::GetAsyncCommand(
   // to send async commands to the RemoteProducer (e.g., starting/stopping a
   // data source).
   producer->async_producer_commands = std::move(response);
+
+  // Service may already have issued the OnTracingSetup() event, in which case
+  // we should forward it to the producer now.
+  if (producer->send_setup_tracing_on_async_commands_bound)
+    producer->SendSetupTracing();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -394,19 +423,28 @@ void ProducerIPCService::RemoteProducer::StopDataSource(
 
 void ProducerIPCService::RemoteProducer::OnTracingSetup() {
   if (!async_producer_commands.IsBound()) {
-    PERFETTO_DLOG(
-        "The Service tried to allocate the shared memory but the remote "
-        "Producer has not yet initialized the connection");
+    // Service may call this before the producer issued GetAsyncCommand.
+    send_setup_tracing_on_async_commands_bound = true;
     return;
   }
+  SendSetupTracing();
+}
+
+void ProducerIPCService::RemoteProducer::SendSetupTracing() {
+  PERFETTO_CHECK(async_producer_commands.IsBound());
   PERFETTO_CHECK(service_endpoint->shared_memory());
-  const int shm_fd =
-      static_cast<PosixSharedMemory*>(service_endpoint->shared_memory())->fd();
   auto cmd = ipc::AsyncResult<protos::gen::GetAsyncCommandResponse>::Create();
   cmd.set_has_more(true);
-  cmd.set_fd(shm_fd);
-  cmd->mutable_setup_tracing()->set_shared_buffer_page_size_kb(
-      static_cast<uint32_t>(service_endpoint->shared_buffer_page_size_kb()));
+  auto setup_tracing = cmd->mutable_setup_tracing();
+  if (!service_endpoint->IsShmemProvidedByProducer()) {
+    // Nominal case (% Chrome): service provides SMB.
+    setup_tracing->set_shared_buffer_page_size_kb(
+        static_cast<uint32_t>(service_endpoint->shared_buffer_page_size_kb()));
+    const int shm_fd =
+        static_cast<PosixSharedMemory*>(service_endpoint->shared_memory())
+            ->fd();
+    cmd.set_fd(shm_fd);
+  }
   async_producer_commands.Resolve(std::move(cmd));
 }
 

@@ -50,7 +50,7 @@ class PosixSharedMemory : public SharedMemory {
 
   ~PosixSharedMemory() override;
 
-  int fd() const { return fd_.get(); }
+  int fd() const override { return fd_.get(); }
 
   // SharedMemory implementation.
   void* start() const override { return start_; }

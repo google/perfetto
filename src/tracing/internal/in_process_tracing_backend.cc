@@ -42,6 +42,7 @@ class InProcessShm : public SharedMemory {
   ~InProcessShm() override;
   void* start() const override;
   size_t size() const override;
+  int fd() const override;
 
  private:
   base::PagedMemory mem_;
@@ -64,6 +65,10 @@ void* InProcessShm::start() const {
 
 size_t InProcessShm::size() const {
   return mem_.size();
+}
+
+int InProcessShm::fd() const {
+  return -1;
 }
 
 InProcessShmFactory::~InProcessShmFactory() = default;

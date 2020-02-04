@@ -26,6 +26,7 @@
 namespace perfetto {
 
 class Producer;
+class SharedMemory;
 
 // Allows to connect to a remote Service through a UNIX domain socket.
 // Exposed to:
@@ -36,12 +37,16 @@ class PERFETTO_EXPORT ProducerIPCClient {
  public:
   // Connects to the producer port of the Service listening on the given
   // |service_sock_name|. If the connection is successful, the OnConnect()
-  // method will be invoked asynchronously on the passed Producer interface.
-  // If the connection fails, OnDisconnect() will be invoked instead.
-  // The returned ProducerEndpoint serves also to delimit the scope of the
-  // callbacks invoked on the Producer interface: no more Producer callbacks are
-  // invoked immediately after its destruction and any pending callback will be
-  // dropped.
+  // method will be invoked asynchronously on the passed Producer interface. If
+  // the connection fails, OnDisconnect() will be invoked instead. The returned
+  // ProducerEndpoint serves also to delimit the scope of the callbacks invoked
+  // on the Producer interface: no more Producer callbacks are invoked
+  // immediately after its destruction and any pending callback will be dropped.
+  // If |shm| is provided by the producer, the service will attempt to adopt the
+  // provided SMB. If it fails, the ProducerEndpoint will disconnect, but |shm|
+  // will remain valid until the client is destroyed.
+  //
+  // TODO(eseckler): Support adoption failure more gracefully.
   static std::unique_ptr<TracingService::ProducerEndpoint> Connect(
       const char* service_sock_name,
       Producer*,
@@ -50,7 +55,8 @@ class PERFETTO_EXPORT ProducerIPCClient {
       TracingService::ProducerSMBScrapingMode smb_scraping_mode =
           TracingService::ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_size_hint_bytes = 0,
-      size_t shared_memory_page_size_hint_bytes = 0);
+      size_t shared_memory_page_size_hint_bytes = 0,
+      std::unique_ptr<SharedMemory> shm = nullptr);
 
  protected:
   ProducerIPCClient() = delete;

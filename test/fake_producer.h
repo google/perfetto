@@ -38,11 +38,16 @@ class FakeProducer : public Producer {
   void Connect(const char* socket_name,
                base::TaskRunner* task_runner,
                std::function<void()> on_setup_data_source_instance,
-               std::function<void()> on_create_data_source_instance);
+               std::function<void()> on_create_data_source_instance,
+               std::unique_ptr<SharedMemory> shm = nullptr);
 
   // Produces a batch of events (as configured in the DataSourceConfig) and
   // posts a callback when the service acknowledges the commit.
   void ProduceEventBatch(std::function<void()> callback = [] {});
+
+  bool IsShmemProvidedByProducer() const {
+    return endpoint_->IsShmemProvidedByProducer();
+  }
 
   // Producer implementation.
   void OnConnect() override;

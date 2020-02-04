@@ -124,10 +124,27 @@ message InitializeConnectionRequest {
   // error reporting, to print a log message when a producer connects to a
   // service that has mismatching build flags.
   optional ProducerBuildFlags build_flags = 5;
+
+  // ---------------------------------------------------
+  // All fields below have been introduced in Android R.
+  // ---------------------------------------------------
+
+  // Since Android R, this request can also transport an FD for the producer's
+  // shared memory buffer, if allocated by the producer (e.g. for startup
+  // tracing). In this case, |shared_memory_page_size_hint_bytes| is a required
+  // field, and describes the SMB's page size. Note that the service may not
+  // accept this SMB (e.g. because it is too old or its size / page size are
+  // invalid) and instead allocate a new SMB which is provided in the
+  // SetupTracing response. See TracingService::ConnectProducer() and
+  // |using_shmem_provided_by_producer| in InitializeConnectionResponse.
+  optional bool producer_provided_shmem = 6;
 }
 
 message InitializeConnectionResponse {
-  // This message provides the shared memory buffer FD (not a proto field).
+  // Indicates whether the service accepted the SMB provided by the producer in
+  // InitializeConnectionRequest (if any). If false, the shared memory buffer FD
+  // will provided by the service via the SetupTracing async command.
+  optional bool using_shmem_provided_by_producer = 1;
 }
 
 // Arguments for rpc RegisterDataSource().
@@ -227,7 +244,7 @@ message GetAsyncCommandResponse {
   message StopDataSource { optional uint64 instance_id = 1; }
 
   // This message also transports the file descriptor for the shared memory
-  // buffer.
+  // buffer (not a proto field).
   message SetupTracing { optional uint32 shared_buffer_page_size_kb = 1; }
 
   message Flush {
