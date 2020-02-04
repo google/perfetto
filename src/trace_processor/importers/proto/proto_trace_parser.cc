@@ -458,6 +458,10 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
 
     int64_t ts = sequence_state->state()->IncrementAndGetTrackEventTimeNs(
         *timestamp_it * 1000);
+    auto trace_ts = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts);
+    if (trace_ts)
+      ts = *trace_ts;
     tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid};
     storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
