@@ -20,10 +20,13 @@
 #include <linux/perf_event.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <time.h>
+
+#include <unwindstack/Regs.h>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/tracing/core/data_source_config.h"
-#include "src/profiling/perf/unwind_support.h"
+#include "src/profiling/perf/regs_parsing.h"
 
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
 
@@ -33,10 +36,10 @@ namespace profiling {
 // Describes a single profiling configuration. Bridges the gap between the data
 // source config proto, and the raw "perf_event_attr" structs to pass to the
 // perf_event_open syscall.
-// TODO(rsavitski): make sampling conditional? Or should we always go through
-// the sampling interface for simplicity? Reads can be done on-demand even if
-// sampling is on. So the question becomes whether we need *only* on-demand
-// reads.
+// TODO(rsavitski): instead of allowing arbitrary sampling flags, nail down a
+// specific set, and simplify parsing at the same time?
+// Also, for non-sample events (if they're possible), union of structs is
+// interesting.
 class EventConfig {
  public:
   static base::Optional<EventConfig> Create(const DataSourceConfig& ds_config) {
@@ -55,7 +58,6 @@ class EventConfig {
  private:
   EventConfig(const protos::pbzero::PerfEventConfig::Decoder&) {
     auto& pe = perf_event_attr_;
-    memset(&pe, 0, sizeof(perf_event_attr));
     pe.size = sizeof(perf_event_attr);
 
     pe.exclude_kernel = true;
@@ -67,11 +69,16 @@ class EventConfig {
     pe.sample_freq = 100;
     pe.freq = true;
 
-    pe.sample_type =
-        PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
+    pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME |
+                     PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
     pe.sample_stack_user = (1u << 15);
-    pe.sample_regs_user = PerfUserRegsMaskForCurrentArch();
+    pe.sample_regs_user =
+        PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
+
+    // for PERF_SAMPLE_TIME
+    pe.clockid = CLOCK_BOOTTIME;
+    pe.use_clockid = true;
   }
 
   // TODO(rsavitski): for now hardcode each session to be for a single cpu's
@@ -81,7 +88,7 @@ class EventConfig {
   // TODO(rsavitski): if we allow for event groups containing multiple sampled
   // counters, we'll need to vary the .type & .config fields per
   // perf_event_open.
-  perf_event_attr perf_event_attr_;
+  perf_event_attr perf_event_attr_ = {};
 };
 
 }  // namespace profiling

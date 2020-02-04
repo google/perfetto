@@ -24,19 +24,12 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/profiling/perf/event_config.h"
 
 namespace perfetto {
 namespace profiling {
 
-// TODO(rsavitski): currently written for the non-overwriting ring buffer mode
-// (PROT_WRITE). Decide on whether there are use-cases for supporting the other.
-// TODO(rsavitski): given perf_event_mlock_kb limit, can we afford a ring buffer
-// per data source, or will we be forced to multiplex everything onto a single
-// ring buffer in the worst case? Alternatively, obtain CAP_IPC_LOCK (and do own
-// limiting)? Or get an adjusted RLIMIT_MEMLOCK?
-// TODO(rsavitski): polling for now, look into supporting the notification
-// mechanisms (such as epoll) later.
 class PerfRingBuffer {
  public:
   static base::Optional<PerfRingBuffer> Allocate(int perf_fd,
@@ -50,7 +43,8 @@ class PerfRingBuffer {
   PerfRingBuffer(PerfRingBuffer&& other) noexcept;
   PerfRingBuffer& operator=(PerfRingBuffer&& other) noexcept;
 
-  std::vector<char> ReadAvailable();
+  char* ReadRecordNonconsuming();
+  void Consume(size_t bytes);
 
  private:
   PerfRingBuffer() = default;
@@ -58,15 +52,29 @@ class PerfRingBuffer {
   bool valid() const { return metadata_page_ != nullptr; }
 
   // TODO(rsavitski): volatile?
-  // Is exactly the start of the mmap'd region.
+  // Points at the start of the mmap'd region.
   perf_event_mmap_page* metadata_page_ = nullptr;
 
-  // size of the mmap'd region (1 metadata page + data_buf_sz_)
+  // Size of the mmap'd region (1 metadata page + data_buf_sz_).
   size_t mmap_sz_ = 0;
 
   // mmap'd ring buffer
   char* data_buf_ = nullptr;
   size_t data_buf_sz_ = 0;
+
+  // When a record wraps around the ring buffer boundary, it is reconstructed in
+  // a contiguous form in this buffer. This allows us to always return a pointer
+  // to a contiguous record.
+  constexpr static size_t kMaxPerfRecordSize = 1 << 16;  // max size 64k
+  alignas(uint64_t) char reconstructed_record_[kMaxPerfRecordSize];
+};
+
+struct ParsedSample {
+  pid_t pid = 0;
+  pid_t tid = 0;
+  uint64_t timestamp = 0;
+  std::unique_ptr<unwindstack::Regs> regs;
+  std::vector<char> stack;
 };
 
 class EventReader {
@@ -78,6 +86,12 @@ class EventReader {
   static base::Optional<EventReader> ConfigureEvents(
       const EventConfig& event_cfg);
 
+  // Consumes records from the ring buffer until either encountering a sample,
+  // or catching up to the writer. The other record of interest
+  // (PERF_RECORD_LOST) is handled via the given callback.
+  base::Optional<ParsedSample> ReadUntilSample(
+      std::function<void(uint64_t)> lost_events_callback);
+
   ~EventReader() = default;
 
   // move-only
@@ -86,16 +100,13 @@ class EventReader {
   EventReader(EventReader&&) noexcept;
   EventReader& operator=(EventReader&&) noexcept;
 
-  // TODO(rsavitski): temporary one-shot parser for development purposes.
-  void ParseNextSampleBatch();
-
  private:
   EventReader(const EventConfig& event_cfg,
               base::ScopedFile perf_fd,
               PerfRingBuffer ring_buffer);
 
-  bool ParseSampleAndAdvance(const char** ptr);
-  void ParsePerfRecordSample(const char* sample_payload, size_t sample_size);
+  ParsedSample ParseSampleRecord(const char* sample_payload,
+                                 size_t sample_size);
 
   const EventConfig event_cfg_;
   base::ScopedFile perf_fd_;
