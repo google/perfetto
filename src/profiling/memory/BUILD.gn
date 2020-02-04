@@ -141,7 +141,6 @@ source_set("daemon") {
     "../../tracing/core",
     "../../tracing/ipc/producer",
     "../common:unwind_support",
-    "../common:utils",
   ]
   public_deps = [
     "../../../gn:libunwindstack",
@@ -203,7 +202,6 @@ perfetto_unittest_source_set("unittests") {
     "../../base:test_support",
     "../../tracing/core",
     "../common:unwind_support",
-    "../common:utils",
   ]
   sources = [
     "bookkeeping_unittest.cc",
@@ -251,7 +249,6 @@ perfetto_fuzzer_test("unwinding_fuzzer") {
     "../../base",
     "../../tracing/core",
     "../common:unwind_support",
-    "../common:utils",
   ]
 }
 

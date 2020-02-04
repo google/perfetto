@@ -23,7 +23,6 @@
 #include <unwindstack/Memory.h>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "src/profiling/common/utils.h"
 
 namespace perfetto {
 namespace profiling {
@@ -47,8 +46,7 @@ size_t StackOverlayMemory::Read(uint64_t addr, void* dst, size_t size) {
 FDMemory::FDMemory(base::ScopedFile mem_fd) : mem_fd_(std::move(mem_fd)) {}
 
 size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
-  ssize_t rd = ReadAtOffsetClobberSeekPos(*mem_fd_, dst, size,
-                                          static_cast<off64_t>(addr));
+  ssize_t rd = pread64(*mem_fd_, dst, size, static_cast<off64_t>(addr));
   if (rd == -1) {
     PERFETTO_DPLOG("read of %zu at offset %" PRIu64, size, addr);
     return 0;
@@ -56,10 +54,9 @@ size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
   return static_cast<size_t>(rd);
 }
 
-FileDescriptorMaps::FileDescriptorMaps(base::ScopedFile fd)
-    : fd_(std::move(fd)) {}
+FDMaps::FDMaps(base::ScopedFile fd) : fd_(std::move(fd)) {}
 
-bool FileDescriptorMaps::Parse() {
+bool FDMaps::Parse() {
   // If the process has already exited, lseek or ReadFileDescriptor will
   // return false.
   if (lseek(*fd_, 0, SEEK_SET) == -1)
@@ -88,7 +85,7 @@ bool FileDescriptorMaps::Parse() {
       });
 }
 
-void FileDescriptorMaps::Reset() {
+void FDMaps::Reset() {
   maps_.clear();
 }
 

@@ -51,7 +51,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 
-#include "src/profiling/common/utils.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -137,7 +136,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
                                            alloc_metadata->stack_pointer, stack,
                                            msg->payload_size);
 
-  unwindstack::Unwinder unwinder(kMaxFrames, &metadata->maps, regs.get(), mems);
+  unwindstack::Unwinder unwinder(kMaxFrames, &metadata->fd_maps, regs.get(),
+                                 mems);
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   unwinder.SetJitDebug(metadata->jit_debug.get(), regs->Arch());
   unwinder.SetDexFiles(metadata->dex_files.get(), regs->Arch());
@@ -173,7 +173,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   for (unwindstack::FrameData& fd : frames) {
     std::string build_id;
     if (fd.map_name != "") {
-      unwindstack::MapInfo* map_info = metadata->maps.Find(fd.pc);
+      unwindstack::MapInfo* map_info = metadata->fd_maps.Find(fd.pc);
       if (map_info)
         build_id = map_info->GetBuildID();
     }
