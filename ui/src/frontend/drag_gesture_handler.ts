@@ -17,6 +17,7 @@ export class DragGestureHandler {
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
   private readonly boundOnMouseUp = this.onMouseUp.bind(this);
   private clientRect?: DOMRect;
+  private pendingMouseDownEvent?: MouseEvent;
 
   constructor(
       private element: HTMLElement,
@@ -29,27 +30,43 @@ export class DragGestureHandler {
   private onMouseDown(e: MouseEvent) {
     document.body.addEventListener('mousemove', this.boundOnMouseMove);
     document.body.addEventListener('mouseup', this.boundOnMouseUp);
+    this.pendingMouseDownEvent = e;
+    // Prevent interactions with other DragGestureHandlers and event listeners
+    e.stopPropagation();
+  }
+
+  // We don't start the drag gesture on mouse down, instead we wait until
+  // the mouse has moved at least 1px. This prevents accidental drags that
+  // were meant to be clicks.
+  private startDragGesture(e: MouseEvent) {
     this.clientRect = this.element.getBoundingClientRect() as DOMRect;
     this.onDragStarted(
         e.clientX - this.clientRect.left, e.clientY - this.clientRect.top);
-
-    // Prevent interactions with other DragGestureHandlers and event listeners
-    e.stopPropagation();
   }
 
   private onMouseMove(e: MouseEvent) {
     if (e.buttons === 0) {
       return this.onMouseUp(e);
     }
-    this.onDrag(
-        e.clientX - this.clientRect!.left, e.clientY - this.clientRect!.top);
+    if (this.pendingMouseDownEvent &&
+        (Math.abs(e.clientX - this.pendingMouseDownEvent.clientX) > 1 ||
+         Math.abs(e.clientY - this.pendingMouseDownEvent.clientY) > 1)) {
+      this.startDragGesture(this.pendingMouseDownEvent);
+      this.pendingMouseDownEvent = undefined;
+    }
+    if (!this.pendingMouseDownEvent) {
+      this.onDrag(
+          e.clientX - this.clientRect!.left, e.clientY - this.clientRect!.top);
+    }
     e.stopPropagation();
   }
 
   private onMouseUp(e: MouseEvent) {
     document.body.removeEventListener('mousemove', this.boundOnMouseMove);
     document.body.removeEventListener('mouseup', this.boundOnMouseUp);
-    this.onDragFinished();
+    if (!this.pendingMouseDownEvent) {
+      this.onDragFinished();
+    }
     e.stopPropagation();
   }
 }
