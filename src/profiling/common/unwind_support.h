@@ -36,25 +36,23 @@ namespace profiling {
 
 // Read /proc/[pid]/maps from an open file descriptor.
 // TODO(fmayer): Figure out deduplication to other maps.
-class FileDescriptorMaps : public unwindstack::Maps {
+class FDMaps : public unwindstack::Maps {
  public:
-  FileDescriptorMaps(base::ScopedFile fd);
+  FDMaps(base::ScopedFile fd);
 
-  FileDescriptorMaps(const FileDescriptorMaps&) = delete;
-  FileDescriptorMaps& operator=(const FileDescriptorMaps&) = delete;
+  FDMaps(const FDMaps&) = delete;
+  FDMaps& operator=(const FDMaps&) = delete;
 
-  FileDescriptorMaps(FileDescriptorMaps&& m) : Maps(std::move(m)) {
-    fd_ = std::move(m.fd_);
-  }
+  FDMaps(FDMaps&& m) : Maps(std::move(m)) { fd_ = std::move(m.fd_); }
 
-  FileDescriptorMaps& operator=(FileDescriptorMaps&& m) {
+  FDMaps& operator=(FDMaps&& m) {
     if (&m != this)
       fd_ = std::move(m.fd_);
     Maps::operator=(std::move(m));
     return *this;
   }
 
-  virtual ~FileDescriptorMaps() override = default;
+  virtual ~FDMaps() override = default;
 
   bool Parse() override;
   void Reset();
@@ -91,10 +89,12 @@ class StackOverlayMemory : public unwindstack::Memory {
 };
 
 struct UnwindingMetadata {
-  UnwindingMetadata(pid_t p, base::ScopedFile maps_fd, base::ScopedFile mem)
-      : pid(p),
-        maps(std::move(maps_fd)),
-        fd_mem(std::make_shared<FDMemory>(std::move(mem)))
+  UnwindingMetadata(pid_t _pid,
+                    base::ScopedFile maps_fd,
+                    base::ScopedFile mem_fd)
+      : pid(_pid),
+        fd_maps(std::move(maps_fd)),
+        fd_mem(std::make_shared<FDMemory>(std::move(mem_fd)))
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
         ,
         jit_debug(std::unique_ptr<unwindstack::JitDebug>(
@@ -103,13 +103,13 @@ struct UnwindingMetadata {
             new unwindstack::DexFiles(fd_mem)))
 #endif
   {
-    bool parsed = maps.Parse();
+    bool parsed = fd_maps.Parse();
     PERFETTO_DCHECK(parsed);
   }
   void ReparseMaps() {
     reparses++;
-    maps.Reset();
-    maps.Parse();
+    fd_maps.Reset();
+    fd_maps.Parse();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     jit_debug = std::unique_ptr<unwindstack::JitDebug>(
         new unwindstack::JitDebug(fd_mem));
@@ -118,7 +118,7 @@ struct UnwindingMetadata {
 #endif
   }
   pid_t pid;
-  FileDescriptorMaps maps;
+  FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
   uint64_t reparses = 0;
