@@ -45,12 +45,13 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     base::TaskRunner* task_runner,
     TracingService::ProducerSMBScrapingMode smb_scraping_mode,
     size_t shared_memory_size_hint_bytes,
-    size_t shared_memory_page_size_hint_bytes) {
+    size_t shared_memory_page_size_hint_bytes,
+    std::unique_ptr<SharedMemory> shm) {
   return std::unique_ptr<TracingService::ProducerEndpoint>(
-      new ProducerIPCClientImpl(service_sock_name, producer, producer_name,
-                                task_runner, smb_scraping_mode,
-                                shared_memory_size_hint_bytes,
-                                shared_memory_page_size_hint_bytes));
+      new ProducerIPCClientImpl(
+          service_sock_name, producer, producer_name, task_runner,
+          smb_scraping_mode, shared_memory_size_hint_bytes,
+          shared_memory_page_size_hint_bytes, std::move(shm)));
 }
 
 ProducerIPCClientImpl::ProducerIPCClientImpl(
@@ -60,11 +61,13 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     base::TaskRunner* task_runner,
     TracingService::ProducerSMBScrapingMode smb_scraping_mode,
     size_t shared_memory_size_hint_bytes,
-    size_t shared_memory_page_size_hint_bytes)
+    size_t shared_memory_page_size_hint_bytes,
+    std::unique_ptr<SharedMemory> shm)
     : producer_(producer),
       task_runner_(task_runner),
       ipc_channel_(ipc::Client::CreateInstance(service_sock_name, task_runner)),
       producer_port_(this /* event_listener */),
+      shared_memory_(std::move(shm)),
       name_(producer_name),
       shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
       shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
@@ -86,7 +89,9 @@ void ProducerIPCClientImpl::OnConnect() {
   ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
       [this](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
-        OnConnectionInitialized(resp.success());
+        OnConnectionInitialized(
+            resp.success(),
+            resp.success() ? resp->using_shmem_provided_by_producer() : false);
       });
   protos::gen::InitializeConnectionRequest req;
   req.set_producer_name(name_);
@@ -109,6 +114,12 @@ void ProducerIPCClientImpl::OnConnect() {
       break;
   }
 
+  int shm_fd = -1;
+  if (shared_memory_) {
+    shm_fd = shared_memory_->fd();
+    req.set_producer_provided_shmem(true);
+  }
+
 #if PERFETTO_DCHECK_IS_ON()
   req.set_build_flags(
       protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_ON);
@@ -116,7 +127,7 @@ void ProducerIPCClientImpl::OnConnect() {
   req.set_build_flags(
       protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF);
 #endif
-  producer_port_.InitializeConnection(req, std::move(on_init));
+  producer_port_.InitializeConnection(req, std::move(on_init), shm_fd);
 
   // Create the back channel to receive commands from the Service.
   ipc::Deferred<protos::gen::GetAsyncCommandResponse> on_cmd;
@@ -138,13 +149,24 @@ void ProducerIPCClientImpl::OnDisconnect() {
   data_sources_setup_.clear();
 }
 
-void ProducerIPCClientImpl::OnConnectionInitialized(bool connection_succeeded) {
+void ProducerIPCClientImpl::OnConnectionInitialized(
+    bool connection_succeeded,
+    bool using_shmem_provided_by_producer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // If connection_succeeded == false, the OnDisconnect() call will follow next
   // and there we'll notify the |producer_|. TODO: add a test for this.
   if (!connection_succeeded)
     return;
+  is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
   producer_->OnConnect();
+
+  // Bail out if the service failed to adopt our producer-allocated SMB.
+  // TODO(eseckler): Handle adoption failure more gracefully.
+  if (shared_memory_ && !is_shmem_provided_by_producer_) {
+    PERFETTO_DLOG("Service failed adopt producer-provided SMB, disconnecting.");
+    ipc_channel_.reset();
+    return;
+  }
 }
 
 void ProducerIPCClientImpl::OnServiceRequest(
@@ -183,14 +205,26 @@ void ProducerIPCClientImpl::OnServiceRequest(
 
   if (cmd.has_setup_tracing()) {
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
-    PERFETTO_CHECK(shmem_fd);
-
-    // TODO(primiano): handle mmap failure in case of OOM.
-    shared_memory_ =
-        PosixSharedMemory::AttachToFd(std::move(shmem_fd),
-                                      /*require_seals_if_supported=*/false);
-    shared_buffer_page_size_kb_ =
-        cmd.setup_tracing().shared_buffer_page_size_kb();
+    if (shmem_fd) {
+      // This is the nominal case used in most configurations, where the service
+      // provides the SMB.
+      PERFETTO_CHECK(!is_shmem_provided_by_producer_ && !shared_memory_);
+      // TODO(primiano): handle mmap failure in case of OOM.
+      shared_memory_ =
+          PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                        /*require_seals_if_supported=*/false);
+      shared_buffer_page_size_kb_ =
+          cmd.setup_tracing().shared_buffer_page_size_kb();
+    } else {
+      // Producer-provided SMB (used by Chrome for startup tracing).
+      PERFETTO_CHECK(is_shmem_provided_by_producer_ && shared_memory_);
+      // If the service accepted our SMB, then it must match our requested page
+      // layout. The protocol doesn't allow the sservice to change the size and
+      // layout when the SMB is provided by the producer.
+      shared_buffer_page_size_kb_ = shared_memory_page_size_hint_bytes_ / 1024;
+      // TODO(eseckler): In case of a procucer-provided SMB, create the
+      // SharedMemoryArbiter even earlier to support startup tracing.
+    }
     shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
         shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, this,
         task_runner_);
@@ -362,6 +396,10 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {
   return shared_memory_arbiter_.get();
+}
+
+bool ProducerIPCClientImpl::IsShmemProvidedByProducer() const {
+  return is_shmem_provided_by_producer_;
 }
 
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {

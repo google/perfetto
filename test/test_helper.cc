@@ -114,6 +114,14 @@ bool TestHelper::AttachConsumer(const std::string& key) {
   return success;
 }
 
+void TestHelper::CreateProducerProvidedSmb() {
+  fake_producer_thread_.CreateProducerProvidedSmb();
+}
+
+bool TestHelper::IsShmemProvidedByProducer() {
+  return fake_producer_thread_.producer()->IsShmemProvidedByProducer();
+}
+
 void TestHelper::StartTracing(const TraceConfig& config,
                               base::ScopedFile file) {
   trace_.clear();

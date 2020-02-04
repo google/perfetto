@@ -225,7 +225,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     size_t shared_memory_size_hint_bytes,
                                     bool in_process,
                                     ProducerSMBScrapingMode smb_scraping_mode,
-                                    size_t shared_memory_page_size_hint_bytes) {
+                                    size_t shared_memory_page_size_hint_bytes,
+                                    std::unique_ptr<SharedMemory> shm) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != geteuid()) {
@@ -260,7 +261,38 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
   endpoint->shmem_page_size_hint_bytes_ = shared_memory_page_size_hint_bytes;
+
+  // Producer::OnConnect() should run before Producer::OnTracingSetup(). The
+  // latter may be posted by SetupSharedMemory() below, so post OnConnect() now.
   task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
+
+  if (shm) {
+    // The producer supplied an SMB. This is used only by Chrome; in the most
+    // common cases the SMB is created by the service and passed via
+    // OnTracingSetup(). Verify that it is correctly sized before we attempt to
+    // use it. The transport layer has to verify the integrity of the SMB (e.g.
+    // ensure that the producer can't resize if after the fact).
+    size_t shm_size, page_size;
+    std::tie(shm_size, page_size) =
+        EnsureValidShmSizes(shm->size(), endpoint->shmem_page_size_hint_bytes_);
+    if (shm_size == shm->size() &&
+        page_size == endpoint->shmem_page_size_hint_bytes_) {
+      PERFETTO_DLOG(
+          "Adopting producer-provided SMB of %zu kB for producer \"%s\"",
+          shm_size / 1024, endpoint->name_.c_str());
+      endpoint->SetupSharedMemory(std::move(shm), page_size,
+                                  /*provided_by_producer=*/true);
+    } else {
+      PERFETTO_LOG(
+          "Discarding incorrectly sized producer-provided SMB for producer "
+          "\"%s\", falling back to service-provided SMB. Requested sizes: %zu "
+          "B total, %zu B page size; suggested corrected sizes: %zu B total, "
+          "%zu B page size",
+          endpoint->name_.c_str(), shm->size(),
+          endpoint->shmem_page_size_hint_bytes_, shm_size, page_size);
+      shm.reset();
+    }
+  }
 
   return std::unique_ptr<ProducerEndpoint>(std::move(endpoint));
 }
@@ -2026,7 +2058,8 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     PERFETTO_DLOG("Creating SMB of %zu KB for producer \"%s\"", shm_size / 1024,
                   producer->name_.c_str());
     auto shared_memory = shm_factory_->CreateSharedMemory(shm_size);
-    producer->SetupSharedMemory(std::move(shared_memory), page_size);
+    producer->SetupSharedMemory(std::move(shared_memory), page_size,
+                                /*provided_by_producer=*/false);
   }
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
@@ -2814,12 +2847,14 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
 
 void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
     std::unique_ptr<SharedMemory> shared_memory,
-    size_t page_size_bytes) {
+    size_t page_size_bytes,
+    bool provided_by_producer) {
   PERFETTO_DCHECK(!shared_memory_ && !shmem_abi_.is_valid());
   PERFETTO_DCHECK(page_size_bytes % 1024 == 0);
 
   shared_memory_ = std::move(shared_memory);
   shared_buffer_page_size_kb_ = page_size_bytes / 1024;
+  is_shmem_provided_by_producer_ = provided_by_producer;
 
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
@@ -2873,6 +2908,11 @@ TracingServiceImpl::ProducerEndpointImpl::MaybeSharedMemoryArbiter() {
 
   PERFETTO_DCHECK(in_process_);
   return inproc_shmem_arbiter_.get();
+}
+
+bool TracingServiceImpl::ProducerEndpointImpl::IsShmemProvidedByProducer()
+    const {
+  return is_shmem_provided_by_producer_;
 }
 
 // Can be called on any thread.

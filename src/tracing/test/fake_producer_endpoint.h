@@ -45,6 +45,7 @@ class FakeProducerEndpoint : public TracingService::ProducerEndpoint {
     return nullptr;
   }
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override { return nullptr; }
+  bool IsShmemProvidedByProducer() const override { return false; }
 
   CommitDataRequest last_commit_data_request;
   CommitDataCallback last_commit_data_callback;
