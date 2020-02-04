@@ -58,10 +58,10 @@ TEST(UnwindingTest, StackOverlayMemoryNonOverlay) {
   ASSERT_EQ(buf[0], value);
 }
 
-TEST(UnwindingTest, FileDescriptorMapsParse) {
+TEST(UnwindingTest, FDMapsParse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   ASSERT_TRUE(proc_maps);
-  FileDescriptorMaps maps(std::move(proc_maps));
+  FDMaps maps(std::move(proc_maps));
   ASSERT_TRUE(maps.Parse());
   unwindstack::MapInfo* map_info =
       maps.Find(reinterpret_cast<uint64_t>(&proc_maps));
@@ -163,7 +163,7 @@ TEST(UnwindingTest, DoUnwindReparse) {
   UnwindingMetadata metadata(getpid(), std::move(proc_maps),
                              std::move(proc_mem));
   // Force reparse in DoUnwind.
-  metadata.maps.Reset();
+  metadata.fd_maps.Reset();
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
