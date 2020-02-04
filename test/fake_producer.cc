@@ -35,15 +35,18 @@ namespace perfetto {
 FakeProducer::FakeProducer(const std::string& name) : name_(name) {}
 FakeProducer::~FakeProducer() = default;
 
-void FakeProducer::Connect(
-    const char* socket_name,
-    base::TaskRunner* task_runner,
-    std::function<void()> on_setup_data_source_instance,
-    std::function<void()> on_create_data_source_instance) {
+void FakeProducer::Connect(const char* socket_name,
+                           base::TaskRunner* task_runner,
+                           std::function<void()> on_setup_data_source_instance,
+                           std::function<void()> on_create_data_source_instance,
+                           std::unique_ptr<SharedMemory> shm) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   task_runner_ = task_runner;
   endpoint_ = ProducerIPCClient::Connect(
-      socket_name, this, "android.perfetto.FakeProducer", task_runner);
+      socket_name, this, "android.perfetto.FakeProducer", task_runner,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_size_hint_bytes=*/0,
+      /*shared_memory_page_size_hint_bytes=*/base::kPageSize, std::move(shm));
   on_setup_data_source_instance_ = std::move(on_setup_data_source_instance);
   on_create_data_source_instance_ = std::move(on_create_data_source_instance);
 }
