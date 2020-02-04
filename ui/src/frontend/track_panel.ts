@@ -182,7 +182,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
       onclick: (e: MouseEvent) => {
         // If we are selecting a time range - do not pass the click to the
         // track.
-        if (e.shiftKey) return;
+        if (globals.frontendLocalState.selectingArea) return;
         // If the click is outside of the current time range, clear it.
         const clickTime = globals.frontendLocalState.timeScale.pxToTime(
             e.layerX - TRACK_SHELL_WIDTH);
