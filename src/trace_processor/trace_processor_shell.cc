@@ -327,6 +327,23 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
   google::protobuf::compiler::Parser parser;
   parser.Parse(&tokenizer, file_desc);
 
+  // Go through all the imports (dependencies) and make the import
+  // paths relative to the Perfetto root. This allows trace processor embedders
+  // to have paths relative to their own root for imports when using metric
+  // proto extensions.
+  for (int i = 0; i < file_desc->dependency_size(); ++i) {
+    static constexpr char kPrefix[] = "protos/perfetto/metrics/";
+    auto* dep = file_desc->mutable_dependency(i);
+
+    // If the file being imported contains kPrefix, it is probably an import of
+    // a Perfetto metrics proto. Strip anything before kPrefix to ensure that
+    // we resolve the paths correctly.
+    size_t idx = dep->find(kPrefix);
+    if (idx != std::string::npos) {
+      *dep = dep->substr(idx);
+    }
+  }
+
   file_desc->set_name(BaseName(extend_metrics_proto));
   pool->BuildFile(*file_desc);
 
@@ -652,7 +669,6 @@ struct CommandLineOptions {
   std::string sqlite_file_path;
   std::string metric_names;
   std::string metric_output;
-  std::string metric_extra;
   std::string trace_file_path;
   bool launch_shell = false;
   bool enable_httpd = false;
@@ -710,10 +726,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   return command_line_options;
 }
 
-util::Status RegisterExtraMetrics(const std::string&, const std::string&) {
-  return util::ErrStatus("RegisterExtraMetrics not implemented on Windows");
-}
-
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 void PrintUsage(char** argv) {
@@ -750,10 +762,6 @@ Options:
                                       specified in either proto binary, proto
                                       text format or JSON format (default: proto
                                       text).
- --extra-metrics PATH                 Registers all SQL files at the given path
-                                      to the trace processor and extends the
-                                      builtin metrics proto with
-                                      $PATH/metrics-ext.proto.
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
                                       logic.)",
@@ -765,7 +773,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   enum LongOption {
     OPT_RUN_METRICS = 1000,
     OPT_METRICS_OUTPUT,
-    OPT_EXTRA_METRICS,
     OPT_FORCE_FULL_SORT,
   };
 
@@ -781,7 +788,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"export", required_argument, nullptr, 'e'},
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
-      {"extra-metrics", required_argument, nullptr, OPT_EXTRA_METRICS},
       {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
       {nullptr, 0, nullptr, 0}};
 
@@ -848,11 +854,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    if (option == OPT_EXTRA_METRICS) {
-      command_line_options.metric_extra = optarg;
-      continue;
-    }
-
     if (option == OPT_FORCE_FULL_SORT) {
       command_line_options.force_full_sort = true;
       continue;
@@ -883,43 +884,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     exit(1);
   }
   return command_line_options;
-}
-
-util::Status RegisterExtraMetric(const std::string& parent_path,
-                                 const std::string& path) {
-  // Silently ignore any non-SQL files.
-  if (path.find(".sql") == std::string::npos)
-    return util::OkStatus();
-
-  std::string sql;
-  base::ReadFile(parent_path + "/" + path, &sql);
-  return g_tp->RegisterMetric(path, sql);
-}
-
-util::Status RegisterExtraMetrics(const std::string& path,
-                                  const std::string& group) {
-  std::string full_path = path + "/" + group;
-  DIR* dir = opendir(full_path.c_str());
-  if (dir == nullptr) {
-    return util::ErrStatus(
-        "Failed to open directory %s to register extra metrics",
-        full_path.c_str());
-  }
-
-  for (auto* dirent = readdir(dir); dirent != nullptr; dirent = readdir(dir)) {
-    util::Status status = util::OkStatus();
-    if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0)
-      continue;
-
-    if (dirent->d_type == DT_DIR) {
-      status = RegisterExtraMetrics(path, group + dirent->d_name + "/");
-    } else if (dirent->d_type == DT_REG) {
-      status = RegisterExtraMetric(path, group + dirent->d_name);
-    }
-    if (!status.ok())
-      return status;
-  }
-  return util::OkStatus();
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -1017,25 +981,6 @@ int TraceProcessorMain(int argc, char** argv) {
                                  kMetricsDescriptor.size());
   ExtendPoolWithBinaryDescriptor(pool, kCustomOptionsDescriptor.data(),
                                  kCustomOptionsDescriptor.size());
-
-  if (!options.metric_extra.empty()) {
-    util::Status status = RegisterExtraMetrics(options.metric_extra, "");
-    if (!status.ok()) {
-      PERFETTO_ELOG("Failed to register extra metrics: %s", status.c_message());
-      return 1;
-    }
-
-    auto ext_proto = options.metric_extra + "/metrics-ext.proto";
-    // Check if the file exists
-    base::ScopedFile file(base::OpenFile(ext_proto, O_RDONLY));
-    if (file.get() != -1) {
-      status = ExtendMetricsProto(ext_proto, &pool);
-      if (!status.ok()) {
-        PERFETTO_ELOG("Failed to extend metrics proto: %s", status.c_message());
-        return 1;
-      }
-    }
-  }
 
   if (!options.metric_names.empty()) {
     std::vector<std::string> metrics;
