@@ -161,9 +161,11 @@ declare_args() {
 
   # The Trace Processor: offline analytical engine to process traces and compute
   # metrics using a SQL engine.
-  enable_perfetto_trace_processor =
-      perfetto_build_standalone || build_with_chromium ||
-      is_perfetto_build_generator
+  if (!defined(enable_perfetto_trace_processor)) {
+    enable_perfetto_trace_processor =
+        perfetto_build_standalone || build_with_chromium ||
+        is_perfetto_build_generator
+  }
 
   # Enables base::Watchdog. Is supported only on Linux-based platforms.
   # gn/BUILD.gn further restricts this to OS_LINUX || OS_ANDROID when generating
