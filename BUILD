@@ -475,6 +475,8 @@ filegroup(
         "include/perfetto/tracing/event_context.h",
         "include/perfetto/tracing/internal/basic_types.h",
         "include/perfetto/tracing/internal/data_source_internal.h",
+        "include/perfetto/tracing/internal/in_process_tracing_backend.h",
+        "include/perfetto/tracing/internal/system_tracing_backend.h",
         "include/perfetto/tracing/internal/tracing_muxer.h",
         "include/perfetto/tracing/internal/tracing_tls.h",
         "include/perfetto/tracing/internal/track_event_data_source.h",
@@ -1222,15 +1224,13 @@ filegroup(
     ],
 )
 
-# GN target: //src/tracing:client_api_base
+# GN target: //src/tracing:client_api_without_backends
 filegroup(
-    name = "src_tracing_client_api_base",
+    name = "src_tracing_client_api_without_backends",
     srcs = [
         "src/tracing/data_source.cc",
         "src/tracing/debug_annotation.cc",
         "src/tracing/event_context.cc",
-        "src/tracing/internal/in_process_tracing_backend.h",
-        "src/tracing/internal/system_tracing_backend.h",
         "src/tracing/internal/tracing_muxer_impl.cc",
         "src/tracing/internal/tracing_muxer_impl.h",
         "src/tracing/internal/track_event_internal.cc",
@@ -1267,9 +1267,9 @@ filegroup(
     ],
 )
 
-# GN target: //src/tracing:system_process_backend
+# GN target: //src/tracing:system_backend
 filegroup(
-    name = "src_tracing_system_process_backend",
+    name = "src_tracing_system_backend",
     srcs = [
         "src/tracing/internal/system_tracing_backend.cc",
     ],
@@ -2482,7 +2482,7 @@ perfetto_cc_library(
         ":src_ipc_common",
         ":src_ipc_host",
         ":src_protozero_protozero",
-        ":src_tracing_client_api_base",
+        ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
         ":src_tracing_core_core",
         ":src_tracing_core_service",
@@ -2492,7 +2492,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_platform_posix",
-        ":src_tracing_system_process_backend",
+        ":src_tracing_system_backend",
     ],
     hdrs = [
         ":include_perfetto_base_base",

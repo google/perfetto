@@ -24,7 +24,7 @@
 namespace perfetto {
 
 // static
-void Tracing::Initialize(const TracingInitArgs& args) {
+void Tracing::InitializeInternal(const TracingInitArgs& args) {
   static bool was_initialized = false;
   static TracingInitArgs init_args;
   if (was_initialized) {

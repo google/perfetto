@@ -37,8 +37,6 @@
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
-#include "src/tracing/internal/in_process_tracing_backend.h"
-#include "src/tracing/internal/system_tracing_backend.h"
 
 namespace perfetto {
 namespace internal {
@@ -443,15 +441,15 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
     rb.producer->Initialize(rb.backend->ConnectProducer(conn_args));
   };
 
-  // Both the system and the in-process backends can be disabled at build-time
-  // and replaced with the _fake.cc versions. The "fake" versions will just
-  // ELOG() and return nullptr.
+  if (args.backends & kSystemBackend) {
+    PERFETTO_CHECK(args.system_backend_factory_);
+    add_backend(args.system_backend_factory_(), kSystemBackend);
+  }
 
-  if (args.backends & kSystemBackend)
-    add_backend(SystemTracingBackend::GetInstance(), kSystemBackend);
-
-  if (args.backends & kInProcessBackend)
-    add_backend(InProcessTracingBackend::GetInstance(), kInProcessBackend);
+  if (args.backends & kInProcessBackend) {
+    PERFETTO_CHECK(args.in_process_backend_factory_);
+    add_backend(args.in_process_backend_factory_(), kInProcessBackend);
+  }
 
   if (args.backends & kCustomBackend) {
     PERFETTO_CHECK(args.custom_backend);

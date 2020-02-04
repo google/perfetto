@@ -19,49 +19,31 @@ import("../../gn/test.gni")
 
 # Full version of the client API. Supports both the in-process backend and the
 # system backend (on posix systems and if enabled by the enable_perfetto_ipc).
-# It has a larger binary footprint due to the service code for the in-proecss
-# backend.
+# The backends are designed to be dead-code-eliminated via linker's gc-section
+# when not use. See comments in Tracing::Initialize() in tracing.h.
 group("client_api") {
   public_deps = [
-    ":client_api_base",
+    ":client_api_without_backends",
+    ":in_process_backend",
     "../../gn:default_deps",
+    "../../include/perfetto/tracing",
+    "../../include/perfetto/tracing/core",
   ]
-  deps = [ ":in_process_backend" ]
   if (enable_perfetto_ipc) {
-    deps += [ ":system_process_backend" ]
-  } else {
-    deps += [ ":system_process_backend_fake" ]
+    public_deps += [ ":system_backend" ]
   }
 }
 
-# Slim version of the client API. Works only with the system backend (traced
-# connection over a UNIX socket). Has a lighter binary size impact.
-if (enable_perfetto_ipc) {
-  source_set("client_api_system_backend_only") {
-    public_deps = [
-      ":client_api_base",
-      "../../gn:default_deps",
-    ]
-    deps = [
-      ":in_process_backend_fake",
-      ":system_process_backend",
-    ]
-  }
-}
-
-# This target checks only that the "fake" backends compile. This is to detect
-# early if we break them with refactorings, without waiting for TreeHugger or
-# rolls into chromium.
+# This target checks that the client API builds without backends. This is to
+# check that no references to the backends are leaked from the implementation
+# internals. In turn, this allows to dead-code-eliminate unused backends when
+# using linker's gc-sections (or similar mechanism).
 if (perfetto_build_standalone) {
   shared_library("client_api_no_backends_compile_test") {
-    public_deps = [
-      ":client_api_base",
-      "../../gn:default_deps",
-    ]
     deps = [
-      ":in_process_backend_fake",
+      ":client_api_without_backends",
       ":platform_fake",
-      ":system_process_backend_fake",
+      "../../gn:default_deps",
     ]
   }
 }
@@ -101,7 +83,7 @@ source_set("common") {
 }
 
 # Base target for the client API. On its own doesn't provide any backend.
-source_set("client_api_base") {
+source_set("client_api_without_backends") {
   deps = [
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/config:cpp",
@@ -116,8 +98,6 @@ source_set("client_api_base") {
     "data_source.cc",
     "debug_annotation.cc",
     "event_context.cc",
-    "internal/in_process_tracing_backend.h",
-    "internal/system_tracing_backend.h",
     "internal/tracing_muxer_impl.cc",
     "internal/tracing_muxer_impl.h",
     "internal/track_event_internal.cc",
@@ -128,15 +108,22 @@ source_set("client_api_base") {
     "track_event_legacy.cc",
     "virtual_destructors.cc",
   ]
+  assert_no_deps = [ "core:service" ]
+  if (enable_perfetto_ipc) {
+    assert_no_deps += [
+      "../ipc:common",
+      "ipc/common",
+    ]
+  }
 }
 
 # System backend: connects to an external "traced" instance via a UNIX socket.
 # Requires the IPC layer and is supported only on posix systems.
 if (enable_perfetto_ipc) {
-  source_set("system_process_backend") {
+  source_set("system_backend") {
     public_deps = [ "../../include/perfetto/tracing" ]
     deps = [
-      ":client_api_base",
+      ":client_api_without_backends",
       "../../gn:default_deps",
       "../../include/perfetto/tracing/core",
       "../base",
@@ -148,39 +135,17 @@ if (enable_perfetto_ipc) {
   }
 }
 
-# System backend fallback: it prints an error message and returns nullptr.
-source_set("system_process_backend_fake") {
-  public_deps = [ "../../include/perfetto/tracing" ]
-  deps = [
-    ":client_api_base",
-    "../../gn:default_deps",
-    "../base",
-  ]
-  sources = [ "internal/system_tracing_backend_fake.cc" ]
-}
-
 # In-process backend: starts the tracing service in-process on a dedicated
 # thread. It depends only on having a valid "platform" target. It has a larger
 # binary size cost because links in all the service code.
 source_set("in_process_backend") {
   public_deps = [ "../../include/perfetto/tracing" ]
   deps = [
-    ":client_api_base",
+    ":client_api_without_backends",
     "../../gn:default_deps",
     "../../include/perfetto/tracing/core",
     "../base",
     "core:service",
   ]
   sources = [ "internal/in_process_tracing_backend.cc" ]
-}
-
-# In-process backend fallback: it prints an error messaage and returns nullptr.
-source_set("in_process_backend_fake") {
-  public_deps = [ "../../include/perfetto/tracing" ]
-  deps = [
-    ":client_api_base",
-    "../../gn:default_deps",
-    "../base",
-  ]
-  sources = [ "internal/in_process_tracing_backend_fake.cc" ]
 }
