@@ -123,18 +123,24 @@ base::Optional<PerfRingBuffer> PerfRingBuffer::Allocate(
   return base::make_optional(std::move(ret));
 }
 
-// TODO(rsavitski): should be possible to use address-specific atomics, see
-// libperf's explanation on why the kernel uses barriers.
-#pragma GCC diagnostic push
-#if defined(__clang__)
-#pragma GCC diagnostic ignored "-Watomic-implicit-seq-cst"
-#endif
+// See |perf_output_put_handle| for the necessary synchronization between the
+// kernel and this userspace thread (which are using the same shared memory, but
+// might be on different cores).
+// TODO(rsavitski): is there false sharing between |data_tail| and |data_head|?
+// Is there an argument for maintaining our own copy of |data_tail| instead of
+// reloading it?
 char* PerfRingBuffer::ReadRecordNonconsuming() {
   PERFETTO_CHECK(valid());
 
-  uint64_t write_offset = metadata_page_->data_head;
+  // |data_tail| is written only by this userspace thread, so we can safely read
+  // it without any synchronization.
   uint64_t read_offset = metadata_page_->data_tail;
-  __sync_synchronize();  // needs to be rmb()
+
+  // |data_head| is written by the kernel, perform an acquiring load such that
+  // the payload reads below are ordered after this load.
+  uint64_t write_offset =
+      reinterpret_cast<std::atomic<uint64_t>*>(&metadata_page_->data_head)
+          ->load(std::memory_order_acquire);
 
   PERFETTO_DCHECK(read_offset <= write_offset);
   if (write_offset == read_offset)
@@ -174,10 +180,15 @@ char* PerfRingBuffer::ReadRecordNonconsuming() {
 void PerfRingBuffer::Consume(size_t bytes) {
   PERFETTO_CHECK(valid());
 
-  __sync_synchronize();  // needs to be mb()
-  metadata_page_->data_tail += bytes;
+  // Advance |data_tail|, which is written only by this thread. The store of the
+  // updated value needs to have release semantics such that the preceding
+  // payload reads are ordered before it. The reader in this case is the kernel,
+  // which reads |data_tail| to calculate the available ring buffer capacity
+  // before trying to store a new record.
+  uint64_t updated_tail = metadata_page_->data_tail + bytes;
+  reinterpret_cast<std::atomic<uint64_t>*>(&metadata_page_->data_tail)
+      ->store(updated_tail, std::memory_order_release);
 }
-#pragma GCC diagnostic pop
 
 EventReader::EventReader(const EventConfig& event_cfg,
                          base::ScopedFile perf_fd,
