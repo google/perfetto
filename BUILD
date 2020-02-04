@@ -768,11 +768,15 @@ filegroup(
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
         "src/trace_processor/sqlite/scoped_db.h",
+        "src/trace_processor/sqlite/span_join_operator_table.cc",
+        "src/trace_processor/sqlite/span_join_operator_table.h",
         "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite3_str_split.h",
         "src/trace_processor/sqlite/sqlite_table.cc",
         "src/trace_processor/sqlite/sqlite_table.h",
         "src/trace_processor/sqlite/sqlite_utils.h",
+        "src/trace_processor/sqlite/window_operator_table.cc",
+        "src/trace_processor/sqlite/window_operator_table.h",
     ],
 )
 
@@ -825,8 +829,6 @@ filegroup(
     name = "src_trace_processor_lib",
     srcs = [
         "src/trace_processor/read_trace.cc",
-        "src/trace_processor/span_join_operator_table.cc",
-        "src/trace_processor/span_join_operator_table.h",
         "src/trace_processor/sql_stats_table.cc",
         "src/trace_processor/sql_stats_table.h",
         "src/trace_processor/sqlite_experimental_flamegraph_table.cc",
@@ -838,8 +840,6 @@ filegroup(
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
         "src/trace_processor/trace_processor_impl.h",
-        "src/trace_processor/window_operator_table.cc",
-        "src/trace_processor/window_operator_table.h",
     ],
 )
 
