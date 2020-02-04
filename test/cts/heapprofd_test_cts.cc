@@ -17,9 +17,12 @@
 
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 
 #include <sys/system_properties.h>
+
+#include <string>
 
 #include "gtest/gtest.h"
 #include "perfetto/base/logging.h"
@@ -128,7 +131,7 @@ std::vector<protos::TracePacket> ProfileRuntime(std::string app_name) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(4000);
+  trace_config.set_duration_ms(2000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
@@ -228,27 +231,38 @@ void StopApp(std::string app_name) {
 }
 
 // TODO(b/118428762): look into unwinding issues on x86.
-#if defined(__i386__) || defined(__x86_64__)
-#define MAYBE_SKIP(x) DISABLED_##x
-#else
-#define MAYBE_SKIP(x) x
-#endif
+bool IsUnameX86() {
+  struct utsname uname_data;
+  uname(&uname_data);
+  std::string machine = uname_data.machine;
+  // Matches both i386 and x86_64.
+  return machine.find("86") != std::string::npos;
+}
 
-TEST(HeapprofdCtsTest, MAYBE_SKIP(DebuggableAppRuntime)) {
+TEST(HeapprofdCtsTest, DebuggableAppRuntime) {
+  if (IsUnameX86()) {
+    GTEST_SKIP() << "Test is disabled on x86 devices";
+  }
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, MAYBE_SKIP(DebuggableAppStartup)) {
+TEST(HeapprofdCtsTest, DebuggableAppStartup) {
+  if (IsUnameX86()) {
+    GTEST_SKIP() << "Test is disabled on x86 devices";
+  }
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileStartup(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, MAYBE_SKIP(ReleaseAppRuntime)) {
+TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
+  if (IsUnameX86()) {
+    GTEST_SKIP() << "Test is disabled on x86 devices";
+  }
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
@@ -260,7 +274,10 @@ TEST(HeapprofdCtsTest, MAYBE_SKIP(ReleaseAppRuntime)) {
   StopApp(app_name);
 }
 
-TEST(HeapprofdCtsTest, MAYBE_SKIP(ReleaseAppStartup)) {
+TEST(HeapprofdCtsTest, ReleaseAppStartup) {
+  if (IsUnameX86()) {
+    GTEST_SKIP() << "Test is disabled on x86 devices";
+  }
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileStartup(app_name);
 
