@@ -97,7 +97,7 @@ namespace trace_processor {
 
 class HeapGraphWalker {
  public:
-  using ClassNameId = int32_t;
+  using ClassNameId = uint32_t;
 
   struct PathFromRoot {
     static constexpr size_t kRoot = 0;
@@ -107,7 +107,7 @@ class HeapGraphWalker {
       size_t parent_id = 0;
       uint64_t size = 0;
       uint64_t count = 0;
-      ClassNameId class_name = -1;
+      ClassNameId class_name = 0;
       std::map<ClassNameId, size_t> children;
     };
     std::vector<Node> nodes{Node{}};
@@ -125,7 +125,7 @@ class HeapGraphWalker {
   HeapGraphWalker(Delegate* delegate) : delegate_(delegate) {}
 
   void AddEdge(int64_t owner_row, int64_t owned_row);
-  void AddNode(int64_t row, uint64_t size) { AddNode(row, size, -1); }
+  void AddNode(int64_t row, uint64_t size) { AddNode(row, size, 0); }
   void AddNode(int64_t row, uint64_t size, ClassNameId class_name);
 
   // Mark a a node as root. This marks all the nodes reachable from it as
@@ -149,7 +149,7 @@ class HeapGraphWalker {
     uint64_t lowlink = 0;
     int64_t component = -1;
 
-    int32_t class_name = -1;
+    uint32_t class_name = 0;
     int32_t distance_to_root = -1;
 
     bool on_stack = false;
