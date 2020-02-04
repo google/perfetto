@@ -237,6 +237,35 @@ export class FrontendLocalState {
     globals.rafScheduler.scheduleFullRedraw();
   }
 
+  toggleTrackSelection(id: string, isTrackGroup = false) {
+    const area = this._selectedArea.area;
+    if (!area) return;
+    const index = area.tracks.indexOf(id);
+    if (index > -1) {
+      area.tracks.splice(index, 1);
+      if (isTrackGroup) {  // Also remove all child tracks.
+        for (const childTrack of globals.state.trackGroups[id].tracks) {
+          const childIndex = area.tracks.indexOf(childTrack);
+          if (childIndex > -1) {
+            area.tracks.splice(childIndex, 1);
+          }
+        }
+      }
+    } else {
+      area.tracks.push(id);
+      if (isTrackGroup) {  // Also add all child tracks.
+        for (const childTrack of globals.state.trackGroups[id].tracks) {
+          if (!area.tracks.includes(childTrack)) {
+            area.tracks.push(childTrack);
+          }
+        }
+      }
+    }
+    this._selectedArea.lastUpdate = Date.now() / 1000;
+    this.selectAreaDebounced();
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
   toggleLockArea() {
     if (!this._selectedArea.area) return;
     if (this.currentNoteSelectionEqualToCurrentAreaSelection()) {
