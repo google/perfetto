@@ -346,13 +346,15 @@ class PerfettoCmdlineTest : public ::testing::Test {
 #define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
 #endif
 
-// TODO(b/73453011): reenable on more platforms (including standalone Android).
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #define TreeHuggerOnly(x) x
+#define ExcludeTreeHugger(x) DISABLED_##x
 #else
 #define TreeHuggerOnly(x) DISABLED_##x
+#define ExcludeTreeHugger(x) x
 #endif
 
+// TODO(b/73453011): reenable on more platforms (including standalone Android).
 TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   base::TestTaskRunner task_runner;
 
@@ -398,6 +400,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   }
 }
 
+// TODO(b/73453011): reenable on more platforms (including standalone Android).
 TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   base::TestTaskRunner task_runner;
 
@@ -456,6 +459,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   ASSERT_EQ(marker_found, 1);
 }
 
+// TODO(b/73453011): reenable on more platforms (including standalone Android).
 TEST_F(PerfettoTest, TreeHuggerOnly(TestBatteryTracing)) {
   base::TestTaskRunner task_runner;
 
@@ -683,6 +687,44 @@ TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
   EXPECT_FALSE(helper.AttachConsumer("key"));
+}
+
+// TODO(b/148841422): Reenable on treehugger once selinux rules are in place.
+TEST_F(PerfettoTest, ExcludeTreeHugger(TestProducerProvidedSMB)) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.CreateProducerProvidedSmb();
+
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(200);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->set_target_buffer(0);
+
+  ds_config->mutable_for_testing()->set_seed(42);
+  ds_config->mutable_for_testing()->set_message_count(1);
+  ds_config->mutable_for_testing()->set_message_size(1024);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+
+  EXPECT_TRUE(helper.IsShmemProvidedByProducer());
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  const auto& packets = helper.trace();
+  ASSERT_EQ(packets.size(), 1u);
+  ASSERT_TRUE(packets[0].has_for_testing());
 }
 
 // Disable cmdline tests on sanitizets because they use fork() and that messes

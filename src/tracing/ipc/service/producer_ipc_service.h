@@ -95,6 +95,8 @@ class ProducerIPCService : public protos::gen::ProducerPort {
     void ClearIncrementalState(const DataSourceInstanceID* data_source_ids,
                                size_t num_data_sources) override;
 
+    void SendSetupTracing();
+
     // The interface obtained from the core service business logic through
     // Service::ConnectProducer(this). This allows to invoke methods for a
     // specific Producer on the Service business logic.
@@ -104,6 +106,11 @@ class ProducerIPCService : public protos::gen::ProducerPort {
     // to send asynchronous commands to the remote Producer (e.g. start/stop a
     // data source).
     DeferredGetAsyncCommandResponse async_producer_commands;
+
+    // Set if the service calls OnTracingSetup() before the
+    // |async_producer_commands| was bound by the service. In this case, we
+    // forward the SetupTracing command when it is bound later.
+    bool send_setup_tracing_on_async_commands_bound = false;
   };
 
   ProducerIPCService(const ProducerIPCService&) = delete;

@@ -102,6 +102,7 @@ source_set("test_helper") {
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
     "../src/traced/probes:probes_src",
+    "../src/tracing/ipc:common",
   ]
   sources = [
     "fake_producer.cc",
