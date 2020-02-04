@@ -40,7 +40,6 @@ namespace trace_processor {
 namespace {
 
 constexpr char kBindAddr[] = "127.0.0.1:9001";
-constexpr auto kBlocking = base::UnixSocket::BlockingMode::kBlocking;
 
 // 32 MiB payload + 128K for HTTP headers.
 constexpr size_t kMaxRequestSize = (32 * 1024 + 128) * 1024;
@@ -111,9 +110,9 @@ void HttpReply(base::UnixSocket* sock,
   Append(response, "Content-Length: ");
   Append(response, std::to_string(body_len));
   Append(response, "\r\n\r\n");  // End-of-headers marker.
-  sock->Send(response.data(), response.size(), /*fd=*/-1, kBlocking);
+  sock->Send(response.data(), response.size());
   if (body_len)
-    sock->Send(body, body_len, /*fd=*/-1, kBlocking);
+    sock->Send(body, body_len);
 }
 
 void ShutdownBadRequest(base::UnixSocket* sock, const char* reason) {

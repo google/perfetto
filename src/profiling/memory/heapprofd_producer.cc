@@ -757,8 +757,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     int raw_fd = pending_process.shmem.fd();
     // TODO(fmayer): Full buffer could deadlock us here.
     if (!self->Send(&data_source.client_configuration,
-                    sizeof(data_source.client_configuration), &raw_fd, 1,
-                    base::UnixSocket::BlockingMode::kBlocking)) {
+                    sizeof(data_source.client_configuration), &raw_fd, 1)) {
       // If Send fails, the socket will have been Shutdown, and the raw socket
       // closed.
       producer_->pending_processes_.erase(it);
