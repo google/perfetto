@@ -110,6 +110,8 @@ cc_binary {
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
+    ":perfetto_src_profiling_common_unwind_support",
+    ":perfetto_src_profiling_common_utils",
     ":perfetto_src_profiling_memory_daemon",
     ":perfetto_src_profiling_memory_proc_utils",
     ":perfetto_src_profiling_memory_ring_buffer",
@@ -1341,6 +1343,8 @@ cc_test {
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
+    ":perfetto_src_profiling_common_unwind_support",
+    ":perfetto_src_profiling_common_utils",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_daemon",
     ":perfetto_src_profiling_memory_end_to_end_tests",
@@ -5592,6 +5596,22 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/common:unwind_support
+filegroup {
+  name: "perfetto_src_profiling_common_unwind_support",
+  srcs: [
+    "src/profiling/common/unwind_support.cc",
+  ],
+}
+
+// GN: //src/profiling/common:utils
+filegroup {
+  name: "perfetto_src_profiling_common_utils",
+  srcs: [
+    "src/profiling/common/utils.cc",
+  ],
+}
+
 // GN: //src/profiling:deobfuscator
 filegroup {
   name: "perfetto_src_profiling_deobfuscator",
@@ -5619,7 +5639,6 @@ filegroup {
     "src/profiling/memory/page_idle_checker.cc",
     "src/profiling/memory/system_property.cc",
     "src/profiling/memory/unwinding.cc",
-    "src/profiling/memory/utils.cc",
   ],
 }
 
@@ -5696,6 +5715,14 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/perf:proc_descriptors
+filegroup {
+  name: "perfetto_src_profiling_perf_proc_descriptors",
+  srcs: [
+    "src/profiling/perf/proc_descriptors.cc",
+  ],
+}
+
 // GN: //src/profiling/perf:producer
 filegroup {
   name: "perfetto_src_profiling_perf_producer",
@@ -5713,19 +5740,19 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/perf:regs_parsing
+filegroup {
+  name: "perfetto_src_profiling_perf_regs_parsing",
+  srcs: [
+    "src/profiling/perf/regs_parsing.cc",
+  ],
+}
+
 // GN: //src/profiling/perf:traced_perf_main
 filegroup {
   name: "perfetto_src_profiling_perf_traced_perf_main",
   srcs: [
     "src/profiling/perf/traced_perf.cc",
-  ],
-}
-
-// GN: //src/profiling/perf:unwind_support
-filegroup {
-  name: "perfetto_src_profiling_perf_unwind_support",
-  srcs: [
-    "src/profiling/perf/unwind_support.cc",
   ],
 }
 
@@ -6953,6 +6980,8 @@ cc_test {
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_producer",
     ":perfetto_src_perfetto_cmd_unittests",
+    ":perfetto_src_profiling_common_unwind_support",
+    ":perfetto_src_profiling_common_utils",
     ":perfetto_src_profiling_deobfuscator",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_daemon",
@@ -6962,9 +6991,10 @@ cc_test {
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_unittests",
     ":perfetto_src_profiling_memory_wire_protocol",
+    ":perfetto_src_profiling_perf_proc_descriptors",
     ":perfetto_src_profiling_perf_producer",
     ":perfetto_src_profiling_perf_producer_unittests",
-    ":perfetto_src_profiling_perf_unwind_support",
+    ":perfetto_src_profiling_perf_regs_parsing",
     ":perfetto_src_profiling_unittests",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_protozero_testing_messages_cpp_gen",
@@ -7447,9 +7477,10 @@ cc_binary {
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
+    ":perfetto_src_profiling_perf_proc_descriptors",
     ":perfetto_src_profiling_perf_producer",
+    ":perfetto_src_profiling_perf_regs_parsing",
     ":perfetto_src_profiling_perf_traced_perf_main",
-    ":perfetto_src_profiling_perf_unwind_support",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",

@@ -23,6 +23,7 @@
 #include <unwindstack/RegsGetLocal.h>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "test/gtest_and_gmock.h"
