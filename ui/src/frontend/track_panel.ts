@@ -21,6 +21,7 @@ import {TrackState} from '../common/state';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
+import {BLANK_CHECKBOX, CHECKBOX, STAR, STAR_BORDER} from './icons';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {Track} from './track';
@@ -32,6 +33,11 @@ import {
 
 function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
+}
+
+function isSelected(id: string) {
+  return globals.frontendLocalState.selectedArea.area &&
+      globals.frontendLocalState.selectedArea.area.tracks.includes(id);
 }
 
 interface TrackShellAttrs {
@@ -64,17 +70,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
     const dragClass = this.dragging ? `drag` : '';
     const dropClass = this.dropping ? `drop-${this.dropping}` : '';
-    const selectedArea = globals.frontendLocalState.selectedArea.area;
-    const markSelectedClass = selectedArea &&
-            selectedArea.tracks.includes(attrs.trackState.id) &&
-            !globals.frontendLocalState.selectingArea ?
-        'selected' :
-        '';
     return m(
         `.track-shell[draggable=true]`,
         {
-          class: `${highlightClass} ${markSelectedClass} ${dragClass} ${
-              dropClass}`,
+          class: `${highlightClass} ${dragClass} ${dropClass}`,
           onmousedown: this.onmousedown.bind(this),
           ondragstart: this.ondragstart.bind(this),
           ondragend: this.ondragend.bind(this),
@@ -87,16 +86,28 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             title: attrs.trackState.name,
           },
           attrs.trackState.name),
-        attrs.track.getTrackShellButtons(),
-        m(TrackButton, {
-          action: () => {
-            globals.dispatch(
-                Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
-          },
-          i: isPinned(attrs.trackState.id) ? 'star' : 'star_border',
-          tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
-          selected: isPinned(attrs.trackState.id),
-        }));
+        m('.track-buttons',
+          attrs.track.getTrackShellButtons(),
+          m(TrackButton, {
+            action: () => {
+              globals.dispatch(
+                  Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
+            },
+            i: isPinned(attrs.trackState.id) ? STAR : STAR_BORDER,
+            tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
+            showButton: isPinned(attrs.trackState.id),
+          }),
+          globals.frontendLocalState.selectedArea.area ? m(TrackButton, {
+            action: () => {
+              globals.frontendLocalState.toggleTrackSelection(
+                  attrs.trackState.id);
+            },
+            i: isSelected(attrs.trackState.id) ? CHECKBOX : BLANK_CHECKBOX,
+            tooltip: isSelected(attrs.trackState.id) ? 'Remove track' :
+                                                       'Add track to selection',
+            showButton: true,
+          }) :
+                                                         ''));
   }
 
   onmousedown(e: MouseEvent) {
@@ -222,14 +233,14 @@ export interface TrackButtonAttrs {
   action: () => void;
   i: string;
   tooltip: string;
-  selected: boolean;
+  showButton: boolean;
 }
 export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
   view({attrs}: m.CVnode<TrackButtonAttrs>) {
     return m(
         'i.material-icons.track-button',
         {
-          class: `${attrs.selected ? 'show' : ''}`,
+          class: `${attrs.showButton ? 'show' : ''}`,
           onclick: attrs.action,
           title: attrs.tooltip,
         },
