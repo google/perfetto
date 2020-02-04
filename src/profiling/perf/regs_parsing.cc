@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/perf/unwind_support.h"
+#include "src/profiling/perf/regs_parsing.h"
 
 #include <inttypes.h>
 #include <linux/perf_event.h>
@@ -35,6 +35,7 @@
 #include <unwindstack/UserX86.h>
 #include <unwindstack/UserX86_64.h>
 
+// kernel uapi headers
 #include <uapi/asm-arm/asm/perf_regs.h>
 #include <uapi/asm-x86/asm/perf_regs.h>
 #define perf_event_arm_regs perf_event_arm64_regs
@@ -201,12 +202,12 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
 
 }  // namespace
 
-uint64_t PerfUserRegsMaskForCurrentArch() {
-  return PerfUserRegsMask(unwindstack::Regs::CurrentArch());
+uint64_t PerfUserRegsMaskForArch(unwindstack::ArchEnum arch) {
+  return PerfUserRegsMask(arch);
 }
 
 // Assumes that the sampling was configured with
-// |PerfUserRegsMaskForCurrentArch|.
+// |PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch())|.
 std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
   unwindstack::ArchEnum requested_arch = unwindstack::Regs::CurrentArch();
 
@@ -215,12 +216,12 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
   const char* parse_pos = *data;
   uint64_t sampled_abi;
   parse_pos = ReadValue(&sampled_abi, parse_pos);
-  PERFETTO_LOG("WIP: abi: %" PRIu64 "", sampled_abi);
+  PERFETTO_DLOG("sampled abi: %" PRIu64 "", sampled_abi);
 
   // Unpack the densely-packed register values into |RawRegisterData|, which has
   // a value for every register (unsampled registers will be left at zero).
   RawRegisterData raw_regs{};
-  uint64_t regs_mask = PerfUserRegsMaskForCurrentArch();
+  uint64_t regs_mask = PerfUserRegsMaskForArch(requested_arch);
   for (size_t i = 0; regs_mask && (i < RawRegisterData::kMaxSize); i++) {
     if (regs_mask & (1ULL << i)) {
       parse_pos = ReadValue(&raw_regs.regs[i], parse_pos);
