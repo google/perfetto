@@ -41,8 +41,7 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
 
   pid_t self_pid = getpid();
   DataSourceInstanceID id = 0;
-  UnwindingMetadata metadata(self_pid,
-                             base::OpenFile("/proc/self/maps", O_RDONLY),
+  UnwindingMetadata metadata(base::OpenFile("/proc/self/maps", O_RDONLY),
                              base::OpenFile("/proc/self/mem", O_RDONLY));
 
   NopDelegate nop_delegate;

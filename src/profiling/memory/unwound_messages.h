@@ -20,19 +20,11 @@
 #include <unwindstack/Maps.h>
 #include <unwindstack/Unwinder.h>
 
+#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
 namespace profiling {
-
-// A wrapper of libunwindstack FrameData that also includes the build_id.
-struct FrameData {
-  FrameData(unwindstack::FrameData f, std::string b)
-      : frame(std::move(f)), build_id(std::move(b)) {}
-
-  unwindstack::FrameData frame;
-  std::string build_id;
-};
 
 // Single allocation with an unwound callstack.
 struct AllocRecord {
