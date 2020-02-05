@@ -154,8 +154,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         NormalizeTypeName(context_->storage->GetString(type_name));
     class_to_rows_[context_->storage->InternString(normalized_type)]
         .emplace_back(row);
-    sequence_state.walker.AddNode(row, obj.self_size,
-                                  static_cast<int32_t>(type_name.raw_id()));
+    sequence_state.walker.AddNode(row, obj.self_size, type_name.raw_id());
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
@@ -266,18 +265,20 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
       parent_id = node_to_id[node.parent_id];
     const uint32_t depth = node.depth;
 
-    tables::ExperimentalFlamegraphNodesTable::Row alloc_row{
-        current_ts, current_upid, profile_type, depth,
-        StringId::Raw(static_cast<uint32_t>(node.class_name)), java_mapping,
-        static_cast<int64_t>(node.count),
-        static_cast<int64_t>(node_to_cumulative_count[i]),
-        static_cast<int64_t>(node.size),
-        static_cast<int64_t>(node_to_cumulative_size[i]),
-        // For java dumps, set alloc_count == count, etc.
-        static_cast<int64_t>(node.count),
-        static_cast<int64_t>(node_to_cumulative_count[i]),
-        static_cast<int64_t>(node.size),
-        static_cast<int64_t>(node_to_cumulative_size[i]), parent_id};
+    tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
+    alloc_row.ts = current_ts;
+    alloc_row.upid = current_upid;
+    alloc_row.profile_type = profile_type;
+    alloc_row.depth = depth;
+    alloc_row.name = StringId::Raw(node.class_name);
+    alloc_row.map_name = java_mapping;
+    alloc_row.count = static_cast<int64_t>(node.count);
+    alloc_row.cumulative_count =
+        static_cast<int64_t>(node_to_cumulative_count[i]);
+    alloc_row.size = static_cast<int64_t>(node.size);
+    alloc_row.cumulative_size =
+        static_cast<int64_t>(node_to_cumulative_size[i]);
+    alloc_row.parent_id = parent_id;
     node_to_id[i] = tbl->Insert(alloc_row).id;
   }
   return tbl;
