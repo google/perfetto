@@ -130,6 +130,8 @@ base::Optional<PerfRingBuffer> PerfRingBuffer::Allocate(
 // Is there an argument for maintaining our own copy of |data_tail| instead of
 // reloading it?
 char* PerfRingBuffer::ReadRecordNonconsuming() {
+  static_assert(sizeof(std::atomic<uint64_t>) == sizeof(uint64_t), "");
+
   PERFETTO_CHECK(valid());
 
   // |data_tail| is written only by this userspace thread, so we can safely read

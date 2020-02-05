@@ -19,6 +19,7 @@
 
 #include <deque>
 #include <map>
+#include <queue>
 
 #include <unistd.h>
 
@@ -32,6 +33,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
 #include "src/profiling/perf/proc_descriptors.h"
@@ -93,22 +95,42 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     // will need to be done by both sides (frontend needs to know whether to
     // resolve the pid, and the unwinder needs to know whether the fd is
     // ready/poisoned).
+    // TODO(rsavitski): find a more descriptive name.
     struct ProcDescriptors {
       enum class Status { kInitial, kResolving, kResolved, kSkip };
+
       Status status = Status::kInitial;
-      base::ScopedFile maps_fd;
-      base::ScopedFile mem_fd;
+      UnwindingMetadata unwind_state{/*maps_fd=*/base::ScopedFile{},
+                                     /*mem_fd=*/base::ScopedFile{}};
     };
     std::map<pid_t, ProcDescriptors> proc_fds;  // keyed by pid
   };
 
+  // Entry in an unwinding queue. Either a sample that requires unwinding, or a
+  // tombstoned entry (valid == false).
   struct UnwindEntry {
-   public:
     UnwindEntry(ParsedSample _sample)
         : valid(true), sample(std::move(_sample)) {}
 
     bool valid = false;
     ParsedSample sample;
+  };
+
+  // Entry in a bookeeping queue. Represents a processed sample.
+  struct BookkeepingEntry {
+    BookkeepingEntry() = default;
+    // move-only
+    BookkeepingEntry(const BookkeepingEntry&) = delete;
+    BookkeepingEntry& operator=(const BookkeepingEntry&) = delete;
+
+    BookkeepingEntry(BookkeepingEntry&&) = default;
+    BookkeepingEntry& operator=(BookkeepingEntry&&) = default;
+
+    pid_t pid = 0;
+    pid_t tid = 0;
+    uint64_t timestamp = 0;
+    std::vector<FrameData> frames;
+    bool unwind_error = false;
   };
 
   void ConnectService();
@@ -124,8 +146,14 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   void HandleDescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
 
   void TickDataSourceUnwind(DataSourceInstanceID ds_id);
-  void ProcessUnwindQueue(std::deque<UnwindEntry>* queue_ptr,
-                          const DataSource& ds);
+  void ProcessUnwindQueue(std::deque<UnwindEntry>* input_queue,
+                          std::queue<BookkeepingEntry>* output_queue,
+                          DataSource* ds_ptr);
+
+  BookkeepingEntry UnwindSample(ParsedSample sample,
+                                DataSource::ProcDescriptors* process_state);
+
+  void TickDataSourceBookkeep(DataSourceInstanceID ds_id);
 
   // Task runner owned by the main thread.
   base::TaskRunner* const task_runner_;
@@ -141,6 +169,8 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
   std::map<DataSourceInstanceID, std::deque<UnwindEntry>> unwind_queues_;
+  std::map<DataSourceInstanceID, std::queue<BookkeepingEntry>>
+      bookkeping_queues_;
 
   base::WeakPtrFactory<PerfProducer> weak_factory_;  // keep last
 };
