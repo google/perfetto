@@ -596,7 +596,7 @@ bool HasPath(const HeapGraphWalker::PathFromRoot& path,
 }
 
 bool HasPath(const HeapGraphWalker::PathFromRoot& path,
-             std::vector<int32_t> class_names) {
+             std::vector<uint32_t> class_names) {
   return HasPath(path, path.nodes[HeapGraphWalker::PathFromRoot::kRoot],
                  std::move(class_names));
 }
@@ -611,9 +611,9 @@ bool HasPath(const HeapGraphWalker::PathFromRoot& path,
 TEST(HeapGraphWalkerTest, ShortestPath) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
-  walker.AddNode(1, 1, 1);
-  walker.AddNode(2, 2, 2);
-  walker.AddNode(3, 3, 3);
+  walker.AddNode(1, 1, 1u);
+  walker.AddNode(2, 2, 2u);
+  walker.AddNode(3, 3, 3u);
   walker.AddNode(4, 4, 4);
 
   walker.AddEdge(2, 1);
@@ -625,9 +625,9 @@ TEST(HeapGraphWalkerTest, ShortestPath) {
   walker.MarkRoot(4);
   auto path = walker.FindPathsFromRoot();
 
-  EXPECT_TRUE(HasPath(path, {4, 2, 1}));
-  EXPECT_TRUE(HasPath(path, {4, 2, 3}));
-  EXPECT_FALSE(HasPath(path, {4, 2, 3, 1}));
+  EXPECT_TRUE(HasPath(path, {4u, 2u, 1u}));
+  EXPECT_TRUE(HasPath(path, {4u, 2u, 3u}));
+  EXPECT_FALSE(HasPath(path, {4u, 2u, 3u, 1u}));
 }
 
 //    1      |
@@ -640,10 +640,10 @@ TEST(HeapGraphWalkerTest, ShortestPath) {
 TEST(HeapGraphWalkerTest, ShortestPathMultipleRoots) {
   HeapGraphWalkerTestDelegate delegate;
   HeapGraphWalker walker(&delegate);
-  walker.AddNode(1, 1, 1);
-  walker.AddNode(2, 2, 2);
-  walker.AddNode(3, 3, 3);
-  walker.AddNode(4, 4, 4);
+  walker.AddNode(1, 1, 1u);
+  walker.AddNode(2, 2, 2u);
+  walker.AddNode(3, 3, 3u);
+  walker.AddNode(4, 4, 4u);
 
   walker.AddEdge(2, 1);
   walker.AddEdge(2, 3);
@@ -655,9 +655,9 @@ TEST(HeapGraphWalkerTest, ShortestPathMultipleRoots) {
   walker.MarkRoot(2);
   auto path = walker.FindPathsFromRoot();
 
-  EXPECT_TRUE(HasPath(path, {2, 1}));
-  EXPECT_TRUE(HasPath(path, {2, 3}));
-  EXPECT_FALSE(HasPath(path, {4, 2, 3}));
+  EXPECT_TRUE(HasPath(path, {2u, 1u}));
+  EXPECT_TRUE(HasPath(path, {2u, 3u}));
+  EXPECT_FALSE(HasPath(path, {4u, 2u, 3u}));
 }
 
 }  // namespace
