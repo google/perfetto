@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/span_join_operator_table.h"
+#include "src/trace_processor/sqlite/span_join_operator_table.h"
 
-#include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -32,9 +30,7 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
     PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
     db_.reset(db);
 
-    context_.storage.reset(new TraceStorage());
-
-    SpanJoinOperatorTable::RegisterTable(db_.get(), context_.storage.get());
+    SpanJoinOperatorTable::RegisterTable(db_.get(), nullptr);
   }
 
   void PrepareValidStatement(const std::string& sql) {
@@ -59,7 +55,6 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
   }
 
  protected:
-  TraceProcessorContext context_;
   ScopedDb db_;
   ScopedStmt stmt_;
 };

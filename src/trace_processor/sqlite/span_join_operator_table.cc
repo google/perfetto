@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/span_join_operator_table.h"
+#include "src/trace_processor/sqlite/span_join_operator_table.h"
 
 #include <sqlite3.h>
 #include <string.h>
