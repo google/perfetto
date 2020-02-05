@@ -286,8 +286,6 @@ if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
       "read_trace.cc",
-      "span_join_operator_table.cc",
-      "span_join_operator_table.h",
       "sql_stats_table.cc",
       "sql_stats_table.h",
       "sqlite_experimental_flamegraph_table.cc",
@@ -299,8 +297,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_processor.cc",
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
-      "window_operator_table.cc",
-      "window_operator_table.h",
     ]
 
     deps = [
@@ -396,11 +392,7 @@ perfetto_unittest_source_set("unittests") {
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
-    sources += [ "span_join_operator_table_unittest.cc" ]
     deps += [
-      ":lib",
-      "../../gn:sqlite",
-      "sqlite",
       "sqlite:unittests",
     ]
   }
