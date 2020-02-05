@@ -36,7 +36,7 @@ void DirectDescriptorGetter::SetDelegate(ProcDescriptorDelegate* delegate) {
 
 void DirectDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
   char buf[128] = {};
-  snprintf(buf, sizeof(buf), "/proc/%d/mem", pid);
+  snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
   auto maps_fd = base::ScopedFile{open(buf, O_RDONLY | O_CLOEXEC)};
   if (!maps_fd) {
     PERFETTO_PLOG("Failed to open [%s]", buf);
