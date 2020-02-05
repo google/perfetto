@@ -20,6 +20,9 @@
 // defines PERFETTO_BUILDFLAG
 #include "perfetto/base/build_config.h"
 
+#include <memory>
+#include <string>
+
 #include <unwindstack/Maps.h>
 #include <unwindstack/Unwinder.h>
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -33,6 +36,15 @@
 
 namespace perfetto {
 namespace profiling {
+
+// libunwindstack's FrameData annotated with the build_id.
+struct FrameData {
+  FrameData(unwindstack::FrameData f, std::string id)
+      : frame(std::move(f)), build_id(std::move(id)) {}
+
+  unwindstack::FrameData frame;
+  std::string build_id;
+};
 
 // Read /proc/[pid]/maps from an open file descriptor.
 // TODO(fmayer): Figure out deduplication to other maps.
@@ -89,35 +101,19 @@ class StackOverlayMemory : public unwindstack::Memory {
 };
 
 struct UnwindingMetadata {
-  UnwindingMetadata(pid_t _pid,
-                    base::ScopedFile maps_fd,
-                    base::ScopedFile mem_fd)
-      : pid(_pid),
-        fd_maps(std::move(maps_fd)),
-        fd_mem(std::make_shared<FDMemory>(std::move(mem_fd)))
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-        ,
-        jit_debug(std::unique_ptr<unwindstack::JitDebug>(
-            new unwindstack::JitDebug(fd_mem))),
-        dex_files(std::unique_ptr<unwindstack::DexFiles>(
-            new unwindstack::DexFiles(fd_mem)))
-#endif
-  {
-    bool parsed = fd_maps.Parse();
-    PERFETTO_DCHECK(parsed);
-  }
-  void ReparseMaps() {
-    reparses++;
-    fd_maps.Reset();
-    fd_maps.Parse();
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    jit_debug = std::unique_ptr<unwindstack::JitDebug>(
-        new unwindstack::JitDebug(fd_mem));
-    dex_files = std::unique_ptr<unwindstack::DexFiles>(
-        new unwindstack::DexFiles(fd_mem));
-#endif
-  }
-  pid_t pid;
+  UnwindingMetadata(base::ScopedFile maps_fd, base::ScopedFile mem_fd);
+
+  // move-only
+  UnwindingMetadata(const UnwindingMetadata&) = delete;
+  UnwindingMetadata& operator=(const UnwindingMetadata&) = delete;
+
+  UnwindingMetadata(UnwindingMetadata&&) = default;
+  UnwindingMetadata& operator=(UnwindingMetadata&&) = default;
+
+  void ReparseMaps();
+
+  FrameData AnnotateFrame(unwindstack::FrameData frame);
+
   FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
