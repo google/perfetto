@@ -197,9 +197,23 @@ int SpanJoinOperatorTable::BestIndex(const QueryConstraints& qc,
                                      BestIndexInfo* info) {
   // TODO(lalitm): figure out cost estimation.
   const auto& ob = qc.order_by();
-  if (ob.size() == 1 && ob.front().iColumn == Column::kTimestamp &&
-      !ob.front().desc) {
-    info->sqlite_omit_order_by = true;
+
+  if (partitioning_ == PartitioningType::kNoPartitioning) {
+    // If both tables are not partitioned and we have a single order by on ts,
+    // we return data in the correct order.
+    info->sqlite_omit_order_by =
+        ob.size() == 1 && ob[0].iColumn == Column::kTimestamp && !ob[0].desc;
+  } else {
+    // If one of the tables is partitioned, and we have an order by on the
+    // partition column followed (optionally) by an order by on timestamp, we
+    // return data in the correct order.
+    bool is_first_ob_partition =
+        ob.size() >= 1 && ob[0].iColumn == Column::kPartition && !ob[0].desc;
+    bool is_second_ob_ts =
+        ob.size() >= 2 && ob[1].iColumn == Column::kTimestamp && !ob[1].desc;
+    info->sqlite_omit_order_by =
+        (ob.size() == 1 && is_first_ob_partition) ||
+        (ob.size() == 2 && is_first_ob_partition && is_second_ob_ts);
   }
   return SQLITE_OK;
 }
