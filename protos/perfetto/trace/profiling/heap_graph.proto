@@ -24,7 +24,13 @@ import "protos/perfetto/trace/profiling/profile_common.proto";
 package perfetto.protos;
 
 message ObfuscatedMember {
+  // This is the obfuscated field name relative to the class containing the
+  // ObfuscatedMember.
   optional string obfuscated_name = 1;
+  // If this is fully qualified (i.e. contains a '.') this is the deobfuscated
+  // field name including its class. Otherwise, this is this the unqualified
+  // deobfuscated field name relative to the class containing this
+  // ObfuscatedMember.
   optional string deobfuscated_name = 2;
 }
 
