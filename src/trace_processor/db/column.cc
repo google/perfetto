@@ -239,10 +239,6 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
         return cmp(sparse_vector<T>().GetNonNull(idx)) >= 0;
       });
       break;
-    case FilterOp::kGlob:
-    case FilterOp::kLike:
-      rm->Intersect(RowMap());
-      break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -313,12 +309,6 @@ void Column::FilterIntoStringSlow(FilterOp op,
         return v.data() != nullptr && compare::String(v, str_value) >= 0;
       });
       break;
-    case FilterOp::kGlob:
-    case FilterOp::kLike:
-      // TODO(lalitm): either call through to SQLite or reimplement
-      // like ourselves.
-      PERFETTO_DLOG("Ignoring like/glob constraint on string column");
-      break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -373,10 +363,6 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
       row_map().FilterInto(rm, [id_value](uint32_t idx) {
         return compare::Numeric(idx, id_value) >= 0;
       });
-      break;
-    case FilterOp::kGlob:
-    case FilterOp::kLike:
-      rm->Intersect(RowMap());
       break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
