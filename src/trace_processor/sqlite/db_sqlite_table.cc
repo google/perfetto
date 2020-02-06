@@ -24,7 +24,7 @@ namespace trace_processor {
 
 namespace {
 
-FilterOp SqliteOpToFilterOp(int sqlite_op) {
+base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
   switch (sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
     case SQLITE_INDEX_CONSTRAINT_IS:
@@ -45,9 +45,8 @@ FilterOp SqliteOpToFilterOp(int sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
       return FilterOp::kIsNotNull;
     case SQLITE_INDEX_CONSTRAINT_LIKE:
-      return FilterOp::kLike;
     case SQLITE_INDEX_CONSTRAINT_GLOB:
-      return FilterOp::kGlob;
+      return base::nullopt;
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
@@ -129,6 +128,18 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
   auto cost_and_rows = EstimateCost(*table_, qc);
   info->estimated_cost = cost_and_rows.cost;
   info->estimated_rows = cost_and_rows.rows;
+
+  const auto& cs = qc.constraints();
+  for (uint32_t i = 0; i < cs.size(); ++i) {
+    // SqliteOpToFilterOp will return nullopt for any constraint which we don't
+    // support filtering ourselves. Only omit filtering by SQLite when we can
+    // handle filtering.
+    base::Optional<FilterOp> opt_op = SqliteOpToFilterOp(cs[i].op);
+    info->sqlite_omit_constraint[i] = opt_op.has_value();
+  }
+
+  // We can sort on any column correctly.
+  info->sqlite_omit_order_by = true;
   return SQLITE_OK;
 }
 
@@ -335,15 +346,21 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   constraints_.resize(qc.constraints().size());
+  uint32_t constraints_pos = 0;
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
     uint32_t col = static_cast<uint32_t>(cs.column);
 
-    FilterOp op = SqliteOpToFilterOp(cs.op);
-    SqlValue value = SqliteValueToSqlValue(argv[i]);
+    // If we get a nullopt FilterOp, that means we should allow SQLite
+    // to handle the constraint.
+    base::Optional<FilterOp> opt_op = SqliteOpToFilterOp(cs.op);
+    if (!opt_op)
+      continue;
 
-    constraints_[i] = Constraint{col, op, value};
+    SqlValue value = SqliteValueToSqlValue(argv[i]);
+    constraints_[constraints_pos++] = Constraint{col, *opt_op, value};
   }
+  constraints_.resize(constraints_pos);
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   orders_.resize(qc.order_by().size());
