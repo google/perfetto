@@ -48,7 +48,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   constexpr uint64_t kA = 3;
   constexpr uint64_t kB = 4;
 
-  StringPool::Id field = context.storage->InternString("foo");
+  base::StringView field = base::StringView("foo");
   StringPool::Id x = context.storage->InternString("X");
   StringPool::Id y = context.storage->InternString("Y");
   StringPool::Id a = context.storage->InternString("A");
