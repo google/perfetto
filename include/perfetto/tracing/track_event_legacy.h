@@ -1154,10 +1154,12 @@ class TrackEventLegacy {
                                    TRACE_EVENT_FLAG_NONE)
 
 // Macro to efficiently determine if a given category group is enabled.
-// TODO(skyostil): Implement.
-#define TRACE_EVENT_CATEGORY_GROUP_ENABLED(category_group, ret) \
-  do {                                                          \
-    *ret = false;                                               \
+#define TRACE_EVENT_CATEGORY_GROUP_ENABLED(category, ret)                      \
+  do {                                                                         \
+    *ret =                                                                     \
+        ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
+            .GetCategoryState(PERFETTO_GET_CATEGORY_INDEX(category))           \
+            ->load(std::memory_order_relaxed);                                 \
   } while (0)
 
 // Macro to efficiently determine, through polling, if a new trace has begun.
@@ -1188,13 +1190,15 @@ class TrackEventLegacy {
 // different processes to use the same id to refer to different events.
 #define TRACE_ID_LOCAL(id) ::perfetto::internal::LegacyTraceId::LocalId(id)
 
-// TODO(skyostil): Implement properly using CategoryRegistry.
-#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category) \
-  [&] {                                                      \
-    static uint8_t enabled;                                  \
-    TRACE_EVENT_CATEGORY_GROUP_ENABLED(category, &enabled);  \
-    return &enabled;                                         \
-  }()
+// Returns a pointer to a uint8_t which indicates whether tracing is enabled for
+// the given category or not. A zero value means tracing is disabled and
+// non-zero indicates at least one tracing session for this category is active.
+// Note that callers should not make any assumptions at what each bit represents
+// in the status byte.
+#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)                 \
+  reinterpret_cast<const uint8_t*>(                                          \
+      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
+          .GetCategoryState(PERFETTO_GET_CATEGORY_INDEX(category)))
 
 #endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
