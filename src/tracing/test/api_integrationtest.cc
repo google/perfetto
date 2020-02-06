@@ -2221,6 +2221,48 @@ TEST_F(PerfettoApiTest, LegacyTraceEventsWithFlow) {
                           "E"));
 }
 
+TEST_F(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->set_legacy_config("foo");
+
+  bool foo_status;
+  bool bar_status;
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("bar", &bar_status);
+  EXPECT_FALSE(foo_status);
+  EXPECT_FALSE(bar_status);
+
+  const uint8_t* foo_enabled =
+      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED("foo");
+  const uint8_t* bar_enabled =
+      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED("bar");
+  EXPECT_FALSE(*foo_enabled);
+  EXPECT_FALSE(*bar_enabled);
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("bar", &bar_status);
+  EXPECT_TRUE(foo_status);
+  EXPECT_FALSE(bar_status);
+
+  EXPECT_TRUE(*foo_enabled);
+  EXPECT_FALSE(*bar_enabled);
+
+  tracing_session->get()->StopBlocking();
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
+  TRACE_EVENT_CATEGORY_GROUP_ENABLED("bar", &bar_status);
+  EXPECT_FALSE(foo_status);
+  EXPECT_FALSE(bar_status);
+  EXPECT_FALSE(*foo_enabled);
+  EXPECT_FALSE(*bar_enabled);
+}
+
 }  // namespace
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
