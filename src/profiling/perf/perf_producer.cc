@@ -411,6 +411,12 @@ PerfProducer::BookkeepingEntry PerfProducer::UnwindSample(
   return ret;
 }
 
+// TODO(rsavitski): reconsider posting bookkeping tasks directly (without a
+// queue). Doesn't allow flushing only a given instance's backlog, but
+// we shouldn't have the main thread so backlogged for it to matter (reading
+// will break before that). On the other hand, the tick approach would let us
+// rate-limit bookkeeping more directly (by bounding the number of events
+// processed).
 void PerfProducer::TickDataSourceBookkeep(DataSourceInstanceID ds_id) {
   auto q_it = bookkeping_queues_.find(ds_id);
   if (q_it == bookkeping_queues_.end()) {

@@ -120,7 +120,7 @@ void UnwindingMetadata::ReparseMaps() {
 
 FrameData UnwindingMetadata::AnnotateFrame(unwindstack::FrameData frame) {
   std::string build_id;
-  if (frame.map_name != "") {
+  if (!frame.map_name.empty()) {
     unwindstack::MapInfo* map_info = fd_maps.Find(frame.pc);
     if (map_info)
       build_id = map_info->GetBuildID();

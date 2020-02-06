@@ -140,6 +140,8 @@ source_set("daemon") {
     "../../base:unix_socket",
     "../../tracing/core",
     "../../tracing/ipc/producer",
+    "../common:callstack_trie",
+    "../common:interner",
     "../common:unwind_support",
   ]
   public_deps = [
@@ -156,7 +158,6 @@ source_set("daemon") {
     "bookkeeping_dump.h",
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
-    "interner.h",
     "java_hprof_producer.cc",
     "java_hprof_producer.h",
     "page_idle_checker.cc",
@@ -207,7 +208,6 @@ perfetto_unittest_source_set("unittests") {
     "bookkeeping_unittest.cc",
     "client_unittest.cc",
     "heapprofd_producer_unittest.cc",
-    "interner_unittest.cc",
     "page_idle_checker_unittest.cc",
     "proc_utils_unittest.cc",
     "sampler_unittest.cc",

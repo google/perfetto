@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 source_set("unwind_support") {
   public_deps = [ "../../../gn:libunwindstack" ]
@@ -24,4 +25,37 @@ source_set("unwind_support") {
     "unwind_support.cc",
     "unwind_support.h",
   ]
+}
+
+source_set("callstack_trie") {
+  deps = [
+    ":interner",
+    ":unwind_support",
+    "../../../gn:default_deps",
+    "../../../src/base",
+  ]
+  sources = [
+    "callstack_trie.cc",
+    "callstack_trie.h",
+  ]
+}
+
+source_set("interner") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../src/base",
+  ]
+  sources = [ "interner.h" ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":interner",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../base",
+    "../../base:test_support",
+  ]
+  sources = [ "interner_unittest.cc" ]
 }
