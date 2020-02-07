@@ -24,7 +24,7 @@
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace std {
 

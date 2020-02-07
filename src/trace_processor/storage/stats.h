@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_STATS_H_
-#define SRC_TRACE_PROCESSOR_STATS_H_
+#ifndef SRC_TRACE_PROCESSOR_STORAGE_STATS_H_
+#define SRC_TRACE_PROCESSOR_STORAGE_STATS_H_
 
 #include <stddef.h>
 
@@ -182,4 +182,4 @@ constexpr Source kSources[] = {PERFETTO_TP_STATS(PERFETTO_TP_STATS_SOURCE)};
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_STATS_H_
+#endif  // SRC_TRACE_PROCESSOR_STORAGE_STATS_H_

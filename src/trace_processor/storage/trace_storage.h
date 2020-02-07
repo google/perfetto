@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_TRACE_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_STORAGE_TRACE_STORAGE_H_
+#define SRC_TRACE_PROCESSOR_STORAGE_TRACE_STORAGE_H_
 
 #include <array>
 #include <deque>
@@ -33,9 +33,8 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/ftrace_utils.h"
-#include "src/trace_processor/metadata.h"
-#include "src/trace_processor/stats.h"
+#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables.h"
 #include "src/trace_processor/tables/counter_tables.h"
 #include "src/trace_processor/tables/metadata_tables.h"
@@ -832,4 +831,4 @@ struct hash<
 
 }  // namespace std
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_STORAGE_TRACE_STORAGE_H_

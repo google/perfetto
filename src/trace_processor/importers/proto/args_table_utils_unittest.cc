@@ -25,7 +25,7 @@
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

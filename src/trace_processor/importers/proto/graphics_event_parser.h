@@ -20,12 +20,13 @@
 #include <vector>
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
 
