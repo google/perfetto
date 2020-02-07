@@ -203,6 +203,19 @@ class CounterTrack extends Track<Config, Data> {
     ctx.textBaseline = 'alphabetic';
     ctx.fillText(`${yLabel}`, 5, 14);
 
+    // TODO(hjd): Refactor this into checkerboardExcept
+    {
+      const endPx = timeScale.timeToPx(visibleWindowTime.end);
+      const counterEndPx =
+          Math.min(timeScale.timeToPx(this.config.endTs || Infinity), endPx);
+
+      // Grey out RHS.
+      if (counterEndPx < endPx) {
+        ctx.fillStyle = '#0000001f';
+        ctx.fillRect(counterEndPx, 0, endPx - counterEndPx, this.getHeight());
+      }
+    }
+
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
