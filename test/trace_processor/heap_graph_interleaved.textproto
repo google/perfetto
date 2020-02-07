@@ -70,7 +70,7 @@ packet {
       str: "FactoryProducerDelegateImplActor"
     }
     continued: false
-    index: 1
+    index: 0
   }
 }
 packet {
@@ -98,7 +98,7 @@ packet {
       str: "a.a"
     }
     continued: false
-    index: 2
+    index: 1
   }
 }
 packet {
