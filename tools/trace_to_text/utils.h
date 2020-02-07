@@ -78,7 +78,7 @@ class TraceWriter {
   TraceWriter(std::ostream* output);
   virtual ~TraceWriter();
 
-  void Write(std::string s);
+  void Write(const std::string& s);
   virtual void Write(const char* data, size_t sz);
 
  private:
