@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_MEMORY_INTERNER_H_
-#define SRC_PROFILING_MEMORY_INTERNER_H_
+#ifndef SRC_PROFILING_COMMON_INTERNER_H_
+#define SRC_PROFILING_COMMON_INTERNER_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -29,6 +29,7 @@ namespace profiling {
 
 using InternID = uint32_t;
 
+// Interner that hands out refcounted references.
 template <typename T>
 class Interner {
  private:
@@ -121,6 +122,7 @@ class Interner {
     if (--entry->ref_count == 0)
       entries_.erase(*entry);
   }
+
   InternID next_id = 1;
   std::unordered_set<Entry, typename Entry::Hash> entries_;
   static_assert(sizeof(Interned) == sizeof(void*),
@@ -138,4 +140,4 @@ using Interned = typename Interner<T>::Interned;
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_MEMORY_INTERNER_H_
+#endif  // SRC_PROFILING_COMMON_INTERNER_H_
