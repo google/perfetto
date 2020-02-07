@@ -191,7 +191,12 @@ void DeobfuscateDatabase(
   // can support multiple dumps in the same trace.
   auto* proto_mapping = packet->set_deobfuscation_mapping();
   for (const auto& p : classes) {
-    const std::string& obfuscated_class_name = p.first;
+    std::string obfuscated_class_name = p.first;
+    while (obfuscated_class_name.size() > 2 &&
+           obfuscated_class_name.substr(obfuscated_class_name.size() - 2) ==
+               "[]") {
+      obfuscated_class_name.resize(obfuscated_class_name.size() - 2);
+    }
     const std::set<std::string>& obfuscated_field_names = p.second;
     auto it = mapping.find(obfuscated_class_name);
     if (it == mapping.end()) {
