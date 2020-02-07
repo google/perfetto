@@ -57,6 +57,10 @@ if (enable_perfetto_platform_services) {
   ]
 }
 
+if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
+  perfetto_unittests_targets += [ "src/profiling/common:unittests" ]
+}
+
 if (enable_perfetto_heapprofd) {
   perfetto_unittests_targets += [
     "src/profiling/memory:unittests",

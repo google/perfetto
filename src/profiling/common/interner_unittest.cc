@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/interner.h"
+#include "src/profiling/common/interner.h"
 
 #include "test/gtest_and_gmock.h"
 
