@@ -20,6 +20,7 @@
 
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/cts/utils.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/test_config.gen.h"
@@ -42,6 +43,23 @@ class PerfettoCtsTest : public ::testing::Test {
     }
 
     base::TestTaskRunner task_runner;
+
+    const std::string app_name = "android.perfetto.producer";
+    const std::string activity = "ProducerActivity";
+    if (IsAppRunning(app_name)) {
+      StopApp(app_name, "old.app.stopped", &task_runner);
+      task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+    }
+    StartAppActivity(app_name, activity, "target.app.running", &task_runner,
+                     /*delay_ms=*/100);
+    task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+
+    const std::string isolated_process_name =
+        "android.perfetto.producer:android.perfetto.producer."
+        "ProducerIsolatedService";
+    WaitForProcess(isolated_process_name, "isolated.service.running",
+                   &task_runner, 1000 /*ms*/);
+    task_runner.RunUntilCheckpoint("isolated.service.running", 1000 /*ms*/);
 
     TestHelper helper(&task_runner);
     helper.ConnectConsumer();
