@@ -132,6 +132,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
   C(int64_t, owner_id)                                        \
   C(int64_t, owned_id)                                        \
   C(StringPool::Id, field_name)                               \
+  C(StringPool::Id, field_type_name)                          \
   C(base::Optional<StringPool::Id>, deobfuscated_field_name)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);
