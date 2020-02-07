@@ -15,7 +15,7 @@
  */
 
 #include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/stats.h"
+#include "src/trace_processor/storage/stats.h"
 
 #include <utility>
 

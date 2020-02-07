@@ -21,7 +21,7 @@
 
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {

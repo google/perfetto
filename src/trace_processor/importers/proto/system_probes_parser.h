@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {

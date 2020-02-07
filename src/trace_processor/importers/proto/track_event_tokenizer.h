@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 

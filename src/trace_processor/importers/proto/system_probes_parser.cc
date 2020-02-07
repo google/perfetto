@@ -20,9 +20,9 @@
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/event_tracker.h"
-#include "src/trace_processor/metadata.h"
 #include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
 

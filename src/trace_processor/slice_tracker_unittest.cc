@@ -18,8 +18,8 @@
 
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

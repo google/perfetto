@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_METADATA_H_
-#define SRC_TRACE_PROCESSOR_METADATA_H_
+#ifndef SRC_TRACE_PROCESSOR_STORAGE_METADATA_H_
+#define SRC_TRACE_PROCESSOR_STORAGE_METADATA_H_
 
 #include <stddef.h>
 
@@ -97,4 +97,4 @@ constexpr Variadic::Type kValueTypes[] = {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_METADATA_H_
+#endif  // SRC_TRACE_PROCESSOR_STORAGE_METADATA_H_

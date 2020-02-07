@@ -34,10 +34,10 @@
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/metadata.h"
+#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
-#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
