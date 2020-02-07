@@ -821,6 +821,7 @@ config("sqlite_config") {
     "-DSQLITE_OMIT_LOAD_EXTENSION",
     "-DSQLITE_OMIT_RANDOMNESS",
     "-DSQLITE_OMIT_AUTOINIT",
+    "-DSQLITE_ENABLE_JSON1",
   ]
 }
 
