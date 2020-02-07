@@ -23,8 +23,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/trace_storage.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 

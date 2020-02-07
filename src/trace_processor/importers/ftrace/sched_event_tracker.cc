@@ -24,7 +24,7 @@
 #include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/stats.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 

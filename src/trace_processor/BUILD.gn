@@ -111,7 +111,6 @@ source_set("storage_minimal") {
     "importers/proto/track_event_parser.h",
     "importers/proto/track_event_tokenizer.cc",
     "importers/proto/track_event_tokenizer.h",
-    "metadata.h",
     "metadata_tracker.cc",
     "metadata_tracker.h",
     "process_tracker.cc",
@@ -120,7 +119,6 @@ source_set("storage_minimal") {
     "slice_tracker.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
-    "stats.h",
     "syscall_tracker.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
@@ -132,8 +130,6 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
-    "trace_storage.cc",
-    "trace_storage.h",
     "track_tracker.cc",
     "track_tracker.h",
     "virtual_destructors.cc",
@@ -144,6 +140,7 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
+    "storage",
     "tables",
     "types",
   ]
@@ -253,6 +250,7 @@ source_set("storage_full") {
     "../../protos/perfetto/trace/gpu:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../protozero",
+    "storage",
     "types",
   ]
   if (enable_perfetto_trace_processor_json) {
@@ -277,6 +275,7 @@ if (enable_perfetto_trace_processor_json) {
       "../../gn:default_deps",
       "../../gn:jsoncpp",
       "../base",
+      "storage",
     ]
     public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
   }
@@ -310,6 +309,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "db:lib",
       "metrics:lib",
       "sqlite",
+      "storage",
       "tables",
       "types",
     ]
@@ -388,13 +388,12 @@ perfetto_unittest_source_set("unittests") {
     "../protozero:testing_messages_zero",
     "containers:unittests",
     "db:unittests",
+    "storage",
     "tables:unittests",
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
-    deps += [
-      "sqlite:unittests",
-    ]
+    deps += [ "sqlite:unittests" ]
   }
 
   if (enable_perfetto_trace_processor_json) {

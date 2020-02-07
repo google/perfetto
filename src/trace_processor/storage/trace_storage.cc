@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #include <string.h>
 #include <algorithm>
