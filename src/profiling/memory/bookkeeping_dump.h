@@ -29,8 +29,8 @@
 
 #include "perfetto/ext/tracing/core/trace_writer.h"
 
+#include "src/profiling/common/interner.h"
 #include "src/profiling/memory/bookkeeping.h"
-#include "src/profiling/memory/interner.h"
 
 namespace perfetto {
 namespace profiling {

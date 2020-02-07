@@ -18,13 +18,11 @@
 #define SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 
 #include <map>
-#include <string>
 #include <vector>
 
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/lookup_set.h"
-#include "perfetto/ext/base/string_splitter.h"
-#include "src/profiling/memory/interner.h"
+#include "src/profiling/common/callstack_trie.h"
+#include "src/profiling/common/interner.h"
 #include "src/profiling/memory/unwound_messages.h"
 
 // Below is an illustration of the bookkeeping system state where
@@ -90,129 +88,6 @@
 
 namespace perfetto {
 namespace profiling {
-
-class HeapTracker;
-
-struct Mapping {
-  Mapping(Interned<std::string> b) : build_id(std::move(b)) {}
-
-  Interned<std::string> build_id;
-  uint64_t exact_offset = 0;
-  uint64_t start_offset = 0;
-  uint64_t start = 0;
-  uint64_t end = 0;
-  uint64_t load_bias = 0;
-  std::vector<Interned<std::string>> path_components{};
-
-  bool operator<(const Mapping& other) const {
-    return std::tie(build_id, exact_offset, start_offset, start, end, load_bias,
-                    path_components) <
-           std::tie(other.build_id, other.exact_offset, other.start_offset,
-                    other.start, other.end, other.load_bias,
-                    other.path_components);
-  }
-  bool operator==(const Mapping& other) const {
-    return std::tie(build_id, exact_offset, start_offset, start, end, load_bias,
-                    path_components) ==
-           std::tie(other.build_id, other.exact_offset, other.start_offset,
-                    other.start, other.end, other.load_bias,
-                    other.path_components);
-  }
-};
-
-struct Frame {
-  Frame(Interned<Mapping> m, Interned<std::string> fn_name, uint64_t pc)
-      : mapping(m), function_name(fn_name), rel_pc(pc) {}
-  Interned<Mapping> mapping;
-  Interned<std::string> function_name;
-  uint64_t rel_pc;
-
-  bool operator<(const Frame& other) const {
-    return std::tie(mapping, function_name, rel_pc) <
-           std::tie(other.mapping, other.function_name, other.rel_pc);
-  }
-
-  bool operator==(const Frame& other) const {
-    return std::tie(mapping, function_name, rel_pc) ==
-           std::tie(other.mapping, other.function_name, other.rel_pc);
-  }
-};
-
-// Graph of function callsites. This is shared between heap dumps for
-// different processes. Each call site is represented by a
-// GlobalCallstackTrie::Node that is owned by the parent (i.e. calling)
-// callsite. It has a pointer to its parent, which means the function
-// call-graph can be reconstructed from a GlobalCallstackTrie::Node by walking
-// down the pointers to the parents.
-class GlobalCallstackTrie {
- public:
-  // Node in a tree of function traces that resulted in an allocation. For
-  // instance, if alloc_buf is called from foo and bar, which are called from
-  // main, the tree looks as following.
-  //
-  //            alloc_buf    alloc_buf
-  //                   |      |
-  //                  foo    bar
-  //                    \    /
-  //                      main
-  //                       |
-  //                   libc_init
-  //                       |
-  //                    [root_]
-  //
-  // allocations_ will hold a map from the pointers returned from malloc to
-  // alloc_buf to the leafs of this tree.
-  class Node {
-   public:
-    // This is opaque except to GlobalCallstackTrie.
-    friend class GlobalCallstackTrie;
-
-    Node(Interned<Frame> frame) : Node(std::move(frame), 0, nullptr) {}
-    Node(Interned<Frame> frame, uint64_t id)
-        : Node(std::move(frame), id, nullptr) {}
-    Node(Interned<Frame> frame, uint64_t id, Node* parent)
-        : id_(id), parent_(parent), location_(std::move(frame)) {}
-
-    uint64_t id() const { return id_; }
-
-   private:
-    Node* GetOrCreateChild(const Interned<Frame>& loc);
-
-    uint64_t ref_count_ = 0;
-    uint64_t id_;
-    Node* const parent_;
-    const Interned<Frame> location_;
-    base::LookupSet<Node, const Interned<Frame>, &Node::location_> children_;
-  };
-
-  GlobalCallstackTrie() = default;
-  GlobalCallstackTrie(const GlobalCallstackTrie&) = delete;
-  GlobalCallstackTrie& operator=(const GlobalCallstackTrie&) = delete;
-
-  // Moving this would invalidate the back pointers to the root_ node.
-  GlobalCallstackTrie(GlobalCallstackTrie&&) = delete;
-  GlobalCallstackTrie& operator=(GlobalCallstackTrie&&) = delete;
-
-  Node* CreateCallsite(const std::vector<FrameData>& locs);
-  static void DecrementNode(Node* node);
-  static void IncrementNode(Node* node);
-
-  std::vector<Interned<Frame>> BuildCallstack(const Node* node) const;
-
- private:
-  Node* GetOrCreateChild(Node* self, const Interned<Frame>& loc);
-
-  Interned<Frame> InternCodeLocation(const FrameData& loc);
-  Interned<Frame> MakeRootFrame();
-
-  Interner<std::string> string_interner_;
-  Interner<Mapping> mapping_interner_;
-  Interner<Frame> frame_interner_;
-
-  uint64_t next_callstack_id_ = 0;
-
-  Node root_{MakeRootFrame(), ++next_callstack_id_};
-};
 
 // Snapshot for memory allocations of a particular process. Shares callsites
 // with other processes.
@@ -459,37 +334,5 @@ class HeapTracker {
 
 }  // namespace profiling
 }  // namespace perfetto
-
-namespace std {
-template <>
-struct hash<::perfetto::profiling::Mapping> {
-  using argument_type = ::perfetto::profiling::Mapping;
-  using result_type = size_t;
-  result_type operator()(const argument_type& mapping) {
-    size_t h =
-        std::hash<::perfetto::profiling::InternID>{}(mapping.build_id.id());
-    h ^= std::hash<uint64_t>{}(mapping.exact_offset);
-    h ^= std::hash<uint64_t>{}(mapping.start_offset);
-    h ^= std::hash<uint64_t>{}(mapping.start);
-    h ^= std::hash<uint64_t>{}(mapping.end);
-    h ^= std::hash<uint64_t>{}(mapping.load_bias);
-    for (const auto& path : mapping.path_components)
-      h ^= std::hash<uint64_t>{}(path.id());
-    return h;
-  }
-};
-
-template <>
-struct hash<::perfetto::profiling::Frame> {
-  using argument_type = ::perfetto::profiling::Frame;
-  using result_type = size_t;
-  result_type operator()(const argument_type& frame) {
-    size_t h = std::hash<::perfetto::profiling::InternID>{}(frame.mapping.id());
-    h ^= std::hash<::perfetto::profiling::InternID>{}(frame.function_name.id());
-    h ^= std::hash<uint64_t>{}(frame.rel_pc);
-    return h;
-  }
-};
-}  // namespace std
 
 #endif  // SRC_PROFILING_MEMORY_BOOKKEEPING_H_

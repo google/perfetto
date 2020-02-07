@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/common/callstack_trie.h"
 
 namespace perfetto {
 namespace profiling {
@@ -146,82 +147,6 @@ uint64_t HeapTracker::GetMaxForTesting(const std::vector<FrameData>& stack) {
   return alloc.value.retain_max.max;
 }
 
-GlobalCallstackTrie::Node* GlobalCallstackTrie::GetOrCreateChild(
-    Node* self,
-    const Interned<Frame>& loc) {
-  Node* child = self->children_.Get(loc);
-  if (!child)
-    child = self->children_.Emplace(loc, ++next_callstack_id_, self);
-  return child;
-}
-
-std::vector<Interned<Frame>> GlobalCallstackTrie::BuildCallstack(
-    const Node* node) const {
-  std::vector<Interned<Frame>> res;
-  while (node != &root_) {
-    res.emplace_back(node->location_);
-    node = node->parent_;
-  }
-  return res;
-}
-
-GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
-    const std::vector<FrameData>& callstack) {
-  Node* node = &root_;
-  for (const FrameData& loc : callstack) {
-    node = GetOrCreateChild(node, InternCodeLocation(loc));
-  }
-  return node;
-}
-
-void GlobalCallstackTrie::IncrementNode(Node* node) {
-  while (node != nullptr) {
-    node->ref_count_ += 1;
-    node = node->parent_;
-  }
-}
-
-void GlobalCallstackTrie::DecrementNode(Node* node) {
-  PERFETTO_DCHECK(node->ref_count_ >= 1);
-
-  bool delete_prev = false;
-  Node* prev = nullptr;
-  while (node != nullptr) {
-    if (delete_prev)
-      node->children_.Remove(*prev);
-    node->ref_count_ -= 1;
-    delete_prev = node->ref_count_ == 0;
-    prev = node;
-    node = node->parent_;
-  }
-}
-
-Interned<Frame> GlobalCallstackTrie::InternCodeLocation(const FrameData& loc) {
-  Mapping map(string_interner_.Intern(loc.build_id));
-  map.exact_offset = loc.frame.map_exact_offset;
-  map.start_offset = loc.frame.map_elf_start_offset;
-  map.start = loc.frame.map_start;
-  map.end = loc.frame.map_end;
-  map.load_bias = loc.frame.map_load_bias;
-  base::StringSplitter sp(loc.frame.map_name, '/');
-  while (sp.Next())
-    map.path_components.emplace_back(string_interner_.Intern(sp.cur_token()));
-
-  Frame frame(mapping_interner_.Intern(std::move(map)),
-              string_interner_.Intern(loc.frame.function_name),
-              loc.frame.rel_pc);
-
-  return frame_interner_.Intern(frame);
-}
-
-Interned<Frame> GlobalCallstackTrie::MakeRootFrame() {
-  Mapping map(string_interner_.Intern(""));
-
-  Frame frame(mapping_interner_.Intern(std::move(map)),
-              string_interner_.Intern(""), 0);
-
-  return frame_interner_.Intern(frame);
-}
 
 }  // namespace profiling
 }  // namespace perfetto
