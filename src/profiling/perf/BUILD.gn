@@ -54,6 +54,8 @@ source_set("producer") {
     "../../../src/base",
     "../../../src/base:unix_socket",
     "../../../src/tracing/ipc/producer",
+    "../common:callstack_trie",
+    "../common:interner",
     "../common:unwind_support",
   ]
   sources = [

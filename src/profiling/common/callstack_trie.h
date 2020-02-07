@@ -102,22 +102,29 @@ struct Frame {
 // nested callchain fragment at the leaf, which is called from many places).
 class GlobalCallstackTrie {
  public:
+  // Optionally, Nodes can be externally refcounted via |IncrementNode| and
+  // |DecrementNode|. In which case, the orphaned nodes are deleted when the
+  // last reference is decremented.
   class Node {
    public:
     // This is opaque except to GlobalCallstackTrie.
     friend class GlobalCallstackTrie;
 
     // Allow building a node out of a frame for base::LookupSet.
-    Node(Interned<Frame> frame) : Node(std::move(frame), 0, nullptr) {}
+    Node(Interned<Frame> frame) : Node(frame, 0, nullptr) {}
     Node(Interned<Frame> frame, uint64_t id)
         : Node(std::move(frame), id, nullptr) {}
     Node(Interned<Frame> frame, uint64_t id, Node* parent)
-        : id_(id), parent_(parent), location_(std::move(frame)) {}
+        : id_(id), parent_(parent), location_(frame) {}
+
+    ~Node() { PERFETTO_DCHECK(!ref_count_); }
 
     uint64_t id() const { return id_; }
 
    private:
     Node* GetOrCreateChild(const Interned<Frame>& loc);
+    // Deletes all descendant nodes, regardless of |ref_count_|.
+    void DeleteChildren() { children_.Clear(); }
 
     uint64_t ref_count_ = 0;
     uint64_t id_;
@@ -127,6 +134,7 @@ class GlobalCallstackTrie {
   };
 
   GlobalCallstackTrie() = default;
+  ~GlobalCallstackTrie() = default;
   GlobalCallstackTrie(const GlobalCallstackTrie&) = delete;
   GlobalCallstackTrie& operator=(const GlobalCallstackTrie&) = delete;
 
@@ -135,10 +143,18 @@ class GlobalCallstackTrie {
   GlobalCallstackTrie& operator=(GlobalCallstackTrie&&) = delete;
 
   Node* CreateCallsite(const std::vector<FrameData>& callstack);
-  static void DecrementNode(Node* node);
   static void IncrementNode(Node* node);
+  static void DecrementNode(Node* node);
 
   std::vector<Interned<Frame>> BuildCallstack(const Node* node) const;
+
+  // Purges all interned callstacks (and the associated internings), without
+  // restarting any interning sequences. Incompatible with external refcounting
+  // of nodes (Node.ref_count_).
+  void ClearTrie() {
+    PERFETTO_DLOG("Clearing trie");
+    root_.DeleteChildren();
+  }
 
  private:
   Node* GetOrCreateChild(Node* self, const Interned<Frame>& loc);
