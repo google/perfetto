@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("//gn/perfetto_check_build_deps.gni")
 import("//gn/standalone/android.gni")
 import("//gn/standalone/sanitizers/sanitizers.gni")
 import("//gn/standalone/wasm.gni")
@@ -285,4 +286,13 @@ action("gen_git_revision") {
   inputs = []
   outputs = [ generated_header ]
   public_configs = [ ":gen_include_path" ]
+}
+
+# Checks that tools/install-build-deps has been run since it last changed.
+perfetto_check_build_deps("check_build_deps") {
+  args = []
+}
+
+perfetto_check_build_deps("check_build_deps_android") {
+  args = [ "--android" ]
 }

@@ -69,13 +69,13 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--ccache', action='store_true', default=False)
   parser.add_argument('--host-only', action='store_true', default=False)
-  parser.add_argument('--no-android', action='store_true', default=False)
+  parser.add_argument('--android', action='store_true', default=False)
   parser.add_argument('--build', metavar='TARGET')
   args = parser.parse_args()
 
   configs = {}
   if not args.host_only:
-    if not args.no_android:
+    if args.android:
       for config_name, gn_args in iteritems(ANDROID_BUILD_CONFIGS):
         for arch in ANDROID_ARCHS:
           full_config_name = '%s_%s' % (config_name, arch)
