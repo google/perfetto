@@ -32,4 +32,4 @@ Finally run:
 $ ./ui/run-dev-server out/debug
 ```
 
-and navigate to `localhost:3000`.
+and navigate to `localhost:10000`.
