@@ -172,8 +172,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_view = base::StringView(str, entry.str().size);
 
-    heap_graph_tracker->AddInternedFieldName(
-        seq_id, entry.iid(), context_->storage->InternString(str_view));
+    heap_graph_tracker->AddInternedFieldName(seq_id, entry.iid(), str_view);
   }
   for (auto it = heap_graph.roots(); it; ++it) {
     protos::pbzero::HeapGraphRoot::Decoder entry(*it);

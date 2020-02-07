@@ -97,9 +97,17 @@ void HeapGraphTracker::AddInternedTypeName(uint32_t seq_id,
 
 void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
                                             uint64_t intern_id,
-                                            StringPool::Id strid) {
+                                            base::StringView str) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
-  sequence_state.interned_field_names.emplace(intern_id, strid);
+  size_t space = str.find(' ');
+  base::StringView type_name;
+  if (space != base::StringView::npos) {
+    type_name = str.substr(0, space);
+    str = str.substr(space + 1);
+  }
+  sequence_state.interned_fields.emplace(
+      intern_id, InternedField{context_->storage->InternString(str),
+                               context_->storage->InternString(type_name)});
 }
 
 void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
@@ -183,17 +191,18 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       if (inserted)
         sequence_state.walker.AddEdge(owner_row, owned_row);
 
-      auto field_name_it =
-          sequence_state.interned_field_names.find(ref.field_name_id);
-      if (field_name_it == sequence_state.interned_field_names.end()) {
+      auto field_it = sequence_state.interned_fields.find(ref.field_name_id);
+      if (field_it == sequence_state.interned_fields.end()) {
         context_->storage->IncrementIndexedStats(
             stats::heap_graph_invalid_string_id,
             static_cast<int>(sequence_state.current_upid));
         continue;
       }
-      StringPool::Id field_name = field_name_it->second;
+      const InternedField& interned_field = field_it->second;
+      StringPool::Id field_name = interned_field.name;
       context_->storage->mutable_heap_graph_reference_table()->Insert(
-          {reference_set_id, owner_row, owned_row, field_name,
+          {reference_set_id, owner_row, owned_row, interned_field.name,
+           interned_field.type_name,
            /*deobfuscated_field_name=*/base::nullopt});
       uint32_t row =
           context_->storage->heap_graph_reference_table().row_count() - 1;

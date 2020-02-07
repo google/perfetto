@@ -71,7 +71,7 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
                            StringPool::Id strid);
   void AddInternedFieldName(uint32_t seq_id,
                             uint64_t intern_id,
-                            StringPool::Id strid);
+                            base::StringView str);
   void FinalizeProfile(uint32_t seq);
   void SetPacketIndex(uint32_t seq_id, uint64_t index);
 
@@ -101,6 +101,10 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
       const UniquePid current_upid);
 
  private:
+  struct InternedField {
+    StringPool::Id name;
+    StringPool::Id type_name;
+  };
   struct SequenceState {
     SequenceState(HeapGraphTracker* tracker) : walker(tracker) {}
 
@@ -109,7 +113,7 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
     std::vector<SourceObject> current_objects;
     std::vector<SourceRoot> current_roots;
     std::map<uint64_t, StringPool::Id> interned_type_names;
-    std::map<uint64_t, StringPool::Id> interned_field_names;
+    std::map<uint64_t, InternedField> interned_fields;
     std::map<uint64_t, uint32_t> object_id_to_row;
     base::Optional<uint64_t> prev_index;
     HeapGraphWalker walker;

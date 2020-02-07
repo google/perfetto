@@ -84,7 +84,7 @@ packet {
     }
     field_names {
       iid: 2
-      str: "a.a"
+      str: "int a.a"
     }
     field_names {
       iid: 3
