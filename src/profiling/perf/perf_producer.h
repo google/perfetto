@@ -32,7 +32,9 @@
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
@@ -83,8 +85,12 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   };
 
   struct DataSource {
-    DataSource(EventReader _event_reader)
-        : event_reader(std::move(_event_reader)) {}
+    DataSource(std::unique_ptr<TraceWriter> _trace_writer,
+               EventReader _event_reader)
+        : trace_writer(std::move(_trace_writer)),
+          event_reader(std::move(_event_reader)) {}
+
+    std::unique_ptr<TraceWriter> trace_writer;
 
     // TODO(rsavitski): event reader per kernel buffer.
     EventReader event_reader;
@@ -153,6 +159,7 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   BookkeepingEntry UnwindSample(ParsedSample sample,
                                 DataSource::ProcDescriptors* process_state);
 
+  // TODO(rsavitski): bookkeeping is not an entirely accurate name for this.
   void TickDataSourceBookkeep(DataSourceInstanceID ds_id);
 
   // Task runner owned by the main thread.
@@ -166,6 +173,15 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
   // Owns shared memory, must outlive trace writing.
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
+
+  // Interns callstacks across all data sources.
+  // TODO(rsavitski): for long profiling sessions, consider purging trie when it
+  // grows too large (at the moment purged only when no sources are active).
+  // TODO(rsavitski): interning sequences are monotonic for the lifetime of the
+  // daemon. Consider resetting them at safe points - possible when no sources
+  // are active, and tricky otherwise, as it'll require emitting incremental
+  // sequence invalidation packets on all relevant sequences.
+  GlobalCallstackTrie callstack_trie_;
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
   std::map<DataSourceInstanceID, std::deque<UnwindEntry>> unwind_queues_;
