@@ -226,7 +226,7 @@ TraceWriter::TraceWriter(std::ostream* output) : output_(output) {}
 
 TraceWriter::~TraceWriter() = default;
 
-void TraceWriter::Write(std::string s) {
+void TraceWriter::Write(const std::string& s) {
   Write(s.data(), s.size());
 }
 
