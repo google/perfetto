@@ -62,8 +62,8 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
 
   if (!fd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    // In-tree builds should only allow mem_fd, so we can inspect the seals
-    // to verify the fd is appropriately sealed.
+    // In-tree builds only allow mem_fd, so we can inspect the seals to verify
+    // the fd is appropriately sealed.
     PERFETTO_ELOG("memfd_create() failed");
     return;
 #else
