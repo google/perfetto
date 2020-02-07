@@ -20,6 +20,8 @@
 
 #include <unistd.h>
 
+#include <unwindstack/Unwinder.h>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -29,11 +31,12 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
-#include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
+#include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/event_reader.h"
 
-#include <unwindstack/Unwinder.h>
+#include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace profiling {
@@ -90,10 +93,14 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
     return;
   }
 
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  auto writer = endpoint_->CreateTraceWriter(buffer_id);
+
   // Construct the data source instance.
   auto it_inserted = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(instance_id),
-      std::forward_as_tuple(std::move(event_reader.value())));
+      std::forward_as_tuple(std::move(writer),
+                            std::move(event_reader.value())));
 
   PERFETTO_CHECK(it_inserted.second);
 
@@ -126,15 +133,32 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
       kBookkeepTickPeriodMs);
 }
 
-// TODO(rsavitski): stop perf_event before draining ring buffer and internal
-// queues (more aggressive flush).
+// TODO(rsavitski): stop perf_event, then drain ring buffer and internal
+// queues.
 void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
   PERFETTO_DLOG("StopDataSource(id=%" PRIu64 ")", instance_id);
+  auto ds_it = data_sources_.find(instance_id);
+  if (ds_it == data_sources_.end())
+    return;
+
+  DataSource& ds = ds_it->second;
+
+  ds.trace_writer->Flush();
+
   data_sources_.erase(instance_id);
   unwind_queues_.erase(instance_id);
   bookkeping_queues_.erase(instance_id);
+
+  // If there are no more data sources, purge internings.
+  if (data_sources_.empty()) {
+    callstack_trie_.ClearTrie();
+  }
 }
 
+// TODO(rsavitski): ignoring flushes for now, as it is involved given
+// out-of-order unwinding and proc-fd timeouts. Instead of responding to
+// explicit flushes, we can ensure that we're otherwise well-behaved (do not
+// reorder packets too much). Final flush will be handled separately (on stop).
 void PerfProducer::Flush(FlushRequestID flush_id,
                          const DataSourceInstanceID* data_source_ids,
                          size_t num_data_sources) {
@@ -144,13 +168,6 @@ void PerfProducer::Flush(FlushRequestID flush_id,
 
     auto ds_it = data_sources_.find(ds_id);
     if (ds_it != data_sources_.end()) {
-      auto unwind_it = unwind_queues_.find(ds_id);
-      auto book_it = bookkeping_queues_.find(ds_id);
-      PERFETTO_CHECK(unwind_it != unwind_queues_.end());
-      PERFETTO_CHECK(book_it != bookkeping_queues_.end());
-
-      ProcessUnwindQueue(&unwind_it->second, &book_it->second, &ds_it->second);
-      // TODO(rsavitski): also flush the bookkeeping queue.
       endpoint_->NotifyFlushComplete(flush_id);
     }
   }
@@ -405,6 +422,8 @@ PerfProducer::BookkeepingEntry PerfProducer::UnwindSample(
     ret.frames.emplace_back(unwind_state.AnnotateFrame(std::move(frame)));
   }
 
+  // TODO(rsavitski): we still get a partially-unwound stack on most errors,
+  // consider adding a synthetic "error frame" like heapprofd.
   if (error_code != unwindstack::ERROR_NONE)
     ret.unwind_error = true;
 
@@ -423,11 +442,27 @@ void PerfProducer::TickDataSourceBookkeep(DataSourceInstanceID ds_id) {
     return;
   }
 
+  auto ds_it = data_sources_.find(ds_id);
+  PERFETTO_CHECK(ds_it != data_sources_.end());
+  DataSource& ds = ds_it->second;
+
   auto& queue = q_it->second;
   while (!queue.empty()) {
     BookkeepingEntry& entry = queue.front();
-    PERFETTO_DLOG("Bookkeeping sample: pid:[%d], ts:[%" PRIu64 "]",
-                  static_cast<int>(entry.pid), entry.timestamp);
+
+    GlobalCallstackTrie::Node* node =
+        callstack_trie_.CreateCallsite(entry.frames);
+    std::vector<Interned<Frame>> extracted =
+        callstack_trie_.BuildCallstack(node);
+
+    PERFETTO_DLOG("Extracted from interner:");
+    for (const auto& f : extracted) {
+      PERFETTO_DLOG("%u -> %s", static_cast<unsigned>(f.id()),
+                    f->function_name->c_str());
+    }
+
+    auto packet = ds.trace_writer->NewTracePacket();
+    packet->set_timestamp(entry.timestamp);
 
     queue.pop();
   }
