@@ -21,7 +21,7 @@
 
 #include <inttypes.h>
 
-#include "src/trace_processor/stats.h"
+#include "src/trace_processor/storage/stats.h"
 
 #include "src/trace_processor/syscalls_aarch32.h"
 #include "src/trace_processor/syscalls_aarch64.h"

@@ -18,8 +18,8 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/trace_storage.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 

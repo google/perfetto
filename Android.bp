@@ -6139,9 +6139,16 @@ filegroup {
     "src/trace_processor/trace_processor_storage.cc",
     "src/trace_processor/trace_processor_storage_impl.cc",
     "src/trace_processor/trace_sorter.cc",
-    "src/trace_processor/trace_storage.cc",
     "src/trace_processor/track_tracker.cc",
     "src/trace_processor/virtual_destructors.cc",
+  ],
+}
+
+// GN: //src/trace_processor/storage:storage
+filegroup {
+  name: "perfetto_src_trace_processor_storage_storage",
+  srcs: [
+    "src/trace_processor/storage/trace_storage.cc",
   ],
 }
 
@@ -7003,6 +7010,7 @@ cc_test {
     ":perfetto_src_trace_processor_sqlite_unittests",
     ":perfetto_src_trace_processor_storage_full",
     ":perfetto_src_trace_processor_storage_minimal",
+    ":perfetto_src_trace_processor_storage_storage",
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_tables_unittests",
     ":perfetto_src_trace_processor_types_types",
@@ -7228,6 +7236,7 @@ cc_binary_host {
     ":perfetto_src_trace_processor_sqlite_sqlite",
     ":perfetto_src_trace_processor_storage_full",
     ":perfetto_src_trace_processor_storage_minimal",
+    ":perfetto_src_trace_processor_storage_storage",
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_types_types",
     "src/trace_processor/proto_to_json.cc",
@@ -7338,6 +7347,7 @@ cc_binary_host {
     ":perfetto_src_trace_processor_sqlite_sqlite",
     ":perfetto_src_trace_processor_storage_full",
     ":perfetto_src_trace_processor_storage_minimal",
+    ":perfetto_src_trace_processor_storage_storage",
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_types_types",
     ":perfetto_tools_trace_to_text_common",

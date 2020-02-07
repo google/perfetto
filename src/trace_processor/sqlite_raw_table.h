@@ -20,7 +20,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {

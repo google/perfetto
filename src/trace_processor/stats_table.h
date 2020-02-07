@@ -21,8 +21,8 @@
 #include <memory>
 
 #include "src/trace_processor/sqlite/sqlite_table.h"
-#include "src/trace_processor/stats.h"
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
