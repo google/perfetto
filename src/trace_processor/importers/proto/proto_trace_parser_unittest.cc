@@ -1735,7 +1735,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     annotation7->set_string_value("val7");
     auto* annotation8 = event->add_debug_annotations();
     annotation8->set_name_iid(8);
-    annotation8->set_legacy_json_value("val8");
+    annotation8->set_legacy_json_value(
+        "{\"val8\": {\"a\": 42, \"b\": \"val8b\"}, \"arr8\": [1, 2, 3]}");
     auto* annotation9 = event->add_debug_annotations();
     annotation9->set_name_iid(9);
     annotation9->set_int_value(15);
@@ -1791,12 +1792,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   StringId debug_an_6 = storage_->InternString("debug.an6");
   StringId debug_an_7 = storage_->InternString("debug.an7");
   StringId val_7 = storage_->InternString("val7");
-  StringId debug_an_8 = storage_->InternString("debug.an8");
-  StringId val_8 = storage_->InternString("val8");
+  StringId debug_an_8_val8_a = storage_->InternString("debug.an8.val8.a");
+  StringId debug_an_8_val8_b = storage_->InternString("debug.an8.val8.b");
+  StringId val_8b = storage_->InternString("val8b");
+  StringId debug_an_8_arr8 = storage_->InternString("debug.an8.arr8");
+  StringId debug_an_8_arr8_0 = storage_->InternString("debug.an8.arr8[0]");
+  StringId debug_an_8_arr8_1 = storage_->InternString("debug.an8.arr8[1]");
+  StringId debug_an_8_arr8_2 = storage_->InternString("debug.an8.arr8[2]");
   StringId debug_an_8_foo = storage_->InternString("debug.an8_foo");
 
   constexpr TrackId track{0u};
-  InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*slice_, Begin(1010000, track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
@@ -1825,7 +1830,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   EXPECT_CALL(inserter, AddArg(debug_an_6, debug_an_6, Variadic::Pointer(20u)));
   EXPECT_CALL(inserter,
               AddArg(debug_an_7, debug_an_7, Variadic::String(val_7)));
-  EXPECT_CALL(inserter, AddArg(debug_an_8, debug_an_8, Variadic::Json(val_8)));
+  EXPECT_CALL(inserter, AddArg(debug_an_8_val8_a, debug_an_8_val8_a,
+                               Variadic::Integer(42)));
+  EXPECT_CALL(inserter, AddArg(debug_an_8_val8_b, debug_an_8_val8_b,
+                               Variadic::String(val_8b)));
+  EXPECT_CALL(inserter,
+              AddArg(debug_an_8_arr8, debug_an_8_arr8_0, Variadic::Integer(1)));
+  EXPECT_CALL(inserter,
+              AddArg(debug_an_8_arr8, debug_an_8_arr8_1, Variadic::Integer(2)));
+  EXPECT_CALL(inserter,
+              AddArg(debug_an_8_arr8, debug_an_8_arr8_2, Variadic::Integer(3)));
   EXPECT_CALL(inserter,
               AddArg(debug_an_8_foo, debug_an_8_foo, Variadic::Integer(15)));
 
