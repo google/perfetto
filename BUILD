@@ -782,6 +782,17 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/storage:storage
+filegroup(
+    name = "src_trace_processor_storage_storage",
+    srcs = [
+        "src/trace_processor/storage/metadata.h",
+        "src/trace_processor/storage/stats.h",
+        "src/trace_processor/storage/trace_storage.cc",
+        "src/trace_processor/storage/trace_storage.h",
+    ],
+)
+
 # GN target: //src/trace_processor/tables:tables
 filegroup(
     name = "src_trace_processor_tables_tables",
@@ -954,7 +965,6 @@ filegroup(
         "src/trace_processor/importers/proto/track_event_parser.h",
         "src/trace_processor/importers/proto/track_event_tokenizer.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.h",
-        "src/trace_processor/metadata.h",
         "src/trace_processor/metadata_tracker.cc",
         "src/trace_processor/metadata_tracker.h",
         "src/trace_processor/process_tracker.cc",
@@ -963,7 +973,6 @@ filegroup(
         "src/trace_processor/slice_tracker.h",
         "src/trace_processor/stack_profile_tracker.cc",
         "src/trace_processor/stack_profile_tracker.h",
-        "src/trace_processor/stats.h",
         "src/trace_processor/syscall_tracker.h",
         "src/trace_processor/timestamped_trace_piece.h",
         "src/trace_processor/trace_blob_view.h",
@@ -975,8 +984,6 @@ filegroup(
         "src/trace_processor/trace_processor_storage_impl.h",
         "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/trace_sorter.h",
-        "src/trace_processor/trace_storage.cc",
-        "src/trace_processor/trace_storage.h",
         "src/trace_processor/track_tracker.cc",
         "src/trace_processor/track_tracker.h",
         "src/trace_processor/virtual_destructors.cc",
@@ -2642,6 +2649,7 @@ perfetto_cc_library(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
+        ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
     ],
@@ -2726,6 +2734,7 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
+        ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
     ],
@@ -2882,6 +2891,7 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
+        ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":tools_trace_to_text_common",

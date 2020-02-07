@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_METADATA_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_METADATA_TRACKER_H_
 
-#include "src/trace_processor/trace_storage.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
