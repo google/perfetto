@@ -167,15 +167,17 @@ source_set("storage_minimal") {
     ]
     deps += [ "../../gn:zlib" ]
   }
-  if (enable_perfetto_trace_processor_json_import) {
-    sources += [
-      "importers/json/json_trace_parser.cc",
-      "importers/json/json_trace_parser.h",
-      "importers/json/json_trace_tokenizer.cc",
-      "importers/json/json_trace_tokenizer.h",
-      "importers/json/json_trace_utils.cc",
-      "importers/json/json_trace_utils.h",
-    ]
+  if (enable_perfetto_trace_processor_json) {
+    if (enable_perfetto_trace_processor_json_import) {
+      sources += [
+        "importers/json/json_trace_parser.cc",
+        "importers/json/json_trace_parser.h",
+        "importers/json/json_trace_tokenizer.cc",
+        "importers/json/json_trace_tokenizer.h",
+        "importers/json/json_trace_utils.cc",
+        "importers/json/json_trace_utils.h",
+      ]
+    }
     deps += [ "../../gn:jsoncpp" ]
   }
   if (enable_perfetto_trace_processor_fuchsia) {
