@@ -155,11 +155,11 @@ int Main(int argc, char** argv) {
                        truncate_keep, full_sort);
 
   if (format == "systrace")
-    return TraceToSystrace(input_stream, output_stream, /*compress=*/false,
+    return TraceToSystrace(input_stream, output_stream, /*ctrace=*/false,
                            truncate_keep, full_sort);
 
   if (format == "ctrace")
-    return TraceToSystrace(input_stream, output_stream, /*compress=*/true,
+    return TraceToSystrace(input_stream, output_stream, /*ctrace=*/true,
                            truncate_keep, full_sort);
 
   if (truncate_keep != Keep::kAll) {
