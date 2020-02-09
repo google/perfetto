@@ -67,22 +67,29 @@ bool IsAppRunning(const std::string& name) {
   PERFETTO_FATAL("unexpected exit status from system(pgrep): %d", exit_status);
 }
 
-void StartAppActivity(const std::string& app_name,
-                      const std::string& checkpoint_name,
-                      base::TestTaskRunner* task_runner,
-                      int delay_ms) {
-  std::string start_cmd = "am start " + app_name + "/.MainActivity";
-  int status = system(start_cmd.c_str());
-  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
-
+void WaitForProcess(const std::string& process,
+                    const std::string& checkpoint_name,
+                    base::TestTaskRunner* task_runner,
+                    uint32_t delay_ms) {
   bool desired_run_state = true;
   const auto checkpoint = task_runner->CreateCheckpoint(checkpoint_name);
   task_runner->PostDelayedTask(
-      [desired_run_state, task_runner, app_name, checkpoint] {
-        PollRunState(desired_run_state, task_runner, app_name,
+      [desired_run_state, task_runner, process, checkpoint] {
+        PollRunState(desired_run_state, task_runner, process,
                      std::move(checkpoint));
       },
-      static_cast<uint32_t>(delay_ms));
+      delay_ms);
+}
+
+void StartAppActivity(const std::string& app_name,
+                      const std::string& activity_name,
+                      const std::string& checkpoint_name,
+                      base::TestTaskRunner* task_runner,
+                      uint32_t delay_ms) {
+  std::string start_cmd = "am start " + app_name + "/." + activity_name;
+  int status = system(start_cmd.c_str());
+  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
+  WaitForProcess(app_name, checkpoint_name, task_runner, delay_ms);
 }
 
 void StopApp(const std::string& app_name,

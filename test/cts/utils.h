@@ -27,10 +27,16 @@ bool IsDebuggableBuild();
 
 bool IsAppRunning(const std::string& name);
 
+void WaitForProcess(const std::string& process,
+                    const std::string& checkpoint_name,
+                    base::TestTaskRunner* task_runner,
+                    uint32_t delay_ms = 1);
+
 void StartAppActivity(const std::string& app_name,
+                      const std::string& activity_name,
                       const std::string& checkpoint_name,
                       base::TestTaskRunner* task_runner,
-                      int delay_ms = 1);
+                      uint32_t delay_ms = 1);
 
 void StopApp(const std::string& app_name,
              const std::string& checkpoint_name,
