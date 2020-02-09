@@ -247,9 +247,15 @@ DeflateTraceWriter::DeflateTraceWriter(std::ostream* output)
 }
 
 DeflateTraceWriter::~DeflateTraceWriter() {
+  // Drain compressor until it has no more input, and has flushed its internal
+  // buffers.
   while (deflate(&stream_, Z_FINISH) != Z_STREAM_END) {
     Flush();
   }
+  // Flush any outstanding output bytes to the backing TraceWriter.
+  Flush();
+  PERFETTO_CHECK(stream_.avail_out == static_cast<size_t>(end_ - start_));
+
   CheckEq(deflateEnd(&stream_), Z_OK);
 }
 
