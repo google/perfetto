@@ -20,4 +20,17 @@ package perfetto.protos;
 
 message ChromeLatencyInfo {
   optional int64 trace_id = 1;
+
+  enum Step {
+    STEP_UNSPECIFIED = 0;
+    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
+    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    STEP_SEND_INPUT_EVENT_UI = 3;
+    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    STEP_HANDLE_INPUT_EVENT_IMPL = 5;
+    STEP_SWAP_BUFFERS = 6;
+    STEP_DRAW_AND_SWAP = 7;
+  };
+
+  optional Step step = 2;
 }
