@@ -844,6 +844,8 @@ filegroup(
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/sql_stats_table.cc",
         "src/trace_processor/sql_stats_table.h",
+        "src/trace_processor/sqlite_experimental_counter_dur_table.cc",
+        "src/trace_processor/sqlite_experimental_counter_dur_table.h",
         "src/trace_processor/sqlite_experimental_flamegraph_table.cc",
         "src/trace_processor/sqlite_experimental_flamegraph_table.h",
         "src/trace_processor/sqlite_raw_table.cc",

@@ -32,6 +32,7 @@
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/window_operator_table.h"
+#include "src/trace_processor/sqlite_experimental_counter_dur_table.h"
 #include "src/trace_processor/sqlite_experimental_flamegraph_table.h"
 #include "src/trace_processor/sqlite_raw_table.h"
 #include "src/trace_processor/stats_table.h"
@@ -419,6 +420,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   SqliteExperimentalFlamegraphTable::RegisterTable(*db_, &context_);
   SqliteRawTable::RegisterTable(*db_, query_cache_.get(),
                                 context_.storage.get());
+  SqliteExperimentalCounterDurTable::RegisterTable(*db_, query_cache_.get(),
+                                                   storage->counter_table());
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());
