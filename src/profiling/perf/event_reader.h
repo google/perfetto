@@ -92,6 +92,8 @@ class EventReader {
   base::Optional<ParsedSample> ReadUntilSample(
       std::function<void(uint64_t)> lost_events_callback);
 
+  void PauseEvents();
+
   ~EventReader() = default;
 
   // move-only
