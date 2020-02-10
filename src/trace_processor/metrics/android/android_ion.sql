@@ -25,13 +25,22 @@ FROM counter JOIN counter_track
   ON counter.track_id = counter_track.id
 WHERE name LIKE 'mem.ion.%';
 
-CREATE VIEW IF NOT EXISTS ion_buffers AS
+CREATE VIEW IF NOT EXISTS ion_heap_stats AS
 SELECT
   heap_name,
   SUM(value * dur) / SUM(dur) AS avg_size,
   MIN(value) AS min_size,
   MAX(value) AS max_size
 FROM ion_timeline
+GROUP BY 1;
+
+CREATE VIEW IF NOT EXISTS ion_alloc_stats AS
+SELECT
+  SUBSTR(name, 16) AS heap_name,
+  SUM(value) AS total_alloc_size_bytes
+FROM counter JOIN thread_counter_track
+  ON counter.track_id = thread_counter_track.id
+WHERE name LIKE 'mem.ion_change.%' AND value > 0
 GROUP BY 1;
 
 CREATE VIEW IF NOT EXISTS android_ion_output AS
@@ -41,7 +50,8 @@ SELECT AndroidIonMetric(
       'name', heap_name,
       'avg_size_bytes', avg_size,
       'min_size_bytes', min_size,
-      'max_size_bytes', max_size
+      'max_size_bytes', max_size,
+      'total_alloc_size_bytes', total_alloc_size_bytes
     )
   ))
-FROM ion_buffers;
+FROM ion_heap_stats JOIN ion_alloc_stats USING (heap_name);
