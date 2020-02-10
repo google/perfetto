@@ -6055,6 +6055,7 @@ filegroup {
   srcs: [
     "src/trace_processor/read_trace.cc",
     "src/trace_processor/sql_stats_table.cc",
+    "src/trace_processor/sqlite_experimental_counter_dur_table.cc",
     "src/trace_processor/sqlite_experimental_flamegraph_table.cc",
     "src/trace_processor/sqlite_raw_table.cc",
     "src/trace_processor/stats_table.cc",
@@ -6226,6 +6227,7 @@ filegroup {
     "src/trace_processor/process_tracker_unittest.cc",
     "src/trace_processor/protozero_to_text_unittests.cc",
     "src/trace_processor/slice_tracker_unittest.cc",
+    "src/trace_processor/sqlite_experimental_counter_dur_table_unittest.cc",
     "src/trace_processor/syscall_tracker_unittest.cc",
     "src/trace_processor/trace_sorter_unittest.cc",
   ],
