@@ -125,14 +125,14 @@ export class SelectionController extends Controller<'main'> {
 
   async counterDetails(ts: number, rightTs: number, id: number) {
     const counter = await this.args.engine.query(
-        `SELECT value FROM counter_values WHERE ts = ${ts} AND counter_id = ${
-            id}`);
+        `SELECT value, track_id FROM counter WHERE id = ${id}`);
     const value = counter.columns[0].doubleValues![0];
+    const trackId = counter.columns[1].longValues![0];
     // Finding previous value. If there isn't previous one, it will return 0 for
     // ts and value.
     const previous = await this.args.engine.query(
-        `SELECT MAX(ts), value FROM counter_values WHERE ts < ${
-            ts} and counter_id = ${id}`);
+        `SELECT MAX(ts), value FROM counter WHERE ts < ${ts} and track_id = ${
+            trackId}`);
     const previousValue = previous.columns[1].doubleValues![0];
     const endTs =
         rightTs !== -1 ? rightTs : toNs(globals.state.traceTime.endSec);

@@ -101,7 +101,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       query = `
       select *
       from (
-        select ts, value, track_id
+        select ts, value, id
         from counter
         where
           track_id = ${this.config.trackId} and
@@ -112,13 +112,13 @@ class CounterTrackController extends TrackController<Config, Data> {
       union
       select *
       from (
-        select ts, value, track_id
+        select ts, value, id
         from (
           select
             ts,
             lead(ts, 1, ts) over (order by ts) as ts_end,
             value,
-            track_id
+            id
           from counter
           where track_id = ${this.config.trackId}
         )
