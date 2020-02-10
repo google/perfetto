@@ -51,11 +51,13 @@ source_set("producer") {
     "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/config/profiling:zero",
     "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace/profiling:zero",
     "../../../src/base",
     "../../../src/base:unix_socket",
     "../../../src/tracing/ipc/producer",
     "../common:callstack_trie",
     "../common:interner",
+    "../common:interning_output",
     "../common:unwind_support",
   ]
   sources = [

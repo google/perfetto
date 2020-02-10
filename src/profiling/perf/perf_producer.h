@@ -35,6 +35,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/profiling/common/callstack_trie.h"
+#include "src/profiling/common/interning_output.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
@@ -110,6 +111,9 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
                                      /*mem_fd=*/base::ScopedFile{}};
     };
     std::map<pid_t, ProcDescriptors> proc_fds;  // keyed by pid
+
+    // Tracks the incremental state for interned entries.
+    InterningOutputTracker interning_output;
   };
 
   // Entry in an unwinding queue. Either a sample that requires unwinding, or a
@@ -179,8 +183,9 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   // grows too large (at the moment purged only when no sources are active).
   // TODO(rsavitski): interning sequences are monotonic for the lifetime of the
   // daemon. Consider resetting them at safe points - possible when no sources
-  // are active, and tricky otherwise, as it'll require emitting incremental
-  // sequence invalidation packets on all relevant sequences.
+  // are active, and tricky otherwise. In the latter case, it'll require
+  // emitting incremental sequence invalidation packets on all relevant
+  // sequences.
   GlobalCallstackTrie callstack_trie_;
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
