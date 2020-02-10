@@ -65,6 +65,11 @@ class StartupTraceWriterRegistryHandle {
 
 // Embedders can use this registry to create unbound StartupTraceWriters during
 // startup, and later bind them all safely to an arbiter and target buffer.
+//
+// DEPRECATED. See SharedMemoryArbiter::CreateUnboundInstance() for a
+// replacement.
+//
+// TODO(eseckler): Remove StartupTraceWriter support.
 class PERFETTO_EXPORT StartupTraceWriterRegistry {
  public:
   StartupTraceWriterRegistry();
