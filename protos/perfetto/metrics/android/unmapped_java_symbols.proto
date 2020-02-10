@@ -21,10 +21,17 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message UnmappedJavaSymbols {
+  message Field {
+    optional string field_name = 1;
+    optional string field_type_name = 2;
+  }
+
   message ProcessSymbols {
+    reserved 3;
+
     optional AndroidProcessMetadata process_metadata = 1;
     repeated string type_name = 2;
-    repeated string field_name = 3;
+    repeated Field field = 4;
   }
 
   repeated ProcessSymbols process_symbols = 1;

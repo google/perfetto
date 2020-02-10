@@ -41,7 +41,7 @@ FROM distinct_unmapped_type_names GROUP BY 1;
 
 CREATE TABLE IF NOT EXISTS fields_per_upid AS
 WITH distinct_unmapped_field_names AS (
-  SELECT DISTINCT upid, field_name
+  SELECT DISTINCT upid, field_type_name, field_name
   FROM heap_graph_object JOIN heap_graph_reference USING (reference_set_id)
   WHERE deobfuscated_type_name IS NULL
   AND field_name NOT LIKE '$Proxy%'
@@ -55,14 +55,17 @@ WITH distinct_unmapped_field_names AS (
   AND field_name NOT LIKE 'libcore.%'
   AND LENGTH(field_name) > 0
 )
-SELECT upid, RepeatedField(field_name) AS fields
+SELECT upid, RepeatedField(
+  UnmappedJavaSymbols_Field(
+    'field_name', field_name,
+    'field_type_name', field_type_name)) AS fields
 FROM distinct_unmapped_field_names GROUP BY 1;
 
 CREATE VIEW IF NOT EXISTS java_symbols_per_process AS
 SELECT UnmappedJavaSymbols_ProcessSymbols(
   'process_metadata', metadata,
   'type_name', types,
-  'field_name', fields
+  'field', fields
 ) types
 FROM types_per_upid
 JOIN process_metadata USING (upid)
