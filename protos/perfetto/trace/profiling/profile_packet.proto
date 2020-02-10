@@ -145,3 +145,15 @@ message StreamingProfilePacket {
   // this with ClockSnapshot-based delta encoding instead.
   repeated int64 timestamp_delta_us = 2;
 }
+
+// Individual performance sampling packet payload. Typically corresponds to a
+// stack sample on a configration-dependent counter overflow.
+// Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
+message PerfSample {
+  optional uint32 cpu = 1;
+
+  optional uint32 pid = 2;
+  optional uint32 tid = 3;
+
+  optional uint64 callstack_iid = 4;
+}

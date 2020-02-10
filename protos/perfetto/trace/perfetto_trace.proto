@@ -3375,6 +3375,17 @@ message StreamingProfilePacket {
   repeated int64 timestamp_delta_us = 2;
 }
 
+// Individual performance sampling packet payload. Typically corresponds to a
+// stack sample on a configration-dependent counter overflow.
+// Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
+message PerfSample {
+  optional uint32 cpu = 1;
+
+  optional uint32 pid = 2;
+  optional uint32 tid = 3;
+
+  optional uint64 callstack_iid = 4;
+}
 // End of protos/perfetto/trace/profiling/profile_packet.proto
 
 // Begin of protos/perfetto/trace/ps/process_stats.proto
@@ -3567,7 +3578,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 66.
+// Next id: 67.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3618,6 +3629,7 @@ message TracePacket {
     // removed field with id 62
     GpuLog gpu_log = 63;
     VulkanApiEvent vulkan_api_event = 65;
+    PerfSample perf_sample = 66;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -3674,7 +3686,6 @@ message TracePacket {
   // it (since the last reset of interning state). It may also be emitted
   // proactively in advance of referring to them in later packets.
   optional InternedData interned_data = 12;
-
 
   enum SequenceFlags {
     SEQ_UNSPECIFIED = 0;

@@ -52,15 +52,9 @@ static int perf_event_open(perf_event_attr* attr,
       syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags));
 }
 
-// TODO(rsavitski): one EventConfig will correspond to N perf_event_open calls
-// in the general case. Does it make sense to keep a single function which does
-// the N calls, and then returns the group leader's fd? What about cases where
-// we have >1 pid or >1 cpu to open for? Should the entire EventReader be
-// cpu-scoped?
-base::ScopedFile PerfEventOpen(const EventConfig& event_cfg) {
+base::ScopedFile PerfEventOpen(uint32_t cpu, const EventConfig& event_cfg) {
   base::ScopedFile perf_fd{
-      perf_event_open(event_cfg.perf_attr(), /*pid=*/-1,
-                      static_cast<int>(event_cfg.target_cpu()),
+      perf_event_open(event_cfg.perf_attr(), /*pid=*/-1, static_cast<int>(cpu),
                       /*group_fd=*/-1, PERF_FLAG_FD_CLOEXEC)};
   return perf_fd;
 }
@@ -193,15 +187,18 @@ void PerfRingBuffer::Consume(size_t bytes) {
       ->store(updated_tail, std::memory_order_release);
 }
 
-EventReader::EventReader(const EventConfig& event_cfg,
+EventReader::EventReader(uint32_t cpu,
+                         const EventConfig& event_cfg,
                          base::ScopedFile perf_fd,
                          PerfRingBuffer ring_buffer)
-    : event_cfg_(event_cfg),
+    : cpu_(cpu),
+      event_cfg_(event_cfg),
       perf_fd_(std::move(perf_fd)),
       ring_buffer_(std::move(ring_buffer)) {}
 
 EventReader::EventReader(EventReader&& other) noexcept
-    : event_cfg_(other.event_cfg_),
+    : cpu_(other.cpu_),
+      event_cfg_(other.event_cfg_),
       perf_fd_(std::move(other.perf_fd_)),
       ring_buffer_(std::move(other.ring_buffer_)) {}
 
@@ -215,8 +212,9 @@ EventReader& EventReader::operator=(EventReader&& other) noexcept {
 }
 
 base::Optional<EventReader> EventReader::ConfigureEvents(
+    uint32_t cpu,
     const EventConfig& event_cfg) {
-  auto perf_fd = PerfEventOpen(event_cfg);
+  auto perf_fd = PerfEventOpen(cpu, event_cfg);
   if (!perf_fd) {
     PERFETTO_PLOG("failed perf_event_open");
     return base::nullopt;
@@ -228,7 +226,7 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
     return base::nullopt;
   }
 
-  return base::make_optional<EventReader>(event_cfg, std::move(perf_fd),
+  return base::make_optional<EventReader>(cpu, event_cfg, std::move(perf_fd),
                                           std::move(ring_buffer.value()));
 }
 
@@ -246,7 +244,7 @@ base::Optional<ParsedSample> EventReader::ReadUntilSample(
                   static_cast<size_t>(event_hdr->size));
 
     if (event_hdr->type == PERF_RECORD_SAMPLE) {
-      ParsedSample sample = ParseSampleRecord(event, event_hdr->size);
+      ParsedSample sample = ParseSampleRecord(cpu_, event, event_hdr->size);
       ring_buffer_.Consume(event_hdr->size);
       return base::make_optional(std::move(sample));
     }
@@ -265,7 +263,11 @@ base::Optional<ParsedSample> EventReader::ReadUntilSample(
   }
 }
 
-ParsedSample EventReader::ParseSampleRecord(const char* sample_start,
+// Generally, samples can belong to any cpu (which can be recorded with
+// PERF_SAMPLE_CPU). However, this producer uses only cpu-scoped events,
+// therefore it is already known.
+ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
+                                            const char* sample_start,
                                             size_t sample_size) {
   const perf_event_attr* cfg = event_cfg_.perf_attr();
 
@@ -278,6 +280,7 @@ ParsedSample EventReader::ParseSampleRecord(const char* sample_start,
   // Parse the payload, which consists of concatenated data for each
   // |attr.sample_type| flag.
   ParsedSample sample = {};
+  sample.cpu = cpu;
   const char* parse_pos = sample_start + sizeof(perf_event_header);
 
   if (cfg->sample_type & PERF_SAMPLE_TID) {
