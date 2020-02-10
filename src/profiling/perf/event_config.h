@@ -36,8 +36,6 @@ namespace profiling {
 // Describes a single profiling configuration. Bridges the gap between the data
 // source config proto, and the raw "perf_event_attr" structs to pass to the
 // perf_event_open syscall.
-// TODO(rsavitski): instead of allowing arbitrary sampling flags, nail down a
-// specific set, and simplify parsing at the same time?
 // Also, for non-sample events (if they're possible), union of structs is
 // interesting.
 class EventConfig {

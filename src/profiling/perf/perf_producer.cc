@@ -86,8 +86,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
     return;
   }
 
-  base::Optional<EventReader> event_reader =
-      EventReader::ConfigureEvents(event_config.value());
+  base::Optional<EventReader> event_reader = EventReader::ConfigureEvents(
+      event_config->target_cpu(), event_config.value());
   if (!event_reader.has_value()) {
     PERFETTO_ELOG("Failed to set up perf events.");
     return;
@@ -388,6 +388,7 @@ PerfProducer::CompletedSample PerfProducer::UnwindSample(
     ParsedSample sample,
     DataSource::ProcDescriptors* process_state) {
   PerfProducer::CompletedSample ret;
+  ret.cpu = sample.cpu;
   ret.pid = sample.pid;
   ret.tid = sample.tid;
   ret.timestamp = sample.timestamp;
@@ -473,11 +474,12 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   ds.interning_output.WriteCallstack(callstack_root, &callstack_trie_,
                                      interned_out);
 
-  // TODO(rsavitski): placeholder packet type. Trace processor will ingest
-  // this mostly fine, but the timestamp assumptions are completely different.
-  auto* streaming_packet = packet->set_streaming_profile_packet();
-  streaming_packet->add_callstack_iid(callstack_iid);
-  streaming_packet->add_timestamp_delta_us(0);
+  // write sample itself
+  auto* perf_sample = packet->set_perf_sample();
+  perf_sample->set_cpu(sample.cpu);
+  perf_sample->set_pid(static_cast<uint32_t>(sample.pid));
+  perf_sample->set_tid(static_cast<uint32_t>(sample.tid));
+  perf_sample->set_callstack_iid(callstack_iid);
 }
 
 void PerfProducer::InitiateReaderStop(DataSource* ds) {
