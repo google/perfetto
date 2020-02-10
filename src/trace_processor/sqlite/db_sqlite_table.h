@@ -101,6 +101,15 @@ class DbSqliteTable : public SqliteTable {
     QueryCache* cache;
     const Table* table;
   };
+  struct TableOutline {
+    struct ColumnOutline {
+      bool is_id;
+      bool is_sorted;
+    };
+
+    uint32_t row_count;
+    std::vector<ColumnOutline> columns;
+  };
 
   static void RegisterTable(sqlite3* db,
                             QueryCache* cache,
@@ -118,11 +127,19 @@ class DbSqliteTable : public SqliteTable {
   int ModifyConstraints(QueryConstraints*) override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
-  static SqliteTable::Schema ComputeSchema(const Table& table,
+  // These static functions are useful to allow other callers to make use
+  // of them.
+  static SqliteTable::Schema ComputeSchema(const Table&,
                                            const char* table_name);
+  static void ModifyConstraints(const Table&, QueryConstraints*);
+  static TableOutline OutlineFromTable(const Table&);
+  static void BestIndex(const TableOutline&,
+                        const QueryConstraints&,
+                        BestIndexInfo*);
 
   // static for testing.
-  static QueryCost EstimateCost(const Table& table, const QueryConstraints& qc);
+  static QueryCost EstimateCost(const TableOutline&,
+                                const QueryConstraints& qc);
 
  private:
   QueryCache* cache_ = nullptr;

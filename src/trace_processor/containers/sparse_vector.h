@@ -41,6 +41,9 @@ class SparseVector {
   // Creates an empty SparseVector.
   SparseVector() = default;
 
+  SparseVector(SparseVector&&) = default;
+  SparseVector& operator=(SparseVector&&) noexcept = default;
+
   // Returns the optional value at |idx| or base::nullopt if the value is null.
   base::Optional<T> Get(uint32_t idx) const {
     auto opt_idx = valid_.IndexOf(idx);
@@ -103,9 +106,6 @@ class SparseVector {
  private:
   explicit SparseVector(const SparseVector&) = delete;
   SparseVector& operator=(const SparseVector&) = delete;
-
-  SparseVector(SparseVector&&) = delete;
-  SparseVector& operator=(SparseVector&&) noexcept = delete;
 
   std::deque<T> data_;
   RowMap valid_;
