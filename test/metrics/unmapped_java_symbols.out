@@ -6,6 +6,12 @@ unmapped_java_symbols {
     }
     type_name: "FactoryProducerDelegateImplActor"
     type_name: "a"
-    field_name: "FactoryProducerDelegateImplActor.a"
+    field {
+      field_name: "FactoryProducerDelegateImplActor.a"
+    }
+    field {
+      field_name: "FactoryProducerDelegateImplActor.b"
+      field_type_name: "FactoryProducerDelegateImplActor"
+    }
   }
 }
