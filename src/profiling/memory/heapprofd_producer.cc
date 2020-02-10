@@ -360,7 +360,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
 
-  WriteFixedInternings(data_source.trace_writer.get());
+  InterningOutputTracker::WriteFixedInterningsPacket(
+      data_source.trace_writer.get());
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
 

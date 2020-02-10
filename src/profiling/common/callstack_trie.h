@@ -18,6 +18,7 @@
 #define SRC_PROFILING_COMMON_CALLSTACK_TRIE_H_
 
 #include <string>
+#include <typeindex>
 #include <vector>
 
 #include "perfetto/ext/base/lookup_set.h"
@@ -174,9 +175,8 @@ class GlobalCallstackTrie {
 }  // namespace profiling
 }  // namespace perfetto
 
-namespace std {
 template <>
-struct hash<::perfetto::profiling::Mapping> {
+struct std::hash<::perfetto::profiling::Mapping> {
   using argument_type = ::perfetto::profiling::Mapping;
   using result_type = size_t;
   result_type operator()(const argument_type& mapping) {
@@ -194,7 +194,7 @@ struct hash<::perfetto::profiling::Mapping> {
 };
 
 template <>
-struct hash<::perfetto::profiling::Frame> {
+struct std::hash<::perfetto::profiling::Frame> {
   using argument_type = ::perfetto::profiling::Frame;
   using result_type = size_t;
   result_type operator()(const argument_type& frame) {
@@ -204,6 +204,5 @@ struct hash<::perfetto::profiling::Frame> {
     return h;
   }
 };
-}  // namespace std
 
 #endif  // SRC_PROFILING_COMMON_CALLSTACK_TRIE_H_
