@@ -63,11 +63,14 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   void OnDisconnect() override;
   void OnTracingSetup() override {}
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
-  void StartDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
-  void StopDataSource(DataSourceInstanceID) override;
-  void Flush(FlushRequestID,
+  void StartDataSource(DataSourceInstanceID instance_id,
+                       const DataSourceConfig& config) override;
+  void StopDataSource(DataSourceInstanceID instance_id) override;
+  void Flush(FlushRequestID flush_id,
              const DataSourceInstanceID* data_source_ids,
              size_t num_data_sources) override;
+
+  // TODO(rsavitski): clear ds->interning_output, then re-emit fixed internings.
   void ClearIncrementalState(const DataSourceInstanceID* /*data_source_ids*/,
                              size_t /*num_data_sources*/) override {}
 
@@ -114,6 +117,9 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
     // Tracks the incremental state for interned entries.
     InterningOutputTracker interning_output;
+
+    bool reader_stopping = false;
+    bool unwind_stopping = false;
   };
 
   // Entry in an unwinding queue. Either a sample that requires unwinding, or a
@@ -126,15 +132,14 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     ParsedSample sample;
   };
 
-  // Entry in a bookeeping queue. Represents a processed sample.
-  struct BookkeepingEntry {
-    BookkeepingEntry() = default;
+  // Fully processed sample that is ready for output.
+  struct CompletedSample {
     // move-only
-    BookkeepingEntry(const BookkeepingEntry&) = delete;
-    BookkeepingEntry& operator=(const BookkeepingEntry&) = delete;
-
-    BookkeepingEntry(BookkeepingEntry&&) = default;
-    BookkeepingEntry& operator=(BookkeepingEntry&&) = default;
+    CompletedSample() = default;
+    CompletedSample(const CompletedSample&) = delete;
+    CompletedSample& operator=(const CompletedSample&) = delete;
+    CompletedSample(CompletedSample&&) = default;
+    CompletedSample& operator=(CompletedSample&&) = default;
 
     pid_t pid = 0;
     pid_t tid = 0;
@@ -153,18 +158,29 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   void PostDescriptorLookupTimeout(DataSourceInstanceID ds_id,
                                    pid_t pid,
                                    uint32_t timeout_ms);
-  void HandleDescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
+  void DescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
 
   void TickDataSourceUnwind(DataSourceInstanceID ds_id);
-  void ProcessUnwindQueue(std::deque<UnwindEntry>* input_queue,
-                          std::queue<BookkeepingEntry>* output_queue,
+  // Returns true if we should keep processing the queue (i.e. we should
+  // continue the unwinder ticks).
+  bool ProcessUnwindQueue(DataSourceInstanceID ds_id,
+                          std::deque<UnwindEntry>* input_queue,
                           DataSource* ds_ptr);
+  CompletedSample UnwindSample(ParsedSample sample,
+                               DataSource::ProcDescriptors* process_state);
 
-  BookkeepingEntry UnwindSample(ParsedSample sample,
-                                DataSource::ProcDescriptors* process_state);
+  void PostEmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
+  void EmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
 
-  // TODO(rsavitski): bookkeeping is not an entirely accurate name for this.
-  void TickDataSourceBookkeep(DataSourceInstanceID ds_id);
+  // Starts the shutdown of the given data source instance, starting with the
+  // reader frontend.
+  void InitiateReaderStop(DataSource* ds);
+  // TODO(rsavitski): under a dedicated unwind thread, this becomes a PostTask
+  // for the instance id.
+  void InitiateUnwindStop(DataSource* ds);
+  // Destroys the state belonging to this instance, and notifies the tracing
+  // service of the stop.
+  void FinishDataSourceStop(DataSourceInstanceID ds_id);
 
   // Task runner owned by the main thread.
   base::TaskRunner* const task_runner_;
@@ -190,8 +206,6 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
   std::map<DataSourceInstanceID, DataSource> data_sources_;
   std::map<DataSourceInstanceID, std::deque<UnwindEntry>> unwind_queues_;
-  std::map<DataSourceInstanceID, std::queue<BookkeepingEntry>>
-      bookkeping_queues_;
 
   base::WeakPtrFactory<PerfProducer> weak_factory_;  // keep last
 };
