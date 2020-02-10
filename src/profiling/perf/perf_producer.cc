@@ -36,6 +36,7 @@
 #include "src/profiling/perf/event_reader.h"
 
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -97,12 +98,18 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   auto writer = endpoint_->CreateTraceWriter(buffer_id);
 
   // Construct the data source instance.
-  auto it_inserted = data_sources_.emplace(
+
+  std::map<DataSourceInstanceID, DataSource>::iterator ds_it;
+  bool inserted;
+  std::tie(ds_it, inserted) = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(instance_id),
       std::forward_as_tuple(std::move(writer),
                             std::move(event_reader.value())));
+  PERFETTO_CHECK(inserted);
 
-  PERFETTO_CHECK(it_inserted.second);
+  // Write out a packet to initialize the incremental state for this sequence.
+  InterningOutputTracker::WriteFixedInterningsPacket(
+      ds_it->second.trace_writer.get());
 
   // Kick off periodic read task.
   auto weak_this = weak_factory_.GetWeakPtr();
@@ -450,19 +457,25 @@ void PerfProducer::TickDataSourceBookkeep(DataSourceInstanceID ds_id) {
   while (!queue.empty()) {
     BookkeepingEntry& entry = queue.front();
 
-    GlobalCallstackTrie::Node* node =
+    // intern callsite
+    GlobalCallstackTrie::Node* callstack_root =
         callstack_trie_.CreateCallsite(entry.frames);
-    std::vector<Interned<Frame>> extracted =
-        callstack_trie_.BuildCallstack(node);
+    uint64_t callstack_iid = callstack_root->id();
 
-    PERFETTO_DLOG("Extracted from interner:");
-    for (const auto& f : extracted) {
-      PERFETTO_DLOG("%u -> %s", static_cast<unsigned>(f.id()),
-                    f->function_name->c_str());
-    }
-
+    // start packet
     auto packet = ds.trace_writer->NewTracePacket();
     packet->set_timestamp(entry.timestamp);
+
+    // write new interning data (if any)
+    protos::pbzero::InternedData* interned_out = packet->set_interned_data();
+    ds.interning_output.WriteCallstack(callstack_root, &callstack_trie_,
+                                       interned_out);
+
+    // TODO(rsavitski): placeholder packet type. Trace processor will ingest
+    // this mostly fine, but the timestamp assumptions are completely different.
+    auto* streaming_packet = packet->set_streaming_profile_packet();
+    streaming_packet->add_callstack_iid(callstack_iid);
+    streaming_packet->add_timestamp_delta_us(0);
 
     queue.pop();
   }
