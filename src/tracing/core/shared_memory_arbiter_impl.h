@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -31,6 +32,7 @@
 #include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/core/id_allocator.h"
+
 namespace perfetto {
 
 class PatchList;
@@ -47,10 +49,52 @@ class TaskRunner;
 // This class is thread-safe and uses locks to do so. Data sources are supposed
 // to interact with this sporadically, only when they run out of space on their
 // current thread-local chunk.
+//
+// When the arbiter is created using CreateUnboundInstance(), the following
+// state transitions are possible:
+//
+//   [ !fully_bound_, !endpoint_, 0 unbound buffer reservations ]
+//       |     |
+//       |     | CreateStartupTraceWriter(buf)
+//       |     |  buffer reservations += buf
+//       |     |
+//       |     |             ----
+//       |     |            |    | CreateStartupTraceWriter(buf)
+//       |     |            |    |  buffer reservations += buf
+//       |     V            |    V
+//       |   [ !fully_bound_, !endpoint_, >=1 unbound buffer reservations ]
+//       |                                                |
+//       |                       BindToProducerEndpoint() |
+//       |                                                |
+//       | BindToProducerEndpoint()                       |
+//       |                                                V
+//       |   [ !fully_bound_, endpoint_, >=1 unbound buffer reservations ]
+//       |   A    |    A                               |     A
+//       |   |    |    |                               |     |
+//       |   |     ----                                |     |
+//       |   |    CreateStartupTraceWriter(buf)        |     |
+//       |   |     buffer reservations += buf          |     |
+//       |   |                                         |     |
+//       |   | CreateStartupTraceWriter(buf)           |     |
+//       |   |  where buf is not yet bound             |     |
+//       |   |  buffer reservations += buf             |     | (yes)
+//       |   |                                         |     |
+//       |   |        BindStartupTargetBuffer(buf, id) |-----
+//       |   |           buffer reservations -= buf    | reservations > 0?
+//       |   |                                         |
+//       |   |                                         | (no)
+//       V   |                                         V
+//       [ fully_bound_, endpoint_, 0 unbound buffer reservations ]
+//          |    A
+//          |    | CreateStartupTraceWriter(buf)
+//          |    |  where buf is already bound
+//           ----
 class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
  public:
   // See SharedMemoryArbiter::CreateInstance(). |start|, |size| define the
-  // boundaries of the shared memory buffer.
+  // boundaries of the shared memory buffer. ProducerEndpoint and TaskRunner may
+  // be |nullptr| if created unbound, see
+  // SharedMemoryArbiter::CreateUnboundInstance().
   SharedMemoryArbiterImpl(void* start,
                           size_t size,
                           size_t page_size,
@@ -73,14 +117,14 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // first patched entries will be removed from the patched list and sent over
   // to the service in the same CommitData() IPC request.
   void ReturnCompletedChunk(SharedMemoryABI::Chunk,
-                            BufferID target_buffer,
+                            MaybeUnboundBufferID target_buffer,
                             PatchList*);
 
   // Send a request to the service to apply completed patches from |patch_list|.
   // |writer_id| is the ID of the TraceWriter that calls this method,
   // |target_buffer| is the global trace buffer ID of its target buffer.
   void SendPatches(WriterID writer_id,
-                   BufferID target_buffer,
+                   MaybeUnboundBufferID target_buffer,
                    PatchList* patch_list);
 
   // Forces a synchronous commit of the completed packets without waiting for
@@ -98,10 +142,15 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy = BufferExhaustedPolicy::kDefault) override;
+  std::unique_ptr<TraceWriter> CreateStartupTraceWriter(
+      uint16_t target_buffer_reservation_id) override;
+  void BindToProducerEndpoint(TracingService::ProducerEndpoint*,
+                              base::TaskRunner*) override;
+  void BindStartupTargetBuffer(uint16_t target_buffer_reservation_id,
+                               BufferID target_buffer_id) override;
   void BindStartupTraceWriterRegistry(
       std::unique_ptr<StartupTraceWriterRegistry>,
       BufferID target_buffer) override;
-
   void NotifyFlushComplete(FlushRequestID) override;
 
   base::TaskRunner* task_runner() const { return task_runner_; }
@@ -115,6 +164,11 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
  private:
   friend class TraceWriterImpl;
   friend class StartupTraceWriterTest;
+  friend class SharedMemoryArbiterImplTest;
+
+  // Placeholder for the actual target buffer ID of a startup target buffer
+  // reservation ID in |target_buffer_reservations_|.
+  static constexpr BufferID kUnboundReservationBufferId = 0;
 
   static SharedMemoryABI::PageLayout default_page_layout;
 
@@ -123,26 +177,75 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void UpdateCommitDataRequest(SharedMemoryABI::Chunk chunk,
                                WriterID writer_id,
-                               BufferID target_buffer,
+                               MaybeUnboundBufferID target_buffer,
                                PatchList* patch_list);
+
+  std::unique_ptr<TraceWriter> CreateTraceWriterInternal(
+      MaybeUnboundBufferID target_buffer,
+      BufferExhaustedPolicy);
 
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
 
-  base::TaskRunner* const task_runner_;
-  TracingService::ProducerEndpoint* const producer_endpoint_;
+  // If any flush callbacks were queued up while the arbiter or any target
+  // buffer reservation was unbound, this wraps the pending callbacks into a new
+  // std::function and returns it. Otherwise returns an invalid std::function.
+  std::function<void()> TakePendingFlushCallbacksLocked();
+
+  // Replace occurrences of target buffer reservation IDs in |commit_data_req_|
+  // with their respective actual BufferIDs if they were already bound. Returns
+  // true iff all occurrences were replaced.
+  bool ReplaceCommitPlaceholderBufferIdsLocked();
+
+  // Update and return |fully_bound_| based on the arbiter's |pending_writers_|
+  // state.
+  bool UpdateFullyBoundLocked();
+
+  const bool initially_bound_;
+  // Only accessed on |task_runner_| after the producer endpoint was bound.
+  TracingService::ProducerEndpoint* producer_endpoint_ = nullptr;
 
   // --- Begin lock-protected members ---
+
   std::mutex lock_;
+
+  base::TaskRunner* task_runner_ = nullptr;
   SharedMemoryABI shmem_abi_;
   size_t page_idx_ = 0;
   std::unique_ptr<CommitDataRequest> commit_data_req_;
   size_t bytes_pending_commit_ = 0;  // SUM(chunk.size() : commit_data_req_).
   IdAllocator<WriterID> active_writer_ids_;
+
   // Registries whose Bind() is in progress. We destroy each registry when their
   // Bind() is complete or when the arbiter is destroyed itself.
   std::vector<std::unique_ptr<StartupTraceWriterRegistry>>
       startup_trace_writer_registries_;
+
+  // Whether the arbiter itself and all startup target buffer reservations are
+  // bound. Note that this can become false again later if a new target buffer
+  // reservation is created by calling CreateStartupTraceWriter() with a new
+  // reservation id.
+  bool fully_bound_;
+
+  // IDs of writers and their assigned target buffers that should be registered
+  // with the service after the arbiter and/or their startup target buffer is
+  // bound.
+  std::map<WriterID, MaybeUnboundBufferID> pending_writers_;
+
+  // Callbacks for flush requests issued while the arbiter or a target buffer
+  // reservation was unbound.
+  std::vector<std::function<void()>> pending_flush_callbacks_;
+
+  // Stores target buffer reservations for writers created via
+  // CreateStartupTraceWriter(). An unbound reservation will be associated with
+  // kStartupBufferPlaceholderId; a bound one is associated with the actual
+  // BufferID supplied in BindStartupTargetBuffer().
+  //
+  // TODO(eseckler): Clean up entries from this map. This would probably require
+  // a method in SharedMemoryArbiter that allows a producer to invalidate a
+  // reservation ID.
+  std::map<MaybeUnboundBufferID, BufferID> target_buffer_reservations_;
+
   // --- End lock-protected members ---
 
   // Keep at the end.

@@ -462,7 +462,7 @@ TEST_P(StartupTraceWriterTest, BindAndCommitInBatchesWithSMBExhaustion) {
 
   // Return and free the first chunk, so that there is only a single free chunk.
   PatchList ignored;
-  arbiter_->ReturnCompletedChunk(std::move(chunks[0]), 0, &ignored);
+  arbiter_->ReturnCompletedChunk(std::move(chunks[0]), 42, &ignored);
   chunks[0] =
       arbiter_->shmem_abi_for_testing()->TryAcquireChunkForReading(0, 0);
   ASSERT_TRUE(chunks[0].is_valid());
@@ -484,7 +484,7 @@ TEST_P(StartupTraceWriterTest, BindAndCommitInBatchesWithSMBExhaustion) {
 
   // Free up the other SMB chunks.
   for (size_t i = 1; i < kTotChunks; i++) {
-    arbiter_->ReturnCompletedChunk(std::move(chunks[i]), 0, &ignored);
+    arbiter_->ReturnCompletedChunk(std::move(chunks[i]), 42, &ignored);
     chunks[i] =
         arbiter_->shmem_abi_for_testing()->TryAcquireChunkForReading(i, 0);
     ASSERT_TRUE(chunks[i].is_valid());

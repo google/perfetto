@@ -48,11 +48,60 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is
   // written in each chunk header owned by a given TraceWriter and is used by
   // the Service to reconstruct TracePackets written by the same TraceWriter.
-  // Returns null impl of TraceWriter if all WriterID slots are exhausted.
+  // Returns null impl of TraceWriter if all WriterID slots are exhausted. The
+  // writer will commit to the provided |target_buffer|. If the arbiter was
+  // created via CreateUnbound(), only BufferExhaustedPolicy::kDrop is
+  // supported.
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy =
           BufferExhaustedPolicy::kDefault) = 0;
+
+  // Creates a TraceWriter that will commit to the target buffer with the given
+  // reservation ID (creating a new reservation for this ID if none exists yet).
+  // The buffer reservation should be bound to an actual BufferID via
+  // BindStartupTargetBuffer() once the actual BufferID is known. Only supported
+  // if the arbiter was created using CreateUnbound(), and may be called while
+  // the arbiter is unbound.
+  //
+  // While any unbound buffer reservation exists, all commits will be buffered
+  // until all reservations were bound. Thus, until all reservations are bound,
+  // the data written to the SMB will not be consumed by the service - the SMB
+  // size should be chosen with this in mind. Startup writers always use
+  // BufferExhaustedPolicy::kDrop, as we cannot feasibly stall while not
+  // flushing to the service.
+  //
+  // The |target_buffer_reservation_id| should be greater than 0 but can
+  // otherwise be freely chosen by the producer and is only used to translate
+  // packets into the actual buffer id once
+  // BindStartupTargetBuffer(reservation_id) is called. For example, Chrome uses
+  // startup tracing not only for the first, but also subsequent tracing
+  // sessions (to enable tracing in the browser process before it instructs the
+  // tracing service to start tracing asynchronously, minimizing trace data loss
+  // in the meantime), and increments the reservation ID between sessions.
+  // Similarly, if more than a single target buffer per session is required
+  // (e.g. for two different data sources), different reservation IDs should be
+  // chosen for different targets buffers.
+  virtual std::unique_ptr<TraceWriter> CreateStartupTraceWriter(
+      uint16_t target_buffer_reservation_id) = 0;
+
+  // Should only be called on unbound SharedMemoryArbiters. Binds the arbiter to
+  // the provided ProducerEndpoint and TaskRunner. Should be called only once
+  // and on the provided |TaskRunner|. Usually called by the producer (i.e., no
+  // specific data source) once it connects to the service. Both the endpoint
+  // and task runner should remain valid for the remainder of the arbiter's
+  // lifetime.
+  virtual void BindToProducerEndpoint(TracingService::ProducerEndpoint*,
+                                      base::TaskRunner*) = 0;
+
+  // Binds commits from TraceWriters created via CreateStartupTraceWriter() with
+  // the given |target_buffer_reservation_id| to |target_buffer_id|. May only be
+  // called once per |target_buffer_reservation_id|. Should be called on the
+  // arbiter's TaskRunner, and after BindToProducerEndpoint() was called.
+  // Usually, it is called by a specific data source, after it received its
+  // configuration (including the target buffer ID) from the service.
+  virtual void BindStartupTargetBuffer(uint16_t target_buffer_reservation_id,
+                                       BufferID target_buffer_id) = 0;
 
   // Binds the provided unbound StartupTraceWriterRegistry to the arbiter's SMB.
   // Normally this happens when the perfetto service has been initialized and we
@@ -71,18 +120,19 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // By calling this method, the registry's ownership is transferred to the
   // arbiter. The arbiter will delete the registry once all writers were bound.
   //
-  // TODO(eseckler): Make target buffer assignment more flexible (i.e. per
-  // writer). For now, embedders can use multiple registries instead.
+  // DEPRECATED. See SharedMemoryArbiter::CreateUnboundInstance() for a
+  // replacement.
+  //
+  // TODO(eseckler): Remove StartupTraceWriter support.
   virtual void BindStartupTraceWriterRegistry(
       std::unique_ptr<StartupTraceWriterRegistry>,
       BufferID target_buffer) = 0;
 
   // Notifies the service that all data for the given FlushRequestID has been
-  // committed in the shared memory buffer.
+  // committed in the shared memory buffer. Should only be called while bound.
   virtual void NotifyFlushComplete(FlushRequestID) = 0;
 
-  // Implemented in src/core/shared_memory_arbiter_impl.cc.
-  // Args:
+  // Create a bound arbiter instance. Args:
   // |SharedMemory|: the shared memory buffer to use.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing
   // pages. See tradeoff considerations in shared_memory_abi.h.
@@ -90,11 +140,34 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // chunks and register trace writers.
   // |TaskRunner|: Task runner for perfetto's main thread, which executes the
   // OnPagesCompleteCallback and IPC calls to the |ProducerEndpoint|.
+  //
+  // Implemented in src/core/shared_memory_arbiter_impl.cc.
   static std::unique_ptr<SharedMemoryArbiter> CreateInstance(
       SharedMemory*,
       size_t page_size,
       TracingService::ProducerEndpoint*,
       base::TaskRunner*);
+
+  // Create an unbound arbiter instance, which should later be bound to a
+  // ProducerEndpoint and TaskRunner by calling BindToProducerEndpoint(). The
+  // returned arbiter will ONLY support trace writers with
+  // BufferExhaustedPolicy::kDrop.
+  //
+  // An unbound SharedMemoryArbiter can be used to write to a producer-created
+  // SharedMemory buffer before the producer connects to the tracing service.
+  // The producer can then pass this SMB to the service when it connects (see
+  // TracingService::ConnectProducer).
+  //
+  // To trace into the SMB before the service starts the tracing session, trace
+  // writers can be obtained via CreateStartupTraceWriter() and later associated
+  // with a target buffer via BindStartupTargetBuffer(), once the target buffer
+  // is known.
+  //
+  // Implemented in src/core/shared_memory_arbiter_impl.cc. See CreateInstance()
+  // for comments about the arguments.
+  static std::unique_ptr<SharedMemoryArbiter> CreateUnboundInstance(
+      SharedMemory*,
+      size_t page_size);
 };
 
 }  // namespace perfetto
