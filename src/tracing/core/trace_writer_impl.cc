@@ -42,7 +42,7 @@ uint8_t g_garbage_chunk[1024];
 
 TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
                                  WriterID id,
-                                 BufferID target_buffer,
+                                 MaybeUnboundBufferID target_buffer,
                                  BufferExhaustedPolicy buffer_exhausted_policy)
     : shmem_arbiter_(shmem_arbiter),
       id_(id),

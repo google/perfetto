@@ -68,6 +68,11 @@ class TracePacket;
 //
 // While unbound, the writer thread should finalize each TracePacket as soon as
 // possible to ensure that it doesn't block binding the writer.
+//
+// DEPRECATED. See SharedMemoryArbiter::CreateUnboundInstance() for a
+// replacement.
+//
+// TODO(eseckler): Remove StartupTraceWriter support.
 class PERFETTO_EXPORT StartupTraceWriter
     : public TraceWriter,
       public protozero::MessageHandleBase::FinalizationListener {
