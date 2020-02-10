@@ -216,7 +216,6 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
   const char* parse_pos = *data;
   uint64_t sampled_abi;
   parse_pos = ReadValue(&sampled_abi, parse_pos);
-  PERFETTO_DLOG("sampled abi: %" PRIu64 "", sampled_abi);
 
   // Unpack the densely-packed register values into |RawRegisterData|, which has
   // a value for every register (unsampled registers will be left at zero).
