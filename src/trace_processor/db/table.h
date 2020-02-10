@@ -70,6 +70,8 @@ class Table {
     std::vector<RowMap::Iterator> its_;
   };
 
+  Table();
+
   // We explicitly define the move constructor here because we need to update
   // the Table pointer in each column in the table.
   Table(Table&& other) noexcept { *this = std::move(other); }
@@ -128,6 +130,20 @@ class Table {
   //  * |left| is not allowed to have any nulls.
   //  * |left|'s values must exist in |right|
   Table LookupJoin(JoinKey left, const Table& other, JoinKey right);
+
+  template <typename T>
+  Table ExtendWithColumn(const char* name,
+                         SparseVector<T>* sv,
+                         uint32_t flags) const {
+    PERFETTO_DCHECK(sv->size() == row_count_);
+
+    uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
+    Table ret = Copy();
+    ret.columns_.emplace_back(
+        Column(name, sv, flags, &ret, GetColumnCount(), row_map_count));
+    ret.row_maps_.emplace_back(RowMap(0, sv->size()));
+    return ret;
+  }
 
   // Returns the column at index |idx| in the Table.
   const Column& GetColumn(uint32_t idx) const { return columns_[idx]; }

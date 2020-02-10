@@ -124,8 +124,25 @@ SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table& table,
 }
 
 int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  // TODO(lalitm): investigate SQLITE_INDEX_SCAN_UNIQUE for id columns.
-  auto cost_and_rows = EstimateCost(*table_, qc);
+  BestIndex(OutlineFromTable(*table_), qc, info);
+  return SQLITE_OK;
+}
+
+DbSqliteTable::TableOutline DbSqliteTable::OutlineFromTable(
+    const Table& table) {
+  TableOutline outline;
+  outline.row_count = table.row_count();
+  for (uint32_t i = 0; i < table.GetColumnCount(); ++i) {
+    const auto& col = table.GetColumn(i);
+    outline.columns.push_back({col.IsId(), col.IsSorted()});
+  }
+  return outline;
+}
+
+void DbSqliteTable::BestIndex(const TableOutline& outline,
+                              const QueryConstraints& qc,
+                              BestIndexInfo* info) {
+  auto cost_and_rows = EstimateCost(outline, qc);
   info->estimated_cost = cost_and_rows.cost;
   info->estimated_rows = cost_and_rows.rows;
 
@@ -140,20 +157,25 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
 
   // We can sort on any column correctly.
   info->sqlite_omit_order_by = true;
-  return SQLITE_OK;
 }
 
 int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
+  ModifyConstraints(*table_, qc);
+  return SQLITE_OK;
+}
+
+void DbSqliteTable::ModifyConstraints(const Table& table,
+                                      QueryConstraints* qc) {
   using C = QueryConstraints::Constraint;
 
   // Reorder constraints to consider the constraints on columns which are
   // cheaper to filter first.
   auto* cs = qc->mutable_constraints();
-  std::sort(cs->begin(), cs->end(), [this](const C& a, const C& b) {
+  std::sort(cs->begin(), cs->end(), [&table](const C& a, const C& b) {
     uint32_t a_idx = static_cast<uint32_t>(a.column);
     uint32_t b_idx = static_cast<uint32_t>(b.column);
-    const auto& a_col = table_->GetColumn(a_idx);
-    const auto& b_col = table_->GetColumn(b_idx);
+    const auto& a_col = table.GetColumn(a_idx);
+    const auto& b_col = table.GetColumn(b_idx);
 
     // Id columns are always very cheap to filter on so try and get them
     // first.
@@ -186,20 +208,18 @@ int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
   // constraints until the first non-sorted column or the first order by in
   // descending order.
   {
-    auto p = [this](const QueryConstraints::OrderBy& o) {
-      const auto& col = table_->GetColumn(static_cast<uint32_t>(o.iColumn));
+    auto p = [&table](const QueryConstraints::OrderBy& o) {
+      const auto& col = table.GetColumn(static_cast<uint32_t>(o.iColumn));
       return o.desc || !col.IsSorted();
     };
     auto first_non_sorted_it = std::find_if(ob->rbegin(), ob->rend(), p);
     auto pop_count = std::distance(ob->rbegin(), first_non_sorted_it);
     ob->resize(ob->size() - static_cast<uint32_t>(pop_count));
   }
-
-  return SQLITE_OK;
 }
 
 DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
-    const Table& table,
+    const TableOutline& outline,
     const QueryConstraints& qc) {
   // Currently our cost estimation algorithm is quite simplistic but is good
   // enough for the simplest cases.
@@ -214,7 +234,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   // end of filtering. Note that |current_row_count| should always be at least 1
   // unless we are absolutely certain that we will return no rows as otherwise
   // SQLite can make some bad choices.
-  uint32_t current_row_count = table.row_count();
+  uint32_t current_row_count = outline.row_count;
 
   // If the table is empty, any constraint set only pays the fixed cost. Also we
   // can return 0 as the row count as we are certain that we will return no
@@ -228,8 +248,8 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   for (const auto& c : cs) {
     if (current_row_count < 2)
       break;
-    const auto& col = table.GetColumn(static_cast<uint32_t>(c.column));
-    if (sqlite_utils::IsOpEq(c.op) && col.IsId()) {
+    const auto& col_outline = outline.columns[static_cast<uint32_t>(c.column)];
+    if (sqlite_utils::IsOpEq(c.op) && col_outline.is_id) {
       // If we have an id equality constraint, it's a bit expensive to find
       // the exact row but it filters down to a single row.
       filter_cost += 100;
@@ -242,7 +262,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       // Alternatively, if the column is sorted, we can use the same binary
       // search logic so we have the same low cost (even better because we don't
       // have to sort at all).
-      filter_cost += cs.size() == 1 || col.IsSorted()
+      filter_cost += cs.size() == 1 || col_outline.is_sorted
                          ? (2 * current_row_count) / log2(current_row_count)
                          : current_row_count;
 
