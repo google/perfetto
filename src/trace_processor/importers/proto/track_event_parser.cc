@@ -18,6 +18,11 @@
 
 #include <string>
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#include <json/reader.h>
+#include <json/value.h>
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
@@ -1029,15 +1034,81 @@ void TrackEventParser::ParseDebugAnnotationArgs(
         Variadic::String(storage->InternString(annotation.string_value())));
   } else if (annotation.has_pointer_value()) {
     inserter->AddArg(name_id, Variadic::Pointer(annotation.pointer_value()));
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   } else if (annotation.has_legacy_json_value()) {
-    inserter->AddArg(
-        name_id,
-        Variadic::Json(storage->InternString(annotation.legacy_json_value())));
+    auto name = storage->GetString(name_id);
+    Json::Reader reader;
+    Json::Value value;
+    const char* begin = annotation.legacy_json_value().data;
+    reader.parse(begin, begin + annotation.legacy_json_value().size, value);
+    ParseJsonValueArgs(value, name, name, inserter);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   } else if (annotation.has_nested_value()) {
     auto name = storage->GetString(name_id);
     ParseNestedValueArgs(annotation.nested_value(), name, name, inserter);
   }
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+void TrackEventParser::ParseJsonValueArgs(
+    const Json::Value& value,
+    base::StringView flat_key,
+    base::StringView key,
+    ArgsTracker::BoundInserter* inserter) {
+  if (value.isObject()) {
+    auto it = value.begin();
+    for (; it != value.end(); ++it) {
+      std::string child_name = it.memberName();
+      std::string child_flat_key = flat_key.ToStdString() + "." + child_name;
+      std::string child_key = key.ToStdString() + "." + child_name;
+      ParseJsonValueArgs(*it, base::StringView(child_flat_key),
+                         base::StringView(child_key), inserter);
+    }
+    return;
+  }
+
+  if (value.isArray()) {
+    auto it = value.begin();
+    for (; it != value.end(); ++it) {
+      std::string child_key =
+          key.ToStdString() + "[" + std::to_string(it.index()) + "]";
+      ParseJsonValueArgs(*it, flat_key, base::StringView(child_key), inserter);
+    }
+    return;
+  }
+
+  // Leaf value.
+  auto flat_key_id = context_->storage->InternString(flat_key);
+  auto key_id = context_->storage->InternString(key);
+
+  switch (value.type()) {
+    case Json::ValueType::nullValue:
+      break;
+    case Json::ValueType::intValue:
+      inserter->AddArg(flat_key_id, key_id, Variadic::Integer(value.asInt64()));
+      break;
+    case Json::ValueType::uintValue:
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::UnsignedInteger(value.asUInt64()));
+      break;
+    case Json::ValueType::realValue:
+      inserter->AddArg(flat_key_id, key_id, Variadic::Real(value.asDouble()));
+      break;
+    case Json::ValueType::stringValue:
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::String(context_->storage->InternString(
+                           base::StringView(value.asString()))));
+      break;
+    case Json::ValueType::booleanValue:
+      inserter->AddArg(flat_key_id, key_id, Variadic::Boolean(value.asBool()));
+      break;
+    case Json::ValueType::objectValue:
+    case Json::ValueType::arrayValue:
+      PERFETTO_FATAL("Non-leaf types handled above");
+      break;
+  }
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 void TrackEventParser::ParseNestedValueArgs(
     ConstBytes nested_value,
