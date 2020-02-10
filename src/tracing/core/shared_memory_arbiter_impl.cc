@@ -16,6 +16,10 @@
 
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
+#include <algorithm>
+#include <limits>
+#include <utility>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
@@ -25,16 +29,32 @@
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/trace_writer_impl.h"
 
-#include <limits>
-#include <utility>
-
 namespace perfetto {
 
 using Chunk = SharedMemoryABI::Chunk;
 
+namespace {
+static_assert(sizeof(BufferID) == sizeof(uint16_t),
+              "The MaybeUnboundBufferID logic requires BufferID not to grow "
+              "above uint16_t.");
+
+MaybeUnboundBufferID MakeTargetBufferIdForReservation(uint16_t reservation_id) {
+  // Reservation IDs are stored in the upper bits.
+  PERFETTO_CHECK(reservation_id > 0);
+  return static_cast<MaybeUnboundBufferID>(reservation_id) << 16;
+}
+
+bool IsReservationTargetBufferId(MaybeUnboundBufferID buffer_id) {
+  return (buffer_id >> 16) > 0;
+}
+}  // namespace
+
 // static
 SharedMemoryABI::PageLayout SharedMemoryArbiterImpl::default_page_layout =
     SharedMemoryABI::PageLayout::kPageDiv1;
+
+// static
+constexpr BufferID SharedMemoryArbiterImpl::kUnboundReservationBufferId;
 
 // static
 std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
@@ -47,16 +67,27 @@ std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
                                   page_size, producer_endpoint, task_runner));
 }
 
+// static
+std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateUnboundInstance(
+    SharedMemory* shared_memory,
+    size_t page_size) {
+  return std::unique_ptr<SharedMemoryArbiterImpl>(new SharedMemoryArbiterImpl(
+      shared_memory->start(), shared_memory->size(), page_size,
+      /*producer_endpoint=*/nullptr, /*task_runner=*/nullptr));
+}
+
 SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
     void* start,
     size_t size,
     size_t page_size,
     TracingService::ProducerEndpoint* producer_endpoint,
     base::TaskRunner* task_runner)
-    : task_runner_(task_runner),
+    : initially_bound_(task_runner && producer_endpoint),
       producer_endpoint_(producer_endpoint),
+      task_runner_(task_runner),
       shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
       active_writer_ids_(kMaxWriterID),
+      fully_bound_(initially_bound_),
       weak_ptr_factory_(this) {}
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
@@ -64,8 +95,16 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     BufferExhaustedPolicy buffer_exhausted_policy,
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
+  // If initially unbound, we do not support stalling. In theory, we could
+  // support stalling for TraceWriters created after the arbiter and startup
+  // buffer reservations were bound, but to avoid raciness between the creation
+  // of startup writers and binding, we categorically forbid kStall mode.
+  PERFETTO_DCHECK(initially_bound_ ||
+                  buffer_exhausted_policy == BufferExhaustedPolicy::kDrop);
+
   int stall_count = 0;
   unsigned stall_interval_us = 0;
+  bool task_runner_runs_on_current_thread = false;
   static const unsigned kMaxStallIntervalUs = 100000;
   static const int kLogAfterNStalls = 3;
   static const int kFlushCommitsAfterEveryNStalls = 2;
@@ -78,6 +117,9 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     {
       std::unique_lock<std::mutex> scoped_lock(lock_);
 
+      task_runner_runs_on_current_thread =
+          task_runner_ && task_runner_->RunsTasksOnCurrentThread();
+
       // If more than half of the SMB.size() is filled with completed chunks for
       // which we haven't notified the service yet (i.e. they are still enqueued
       // in |commit_data_req_|), force a synchronous CommitDataRequest() even if
@@ -89,9 +131,9 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
       // synchronously on another thread will lead to subtle bugs caused by
       // out-of-order commit requests (crbug.com/919187#c28).
       bool should_commit_synchronously =
+          task_runner_runs_on_current_thread &&
           buffer_exhausted_policy == BufferExhaustedPolicy::kStall &&
-          commit_data_req_ && bytes_pending_commit_ >= shmem_abi_.size() / 2 &&
-          task_runner_->RunsTasksOnCurrentThread();
+          commit_data_req_ && bytes_pending_commit_ >= shmem_abi_.size() / 2;
 
       const size_t initial_page_idx = page_idx_;
       for (size_t i = 0; i < shmem_abi_.num_pages(); i++) {
@@ -136,12 +178,14 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
           }
         }
       }
-    }  // std::unique_lock<std::mutex>
+    }  // scoped_lock
 
     if (buffer_exhausted_policy == BufferExhaustedPolicy::kDrop) {
       PERFETTO_DLOG("Shared memory buffer exhaused, returning invalid Chunk!");
       return Chunk();
     }
+
+    PERFETTO_DCHECK(initially_bound_);
 
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
     // Service).
@@ -165,7 +209,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // is the service thread. To avoid remaining stalled forever in such a
     // situation, we attempt to flush periodically after every N stalls.
     if (stall_count % kFlushCommitsAfterEveryNStalls == 0 &&
-        task_runner_->RunsTasksOnCurrentThread()) {
+        task_runner_runs_on_current_thread) {
       // TODO(primiano): sending the IPC synchronously is a temporary workaround
       // until the backpressure logic in probes_producer is sorted out. Until
       // then the risk is that we stall the message loop waiting for the tracing
@@ -183,9 +227,10 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   }
 }
 
-void SharedMemoryArbiterImpl::ReturnCompletedChunk(Chunk chunk,
-                                                   BufferID target_buffer,
-                                                   PatchList* patch_list) {
+void SharedMemoryArbiterImpl::ReturnCompletedChunk(
+    Chunk chunk,
+    MaybeUnboundBufferID target_buffer,
+    PatchList* patch_list) {
   PERFETTO_DCHECK(chunk.is_valid());
   const WriterID writer_id = chunk.writer_id();
   UpdateCommitDataRequest(std::move(chunk), writer_id, target_buffer,
@@ -193,18 +238,19 @@ void SharedMemoryArbiterImpl::ReturnCompletedChunk(Chunk chunk,
 }
 
 void SharedMemoryArbiterImpl::SendPatches(WriterID writer_id,
-                                          BufferID target_buffer,
+                                          MaybeUnboundBufferID target_buffer,
                                           PatchList* patch_list) {
   PERFETTO_DCHECK(!patch_list->empty() && patch_list->front().is_patched());
   UpdateCommitDataRequest(Chunk(), writer_id, target_buffer, patch_list);
 }
 
-void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
-                                                      WriterID writer_id,
-                                                      BufferID target_buffer,
-                                                      PatchList* patch_list) {
+void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
+    Chunk chunk,
+    WriterID writer_id,
+    MaybeUnboundBufferID target_buffer,
+    PatchList* patch_list) {
   // Note: chunk will be invalid if the call came from SendPatches().
-  bool should_post_callback = false;
+  base::TaskRunner* task_runner_to_post_callback_on = nullptr;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
@@ -212,7 +258,11 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
     if (!commit_data_req_) {
       commit_data_req_.reset(new CommitDataRequest());
       weak_this = weak_ptr_factory_.GetWeakPtr();
-      should_post_callback = true;
+
+      // Flushing the commit is only supported while we're |fully_bound_|. If we
+      // aren't, we'll flush when |fully_bound_| is updated.
+      if (fully_bound_)
+        task_runner_to_post_callback_on = task_runner_;
     }
 
     // If a valid chunk is specified, return it and attach it to the request.
@@ -260,8 +310,10 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
     }
   }  // scoped_lock(lock_)
 
-  if (should_post_callback) {
-    task_runner_->PostTask([weak_this] {
+  // We shouldn't post tasks while locked. |task_runner_to_post_callback_on|
+  // remains valid after unlocking, because |task_runner_| is never reset.
+  if (task_runner_to_post_callback_on) {
+    task_runner_to_post_callback_on->PostTask([weak_this] {
       if (weak_this)
         weak_this->FlushPendingCommitDataRequests();
     });
@@ -279,25 +331,50 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(Chunk chunk,
 //    crbug.com/919187 for more context.
 void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     std::function<void()> callback) {
-  // May be called by TraceWriterImpl on any thread.
-  if (!task_runner_->RunsTasksOnCurrentThread()) {
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_this, callback] {
-      if (weak_this)
-        weak_this->FlushPendingCommitDataRequests(std::move(callback));
-    });
-    return;
-  }
-
-  std::shared_ptr<CommitDataRequest> req;
+  std::unique_ptr<CommitDataRequest> req;
   {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
-    req = std::move(commit_data_req_);
-    bytes_pending_commit_ = 0;
-  }
+    std::unique_lock<std::mutex> scoped_lock(lock_);
 
-  // |req| could be a nullptr if |commit_data_req_| became a nullptr. For
-  // example when a forced sync flush happens in GetNewChunk().
+    // Flushing is only supported while |fully_bound_|, and there may still be
+    // unbound startup trace writers. If so, skip the commit for now - it'll be
+    // done when |fully_bound_| is updated.
+    if (!fully_bound_) {
+      if (callback)
+        pending_flush_callbacks_.push_back(callback);
+      return;
+    }
+
+    // May be called by TraceWriterImpl on any thread.
+    base::TaskRunner* task_runner = task_runner_;
+    if (!task_runner->RunsTasksOnCurrentThread()) {
+      // We shouldn't post a task while holding a lock. |task_runner| remains
+      // valid after unlocking, because |task_runner_| is never reset.
+      scoped_lock.unlock();
+
+      auto weak_this = weak_ptr_factory_.GetWeakPtr();
+      task_runner->PostTask([weak_this, callback] {
+        if (weak_this)
+          weak_this->FlushPendingCommitDataRequests(std::move(callback));
+      });
+      return;
+    }
+
+    // |commit_data_req_| could have become a nullptr, for example when a forced
+    // sync flush happens in GetNewChunk().
+    if (commit_data_req_) {
+      // Make sure any placeholder buffer IDs from StartupWriters are replaced
+      // before sending the request.
+      bool all_placeholders_replaced =
+          ReplaceCommitPlaceholderBufferIdsLocked();
+      // We're |fully_bound_|, thus all writers are bound and all placeholders
+      // should have been replaced.
+      PERFETTO_DCHECK(all_placeholders_replaced);
+
+      req = std::move(commit_data_req_);
+      bytes_pending_commit_ = 0;
+    }
+  }  // scoped_lock
+
   if (req) {
     producer_endpoint_->CommitData(*req, callback);
   } else if (callback) {
@@ -312,25 +389,137 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {
-  WriterID id;
+  PERFETTO_CHECK(target_buffer > 0);
+  return CreateTraceWriterInternal(target_buffer, buffer_exhausted_policy);
+}
+
+std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateStartupTraceWriter(
+    uint16_t target_buffer_reservation_id) {
+  PERFETTO_CHECK(!initially_bound_);
+  return CreateTraceWriterInternal(
+      MakeTargetBufferIdForReservation(target_buffer_reservation_id),
+      BufferExhaustedPolicy::kDrop);
+}
+
+void SharedMemoryArbiterImpl::BindToProducerEndpoint(
+    TracingService::ProducerEndpoint* producer_endpoint,
+    base::TaskRunner* task_runner) {
+  PERFETTO_DCHECK(producer_endpoint && task_runner);
+  PERFETTO_DCHECK(task_runner->RunsTasksOnCurrentThread());
+  PERFETTO_CHECK(!initially_bound_);
+
+  bool should_flush = false;
+  std::function<void()> flush_callback;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
-    id = active_writer_ids_.Allocate();
+    PERFETTO_CHECK(!fully_bound_);
+    PERFETTO_CHECK(!producer_endpoint_ && !task_runner_);
+
+    producer_endpoint_ = producer_endpoint;
+    task_runner_ = task_runner;
+
+    // All writers registered so far should be startup trace writers, since
+    // the producer cannot feasibly know the target buffer for any future
+    // session yet.
+    for (const auto& entry : pending_writers_) {
+      PERFETTO_CHECK(IsReservationTargetBufferId(entry.second));
+    }
+
+    // If all buffer reservations are bound, we can flush pending commits.
+    if (UpdateFullyBoundLocked()) {
+      should_flush = true;
+      flush_callback = TakePendingFlushCallbacksLocked();
+    }
+  }  // scoped_lock
+
+  // Attempt to flush any pending commits (and run pending flush callbacks). If
+  // there are none, this will have no effect. If we ended up in a race that
+  // changed |fully_bound_| back to false, the commit will happen once we become
+  // |fully_bound_| again.
+  if (should_flush)
+    FlushPendingCommitDataRequests(flush_callback);
+}
+
+void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
+    uint16_t target_buffer_reservation_id,
+    BufferID target_buffer_id) {
+  PERFETTO_DCHECK(target_buffer_id > 0);
+  PERFETTO_CHECK(!initially_bound_);
+
+  MaybeUnboundBufferID reserved_id =
+      MakeTargetBufferIdForReservation(target_buffer_reservation_id);
+
+  bool should_flush = false;
+  std::function<void()> flush_callback;
+  std::vector<std::pair<WriterID, BufferID>> writers_to_register;
+  {
+    std::lock_guard<std::mutex> scoped_lock(lock_);
+
+    // We should already be bound to an endpoint, but not fully bound.
+    PERFETTO_CHECK(!fully_bound_);
+    PERFETTO_CHECK(producer_endpoint_);
+    PERFETTO_CHECK(task_runner_);
+    PERFETTO_CHECK(task_runner_->RunsTasksOnCurrentThread());
+
+    PERFETTO_CHECK(target_buffer_reservations_[reserved_id] ==
+                   kUnboundReservationBufferId);
+    target_buffer_reservations_[reserved_id] = target_buffer_id;
+
+    // Collect trace writers associated with the reservation.
+    for (auto it = pending_writers_.begin(); it != pending_writers_.end();) {
+      if (it->second == reserved_id) {
+        writers_to_register.push_back(
+            std::make_pair(it->first, target_buffer_id));
+        it = pending_writers_.erase(it);
+      } else {
+        it++;
+      }
+    }
+
+    // If all buffer reservations are bound, we can flush pending commits.
+    if (UpdateFullyBoundLocked()) {
+      should_flush = true;
+      flush_callback = TakePendingFlushCallbacksLocked();
+    }
+  }  // scoped_lock
+
+  // Register any newly bound trace writers with the service.
+  for (const auto& writer_and_target_buffer : writers_to_register) {
+    producer_endpoint_->RegisterTraceWriter(writer_and_target_buffer.first,
+                                            writer_and_target_buffer.second);
   }
-  if (!id)
-    return std::unique_ptr<TraceWriter>(new NullTraceWriter());
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, id, target_buffer] {
-    if (weak_this)
-      weak_this->producer_endpoint_->RegisterTraceWriter(id, target_buffer);
-  });
-  return std::unique_ptr<TraceWriter>(
-      new TraceWriterImpl(this, id, target_buffer, buffer_exhausted_policy));
+
+  // Attempt to flush any pending commits (and run pending flush callbacks). If
+  // there are none, this will have no effect. If we ended up in a race that
+  // changed |fully_bound_| back to false, the commit will happen once we become
+  // |fully_bound_| again.
+  if (should_flush)
+    FlushPendingCommitDataRequests(flush_callback);
+}
+
+std::function<void()>
+SharedMemoryArbiterImpl::TakePendingFlushCallbacksLocked() {
+  if (pending_flush_callbacks_.empty())
+    return std::function<void()>();
+
+  std::vector<std::function<void()>> pending_flush_callbacks;
+  pending_flush_callbacks.swap(pending_flush_callbacks_);
+  // Capture the callback list into the lambda by copy.
+  return [pending_flush_callbacks]() {
+    for (auto& callback : pending_flush_callbacks)
+      callback();
+  };
 }
 
 void SharedMemoryArbiterImpl::BindStartupTraceWriterRegistry(
     std::unique_ptr<StartupTraceWriterRegistry> registry,
     BufferID target_buffer) {
+  // StartupTraceWriterRegistry is deprecated, and only supported on initially
+  // bound arbiters.
+  PERFETTO_DCHECK(initially_bound_);
+
+  // OK to access |task_runner_| without a lock because this method should only
+  // be called if |task_runner_| was set during construction.
   if (!task_runner_->RunsTasksOnCurrentThread()) {
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
     auto* raw_reg = registry.release();
@@ -373,39 +562,157 @@ void SharedMemoryArbiterImpl::BindStartupTraceWriterRegistry(
 }
 
 void SharedMemoryArbiterImpl::NotifyFlushComplete(FlushRequestID req_id) {
-  bool should_post_commit_task = false;
+  base::TaskRunner* task_runner_to_commit_on = nullptr;
+
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
     // If a commit_data_req_ exists it means that somebody else already posted a
     // FlushPendingCommitDataRequests() task.
     if (!commit_data_req_) {
       commit_data_req_.reset(new CommitDataRequest());
-      should_post_commit_task = true;
+
+      // Flushing the commit is only supported while we're |fully_bound_|. If we
+      // aren't, we'll flush when |fully_bound_| is updated.
+      if (fully_bound_)
+        task_runner_to_commit_on = task_runner_;
     } else {
       // If there is another request queued and that also contains is a reply
       // to a flush request, reply with the highest id.
       req_id = std::max(req_id, commit_data_req_->flush_request_id());
     }
     commit_data_req_->set_flush_request_id(req_id);
-  }
-  if (should_post_commit_task) {
+  }  // scoped_lock
+
+  // We shouldn't post tasks while locked. |task_runner_to_commit_on|
+  // remains valid after unlocking, because |task_runner_| is never reset.
+  if (task_runner_to_commit_on) {
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_this] {
+    task_runner_to_commit_on->PostTask([weak_this] {
       if (weak_this)
         weak_this->FlushPendingCommitDataRequests();
     });
   }
 }
 
+std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
+    MaybeUnboundBufferID target_buffer,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
+  WriterID id;
+  base::TaskRunner* task_runner_to_register_on = nullptr;
+
+  {
+    std::lock_guard<std::mutex> scoped_lock(lock_);
+    id = active_writer_ids_.Allocate();
+
+    if (!id)
+      return std::unique_ptr<TraceWriter>(new NullTraceWriter());
+
+    PERFETTO_DCHECK(!pending_writers_.count(id));
+
+    if (IsReservationTargetBufferId(target_buffer)) {
+      // If the reservation is new, mark it as unbound in
+      // |target_buffer_reservations_|. Otherwise, if the reservation was
+      // already bound, choose the bound buffer ID now.
+      auto it_and_inserted = target_buffer_reservations_.insert(
+          {target_buffer, kUnboundReservationBufferId});
+      if (it_and_inserted.first->second != kUnboundReservationBufferId)
+        target_buffer = it_and_inserted.first->second;
+    }
+
+    if (IsReservationTargetBufferId(target_buffer)) {
+      // The arbiter and/or startup buffer reservations are not bound yet, so
+      // buffer the registration of the writer until after we're bound.
+      pending_writers_[id] = target_buffer;
+
+      // Mark the arbiter as not fully bound, since we now have at least one
+      // unbound trace writer / target buffer reservation.
+      fully_bound_ = false;
+    } else {
+      // Trace writer is bound, so arbiter should be bound to an endpoint, too.
+      PERFETTO_CHECK(producer_endpoint_ && task_runner_);
+      task_runner_to_register_on = task_runner_;
+    }
+  }  // scoped_lock
+
+  // We shouldn't post tasks while locked. |task_runner_to_register_on|
+  // remains valid after unlocking, because |task_runner_| is never reset.
+  if (task_runner_to_register_on) {
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner_to_register_on->PostTask([weak_this, id, target_buffer] {
+      if (weak_this)
+        weak_this->producer_endpoint_->RegisterTraceWriter(id, target_buffer);
+    });
+  }
+
+  return std::unique_ptr<TraceWriter>(
+      new TraceWriterImpl(this, id, target_buffer, buffer_exhausted_policy));
+}
+
 void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
+  base::TaskRunner* task_runner = nullptr;
+  {
+    std::lock_guard<std::mutex> scoped_lock(lock_);
+    auto it = pending_writers_.find(id);
+    if (it != pending_writers_.end()) {
+      // Writer hasn't been bound yet and thus also not yet registered with the
+      // service.
+      pending_writers_.erase(it);
+      return;
+    }
+
+    active_writer_ids_.Free(id);
+    task_runner = task_runner_;
+  }  // scoped_lock
+
+  // We shouldn't post tasks while locked. |task_runner| remains valid after
+  // unlocking, because |task_runner_| is never reset.
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, id] {
+  task_runner->PostTask([weak_this, id] {
     if (weak_this)
       weak_this->producer_endpoint_->UnregisterTraceWriter(id);
   });
+}
 
-  std::lock_guard<std::mutex> scoped_lock(lock_);
-  active_writer_ids_.Free(id);
+bool SharedMemoryArbiterImpl::ReplaceCommitPlaceholderBufferIdsLocked() {
+  if (!commit_data_req_)
+    return true;
+
+  bool all_placeholders_replaced = true;
+  for (auto& chunk : *commit_data_req_->mutable_chunks_to_move()) {
+    if (!IsReservationTargetBufferId(chunk.target_buffer()))
+      continue;
+    const auto it = target_buffer_reservations_.find(chunk.target_buffer());
+    PERFETTO_DCHECK(it != target_buffer_reservations_.end());
+    if (it->second == kUnboundReservationBufferId) {
+      all_placeholders_replaced = false;
+      continue;
+    }
+    chunk.set_target_buffer(it->second);
+  }
+  for (auto& chunk : *commit_data_req_->mutable_chunks_to_patch()) {
+    if (!IsReservationTargetBufferId(chunk.target_buffer()))
+      continue;
+    const auto it = target_buffer_reservations_.find(chunk.target_buffer());
+    PERFETTO_DCHECK(it != target_buffer_reservations_.end());
+    if (it->second == kUnboundReservationBufferId) {
+      all_placeholders_replaced = false;
+      continue;
+    }
+    chunk.set_target_buffer(it->second);
+  }
+  return all_placeholders_replaced;
+}
+
+bool SharedMemoryArbiterImpl::UpdateFullyBoundLocked() {
+  PERFETTO_DCHECK(producer_endpoint_);
+  // We're fully bound if all target buffer reservations have a valid associated
+  // BufferID.
+  fully_bound_ = std::none_of(
+      target_buffer_reservations_.begin(), target_buffer_reservations_.end(),
+      [](std::pair<MaybeUnboundBufferID, BufferID> entry) {
+        return entry.second == kUnboundReservationBufferId;
+      });
+  return fully_bound_;
 }
 
 }  // namespace perfetto
