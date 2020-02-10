@@ -59,6 +59,13 @@ static constexpr ChunkID kMaxChunkID = static_cast<ChunkID>(-1);
 // Unique within the scope of the tracing service.
 using BufferID = uint16_t;
 
+// Target buffer ID for SharedMemoryArbiter. Values up to max uint16_t are
+// equivalent to a bound BufferID. Values above max uint16_t are reservation IDs
+// for the target buffer of a startup trace writer. Reservation IDs will be
+// translated to actual BufferIDs after they are bound by
+// SharedMemoryArbiter::BindStartupTargetBuffer().
+using MaybeUnboundBufferID = uint32_t;
+
 // Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
 static constexpr BufferID kMaxTraceBufferID = static_cast<BufferID>(-1);
 
