@@ -17,6 +17,7 @@
 #include "src/profiling/perf/event_reader.h"
 
 #include <linux/perf_event.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -320,6 +321,11 @@ ParsedSample EventReader::ParseSampleRecord(const char* sample_start,
 
   PERFETTO_CHECK(parse_pos == sample_start + sample_size);
   return sample;
+}
+
+void EventReader::PauseEvents() {
+  int ret = ioctl(perf_fd_.get(), PERF_EVENT_IOC_DISABLE);
+  PERFETTO_CHECK(ret == 0);
 }
 
 }  // namespace profiling
