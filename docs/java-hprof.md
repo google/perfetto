@@ -13,7 +13,7 @@ To grab a profile from your device, run the following command, substituting
 
 ```
  echo 'buffers {
-  size_kb: 100024
+  size_kb: 102400
   fill_policy: RING_BUFFER
 }
 
