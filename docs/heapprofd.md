@@ -281,7 +281,7 @@ INTERVAL=4096
 
 echo '
 buffers {
-  size_kb: 100024
+  size_kb: 102400
 }
 
 data_sources {
