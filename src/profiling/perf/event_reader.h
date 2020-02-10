@@ -70,6 +70,7 @@ class PerfRingBuffer {
 };
 
 struct ParsedSample {
+  uint32_t cpu = 0;
   pid_t pid = 0;
   pid_t tid = 0;
   uint64_t timestamp = 0;
@@ -84,6 +85,7 @@ class EventReader {
   friend struct base::internal::OptionalStorageBase;
 
   static base::Optional<EventReader> ConfigureEvents(
+      uint32_t cpu,
       const EventConfig& event_cfg);
 
   // Consumes records from the ring buffer until either encountering a sample,
@@ -103,12 +105,17 @@ class EventReader {
   EventReader& operator=(EventReader&&) noexcept;
 
  private:
-  EventReader(const EventConfig& event_cfg,
+  EventReader(uint32_t cpu,
+              const EventConfig& event_cfg,
               base::ScopedFile perf_fd,
               PerfRingBuffer ring_buffer);
 
-  ParsedSample ParseSampleRecord(const char* sample_payload,
+  ParsedSample ParseSampleRecord(uint32_t cpu,
+                                 const char* sample_payload,
                                  size_t sample_size);
+
+  // All events are cpu-bound (thread-scoped events not supported).
+  const uint32_t cpu_;
 
   const EventConfig event_cfg_;
   base::ScopedFile perf_fd_;

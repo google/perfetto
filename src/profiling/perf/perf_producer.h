@@ -141,6 +141,7 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     CompletedSample(CompletedSample&&) = default;
     CompletedSample& operator=(CompletedSample&&) = default;
 
+    uint32_t cpu = 0;
     pid_t pid = 0;
     pid_t tid = 0;
     uint64_t timestamp = 0;
