@@ -58,7 +58,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 66.
+// Next id: 67.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -109,6 +109,7 @@ message TracePacket {
     VulkanMemoryEvent vulkan_memory_event = 62;
     GpuLog gpu_log = 63;
     VulkanApiEvent vulkan_api_event = 65;
+    PerfSample perf_sample = 66;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -165,7 +166,6 @@ message TracePacket {
   // it (since the last reset of interning state). It may also be emitted
   // proactively in advance of referring to them in later packets.
   optional InternedData interned_data = 12;
-
 
   enum SequenceFlags {
     SEQ_UNSPECIFIED = 0;
