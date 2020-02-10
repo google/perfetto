@@ -45,7 +45,7 @@ trace.add_oom_score_update(ts=201, oom_score_adj=0, pid=4)
 trace.add_kernel_lmk(ts=202, tid=4)
 
 trace.add_ftrace_packet(cpu=0)
-trace.add_ion_event(ts=301, tid=5, heap_name='system', size=1000)
+trace.add_ion_event(ts=301, tid=5, heap_name='system', len=1000)
 trace.add_oom_score_update(ts=302, oom_score_adj=100, pid=5)
 trace.add_kernel_lmk(ts=303, tid=5)
 

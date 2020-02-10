@@ -59,10 +59,11 @@ class Trace(object):
     if curr is not None:
       rss_stat.curr = curr
 
-  def add_ion_event(self, ts, tid, heap_name, size):
+  def add_ion_event(self, ts, tid, heap_name, len, size=0):
     ftrace = self.__add_ftrace_event(ts, tid)
     ion = ftrace.ion_heap_grow
     ion.heap_name = heap_name
+    ion.len = len
     ion.total_allocated = size
 
   def add_oom_score_update(self, ts, oom_score_adj, pid):

@@ -25,9 +25,9 @@ trace.add_process(2, 1, 'system_server')
 trace.add_process(3, 1, 'com.google.android.calendar')
 
 trace.add_ftrace_packet(cpu=0)
-trace.add_ion_event(ts=100, tid=3, heap_name='system', size=1000)
-trace.add_ion_event(ts=150, tid=3, heap_name='adsp', size=1000)
-trace.add_ion_event(ts=200, tid=3, heap_name='system', size=2000)
-trace.add_ion_event(ts=299, tid=3, heap_name='adsp', size=1000)
+trace.add_ion_event(ts=100, tid=3, heap_name='system', len=1000)
+trace.add_ion_event(ts=150, tid=3, heap_name='adsp', len=1000)
+trace.add_ion_event(ts=200, tid=3, heap_name='system', size=1000, len=1000)
+trace.add_ion_event(ts=299, tid=3, heap_name='adsp', size=1000, len=100)
 
 print(trace.trace.SerializeToString())
