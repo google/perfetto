@@ -141,7 +141,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
   // PASS OVER ALLOCATIONS:
   // Aggregate allocations into the newly built tree.
   auto filtered = allocation_tbl.Filter(
-      {allocation_tbl.ts().eq(timestamp), allocation_tbl.upid().eq(upid)});
+      {allocation_tbl.ts().le(timestamp), allocation_tbl.upid().eq(upid)});
 
   if (filtered.row_count() == 0) {
     return nullptr;
