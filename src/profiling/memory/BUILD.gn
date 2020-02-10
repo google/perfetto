@@ -142,6 +142,7 @@ source_set("daemon") {
     "../../tracing/ipc/producer",
     "../common:callstack_trie",
     "../common:interner",
+    "../common:interning_output",
     "../common:unwind_support",
   ]
   public_deps = [

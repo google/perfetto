@@ -19,7 +19,6 @@
 namespace perfetto {
 namespace profiling {
 namespace {
-using ::perfetto::protos::pbzero::Callstack;
 using ::perfetto::protos::pbzero::ProfilePacket;
 // This needs to be lower than the maximum acceptable chunk size, because this
 // is checked *before* writing another submessage. We conservatively assume
@@ -28,113 +27,31 @@ using ::perfetto::protos::pbzero::ProfilePacket;
 uint32_t kPacketSizeThreshold = 400000;
 }  // namespace
 
-void WriteFixedInternings(TraceWriter* trace_writer) {
-  constexpr const uint8_t kEmptyString[] = "";
-  // Explicitly reserve intern ID 0 for the empty string, so unset string
-  // fields get mapped to this.
-  auto packet = trace_writer->NewTracePacket();
-  auto* interned_data = packet->set_interned_data();
-  auto interned_string = interned_data->add_build_ids();
-  interned_string->set_iid(0);
-  interned_string->set_str(kEmptyString, 0);
-
-  interned_string = interned_data->add_mapping_paths();
-  interned_string->set_iid(0);
-  interned_string->set_str(kEmptyString, 0);
-
-  interned_string = interned_data->add_function_names();
-  interned_string->set_iid(0);
-  interned_string->set_str(kEmptyString, 0);
-
-  packet->set_incremental_state_cleared(true);
-}
-
 void DumpState::WriteMap(const Interned<Mapping> map) {
-  auto map_it_and_inserted = intern_state_->dumped_mappings_.emplace(map.id());
-  if (map_it_and_inserted.second) {
-    for (const Interned<std::string>& str : map->path_components)
-      WriteMappingPathString(str);
-
-    WriteBuildIDString(map->build_id);
-
-    auto mapping = GetCurrentInternedData()->add_mappings();
-    mapping->set_iid(map.id());
-    mapping->set_exact_offset(map->exact_offset);
-    mapping->set_start_offset(map->start_offset);
-    mapping->set_start(map->start);
-    mapping->set_end(map->end);
-    mapping->set_load_bias(map->load_bias);
-    mapping->set_build_id(map->build_id.id());
-    for (const Interned<std::string>& str : map->path_components)
-      mapping->add_path_string_ids(str.id());
-  }
+  intern_state_->WriteMap(map, GetCurrentInternedData());
 }
 
 void DumpState::WriteFrame(Interned<Frame> frame) {
-  WriteMap(frame->mapping);
-  WriteFunctionNameString(frame->function_name);
-  bool inserted;
-  std::tie(std::ignore, inserted) =
-      intern_state_->dumped_frames_.emplace(frame.id());
-  if (inserted) {
-    auto frame_proto = GetCurrentInternedData()->add_frames();
-    frame_proto->set_iid(frame.id());
-    frame_proto->set_function_name_id(frame->function_name.id());
-    frame_proto->set_mapping_id(frame->mapping.id());
-    frame_proto->set_rel_pc(frame->rel_pc);
-  }
+  intern_state_->WriteFrame(frame, GetCurrentInternedData());
 }
 
 void DumpState::WriteBuildIDString(const Interned<std::string>& str) {
-  auto it_and_inserted = intern_state_->dumped_strings_.emplace(str.id(), 0);
-  auto it = it_and_inserted.first;
-  // This is for the rare case that the same string is used as two different
-  // types (e.g. a function name that matches a path segment). In that case
-  // we need to emit the string as all of its types.
-  if ((it->second & kDumpedBuildID) == 0) {
-    auto interned_string = GetCurrentInternedData()->add_build_ids();
-    interned_string->set_iid(str.id());
-    interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
-                             str->size());
-    it->second |= kDumpedBuildID;
-  }
+  intern_state_->WriteBuildIDString(str, GetCurrentInternedData());
 }
 
 void DumpState::WriteMappingPathString(const Interned<std::string>& str) {
-  auto it_and_inserted = intern_state_->dumped_strings_.emplace(str.id(), 0);
-  auto it = it_and_inserted.first;
-  // This is for the rare case that the same string is used as two different
-  // types (e.g. a function name that matches a path segment). In that case
-  // we need to emit the string as all of its types.
-  if ((it->second & kDumpedMappingPath) == 0) {
-    auto interned_string = GetCurrentInternedData()->add_mapping_paths();
-    interned_string->set_iid(str.id());
-    interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
-                             str->size());
-    it->second |= kDumpedMappingPath;
-  }
+  intern_state_->WriteMappingPathString(str, GetCurrentInternedData());
 }
 
 void DumpState::WriteFunctionNameString(const Interned<std::string>& str) {
-  auto it_and_inserted = intern_state_->dumped_strings_.emplace(str.id(), 0);
-  auto it = it_and_inserted.first;
-  // This is for the rare case that the same string is used as two different
-  // types (e.g. a function name that matches a path segment). In that case
-  // we need to emit the string as all of its types.
-  if ((it->second & kDumpedFunctionName) == 0) {
-    auto interned_string = GetCurrentInternedData()->add_function_names();
-    interned_string->set_iid(str.id());
-    interned_string->set_str(reinterpret_cast<const uint8_t*>(str->c_str()),
-                             str->size());
-    it->second |= kDumpedFunctionName;
-  }
+  intern_state_->WriteFunctionNameString(str, GetCurrentInternedData());
 }
 
 void DumpState::WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
                                 bool dump_at_max_mode) {
-  if (intern_state_->dumped_callstacks_.find(alloc.node->id()) ==
-      intern_state_->dumped_callstacks_.end())
+  if (intern_state_->IsCallstackNew(alloc.node->id())) {
     callstacks_to_dump_.emplace(alloc.node);
+  }
 
   auto* heap_samples = GetCurrentProcessHeapSamples();
   ProfilePacket::HeapSample* sample = heap_samples->add_samples();
@@ -165,17 +82,7 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
   if (current_trace_packet_)
     current_profile_packet_->set_continued(true);
   for (GlobalCallstackTrie::Node* node : callstacks_to_dump_) {
-    // There need to be two separate loops over built_callstack because
-    // protozero cannot interleave different messages.
-    auto built_callstack = callsites->BuildCallstack(node);
-    for (const Interned<Frame>& frame : built_callstack)
-      WriteFrame(frame);
-    Callstack* callstack = GetCurrentInternedData()->add_callstacks();
-    callstack->set_iid(node->id());
-    for (const Interned<Frame>& frame : built_callstack)
-      callstack->add_frame_ids(frame.id());
-
-    intern_state_->dumped_callstacks_.emplace(node->id());
+    intern_state_->WriteCallstack(node, callsites, GetCurrentInternedData());
   }
   MakeProfilePacket();
 }
