@@ -22,78 +22,66 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-class TestTable : public Table {
- public:
-  TestTable(uint32_t row_count) : Table(&pool_, nullptr) {
-    row_maps_.emplace_back(RowMap(0, row_count));
-    row_count_ = row_count;
+DbSqliteTable::TableOutline CreateOutline(uint32_t row_count) {
+  DbSqliteTable::TableOutline outline;
+  outline.row_count = row_count;
 
-    columns_.emplace_back(Column::IdColumn(this, 0u, 0u));
-    columns_.emplace_back(
-        Column("a", &a_, Column::Flag::kNoFlag, this, 1u, 0u));
-    columns_.emplace_back(
-        Column("sorted", &sorted_, Column::Flag::kSorted, this, 2u, 0u));
-    columns_.emplace_back(
-        Column("other", &other_, Column::Flag::kNoFlag, this, 3u, 0u));
-    columns_.emplace_back(
-        Column("other2", &other_, Column::Flag::kNoFlag, this, 4u, 0u));
-  }
+  outline.columns.push_back({true /* is_id */, true /* is_sorted */});
+  outline.columns.push_back({false /* is_id */, false /* is_sorted */});
+  outline.columns.push_back({false /* is_id */, true /* is_sorted */});
+  outline.columns.push_back({false /* is_id */, false /* is_sorted */});
+  outline.columns.push_back({false /* is_id */, false /* is_sorted */});
 
- private:
-  StringPool pool_;
-  SparseVector<uint32_t> a_;
-  SparseVector<uint32_t> sorted_;
-  SparseVector<uint32_t> other_;
-  SparseVector<uint32_t> other2_;
-};
+  return outline;
+}
 
 TEST(DbSqliteTable, IdEqCheaperThanOtherEq) {
-  TestTable table(1234);
+  auto outline = CreateOutline(1234);
 
   QueryConstraints id_eq;
   id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  auto id_cost = DbSqliteTable::EstimateCost(table, id_eq);
+  auto id_cost = DbSqliteTable::EstimateCost(outline, id_eq);
 
   QueryConstraints a_eq;
   a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 1u);
 
-  auto a_cost = DbSqliteTable::EstimateCost(table, a_eq);
+  auto a_cost = DbSqliteTable::EstimateCost(outline, a_eq);
 
   ASSERT_LT(id_cost.cost, a_cost.cost);
   ASSERT_LT(id_cost.rows, a_cost.rows);
 }
 
 TEST(DbSqliteTable, IdEqCheaperThatOtherConstraint) {
-  TestTable table(1234);
+  auto outline = CreateOutline(1234);
 
   QueryConstraints id_eq;
   id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  auto id_cost = DbSqliteTable::EstimateCost(table, id_eq);
+  auto id_cost = DbSqliteTable::EstimateCost(outline, id_eq);
 
   QueryConstraints a_eq;
   a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_LT, 1u);
 
-  auto a_cost = DbSqliteTable::EstimateCost(table, a_eq);
+  auto a_cost = DbSqliteTable::EstimateCost(outline, a_eq);
 
   ASSERT_LT(id_cost.cost, a_cost.cost);
   ASSERT_LT(id_cost.rows, a_cost.rows);
 }
 
 TEST(DbSqliteTable, SingleEqCheaperThanMultipleConstraint) {
-  TestTable table(1234);
+  auto outline = CreateOutline(1234);
 
   QueryConstraints single_eq;
   single_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  auto single_cost = DbSqliteTable::EstimateCost(table, single_eq);
+  auto single_cost = DbSqliteTable::EstimateCost(outline, single_eq);
 
   QueryConstraints multi_eq;
   multi_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
   multi_eq.AddConstraint(2u, SQLITE_INDEX_CONSTRAINT_EQ, 1u);
 
-  auto multi_cost = DbSqliteTable::EstimateCost(table, multi_eq);
+  auto multi_cost = DbSqliteTable::EstimateCost(outline, multi_eq);
 
   // The cost of the single filter should be cheaper (because of our special
   // handling of single equality). But the number of rows should be greater.
@@ -102,19 +90,19 @@ TEST(DbSqliteTable, SingleEqCheaperThanMultipleConstraint) {
 }
 
 TEST(DbSqliteTable, MultiSortedEqCheaperThanMultiUnsortedEq) {
-  TestTable table(1234);
+  auto outline = CreateOutline(1234);
 
   QueryConstraints sorted_eq;
   sorted_eq.AddConstraint(2u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
   sorted_eq.AddConstraint(3u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  auto sorted_cost = DbSqliteTable::EstimateCost(table, sorted_eq);
+  auto sorted_cost = DbSqliteTable::EstimateCost(outline, sorted_eq);
 
   QueryConstraints unsorted_eq;
   unsorted_eq.AddConstraint(3u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
   unsorted_eq.AddConstraint(4u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  auto unsorted_cost = DbSqliteTable::EstimateCost(table, unsorted_eq);
+  auto unsorted_cost = DbSqliteTable::EstimateCost(outline, unsorted_eq);
 
   // The number of rows should be the same but the cost of the sorted
   // query should be less.
@@ -123,34 +111,34 @@ TEST(DbSqliteTable, MultiSortedEqCheaperThanMultiUnsortedEq) {
 }
 
 TEST(DbSqliteTable, EmptyTableCosting) {
-  TestTable table(0u);
+  auto outline = CreateOutline(0u);
 
   QueryConstraints id_eq;
   id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
 
-  auto id_cost = DbSqliteTable::EstimateCost(table, id_eq);
+  auto id_cost = DbSqliteTable::EstimateCost(outline, id_eq);
 
   QueryConstraints a_eq;
   a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_LT, 1u);
 
-  auto a_cost = DbSqliteTable::EstimateCost(table, a_eq);
+  auto a_cost = DbSqliteTable::EstimateCost(outline, a_eq);
 
   ASSERT_DOUBLE_EQ(id_cost.cost, a_cost.cost);
   ASSERT_EQ(id_cost.rows, a_cost.rows);
 }
 
 TEST(DbSqliteTable, OrderByOnSortedCheaper) {
-  TestTable table(1234);
+  auto outline = CreateOutline(1234);
 
   QueryConstraints a_qc;
   a_qc.AddOrderBy(1u, false);
 
-  auto a_cost = DbSqliteTable::EstimateCost(table, a_qc);
+  auto a_cost = DbSqliteTable::EstimateCost(outline, a_qc);
 
   // On an ordered column, the constraint for sorting would get pruned so
   // we would end up with an empty constraint set.
   QueryConstraints sorted_qc;
-  auto sorted_cost = DbSqliteTable::EstimateCost(table, sorted_qc);
+  auto sorted_cost = DbSqliteTable::EstimateCost(outline, sorted_qc);
 
   ASSERT_LT(sorted_cost.cost, a_cost.cost);
   ASSERT_EQ(sorted_cost.rows, a_cost.rows);
