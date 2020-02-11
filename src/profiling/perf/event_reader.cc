@@ -244,19 +244,34 @@ base::Optional<ParsedSample> EventReader::ReadUntilSample(
                   static_cast<size_t>(event_hdr->size));
 
     if (event_hdr->type == PERF_RECORD_SAMPLE) {
-      ParsedSample sample = ParseSampleRecord(cpu_, event, event_hdr->size);
+      ParsedSample sample = ParseSampleRecord(cpu_, event);
       ring_buffer_.Consume(event_hdr->size);
       return base::make_optional(std::move(sample));
     }
 
     if (event_hdr->type == PERF_RECORD_LOST) {
+      /*
+       * struct {
+       *   struct perf_event_header header;
+       *   u64 id;
+       *   u64 lost;
+       *   struct sample_id sample_id;
+       * };
+       */
       uint64_t lost_events = *reinterpret_cast<const uint64_t*>(
           event + sizeof(perf_event_header) + sizeof(uint64_t));
 
       lost_events_callback(lost_events);
-      // advance ring buffer position and keep looking for a sample
       ring_buffer_.Consume(event_hdr->size);
-      continue;
+      continue;  // keep looking for a sample
+    }
+
+    // Kernel had to throttle irqs.
+    // TODO(rsavitski): consider logging a warning.
+    if (event_hdr->type == PERF_RECORD_THROTTLE ||
+        event_hdr->type == PERF_RECORD_UNTHROTTLE) {
+      ring_buffer_.Consume(event_hdr->size);
+      continue;  // keep looking for a sample
     }
 
     PERFETTO_FATAL("Unsupported event type");
@@ -267,8 +282,7 @@ base::Optional<ParsedSample> EventReader::ReadUntilSample(
 // PERF_SAMPLE_CPU). However, this producer uses only cpu-scoped events,
 // therefore it is already known.
 ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
-                                            const char* sample_start,
-                                            size_t sample_size) {
+                                            const char* record_start) {
   const perf_event_attr* cfg = event_cfg_.perf_attr();
 
   if (cfg->sample_type &
@@ -277,11 +291,16 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     PERFETTO_FATAL("Unsupported sampling option");
   }
 
-  // Parse the payload, which consists of concatenated data for each
-  // |attr.sample_type| flag.
+  auto* event_hdr = reinterpret_cast<const perf_event_header*>(record_start);
+  size_t sample_size = event_hdr->size;
+
   ParsedSample sample = {};
   sample.cpu = cpu;
-  const char* parse_pos = sample_start + sizeof(perf_event_header);
+  sample.cpu_mode = event_hdr->misc & PERF_RECORD_MISC_CPUMODE_MASK;
+
+  // Parse the payload, which consists of concatenated data for each
+  // |attr.sample_type| flag.
+  const char* parse_pos = record_start + sizeof(perf_event_header);
 
   if (cfg->sample_type & PERF_SAMPLE_TID) {
     uint32_t pid = 0;
@@ -309,7 +328,8 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     const char* stack_start = parse_pos;
     parse_pos += max_stack_size;  // skip to dyn_size
 
-    // written only if requested stack sampling size is nonzero
+    // Payload written conditionally, e.g. kernel threads don't have a
+    // user stack.
     if (max_stack_size > 0) {
       uint64_t filled_stack_size;
       parse_pos = ReadValue(&filled_stack_size, parse_pos);
@@ -322,7 +342,7 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     }
   }
 
-  PERFETTO_CHECK(parse_pos == sample_start + sample_size);
+  PERFETTO_CHECK(parse_pos == record_start + sample_size);
   return sample;
 }
 
