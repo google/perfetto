@@ -400,7 +400,7 @@ perfetto_unittest_source_set("unittests") {
     sources += [ "sqlite_experimental_counter_dur_table_unittest.cc" ]
     deps += [
       ":lib",
-      "../../../gn:sqlite",
+      "../../gn:sqlite",
       "sqlite:unittests",
     ]
   }
