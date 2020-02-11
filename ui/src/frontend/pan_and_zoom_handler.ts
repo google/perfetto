@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Animation} from './animation';
-import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {handleKey} from './keyboard_event_handler';
@@ -232,11 +231,6 @@ export class PanAndZoomHandler {
         this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
       }
     }
-    if (!this.shiftDown) {
-      const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
-      const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
-      globals.frontendLocalState.setHoveredTimestamp(ts);
-    }
   }
 
   private onWheel(e: WheelEvent) {
@@ -295,15 +289,9 @@ export class PanAndZoomHandler {
     if (down === this.shiftDown) return;
     this.shiftDown = down;
     if (this.shiftDown) {
-      globals.frontendLocalState.setHoveredTimestamp(-1);
       this.element.style.cursor = PAN_CURSOR;
-    } else {
-      if (this.mousePositionX) {
-        this.element.style.cursor = DRAG_CURSOR;
-        const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
-        const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
-        globals.frontendLocalState.setHoveredTimestamp(ts);
-      }
+    } else if (this.mousePositionX) {
+      this.element.style.cursor = DRAG_CURSOR;
     }
   }
 }
