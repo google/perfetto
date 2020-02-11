@@ -106,9 +106,13 @@ group("default_deps") {
   deps = [ ":gen_buildflags" ]
   if (perfetto_build_standalone) {
     public_deps = [
+      "//gn/standalone:check_build_deps",
       "//gn/standalone/libc++:deps",
       "//gn/standalone/sanitizers:deps",
     ]
+    if (is_android) {
+      public_deps += [ "//gn/standalone:check_build_deps_android" ]
+    }
   }
 }
 
