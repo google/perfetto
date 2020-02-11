@@ -160,7 +160,6 @@ class CounterTrack extends Track<Config, Data> {
       // TODO(hjd): Add units.
       let text = (data.isQuantized) ? 'max value: ' : 'value: ';
       text += `${this.hoveredValue.toLocaleString()}`;
-      const width = ctx.measureText(text).width;
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
@@ -187,12 +186,7 @@ class CounterTrack extends Track<Config, Data> {
       ctx.stroke();
 
       // Draw the tooltip.
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.fillRect(this.mouseXpos + 5, MARGIN_TOP, width + 16, RECT_HEIGHT);
-      ctx.fillStyle = 'hsl(200, 50%, 40%)';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, this.mouseXpos + 8, MARGIN_TOP + RECT_HEIGHT / 2);
+      this.drawTrackHoverTooltip(ctx, this.mouseXpos, text);
     }
 
     // Write the Y scale on the top left corner.
