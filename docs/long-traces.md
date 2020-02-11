@@ -45,7 +45,7 @@ simplified when running as root and are required due to SELinux when running as
 $ cd perfetto
 
 # Prepare for the build (as per instructions linked above).
-$ tools/install-build-deps --no-android
+$ tools/install-build-deps
 $ tools/gn gen out/mac_release --args="is_debug=false"
 
 # Compiles the textual protobuf into binary format

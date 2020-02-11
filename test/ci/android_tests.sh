@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS=""  # Run without args, without --no-android.
+INSTALL_BUILD_DEPS_ARGS="--android"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 # Run the emulator earlier so by the time we build it's booted.

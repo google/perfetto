@@ -61,4 +61,4 @@ sed -i '' -e \
     "s/^CATAPULT_SHA1 =.*/CATAPULT_SHA1 = '"$SHA1"'/g" \
      "$PROJECT_ROOT/tools/install-build-deps"
 
-"$PROJECT_ROOT/tools/install-build-deps" --ui --no-android
+"$PROJECT_ROOT/tools/install-build-deps" --ui
