@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/json/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -99,7 +100,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     }
     case 'X': {  // TRACE_EVENT (scoped event).
       base::Optional<int64_t> opt_dur =
-          json_trace_utils::CoerceToNs(value["dur"]);
+          JsonTracker::GetOrCreate(context_)->CoerceToTs(value["dur"]);
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
