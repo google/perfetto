@@ -119,10 +119,10 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
   // correctly if it is at the beginning of the file.
   const base::StringView view(buf, size);
   if (view.find("\"displayTimeUnit\":\"ns\"") != base::StringView::npos) {
-    json_tracker->SetTimeUnit(json_trace_utils::TimeUnit::kNs);
+    json_tracker->SetTimeUnit(json::TimeUnit::kNs);
   } else if (view.find("\"displayTimeUnit\":\"ms\"") !=
              base::StringView::npos) {
-    json_tracker->SetTimeUnit(json_trace_utils::TimeUnit::kMs);
+    json_tracker->SetTimeUnit(json::TimeUnit::kMs);
   }
 
   if (offset_ == 0) {

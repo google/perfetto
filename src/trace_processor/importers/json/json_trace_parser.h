@@ -23,7 +23,6 @@
 #include <tuple>
 #include <unordered_map>
 
-#include "src/trace_processor/importers/json/json_trace_utils.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_parser.h"

@@ -69,9 +69,9 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   base::Optional<uint32_t> opt_tid;
 
   if (value.isMember("pid"))
-    opt_pid = json_trace_utils::CoerceToUint32(value["pid"]);
+    opt_pid = json::CoerceToUint32(value["pid"]);
   if (value.isMember("tid"))
-    opt_tid = json_trace_utils::CoerceToUint32(value["tid"]);
+    opt_tid = json::CoerceToUint32(value["tid"]);
 
   uint32_t pid = opt_pid.value_or(0);
   uint32_t tid = opt_tid.value_or(pid);

@@ -26,7 +26,7 @@ namespace {
 
 TEST(JsonTrackerTest, Ns) {
   JsonTracker tracker(nullptr);
-  tracker.SetTimeUnit(json_trace_utils::TimeUnit::kNs);
+  tracker.SetTimeUnit(json::TimeUnit::kNs);
   ASSERT_EQ(tracker.CoerceToTs(Json::Value(42)).value_or(-1), 42);
 }
 

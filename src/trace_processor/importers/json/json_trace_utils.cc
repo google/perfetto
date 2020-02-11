@@ -25,7 +25,7 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace json_trace_utils {
+namespace json {
 namespace {
 
 int64_t TimeUnitToNs(TimeUnit unit) {
@@ -83,7 +83,7 @@ base::Optional<uint32_t> CoerceToUint32(const Json::Value& value) {
   return static_cast<uint32_t>(n);
 }
 
-}  // namespace json_trace_utils
+}  // namespace json
 }  // namespace trace_processor
 }  // namespace perfetto
 

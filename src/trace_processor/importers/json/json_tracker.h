@@ -42,16 +42,14 @@ class JsonTracker : public Destructible {
     return static_cast<JsonTracker*>(context->json_tracker.get());
   }
 
-  void SetTimeUnit(json_trace_utils::TimeUnit time_unit) {
-    time_unit_ = time_unit;
-  }
+  void SetTimeUnit(json::TimeUnit time_unit) { time_unit_ = time_unit; }
 
   base::Optional<int64_t> CoerceToTs(const Json::Value& value) {
-    return json_trace_utils::CoerceToTs(time_unit_, value);
+    return json::CoerceToTs(time_unit_, value);
   }
 
  private:
-  json_trace_utils::TimeUnit time_unit_ = json_trace_utils::TimeUnit::kUs;
+  json::TimeUnit time_unit_ = json::TimeUnit::kUs;
 };
 
 }  // namespace trace_processor
