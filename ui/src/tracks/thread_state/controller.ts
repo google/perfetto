@@ -42,9 +42,6 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     }
 
     if (this.setup === false) {
-      await this.query(
-          `create virtual table ${this.tableName('window')} using window;`);
-
       await this.query(`create view ${this.tableName('long_states')} as
       select * from thread_state where dur >= ${minNs} and utid = ${
           this.config.utid}`);
@@ -63,20 +60,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       using span_left_join(${this.tableName('fill_gaps')} partitioned utid,
       ${this.tableName('long_states')} partitioned utid)`);
 
-      await this.query(`create virtual table ${this.tableName('current')}
-      using span_join(
-        ${this.tableName('window')},
-        ${this.tableName('summarized')} partitioned utid)`);
-
       this.setup = true;
     }
-
-    const windowDurNs = Math.max(1, endNs - startNs);
-
-    this.query(`update ${this.tableName('window')} set
-     window_start=${startNs},
-     window_dur=${windowDurNs},
-     quantum=0`);
 
     this.query(`drop view if exists ${this.tableName('long_states')}`);
     this.query(`drop view if exists ${this.tableName('fill_gaps')}`);
@@ -92,10 +77,16 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         this.config.utid}) as dur,
       ${this.config.utid} as utid`);
 
+    // We have ts contraints instead of span joining with the window table
+    // because when selecting a slice we need the real duration (even if it
+    // is outside of the current viewport)
+    // TODO(b/149303809): Improve these queries and return this to using
+    // the window table if possible.
     const query = `select ts, cast(dur as double), utid,
     case when state is not null then state else 'Busy' end as state,
     cast(cpu as double)
-    from ${this.tableName('current')} limit ${LIMIT}`;
+    from ${this.tableName('summarized')} where ts <= ${endNs} and ts + dur >= ${
+        startNs} limit ${LIMIT}`;
 
     const result = await this.query(query);
 
