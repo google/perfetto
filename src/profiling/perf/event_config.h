@@ -40,8 +40,6 @@ namespace profiling {
 // Describes a single profiling configuration. Bridges the gap between the data
 // source config proto, and the raw "perf_event_attr" structs to pass to the
 // perf_event_open syscall.
-// Also, for non-sample events (if they're possible), union of structs is
-// interesting.
 class EventConfig {
  public:
   static base::Optional<EventConfig> Create(const DataSourceConfig& ds_config) {
@@ -52,6 +50,7 @@ class EventConfig {
   }
 
   uint32_t target_all_cpus() const { return target_all_cpus_; }
+  size_t ring_buffer_pages() const { return ring_buffer_pages_; }
 
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
@@ -59,7 +58,8 @@ class EventConfig {
 
  private:
   EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg)
-      : target_all_cpus_(cfg.all_cpus()) {
+      : target_all_cpus_(cfg.all_cpus()),
+        ring_buffer_pages_(cfg.ring_buffer_pages()) {
     auto& pe = perf_event_attr_;
     pe.size = sizeof(perf_event_attr);
 
@@ -87,6 +87,11 @@ class EventConfig {
 
   // If true, process all system-wide samples.
   const bool target_all_cpus_;
+
+  // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel. If
+  // zero, |EventReader| will choose a default value. Must be a power of two
+  // otherwise.
+  const size_t ring_buffer_pages_;
 
   // TODO(rsavitski): if we allow for event groups containing multiple sampled
   // counters, we'll need to vary the .type & .config fields per

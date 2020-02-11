@@ -180,7 +180,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     frame_data.function_name = "ERROR " + std::to_string(error_code);
     frame_data.map_name = "ERROR";
 
-    out->frames.emplace_back(frame_data, "");
+    out->frames.emplace_back(std::move(frame_data), "");
     out->error = true;
   }
   return true;
