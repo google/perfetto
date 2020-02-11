@@ -55,7 +55,7 @@ export class NotesPanel extends Panel {
     });
     dom.addEventListener('mouseout', () => {
       this.hoveredX = null;
-      globals.frontendLocalState.setShowNotePreview(false);
+      globals.frontendLocalState.setHoveredNoteTimestamp(-1);
       globals.rafScheduler.scheduleRedraw();
     }, {passive: true});
   }
@@ -135,14 +135,13 @@ export class NotesPanel extends Panel {
 
     // A real note is hovered so we don't need to see the preview line.
     // TODO(taylori): Change cursor to pointer here.
-    if (aNoteIsHovered) globals.frontendLocalState.setShowNotePreview(false);
+    if (aNoteIsHovered) globals.frontendLocalState.setHoveredNoteTimestamp(-1);
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = timeScale.pxToTime(this.hoveredX);
       if (timeScale.timeInBounds(timestamp)) {
-        globals.frontendLocalState.setHoveredTimestamp(timestamp);
-        globals.frontendLocalState.setShowNotePreview(true);
+        globals.frontendLocalState.setHoveredNoteTimestamp(timestamp);
         const x = timeScale.timeToPx(timestamp);
         const left = Math.floor(x + TRACK_SHELL_WIDTH);
         this.drawFlag(
