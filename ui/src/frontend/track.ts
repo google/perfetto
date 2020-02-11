@@ -81,4 +81,39 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
       this.renderCanvas(ctx);
     }
   }
+
+  drawTrackHoverTooltip(
+      ctx: CanvasRenderingContext2D, xPos: number, text: string,
+      text2?: string) {
+    ctx.font = '10px Roboto Condensed';
+    const textWidth = ctx.measureText(text).width;
+    let width = textWidth;
+    let textYPos = this.getHeight() / 2;
+
+    if (text2 !== undefined) {
+      const text2Width = ctx.measureText(text2).width;
+      width = Math.max(textWidth, text2Width);
+      textYPos = this.getHeight() / 2 - 6;
+    }
+
+    // Move tooltip over if it would go off the right edge of the viewport.
+    const rectWidth = width + 16;
+    const endPx = globals.frontendLocalState.timeScale.endPx;
+    if (xPos + rectWidth > endPx) {
+      xPos -= (xPos + rectWidth - endPx);
+    }
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    const rectMargin = this.getHeight() / 12;
+    ctx.fillRect(
+        xPos, rectMargin, rectWidth, this.getHeight() - rectMargin * 2);
+    ctx.fillStyle = 'hsl(200, 50%, 40%)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, xPos + 8, textYPos);
+
+    if (text2 !== undefined) {
+      ctx.fillText(text2, xPos + 8, this.getHeight() / 2 + 6);
+    }
+  }
 }
