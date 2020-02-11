@@ -24,7 +24,7 @@ Prerequisites
 **Standalone checkout**:  
 All dependent libraries are self-hosted and pulled through:
 ```
-$ tools/install-build-deps [--no-android] [--ui]
+$ tools/install-build-deps [--android] [--ui]
 ```
 
 **Android tree**:  

@@ -228,6 +228,8 @@ UI_DEPS = [
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UI_DIR = os.path.join(ROOT_DIR, 'ui')
+NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
 
 
 def ReadFile(path):
@@ -266,9 +268,11 @@ def IsGitRepoCheckoutOutAtRevision(path, revision):
   return ReadFile(os.path.join(path, '.git', 'HEAD')) == revision
 
 
-def CheckoutGitRepo(path, git_url, revision):
+def CheckoutGitRepo(path, git_url, revision, check_only):
   if IsGitRepoCheckoutOutAtRevision(path, revision):
     return False
+  if check_only:
+    return True
   if os.path.exists(path):
     shutil.rmtree(path)
   MkdirRecursive(path)
@@ -282,10 +286,25 @@ def CheckoutGitRepo(path, git_url, revision):
 
 
 def InstallNodeModules():
-  ui_dir = os.path.join(ROOT_DIR, 'ui')
-  logging.info("Running npm install in {0}".format(ui_dir))
-  subprocess.check_call([os.path.join(ui_dir, 'npm'), 'install', '--no-save'],
-                        cwd=os.path.join(ROOT_DIR, 'ui'))
+  logging.info("Running npm install in {0}".format(UI_DIR))
+  subprocess.check_call([os.path.join(UI_DIR, 'npm'), 'install', '--no-save'],
+                        cwd=UI_DIR)
+  with open(NODE_MODULES_STATUS_FILE, 'w') as f:
+    f.write(HashLocalFile(os.path.join(UI_DIR, 'package-lock.json')))
+
+
+def CheckNodeModules():
+  """Returns True if the modules are up-to-date.
+
+  There doesn't seem to be an easy way to check node modules versions. Instead
+  just check if package-lock.json changed since the last `npm install` call.
+  """
+  if not os.path.exists(NODE_MODULES_STATUS_FILE):
+    return False
+  with open(NODE_MODULES_STATUS_FILE, 'r') as f:
+    actual = f.read()
+  expected = HashLocalFile(os.path.join(UI_DIR, 'package-lock.json'))
+  return expected == actual
 
 
 def CheckHashes():
@@ -306,16 +325,16 @@ def CheckHashes():
 
 def Main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--no-android', action='store_true')
+  parser.add_argument('--android', action='store_true')
   parser.add_argument('--ui', action='store_true')
-  parser.add_argument(
-      '--check-hashes', help='Check hashes for all URLs', action='store_true')
+  parser.add_argument('--check-only')
+  parser.add_argument('--verify', help='Check all URLs', action='store_true')
   args = parser.parse_args()
-  if args.check_hashes:
+  if args.verify:
     CheckHashes()
     return 0
   deps = BUILD_DEPS_HOST
-  if not args.no_android:
+  if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.ui:
     deps += UI_DEPS
@@ -325,7 +344,8 @@ def Main():
       continue
     local_path = os.path.join(ROOT_DIR, rel_path)
     if url.endswith('.git'):
-      deps_updated |= CheckoutGitRepo(local_path, url, expected_sha1)
+      deps_updated |= CheckoutGitRepo(local_path, url, expected_sha1,
+                                      args.check_only)
       continue
     is_zip = local_path.endswith('.zip') or local_path.endswith('.tgz')
     zip_target_dir = local_path[:-4] if is_zip else None
@@ -335,6 +355,8 @@ def Main():
         (is_zip and ReadFile(zip_dir_stamp) == expected_sha1)):
       continue
     deps_updated = True
+    if args.check_only:
+      continue
     MkdirRecursive(os.path.dirname(rel_path))
     if HashLocalFile(local_path) != expected_sha1:
       download_path = local_path + '.tmp'
@@ -383,7 +405,20 @@ def Main():
 
   if args.ui:
     # Needs to happen after nodejs is installed above.
-    InstallNodeModules()
+    if args.check_only:
+      deps_updated = not CheckNodeModules()
+    else:
+      InstallNodeModules()
+
+  if args.check_only:
+    if not deps_updated:
+      with open(args.check_only, 'w') as f:
+        f.write('OK')  # The content is irrelevant, just keep GN happy.
+      return 0
+    argz = ' '.join([x for x in sys.argv[1:] if not '--check-only' in x])
+    sys.stderr.write('\033[91mBuild deps are stale. ' +
+                     'Please run tools/install-build-deps %s\033[0m' % argz)
+    return 1
 
   if deps_updated:
     # Stale binary files may be compiled against old sysroot headers that aren't
