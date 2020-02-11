@@ -30,6 +30,10 @@
 
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
 
+namespace {
+constexpr uint64_t kDefaultSamplingFrequency = 100;  // Hz
+}
+
 namespace perfetto {
 namespace profiling {
 
@@ -47,41 +51,42 @@ class EventConfig {
     return EventConfig(pb_config);
   }
 
-  uint32_t target_cpu() const { return target_cpu_; }
+  uint32_t target_all_cpus() const { return target_all_cpus_; }
 
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
 
  private:
-  EventConfig(const protos::pbzero::PerfEventConfig::Decoder&) {
+  EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg)
+      : target_all_cpus_(cfg.all_cpus()) {
     auto& pe = perf_event_attr_;
     pe.size = sizeof(perf_event_attr);
 
-    pe.exclude_kernel = true;
     pe.disabled = false;
 
-    // Ask the kernel to tune sampling period to get ~100 Hz.
+    // Ask the kernel to sample at a given frequency.
     pe.type = PERF_TYPE_SOFTWARE;
     pe.config = PERF_COUNT_SW_CPU_CLOCK;
-    pe.sample_freq = 100;
     pe.freq = true;
+    pe.sample_freq = (cfg.sampling_frequency() > 0) ? cfg.sampling_frequency()
+                                                    : kDefaultSamplingFrequency;
 
     pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME |
                      PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
-    // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
-    pe.sample_stack_user = (1u << 15);
-    pe.sample_regs_user =
-        PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
-
-    // for PERF_SAMPLE_TIME
+    // PERF_SAMPLE_TIME:
     pe.clockid = CLOCK_BOOTTIME;
     pe.use_clockid = true;
+    // PERF_SAMPLE_STACK_USER:
+    // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
+    pe.sample_stack_user = (1u << 15);
+    // PERF_SAMPLE_REGS_USER:
+    pe.sample_regs_user =
+        PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
   }
 
-  // TODO(rsavitski): for now hardcode each session to be for a single cpu's
-  // scope. In general a config will correspond to N cpus and/or tids.
-  uint32_t target_cpu_ = 0;
+  // If true, process all system-wide samples.
+  const bool target_all_cpus_;
 
   // TODO(rsavitski): if we allow for event groups containing multiple sampled
   // counters, we'll need to vary the .type & .config fields per

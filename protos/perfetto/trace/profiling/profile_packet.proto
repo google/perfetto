@@ -146,6 +146,16 @@ message StreamingProfilePacket {
   repeated int64 timestamp_delta_us = 2;
 }
 
+enum CpuMode {
+  MODE_UNKNOWN = 0;
+  MODE_KERNEL = 1;
+  MODE_USER = 2;
+  // The following values aren't expected, but included for completeness:
+  MODE_HYPERVISOR = 3;
+  MODE_GUEST_KERNEL = 4;
+  MODE_GUEST_USER = 5;
+}
+
 // Individual performance sampling packet payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
 // Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
@@ -156,4 +166,7 @@ message PerfSample {
   optional uint32 tid = 3;
 
   optional uint64 callstack_iid = 4;
+
+  // Execution state that the process was sampled at.
+  optional CpuMode cpu_mode = 5;
 }
