@@ -90,14 +90,14 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
   struct DataSource {
     DataSource(std::unique_ptr<TraceWriter> _trace_writer,
-               EventReader _event_reader)
+               std::vector<EventReader> _per_cpu_readers)
         : trace_writer(std::move(_trace_writer)),
-          event_reader(std::move(_event_reader)) {}
+          per_cpu_readers(std::move(_per_cpu_readers)) {}
 
     std::unique_ptr<TraceWriter> trace_writer;
 
-    // TODO(rsavitski): event reader per kernel buffer.
-    EventReader event_reader;
+    // Indexed by cpu, vector never resized.
+    std::vector<EventReader> per_cpu_readers;
 
     // TODO(rsavitski): under a single-threaded model, directly shared between
     // the reader and the "unwinder". If/when lifting unwinding into a separate
@@ -145,6 +145,7 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     pid_t pid = 0;
     pid_t tid = 0;
     uint64_t timestamp = 0;
+    uint16_t cpu_mode = PERF_RECORD_MISC_CPUMODE_UNKNOWN;
     std::vector<FrameData> frames;
     bool unwind_error = false;
   };
@@ -155,6 +156,15 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   void IncreaseConnectionBackoff();
 
   void TickDataSourceRead(DataSourceInstanceID ds_id);
+  // Returns *false* if the reader has caught up with the writer position, true
+  // otherwise. Return value is only useful if the underlying perf_event has
+  // been paused (to identify when the buffer is empty). |max_samples| is a cap
+  // on the amount of samples that will be parsed, which might be more than the
+  // number of underlying records (as there might be non-sample records).
+  bool ReadAndParsePerCpuBuffer(EventReader* reader,
+                                size_t max_samples,
+                                DataSourceInstanceID ds_id,
+                                DataSource* ds);
 
   void PostDescriptorLookupTimeout(DataSourceInstanceID ds_id,
                                    pid_t pid,
