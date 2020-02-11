@@ -38,7 +38,7 @@
 namespace perfetto {
 
 namespace {
-constexpr uint32_t kMinPollRateMs = 250;
+constexpr uint32_t kMinPollIntervalMs = 100;
 constexpr size_t kMaxNumRails = 32;
 }  // namespace
 
@@ -95,14 +95,14 @@ AndroidPowerDataSource::AndroidPowerDataSource(
       weak_factory_(this) {
   using protos::pbzero::AndroidPowerConfig;
   AndroidPowerConfig::Decoder pcfg(cfg.android_power_config_raw());
-  poll_rate_ms_ = pcfg.battery_poll_ms();
+  poll_interval_ms_ = pcfg.battery_poll_ms();
   rails_collection_enabled_ = pcfg.collect_power_rails();
 
-  if (poll_rate_ms_ < kMinPollRateMs) {
+  if (poll_interval_ms_ < kMinPollIntervalMs) {
     PERFETTO_ELOG("Battery poll interval of %" PRIu32
                   " ms is too low. Capping to %" PRIu32 " ms",
-                  poll_rate_ms_, kMinPollRateMs);
-    poll_rate_ms_ = kMinPollRateMs;
+                  poll_interval_ms_, kMinPollIntervalMs);
+    poll_interval_ms_ = kMinPollIntervalMs;
   }
   for (auto counter = pcfg.battery_counters(); counter; ++counter) {
     auto hal_id = android_internal::BatteryCounter::kUnspecified;
@@ -143,7 +143,7 @@ void AndroidPowerDataSource::Tick() {
         if (weak_this)
           weak_this->Tick();
       },
-      poll_rate_ms_ - (now_ms % poll_rate_ms_));
+      poll_interval_ms_ - (now_ms % poll_interval_ms_));
 
   WriteBatteryCounters();
   WritePowerRailsData();
