@@ -150,12 +150,17 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
       break;
 
     base::Optional<int64_t> opt_ts = json_tracker->CoerceToTs((*value)["ts"]);
-    if (!opt_ts.has_value()) {
-      context_->storage->IncrementStats(stats::json_tokenizer_failure);
-      continue;
+    int64_t ts = 0;
+    if (opt_ts.has_value()) {
+      ts = opt_ts.value();
+    } else {
+      // Metadata events may omit ts. In all other cases error:
+      auto& ph = (*value)["ph"];
+      if (!ph.isString() || *ph.asCString() != 'M') {
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        continue;
+      }
     }
-    int64_t ts = opt_ts.value();
-
     trace_sorter->PushJsonValue(ts, std::move(value));
   }
 
