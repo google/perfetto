@@ -47,7 +47,7 @@ import {Router} from './router';
 
 
 
-const POLL_RATE_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
+const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
 
 const ATRACE_CATEGORIES = new Map<string, string>();
 ATRACE_CATEGORIES.set('gfx', 'Graphics');
@@ -191,9 +191,9 @@ function PowerSettings(cssClass: string) {
           isEnabled: (cfg) => cfg.batteryDrain
         } as ProbeAttrs,
         m(Slider, {
-          title: 'Poll rate',
+          title: 'Poll interval',
           cssClass: '.thin',
-          values: POLL_RATE_MS,
+          values: POLL_INTERVAL_MS,
           unit: 'ms',
           set: (cfg, val) => cfg.batteryDrainPollMs = val,
           get: (cfg) => cfg.batteryDrainPollMs
@@ -232,9 +232,9 @@ function CpuSettings(cssClass: string) {
           isEnabled: (cfg) => cfg.cpuCoarse
         } as ProbeAttrs,
         m(Slider, {
-          title: 'Poll rate',
+          title: 'Poll interval',
           cssClass: '.thin',
-          values: POLL_RATE_MS,
+          values: POLL_INTERVAL_MS,
           unit: 'ms',
           set: (cfg, val) => cfg.cpuCoarsePollMs = val,
           get: (cfg) => cfg.cpuCoarsePollMs
@@ -402,9 +402,9 @@ function MemorySettings(cssClass: string) {
           isEnabled: (cfg) => cfg.meminfo
         } as ProbeAttrs,
         m(Slider, {
-          title: 'Poll rate',
+          title: 'Poll interval',
           cssClass: '.thin',
-          values: POLL_RATE_MS,
+          values: POLL_INTERVAL_MS,
           unit: 'ms',
           set: (cfg, val) => cfg.meminfoPeriodMs = val,
           get: (cfg) => cfg.meminfoPeriodMs
@@ -445,9 +445,9 @@ function MemorySettings(cssClass: string) {
           isEnabled: (cfg) => cfg.procStats
         } as ProbeAttrs,
         m(Slider, {
-          title: 'Poll rate',
+          title: 'Poll interval',
           cssClass: '.thin',
-          values: POLL_RATE_MS,
+          values: POLL_INTERVAL_MS,
           unit: 'ms',
           set: (cfg, val) => cfg.procStatsPeriodMs = val,
           get: (cfg) => cfg.procStatsPeriodMs
@@ -463,9 +463,9 @@ function MemorySettings(cssClass: string) {
           isEnabled: (cfg) => cfg.vmstat
         } as ProbeAttrs,
         m(Slider, {
-          title: 'Poll rate',
+          title: 'Poll interval',
           cssClass: '.thin',
-          values: POLL_RATE_MS,
+          values: POLL_INTERVAL_MS,
           unit: 'ms',
           set: (cfg, val) => cfg.vmstatPeriodMs = val,
           get: (cfg) => cfg.vmstatPeriodMs
