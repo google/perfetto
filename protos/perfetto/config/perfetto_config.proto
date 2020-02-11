@@ -1273,8 +1273,15 @@ message JavaHprofConfig {
 // Begin of protos/perfetto/config/profiling/perf_event_config.proto
 
 // TODO(b/144281346): unstable, do not use. Will change in incompatible ways.
+// At the time of writing, the config options are restricted to the periodic
+// system-wide stack sampling use-case.
 message PerfEventConfig {
-  optional int32 tid = 1;
+  // If true, sample events on all CPUs.
+  optional bool all_cpus = 1;
+  // Per-cpu sampling frequency (requested from the kernel). Not guaranteed to
+  // be honored as the kernel can throttle the sampling rate if it's too high.
+  // If unset, and implementation-defined default is used.
+  optional uint32 sampling_frequency = 2;
 }
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto

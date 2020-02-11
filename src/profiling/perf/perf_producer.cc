@@ -48,7 +48,7 @@ constexpr uint32_t kReadTickPeriodMs = 200;
 constexpr uint32_t kUnwindTickPeriodMs = 200;
 // TODO(rsavitski): this is better calculated (at setup) from the buffer and
 // sample sizes.
-constexpr size_t kMaxSamplesPerReadTick = 32;
+constexpr size_t kMaxSamplesPerCpuPerReadTick = 32;
 
 constexpr size_t kUnwindingMaxFrames = 1000;
 
@@ -57,6 +57,28 @@ constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
 constexpr char kProducerName[] = "perfetto.traced_perf";
 constexpr char kDataSourceName[] = "linux.perf";
+
+size_t NumberOfCpus() {
+  return static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
+}
+
+protos::pbzero::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
+  using CpuMode = protos::pbzero::CpuMode;
+  switch (perf_cpu_mode) {
+    case PERF_RECORD_MISC_KERNEL:
+      return CpuMode::MODE_KERNEL;
+    case PERF_RECORD_MISC_USER:
+      return CpuMode::MODE_USER;
+    case PERF_RECORD_MISC_HYPERVISOR:
+      return CpuMode::MODE_HYPERVISOR;
+    case PERF_RECORD_MISC_GUEST_KERNEL:
+      return CpuMode::MODE_GUEST_KERNEL;
+    case PERF_RECORD_MISC_GUEST_USER:
+      return CpuMode::MODE_GUEST_USER;
+    default:
+      return CpuMode::MODE_UNKNOWN;
+  }
+}
 
 }  // namespace
 
@@ -74,8 +96,8 @@ void PerfProducer::SetupDataSource(DataSourceInstanceID,
 
 void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
                                    const DataSourceConfig& config) {
-  PERFETTO_DLOG("StopDataSource(%zu, %s)", static_cast<size_t>(instance_id),
-                config.name().c_str());
+  PERFETTO_LOG("StartDataSource(%zu, %s)", static_cast<size_t>(instance_id),
+               config.name().c_str());
 
   if (config.name() != kDataSourceName)
     return;
@@ -86,11 +108,23 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
     return;
   }
 
-  base::Optional<EventReader> event_reader = EventReader::ConfigureEvents(
-      event_config->target_cpu(), event_config.value());
-  if (!event_reader.has_value()) {
-    PERFETTO_ELOG("Failed to set up perf events.");
+  // TODO(rsavitski): consider supporting specific cpu subsets.
+  if (!event_config->target_all_cpus()) {
+    PERFETTO_ELOG("PerfEventConfig{all_cpus} required");
     return;
+  }
+  size_t num_cpus = NumberOfCpus();
+  std::vector<EventReader> per_cpu_readers;
+  for (uint32_t cpu = 0; cpu < num_cpus; cpu++) {
+    base::Optional<EventReader> event_reader =
+        EventReader::ConfigureEvents(cpu, event_config.value());
+    if (!event_reader.has_value()) {
+      PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
+                    ", discarding data source.",
+                    cpu);
+      return;
+    }
+    per_cpu_readers.emplace_back(std::move(event_reader.value()));
   }
 
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
@@ -101,8 +135,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   bool inserted;
   std::tie(ds_it, inserted) = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(instance_id),
-      std::forward_as_tuple(std::move(writer),
-                            std::move(event_reader.value())));
+      std::forward_as_tuple(std::move(writer), std::move(per_cpu_readers)));
   PERFETTO_CHECK(inserted);
 
   // Write out a packet to initialize the incremental state for this sequence.
@@ -129,7 +162,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
 }
 
 void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
-  PERFETTO_DLOG("StopDataSource(%zu)", static_cast<size_t>(instance_id));
+  PERFETTO_LOG("StopDataSource(%zu)", static_cast<size_t>(instance_id));
   auto ds_it = data_sources_.find(instance_id);
   if (ds_it == data_sources_.end())
     return;
@@ -158,7 +191,6 @@ void PerfProducer::Flush(FlushRequestID flush_id,
 }
 
 void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
-  using Status = DataSource::ProcDescriptors::Status;
   auto it = data_sources_.find(ds_id);
   if (it == data_sources_.end()) {
     PERFETTO_DLOG("TickDataSourceRead(%zu): source gone",
@@ -167,31 +199,60 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
   }
   DataSource& ds = it->second;
 
+  // Make a pass over all per-cpu readers.
+  bool more_records_available = false;
+  for (EventReader& reader : ds.per_cpu_readers) {
+    if (ReadAndParsePerCpuBuffer(&reader, kMaxSamplesPerCpuPerReadTick, ds_id,
+                                 &ds)) {
+      more_records_available = true;
+    }
+  }
+
+  if (PERFETTO_UNLIKELY(ds.reader_stopping) && !more_records_available) {
+    InitiateUnwindStop(&ds);
+  } else {
+    // otherwise, keep reading
+    auto weak_this = weak_factory_.GetWeakPtr();
+    task_runner_->PostDelayedTask(
+        [weak_this, ds_id] {
+          if (weak_this)
+            weak_this->TickDataSourceRead(ds_id);
+        },
+        kReadTickPeriodMs);
+  }
+}
+
+bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
+                                            size_t max_samples,
+                                            DataSourceInstanceID ds_id,
+                                            DataSource* ds) {
+  using Status = DataSource::ProcDescriptors::Status;
+
   // TODO(rsavitski): record the loss in the trace.
   auto lost_events_callback = [ds_id](uint64_t lost_events) {
     PERFETTO_ELOG("DataSource instance [%zu] lost [%" PRIu64 "] events",
                   static_cast<size_t>(ds_id), lost_events);
   };
 
-  bool caught_up = false;
-  for (size_t i = 0; i < kMaxSamplesPerReadTick; i++) {
+  for (size_t i = 0; i < max_samples; i++) {
     base::Optional<ParsedSample> sample =
-        ds.event_reader.ReadUntilSample(lost_events_callback);
+        reader->ReadUntilSample(lost_events_callback);
     if (!sample) {
-      caught_up = true;  // caught up to the writer
-      break;
+      return false;  // caught up to the writer
     }
 
     pid_t pid = sample->pid;
     if (!sample->regs) {
       // TODO(rsavitski): don't discard if/when doing stackless events.
-      PERFETTO_DLOG("Dropping event without register data for pid [%d]",
-                    static_cast<int>(pid));
+      if (pid) {  // kernel threads not worth logging (never have regs)
+        PERFETTO_DLOG("Dropping sample without register data for pid [%d]",
+                      static_cast<int>(pid));
+      }
       continue;
     }
 
     // Request proc-fds for the process if this is the first time we see it yet.
-    auto& fd_entry = ds.proc_fds[pid];  // created if absent
+    auto& fd_entry = ds->proc_fds[pid];  // created if absent
 
     if (fd_entry.status == Status::kInitial) {
       PERFETTO_DLOG("New pid: [%d]", static_cast<int>(pid));
@@ -210,18 +271,9 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
     unwind_queues_[ds_id].emplace_back(std::move(sample.value()));
   }
 
-  if (PERFETTO_UNLIKELY(ds.reader_stopping) && caught_up) {
-    InitiateUnwindStop(&ds);
-  } else {
-    // otherwise, keep reading
-    auto weak_this = weak_factory_.GetWeakPtr();
-    task_runner_->PostDelayedTask(
-        [weak_this, ds_id] {
-          if (weak_this)
-            weak_this->TickDataSourceRead(ds_id);
-        },
-        kReadTickPeriodMs);
-  }
+  // Most likely more events in the buffer - technically, max_samples can stop
+  // us right at the boundary.
+  return true;
 }
 
 // TODO(rsavitski): first-fit makes descriptor request fulfillment not true
@@ -392,6 +444,7 @@ PerfProducer::CompletedSample PerfProducer::UnwindSample(
   ret.pid = sample.pid;
   ret.tid = sample.tid;
   ret.timestamp = sample.timestamp;
+  ret.cpu_mode = sample.cpu_mode;
 
   auto& unwind_state = process_state->unwind_state;
 
@@ -474,18 +527,21 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   ds.interning_output.WriteCallstack(callstack_root, &callstack_trie_,
                                      interned_out);
 
-  // write sample itself
+  // write the sample itself
   auto* perf_sample = packet->set_perf_sample();
   perf_sample->set_cpu(sample.cpu);
   perf_sample->set_pid(static_cast<uint32_t>(sample.pid));
   perf_sample->set_tid(static_cast<uint32_t>(sample.tid));
   perf_sample->set_callstack_iid(callstack_iid);
+  perf_sample->set_cpu_mode(ToCpuModeEnum(sample.cpu_mode));
 }
 
 void PerfProducer::InitiateReaderStop(DataSource* ds) {
   PERFETTO_DLOG("InitiateReaderStop");
   ds->reader_stopping = true;
-  ds->event_reader.PauseEvents();
+  for (auto& event_reader : ds->per_cpu_readers) {
+    event_reader.PauseEvents();
+  }
 }
 
 void PerfProducer::InitiateUnwindStop(DataSource* ds) {

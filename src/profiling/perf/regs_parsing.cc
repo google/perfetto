@@ -212,10 +212,18 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
   unwindstack::ArchEnum requested_arch = unwindstack::Regs::CurrentArch();
 
   // Layout, assuming a sparse bitmask requesting r1 and r15:
-  // [u64 abi] [u64 r1] [u64 r15]
+  // userspace thread: [u64 abi] [u64 r1] [u64 r15]
+  // kernel thread:    [u64 abi]
   const char* parse_pos = *data;
   uint64_t sampled_abi;
   parse_pos = ReadValue(&sampled_abi, parse_pos);
+
+  // ABI_NONE means there were no registers, as we've sampled a kernel thread,
+  // which doesn't have userspace registers.
+  if (sampled_abi == PERF_SAMPLE_REGS_ABI_NONE) {
+    *data = parse_pos;  // adjust caller's parsing position
+    return nullptr;
+  }
 
   // Unpack the densely-packed register values into |RawRegisterData|, which has
   // a value for every register (unsampled registers will be left at zero).
@@ -242,19 +250,10 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
     raw_regs.regs[PERF_REG_ARM_PC] = raw_regs.regs[PERF_REG_ARM64_PC];
   }
 
-  // Adjust caller's parsing position.
-  *data = parse_pos;
+  *data = parse_pos;  // adjust caller's parsing position
 
-  // ABI_NONE means there were no registers (e.g. we've sampled a kernel thread,
-  // which doesn't have userspace registers). We still walk over the empty data
-  // above, but return an empty result to the caller.
-  if (sampled_abi == PERF_SAMPLE_REGS_ABI_NONE) {
-    return nullptr;
-  } else {
-    unwindstack::ArchEnum sampled_arch =
-        ArchForAbi(requested_arch, sampled_abi);
-    return ToLibUnwindstackRegs(raw_regs, sampled_arch);
-  }
+  unwindstack::ArchEnum sampled_arch = ArchForAbi(requested_arch, sampled_abi);
+  return ToLibUnwindstackRegs(raw_regs, sampled_arch);
 }
 
 }  // namespace profiling
