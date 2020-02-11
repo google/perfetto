@@ -32,6 +32,7 @@ import {
 
 const MARGIN_TOP = 4;
 const RECT_HEIGHT = 14;
+const EXCESS_WIDTH = 10;
 
 class ThreadStateTrack extends Track<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
@@ -96,8 +97,16 @@ class ThreadStateTrack extends Track<Config, Data> {
         const tStart = data.starts[startIndex];
         const tEnd = data.ends[startIndex];
         const state = data.strings[data.state[startIndex]];
-        const rectStart = timeScale.timeToPx(tStart);
-        const rectEnd = timeScale.timeToPx(tEnd);
+
+        // If we try to draw too far off the end of the canvas (+/-4m~),
+        // the line is not drawn. Instead limit drawing to the canvas
+        // boundaries, but allow some excess to ensure that the start and end
+        // of the rect are not shown unless that is truly when it starts/ends.
+        const rectStart =
+            Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
+        const rectEnd = Math.min(
+            timeScale.timeToPx(visibleWindowTime.end) + EXCESS_WIDTH,
+            timeScale.timeToPx(tEnd));
         const color = colorForState(state);
         ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
         ctx.beginPath();
