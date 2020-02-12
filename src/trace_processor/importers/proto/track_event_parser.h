@@ -70,12 +70,14 @@ class TrackEventParser {
                                 PacketSequenceStateGeneration*,
                                 ArgsTracker::BoundInserter* inserter);
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  void ParseJsonValueArgs(const Json::Value& value,
+  // Returns true if any arguments were inserted underneath |key|.
+  bool ParseJsonValueArgs(const Json::Value& value,
                           base::StringView flat_key,
                           base::StringView key,
                           ArgsTracker::BoundInserter* inserter);
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  void ParseNestedValueArgs(protozero::ConstBytes nested_value,
+  // Returns true if any arguments were inserted underneath |key|.
+  bool ParseNestedValueArgs(protozero::ConstBytes nested_value,
                             base::StringView flat_key,
                             base::StringView key,
                             ArgsTracker::BoundInserter* inserter);

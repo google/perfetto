@@ -29,6 +29,8 @@ namespace trace_processor {
 // allows args to pushed as a group into storage.
 class ArgsTracker {
  public:
+  using UpdatePolicy = GlobalArgsTracker::UpdatePolicy;
+
   // Stores the table and row at creation time which args are associated with.
   // This allows callers to directly add args without repeating the row the
   // args should be associated with.
@@ -37,14 +39,35 @@ class ArgsTracker {
     virtual ~BoundInserter();
 
     // Adds an arg with the same key and flat_key.
-    BoundInserter& AddArg(StringId key, Variadic v) {
-      return AddArg(key, key, v);
+    BoundInserter& AddArg(
+        StringId key,
+        Variadic v,
+        UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate) {
+      return AddArg(key, key, v, update_policy);
     }
 
-    // Virtual for testing.
-    virtual BoundInserter& AddArg(StringId flat_key, StringId key, Variadic v) {
-      args_tracker_->AddArg(arg_set_id_column_, row_, flat_key, key, v);
+    virtual BoundInserter& AddArg(
+        StringId flat_key,
+        StringId key,
+        Variadic v,
+        UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate) {
+      args_tracker_->AddArg(arg_set_id_column_, row_, flat_key, key, v,
+                            update_policy);
       return *this;
+    }
+
+    // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
+    // track the next array index for an array under a specific key.
+    void IncrementArrayEntryIndex(StringId key) {
+      // Zero-initializes |key| in the map if it doesn't exist yet.
+      args_tracker_
+          ->array_indexes_[std::make_tuple(arg_set_id_column_, row_, key)]++;
+    }
+
+    size_t GetNextArrayEntryIndex(StringId key) {
+      // Zero-initializes |key| in the map if it doesn't exist yet.
+      return args_tracker_
+          ->array_indexes_[std::make_tuple(arg_set_id_column_, row_, key)];
     }
 
    protected:
@@ -111,10 +134,15 @@ class ArgsTracker {
               uint32_t row,
               StringId flat_key,
               StringId key,
-              Variadic);
+              Variadic,
+              UpdatePolicy);
 
   std::vector<GlobalArgsTracker::Arg> args_;
   TraceProcessorContext* const context_;
+
+  using ArrayKeyTuple =
+      std::tuple<Column* /*arg_set_id*/, uint32_t /*row*/, StringId /*key*/>;
+  std::map<ArrayKeyTuple, size_t /*next_index*/> array_indexes_;
 };
 
 }  // namespace trace_processor
