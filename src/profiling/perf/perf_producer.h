@@ -23,6 +23,7 @@
 
 #include <unistd.h>
 
+#include <unwindstack/Error.h>
 #include <unwindstack/Regs.h>
 
 #include "perfetto/base/task_runner.h"
@@ -147,7 +148,7 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     uint64_t timestamp = 0;
     uint16_t cpu_mode = PERF_RECORD_MISC_CPUMODE_UNKNOWN;
     std::vector<FrameData> frames;
-    bool unwind_error = false;
+    unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
   };
 
   void ConnectService();
