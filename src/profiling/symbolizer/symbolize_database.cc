@@ -41,7 +41,7 @@ constexpr const char* kQueryUnsymbolized =
     "from stack_profile_frame spf "
     "join stack_profile_mapping spm "
     "on spf.mapping = spm.id "
-    "where spm.build_id != '' and spf.symbol_set_id == 0";
+    "where spm.build_id != '' and spf.symbol_set_id IS NULL";
 
 using NameAndBuildIdPair = std::pair<std::string, std::string>;
 
@@ -77,8 +77,8 @@ std::map<NameAndBuildIdPair, std::vector<uint64_t>> GetUnsymbolizedFrames(
   Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
   while (it.Next()) {
     auto name_and_buildid =
-        std::make_pair(it.Get(0).string_value, FromHex(it.Get(1).string_value));
-    int64_t rel_pc = it.Get(2).long_value;
+        std::make_pair(it.Get(0).AsString(), FromHex(it.Get(1).AsString()));
+    int64_t rel_pc = it.Get(2).AsLong();
     res[name_and_buildid].emplace_back(rel_pc);
   }
   if (!it.Status().ok()) {
