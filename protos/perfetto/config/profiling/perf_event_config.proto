@@ -26,6 +26,10 @@ message PerfEventConfig {
   optional bool all_cpus = 1;
   // Per-cpu sampling frequency (requested from the kernel). Not guaranteed to
   // be honored as the kernel can throttle the sampling rate if it's too high.
-  // If unset, and implementation-defined default is used.
+  // If unset, an implementation-defined default is used.
   optional uint32 sampling_frequency = 2;
+  // Size (in 4k pages) of each per-cpu ring buffer that is filled by the
+  // kernel. If set, must be a power of two.
+  // If unset, an implementation-defined default is used.
+  optional uint32 ring_buffer_pages = 3;
 }
