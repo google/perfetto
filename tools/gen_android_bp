@@ -84,6 +84,7 @@ default_targets += [
 target_initrc = {
     '//src/traced/service:traced': {'perfetto.rc'},
     '//src/profiling/memory:heapprofd': {'heapprofd.rc'},
+    '//src/profiling/perf:traced_perf': {'traced_perf.rc'},
 }
 
 target_host_supported = [
@@ -168,7 +169,9 @@ additional_args = {
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'traced_probes': [
-        ('required', {'libperfetto_android_internal', 'trigger_perfetto'}),
+        ('required', {'libperfetto_android_internal',
+                      'trigger_perfetto',
+                      'traced_perf'}),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
