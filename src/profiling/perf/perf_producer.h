@@ -183,6 +183,9 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
   void PostEmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
   void EmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
+  void EmitRingBufferLoss(DataSourceInstanceID ds_id,
+                          size_t cpu,
+                          uint64_t records_lost);
 
   // Starts the shutdown of the given data source instance, starting with the
   // reader frontend.

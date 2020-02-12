@@ -3419,6 +3419,20 @@ message PerfSample {
   // for correctly handling the "unknown on-the-wire values are decoded as the
   // first enum value" caveat.
   optional StackUnwindError unwind_error = 16;
+
+  // If set, indicates that this message is not a sample, but rather an
+  // indication of data loss in the ring buffer allocated for |cpu|. Such data
+  // loss occurs when the kernel has insufficient ring buffer capacity to write
+  // a record (which gets discarded). A record in this context is an individual
+  // ring buffer entry, and counts more than just sample records.
+  //
+  // The |timestamp| of the packet corresponds to the time that the producer
+  // wrote the packet for trace-sorting purposes alone, and should not be
+  // interpreted relative to the sample timestamps. This field is sufficient to
+  // detect that *some* kernel data loss happened within the trace, but not the
+  // specific time bounds of that loss (which would require tracking precedessor
+  // & successor timestamps, which is not deemed necessary at the moment).
+  optional uint64 kernel_records_lost = 17;
 }
 // End of protos/perfetto/trace/profiling/profile_packet.proto
 
