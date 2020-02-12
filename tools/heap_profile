@@ -31,8 +31,8 @@ import time
 import urllib
 
 TRACE_TO_TEXT_SHAS = {
-    'linux': 'f9c206e242c49ebd4ec5e4138c61f4fb2816065b',
-    'mac': '7e1803f5c51d0763061d2980fd9af5750ac9d9c8',
+    'linux': '8e7b02e8ce710f8c8f9c7c7d5aa00cc724a7c059',
+    'mac': '332099f1650ec7eaa57069344b5bcf3c23a08839',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
