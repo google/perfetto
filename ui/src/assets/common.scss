@@ -17,6 +17,8 @@
     --monospace-font: 'Roboto Mono', monospace;
     --track-shell-width: 250px;
     --track-border-color: #00000025;
+    --anim-easing: cubic-bezier(0.4, 0.0, 0.2, 1)
+
 }
 
 @mixin transition($time:0.1s) {
@@ -137,7 +139,7 @@ button.close {
     justify-content: center;
     align-items: center;
     flex-direction: row;
-    background-image: url('assets/logo.png');
+    background-image: url('assets/logo-3d.png');
     background-attachment: fixed;
     background-repeat: no-repeat;
     background-position: center;

@@ -19,6 +19,7 @@ import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineMode} from '../common/state';
 
+import {Animation} from './animation';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
@@ -609,6 +610,8 @@ const SidebarFooter: m.Component = {
 
 
 export class Sidebar implements m.ClassComponent {
+  private _redrawWhileAnimating =
+      new Animation(() => globals.rafScheduler.scheduleFullRedraw());
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
@@ -674,11 +677,14 @@ export class Sidebar implements m.ClassComponent {
         'nav.sidebar',
         {
           class: globals.frontendLocalState.sidebarVisible ? 'show-sidebar' :
-                                                             'hide-sidebar'
+                                                             'hide-sidebar',
+          // 150 here matches --sidebar-timing in the css.
+          ontransitionstart: () => this._redrawWhileAnimating.start(150),
+          ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
         m(
             'header',
-            'Perfetto',
+            m('img[src=assets/brand.png].brand'),
             m('button.sidebar-button',
               {
                 onclick: () => {
