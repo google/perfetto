@@ -20,9 +20,51 @@
 #include "perfetto/tracing/data_source.h"
 
 #include <atomic>
+#include <utility>
 
 namespace perfetto {
+
+// Dynamically constructed category names should marked as such through this
+// container type to make it less likely for trace points to accidentally start
+// using dynamic categories. Events with dynamic categories will always be
+// slightly more expensive than regular events, so use them sparingly.
+class DynamicCategory final {
+ public:
+  explicit DynamicCategory(const std::string& name_) : name(name_) {}
+  explicit DynamicCategory(const char* name_) : name(name_) {}
+  DynamicCategory() {}
+  ~DynamicCategory() = default;
+
+  const std::string name;
+};
+
 namespace internal {
+
+constexpr const char* NullCategory(const char*) {
+  return nullptr;
+}
+
+perfetto::DynamicCategory NullCategory(const perfetto::DynamicCategory&);
+
+constexpr bool StringMatchesPrefix(const char* str, const char* prefix) {
+  return !*str ? !*prefix
+               : !*prefix ? true
+                          : *str != *prefix
+                                ? false
+                                : StringMatchesPrefix(str + 1, prefix + 1);
+}
+
+constexpr bool IsStringInPrefixList(const char*) {
+  return false;
+}
+
+template <typename... Args>
+constexpr bool IsStringInPrefixList(const char* str,
+                                    const char* prefix,
+                                    Args... args) {
+  return StringMatchesPrefix(str, prefix) ||
+         IsStringInPrefixList(str, std::forward<Args>(args)...);
+}
 
 // A compile-time representation of a track event category. See
 // PERFETTO_DEFINE_CATEGORIES for registering your own categories.
@@ -71,16 +113,28 @@ class TrackEventCategoryRegistry {
   // implementation and typically don't need to be called by other code.)
 
   // At compile time, turn a category name into an index into the registry.
-  // Returns kInvalidCategoryIndex if the category was not found.
+  // Returns kInvalidCategoryIndex if the category was not found, or
+  // kDynamicCategoryIndex if |is_dynamic| is true or a DynamicCategory was
+  // passed in.
   static constexpr size_t kInvalidCategoryIndex = static_cast<size_t>(-1);
-  constexpr size_t Find(const char* name, size_t index = 0) const {
-    return (index == category_count_) ? kInvalidCategoryIndex
-                                      : StringEq(categories_[index].name, name)
-                                            ? index
-                                            : Find(name, index + 1);
+  static constexpr size_t kDynamicCategoryIndex = static_cast<size_t>(-2);
+  constexpr size_t Find(const char* name,
+                        bool is_dynamic,
+                        size_t index = 0) const {
+    return is_dynamic ? kDynamicCategoryIndex
+                      : (index == category_count_)
+                            ? kInvalidCategoryIndex
+                            : StringEq(categories_[index].name, name)
+                                  ? index
+                                  : Find(name, false, index + 1);
   }
 
-  // A helper for validating that a category was registered at compile time.
+  constexpr size_t Find(const DynamicCategory&, bool) const {
+    return kDynamicCategoryIndex;
+  }
+
+  // A helper for validating that a category was registered at compile time or
+  // was in the allowed list of statically defined dynamic categories.
   template <size_t CategoryIndex>
   static constexpr size_t Validate() {
     static_assert(CategoryIndex != kInvalidCategoryIndex,

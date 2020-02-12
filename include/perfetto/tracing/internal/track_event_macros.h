@@ -85,25 +85,44 @@
 
 // At compile time, turns a category name represented by a static string into an
 // index into the current category registry. A build error will be generated if
-// the category hasn't been registered. See PERFETTO_DEFINE_CATEGORIES.
-#define PERFETTO_GET_CATEGORY_INDEX(category)                                \
-  ::perfetto::internal::TrackEventCategoryRegistry::Validate<                \
-      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
-          .Find(category)>()
-
-// Efficiently determines whether tracing is enabled for the given category, and
-// if so, emits one trace event with the given arguments.
-#define PERFETTO_INTERNAL_TRACK_EVENT(category, ...)                      \
-  ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::CallIfCategoryEnabled<    \
-      PERFETTO_GET_CATEGORY_INDEX(category)>([&](uint32_t instances) {    \
-    ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::TraceForCategory<       \
-        PERFETTO_GET_CATEGORY_INDEX(category)>(instances, ##__VA_ARGS__); \
-  })
+// the category hasn't been registered or added to the list of allowed dynamic
+// categories. See PERFETTO_DEFINE_CATEGORIES.
+#define PERFETTO_GET_CATEGORY_INDEX(category)                                  \
+  ::perfetto::internal::TrackEventCategoryRegistry::Validate<                  \
+      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry   \
+          .Find(category,                                                      \
+                ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory( \
+                    category))>()
 
 // Generate a unique variable name with a given prefix.
 #define PERFETTO_INTERNAL_CONCAT2(a, b) a##b
 #define PERFETTO_INTERNAL_CONCAT(a, b) PERFETTO_INTERNAL_CONCAT2(a, b)
-#define PERFETTO_INTERNAL_UID(prefix) PERFETTO_INTERNAL_CONCAT(prefix, __LINE__)
+#define PERFETTO_UID(prefix) PERFETTO_INTERNAL_CONCAT(prefix, __LINE__)
+
+// Efficiently determines whether tracing is enabled for the given category, and
+// if so, emits one trace event with the given arguments.
+#define PERFETTO_INTERNAL_TRACK_EVENT(category, ...)                      \
+  do {                                                                    \
+    using namespace ::PERFETTO_TRACK_EVENT_NAMESPACE;                     \
+    using namespace ::perfetto::internal;                                 \
+    /* Compute the category index outside the lambda to work around a */  \
+    /* GCC 7 bug */                                                       \
+    constexpr auto PERFETTO_UID(kCatIndex) =                              \
+        PERFETTO_GET_CATEGORY_INDEX(category);                            \
+    if (internal::IsDynamicCategory(category)) {                          \
+      TrackEvent::CallIfEnabled([&](uint32_t instances) {                 \
+        TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(            \
+            instances, category, ##__VA_ARGS__);                          \
+      });                                                                 \
+    } else {                                                              \
+      TrackEvent::CallIfCategoryEnabled<PERFETTO_UID(kCatIndex)>(         \
+          [&](uint32_t instances) {                                       \
+            /* TODO(skyostil): Get rid of the category name parameter. */ \
+            TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(        \
+                instances, nullptr, ##__VA_ARGS__);                       \
+          });                                                             \
+    }                                                                     \
+  } while (false)
 
 #define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
   struct {                                                                    \
@@ -118,7 +137,7 @@
       EventFinalizer(int) {}                                                  \
       ~EventFinalizer() { TRACE_EVENT_END(category); }                        \
     } finalizer;                                                              \
-  } PERFETTO_INTERNAL_UID(scoped_event) {                                     \
+  } PERFETTO_UID(scoped_event) {                                              \
     [&]() {                                                                   \
       TRACE_EVENT_BEGIN(category, name, ##__VA_ARGS__);                       \
       return 0;                                                               \

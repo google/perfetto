@@ -69,6 +69,10 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
 
+// Events in categories starting with "dynamic" will use dynamic category
+// lookup.
+PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES("dynamic");
+
 // Trace categories used in the tests.
 PERFETTO_DEFINE_CATEGORIES(PERFETTO_CATEGORY(test),
                            PERFETTO_CATEGORY(foo),
@@ -868,6 +872,72 @@ TEST_F(PerfettoApiTest, TrackEventCategoriesWithModule) {
       EXPECT_EQ(sequence_id, packet.trusted_packet_sequence_id());
     }
   }
+}
+
+TEST_F(PerfettoApiTest, TrackEventDynamicCategories) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // Session #1 enabled the "dynamic" category.
+  ds_cfg->set_legacy_config("dynamic");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // Session #2 enables "dynamic_2".
+  ds_cfg->set_legacy_config("dynamic_2");
+  auto* tracing_session2 = NewTrace(cfg);
+  tracing_session2->get()->StartBlocking();
+
+  // Test naming dynamic categories with std::string.
+  perfetto::DynamicCategory dynamic{"dynamic"};
+  TRACE_EVENT_BEGIN(dynamic, "EventInDynamicCategory");
+  perfetto::DynamicCategory dynamic_disabled{"dynamic_disabled"};
+  TRACE_EVENT_BEGIN(dynamic_disabled, "EventInDisabledDynamicCategory");
+
+  // Test naming dynamic categories statically.
+  TRACE_EVENT_BEGIN("dynamic", "EventInStaticallyNamedDynamicCategory");
+
+  perfetto::DynamicCategory dynamic_2{"dynamic_2"};
+  TRACE_EVENT_BEGIN(dynamic_2, "EventInSecondDynamicCategory");
+  TRACE_EVENT_BEGIN("dynamic_2", "EventInSecondStaticallyNamedDynamicCategory");
+
+  std::thread thread([] {
+    // Make sure the category name can actually be computed at runtime.
+    std::string name = "dyn";
+    if (perfetto::base::GetThreadId())
+      name += "amic";
+    perfetto::DynamicCategory cat{name};
+    TRACE_EVENT_BEGIN(cat, "DynamicFromOtherThread");
+    perfetto::DynamicCategory cat2{"dynamic_disabled"};
+    TRACE_EVENT_BEGIN(cat2, "EventInDisabledDynamicCategory");
+  });
+  thread.join();
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+  EXPECT_THAT(trace, HasSubstr("EventInDynamicCategory"));
+  EXPECT_THAT(trace, Not(HasSubstr("EventInDisabledDynamicCategory")));
+  EXPECT_THAT(trace, HasSubstr("DynamicFromOtherThread"));
+  EXPECT_THAT(trace, Not(HasSubstr("EventInSecondDynamicCategory")));
+  EXPECT_THAT(trace, HasSubstr("EventInStaticallyNamedDynamicCategory"));
+  EXPECT_THAT(trace,
+              Not(HasSubstr("EventInSecondStaticallyNamedDynamicCategory")));
+
+  tracing_session2->get()->StopBlocking();
+  raw_trace = tracing_session2->get()->ReadTraceBlocking();
+  trace = std::string(raw_trace.data(), raw_trace.size());
+  EXPECT_THAT(trace, Not(HasSubstr("EventInDynamicCategory")));
+  EXPECT_THAT(trace, Not(HasSubstr("EventInDisabledDynamicCategory")));
+  EXPECT_THAT(trace, Not(HasSubstr("DynamicFromOtherThread")));
+  EXPECT_THAT(trace, HasSubstr("EventInSecondDynamicCategory"));
+  EXPECT_THAT(trace, Not(HasSubstr("EventInStaticallyNamedDynamicCategory")));
+  EXPECT_THAT(trace, HasSubstr("EventInSecondStaticallyNamedDynamicCategory"));
 }
 
 TEST_F(PerfettoApiTest, TrackEventConcurrentSessions) {

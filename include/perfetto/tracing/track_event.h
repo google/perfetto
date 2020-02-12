@@ -130,6 +130,43 @@
 #define PERFETTO_CATEGORY(name) \
   { #name }
 
+// Internal helpers for determining if a given category is defined at build or
+// runtime.
+namespace PERFETTO_TRACK_EVENT_NAMESPACE {
+namespace internal {
+
+// By default no statically defined categories are dynamic, but this can be
+// overridden with PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES.
+template <typename... T>
+constexpr bool IsDynamicCategory(const char*) {
+  return false;
+}
+
+// Explicitly dynamic categories are always dynamic.
+constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
+  return true;
+}
+
+}  // namespace internal
+}  // namespace PERFETTO_TRACK_EVENT_NAMESPACE
+
+// Normally all categories are defined statically at build-time (see
+// PERFETTO_DEFINE_CATEGORIES). However, some categories are only used for
+// testing, and we shouldn't publish them to the tracing service or include them
+// in a production binary. Use this macro to define a list of prefixes for these
+// types of categories. Note that trace points using these categories will be
+// slightly less efficient compared to regular trace points.
+#define PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES(...)                       \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {                              \
+  namespace internal {                                                    \
+  template <>                                                             \
+  constexpr bool IsDynamicCategory(const char* name) {                    \
+    return ::perfetto::internal::IsStringInPrefixList(name, __VA_ARGS__); \
+  }                                                                       \
+  } /* namespace internal */                                              \
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */                        \
+  PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
+
 // Register the set of available categories by passing a list of categories to
 // this macro: PERFETTO_CATEGORY(cat1), PERFETTO_CATEGORY(cat2), ...
 #define PERFETTO_DEFINE_CATEGORIES(...)                        \
