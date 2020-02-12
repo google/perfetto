@@ -22,9 +22,12 @@ namespace perfetto {
 namespace trace_processor {
 
 SqliteExperimentalCounterDurTable::SqliteExperimentalCounterDurTable(
-    sqlite3*,
+    sqlite3* db,
     Context context)
-    : cache_(context.cache), counter_table_(context.table) {}
+    : DbSqliteTable(db,
+                    {context.cache, std::move(context.schema), context.table}),
+      cache_(context.cache),
+      counter_table_(context.table) {}
 
 SqliteExperimentalCounterDurTable::~SqliteExperimentalCounterDurTable() =
     default;
@@ -33,28 +36,14 @@ void SqliteExperimentalCounterDurTable::RegisterTable(
     sqlite3* db,
     QueryCache* cache,
     const tables::CounterTable& table) {
+  // Add the dur column to the counter schema and use that as the base schema.
+  auto schema = tables::CounterTable::Schema();
+  schema.columns.push_back(
+      {"dur", SqlValue::Type::kLong, false /* is_id */, false /* is_sorted */});
+
   SqliteTable::Register<SqliteExperimentalCounterDurTable>(
-      db, Context{cache, &table}, "experimental_counter_dur");
-}
-
-util::Status SqliteExperimentalCounterDurTable::Init(
-    int,
-    const char* const*,
-    SqliteTable::Schema* schema) {
-  *schema = DbSqliteTable::ComputeSchema(*counter_table_, name().c_str());
-  schema->mutable_columns()->emplace_back(
-      Column(schema->columns().size(), "dur", SqlValue::Type::kLong));
-  return util::OkStatus();
-}
-
-int SqliteExperimentalCounterDurTable::BestIndex(const QueryConstraints& qc,
-                                                 BestIndexInfo* info) {
-  // Add the outline for the dur column.
-  auto outline = DbSqliteTable::OutlineFromTable(*counter_table_);
-  outline.columns.push_back({false /* is_id */, false /* is_sorted */});
-
-  DbSqliteTable::BestIndex(outline, qc, info);
-  return SQLITE_OK;
+      db, Context{cache, std::move(schema), &table},
+      "experimental_counter_dur");
 }
 
 std::unique_ptr<SqliteTable::Cursor>

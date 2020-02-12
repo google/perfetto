@@ -133,6 +133,11 @@ struct TypedColumn : public Column {
     return TH::is_optional ? Flag::kNoFlag : Flag::kNonNull;
   }
 
+  // Converts the static type T into the dynamic SqlValue type of this column.
+  static SqlValue::Type SqlValueType() {
+    return Column::ToSqlValueType<serialized_type>();
+  }
+
  private:
   static SqlValue ToValue(double value) { return SqlValue::Double(value); }
   static SqlValue ToValue(uint32_t value) { return SqlValue::Long(value); }

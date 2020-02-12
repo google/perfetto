@@ -24,10 +24,11 @@
 namespace perfetto {
 namespace trace_processor {
 
-class SqliteExperimentalCounterDurTable : public SqliteTable {
+class SqliteExperimentalCounterDurTable : public DbSqliteTable {
  public:
   struct Context {
     QueryCache* cache;
+    Table::Schema schema;
     const tables::CounterTable* table;
   };
 
@@ -55,11 +56,7 @@ class SqliteExperimentalCounterDurTable : public SqliteTable {
                             const tables::CounterTable& table);
 
   // SqliteTable implementation.
-  util::Status Init(int,
-                    const char* const*,
-                    SqliteTable::Schema*) override final;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
   static SparseVector<int64_t> ComputeDurColumn(
       const tables::CounterTable& table);

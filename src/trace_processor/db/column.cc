@@ -51,8 +51,8 @@ Column::Column(const char* name,
       string_pool_(table->string_pool_) {}
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
-  return Column("id", ColumnType::kId, Flag::kSorted | Flag::kNonNull, table,
-                col_idx, row_map_idx, nullptr);
+  return Column("id", ColumnType::kId, kIdFlags, table, col_idx, row_map_idx,
+                nullptr);
 }
 
 void Column::StableSort(bool desc, std::vector<uint32_t>* idx) const {
