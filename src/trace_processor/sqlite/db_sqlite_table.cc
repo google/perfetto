@@ -84,34 +84,39 @@ SqlValue SqliteValueToSqlValue(sqlite3_value* sqlite_val) {
 }  // namespace
 
 DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
-    : cache_(context.cache), table_(context.table) {}
+    : cache_(context.cache),
+      schema_(std::move(context.schema)),
+      table_(context.table) {}
 DbSqliteTable::~DbSqliteTable() = default;
 
 void DbSqliteTable::RegisterTable(sqlite3* db,
                                   QueryCache* cache,
+                                  Table::Schema schema,
                                   const Table* table,
                                   const std::string& name) {
-  SqliteTable::Register<DbSqliteTable, Context>(db, Context{cache, table},
-                                                name);
+  SqliteTable::Register<DbSqliteTable, Context>(
+      db, Context{cache, schema, table}, name);
 }
 
 util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
-  *schema = ComputeSchema(*table_, name().c_str());
+  *schema = ComputeSchema(schema_, name().c_str());
   return util::OkStatus();
 }
 
-SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table& table,
+SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
                                                  const char* table_name) {
   std::vector<SqliteTable::Column> schema_cols;
-  for (uint32_t i = 0; i < table.GetColumnCount(); ++i) {
-    const auto& col = table.GetColumn(i);
-    schema_cols.emplace_back(i, col.name(), col.type());
+  for (uint32_t i = 0; i < schema.columns.size(); ++i) {
+    const auto& col = schema.columns[i];
+    schema_cols.emplace_back(i, col.name, col.type);
   }
 
   // TODO(lalitm): this is hardcoded to be the id column but change this to be
   // more generic in the future.
-  const auto* col = table.GetColumnByName("id");
-  if (!col) {
+  auto it = std::find_if(
+      schema.columns.begin(), schema.columns.end(),
+      [](const Table::Schema::Column& c) { return c.name == "id"; });
+  if (it == schema.columns.end()) {
     PERFETTO_FATAL(
         "id column not found in %s. Currently all db Tables need to contain an "
         "id column; this constraint will be relaxed in the future.",
@@ -119,30 +124,20 @@ SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table& table,
   }
 
   std::vector<size_t> primary_keys;
-  primary_keys.emplace_back(col->index_in_table());
+  primary_keys.emplace_back(std::distance(schema.columns.begin(), it));
   return Schema(std::move(schema_cols), std::move(primary_keys));
 }
 
 int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  BestIndex(OutlineFromTable(*table_), qc, info);
+  BestIndex(schema_, table_->row_count(), qc, info);
   return SQLITE_OK;
 }
 
-DbSqliteTable::TableOutline DbSqliteTable::OutlineFromTable(
-    const Table& table) {
-  TableOutline outline;
-  outline.row_count = table.row_count();
-  for (uint32_t i = 0; i < table.GetColumnCount(); ++i) {
-    const auto& col = table.GetColumn(i);
-    outline.columns.push_back({col.IsId(), col.IsSorted()});
-  }
-  return outline;
-}
-
-void DbSqliteTable::BestIndex(const TableOutline& outline,
+void DbSqliteTable::BestIndex(const Table::Schema& schema,
+                              uint32_t row_count,
                               const QueryConstraints& qc,
                               BestIndexInfo* info) {
-  auto cost_and_rows = EstimateCost(outline, qc);
+  auto cost_and_rows = EstimateCost(schema, row_count, qc);
   info->estimated_cost = cost_and_rows.cost;
   info->estimated_rows = cost_and_rows.rows;
 
@@ -160,31 +155,31 @@ void DbSqliteTable::BestIndex(const TableOutline& outline,
 }
 
 int DbSqliteTable::ModifyConstraints(QueryConstraints* qc) {
-  ModifyConstraints(*table_, qc);
+  ModifyConstraints(schema_, qc);
   return SQLITE_OK;
 }
 
-void DbSqliteTable::ModifyConstraints(const Table& table,
+void DbSqliteTable::ModifyConstraints(const Table::Schema& schema,
                                       QueryConstraints* qc) {
   using C = QueryConstraints::Constraint;
 
   // Reorder constraints to consider the constraints on columns which are
   // cheaper to filter first.
   auto* cs = qc->mutable_constraints();
-  std::sort(cs->begin(), cs->end(), [&table](const C& a, const C& b) {
+  std::sort(cs->begin(), cs->end(), [&schema](const C& a, const C& b) {
     uint32_t a_idx = static_cast<uint32_t>(a.column);
     uint32_t b_idx = static_cast<uint32_t>(b.column);
-    const auto& a_col = table.GetColumn(a_idx);
-    const auto& b_col = table.GetColumn(b_idx);
+    const auto& a_col = schema.columns[a_idx];
+    const auto& b_col = schema.columns[b_idx];
 
     // Id columns are always very cheap to filter on so try and get them
     // first.
-    if (a_col.IsId() && !b_col.IsId())
+    if (a_col.is_id && !b_col.is_id)
       return true;
 
     // Sorted columns are also quite cheap to filter so order them after
     // any id columns.
-    if (a_col.IsSorted() && !b_col.IsSorted())
+    if (a_col.is_sorted && !b_col.is_sorted)
       return true;
 
     // TODO(lalitm): introduce more orderings here based on empirical data.
@@ -208,9 +203,9 @@ void DbSqliteTable::ModifyConstraints(const Table& table,
   // constraints until the first non-sorted column or the first order by in
   // descending order.
   {
-    auto p = [&table](const QueryConstraints::OrderBy& o) {
-      const auto& col = table.GetColumn(static_cast<uint32_t>(o.iColumn));
-      return o.desc || !col.IsSorted();
+    auto p = [&schema](const QueryConstraints::OrderBy& o) {
+      const auto& col = schema.columns[static_cast<uint32_t>(o.iColumn)];
+      return o.desc || !col.is_sorted;
     };
     auto first_non_sorted_it = std::find_if(ob->rbegin(), ob->rend(), p);
     auto pop_count = std::distance(ob->rbegin(), first_non_sorted_it);
@@ -219,7 +214,8 @@ void DbSqliteTable::ModifyConstraints(const Table& table,
 }
 
 DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
-    const TableOutline& outline,
+    const Table::Schema& schema,
+    uint32_t row_count,
     const QueryConstraints& qc) {
   // Currently our cost estimation algorithm is quite simplistic but is good
   // enough for the simplest cases.
@@ -234,7 +230,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   // end of filtering. Note that |current_row_count| should always be at least 1
   // unless we are absolutely certain that we will return no rows as otherwise
   // SQLite can make some bad choices.
-  uint32_t current_row_count = outline.row_count;
+  uint32_t current_row_count = row_count;
 
   // If the table is empty, any constraint set only pays the fixed cost. Also we
   // can return 0 as the row count as we are certain that we will return no
@@ -248,8 +244,8 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   for (const auto& c : cs) {
     if (current_row_count < 2)
       break;
-    const auto& col_outline = outline.columns[static_cast<uint32_t>(c.column)];
-    if (sqlite_utils::IsOpEq(c.op) && col_outline.is_id) {
+    const auto& col_schema = schema.columns[static_cast<uint32_t>(c.column)];
+    if (sqlite_utils::IsOpEq(c.op) && col_schema.is_id) {
       // If we have an id equality constraint, it's a bit expensive to find
       // the exact row but it filters down to a single row.
       filter_cost += 100;
@@ -262,7 +258,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       // Alternatively, if the column is sorted, we can use the same binary
       // search logic so we have the same low cost (even better because we don't
       // have to sort at all).
-      filter_cost += cs.size() == 1 || col_outline.is_sorted
+      filter_cost += cs.size() == 1 || col_schema.is_sorted
                          ? (2 * current_row_count) / log2(current_row_count)
                          : current_row_count;
 
