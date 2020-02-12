@@ -25,6 +25,7 @@
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track.h"
 #include "perfetto/tracing/track_event_category_registry.h"
+#include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 #include <type_traits>
@@ -91,8 +92,10 @@ class TrackEventDataSource
  public:
   // DataSource implementation.
   void OnSetup(const DataSourceBase::SetupArgs& args) override {
-    config_ = *args.config;
-    TrackEventInternal::EnableTracing(*Registry, *args.config,
+    auto config_raw = args.config->track_event_config_raw();
+    bool ok = config_.ParseFromArray(config_raw.data(), config_raw.size());
+    PERFETTO_DCHECK(ok);
+    TrackEventInternal::EnableTracing(*Registry, config_,
                                       args.internal_instance_index);
   }
 
@@ -509,8 +512,7 @@ class TrackEventDataSource
   }
 
   // Config for the current tracing session.
-  // TODO(skyostil): Replace with just the part we need (TrackEventConfig).
-  DataSourceConfig config_;
+  protos::gen::TrackEventConfig config_;
 };
 
 }  // namespace internal
