@@ -98,6 +98,9 @@ class Column {
     kNonNull = 1 << 1,
   };
 
+  // Flags specified for an id column.
+  static constexpr uint32_t kIdFlags = Flag::kSorted | Flag::kNonNull;
+
   template <typename T>
   Column(const char* name,
          SparseVector<T>* storage,
@@ -268,20 +271,7 @@ class Column {
   const char* name() const { return name_; }
 
   // Returns the type of this Column in terms of SqlValue::Type.
-  SqlValue::Type type() const {
-    switch (type_) {
-      case ColumnType::kInt32:
-      case ColumnType::kUint32:
-      case ColumnType::kInt64:
-      case ColumnType::kId:
-        return SqlValue::Type::kLong;
-      case ColumnType::kDouble:
-        return SqlValue::Type::kDouble;
-      case ColumnType::kString:
-        return SqlValue::Type::kString;
-    }
-    PERFETTO_FATAL("For GCC");
-  }
+  SqlValue::Type type() const { return ToSqlValueType(type_); }
 
   // Returns the index of the current column in the containing table.
   uint32_t index_in_table() const { return col_idx_in_table_; }
@@ -334,6 +324,12 @@ class Column {
   const SparseVector<T>& sparse_vector() const {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
     return *static_cast<const SparseVector<T>*>(sparse_vector_);
+  }
+
+  // Returns the type of this Column in terms of SqlValue::Type.
+  template <typename T>
+  static SqlValue::Type ToSqlValueType() {
+    return ToSqlValueType(ToColumnType<T>());
   }
 
   const StringPool& string_pool() const { return *string_pool_; }
@@ -530,6 +526,21 @@ class Column {
     } else {
       PERFETTO_FATAL("Unsupported type of column");
     }
+  }
+
+  static SqlValue::Type ToSqlValueType(ColumnType type) {
+    switch (type) {
+      case ColumnType::kInt32:
+      case ColumnType::kUint32:
+      case ColumnType::kInt64:
+      case ColumnType::kId:
+        return SqlValue::Type::kLong;
+      case ColumnType::kDouble:
+        return SqlValue::Type::kDouble;
+      case ColumnType::kString:
+        return SqlValue::Type::kString;
+    }
+    PERFETTO_FATAL("For GCC");
   }
 
   // Returns the string at the index |idx|.
