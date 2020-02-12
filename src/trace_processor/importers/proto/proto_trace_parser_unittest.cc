@@ -157,14 +157,20 @@ class MockProcessTracker : public ProcessTracker {
 
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
-  MockBoundInserter() : ArgsTracker::BoundInserter(nullptr, nullptr, 0u) {
-    ON_CALL(*this, AddArg(_, _, _)).WillByDefault(ReturnRef(*this));
+  MockBoundInserter()
+      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u), tracker_(nullptr) {
+    ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
 
-  MOCK_METHOD3(AddArg,
-               ArgsTracker::BoundInserter&(StringId flat_key,
-                                           StringId key,
-                                           Variadic v));
+  MOCK_METHOD4(
+      AddArg,
+      ArgsTracker::BoundInserter&(StringId flat_key,
+                                  StringId key,
+                                  Variadic v,
+                                  ArgsTracker::UpdatePolicy update_policy));
+
+ private:
+  ArgsTracker tracker_;
 };
 
 class MockSliceTracker : public SliceTracker {
@@ -330,11 +336,18 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   ASSERT_EQ(raw.row_count(), 2u);
   const auto& args = context_.storage->arg_table();
   ASSERT_EQ(args.row_count(), 6u);
-  ASSERT_EQ(args.int_value()[0], 123);
-  ASSERT_STREQ(context_.storage->GetString(args.string_value()[1]).c_str(),
+  // Order is by row and then by StringIds.
+  ASSERT_EQ(args.key()[0], context_.storage->InternString("comm"));
+  ASSERT_EQ(args.key()[1], context_.storage->InternString("pid"));
+  ASSERT_EQ(args.key()[2], context_.storage->InternString("oom_score_adj"));
+  ASSERT_EQ(args.key()[3], context_.storage->InternString("clone_flags"));
+  ASSERT_EQ(args.key()[4], context_.storage->InternString("ip"));
+  ASSERT_EQ(args.key()[5], context_.storage->InternString("buf"));
+  ASSERT_STREQ(context_.storage->GetString(args.string_value()[0]).c_str(),
                task_newtask);
-  ASSERT_EQ(args.int_value()[2], 12);
-  ASSERT_EQ(args.int_value()[3], 15);
+  ASSERT_EQ(args.int_value()[1], 123);
+  ASSERT_EQ(args.int_value()[2], 15);
+  ASSERT_EQ(args.int_value()[3], 12);
   ASSERT_EQ(args.int_value()[4], 20);
   ASSERT_STREQ(context_.storage->GetString(args.string_value()[5]).c_str(),
                buf_value);
@@ -1002,9 +1015,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   MockBoundInserter inserter;
   EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, cat_2_3, ev_2, 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(9999u)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::Boolean(true)));
-  EXPECT_CALL(inserter, AddArg(_, _, _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(9999u), _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::Boolean(true), _));
+  EXPECT_CALL(inserter, AddArg(_, _, _, _));
 
   EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
@@ -1018,7 +1031,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   EXPECT_CALL(*slice_, Scoped(1050000, process_2_track, cat_1, ev_1, 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(3u)));
   // Second slice should have a legacy_event.passthrough_utid arg.
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(1u)));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(1u), _));
 
   context_.sorter->ExtractEventsForced();
 
@@ -1805,43 +1818,46 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
   EXPECT_CALL(*slice_, Begin(1010000, track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_1, debug_an_1, Variadic::UnsignedInteger(10u)));
+  EXPECT_CALL(inserter, AddArg(debug_an_1, debug_an_1,
+                               Variadic::UnsignedInteger(10u), _));
 
   EXPECT_CALL(inserter, AddArg(debug_an_2_child_1, debug_an_2_child_1,
-                               Variadic::Boolean(true)));
+                               Variadic::Boolean(true), _));
 
   EXPECT_CALL(inserter, AddArg(debug_an_2_child_2, debug_an_2_child_2_0,
-                               Variadic::String(child21)));
+                               Variadic::String(child21), _));
 
   EXPECT_CALL(inserter, AddArg(debug_an_2_child_2, debug_an_2_child_2_1,
-                               Variadic::Real(2.2)));
+                               Variadic::Real(2.2), _));
 
   EXPECT_CALL(inserter, AddArg(debug_an_2_child_2, debug_an_2_child_2_2,
-                               Variadic::Integer(23)));
+                               Variadic::Integer(23), _));
 
   EXPECT_CALL(*slice_, End(1020000, track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
-  EXPECT_CALL(inserter, AddArg(debug_an_3, debug_an_3, Variadic::Integer(-3)));
   EXPECT_CALL(inserter,
-              AddArg(debug_an_4, debug_an_4, Variadic::Boolean(true)));
-  EXPECT_CALL(inserter, AddArg(debug_an_5, debug_an_5, Variadic::Real(-5.5)));
-  EXPECT_CALL(inserter, AddArg(debug_an_6, debug_an_6, Variadic::Pointer(20u)));
+              AddArg(debug_an_3, debug_an_3, Variadic::Integer(-3), _));
   EXPECT_CALL(inserter,
-              AddArg(debug_an_7, debug_an_7, Variadic::String(val_7)));
+              AddArg(debug_an_4, debug_an_4, Variadic::Boolean(true), _));
+  EXPECT_CALL(inserter,
+              AddArg(debug_an_5, debug_an_5, Variadic::Real(-5.5), _));
+  EXPECT_CALL(inserter,
+              AddArg(debug_an_6, debug_an_6, Variadic::Pointer(20u), _));
+  EXPECT_CALL(inserter,
+              AddArg(debug_an_7, debug_an_7, Variadic::String(val_7), _));
   EXPECT_CALL(inserter, AddArg(debug_an_8_val8_a, debug_an_8_val8_a,
-                               Variadic::Integer(42)));
+                               Variadic::Integer(42), _));
   EXPECT_CALL(inserter, AddArg(debug_an_8_val8_b, debug_an_8_val8_b,
-                               Variadic::String(val_8b)));
+                               Variadic::String(val_8b), _));
+  EXPECT_CALL(inserter, AddArg(debug_an_8_arr8, debug_an_8_arr8_0,
+                               Variadic::Integer(1), _));
+  EXPECT_CALL(inserter, AddArg(debug_an_8_arr8, debug_an_8_arr8_1,
+                               Variadic::Integer(2), _));
+  EXPECT_CALL(inserter, AddArg(debug_an_8_arr8, debug_an_8_arr8_2,
+                               Variadic::Integer(3), _));
   EXPECT_CALL(inserter,
-              AddArg(debug_an_8_arr8, debug_an_8_arr8_0, Variadic::Integer(1)));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_8_arr8, debug_an_8_arr8_1, Variadic::Integer(2)));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_8_arr8, debug_an_8_arr8_2, Variadic::Integer(3)));
-  EXPECT_CALL(inserter,
-              AddArg(debug_an_8_foo, debug_an_8_foo, Variadic::Integer(15)));
+              AddArg(debug_an_8_foo, debug_an_8_foo, Variadic::Integer(15), _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1907,9 +1923,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   MockBoundInserter inserter;
   EXPECT_CALL(*slice_, Begin(1010000, track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(file_1)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(func_1)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(42)));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(file_1), _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(func_1), _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(42), _));
 
   context_.sorter->ExtractEventsForced();
 }
@@ -1984,7 +2000,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(1u)));
 
   // Call with logMessageBody (body1 in this case).
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(body_1)));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(body_1), _));
 
   context_.sorter->ExtractEventsForced();
 

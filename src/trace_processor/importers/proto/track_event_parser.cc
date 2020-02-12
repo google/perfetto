@@ -683,7 +683,8 @@ void TrackEventParser::ParseTrackEvent(
 
     if (legacy_passthrough_utid) {
       inserter->AddArg(legacy_event_passthrough_utid_id_,
-                       Variadic::UnsignedInteger(*legacy_passthrough_utid));
+                       Variadic::UnsignedInteger(*legacy_passthrough_utid),
+                       ArgsTracker::UpdatePolicy::kSkipIfExists);
     }
 
     // TODO(eseckler): Parse legacy flow events into flow events table once we
@@ -1050,31 +1051,40 @@ void TrackEventParser::ParseDebugAnnotationArgs(
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-void TrackEventParser::ParseJsonValueArgs(
+bool TrackEventParser::ParseJsonValueArgs(
     const Json::Value& value,
     base::StringView flat_key,
     base::StringView key,
     ArgsTracker::BoundInserter* inserter) {
   if (value.isObject()) {
     auto it = value.begin();
+    bool inserted = false;
     for (; it != value.end(); ++it) {
       std::string child_name = it.memberName();
       std::string child_flat_key = flat_key.ToStdString() + "." + child_name;
       std::string child_key = key.ToStdString() + "." + child_name;
-      ParseJsonValueArgs(*it, base::StringView(child_flat_key),
-                         base::StringView(child_key), inserter);
+      inserted |= ParseJsonValueArgs(*it, base::StringView(child_flat_key),
+                                     base::StringView(child_key), inserter);
     }
-    return;
+    return inserted;
   }
 
   if (value.isArray()) {
     auto it = value.begin();
+    bool inserted_any = false;
+    std::string array_key = key.ToStdString();
+    StringId array_key_id = context_->storage->InternString(key);
     for (; it != value.end(); ++it) {
+      size_t array_index = inserter->GetNextArrayEntryIndex(array_key_id);
       std::string child_key =
-          key.ToStdString() + "[" + std::to_string(it.index()) + "]";
-      ParseJsonValueArgs(*it, flat_key, base::StringView(child_key), inserter);
+          array_key + "[" + std::to_string(array_index) + "]";
+      bool inserted = ParseJsonValueArgs(*it, flat_key,
+                                         base::StringView(child_key), inserter);
+      if (inserted)
+        inserter->IncrementArrayEntryIndex(array_key_id);
+      inserted_any |= inserted;
     }
-    return;
+    return inserted_any;
   }
 
   // Leaf value.
@@ -1086,31 +1096,32 @@ void TrackEventParser::ParseJsonValueArgs(
       break;
     case Json::ValueType::intValue:
       inserter->AddArg(flat_key_id, key_id, Variadic::Integer(value.asInt64()));
-      break;
+      return true;
     case Json::ValueType::uintValue:
       inserter->AddArg(flat_key_id, key_id,
                        Variadic::UnsignedInteger(value.asUInt64()));
-      break;
+      return true;
     case Json::ValueType::realValue:
       inserter->AddArg(flat_key_id, key_id, Variadic::Real(value.asDouble()));
-      break;
+      return true;
     case Json::ValueType::stringValue:
       inserter->AddArg(flat_key_id, key_id,
                        Variadic::String(context_->storage->InternString(
                            base::StringView(value.asString()))));
-      break;
+      return true;
     case Json::ValueType::booleanValue:
       inserter->AddArg(flat_key_id, key_id, Variadic::Boolean(value.asBool()));
-      break;
+      return true;
     case Json::ValueType::objectValue:
     case Json::ValueType::arrayValue:
       PERFETTO_FATAL("Non-leaf types handled above");
       break;
   }
+  return false;
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
-void TrackEventParser::ParseNestedValueArgs(
+bool TrackEventParser::ParseNestedValueArgs(
     ConstBytes nested_value,
     base::StringView flat_key,
     base::StringView key,
@@ -1125,44 +1136,58 @@ void TrackEventParser::ParseNestedValueArgs(
       if (value.has_bool_value()) {
         inserter->AddArg(flat_key_id, key_id,
                          Variadic::Boolean(value.bool_value()));
-      } else if (value.has_int_value()) {
+        return true;
+      }
+      if (value.has_int_value()) {
         inserter->AddArg(flat_key_id, key_id,
                          Variadic::Integer(value.int_value()));
-      } else if (value.has_double_value()) {
+        return true;
+      }
+      if (value.has_double_value()) {
         inserter->AddArg(flat_key_id, key_id,
                          Variadic::Real(value.double_value()));
-      } else if (value.has_string_value()) {
+        return true;
+      }
+      if (value.has_string_value()) {
         inserter->AddArg(flat_key_id, key_id,
                          Variadic::String(context_->storage->InternString(
                              value.string_value())));
+        return true;
       }
-      break;
+      return false;
     }
     case protos::pbzero::DebugAnnotation::NestedValue::DICT: {
       auto key_it = value.dict_keys();
       auto value_it = value.dict_values();
+      bool inserted = false;
       for (; key_it && value_it; ++key_it, ++value_it) {
         std::string child_name = (*key_it).ToStdString();
         std::string child_flat_key = flat_key.ToStdString() + "." + child_name;
         std::string child_key = key.ToStdString() + "." + child_name;
-        ParseNestedValueArgs(*value_it, base::StringView(child_flat_key),
-                             base::StringView(child_key), inserter);
+        inserted |=
+            ParseNestedValueArgs(*value_it, base::StringView(child_flat_key),
+                                 base::StringView(child_key), inserter);
       }
-      break;
+      return inserted;
     }
     case protos::pbzero::DebugAnnotation::NestedValue::ARRAY: {
-      int child_index = 0;
-      std::string child_flat_key = flat_key.ToStdString();
-      for (auto value_it = value.array_values(); value_it;
-           ++value_it, ++child_index) {
+      bool inserted_any = false;
+      std::string array_key = key.ToStdString();
+      StringId array_key_id = context_->storage->InternString(key);
+      for (auto value_it = value.array_values(); value_it; ++value_it) {
+        size_t array_index = inserter->GetNextArrayEntryIndex(array_key_id);
         std::string child_key =
-            key.ToStdString() + "[" + std::to_string(child_index) + "]";
-        ParseNestedValueArgs(*value_it, base::StringView(child_flat_key),
-                             base::StringView(child_key), inserter);
+            array_key + "[" + std::to_string(array_index) + "]";
+        bool inserted = ParseNestedValueArgs(
+            *value_it, flat_key, base::StringView(child_key), inserter);
+        if (inserted)
+          inserter->IncrementArrayEntryIndex(array_key_id);
+        inserted_any |= inserted;
       }
-      break;
+      return inserted_any;
     }
   }
+  return false;
 }
 
 void TrackEventParser::ParseTaskExecutionArgs(
