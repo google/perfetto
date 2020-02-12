@@ -176,6 +176,8 @@ source_set("storage_minimal") {
         "importers/json/json_trace_tokenizer.h",
         "importers/json/json_trace_utils.cc",
         "importers/json/json_trace_utils.h",
+        "importers/json/json_tracker.cc",
+        "importers/json/json_tracker.h",
       ]
     }
     deps += [ "../../gn:jsoncpp" ]
@@ -410,6 +412,7 @@ perfetto_unittest_source_set("unittests") {
       sources += [
         "importers/json/json_trace_tokenizer_unittest.cc",
         "importers/json/json_trace_utils_unittest.cc",
+        "importers/json/json_tracker_unittest.cc",
       ]
       deps += [ "../../gn:jsoncpp" ]
     }

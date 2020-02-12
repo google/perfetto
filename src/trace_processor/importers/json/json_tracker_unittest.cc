@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,28 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_UTILS_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_UTILS_H_
+#include "src/trace_processor/importers/json/json_tracker.h"
 
-#include <stdint.h>
+#include "test/gtest_and_gmock.h"
 
-#include "perfetto/ext/base/optional.h"
-
-namespace Json {
-class Value;
-}
+#include <json/value.h>
 
 namespace perfetto {
 namespace trace_processor {
-namespace json {
+namespace {
 
-enum class TimeUnit { kNs = 1, kUs = 1000, kMs = 1000000 };
-base::Optional<int64_t> CoerceToTs(TimeUnit unit, const Json::Value& value);
-base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
-base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
+TEST(JsonTrackerTest, Ns) {
+  JsonTracker tracker(nullptr);
+  tracker.SetTimeUnit(json::TimeUnit::kNs);
+  ASSERT_EQ(tracker.CoerceToTs(Json::Value(42)).value_or(-1), 42);
+}
 
-}  // namespace json
+TEST(JsonTraceUtilsTest, Us) {
+  JsonTracker tracker(nullptr);
+  ASSERT_EQ(tracker.CoerceToTs(Json::Value(42)).value_or(-1), 42000);
+}
+
+}  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
-
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_UTILS_H_

@@ -151,16 +151,16 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kUnknownTraceType;
   std::string start(reinterpret_cast<const char*>(data),
                     std::min<size_t>(size, 20));
-  std::string start_minus_white_space = RemoveWhitespace(start);
-  if (base::StartsWith(start_minus_white_space, "{\"traceEvents\":["))
-    return kJsonTraceType;
-  if (base::StartsWith(start_minus_white_space, "[{"))
-    return kJsonTraceType;
   if (size >= 8) {
     uint64_t first_word = *reinterpret_cast<const uint64_t*>(data);
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
   }
+  std::string start_minus_white_space = RemoveWhitespace(start);
+  if (base::StartsWith(start_minus_white_space, "{"))
+    return kJsonTraceType;
+  if (base::StartsWith(start_minus_white_space, "[{"))
+    return kJsonTraceType;
 
   // Systrace with header but no leading HTML.
   if (base::StartsWith(start, "# tracer"))
