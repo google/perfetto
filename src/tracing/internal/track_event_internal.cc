@@ -117,10 +117,8 @@ void TrackEventInternal::EnableTracing(
     // TODO(skyostil): Support the full category config syntax instead of
     // just strict matching.
     // TODO(skyostil): Support comma-separated categories.
-    if (config.legacy_config().empty() ||
-        config.legacy_config() == registry.GetCategory(i)->name) {
+    if (IsCategoryEnabled(config, *registry.GetCategory(i)))
       registry.EnableCategoryForInstance(i, instance_index);
-    }
   }
 }
 
@@ -130,6 +128,16 @@ void TrackEventInternal::DisableTracing(
     uint32_t instance_index) {
   for (size_t i = 0; i < registry.category_count(); i++)
     registry.DisableCategoryForInstance(i, instance_index);
+}
+
+// static
+bool TrackEventInternal::IsCategoryEnabled(const DataSourceConfig& config,
+                                           const TrackEventCategory& category) {
+  // TODO(skyostil): Support the full category config syntax instead of just
+  // strict matching.
+  // TODO(skyostil): Support comma-separated categories.
+  return config.legacy_config().empty() ||
+         config.legacy_config() == category.name;
 }
 
 // static
