@@ -175,8 +175,11 @@ def merge_protos_content(proto_paths, follow_imports, added_files, add_header):
   definitions = re.finditer(definitions_re, merged_content, re.MULTILINE)
   types = set((match.group(1) for match in definitions))
 
-  uses_re = r'^( +)(?:repeated)?(?:optional)?\s'\
-            r'?([A-Z]\w+.*)\s+[a-z]\w+\s*=\s*(\d+);'
+  # Limitation: |types| doesn't track the nesting of messages, so a reference to
+  # a nested message (optional One.Two f = 1;) is simplified to its leafmost
+  # name (Two in this example).
+  uses_re = r'^( +)(?:repeated)?(?:optional)?\s?'\
+      r'(?:[A-Z]\w+\.)*([A-Z]\w+)\s+[a-z]\w*\s*=\s*(\d+);'
   uses = re.finditer(uses_re, merged_content, re.MULTILINE)
   substitutions = []
   for use in uses:
