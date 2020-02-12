@@ -86,6 +86,7 @@ source_set("common") {
 source_set("client_api_without_backends") {
   deps = [
     "../../include/perfetto/tracing/core",
+    "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/track_event:cpp",
     "../base",

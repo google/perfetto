@@ -362,6 +362,7 @@ class TrackEventDataSource
     // Registration is performed out-of-line so users don't need to depend on
     // DataSourceDescriptor C++ bindings.
     return TrackEventInternal::Initialize(
+        *Registry,
         [](const DataSourceDescriptor& dsd) { return Base::Register(dsd); });
   }
 
