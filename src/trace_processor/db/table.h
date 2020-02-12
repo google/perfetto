@@ -70,6 +70,22 @@ class Table {
     std::vector<RowMap::Iterator> its_;
   };
 
+  // Helper class storing the schema of the table. This allows decisions to be
+  // made about operations on the table without materializing the table - this
+  // may be expensive for dynamically computed tables.
+  //
+  // Subclasses of Table usually provide a method (named Schema()) to statically
+  // generate an instance of this class.
+  struct Schema {
+    struct Column {
+      std::string name;
+      SqlValue::Type type;
+      bool is_id;
+      bool is_sorted;
+    };
+    std::vector<Column> columns;
+  };
+
   Table();
 
   // We explicitly define the move constructor here because we need to update

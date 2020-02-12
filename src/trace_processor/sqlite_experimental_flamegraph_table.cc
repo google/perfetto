@@ -90,8 +90,8 @@ util::Status SqliteExperimentalFlamegraphTable::Init(
     const char* const*,
     SqliteTable::Schema* schema) {
   // Create an empty table for the sake of getting the schema.
-  tables::ExperimentalFlamegraphNodesTable table(nullptr, nullptr);
-  *schema = DbSqliteTable::ComputeSchema(table, name().c_str());
+  *schema = DbSqliteTable::ComputeSchema(
+      tables::ExperimentalFlamegraphNodesTable::Schema(), name().c_str());
 
   using T = tables::ExperimentalFlamegraphNodesTable;
 

@@ -204,34 +204,37 @@ class MacroTable : public Table {
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
   SparseVector<TypedColumn<type>::serialized_type> name##_;
 
-// Constructs the column in the Table constructor when flags are specified.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS(type, name, flags)          \
-  columns_.emplace_back(                                                       \
-      #name, &name##_,                                                         \
-      static_cast<uint32_t>(flags) | TypedColumn<type>::default_flags(), this, \
-      columns_.size(), row_maps_.size() - 1);
+#define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags) \
+  case ColumnIndex::name:                                       \
+    return static_cast<uint32_t>(flags) | TypedColumn<type>::default_flags();
 
-// Constructs the column in the Table constructor when no flags are specified.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_NO_FLAGS(type, name)            \
-  columns_.emplace_back(#name, &name##_, TypedColumn<type>::default_flags(), \
-                        this, columns_.size(), row_maps_.size() - 1);
+#define PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL(type, name) \
+  case ColumnIndex::name:                               \
+    return TypedColumn<type>::default_flags();
 
-// Chooses between the flag and no-flag variant based on the whether there
-// are two or three arguments.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_CHOOSER(type, name, maybe_flags, \
-                                                     fn, ...)                 \
-  fn
+#define PERFETTO_TP_COLUMN_FLAG_CHOOSER(type, name, maybe_flags, fn, ...) fn
 
-// Invokes the chosen column constructor by passing the given args.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(...)              \
-  PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_CHOOSER(                \
-      __VA_ARGS__, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_FLAGS, \
-      PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN_NO_FLAGS)           \
+#define PERFETTO_TP_COLUMN_FLAG(...)                                    \
+  PERFETTO_TP_COLUMN_FLAG_CHOOSER(__VA_ARGS__,                          \
+                                  PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL, \
+                                  PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL)  \
   (__VA_ARGS__)
 
-// Inserts the value into the corresponding column
+// Invokes the chosen column constructor by passing the given args.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)               \
+  columns_.emplace_back(#name, &name##_, FlagsForColumn(ColumnIndex::name), \
+                        this, columns_.size(), row_maps_.size() - 1);
+
+// Inserts the value into the corresponding column.
 #define PERFETTO_TP_COLUMN_APPEND(type, name, ...) \
   mutable_##name()->Append(std::move(row.name));
+
+// Creates a schema entry for the corresponding column.
+#define PERFETTO_TP_COLUMN_SCHEMA(type, name, ...)          \
+  schema.columns.emplace_back(Table::Schema::Column{        \
+      #name, TypedColumn<type>::SqlValueType(), false,      \
+      static_cast<bool>(FlagsForColumn(ColumnIndex::name) & \
+                        Column::Flag::kSorted)});
 
 // Defines the accessors for a column.
 #define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)       \
@@ -274,8 +277,8 @@ class MacroTable : public Table {
                                                                               \
    public:                                                                    \
     /*                                                                        \
-     * This defines the type of the id to be the type of the root table of    \
-     * the hierarchy - see IdHelper for more details.                         \
+     * This defines the type of the id to be the type of the root             \
+     * table of the hierarchy - see IdHelper for more details.                \
      */                                                                       \
     using Id = macros_internal::IdHelper<parent_class_name, class_name>::Id;  \
     struct Row : parent_class_name::Row {                                     \
@@ -369,6 +372,16 @@ class MacroTable : public Table {
           columns_[static_cast<uint32_t>(ColumnIndex::type)]);                \
     }                                                                         \
                                                                               \
+    static Table::Schema Schema() {                                           \
+      Table::Schema schema;                                                   \
+      schema.columns.emplace_back(                                            \
+          Table::Schema::Column{"id", SqlValue::Type::kLong, true, true});    \
+      schema.columns.emplace_back(Table::Schema::Column{                      \
+          "type", SqlValue::Type::kString, false, false});                    \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_SCHEMA);                \
+      return schema;                                                          \
+    }                                                                         \
+                                                                              \
     /*                                                                        \
      * Expands to                                                             \
      * const TypedColumn<col1_type>& col1() { return col1_; }                 \
@@ -380,6 +393,25 @@ class MacroTable : public Table {
     PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_COL_ACCESSOR)              \
                                                                               \
    private:                                                                   \
+    static uint32_t FlagsForColumn(const ColumnIndex index) {                 \
+      switch (index) {                                                        \
+        case ColumnIndex::kNumCols:                                           \
+          PERFETTO_FATAL("Invalid index");                                    \
+        case ColumnIndex::id:                                                 \
+          return Column::kIdFlags;                                            \
+        case ColumnIndex::type:                                               \
+          return Column::kNoFlag;                                             \
+          /*                                                                  \
+           * Expands to:                                                      \
+           *  case ColumnIndex::col1:                                         \
+           *    return TypedColumn<col_type1>::default_flags();               \
+           *  ...                                                             \
+           */                                                                 \
+          PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_FLAG)               \
+      }                                                                       \
+      PERFETTO_FATAL("For GCC");                                              \
+    }                                                                         \
+                                                                              \
     parent_class_name* parent_;                                               \
                                                                               \
     /*                                                                        \
