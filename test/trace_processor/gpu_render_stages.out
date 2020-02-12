@@ -6,8 +6,8 @@
 "queue 0","queue desc 0",30,5,"stage 3",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
 "Unknown GPU Queue 3","[NULL]",40,5,"render stage(4)",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,3
 "queue 0","queue desc 0",50,5,"stage 0",0,"key1","value1",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
-"queue 0","queue desc 0",60,5,"stage 0",0,"key2","value2",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
 "queue 0","queue desc 0",60,5,"stage 0",0,"key1","value1",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
+"queue 0","queue desc 0",60,5,"stage 0",0,"key2","value2",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
 "queue 0","queue desc 0",70,5,"stage 0",0,"key1","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
 "queue 0","queue desc 0",80,5,"stage 2",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0
 "queue 0","queue desc 0",90,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",32,"[NULL]",48,"[NULL]",0,0

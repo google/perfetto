@@ -31,7 +31,8 @@ void ArgsTracker::AddArg(Column* arg_set_id,
                          uint32_t row,
                          StringId flat_key,
                          StringId key,
-                         Variadic value) {
+                         Variadic value,
+                         UpdatePolicy update_policy) {
   args_.emplace_back();
 
   auto* rid_arg = &args_.back();
@@ -40,6 +41,7 @@ void ArgsTracker::AddArg(Column* arg_set_id,
   rid_arg->flat_key = flat_key;
   rid_arg->key = key;
   rid_arg->value = value;
+  rid_arg->update_policy = update_policy;
 }
 
 void ArgsTracker::Flush() {
@@ -52,10 +54,15 @@ void ArgsTracker::Flush() {
   // rowids.
   auto comparator = [](const Arg& f, const Arg& s) {
     // We only care that all args for a specific arg set appear in a contiguous
-    // block, but not about the relative order of one block to another. The
-    // simplest way to achieve that is to sort by table column pointer & row,
-    // which identify the arg set.
-    return f.column < s.column && f.row < s.row;
+    // block and that args within one arg set are sorted by key, but not about
+    // the relative order of one block to another. The simplest way to achieve
+    // that is to sort by table column pointer & row, which identify the arg
+    // set, and then by key.
+    if (f.column == s.column && f.row == s.row)
+      return f.key < s.key;
+    if (f.column == s.column)
+      return f.row < s.row;
+    return f.column < s.column;
   };
   std::stable_sort(args_.begin(), args_.end(), comparator);
 

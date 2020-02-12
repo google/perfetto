@@ -2,8 +2,8 @@
 "[NULL]","[NULL]","t1","p1",1000,0,"cat","event1_on_t1",0
 "[NULL]","[NULL]","t2","p1",2000,0,"cat","event1_on_t2",0
 "[NULL]","[NULL]","t2","p1",3000,0,"cat","event2_on_t2",0
-"[NULL]","p1","[NULL]","[NULL]",4000,0,"cat","event1_on_p1",8
-"async","p1","[NULL]","[NULL]",5000,0,"cat","event1_on_async",8
+"[NULL]","p1","[NULL]","[NULL]",4000,0,"cat","event1_on_p1",3
+"async","p1","[NULL]","[NULL]",5000,0,"cat","event1_on_async",3
 "async2","p1","[NULL]","[NULL]",5100,100,"cat","event1_on_async2",3
 "[NULL]","[NULL]","t1","p1",6000,0,"cat","event3_on_t1",0
 "[NULL]","[NULL]","t3","p1",11000,0,"cat","event1_on_t3",0
