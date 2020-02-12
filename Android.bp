@@ -7537,6 +7537,9 @@ cc_binary {
     "libprocinfo",
     "libunwindstack",
   ],
+  init_rc: [
+    "traced_perf.rc",
+  ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",
     "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -7604,6 +7607,7 @@ cc_binary {
   ],
   required: [
     "libperfetto_android_internal",
+    "traced_perf",
     "trigger_perfetto",
   ],
 }
