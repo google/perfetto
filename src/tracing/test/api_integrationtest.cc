@@ -45,6 +45,7 @@
 // production code).
 // yyy.gen.h includes are for the test readback path (the code in the test that
 // checks that the results are valid).
+#include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -344,6 +345,23 @@ class PerfettoApiTest : public ::testing::Test {
     return handle;
   }
 
+  TestTracingSessionHandle* NewTraceWithCategories(
+      std::vector<std::string> categories) {
+    perfetto::TraceConfig cfg;
+    cfg.set_duration_ms(500);
+    cfg.add_buffers()->set_size_kb(1024);
+    auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+    ds_cfg->set_name("track_event");
+
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    for (const auto& category : categories)
+      te_cfg.add_enabled_categories(category);
+    ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+    return NewTrace(cfg);
+  }
+
   std::vector<std::string> ReadLogMessagesFromTrace(
       perfetto::TracingSession* tracing_session) {
     std::vector<char> raw_trace = tracing_session->ReadTraceBlocking();
@@ -594,7 +612,7 @@ TEST_F(PerfettoApiTest, TrackEventStartStopAndDestroy) {
   cfg.add_buffers()->set_size_kb(1024);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
+
   // Create five new trace sessions.
   std::vector<std::unique_ptr<perfetto::TracingSession>> sessions;
   for (size_t i = 0; i < 5; ++i) {
@@ -617,7 +635,7 @@ TEST_F(PerfettoApiTest, TrackEventStartStopAndStopBlocking) {
   cfg.add_buffers()->set_size_kb(1024);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
+
   // Create five new trace sessions.
   std::vector<std::unique_ptr<perfetto::TracingSession>> sessions;
   for (size_t i = 0; i < 5; ++i) {
@@ -633,16 +651,8 @@ TEST_F(PerfettoApiTest, TrackEventStartStopAndStopBlocking) {
 }
 
 TEST_F(PerfettoApiTest, TrackEvent) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
   // Emit one complete track event.
@@ -746,16 +756,8 @@ TEST_F(PerfettoApiTest, TrackEvent) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventCategories) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("bar");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"bar"});
   tracing_session->get()->StartBlocking();
 
   // Emit some track events.
@@ -822,19 +824,9 @@ TEST_F(PerfettoApiTest, TrackEventCategoriesWithModule) {
   // enabled and disabled correctly.
   tracing_module::InitializeCategories();
 
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
-  // Only the "foo" category is enabled. It also exists both locally and in the
-  // existing module.
-  ds_cfg->set_legacy_config("foo");
-
-  // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  // Create a new trace session. Only the "foo" category is enabled. It also
+  // exists both locally and in the existing module.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   // Emit some track events locally and from the test module.
@@ -883,13 +875,11 @@ TEST_F(PerfettoApiTest, TrackEventDynamicCategories) {
   ds_cfg->set_name("track_event");
 
   // Session #1 enabled the "dynamic" category.
-  ds_cfg->set_legacy_config("dynamic");
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"dynamic"});
   tracing_session->get()->StartBlocking();
 
   // Session #2 enables "dynamic_2".
-  ds_cfg->set_legacy_config("dynamic_2");
-  auto* tracing_session2 = NewTrace(cfg);
+  auto* tracing_session2 = NewTraceWithCategories({"dynamic_2"});
   tracing_session2->get()->StartBlocking();
 
   // Test naming dynamic categories with std::string.
@@ -944,21 +934,12 @@ TEST_F(PerfettoApiTest, TrackEventConcurrentSessions) {
   // Check that categories that are enabled and disabled in two parallel tracing
   // sessions don't interfere.
 
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
   // Session #1 enables the "foo" category.
-  ds_cfg->set_legacy_config("foo");
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   // Session #2 enables the "bar" category.
-  ds_cfg->set_legacy_config("bar");
-  auto* tracing_session2 = NewTrace(cfg);
+  auto* tracing_session2 = NewTraceWithCategories({"bar"});
   tracing_session2->get()->StartBlocking();
 
   // Emit some track events under both categories.
@@ -1098,16 +1079,8 @@ TEST_F(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventCustomTrack) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("bar");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"bar"});
   tracing_session->get()->StartBlocking();
 
   // Declare a custom track and give it a name.
@@ -1181,16 +1154,8 @@ TEST_F(PerfettoApiTest, TrackEventCustomTrack) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventAnonymousCustomTrack) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("bar");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"bar"});
   tracing_session->get()->StartBlocking();
 
   // Emit an async event without giving it an explicit descriptor.
@@ -1223,16 +1188,8 @@ TEST_F(PerfettoApiTest, TrackEventAnonymousCustomTrack) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventTypedArgs) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   auto random_value = random();
@@ -1297,16 +1254,8 @@ struct InternedLogMessageBody
 int InternedLogMessageBody::commit_count = 0;
 
 TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterning) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   std::stringstream large_message;
@@ -1372,16 +1321,8 @@ struct InternedLogMessageBodySmall
 };
 
 TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByValue) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   size_t body_iid;
@@ -1420,16 +1361,8 @@ struct InternedLogMessageBodyHashed
 };
 
 TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningByHashing) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   size_t body_iid;
@@ -1475,16 +1408,8 @@ struct InternedSourceLocation
 };
 
 TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningComplexValue) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_BEGIN("foo", "EventWithState", [&](perfetto::EventContext ctx) {
@@ -1511,16 +1436,8 @@ TEST_F(PerfettoApiTest, TrackEventTypedArgsWithInterningComplexValue) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventScoped) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
   {
@@ -1551,16 +1468,8 @@ TEST_F(PerfettoApiTest, TrackEventScoped) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventInstant) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_INSTANT("test", "TestEvent");
@@ -1573,16 +1482,8 @@ TEST_F(PerfettoApiTest, TrackEventInstant) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventDebugAnnotations) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_BEGIN("test", "E", "bool_arg", false);
@@ -1609,16 +1510,8 @@ TEST_F(PerfettoApiTest, TrackEventDebugAnnotations) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
   std::unique_ptr<MyDebugAnnotation> owned_annotation(new MyDebugAnnotation());
@@ -1638,14 +1531,6 @@ TEST_F(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventCustomRawDebugAnnotations) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("test");
-
   // Note: this class is also testing a non-moveable and non-copiable argument.
   class MyRawDebugAnnotation : public perfetto::DebugAnnotation {
    public:
@@ -1671,7 +1556,7 @@ TEST_F(PerfettoApiTest, TrackEventCustomRawDebugAnnotations) {
   };
 
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_BEGIN("test", "E", "raw_arg", MyRawDebugAnnotation());
@@ -1709,16 +1594,8 @@ TEST_F(PerfettoApiTest, TrackEventComputedName) {
 }
 
 TEST_F(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
   bool called = false;
@@ -1736,6 +1613,73 @@ TEST_F(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
 
   ArgumentFunction();
   EXPECT_TRUE(called);
+}
+
+TEST_F(PerfettoApiTest, TrackEventConfig) {
+  auto check_config = [&](perfetto::protos::gen::TrackEventConfig te_cfg) {
+    perfetto::TraceConfig cfg;
+    cfg.set_duration_ms(500);
+    cfg.add_buffers()->set_size_kb(1024);
+    auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+    ds_cfg->set_name("track_event");
+    ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+    auto* tracing_session = NewTrace(cfg);
+    tracing_session->get()->StartBlocking();
+
+    TRACE_EVENT_BEGIN("foo", "FooEvent");
+    TRACE_EVENT_BEGIN("bar", "BarEvent");
+
+    perfetto::TrackEvent::Flush();
+    tracing_session->get()->StopBlocking();
+    return ReadSlicesFromTrace(tracing_session->get());
+  };
+
+  // Empty config should enable all categories.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:bar.BarEvent"));
+  }
+
+  // Enable exactly one category.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("foo");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent"));
+  }
+
+  // Enable two categories.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("foo");
+    te_cfg.add_enabled_categories("baz");
+    te_cfg.add_enabled_categories("bar");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:bar.BarEvent"));
+  }
+
+  // Enable overrides disable.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("foo");
+    te_cfg.add_disabled_categories("bar");
+    te_cfg.add_enabled_categories("*");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:bar.BarEvent"));
+  }
+
+  // Enable with a pattern.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("fo*");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent"));
+  }
 }
 
 TEST_F(PerfettoApiTest, OneDataSourceOneEvent) {
@@ -2292,14 +2236,6 @@ TEST_F(PerfettoApiTest, LegacyTraceEventsWithFlow) {
 }
 
 TEST_F(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-  ds_cfg->set_legacy_config("foo");
-
   bool foo_status;
   bool bar_status;
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
@@ -2314,7 +2250,7 @@ TEST_F(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
   EXPECT_FALSE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
 
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("bar", &bar_status);
