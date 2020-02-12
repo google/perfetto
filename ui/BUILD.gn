@@ -368,7 +368,8 @@ copy("assets_dist") {
   sources = [
               "src/assets/heap_profiler.png",
               "src/assets/logo-3d.png",
-              "src/assets/logo.png",
+              "src/assets/brand.png",
+              "src/assets/favicon.png",
               "src/assets/rec_atrace.png",
               "src/assets/rec_battery_counters.png",
               "src/assets/rec_board_voltage.png",
@@ -393,7 +394,6 @@ copy("assets_dist") {
 copy("chrome_extension_assets_dist") {
   sources = [
     "src/assets/logo-128.png",
-    "src/assets/logo.png",
     "src/chrome_extension/manifest.json",
   ]
   outputs = [ "$chrome_extension_dir/{{source_file_part}}" ]
