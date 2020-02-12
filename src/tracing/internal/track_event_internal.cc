@@ -24,7 +24,7 @@
 #include "perfetto/tracing/track_event_category_registry.h"
 #include "perfetto/tracing/track_event_interned_data_index.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
-#include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/common/track_event_descriptor.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -120,13 +120,23 @@ bool NameMatchesPatternList(const std::vector<std::string>& patterns,
 
 // static
 bool TrackEventInternal::Initialize(
+    const TrackEventCategoryRegistry& registry,
     bool (*register_data_source)(const DataSourceDescriptor&)) {
   if (!g_main_thread)
     g_main_thread = perfetto::base::GetThreadId();
 
-  perfetto::DataSourceDescriptor dsd;
-  // TODO(skyostil): Advertise the known categories.
+  DataSourceDescriptor dsd;
   dsd.set_name("track_event");
+
+  protozero::HeapBuffered<protos::pbzero::TrackEventDescriptor> ted;
+  for (size_t i = 0; i < registry.category_count(); i++) {
+    auto category = registry.GetCategory(i);
+    auto cat = ted->add_available_categories();
+    cat->set_name(category->name);
+    // TODO(skyostil): Advertise category tags and descriptions.
+  }
+  dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
+
   return register_data_source(dsd);
 }
 
