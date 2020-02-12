@@ -586,7 +586,7 @@ TEST_F(PerfettoTest, VeryLargePackets) {
   helper.WaitForTracingDisabled();
 
   helper.ReadData();
-  helper.WaitForReadData();
+  helper.WaitForReadData(/* read_count */ 0, /* timeout_ms */ 10000);
 
   const auto& packets = helper.trace();
   ASSERT_EQ(packets.size(), kNumPackets);
