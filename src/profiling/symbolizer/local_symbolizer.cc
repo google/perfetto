@@ -326,7 +326,8 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     PERFETTO_CHECK(dup2(*output_pipe_.wr, STDOUT_FILENO) != -1);
     input_pipe_.wr.reset();
     output_pipe_.rd.reset();
-    PERFETTO_CHECK(execvp(file.c_str(), &(c_str_args[0])) != -1);
+    if (execvp(file.c_str(), &(c_str_args[0])) == -1)
+      PERFETTO_FATAL("Failed to exec %s", file.c_str());
   }
   PERFETTO_CHECK(pid_ != -1);
   input_pipe_.rd.reset();
@@ -337,7 +338,7 @@ Subprocess::~Subprocess() {
   if (pid_ != -1) {
     kill(pid_, SIGKILL);
     int wstatus;
-    waitpid(pid_, &wstatus, 0);
+    PERFETTO_EINTR(waitpid(pid_, &wstatus, 0));
   }
 }
 
