@@ -132,9 +132,7 @@ class ProtoToArgsTable {
   // beginning. I.E. ".perfetto.protos.TrackEvent". And must match one of the
   // descriptors already added through |AddProtoFileDescriptor|.
   //
-  // IMPORTANT: currently bytes fields are not supported and repeated fields do
-  // not properly use key/flat_key in the args table (they will be equal in
-  // value).
+  // IMPORTANT: currently bytes fields and repeated fields are not supported.
   //
   // TODO(b/145578432): Add support for repeated fields and byte fields.
   util::Status InternProtoIntoArgsTable(const protozero::ConstBytes& cb,

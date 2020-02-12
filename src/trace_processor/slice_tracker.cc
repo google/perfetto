@@ -177,7 +177,7 @@ base::Optional<SliceId> SliceTracker::CompleteSlice(
   slices->mutable_dur()->Set(slice_idx, timestamp - slices->ts()[slice_idx]);
 
   if (args_callback) {
-    ArgsTracker* tracker = &stack.back().second;
+    ArgsTracker* tracker = &stack[stack_idx.value()].second;
     auto bound_inserter = tracker->AddArgsTo(slices->id()[slice_idx]);
     args_callback(&bound_inserter);
   }
