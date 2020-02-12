@@ -25,6 +25,7 @@ android_startup {
       time_during_start_process {
         dur_ns: 35
       }
+      to_bind_application: 83
     }
     activity_hosting_process_count: 1
   }
