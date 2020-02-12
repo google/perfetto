@@ -257,17 +257,19 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                             DataSource* ds) {
   using Status = DataSource::ProcDescriptors::Status;
 
-  // TODO(rsavitski): record the loss in the trace.
+  // If the kernel ring buffer dropped data, record it in the trace.
   size_t cpu = reader->cpu();
-  auto lost_events_callback = [ds_id, cpu](uint64_t lost_events) {
-    PERFETTO_ELOG("DataSource instance [%zu] lost [%" PRIu64
-                  "] events on cpu [%zu]",
-                  static_cast<size_t>(ds_id), lost_events, cpu);
+  auto records_lost_callback = [this, ds_id, cpu](uint64_t records_lost) {
+    auto weak_this = weak_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_this, ds_id, cpu, records_lost] {
+      if (weak_this)
+        weak_this->EmitRingBufferLoss(ds_id, cpu, records_lost);
+    });
   };
 
   for (size_t i = 0; i < max_samples; i++) {
     base::Optional<ParsedSample> sample =
-        reader->ReadUntilSample(lost_events_callback);
+        reader->ReadUntilSample(records_lost_callback);
     if (!sample) {
       return false;  // caught up to the writer
     }
@@ -288,6 +290,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       PostDescriptorLookupTimeout(ds_id, pid, /*timeout_ms=*/1000);
     }
 
+    // TODO(rsavitski): consider recording skipped entries in the trace.
     if (fd_entry.status == Status::kSkip) {
       PERFETTO_DLOG("Skipping sample for previously poisoned pid [%d]",
                     static_cast<int>(pid));
@@ -571,6 +574,33 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   if (sample.unwind_error != unwindstack::ERROR_NONE) {
     perf_sample->set_unwind_error(ToProtoEnum(sample.unwind_error));
   }
+}
+
+void PerfProducer::EmitRingBufferLoss(DataSourceInstanceID ds_id,
+                                      size_t cpu,
+                                      uint64_t records_lost) {
+  auto ds_it = data_sources_.find(ds_id);
+  if (ds_it == data_sources_.end()) {
+    PERFETTO_DLOG("EmitRingBufferLoss(%zu): source gone",
+                  static_cast<size_t>(ds_id));
+    return;
+  }
+  DataSource& ds = ds_it->second;
+  PERFETTO_DLOG("DataSource(%zu): cpu%zu lost [%" PRIu64 "] records",
+                static_cast<size_t>(ds_id), cpu, records_lost);
+
+  // The data loss record relates to a single ring buffer, and indicates loss
+  // since the last successfully-written record in that buffer. Therefore the
+  // data loss record itself has no timestamp.
+  // We timestamp the packet with the boot clock for packet ordering purposes,
+  // but it no longer has a (precise) interpretation relative to the sample
+  // stream from that per-cpu buffer. See the proto comments for more details.
+  auto packet = ds.trace_writer->NewTracePacket();
+  packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+
+  auto* perf_sample = packet->set_perf_sample();
+  perf_sample->set_cpu(static_cast<uint32_t>(cpu));
+  perf_sample->set_kernel_records_lost(records_lost);
 }
 
 void PerfProducer::InitiateReaderStop(DataSource* ds) {

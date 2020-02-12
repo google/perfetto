@@ -241,7 +241,7 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
 }
 
 base::Optional<ParsedSample> EventReader::ReadUntilSample(
-    std::function<void(uint64_t)> lost_events_callback) {
+    std::function<void(uint64_t)> records_lost_callback) {
   for (;;) {
     char* event = ring_buffer_.ReadRecordNonconsuming();
     if (!event)
@@ -268,23 +268,24 @@ base::Optional<ParsedSample> EventReader::ReadUntilSample(
        *   struct sample_id sample_id;
        * };
        */
-      uint64_t lost_events = *reinterpret_cast<const uint64_t*>(
+      uint64_t records_lost = *reinterpret_cast<const uint64_t*>(
           event + sizeof(perf_event_header) + sizeof(uint64_t));
 
-      lost_events_callback(lost_events);
+      records_lost_callback(records_lost);
       ring_buffer_.Consume(event_hdr->size);
       continue;  // keep looking for a sample
     }
 
     // Kernel had to throttle irqs.
-    // TODO(rsavitski): consider logging a warning.
     if (event_hdr->type == PERF_RECORD_THROTTLE ||
         event_hdr->type == PERF_RECORD_UNTHROTTLE) {
       ring_buffer_.Consume(event_hdr->size);
       continue;  // keep looking for a sample
     }
 
-    PERFETTO_FATAL("Unsupported event type");
+    PERFETTO_DFATAL_OR_ELOG("Unsupported event type [%zu]",
+                            static_cast<size_t>(event_hdr->type));
+    ring_buffer_.Consume(event_hdr->size);
   }
 }
 
