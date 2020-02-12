@@ -24,6 +24,7 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata_tracker.h"
