@@ -67,46 +67,46 @@ uint64_t NowMs() {
   return static_cast<uint64_t>(base::GetWallTimeMs().count());
 }
 
-protos::pbzero::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
-  using CpuMode = protos::pbzero::CpuMode;
+protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
+  using Profiling = protos::pbzero::Profiling;
   switch (perf_cpu_mode) {
     case PERF_RECORD_MISC_KERNEL:
-      return CpuMode::MODE_KERNEL;
+      return Profiling::MODE_KERNEL;
     case PERF_RECORD_MISC_USER:
-      return CpuMode::MODE_USER;
+      return Profiling::MODE_USER;
     case PERF_RECORD_MISC_HYPERVISOR:
-      return CpuMode::MODE_HYPERVISOR;
+      return Profiling::MODE_HYPERVISOR;
     case PERF_RECORD_MISC_GUEST_KERNEL:
-      return CpuMode::MODE_GUEST_KERNEL;
+      return Profiling::MODE_GUEST_KERNEL;
     case PERF_RECORD_MISC_GUEST_USER:
-      return CpuMode::MODE_GUEST_USER;
+      return Profiling::MODE_GUEST_USER;
     default:
-      return CpuMode::MODE_UNKNOWN;
+      return Profiling::MODE_UNKNOWN;
   }
 }
 
-protos::pbzero::StackUnwindError ToProtoEnum(
+protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
     unwindstack::ErrorCode error_code) {
-  using StackUnwindError = protos::pbzero::StackUnwindError;
+  using Profiling = protos::pbzero::Profiling;
   switch (error_code) {
     case unwindstack::ERROR_NONE:
-      return StackUnwindError::UNWIND_ERROR_NONE;
+      return Profiling::UNWIND_ERROR_NONE;
     case unwindstack::ERROR_MEMORY_INVALID:
-      return StackUnwindError::UNWIND_ERROR_MEMORY_INVALID;
+      return Profiling::UNWIND_ERROR_MEMORY_INVALID;
     case unwindstack::ERROR_UNWIND_INFO:
-      return StackUnwindError::UNWIND_ERROR_UNWIND_INFO;
+      return Profiling::UNWIND_ERROR_UNWIND_INFO;
     case unwindstack::ERROR_UNSUPPORTED:
-      return StackUnwindError::UNWIND_ERROR_UNSUPPORTED;
+      return Profiling::UNWIND_ERROR_UNSUPPORTED;
     case unwindstack::ERROR_INVALID_MAP:
-      return StackUnwindError::UNWIND_ERROR_INVALID_MAP;
+      return Profiling::UNWIND_ERROR_INVALID_MAP;
     case unwindstack::ERROR_MAX_FRAMES_EXCEEDED:
-      return StackUnwindError::UNWIND_ERROR_MAX_FRAMES_EXCEEDED;
+      return Profiling::UNWIND_ERROR_MAX_FRAMES_EXCEEDED;
     case unwindstack::ERROR_REPEATED_FRAME:
-      return StackUnwindError::UNWIND_ERROR_REPEATED_FRAME;
+      return Profiling::UNWIND_ERROR_REPEATED_FRAME;
     case unwindstack::ERROR_INVALID_ELF:
-      return StackUnwindError::UNWIND_ERROR_INVALID_ELF;
+      return Profiling::UNWIND_ERROR_INVALID_ELF;
   }
-  return StackUnwindError::UNWIND_ERROR_UNKNOWN;
+  return Profiling::UNWIND_ERROR_UNKNOWN;
 }
 
 }  // namespace
