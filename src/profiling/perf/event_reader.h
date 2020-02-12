@@ -96,6 +96,8 @@ class EventReader {
 
   void PauseEvents();
 
+  uint32_t cpu() const { return cpu_; }
+
   ~EventReader() = default;
 
   // move-only
