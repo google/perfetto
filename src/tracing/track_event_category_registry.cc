@@ -19,6 +19,10 @@
 namespace perfetto {
 namespace internal {
 
+perfetto::DynamicCategory NullCategory(const perfetto::DynamicCategory&) {
+  return perfetto::DynamicCategory{};
+}
+
 const TrackEventCategory* TrackEventCategoryRegistry::GetCategory(
     size_t index) const {
   PERFETTO_DCHECK(index < category_count_);
