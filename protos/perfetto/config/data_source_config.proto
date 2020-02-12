@@ -32,6 +32,7 @@ import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
+import "protos/perfetto/config/track_event/track_event_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
 message DataSourceConfig {
@@ -100,6 +101,8 @@ message DataSourceConfig {
   optional PerfEventConfig perf_event_config = 111 [lazy = true];
   // Data source name: vulkan.memory_tracker
   optional VulkanMemoryConfig vulkan_memory_config = 112 [lazy = true];
+  // Data source name: track_event
+  optional TrackEventConfig track_event_config = 113 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
