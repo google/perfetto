@@ -45,6 +45,7 @@
 // production code).
 // yyy.gen.h includes are for the test readback path (the code in the test that
 // checks that the results are valid).
+#include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.gen.h"
@@ -790,6 +791,27 @@ TEST_F(PerfettoApiTest, TrackEventRegistrationWithModule) {
   EXPECT_EQ("track_event", muxer.data_sources[1].dsd.name());
   EXPECT_NE(muxer.data_sources[0].static_state,
             muxer.data_sources[1].static_state);
+}
+
+TEST_F(PerfettoApiTest, TrackEventDescriptor) {
+  MockTracingMuxer muxer;
+
+  perfetto::TrackEvent::Register();
+  EXPECT_EQ(1u, muxer.data_sources.size());
+  EXPECT_EQ("track_event", muxer.data_sources[0].dsd.name());
+
+  perfetto::protos::gen::TrackEventDescriptor desc;
+  auto desc_raw = muxer.data_sources[0].dsd.track_event_descriptor_raw();
+  EXPECT_TRUE(desc.ParseFromArray(desc_raw.data(), desc_raw.size()));
+
+  // Check that the advertised categories match PERFETTO_DEFINE_CATEGORIES (see
+  // above).
+  EXPECT_EQ(5, desc.available_categories_size());
+  EXPECT_EQ("test", desc.available_categories()[0].name());
+  EXPECT_EQ("foo", desc.available_categories()[1].name());
+  EXPECT_EQ("bar", desc.available_categories()[2].name());
+  EXPECT_EQ("cat", desc.available_categories()[3].name());
+  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[4].name());
 }
 
 TEST_F(PerfettoApiTest, TrackEventSharedIncrementalState) {

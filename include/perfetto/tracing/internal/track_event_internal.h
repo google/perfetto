@@ -94,6 +94,7 @@ struct TrackEventIncrementalState {
 class TrackEventInternal {
  public:
   static bool Initialize(
+      const TrackEventCategoryRegistry&,
       bool (*register_data_source)(const DataSourceDescriptor&));
 
   static void EnableTracing(const TrackEventCategoryRegistry& registry,
