@@ -24,6 +24,7 @@
 #include <json/value.h>
 
 #include "src/trace_processor/importers/json/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -109,6 +110,21 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
   const char* next = buf;
   const char* end = buf + buffer_.size();
 
+  JsonTracker* json_tracker = JsonTracker::GetOrCreate(context_);
+
+  // It's possible the displayTimeUnit key is at the end of the json
+  // file so to be correct we ought to parse the whole file looking
+  // for this key before parsing any events however this would require
+  // two passes on the file so for now we only handle displayTimeUnit
+  // correctly if it is at the beginning of the file.
+  const base::StringView view(buf, size);
+  if (view.find("\"displayTimeUnit\":\"ns\"") != base::StringView::npos) {
+    json_tracker->SetTimeUnit(json::TimeUnit::kNs);
+  } else if (view.find("\"displayTimeUnit\":\"ms\"") !=
+             base::StringView::npos) {
+    json_tracker->SetTimeUnit(json::TimeUnit::kMs);
+  }
+
   if (offset_ == 0) {
     // Trace could begin in any of these ways:
     // {"traceEvents":[{
@@ -133,14 +149,18 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     if (res == kEndOfTrace || res == kNeedsMoreData)
       break;
 
-    base::Optional<int64_t> opt_ts =
-        json_trace_utils::CoerceToNs((*value)["ts"]);
-    if (!opt_ts.has_value()) {
-      context_->storage->IncrementStats(stats::json_tokenizer_failure);
-      continue;
+    base::Optional<int64_t> opt_ts = json_tracker->CoerceToTs((*value)["ts"]);
+    int64_t ts = 0;
+    if (opt_ts.has_value()) {
+      ts = opt_ts.value();
+    } else {
+      // Metadata events may omit ts. In all other cases error:
+      auto& ph = (*value)["ph"];
+      if (!ph.isString() || *ph.asCString() != 'M') {
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        continue;
+      }
     }
-    int64_t ts = opt_ts.value();
-
     trace_sorter->PushJsonValue(ts, std::move(value));
   }
 

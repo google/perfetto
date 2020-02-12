@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/json/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -68,9 +69,9 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   base::Optional<uint32_t> opt_tid;
 
   if (value.isMember("pid"))
-    opt_pid = json_trace_utils::CoerceToUint32(value["pid"]);
+    opt_pid = json::CoerceToUint32(value["pid"]);
   if (value.isMember("tid"))
-    opt_tid = json_trace_utils::CoerceToUint32(value["tid"]);
+    opt_tid = json::CoerceToUint32(value["tid"]);
 
   uint32_t pid = opt_pid.value_or(0);
   uint32_t tid = opt_tid.value_or(pid);
@@ -99,7 +100,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     }
     case 'X': {  // TRACE_EVENT (scoped event).
       base::Optional<int64_t> opt_dur =
-          json_trace_utils::CoerceToNs(value["dur"]);
+          JsonTracker::GetOrCreate(context_)->CoerceToTs(value["dur"]);
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);

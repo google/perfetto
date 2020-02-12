@@ -25,24 +25,29 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace json_trace_utils {
+namespace json {
+namespace {
 
-// Json trace event timestamps are in us.
-// https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/edit#heading=h.nso4gcezn7n1
-base::Optional<int64_t> CoerceToNs(const Json::Value& value) {
+int64_t TimeUnitToNs(TimeUnit unit) {
+  return static_cast<int64_t>(unit);
+}
+
+}  // namespace
+
+base::Optional<int64_t> CoerceToTs(TimeUnit unit, const Json::Value& value) {
   switch (static_cast<size_t>(value.type())) {
     case Json::realValue:
-      return static_cast<int64_t>(value.asDouble() * 1000);
+      return static_cast<int64_t>(value.asDouble() * TimeUnitToNs(unit));
     case Json::uintValue:
     case Json::intValue:
-      return value.asInt64() * 1000;
+      return value.asInt64() * TimeUnitToNs(unit);
     case Json::stringValue: {
       std::string s = value.asString();
       char* end;
       int64_t n = strtoll(s.c_str(), &end, 10);
       if (end != s.data() + s.size())
         return base::nullopt;
-      return n * 1000;
+      return n * TimeUnitToNs(unit);
     }
     default:
       return base::nullopt;
@@ -78,7 +83,7 @@ base::Optional<uint32_t> CoerceToUint32(const Json::Value& value) {
   return static_cast<uint32_t>(n);
 }
 
-}  // namespace json_trace_utils
+}  // namespace json
 }  // namespace trace_processor
 }  // namespace perfetto
 
