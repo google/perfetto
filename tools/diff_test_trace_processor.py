@@ -34,18 +34,18 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Test(object):
 
-  def __init__(self, trace_fname, query_fname_or_metric, expected_fname):
-    self.trace_fname = trace_fname
-    self.query_fname_or_metric = query_fname_or_metric
-    self.expected_fname = expected_fname
+  def __init__(self, trace_path, query_path_or_metric, expected_path):
+    self.trace_path = trace_path
+    self.query_path_or_metric = query_path_or_metric
+    self.expected_path = expected_path
 
 
 class PerfResult(object):
 
-  def __init__(self, trace_name, query_or_metric, ingest_time_ns_str,
+  def __init__(self, trace_path, query_path_or_metric, ingest_time_ns_str,
                real_time_ns_str):
-    self.trace_name = trace_name
-    self.query_or_metric = query_or_metric
+    self.trace_path = trace_path
+    self.query_path_or_metric = query_path_or_metric
     self.ingest_time_ns = int(ingest_time_ns_str)
     self.real_time_ns = int(real_time_ns_str)
 
@@ -172,14 +172,13 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
                     stderr)
 
 
-def run_all_tests(args, test_dir, index_dir, trace_descriptor_path,
+def run_all_tests(trace_processor, test_type, trace_descriptor_path,
                   metrics_message_factory, tests):
   perf_data = []
   test_failure = 0
   for test in tests:
-    trace_path = os.path.abspath(os.path.join(index_dir, test.trace_fname))
-    expected_path = os.path.abspath(
-        os.path.join(index_dir, test.expected_fname))
+    trace_path = test.trace_path
+    expected_path = test.expected_path
     if not os.path.exists(trace_path):
       sys.stderr.write('Trace file not found {}\n'.format(trace_path))
       test_failure += 1
@@ -205,23 +204,23 @@ def run_all_tests(args, test_dir, index_dir, trace_descriptor_path,
 
     with tempfile.NamedTemporaryFile() as tmp_perf_file:
       sys.stderr.write('[ RUN      ] {} {}\n'.format(
-          os.path.basename(test.query_fname_or_metric),
+          os.path.basename(test.query_path_or_metric),
           os.path.basename(trace_path)))
 
       tmp_perf_path = tmp_perf_file.name
-      if args.test_type == 'queries':
-        query_path = os.path.abspath(
-            os.path.join(index_dir, test.query_fname_or_metric))
-        if not os.path.exists(query_path):
+      if test_type == 'queries':
+        query_path = test.query_path_or_metric
+
+        if not os.path.exists(test.query_path_or_metric):
           print('Query file not found {}'.format(query_path))
           test_failure += 1
           continue
 
-        result = run_query_test(args.trace_processor, gen_trace_path,
-                                query_path, expected_path, tmp_perf_path)
-      elif args.test_type == 'metrics':
-        result = run_metrics_test(args.trace_processor, gen_trace_path,
-                                  test.query_fname_or_metric, expected_path,
+        result = run_query_test(trace_processor, gen_trace_path, query_path,
+                                expected_path, tmp_perf_path)
+      elif test_type == 'metrics':
+        result = run_metrics_test(trace_processor, gen_trace_path,
+                                  test.query_path_or_metric, expected_path,
                                   tmp_perf_path, metrics_message_factory)
       else:
         assert False
@@ -235,16 +234,14 @@ def run_all_tests(args, test_dir, index_dir, trace_descriptor_path,
       assert len(perf_lines) == 1
       perf_numbers = perf_lines[0].split(',')
 
-      trace_shortpath = os.path.relpath(trace_path, test_dir)
-
       assert len(perf_numbers) == 2
-      perf_result = PerfResult(trace_shortpath, test.query_fname_or_metric,
+      perf_result = PerfResult(trace_path, test.query_path_or_metric,
                                perf_numbers[0], perf_numbers[1])
       perf_data.append(perf_result)
 
       sys.stderr.write(
           '[       OK ] {} {} (ingest: {} ms, query: {} ms)\n'.format(
-              os.path.basename(test.query_fname_or_metric),
+              os.path.basename(test.query_path_or_metric),
               os.path.basename(trace_path),
               perf_result.ingest_time_ns / 1000000,
               perf_result.real_time_ns / 1000000))
@@ -260,7 +257,7 @@ def run_all_tests(args, test_dir, index_dir, trace_descriptor_path,
       write_diff(result.expected, result.actual)
 
       sys.stderr.write('[     FAIL ] {} {}\n'.format(
-          os.path.basename(test.query_fname_or_metric),
+          os.path.basename(test.query_path_or_metric),
           os.path.basename(trace_path)))
 
       test_failure += 1
@@ -341,12 +338,20 @@ def main():
     if not trace_pattern.match(os.path.basename(trace_fname)):
       continue
 
-    tests.append(Test(trace_fname, query_fname_or_metric, expected_fname))
+    trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
+    expected_path = os.path.abspath(os.path.join(index_dir, expected_fname))
+
+    query_path_or_metric = query_fname_or_metric
+    if args.test_type == 'queries':
+      query_path_or_metric = os.path.abspath(
+          os.path.join(index_dir, query_fname_or_metric))
+
+    tests.append(Test(trace_path, query_path_or_metric, expected_path))
 
   sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
 
   test_run_start = datetime.datetime.now()
-  test_failure, perf_data = run_all_tests(args, test_dir, index_dir,
+  test_failure, perf_data = run_all_tests(args.trace_processor, args.test_type,
                                           trace_descriptor_path,
                                           metrics_message_factory, tests)
   test_run_end = datetime.datetime.now()
@@ -363,8 +368,10 @@ def main():
           'unit': 's',
           'tags': {
               'test_name':
-                  '{}-{}'.format(perf_args.trace_name,
-                                 perf_args.query_or_metric),
+                  '{}-{}'.format(
+                      os.path.relpath(perf_args.trace_path, test_dir),
+                      os.path.relpath(perf_args.query_path_or_metric,
+                                      index_dir)),
               'test_type':
                   args.test_type,
           },
@@ -376,8 +383,12 @@ def main():
                       'unit': 's',
                       'tags': {
                           'test_name':
-                              '{}-{}'.format(perf_args.trace_name,
-                                             perf_args.query_or_metric),
+                              '{}-{}'.format(
+                                  os.path.relpath(perf_args.trace_path,
+                                                  test_dir),
+                                  os.path.relpath(
+                                      perf_args.query_path_or_metric,
+                                      index_dir)),
                           'test_type':
                               args.test_type,
                       },
