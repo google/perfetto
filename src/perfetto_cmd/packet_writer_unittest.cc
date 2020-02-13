@@ -231,6 +231,51 @@ TEST(PacketWriterTest, ZipPacketWriter_ShouldCompress) {
   EXPECT_EQ(packet_count, 200 * 2u);
 }
 
+TEST(PacketWriterTest, ZipPacketWriter_LargePacket) {
+  base::TempFile tmp = base::TempFile::Create();
+  base::ScopedResource<FILE*, fclose, nullptr> f(
+      fdopen(tmp.ReleaseFD().release(), "wb"));
+
+  std::vector<perfetto::TracePacket> packets;
+
+  std::minstd_rand0 rnd(0);
+  std::uniform_int_distribution<> dist(0, 255);
+  auto random_string = [&dist, &rnd](size_t size) {
+    std::string s;
+    s.resize(size);
+    for (size_t i = 0; i < s.size(); i++)
+      s[i] = static_cast<char>(dist(rnd));
+    return s;
+  };
+
+  auto add_packet = [&packets, &random_string](size_t size) {
+    std::string s = random_string(size);
+    packets.push_back(CreateTracePacket([&s](TracePacketProto* msg) {
+      auto* for_testing = msg->mutable_for_testing();
+      for_testing->set_str(s);
+    }));
+  };
+
+  add_packet(1 * 1024 * 1024);
+  add_packet(10);
+  add_packet(1 * 1024 * 1024);
+  add_packet(1 * 1024);
+  add_packet(1 * 1024);
+  add_packet(2 * 1024 * 1024);
+
+  std::unique_ptr<PacketWriter> writer =
+      CreateZipPacketWriter(CreateFilePacketWriter(*f));
+  EXPECT_TRUE(writer->WritePackets(std::move(packets)));
+
+  std::string s;
+  fseek(*f, 0, SEEK_SET);
+  EXPECT_TRUE(base::ReadFileStream(*f, &s));
+  EXPECT_GT(s.size(), 0u);
+
+  protos::gen::Trace trace;
+  EXPECT_TRUE(trace.ParseFromString(s));
+}
+
 TEST(PacketWriterTest, ZipPacketWriter_ShouldSplitPackets) {
   base::TempFile tmp = base::TempFile::Create();
   base::ScopedResource<FILE*, fclose, nullptr> f(

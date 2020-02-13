@@ -53,7 +53,11 @@ constexpr uint32_t kPacketId = 1;
 // ID of |compressed_packets| in trace_packet.proto.
 constexpr uint32_t kCompressedPacketsId = 50;
 
-// Maximum allowable size for a single packet.
+// Some transport mechanisms have a 512kb limit on packet size.
+// ZipPacketWriter respects this limit where possible and does
+// not produce compressed packets larger than 512kb. This is
+// constant is deliberately conservative to leave plenty of
+// room for the transport to add additional headers etc.
 const size_t kMaxPacketSize = 500 * 1024;
 
 // After every kPendingBytesLimit we do a Z_SYNC_FLUSH in the zlib stream.
@@ -77,7 +81,7 @@ class FilePacketWriter : public PacketWriter {
  public:
   FilePacketWriter(FILE* fd);
   ~FilePacketWriter() override;
-  bool WritePackets(const std::vector<TracePacket>& packets) override;
+  bool WritePacket(const TracePacket& packet) override;
 
  private:
   FILE* fd_;
@@ -89,17 +93,15 @@ FilePacketWriter::~FilePacketWriter() {
   fflush(fd_);
 }
 
-bool FilePacketWriter::WritePackets(const std::vector<TracePacket>& packets) {
-  for (const TracePacket& packet : packets) {
-    Preamble preamble;
-    size_t size = GetPreamble<kPacketId>(packet.size(), &preamble);
-    if (fwrite(preamble.data(), 1, size, fd_) != size)
+bool FilePacketWriter::WritePacket(const TracePacket& packet) {
+  Preamble preamble;
+  size_t size = GetPreamble<kPacketId>(packet.size(), &preamble);
+  if (fwrite(preamble.data(), 1, size, fd_) != size)
+    return false;
+  for (const Slice& slice : packet.slices()) {
+    if (fwrite(reinterpret_cast<const char*>(slice.start), 1, slice.size,
+               fd_) != slice.size) {
       return false;
-    for (const Slice& slice : packet.slices()) {
-      if (fwrite(reinterpret_cast<const char*>(slice.start), 1, slice.size,
-                 fd_) != slice.size) {
-        return false;
-      }
     }
   }
 
@@ -112,10 +114,9 @@ class ZipPacketWriter : public PacketWriter {
  public:
   ZipPacketWriter(std::unique_ptr<PacketWriter>);
   ~ZipPacketWriter() override;
-  bool WritePackets(const std::vector<TracePacket>& packets) override;
+  bool WritePacket(const TracePacket& packet) override;
 
  private:
-  bool WritePacket(const TracePacket& packet);
   void CheckEq(int actual_code, int expected_code);
   bool FinalizeCompressedPacket();
   inline void Deflate(const char* ptr, size_t size) {
@@ -148,14 +149,6 @@ ZipPacketWriter::~ZipPacketWriter() {
     FinalizeCompressedPacket();
 }
 
-bool ZipPacketWriter::WritePackets(const std::vector<TracePacket>& packets) {
-  for (const TracePacket& packet : packets) {
-    if (!WritePacket(packet))
-      return false;
-  }
-  return true;
-}
-
 bool ZipPacketWriter::WritePacket(const TracePacket& packet) {
   // If we have already written one compressed packet, check whether we should
   // flush the buffer.
@@ -186,6 +179,15 @@ bool ZipPacketWriter::WritePacket(const TracePacket& packet) {
         return false;
       }
     }
+  }
+
+  // Do not attempt to compress large packets (since they may overflow our
+  // output buffer) instead insert them directly into the output stream:
+  if (packet.size() > kMaxPacketSize) {
+    // We can't be compressing here, if we were we would have attempted
+    // to FinalizeCompressedPacket() above:
+    PERFETTO_DCHECK(!is_compressing_);
+    return writer_->WritePacket(packet);
   }
 
   // Reinitialize the compresser if needed:
