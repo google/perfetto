@@ -131,7 +131,9 @@ bool ConvertThreadId(const MyThreadId& thread,
     return false;
   if (!thread.pid) {
     // Thread in current process.
-    *track_uuid_out = perfetto::ThreadTrack::ForThread(thread.tid).uuid;
+    *track_uuid_out = perfetto::ThreadTrack::ForThread(
+                          static_cast<base::PlatformThreadId>(thread.tid))
+                          .uuid;
   } else {
     // Thread in another process.
     *pid_override_out = thread.pid;
