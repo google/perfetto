@@ -975,6 +975,8 @@ filegroup(
         "src/trace_processor/importers/proto/track_event_tokenizer.h",
         "src/trace_processor/metadata_tracker.cc",
         "src/trace_processor/metadata_tracker.h",
+        "src/trace_processor/perf_sample_tracker.cc",
+        "src/trace_processor/perf_sample_tracker.h",
         "src/trace_processor/process_tracker.cc",
         "src/trace_processor/process_tracker.h",
         "src/trace_processor/slice_tracker.cc",
