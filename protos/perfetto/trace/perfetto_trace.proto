@@ -4165,6 +4165,7 @@ message ChromeLatencyInfo {
   };
 
   optional Step step = 2;
+  optional int32 frame_tree_node_id = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_latency_info.proto
