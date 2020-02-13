@@ -38,13 +38,8 @@ fi
 mkdir -p /ci/artifacts/perf
 
 tools/diff_test_trace_processor.py \
-  --test-type=queries \
-  --perf-file=/ci/artifacts/perf/tp-perf-queries.json \
-  ${TP_SHELL}
-
-tools/diff_test_trace_processor.py \
-  --test-type=metrics \
-  --perf-file=/ci/artifacts/perf/tp-perf-metrics.json \
+  --test-type=all \
+  --perf-file=/ci/artifacts/perf/tp-perf-all.json \
   ${TP_SHELL}
 
 # Don't run benchmarks under sanitizers or debug, too slow and pointless.

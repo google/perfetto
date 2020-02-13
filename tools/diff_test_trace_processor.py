@@ -34,7 +34,8 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class Test(object):
 
-  def __init__(self, trace_path, query_path_or_metric, expected_path):
+  def __init__(self, type, trace_path, query_path_or_metric, expected_path):
+    self.type = type
     self.trace_path = trace_path
     self.query_path_or_metric = query_path_or_metric
     self.expected_path = expected_path
@@ -42,8 +43,9 @@ class Test(object):
 
 class PerfResult(object):
 
-  def __init__(self, trace_path, query_path_or_metric, ingest_time_ns_str,
-               real_time_ns_str):
+  def __init__(self, test_type, trace_path, query_path_or_metric,
+               ingest_time_ns_str, real_time_ns_str):
+    self.test_type = test_type
     self.trace_path = trace_path
     self.query_path_or_metric = query_path_or_metric
     self.ingest_time_ns = int(ingest_time_ns_str)
@@ -172,7 +174,7 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
                     stderr)
 
 
-def run_all_tests(trace_processor, test_type, trace_descriptor_path,
+def run_all_tests(trace_processor, trace_descriptor_path,
                   metrics_message_factory, tests):
   perf_data = []
   test_failure = 0
@@ -208,7 +210,7 @@ def run_all_tests(trace_processor, test_type, trace_descriptor_path,
           os.path.basename(trace_path)))
 
       tmp_perf_path = tmp_perf_file.name
-      if test_type == 'queries':
+      if test.type == 'queries':
         query_path = test.query_path_or_metric
 
         if not os.path.exists(test.query_path_or_metric):
@@ -218,7 +220,7 @@ def run_all_tests(trace_processor, test_type, trace_descriptor_path,
 
         result = run_query_test(trace_processor, gen_trace_path, query_path,
                                 expected_path, tmp_perf_path)
-      elif test_type == 'metrics':
+      elif test.type == 'metrics':
         result = run_metrics_test(trace_processor, gen_trace_path,
                                   test.query_path_or_metric, expected_path,
                                   tmp_perf_path, metrics_message_factory)
@@ -235,7 +237,7 @@ def run_all_tests(trace_processor, test_type, trace_descriptor_path,
       perf_numbers = perf_lines[0].split(',')
 
       assert len(perf_numbers) == 2
-      perf_result = PerfResult(trace_path, test.query_path_or_metric,
+      perf_result = PerfResult(test.type, trace_path, test.query_path_or_metric,
                                perf_numbers[0], perf_numbers[1])
       perf_data.append(perf_result)
 
@@ -265,9 +267,50 @@ def run_all_tests(trace_processor, test_type, trace_descriptor_path,
   return test_failure, perf_data
 
 
+def read_all_tests(test_type, query_metric_pattern, trace_pattern):
+  if test_type == 'queries':
+    index = os.path.join(ROOT_DIR, 'test', 'trace_processor', 'index')
+  elif test_type == 'metrics':
+    index = os.path.join(ROOT_DIR, 'test', 'metrics', 'index')
+  else:
+    assert False
+
+  index_dir = os.path.dirname(index)
+  with open(index, 'r') as file:
+    index_lines = file.readlines()
+
+  tests = []
+  for line in index_lines:
+    stripped = line.strip()
+    if stripped.startswith('#'):
+      continue
+    elif not stripped:
+      continue
+
+    [trace_fname, query_fname_or_metric, expected_fname] = stripped.split(' ')
+    if not query_metric_pattern.match(os.path.basename(query_fname_or_metric)):
+      continue
+
+    if not trace_pattern.match(os.path.basename(trace_fname)):
+      continue
+
+    trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
+    expected_path = os.path.abspath(os.path.join(index_dir, expected_fname))
+
+    query_path_or_metric = query_fname_or_metric
+    if test_type == 'queries':
+      query_path_or_metric = os.path.abspath(
+          os.path.join(index_dir, query_fname_or_metric))
+
+    tests.append(
+        Test(test_type, trace_path, query_path_or_metric, expected_path))
+
+  return tests
+
+
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--test-type', type=str, default='queries')
+  parser.add_argument('--test-type', type=str, default='all')
   parser.add_argument('--trace-descriptor', type=str)
   parser.add_argument('--metrics-descriptor', type=str)
   parser.add_argument('--perf-file', type=str)
@@ -286,19 +329,23 @@ def main():
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
-  test_dir = os.path.join(ROOT_DIR, 'test')
-  if args.test_type == 'queries':
-    index = os.path.join(test_dir, 'trace_processor', 'index')
-  elif args.test_type == 'metrics':
-    index = os.path.join(test_dir, 'metrics', 'index')
-  else:
-    print('Unknown test type {}. Supported: queries, metrics'.format(
-        args.test_type))
+  test_type = args.test_type
+  if test_type != 'all' and test_type != 'queries' and test_type != 'metrics':
+    print('Unknown test type {}. Supported: all, queries, metrics'.format(
+        test_type))
     return 1
 
-  index_dir = os.path.dirname(index)
-  with open(index, 'r') as file:
-    index_lines = file.readlines()
+  query_metric_pattern = re.compile(args.query_metric_filter)
+  trace_pattern = re.compile(args.trace_filter)
+
+  tests = []
+  if test_type == 'all' or test_type == 'metrics':
+    tests += read_all_tests('metrics', query_metric_pattern, trace_pattern)
+
+  if test_type == 'all' or test_type == 'queries':
+    tests += read_all_tests('queries', query_metric_pattern, trace_pattern)
+
+  sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
 
   if args.trace_descriptor:
     trace_descriptor_path = args.trace_descriptor
@@ -320,38 +367,8 @@ def main():
   metrics_message_factory = create_metrics_message_factory(
       metrics_descriptor_path)
 
-  query_metric_pattern = re.compile(args.query_metric_filter)
-  trace_pattern = re.compile(args.trace_filter)
-
-  tests = []
-  for line in index_lines:
-    stripped = line.strip()
-    if stripped.startswith('#'):
-      continue
-    elif not stripped:
-      continue
-
-    [trace_fname, query_fname_or_metric, expected_fname] = stripped.split(' ')
-    if not query_metric_pattern.match(os.path.basename(query_fname_or_metric)):
-      continue
-
-    if not trace_pattern.match(os.path.basename(trace_fname)):
-      continue
-
-    trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
-    expected_path = os.path.abspath(os.path.join(index_dir, expected_fname))
-
-    query_path_or_metric = query_fname_or_metric
-    if args.test_type == 'queries':
-      query_path_or_metric = os.path.abspath(
-          os.path.join(index_dir, query_fname_or_metric))
-
-    tests.append(Test(trace_path, query_path_or_metric, expected_path))
-
-  sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
-
   test_run_start = datetime.datetime.now()
-  test_failure, perf_data = run_all_tests(args.trace_processor, args.test_type,
+  test_failure, perf_data = run_all_tests(args.trace_processor,
                                           trace_descriptor_path,
                                           metrics_message_factory, tests)
   test_run_end = datetime.datetime.now()
@@ -362,39 +379,47 @@ def main():
 
   if test_failure == 0:
     if args.perf_file:
-      metrics = [[{
-          'metric': 'tp_perf_test_ingest_time',
-          'value': float(perf_args.ingest_time_ns) / 1.0e9,
-          'unit': 's',
-          'tags': {
-              'test_name':
-                  '{}-{}'.format(
-                      os.path.relpath(perf_args.trace_path, test_dir),
-                      os.path.relpath(perf_args.query_path_or_metric,
-                                      index_dir)),
-              'test_type':
-                  args.test_type,
-          },
-          'labels': {},
-      },
-                  {
-                      'metric': 'perf_test_real_time',
-                      'value': float(perf_args.real_time_ns) / 1.0e9,
-                      'unit': 's',
-                      'tags': {
-                          'test_name':
-                              '{}-{}'.format(
-                                  os.path.relpath(perf_args.trace_path,
-                                                  test_dir),
-                                  os.path.relpath(
-                                      perf_args.query_path_or_metric,
-                                      index_dir)),
-                          'test_type':
-                              args.test_type,
-                      },
-                      'labels': {},
-                  }] for perf_args in sorted(perf_data)]
-      output_data = {'metrics': list(chain.from_iterable(metrics))}
+      test_dir = os.path.join(ROOT_DIR, 'test')
+      trace_processor_dir = os.path.join(test_dir, 'trace_processor')
+
+      metrics = []
+      for perf_args in sorted(perf_data):
+        trace_short_path = os.path.relpath(perf_args.trace_path, test_dir)
+
+        query_short_path_or_metric = perf_args.query_path_or_metric
+        if perf_args.test_type == 'queries':
+          query_short_path_or_metric = os.path.relpath(
+              perf_args.query_path_or_metric, trace_processor_dir)
+
+        metrics.append({
+            'metric': 'tp_perf_test_ingest_time',
+            'value': float(perf_args.ingest_time_ns) / 1.0e9,
+            'unit': 's',
+            'tags': {
+                'test_name':
+                    '{}-{}'.format(trace_short_path,
+                                   query_short_path_or_metric),
+                'test_type':
+                    perf_args.test_type,
+            },
+            'labels': {},
+        })
+        metrics.append({
+            'metric': 'perf_test_real_time',
+            'value': float(perf_args.real_time_ns) / 1.0e9,
+            'unit': 's',
+            'tags': {
+                'test_name':
+                    '{}-{}'.format(
+                        os.path.relpath(perf_args.trace_path, test_dir),
+                        query_short_path_or_metric),
+                'test_type':
+                    perf_args.test_type,
+            },
+            'labels': {},
+        })
+
+      output_data = {'metrics': metrics}
       with open(args.perf_file, 'w+') as perf_file:
         perf_file.write(json.dumps(output_data, indent=2))
     return 0
