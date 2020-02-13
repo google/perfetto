@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata_tracker.h"
+#include "src/trace_processor/perf_sample_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
@@ -49,6 +50,7 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.metadata_tracker.reset(new MetadataTracker(&context_));
   context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+  context_.perf_sample_tracker_.reset(new PerfSampleTracker(&context_));
 
   context_.modules.emplace_back(new FtraceModule());
   // Ftrace module is special, because it has one extra method for parsing
