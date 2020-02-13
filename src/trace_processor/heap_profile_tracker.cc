@@ -18,8 +18,10 @@
 
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
-
 #include "perfetto/base/logging.h"
+
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

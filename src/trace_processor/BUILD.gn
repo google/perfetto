@@ -113,6 +113,8 @@ source_set("storage_minimal") {
     "importers/proto/track_event_tokenizer.h",
     "metadata_tracker.cc",
     "metadata_tracker.h",
+    "perf_sample_tracker.cc",
+    "perf_sample_tracker.h",
     "process_tracker.cc",
     "process_tracker.h",
     "slice_tracker.cc",
