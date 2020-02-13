@@ -25,6 +25,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
+type Args = Map<string, string>;
 export interface SliceDetails {
   ts?: number;
   dur?: number;
@@ -38,6 +39,7 @@ export interface SliceDetails {
   wakerCpu?: number;
   category?: string;
   name?: string;
+  args?: Args;
 }
 
 export interface CounterDetails {

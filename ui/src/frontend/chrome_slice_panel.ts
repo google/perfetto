@@ -28,21 +28,22 @@ export class ChromeSliceDetailsPanel extends Panel {
           m('.details-panel-heading', m('h2', `Slice Details`)),
           m(
               '.details-table',
-              [m('table.half-width',
-                 [
-                   m('tr', m('th', `Name`), m('td', `${sliceInfo.name}`)),
-                   (sliceInfo.category === '[NULL]') ?
-                       null :
-                       m('tr',
-                         m('th', `Category`),
-                         m('td', `${sliceInfo.category}`)),
-                   m('tr',
-                     m('th', `Start time`),
-                     m('td', `${timeToCode(sliceInfo.ts)}`)),
-                   m('tr',
-                     m('th', `Duration`),
-                     m('td', `${timeToCode(sliceInfo.dur)}`))
-                 ])],
+              m('table.half-width',
+                m('tr', m('th', `Name`), m('td', `${sliceInfo.name}`)),
+                m('tr',
+                  m('th', `Category`),
+                  m('td',
+                    `${
+                        sliceInfo.category === '[NULL]' ?
+                            'N/A' :
+                            sliceInfo.category}`)),
+                m('tr',
+                  m('th', `Start time`),
+                  m('td', `${timeToCode(sliceInfo.ts)}`)),
+                m('tr',
+                  m('th', `Duration`),
+                  m('td', `${timeToCode(sliceInfo.dur)}`)),
+                this.getArgs(sliceInfo.args)),
               ));
     } else {
       return m(
@@ -54,5 +55,15 @@ export class ChromeSliceDetailsPanel extends Panel {
                 )));
     }
   }
+
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
+
+  getArgs(args?: Map<string, string>): m.Vnode[] {
+    if (!args || args.size === 0) return [];
+    const result = [m('tr', m('th', 'Args'))];
+    for (const [key, value] of args) {
+      result.push(m('tr', m('th', key), m('td', value)));
+    }
+    return result;
+  }
 }

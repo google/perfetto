@@ -78,7 +78,7 @@ export class SelectionController extends Controller<'main'> {
         globals.publish('SliceDetails', {ts: 0, name: 'Summarized slice'});
         return;
       }
-      const sqlQuery = `SELECT ts, dur, name, cat FROM slices
+      const sqlQuery = `SELECT ts, dur, name, cat, arg_set_id FROM slices
       WHERE slice_id = ${selectedId}`;
       this.args.engine.query(sqlQuery).then(result => {
         // Check selection is still the same on completion of query.
@@ -90,13 +90,29 @@ export class SelectionController extends Controller<'main'> {
           const name = result.columns[2].stringValues![0];
           const dur = fromNs(result.columns[1].longValues![0] as number);
           const category = result.columns[3].stringValues![0];
-          // TODO(nicomazz): Add arguments and thread timestamps
-          const selected: SliceDetails =
-              {ts: timeFromStart, dur, category, name, id: selectedId};
-          globals.publish('SliceDetails', selected);
+          const argId = result.columns[4].longValues![0] as number;
+          this.getArgs(argId).then(args => {
+            const selected: SliceDetails =
+                {ts: timeFromStart, dur, category, name, id: selectedId, args};
+            globals.publish('SliceDetails', selected);
+          });
         }
       });
     }
+  }
+
+  async getArgs(argId: number): Promise<Map<string, string>> {
+    const args = new Map<string, string>();
+    const query = `select flat_key AS name,
+    CAST(COALESCE(int_value, string_value, real_value) AS text) AS value
+    FROM args WHERE arg_set_id = ${argId}`;
+    const result = await this.args.engine.query(query);
+    for (let i = 0; i < result.numRecords; i++) {
+      const name = result.columns[0].stringValues![i];
+      const value = result.columns[1].stringValues![i];
+      args.set(name, value);
+    }
+    return args;
   }
 
   async sliceDetails(id: number) {
