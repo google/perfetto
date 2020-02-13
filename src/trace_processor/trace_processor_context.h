@@ -37,6 +37,7 @@ class GlobalArgsTracker;
 class HeapGraphTracker;
 class HeapProfileTracker;
 class MetadataTracker;
+class PerfSampleTracker;
 class ProcessTracker;
 class SliceTracker;
 class TraceParser;
@@ -63,6 +64,7 @@ class TraceProcessorContext {
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
+  std::unique_ptr<PerfSampleTracker> perf_sample_tracker_;
 
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker.
