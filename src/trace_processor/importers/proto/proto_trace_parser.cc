@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/metadata_tracker.h"
+#include "src/trace_processor/perf_sample_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
@@ -227,6 +228,10 @@ void ProtoTraceParser::ParseTracePacketImpl(
   if (packet.has_streaming_profile_packet()) {
     ParseStreamingProfilePacket(data->sequence_state,
                                 packet.streaming_profile_packet());
+  }
+
+  if (packet.has_perf_sample()) {
+    ParsePerfSample(ts, data->sequence_state, packet.perf_sample());
   }
 
   if (packet.has_chrome_benchmark_metadata()) {
@@ -465,6 +470,41 @@ void ProtoTraceParser::ParseStreamingProfilePacket(
     tables::CpuProfileStackSampleTable::Row sample_row{ts, *opt_cs_id, utid};
     storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
+}
+
+void ProtoTraceParser::ParsePerfSample(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    ConstBytes blob) {
+  protos::pbzero::PerfSample::Decoder sample(blob.data, blob.size);
+
+  // Not a sample, but an indication of data loss.
+  if (sample.kernel_records_lost() > 0) {
+    PERFETTO_DCHECK(sample.pid() == 0);
+
+    context_->storage->IncrementIndexedStats(
+        stats::perf_cpu_lost_records, static_cast<int>(sample.cpu()),
+        static_cast<int64_t>(sample.kernel_records_lost()));
+    return;
+  }
+
+  uint64_t callstack_iid = sample.callstack_iid();
+  StackProfileTracker& stack_tracker =
+      sequence_state->state()->stack_profile_tracker();
+  ProfilePacketInternLookup intern_lookup(sequence_state);
+
+  base::Optional<CallsiteId> cs_id =
+      stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
+  if (!cs_id) {
+    context_->storage->IncrementStats(stats::stackprofile_parser_error);
+    PERFETTO_ELOG("PerfSample referencing invalid callstack iid [%" PRIu64
+                  "] at timestamp [%" PRIi64 "]",
+                  callstack_iid, ts);
+    return;
+  }
+
+  context_->perf_sample_tracker_->AddStackToSliceTrack(
+      ts, *cs_id, sample.pid(), sample.tid(), sample.cpu());
 }
 
 void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
