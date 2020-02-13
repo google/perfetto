@@ -84,6 +84,7 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (unrecoverable_parse_error_ || !context_.chunk_reader)
     return;
 
+  context_.chunk_reader->NotifyEndOfFile();
   if (context_.sorter)
     context_.sorter->ExtractEventsForced();
   context_.event_tracker->FlushPendingEvents();

@@ -69,7 +69,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
                                           size_t size) {
   // If this is the first Parse() call, guess the trace type and create the
   // appropriate parser.
-
+  static const int64_t kMaxWindowSize = std::numeric_limits<int64_t>::max();
   if (!reader_) {
     TraceType trace_type;
     {
@@ -83,8 +83,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
         reader_.reset(new JsonTraceTokenizer(context_));
         // JSON traces have no guarantees about the order of events in them.
-        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
-        context_->sorter.reset(new TraceSorter(context_, window_size_ns));
+        context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
         context_->parser.reset(new JsonTraceParser(context_));
 #else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
         PERFETTO_FATAL("JSON traces not supported.");
@@ -95,9 +94,8 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         PERFETTO_DLOG("Proto trace detected");
         // This will be reduced once we read the trace config and we see flush
         // period being set.
-        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         reader_.reset(new ProtoTraceTokenizer(context_));
-        context_->sorter.reset(new TraceSorter(context_, window_size_ns));
+        context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
         context_->parser.reset(new ProtoTraceParser(context_));
         break;
       }
@@ -105,9 +103,8 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         PERFETTO_DLOG("Fuchsia trace detected");
         // Fuschia traces can have massively out of order events.
-        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         reader_.reset(new FuchsiaTraceTokenizer(context_));
-        context_->sorter.reset(new TraceSorter(context_, window_size_ns));
+        context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
         context_->parser.reset(new FuchsiaTraceParser(context_));
 #else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         PERFETTO_FATAL("Fuchsia traces not supported.");
@@ -144,6 +141,10 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
   }
 
   return reader_->Parse(std::move(data), size);
+}
+
+void ForwardingTraceParser::NotifyEndOfFile() {
+  reader_->NotifyEndOfFile();
 }
 
 TraceType GuessTraceType(const uint8_t* data, size_t size) {

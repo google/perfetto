@@ -234,5 +234,7 @@ util::Status SystraceTraceParser::ParseSingleSystraceEvent(
   return util::OkStatus();
 }
 
+void SystraceTraceParser::NotifyEndOfFile() {}
+
 }  // namespace trace_processor
 }  // namespace perfetto
