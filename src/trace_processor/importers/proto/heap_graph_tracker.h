@@ -81,6 +81,7 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   void SetRetained(int64_t row,
                    int64_t retained,
                    int64_t unique_retained) override;
+  void NotifyEndOfFile();
 
   const std::vector<int64_t>* RowsForType(StringPool::Id type_name) const {
     auto it = class_to_rows_.find(type_name);
