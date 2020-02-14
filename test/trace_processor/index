@@ -173,6 +173,7 @@ track_event_merged_debug_annotations.textproto track_event_args.sql track_event_
 
 # Config & metadata
 config_metadata.textproto metadata.sql config_metadata.out
+trigger_packet_trace.textproto triggers_packets.sql triggers_packets_trigger_packet_trace.out
 
 # Decoding of sched_waking events from a trace with compact scheduling events.
 # Verifies the contents of raw & instants tables.
