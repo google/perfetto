@@ -26,9 +26,6 @@ namespace trace_processor {
 
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
     : context_(context) {
-  // Create a mapping from (t|p)id 0 -> u(t|p)id 0 for the idle process.
-  tids_.emplace(0, std::vector<UniqueTid>{0});
-  pids_.emplace(0, 0);
 }
 
 ProcessTracker::~ProcessTracker() = default;
@@ -397,6 +394,12 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
       resolved_utids.emplace_back(other_utid);
     }
   }  // while (!resolved_utids.empty())
+}
+
+void ProcessTracker::SetPidZeroIgnoredForIdleProcess() {
+  // Create a mapping from (t|p)id 0 -> u(t|p)id 0 for the idle process.
+  tids_.emplace(0, std::vector<UniqueTid>{0});
+  pids_.emplace(0, 0);
 }
 
 }  // namespace trace_processor

@@ -125,6 +125,11 @@ class ProcessTracker {
   // is irrelevant, Associate(A, B) has the same effect of Associate(B, A).
   void AssociateThreads(UniqueTid, UniqueTid);
 
+  // Creates the mapping from tid 0 <-> utid 0 and pid 0 <-> upid 0. This is
+  // done for Linux-based system traces (proto or ftrace format) as for these
+  // traces, we always have the "swapper" (idle) process having tid/pid 0.
+  void SetPidZeroIgnoredForIdleProcess();
+
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
   // pid == base::nullopt matches all processes.
