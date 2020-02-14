@@ -374,5 +374,14 @@ void HeapProfileTracker::FinalizeProfile(
   stack_profile_tracker->ClearIndices();
 }
 
+void HeapProfileTracker::NotifyEndOfFile() {
+  for (const auto& key_and_sequence_state : sequence_state_) {
+    const SequenceState& sequence_state = key_and_sequence_state.second;
+    if (!sequence_state.pending_allocs.empty()) {
+      context_->storage->IncrementStats(stats::heapprofd_non_finalized_profile);
+    }
+  }
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

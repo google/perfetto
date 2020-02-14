@@ -35,6 +35,8 @@ class HeapGraphModule : public ProtoImporterModule {
                    const TimestampedTracePiece& ttp,
                    uint32_t field_id) override;
 
+  void NotifyEndOfFile() override;
+
  private:
   void ParseHeapGraph(uint32_t seq_id, int64_t ts, protozero::ConstBytes);
   void ParseDeobfuscationMapping(protozero::ConstBytes);

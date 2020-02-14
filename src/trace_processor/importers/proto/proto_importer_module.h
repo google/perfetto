@@ -120,6 +120,8 @@ class ProtoImporterModule {
   // stage, on all existing modules.
   virtual void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&);
 
+  virtual void NotifyEndOfFile() {}
+
  protected:
   void RegisterForField(uint32_t field_id, TraceProcessorContext*);
 };

@@ -280,5 +280,10 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
   }
 }
 
+void HeapGraphModule::NotifyEndOfFile() {
+  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  heap_graph_tracker->NotifyEndOfFile();
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
