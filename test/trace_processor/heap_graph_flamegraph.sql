@@ -8,5 +8,8 @@ SELECT
   size,
   cumulative_size,
   parent_id
-FROM experimental_flamegraph(601908408518618, 1, 'graph')
+FROM experimental_flamegraph(
+  (select max(graph_sample_ts) from heap_graph_object),
+  (select max(upid) from heap_graph_object),
+  'graph')
 LIMIT 10
