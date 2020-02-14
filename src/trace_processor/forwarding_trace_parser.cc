@@ -21,6 +21,7 @@
 #include "src/trace_processor/gzip_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
@@ -97,6 +98,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         reader_.reset(new ProtoTraceTokenizer(context_));
         context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
         context_->parser.reset(new ProtoTraceParser(context_));
+        context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
         break;
       }
       case kFuchsiaTraceType: {
@@ -113,6 +115,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
       }
       case kSystraceTraceType:
         PERFETTO_DLOG("Systrace trace detected");
+        context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
         if (context_->systrace_trace_parser) {
           reader_ = std::move(context_->systrace_trace_parser);
           break;
