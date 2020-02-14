@@ -955,6 +955,8 @@ filegroup(
         "src/trace_processor/importers/json/json_trace_utils.h",
         "src/trace_processor/importers/json/json_tracker.cc",
         "src/trace_processor/importers/json/json_tracker.h",
+        "src/trace_processor/importers/ninja/ninja_log_parser.cc",
+        "src/trace_processor/importers/ninja/ninja_log_parser.h",
         "src/trace_processor/importers/proto/args_table_utils.cc",
         "src/trace_processor/importers/proto/args_table_utils.h",
         "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h",

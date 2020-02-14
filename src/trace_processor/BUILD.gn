@@ -93,6 +93,8 @@ source_set("storage_minimal") {
     "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
     "importers/fuchsia/fuchsia_record.h",
+    "importers/ninja/ninja_log_parser.cc",
+    "importers/ninja/ninja_log_parser.h",
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
     "importers/proto/chrome_compositor_scheduler_state.descriptor.h",

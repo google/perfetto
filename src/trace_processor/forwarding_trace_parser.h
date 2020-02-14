@@ -32,6 +32,7 @@ enum TraceType {
   kSystraceTraceType,
   kGzipTraceType,
   kCtraceTraceType,
+  kNinjaLogTraceType,
 };
 
 TraceType GuessTraceType(const uint8_t* data, size_t size);
