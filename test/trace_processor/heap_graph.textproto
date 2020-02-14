@@ -22,6 +22,7 @@ packet {
     roots {
       root_type: ROOT_JAVA_FRAME
       object_ids: 0x01
+      object_ids: 0x05
     }
     objects {
       id: 0x01
