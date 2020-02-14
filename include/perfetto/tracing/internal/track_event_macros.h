@@ -127,14 +127,14 @@
 #define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
   struct {                                                                    \
     struct EventFinalizer {                                                   \
-      /* The int parameter is an implementation detail. It allows the      */ \
+      /* The parameter is an implementation detail. It allows the          */ \
       /* anonymous struct to use aggregate initialization to invoke the    */ \
       /* lambda (which emits the BEGIN event and returns an integer)       */ \
       /* with the proper reference capture for any                         */ \
       /* TrackEventArgumentFunction in |__VA_ARGS__|. This is required so  */ \
       /* that the scoped event is exactly ONE line and can't escape the    */ \
       /* scope if used in a single line if statement.                      */ \
-      EventFinalizer(int) {}                                                  \
+      EventFinalizer(...) {}                                                  \
       ~EventFinalizer() { TRACE_EVENT_END(category); }                        \
     } finalizer;                                                              \
   } PERFETTO_UID(scoped_event) {                                              \
