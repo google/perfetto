@@ -572,5 +572,7 @@ void FuchsiaTraceTokenizer::RegisterProvider(uint32_t provider_id,
   providers_[provider_id] = std::move(provider);
 }
 
+void FuchsiaTraceTokenizer::NotifyEndOfFile() {}
+
 }  // namespace trace_processor
 }  // namespace perfetto

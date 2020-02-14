@@ -476,5 +476,7 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
   return util::OkStatus();
 }
 
+void ProtoTraceTokenizer::NotifyEndOfFile() {}
+
 }  // namespace trace_processor
 }  // namespace perfetto

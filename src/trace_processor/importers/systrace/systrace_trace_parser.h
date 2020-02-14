@@ -34,6 +34,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t size) override;
+  void NotifyEndOfFile() override;
 
  private:
   enum ParseState {
