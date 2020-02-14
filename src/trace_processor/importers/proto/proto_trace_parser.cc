@@ -57,6 +57,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trigger.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -252,6 +253,10 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_module_symbols()) {
     ParseModuleSymbols(packet.module_symbols());
+  }
+
+  if (packet.has_trigger()) {
+    ParseTrigger(ts, packet.trigger());
   }
 }
 
@@ -724,6 +729,27 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
            line.line_number()});
     }
   }
+}
+
+void ProtoTraceParser::ParseTrigger(int64_t ts, ConstBytes blob) {
+  protos::pbzero::Trigger::Decoder trigger(blob.data, blob.size);
+  StringId cat_id = kNullStringId;
+  TrackId track_id = context_->track_tracker->GetOrCreateTriggerTrack();
+  StringId name_id = context_->storage->InternString(trigger.trigger_name());
+  context_->slice_tracker->Scoped(
+      ts, track_id, cat_id, name_id,
+      /* duration = */ 0,
+      [&trigger, this](ArgsTracker::BoundInserter* args_table) {
+        StringId producer_name_key =
+            context_->storage->InternString("producer_name");
+        args_table->AddArg(producer_name_key,
+                           Variadic::String(context_->storage->InternString(
+                               trigger.producer_name())));
+        StringId trusted_producer_uid_key =
+            context_->storage->InternString("trusted_producer_uid");
+        args_table->AddArg(trusted_producer_uid_key,
+                           Variadic::Integer(trigger.trusted_producer_uid()));
+      });
 }
 
 }  // namespace trace_processor

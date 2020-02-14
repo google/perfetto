@@ -414,6 +414,16 @@ TrackId TrackTracker::GetOrCreateDefaultDescriptorTrack() {
   return *track_id;
 }
 
+TrackId TrackTracker::GetOrCreateTriggerTrack() {
+  if (trigger_track_id_) {
+    return *trigger_track_id_;
+  }
+  tables::TrackTable::Row row;
+  row.name = context_->storage->InternString("Trace Triggers");
+  trigger_track_id_ = context_->storage->mutable_track_table()->Insert(row).id;
+  return *trigger_track_id_;
+}
+
 TrackId TrackTracker::InternGlobalCounterTrack(StringId name) {
   auto it = global_counter_tracks_by_name_.find(name);
   if (it != global_counter_tracks_by_name_.end()) {
