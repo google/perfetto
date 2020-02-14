@@ -83,6 +83,10 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
                    int64_t unique_retained) override;
   void NotifyEndOfFile();
 
+  void AddDeobfuscationMapping(StringPool::Id obfuscated_name,
+                               StringPool::Id deobfuscated_name);
+  StringPool::Id MaybeDeobfuscate(StringPool::Id);
+
   const std::vector<int64_t>* RowsForType(StringPool::Id type_name) const {
     auto it = class_to_rows_.find(type_name);
     if (it == class_to_rows_.end())
@@ -123,13 +127,14 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
   bool SetPidAndTimestamp(SequenceState* seq, UniquePid upid, int64_t ts);
 
-
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
   std::map<std::pair<UniquePid, int64_t /* ts */>, HeapGraphWalker> walkers_;
 
   std::map<StringPool::Id, std::vector<int64_t>> class_to_rows_;
   std::map<StringPool::Id, std::vector<int64_t>> field_to_rows_;
+
+  std::map<StringPool::Id, StringPool::Id> deobfuscation_mapping_;
 };
 
 }  // namespace trace_processor
