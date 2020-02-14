@@ -279,7 +279,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
     alloc_row.upid = current_upid;
     alloc_row.profile_type = profile_type;
     alloc_row.depth = depth;
-    alloc_row.name = StringId::Raw(node.class_name);
+    alloc_row.name = MaybeDeobfuscate(StringId::Raw(node.class_name));
     alloc_row.map_name = java_mapping;
     alloc_row.count = static_cast<int64_t>(node.count);
     alloc_row.cumulative_count =
@@ -314,6 +314,35 @@ void HeapGraphTracker::NotifyEndOfFile() {
   if (!sequence_state_.empty()) {
     context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
   }
+}
+
+StringPool::Id HeapGraphTracker::MaybeDeobfuscate(StringPool::Id id) {
+  StringPool::Id normalized_type_id = id;
+  base::StringView type_name = context_->storage->GetString(id);
+  size_t array_count = NumberOfArrays(type_name);
+  if (array_count > 0) {
+    base::StringView normalized_type = NormalizeTypeName(type_name);
+    normalized_type_id = context_->storage->InternString(normalized_type);
+  }
+  auto it = deobfuscation_mapping_.find(normalized_type_id);
+  if (it == deobfuscation_mapping_.end())
+    return id;
+
+  StringPool::Id deobfuscated_name_id = it->second;
+  if (array_count == 0)
+    return deobfuscated_name_id;
+
+  std::string deobfuscated_name =
+      context_->storage->GetString(deobfuscated_name_id).ToStdString();
+  for (size_t i = 0; i < array_count; ++i)
+    deobfuscated_name += "[]";
+  return context_->storage->InternString(base::StringView(deobfuscated_name));
+}
+
+void HeapGraphTracker::AddDeobfuscationMapping(
+    StringPool::Id obfuscated_name,
+    StringPool::Id deobfuscated_name) {
+  deobfuscation_mapping_.emplace(obfuscated_name, deobfuscated_name);
 }
 
 }  // namespace trace_processor
