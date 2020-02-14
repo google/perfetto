@@ -67,6 +67,8 @@ class HeapProfileTracker {
                          StackProfileTracker* stack_profile_tracker,
                          const StackProfileTracker::InternLookup* lookup);
 
+  void NotifyEndOfFile();
+
   ~HeapProfileTracker();
 
  private:
