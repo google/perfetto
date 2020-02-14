@@ -32,6 +32,11 @@ TEST(TraceProcessorImplTest, GuessTraceType_Json) {
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
+TEST(TraceProcessorImplTest, GuessTraceType_Ninja) {
+  const uint8_t prefix[] = "# ninja log v5\n";
+  EXPECT_EQ(kNinjaLogTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
 TEST(TraceProcessorImplTest, GuessTraceType_JsonWithSpaces) {
   const uint8_t prefix[] = "\n{ \"traceEvents\": [";
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
