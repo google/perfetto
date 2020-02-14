@@ -39,6 +39,9 @@ class ChunkedTraceReader {
   // intermediate buffering lines/protos that span across different chunks.
   // The buffer size is guaranteed to be > 0.
   virtual util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) = 0;
+
+  // Called after the last Parse() call.
+  virtual void NotifyEndOfFile() = 0;
 };
 
 }  // namespace trace_processor

@@ -96,5 +96,7 @@ util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
   return util::OkStatus();
 }
 
+void GzipTraceParser::NotifyEndOfFile() {}
+
 }  // namespace trace_processor
 }  // namespace perfetto
