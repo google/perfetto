@@ -662,12 +662,8 @@ export class TraceController extends Controller<States> {
           config: {pidForColor, upid, utid},
         });
 
-        const name = upid === null ?
-            `${threadName} ${tid}` :
-            `${
-                processName === null && heapUpids.has(upid) ?
-                    'Heap Profile for' :
-                    processName} ${pid}`;
+        const name =
+            this.getTrackName(utid, processName, pid, threadName, tid, upid);
         addTrackGroupActions.push(Actions.addTrackGroup({
           engineId: this.engineId,
           summaryTrackId,
@@ -929,5 +925,20 @@ export class TraceController extends Controller<States> {
       msg,
       timestamp: Date.now() / 1000,
     }));
+  }
+
+  private getTrackName(
+      utid: number, processName: string|null, pid: number|null,
+      threadName: string|null, tid: number|null, upid: number|null) {
+    if (upid !== null && processName !== null && pid !== null) {
+      return `${processName} ${pid}`;
+    } else if (upid !== null && pid !== null) {
+      return `Process ${pid}`;
+    } else if (threadName !== null && tid !== null) {
+      return `${threadName} ${tid}`;
+    } else if (tid !== null) {
+      return `Thread ${tid}`;
+    }
+    return `utid: ${utid}`;
   }
 }
