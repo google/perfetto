@@ -130,7 +130,8 @@ namespace stats {
   F(compact_sched_switch_skipped,             kSingle,  kInfo,     kAnalysis), \
   F(compact_sched_waking_skipped,             kSingle,  kInfo,     kAnalysis), \
   F(empty_chrome_metadata,                    kSingle,  kError,    kTrace),    \
-  F(perf_cpu_lost_records,                    kIndexed, kDataLoss, kTrace)
+  F(perf_cpu_lost_records,                    kIndexed, kDataLoss, kTrace),    \
+  F(ninja_parse_errors,                       kSingle,  kError,    kTrace)
 // clang-format on
 
 enum Type {

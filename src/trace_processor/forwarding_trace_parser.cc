@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/gzip_trace_parser.h"
+#include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -99,6 +100,11 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         context_->parser.reset(new ProtoTraceParser(context_));
         break;
       }
+      case kNinjaLogTraceType: {
+        PERFETTO_DLOG("Ninja log detected");
+        reader_.reset(new NinjaLogParser(context_));
+        break;
+      }
       case kFuchsiaTraceType: {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         PERFETTO_DLOG("Fuchsia trace detected");
@@ -175,6 +181,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   // Ctrace is deflate'ed systrace.
   if (start.find("TRACE:") != std::string::npos)
     return kCtraceTraceType;
+
+  // Ninja's buils log (.ninja_log).
+  if (base::StartsWith(start, "# ninja log"))
+    return kNinjaLogTraceType;
 
   // Systrace with no header or leading HTML.
   if (base::StartsWith(start, " "))
