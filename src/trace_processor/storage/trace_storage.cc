@@ -72,7 +72,10 @@ const std::vector<NullTermStringView>& GetRefTypeStringMap() {
 }
 
 TraceStorage::TraceStorage(const Config&) {
-  // Upid/utid 0 is reserved for idle processes/threads.
+  // Reserve utid/upid 0. These are special as embedders (e.g. Perfetto UI)
+  // exclude them by filtering them out. If the parsed trace contains ftrace
+  // data, ProcessTracker::SetPidZeroIgnoredForIdleProcess will create a mapping
+  // to these rows for tid/pid 0.
   tables::ThreadTable::Row thread_row;
   thread_row.tid = 0;
   thread_table_.Insert(thread_row);
