@@ -77,20 +77,56 @@ TEST(StringUtilsTest, StringToUInt32) {
   EXPECT_EQ(StringToUInt32("0"), make_optional<uint32_t>(0U));
   EXPECT_EQ(StringToUInt32("1"), make_optional<uint32_t>(1U));
   EXPECT_EQ(StringToUInt32("42"), make_optional<uint32_t>(42U));
+  EXPECT_EQ(StringToUInt32("a", 16), make_optional<uint32_t>(10U));
+  EXPECT_EQ(StringToUInt32("fffffff0", 16),
+            make_optional<uint32_t>(0xfffffff0));
   EXPECT_EQ(StringToUInt32(""), nullopt);
   EXPECT_EQ(StringToUInt32("!?"), nullopt);
   EXPECT_EQ(StringToUInt32("abc"), nullopt);
   EXPECT_EQ(StringToUInt32("123 abc"), nullopt);
+  EXPECT_EQ(StringToUInt32("beefz", 16), nullopt);
 }
 
 TEST(StringUtilsTest, StringToInt32) {
   EXPECT_EQ(StringToInt32("0"), make_optional<int32_t>(0));
   EXPECT_EQ(StringToInt32("1"), make_optional<int32_t>(1));
   EXPECT_EQ(StringToInt32("-42"), make_optional<int32_t>(-42));
+  EXPECT_EQ(StringToInt32("42", 16), make_optional<int32_t>(0x42));
+  EXPECT_EQ(StringToInt32("7ffffffe", 16), make_optional<int32_t>(0x7ffffffe));
   EXPECT_EQ(StringToInt32(""), nullopt);
   EXPECT_EQ(StringToInt32("!?"), nullopt);
   EXPECT_EQ(StringToInt32("abc"), nullopt);
   EXPECT_EQ(StringToInt32("123 abc"), nullopt);
+  EXPECT_EQ(StringToInt32("beefz", 16), nullopt);
+}
+
+TEST(StringUtilsTest, StringToUInt64) {
+  EXPECT_EQ(StringToUInt64("0"), make_optional<uint64_t>(0u));
+  EXPECT_EQ(StringToUInt64("1"), make_optional<uint64_t>(1u));
+  EXPECT_EQ(StringToUInt64("5000000000"),
+            make_optional<uint64_t>(5000000000ULL));
+  EXPECT_EQ(StringToUInt64("7ffffffffffffffe", 16),
+            make_optional<uint64_t>(0x7ffffffffffffffeULL));
+  EXPECT_EQ(StringToUInt64("9ffffffffffffffe", 16),
+            make_optional<uint64_t>(0x9ffffffffffffffeULL));
+  EXPECT_EQ(StringToUInt64(""), nullopt);
+  EXPECT_EQ(StringToUInt64("abc"), nullopt);
+  EXPECT_EQ(StringToUInt64("beefz", 16), nullopt);
+}
+
+TEST(StringUtilsTest, StringToInt64) {
+  EXPECT_EQ(StringToInt64("0"), make_optional<int64_t>(0));
+  EXPECT_EQ(StringToInt64("1"), make_optional<int64_t>(1));
+  EXPECT_EQ(StringToInt64("-5000000000"),
+            make_optional<int64_t>(-5000000000LL));
+  EXPECT_EQ(StringToInt64("5000000000"), make_optional<int64_t>(5000000000LL));
+  EXPECT_EQ(StringToInt64("7ffffffffffffffe", 16),
+            make_optional<int64_t>(0x7ffffffffffffffeLL));
+  EXPECT_EQ(StringToInt64("9ffffffe", 16),
+            make_optional<int64_t>(0x9ffffffeLL));
+  EXPECT_EQ(StringToInt64(""), nullopt);
+  EXPECT_EQ(StringToInt64("abc"), nullopt);
+  EXPECT_EQ(StringToInt64("beefz", 16), nullopt);
 }
 
 TEST(StringUtilsTest, StringToDouble) {
