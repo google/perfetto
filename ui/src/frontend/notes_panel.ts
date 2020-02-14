@@ -15,6 +15,7 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {AreaNote, Note} from '../common/state';
 import {timeToString} from '../common/time';
 
 import {randomColor} from './colorizer';
@@ -24,8 +25,8 @@ import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 
 const FLAG_WIDTH = 16;
+const AREA_TRIANGLE_WIDTH = 10;
 const MOVIE_WIDTH = 16;
-const MOUSE_OFFSET = 6;
 const FLAG = `\uE153`;
 const MOVIE = '\uE8DA';
 
@@ -39,8 +40,7 @@ export class NotesPanel extends Panel {
 
   oncreate({dom}: m.CVnodeDOM) {
     dom.addEventListener('mousemove', (e: Event) => {
-      this.hoveredX =
-        (e as MouseEvent).layerX - TRACK_SHELL_WIDTH - MOUSE_OFFSET;
+      this.hoveredX = (e as MouseEvent).layerX - TRACK_SHELL_WIDTH;
       if (globals.state.scrubbingEnabled) {
         const timescale = globals.frontendLocalState.timeScale;
         const timestamp = timescale.pxToTime(this.hoveredX);
@@ -49,8 +49,7 @@ export class NotesPanel extends Panel {
       globals.rafScheduler.scheduleRedraw();
     }, {passive: true});
     dom.addEventListener('mouseenter', (e: Event) => {
-      this.hoveredX =
-        (e as MouseEvent).layerX - TRACK_SHELL_WIDTH - MOUSE_OFFSET;
+      this.hoveredX = (e as MouseEvent).layerX - TRACK_SHELL_WIDTH;
       globals.rafScheduler.scheduleRedraw();
     });
     dom.addEventListener('mouseout', () => {
@@ -94,16 +93,14 @@ export class NotesPanel extends Panel {
            !timeScale.timeInBounds(note.area.startSec))) {
         continue;
       }
-      const x = timeScale.timeToPx(timestamp);
       const currentIsHovered =
-        this.hoveredX &&
-        x - MOUSE_OFFSET <= this.hoveredX &&
-        this.hoveredX < x - MOUSE_OFFSET + FLAG_WIDTH;
+          this.hoveredX && this.mouseOverNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
       const selection = globals.state.currentSelection;
       const isSelected = selection !== null && selection.kind === 'NOTE' &&
           selection.id === note.id;
+      const x = timeScale.timeToPx(timestamp);
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
 
       // Draw flag or marker.
@@ -113,7 +110,6 @@ export class NotesPanel extends Panel {
             left,
             Math.floor(
                 timeScale.timeToPx(note.area.endSec) + TRACK_SHELL_WIDTH),
-            size.height,
             note.color,
             isSelected);
       } else {
@@ -151,19 +147,18 @@ export class NotesPanel extends Panel {
   }
 
   private drawAreaMarker(
-      ctx: CanvasRenderingContext2D, x: number, xEnd: number, height: number,
-      color: string, fill: boolean) {
+      ctx: CanvasRenderingContext2D, x: number, xEnd: number, color: string,
+      fill: boolean) {
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     const topOffset = 10;
-    const markerHeight = height - topOffset;
     // Don't draw in the track shell section.
     if (x >= globals.frontendLocalState.timeScale.startPx + TRACK_SHELL_WIDTH) {
       // Draw left triangle.
       ctx.beginPath();
       ctx.moveTo(x, topOffset);
-      ctx.lineTo(x, height);
-      ctx.lineTo(x + markerHeight, topOffset);
+      ctx.lineTo(x, topOffset + AREA_TRIANGLE_WIDTH);
+      ctx.lineTo(x + AREA_TRIANGLE_WIDTH, topOffset);
       ctx.lineTo(x, topOffset);
       if (fill) ctx.fill();
       ctx.stroke();
@@ -171,8 +166,8 @@ export class NotesPanel extends Panel {
     // Draw right triangle.
     ctx.beginPath();
     ctx.moveTo(xEnd, topOffset);
-    ctx.lineTo(xEnd, height);
-    ctx.lineTo(xEnd - height + topOffset, topOffset);
+    ctx.lineTo(xEnd, topOffset + AREA_TRIANGLE_WIDTH);
+    ctx.lineTo(xEnd - AREA_TRIANGLE_WIDTH, topOffset);
     ctx.lineTo(xEnd, topOffset);
     if (fill) ctx.fill();
     ctx.stroke();
@@ -196,13 +191,15 @@ export class NotesPanel extends Panel {
     ctx.font = '24px Material Icons';
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
-
+    // The ligatures have padding included that means the icon is not drawn
+    // exactly at the x value. This adjusts for that.
+    const iconPadding = 6;
     if (fill) {
       ctx.fillText(
-          noteType === 'MOVIE' ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2);
+          noteType === 'MOVIE' ? MOVIE : FLAG, x - iconPadding, height + 2);
     } else {
       ctx.strokeText(
-          noteType === 'MOVIE' ? MOVIE : FLAG, x - MOUSE_OFFSET, height + 2.5);
+          noteType === 'MOVIE' ? MOVIE : FLAG, x - iconPadding, height + 2.5);
     }
     ctx.font = prevFont;
     ctx.textBaseline = prevBaseline;
@@ -211,11 +208,9 @@ export class NotesPanel extends Panel {
 
   private onClick(x: number, _: number, isMovie: boolean) {
     const timeScale = globals.frontendLocalState.timeScale;
-    const timestamp = timeScale.pxToTime(x - MOUSE_OFFSET);
-    const width = isMovie ? MOVIE_WIDTH : FLAG_WIDTH;
+    const timestamp = timeScale.pxToTime(x);
     for (const note of Object.values(globals.state.notes)) {
-      const noteX = timeScale.timeToPx(note.timestamp);
-      if (noteX <= x && x < noteX + width) {
+      if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
         if (note.noteType === 'MOVIE') {
           globals.frontendLocalState.setVidTimestamp(note.timestamp);
         } else if (note.noteType === 'AREA') {
@@ -231,6 +226,19 @@ export class NotesPanel extends Panel {
     }
     const color = randomColor();
     globals.makeSelection(Actions.addNote({timestamp, color, isMovie}));
+  }
+
+  private mouseOverNote(x: number, note: AreaNote|Note): boolean {
+    const timeScale = globals.frontendLocalState.timeScale;
+    const noteX = timeScale.timeToPx(note.timestamp);
+    if (note.noteType === 'AREA') {
+      return (noteX <= x && x < noteX + AREA_TRIANGLE_WIDTH) ||
+          (timeScale.timeToPx(note.area.endSec) > x &&
+           x > timeScale.timeToPx(note.area.endSec) - AREA_TRIANGLE_WIDTH);
+    } else {
+      const width = (note.noteType === 'MOVIE') ? MOVIE_WIDTH : FLAG_WIDTH;
+      return noteX <= x && x < noteX + width;
+    }
   }
 }
 
