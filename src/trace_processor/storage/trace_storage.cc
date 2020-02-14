@@ -27,20 +27,27 @@ namespace trace_processor {
 
 namespace {
 
-void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& column,
+void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& ts_col,
                               int64_t* min_value,
-                              int64_t* max_value) {
-  if (column.row_map().empty())
+                              int64_t* max_value,
+                              const TypedColumn<int64_t>* dur_col = nullptr) {
+  if (ts_col.row_map().empty())
     return;
 
-  SqlValue col_min = *column.Min();
-  SqlValue col_max = *column.Max();
+  SqlValue col_min = *ts_col.Min();
+  SqlValue col_max = *ts_col.Max();
+  int64_t last_dur = 0;
+  if (dur_col) {
+    PERFETTO_CHECK(ts_col.IsSorted());
+    PERFETTO_CHECK(dur_col->row_map().size() == ts_col.row_map().size());
+    last_dur = dur_col->Get(ts_col.row_map().size() - 1).long_value;
+  }
 
   PERFETTO_DCHECK(col_min.type == SqlValue::Type::kLong);
   PERFETTO_DCHECK(col_max.type == SqlValue::Type::kLong);
 
   *min_value = std::min(*min_value, col_min.long_value);
-  *max_value = std::max(*max_value, col_max.long_value);
+  *max_value = std::max(*max_value, col_max.long_value + last_dur);
 }
 
 std::vector<NullTermStringView> CreateRefTypeStringMap() {
@@ -126,9 +133,11 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   int64_t end_ns = std::numeric_limits<int64_t>::min();
 
   DbTableMaybeUpdateMinMax(raw_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(sched_slice_table_.ts(), &start_ns, &end_ns);
+  DbTableMaybeUpdateMinMax(sched_slice_table_.ts(), &start_ns, &end_ns,
+                           &sched_slice_table_.dur());
   DbTableMaybeUpdateMinMax(counter_table_.ts(), &start_ns, &end_ns);
-  DbTableMaybeUpdateMinMax(slice_table_.ts(), &start_ns, &end_ns);
+  DbTableMaybeUpdateMinMax(slice_table_.ts(), &start_ns, &end_ns,
+                           &slice_table_.dur());
   DbTableMaybeUpdateMinMax(heap_profile_allocation_table_.ts(), &start_ns,
                            &end_ns);
   DbTableMaybeUpdateMinMax(instant_table_.ts(), &start_ns, &end_ns);

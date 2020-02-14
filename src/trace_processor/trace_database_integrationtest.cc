@@ -90,6 +90,21 @@ TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_FALSE(it.Next());
 }
 
+// Tests that the duration of the last slice is accounted in the computation
+// of the trace boundaries. Linux ftraces tend to hide this problem because
+// after the last sched_switch there's always a "wake" event which causes the
+// raw table to fix the bounds.
+TEST_F(TraceProcessorIntegrationTest, TraceBoundsUserspaceOnly) {
+  ASSERT_TRUE(LoadTrace("sfgate.json").ok());
+  auto it = Query("select start_ts, end_ts from trace_bounds");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 2213649212614000);
+  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(1).long_value, 2213689745140000);
+  ASSERT_FALSE(it.Next());
+}
+
 TEST_F(TraceProcessorIntegrationTest, Hash) {
   auto it = Query("select HASH()");
   ASSERT_TRUE(it.Next());
