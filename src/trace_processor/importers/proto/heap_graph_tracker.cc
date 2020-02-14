@@ -310,5 +310,11 @@ void HeapGraphTracker::SetRetained(int64_t row,
       ->Set(static_cast<uint32_t>(row), unique_retained);
 }
 
+void HeapGraphTracker::NotifyEndOfFile() {
+  if (!sequence_state_.empty()) {
+    context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
+  }
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -121,6 +121,7 @@ namespace stats {
   F(heapprofd_malformed_packet,               kIndexed, kError,    kTrace),    \
   F(heapprofd_missing_packet,                 kSingle,  kError,    kTrace),    \
   F(heapprofd_rejected_concurrent,            kIndexed, kError,    kTrace),    \
+  F(heapprofd_non_finalized_profile,          kSingle,  kError,    kTrace),    \
   F(metatrace_overruns,                       kSingle,  kError,    kTrace),    \
   F(packages_list_has_parse_errors,           kSingle,  kError,    kTrace),    \
   F(packages_list_has_read_errors,            kSingle,  kError,    kTrace),    \
