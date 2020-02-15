@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/register_additional_modules.h"
+#include "src/trace_processor/additional_modules.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
