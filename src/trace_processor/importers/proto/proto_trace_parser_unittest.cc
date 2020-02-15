@@ -19,17 +19,15 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/additional_modules.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
+#include "src/trace_processor/default_modules.h"
 #include "src/trace_processor/event_tracker.h"
-#include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
-#include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/register_additional_modules.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -219,8 +217,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
     context_.parser.reset(new ProtoTraceParser(&context_));
-    context_.modules.emplace_back(new TrackEventModule(&context_));
 
+    RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
   }
 

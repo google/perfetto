@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_REGISTER_ADDITIONAL_MODULES_H_
-#define SRC_TRACE_PROCESSOR_REGISTER_ADDITIONAL_MODULES_H_
-
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/importers/proto/profile_packet_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-void RegisterAdditionalModules(TraceProcessorContext*);
+ProfilePacketInternLookup::~ProfilePacketInternLookup() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto
-
-#endif  // SRC_TRACE_PROCESSOR_REGISTER_ADDITIONAL_MODULES_H_

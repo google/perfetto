@@ -6256,6 +6256,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_storage_full",
   srcs: [
+    "src/trace_processor/additional_modules.cc",
     "src/trace_processor/importers/ftrace/binder_tracker.cc",
     "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
     "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
@@ -6275,7 +6276,6 @@ filegroup {
     "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
     "src/trace_processor/importers/systrace/systrace_parser.cc",
     "src/trace_processor/importers/systrace/systrace_trace_parser.cc",
-    "src/trace_processor/register_additional_modules.cc",
     "src/trace_processor/syscall_tracker.cc",
   ],
 }
@@ -6286,6 +6286,7 @@ filegroup {
   srcs: [
     "src/trace_processor/args_tracker.cc",
     "src/trace_processor/clock_tracker.cc",
+    "src/trace_processor/default_modules.cc",
     "src/trace_processor/destructible.cc",
     "src/trace_processor/event_tracker.cc",
     "src/trace_processor/forwarding_trace_parser.cc",
@@ -6301,6 +6302,8 @@ filegroup {
     "src/trace_processor/importers/ninja/ninja_log_parser.cc",
     "src/trace_processor/importers/proto/args_table_utils.cc",
     "src/trace_processor/importers/proto/packet_sequence_state.cc",
+    "src/trace_processor/importers/proto/profile_module.cc",
+    "src/trace_processor/importers/proto/profile_packet_utils.cc",
     "src/trace_processor/importers/proto/proto_importer_module.cc",
     "src/trace_processor/importers/proto/proto_trace_parser.cc",
     "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",

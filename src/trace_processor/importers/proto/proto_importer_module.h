@@ -45,8 +45,8 @@ class TraceProcessorContext;
 //     methods.
 // (2) In the constructor call the RegisterForField method for every field
 //     that the module knows how to handle.
-// (3) Create a module instance and add it to the |modules| vector in
-//     TraceProcessorContext.
+// (3) Create a module instance and add it to TraceProcessorContext's |modules|
+//     vector in either default_modules.cc or additional_modules.cc.
 // See GraphicsEventModule for an example.
 
 class ModuleResult {
