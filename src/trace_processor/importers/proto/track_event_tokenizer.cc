@@ -171,14 +171,6 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     return;
   }
 
-  // TODO(eseckler): For now, TrackEvents can only be parsed correctly while
-  // incremental state for their sequence is valid, because chromium doesn't set
-  // SEQ_NEEDS_INCREMENTAL_STATE yet. Remove this once it does.
-  if (!state->IsIncrementalStateValid()) {
-    context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
-    return;
-  }
-
   auto field = packet_decoder.track_event();
   protozero::ProtoDecoder event_decoder(field.data, field.size);
 
