@@ -79,6 +79,8 @@ source_set("storage_minimal") {
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
+    "default_modules.cc",
+    "default_modules.h",
     "destructible.cc",
     "destructible.h",
     "event_tracker.cc",
@@ -100,6 +102,10 @@ source_set("storage_minimal") {
     "importers/proto/chrome_compositor_scheduler_state.descriptor.h",
     "importers/proto/packet_sequence_state.cc",
     "importers/proto/packet_sequence_state.h",
+    "importers/proto/profile_module.cc",
+    "importers/proto/profile_module.h",
+    "importers/proto/profile_packet_utils.cc",
+    "importers/proto/profile_packet_utils.h",
     "importers/proto/proto_importer_module.cc",
     "importers/proto/proto_importer_module.h",
     "importers/proto/proto_incremental_state.h",
@@ -202,6 +208,8 @@ source_set("storage_minimal") {
 
 source_set("storage_full") {
   sources = [
+    "additional_modules.cc",
+    "additional_modules.h",
     "importers/ftrace/binder_tracker.cc",
     "importers/ftrace/binder_tracker.h",
     "importers/ftrace/ftrace_descriptors.cc",
@@ -240,8 +248,6 @@ source_set("storage_full") {
     "importers/systrace/systrace_parser.h",
     "importers/systrace/systrace_trace_parser.cc",
     "importers/systrace/systrace_trace_parser.h",
-    "register_additional_modules.cc",
-    "register_additional_modules.h",
     "syscall_tracker.cc",
     "syscalls_aarch32.h",
     "syscalls_aarch64.h",
