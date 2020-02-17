@@ -27,8 +27,8 @@
 namespace perfetto {
 namespace trace_processor {
 
-// ProtoToArgsTable encapsulates the process of taking an arbitary proto and
-// assocating each field as a column in an args set. This is done by traversing
+// ProtoToArgsTable encapsulates the process of taking an arbitrary proto and
+// associating each field as a column in an args set. This is done by traversing
 // the proto using reflection (with descriptors provided by
 // AddProtoFileDescriptor()) and creating column names equal to this traversal.
 //
