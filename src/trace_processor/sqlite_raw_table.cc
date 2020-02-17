@@ -30,6 +30,7 @@
 #include "protos/perfetto/trace/ftrace/filemap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 
@@ -205,23 +206,42 @@ void SqliteRawTable::FormatSystraceArgs(NullTermStringView event_name,
     writer->AppendLiteral(" ");
     write_value_at_index(CSR::kRateFieldNumber - 1, write_value);
     return;
+  } else if (event_name == "clock_enable") {
+    using CE = protos::pbzero::ClockEnableFtraceEvent;
+    write_value_at_index(CE::kNameFieldNumber - 1, write_value);
+    write_arg(CE::kStateFieldNumber - 1, write_value);
+    write_arg(CE::kCpuIdFieldNumber - 1, write_value);
+    return;
+  } else if (event_name == "clock_disable") {
+    using CD = protos::pbzero::ClockDisableFtraceEvent;
+    write_value_at_index(CD::kNameFieldNumber - 1, write_value);
+    write_arg(CD::kStateFieldNumber - 1, write_value);
+    write_arg(CD::kCpuIdFieldNumber - 1, write_value);
+    return;
   } else if (event_name == "binder_transaction") {
     using BT = protos::pbzero::BinderTransactionFtraceEvent;
     writer->AppendString(" transaction=");
     write_value_at_index(BT::kDebugIdFieldNumber - 1, write_value);
+
     writer->AppendString(" dest_node=");
     write_value_at_index(BT::kTargetNodeFieldNumber - 1, write_value);
+
     writer->AppendString(" dest_proc=");
     write_value_at_index(BT::kToProcFieldNumber - 1, write_value);
+
     writer->AppendString(" dest_thread=");
     write_value_at_index(BT::kToThreadFieldNumber - 1, write_value);
-    write_arg(BT::kReplyFieldNumber - 1, write_value);
+
+    writer->AppendString(" reply=");
+    write_value_at_index(BT::kReplyFieldNumber - 1, write_value);
+
     writer->AppendString(" flags=0x");
     write_value_at_index(BT::kFlagsFieldNumber - 1,
                          [writer](const Variadic& value) {
                            PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
                            writer->AppendHexInt(value.uint_value);
                          });
+
     writer->AppendString(" code=0x");
     write_value_at_index(BT::kCodeFieldNumber - 1,
                          [writer](const Variadic& value) {
