@@ -39,9 +39,9 @@
 //   e.g., my_tracing.h:
 //
 //       PERFETTO_DEFINE_CATEGORIES(
-//           PERFETTO_CATEGORY(base),
-//           PERFETTO_CATEGORY(v8),
-//           PERFETTO_CATEGORY(cc));
+//           perfetto::Category("base"),
+//           perfetto::Category("v8"),
+//           perfetto::Category("cc"));
 //
 //   Then in a single .cc file, e.g., my_tracing.cc:
 //
@@ -125,10 +125,9 @@
 #define PERFETTO_TRACK_EVENT_NAMESPACE perfetto
 #endif
 
-// A name for a single category. Wrapped in a macro in case we need to introduce
-// more fields in the future.
+// Deprecated; see perfetto::Category().
 #define PERFETTO_CATEGORY(name) \
-  { #name }
+  ::perfetto::Category { #name }
 
 // Internal helpers for determining if a given category is defined at build or
 // runtime.

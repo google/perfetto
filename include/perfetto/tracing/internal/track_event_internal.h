@@ -30,6 +30,7 @@
 
 namespace perfetto {
 class EventContext;
+struct Category;
 namespace protos {
 namespace gen {
 class TrackEventConfig;
@@ -40,7 +41,6 @@ class DebugAnnotation;
 }  // namespace protos
 
 namespace internal {
-struct TrackEventCategory;
 class TrackEventCategoryRegistry;
 
 class BaseTrackEventInternedDataIndex {
@@ -102,13 +102,14 @@ class TrackEventInternal {
                             uint32_t instance_index);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
                              uint32_t instance_index);
-  static bool IsCategoryEnabled(const protos::gen::TrackEventConfig& config,
-                                const TrackEventCategory& category);
+  static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
+                                const protos::gen::TrackEventConfig& config,
+                                const Category& category);
 
   static perfetto::EventContext WriteEvent(
       TraceWriterBase*,
       TrackEventIncrementalState*,
-      const char* category,
+      const Category* category,
       const char* name,
       perfetto::protos::pbzero::TrackEvent::Type,
       uint64_t timestamp = GetTimeNs());

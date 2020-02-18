@@ -27,6 +27,7 @@
 
 #include "perfetto/tracing.h"
 
+// Note: Using the old syntax here to ensure backwards compatibility.
 PERFETTO_DEFINE_CATEGORIES(PERFETTO_CATEGORY(cat1),
                            PERFETTO_CATEGORY(cat2),
                            PERFETTO_CATEGORY(cat3),
