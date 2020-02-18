@@ -40,8 +40,7 @@
 //
 #define PERFETTO_INTERNAL_DECLARE_CATEGORIES(...)                             \
   namespace internal {                                                        \
-  constexpr ::perfetto::internal::TrackEventCategory kCategories[] = {        \
-      __VA_ARGS__};                                                           \
+  constexpr ::perfetto::Category kCategories[] = {__VA_ARGS__};               \
   constexpr size_t kCategoryCount =                                           \
       sizeof(kCategories) / sizeof(kCategories[0]);                           \
   /* The per-instance enable/disable state per category */                    \

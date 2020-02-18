@@ -76,13 +76,19 @@
 PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES("dynamic");
 
 // Trace categories used in the tests.
-PERFETTO_DEFINE_CATEGORIES(PERFETTO_CATEGORY(test),
-                           PERFETTO_CATEGORY(foo),
-                           PERFETTO_CATEGORY(bar),
-                           PERFETTO_CATEGORY(cat),
-                           // TODO(skyostil): Figure out how to represent
-                           // disabled-by-default categories
-                           {TRACE_DISABLED_BY_DEFAULT("cat")});
+PERFETTO_DEFINE_CATEGORIES(
+    perfetto::Category("test")
+        .SetDescription("This is a test category")
+        .SetTags("tag"),
+    perfetto::Category("foo"),
+    perfetto::Category("bar"),
+    perfetto::Category("cat").SetTags("slow"),
+    perfetto::Category("cat.verbose").SetTags("debug"),
+    perfetto::Category::Group("foo,bar"),
+    perfetto::Category::Group("baz,bar,quux"),
+    perfetto::Category::Group("red,green,blue,foo"),
+    perfetto::Category::Group("red,green,blue,yellow"),
+    perfetto::Category(TRACE_DISABLED_BY_DEFAULT("cat")));
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 
 // For testing interning of complex objects.
@@ -520,8 +526,11 @@ class PerfettoApiTest : public ::testing::Test {
           id << "(tid_override=" << legacy_event.tid_override() << ")";
         slice += id.str();
       }
-      if (!track_event.category_iids().empty())
-        slice += ":" + categories[track_event.category_iids()[0]];
+      size_t category_count = 0;
+      for (const auto& it : track_event.category_iids())
+        slice += (category_count++ ? "," : ":") + categories[it];
+      for (const auto& it : track_event.categories())
+        slice += (category_count++ ? ",$" : ":$") + it;
       if (track_event.has_name_iid())
         slice += "." + event_names[track_event.name_iid()];
 
@@ -808,12 +817,19 @@ TEST_F(PerfettoApiTest, TrackEventDescriptor) {
 
   // Check that the advertised categories match PERFETTO_DEFINE_CATEGORIES (see
   // above).
-  EXPECT_EQ(5, desc.available_categories_size());
+  EXPECT_EQ(6, desc.available_categories_size());
   EXPECT_EQ("test", desc.available_categories()[0].name());
+  EXPECT_EQ("This is a test category",
+            desc.available_categories()[0].description());
+  EXPECT_EQ("tag", desc.available_categories()[0].tags()[0]);
   EXPECT_EQ("foo", desc.available_categories()[1].name());
   EXPECT_EQ("bar", desc.available_categories()[2].name());
   EXPECT_EQ("cat", desc.available_categories()[3].name());
-  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[4].name());
+  EXPECT_EQ("slow", desc.available_categories()[3].tags()[0]);
+  EXPECT_EQ("cat.verbose", desc.available_categories()[4].name());
+  EXPECT_EQ("debug", desc.available_categories()[4].tags()[0]);
+  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[5].name());
+  EXPECT_EQ("slow", desc.available_categories()[5].tags()[0]);
 }
 
 TEST_F(PerfettoApiTest, TrackEventSharedIncrementalState) {
@@ -1653,17 +1669,35 @@ TEST_F(PerfettoApiTest, TrackEventConfig) {
 
     TRACE_EVENT_BEGIN("foo", "FooEvent");
     TRACE_EVENT_BEGIN("bar", "BarEvent");
+    TRACE_EVENT_BEGIN("foo,bar", "MultiFooBar");
+    TRACE_EVENT_BEGIN("baz,bar,quux", "MultiBar");
+    TRACE_EVENT_BEGIN("red,green,blue,foo", "MultiFoo");
+    TRACE_EVENT_BEGIN("red,green,blue,yellow", "MultiNone");
+    TRACE_EVENT_BEGIN("cat", "SlowEvent");
+    TRACE_EVENT_BEGIN("cat.verbose", "DebugEvent");
+    TRACE_EVENT_BEGIN("test", "TagEvent");
+    TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "SlowDisabledEvent");
+    TRACE_EVENT_BEGIN("dynamic,foo", "DynamicGroupFooEvent");
+    perfetto::DynamicCategory dyn{"dynamic,bar"};
+    TRACE_EVENT_BEGIN(dyn, "DynamicGroupBarEvent");
 
     perfetto::TrackEvent::Flush();
     tracing_session->get()->StopBlocking();
-    return ReadSlicesFromTrace(tracing_session->get());
+    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    tracing_session->session.reset();
+    return slices;
   };
 
-  // Empty config should enable all categories.
+  // Empty config should enable all categories except slow ones.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:bar.BarEvent"));
+    EXPECT_THAT(
+        slices,
+        ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
+                    "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
+                    "B:test.TagEvent", "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
   // Enable exactly one category.
@@ -1672,7 +1706,9 @@ TEST_F(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_categories("foo");
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent"));
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:foo,bar.MultiFooBar",
+                                    "B:red,green,blue,foo.MultiFoo",
+                                    "B:$dynamic,$foo.DynamicGroupFooEvent"));
   }
 
   // Enable two categories.
@@ -1683,17 +1719,25 @@ TEST_F(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_categories("baz");
     te_cfg.add_enabled_categories("bar");
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:bar.BarEvent"));
+    EXPECT_THAT(
+        slices,
+        ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
+                    "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
-  // Enable overrides disable.
+  // Enabling all categories with a pattern doesn't enable slow ones.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
-    te_cfg.add_disabled_categories("foo");
-    te_cfg.add_disabled_categories("bar");
     te_cfg.add_enabled_categories("*");
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:bar.BarEvent"));
+    EXPECT_THAT(
+        slices,
+        ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
+                    "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
+                    "B:test.TagEvent", "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
   // Enable with a pattern.
@@ -1702,7 +1746,46 @@ TEST_F(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_disabled_categories("*");
     te_cfg.add_enabled_categories("fo*");
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent"));
+    EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:foo,bar.MultiFooBar",
+                                    "B:red,green,blue,foo.MultiFoo",
+                                    "B:$dynamic,$foo.DynamicGroupFooEvent"));
+  }
+
+  // Enable with a tag.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_tags("tag");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:test.TagEvent"));
+  }
+
+  // Enable just slow categories.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_tags("slow");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices,
+                ElementsAre("B:cat.SlowEvent",
+                            "B:disabled-by-default-cat.SlowDisabledEvent"));
+  }
+
+  // Enable everything including slow/debug categories.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_enabled_categories("*");
+    te_cfg.add_enabled_tags("slow");
+    te_cfg.add_enabled_tags("debug");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices,
+                ElementsAre("B:foo.FooEvent", "B:bar.BarEvent",
+                            "B:foo,bar.MultiFooBar", "B:baz,bar,quux.MultiBar",
+                            "B:red,green,blue,foo.MultiFoo", "B:cat.SlowEvent",
+                            "B:cat.verbose.DebugEvent", "B:test.TagEvent",
+                            "B:disabled-by-default-cat.SlowDisabledEvent",
+                            "B:$dynamic,$foo.DynamicGroupFooEvent",
+                            "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 }
 
@@ -2071,15 +2154,9 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
 }
 
 TEST_F(PerfettoApiTest, LegacyTraceEvents) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session =
+      NewTraceWithCategories({"cat", TRACE_DISABLED_BY_DEFAULT("cat")});
   tracing_session->get()->StartBlocking();
 
   // Basic events.
@@ -2131,15 +2208,8 @@ TEST_F(PerfettoApiTest, LegacyTraceEvents) {
 }
 
 TEST_F(PerfettoApiTest, LegacyTraceEventsWithCustomAnnotation) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
   // Create a new trace session.
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
 
   MyDebugAnnotation annotation;
@@ -2160,17 +2230,10 @@ TEST_F(PerfettoApiTest, LegacyTraceEventsWithConcurrentSessions) {
   // Make sure that a uniquely owned debug annotation can be written into
   // multiple concurrent tracing sessions.
 
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
 
-  auto* tracing_session2 = NewTrace(cfg);
+  auto* tracing_session2 = NewTraceWithCategories({"cat"});
   tracing_session2->get()->StartBlocking();
 
   std::unique_ptr<MyDebugAnnotation> owned_annotation(new MyDebugAnnotation());
@@ -2189,14 +2252,7 @@ TEST_F(PerfettoApiTest, LegacyTraceEventsWithConcurrentSessions) {
 }
 
 TEST_F(PerfettoApiTest, LegacyTraceEventsWithId) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_ASYNC_BEGIN0("cat", "UnscopedId", 0x1000);
@@ -2217,14 +2273,7 @@ TEST_F(PerfettoApiTest, LegacyTraceEventsWithId) {
 }
 
 TEST_F(PerfettoApiTest, LegacyTraceEventsWithFlow) {
-  // Setup the trace config.
-  perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
-  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-  ds_cfg->set_name("track_event");
-
-  auto* tracing_session = NewTrace(cfg);
+  auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
 
   const uint64_t flow_id = 1234;
