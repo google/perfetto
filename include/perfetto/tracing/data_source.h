@@ -188,6 +188,11 @@ class DataSource : public DataSourceBase {
       tls_inst_->trace_writer->Flush(cb);
     }
 
+    // Returns the number of bytes written on the current thread by the current
+    // data-source since its creation.
+    // This can be useful for splitting protos that might grow very large.
+    uint64_t written() { return tls_inst_->trace_writer->written(); }
+
     // Returns a RAII handle to access the data source instance, guaranteeing
     // that it won't be deleted on another thread (because of trace stopping)
     // while accessing it from within the Trace() lambda.
