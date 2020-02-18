@@ -44,6 +44,7 @@ source_set("producer") {
   public_deps = [
     ":regs_parsing",
     "../../../include/perfetto/tracing/core",
+    "../../../src/tracing/core:service",  # for metatrace
   ]
   deps = [
     ":proc_descriptors",
