@@ -402,23 +402,6 @@ class TrackEventDataSource
     }
   };
 
-  // Given either a static or dynamic category, extract a raw pointer to its
-  // underlying name. Note that the pointer is only valid as long as the
-  // parameter that was passed in.
-  static const char* GetCategoryName(size_t category_index,
-                                     const char* dynamic_category)
-      PERFETTO_ALWAYS_INLINE {
-    if (category_index == TrackEventCategoryRegistry::kDynamicCategoryIndex)
-      return dynamic_category;
-    return Registry->GetCategory(category_index)->name;
-  }
-
-  static const char* GetCategoryName(size_t,
-                                     const DynamicCategory& dynamic_category)
-      PERFETTO_ALWAYS_INLINE {
-    return dynamic_category.name.c_str();
-  }
-
   // TODO(skyostil): Make |CategoryIndex| a regular parameter to reuse trace
   // point code across different categories.
   template <size_t CategoryIndex,
@@ -441,22 +424,35 @@ class TrackEventDataSource
     TraceWithInstances<CategoryIndex>(
         instances, [&](typename Base::TraceContext ctx) {
           // If this category is dynamic, first check whether it's enabled.
-          if (CategoryIndex ==
-                  TrackEventCategoryRegistry::kDynamicCategoryIndex &&
-              !IsDynamicCategoryEnabled(&ctx,
-                                        DynamicCategory{dynamic_category})) {
+          constexpr bool kIsDynamic =
+              CategoryIndex ==
+              TrackEventCategoryRegistry::kDynamicCategoryIndex;
+          if (kIsDynamic && !IsDynamicCategoryEnabled(
+                                &ctx, DynamicCategory{dynamic_category})) {
             return;
           }
+
           {
             // TODO(skyostil): Intern categories at compile time.
+            const Category* static_category =
+                kIsDynamic ? nullptr : Registry->GetCategory(CategoryIndex);
             auto event_ctx = TrackEventInternal::WriteEvent(
                 ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
-                GetCategoryName(CategoryIndex, dynamic_category), event_name,
-                type, timestamp);
+                static_category, event_name, type, timestamp);
+            if (kIsDynamic) {
+              Category category{
+                  Category::FromDynamicCategory(dynamic_category)};
+              category.ForEachGroupMember(
+                  [&](const char* member_name, size_t name_size) {
+                    event_ctx.event()->add_categories(member_name, name_size);
+                    return true;
+                  });
+            }
             if (track)
               event_ctx.event()->set_track_uuid(track.uuid);
             arg_function(std::move(event_ctx));
-          }
+          }  // event_ctx
+
           if (track) {
             TrackEventInternal::WriteTrackDescriptorIfNeeded(
                 track, ctx.tls_inst_->trace_writer.get(),
@@ -503,8 +499,9 @@ class TrackEventDataSource
       // We haven't seen this category before. Let's figure out if it's enabled.
       // This requires grabbing a lock to read the session's trace config.
       auto ds = ctx->GetDataSourceLocked();
+      Category category{Category::FromDynamicCategory(dynamic_category)};
       bool enabled = TrackEventInternal::IsCategoryEnabled(
-          ds->config_, TrackEventCategory{dynamic_category.name.c_str()});
+          *Registry, ds->config_, category);
       // TODO(skyostil): Cap the size of |dynamic_categories|.
       incr_state->dynamic_categories[dynamic_category.name] = enabled;
       return enabled;
