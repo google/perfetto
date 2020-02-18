@@ -174,7 +174,7 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
 
   base::ScopedFile page_idle(base::OpenFile("/proc/self/page_idle", O_RDWR));
   if (!page_idle) {
-    PERFETTO_LOG("Failed to open /proc/self/page_idle. Continuing.");
+    PERFETTO_DLOG("Failed to open /proc/self/page_idle. Continuing.");
     num_send_fds = kHandshakeSize - 1;
   }
 
