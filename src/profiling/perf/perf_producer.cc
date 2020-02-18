@@ -119,6 +119,13 @@ PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
       proc_fd_getter_(proc_fd_getter),
       weak_factory_(this) {
   proc_fd_getter->SetDelegate(this);
+
+  // Enable the static unwinding cache, clearing it first in case we're
+  // reconstructing the class in |Restart|.
+  // TODO(rsavitski): the toggling needs to be done on the same thread as
+  // unwinding (right now this is on the same primary thread).
+  unwindstack::Elf::SetCachingEnabled(false);
+  unwindstack::Elf::SetCachingEnabled(true);
 }
 
 // TODO(rsavitski): consider configure at setup + enable at start instead.
@@ -554,7 +561,9 @@ PerfProducer::CompletedSample PerfProducer::UnwindSample(
   PERFETTO_DLOG("Frames from unwindstack:");
   std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
   for (unwindstack::FrameData& frame : frames) {
-    PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
+    if (PERFETTO_DLOG_IS_ON())
+      PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
+
     ret.frames.emplace_back(unwind_state.AnnotateFrame(std::move(frame)));
   }
 
@@ -719,9 +728,13 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
 
   endpoint_->NotifyDataSourceStopped(ds_id);
 
-  // If there are no more data sources, purge internings.
+  // Clean up resources if there are no more active sources.
   if (data_sources_.empty()) {
+    // purge internings
     callstack_trie_.ClearTrie();
+    // clear and re-enable libunwindstack's cache
+    unwindstack::Elf::SetCachingEnabled(false);
+    unwindstack::Elf::SetCachingEnabled(true);
   }
 }
 
