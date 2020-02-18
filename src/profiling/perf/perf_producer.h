@@ -41,6 +41,7 @@
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
 #include "src/profiling/perf/proc_descriptors.h"
+#include "src/tracing/core/metatrace_writer.h"
 
 namespace perfetto {
 namespace profiling {
@@ -197,6 +198,8 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   // service of the stop.
   void FinishDataSourceStop(DataSourceInstanceID ds_id);
 
+  void StartMetatraceSource(DataSourceInstanceID ds_id, BufferID target_buffer);
+
   // Task runner owned by the main thread.
   base::TaskRunner* const task_runner_;
   State state_ = kNotStarted;
@@ -208,6 +211,10 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
 
   // Owns shared memory, must outlive trace writing.
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
+
+  // If multiple metatrace sources are enabled concurrently,
+  // only the first one becomes active.
+  std::map<DataSourceInstanceID, MetatraceWriter> metatrace_writers_;
 
   // Interns callstacks across all data sources.
   // TODO(rsavitski): for long profiling sessions, consider purging trie when it

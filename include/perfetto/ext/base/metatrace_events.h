@@ -29,6 +29,7 @@ enum Tags : uint32_t {
   TAG_PROC_POLLERS = 1 << 1,
   TAG_TRACE_WRITER = 1 << 2,
   TAG_TRACE_SERVICE = 1 << 3,
+  TAG_PRODUCER = 1 << 4,
 };
 
 // The macros below generate matching enums and arrays of string literals.
@@ -60,7 +61,11 @@ enum Tags : uint32_t {
   F(FTRACE_READ_TICK), \
   F(FTRACE_CPU_READ_CYCLE), \
   F(FTRACE_CPU_READ_BATCH), \
-  F(KALLSYMS_PARSE)
+  F(KALLSYMS_PARSE), \
+  F(PROFILER_READ_TICK), \
+  F(PROFILER_READ_CPU), \
+  F(PROFILER_UNWIND_TICK), \
+  F(PROFILER_UNWIND_SAMPLE)
 
 // Append only, see above.
 //
@@ -71,7 +76,8 @@ enum Tags : uint32_t {
   F(COUNTER_ZERO_UNUSED),\
   F(FTRACE_PAGES_DRAINED), \
   F(PS_PIDS_SCANNED), \
-  F(TRACE_SERVICE_COMMIT_DATA)
+  F(TRACE_SERVICE_COMMIT_DATA), \
+  F(PROFILER_UNWIND_QUEUE_SZ)
 
 // clang-format on
 
