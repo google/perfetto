@@ -431,8 +431,10 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     PERFETTO_DCHECK(!current_state_.tracing_on);
 
     // If someone outside of perfetto is using ftrace give up now.
-    if (is_ftrace_enabled)
+    if (is_ftrace_enabled) {
+      PERFETTO_ELOG("ftrace in use by non-Perfetto.");
       return 0;
+    }
 
     // Setup ftrace, without starting it. Setting buffers can be quite slow
     // (up to hundreds of ms).
@@ -440,8 +442,10 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     SetupBufferSize(request);
   } else {
     // Did someone turn ftrace off behind our back? If so give up.
-    if (!active_configs_.empty() && !is_ftrace_enabled)
+    if (!active_configs_.empty() && !is_ftrace_enabled) {
+      PERFETTO_ELOG("ftrace disabled by non-Perfetto.");
       return 0;
+    }
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
