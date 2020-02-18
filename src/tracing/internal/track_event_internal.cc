@@ -229,8 +229,8 @@ bool TrackEventInternal::IsCategoryEnabled(
   };
 
   // First try exact matches, then pattern matches.
-  const std::array<MatchType, 2> match_types = {MatchType::kExact,
-                                                MatchType::kPattern};
+  const std::array<MatchType, 2> match_types = {
+      {MatchType::kExact, MatchType::kPattern}};
   for (auto match_type : match_types) {
     // 1. Enabled categories.
     if (NameMatchesPatternList(config.enabled_categories(), category.name,
