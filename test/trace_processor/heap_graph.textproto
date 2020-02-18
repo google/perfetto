@@ -55,6 +55,11 @@ packet {
       type_id: 4
       self_size: 256
     }
+    objects {
+      id: 0x06
+      type_id: 5
+      self_size: 256
+    }
     continued: true
     index: 0
   }
@@ -78,6 +83,10 @@ packet {
     type_names {
       iid: 4
       str: "a[]"
+    }
+    type_names {
+      iid: 5
+      str: "java.lang.Class<a[]>"
     }
     field_names {
       iid: 1

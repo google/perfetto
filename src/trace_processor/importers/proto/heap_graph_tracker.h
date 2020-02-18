@@ -32,8 +32,17 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+struct NormalizedType {
+  base::StringView name;
+  bool is_static_class;
+  size_t number_of_arrays;
+};
+base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type);
 size_t NumberOfArrays(base::StringView type);
+NormalizedType GetNormalizedType(base::StringView type);
 base::StringView NormalizeTypeName(base::StringView type);
+std::string DenormalizeTypeName(NormalizedType normalized,
+                                base::StringView deobfuscated_type_name);
 
 class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
  public:
