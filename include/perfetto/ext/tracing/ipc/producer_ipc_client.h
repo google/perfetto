@@ -21,12 +21,13 @@
 #include <string>
 
 #include "perfetto/base/export.h"
+#include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
 
 class Producer;
-class SharedMemory;
 
 // Allows to connect to a remote Service through a UNIX domain socket.
 // Exposed to:
@@ -42,9 +43,12 @@ class PERFETTO_EXPORT ProducerIPCClient {
   // ProducerEndpoint serves also to delimit the scope of the callbacks invoked
   // on the Producer interface: no more Producer callbacks are invoked
   // immediately after its destruction and any pending callback will be dropped.
-  // If |shm| is provided by the producer, the service will attempt to adopt the
-  // provided SMB. If it fails, the ProducerEndpoint will disconnect, but |shm|
-  // will remain valid until the client is destroyed.
+  // To provide a producer-allocated shared memory buffer, both |shm| and
+  // |shm_arbiter| should be set. |shm_arbiter| should be an unbound
+  // SharedMemoryArbiter instance. When |shm| and |shm_arbiter| are provided,
+  // the service will attempt to adopt the provided SMB. If this fails, the
+  // ProducerEndpoint will disconnect, but the SMB and arbiter will remain valid
+  // until the client is destroyed.
   //
   // TODO(eseckler): Support adoption failure more gracefully.
   static std::unique_ptr<TracingService::ProducerEndpoint> Connect(
@@ -56,7 +60,8 @@ class PERFETTO_EXPORT ProducerIPCClient {
           TracingService::ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_size_hint_bytes = 0,
       size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr);
+      std::unique_ptr<SharedMemory> shm = nullptr,
+      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
 
  protected:
   ProducerIPCClient() = delete;
