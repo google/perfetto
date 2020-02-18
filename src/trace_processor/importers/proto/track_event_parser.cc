@@ -175,6 +175,20 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
           context->storage->InternString("histogram_sample.sample")),
       chrome_latency_info_trace_id_key_id_(
           context->storage->InternString("latency_info.trace_id")),
+      chrome_latency_info_step_key_id_(
+          context->storage->InternString("latency_info.step")),
+      chrome_latency_info_frame_tree_node_id_key_id_(
+          context->storage->InternString("latency_info.frame_tree_node_id")),
+      chrome_latency_info_step_ids_{
+          {context->storage->InternString("STEP_UNSPECIFIED"),
+           context->storage->InternString(
+               "STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT"),
+           context->storage->InternString("STEP_MAIN_THREAD_SCROLL_UPDATE"),
+           context->storage->InternString("STEP_SEND_INPUT_EVENT_UI"),
+           context->storage->InternString("STEP_HANDLE_INPUT_EVENT_MAIN"),
+           context->storage->InternString("STEP_HANDLE_INPUT_EVENT_IMPL"),
+           context->storage->InternString("STEP_SWAP_BUFFERS"),
+           context->storage->InternString("STEP_DRAW_AND_SWAP")}},
       chrome_legacy_ipc_class_ids_{
           {context->storage->InternString("UNSPECIFIED"),
            context->storage->InternString("AUTOMATION"),
@@ -1358,6 +1372,18 @@ void TrackEventParser::ParseChromeLatencyInfo(
   if (event.has_trace_id()) {
     inserter->AddArg(chrome_latency_info_trace_id_key_id_,
                      Variadic::Integer(event.trace_id()));
+  }
+  if (event.has_step()) {
+    size_t step_index = static_cast<size_t>(event.step());
+    if (step_index >= chrome_latency_info_step_ids_.size())
+      step_index = 0;
+    inserter->AddArg(
+        chrome_latency_info_step_key_id_,
+        Variadic::String(chrome_latency_info_step_ids_[step_index]));
+  }
+  if (event.has_frame_tree_node_id()) {
+    inserter->AddArg(chrome_latency_info_frame_tree_node_id_key_id_,
+                     Variadic::Integer(event.frame_tree_node_id()));
   }
 }
 
