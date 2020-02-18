@@ -22,13 +22,35 @@ message TrackEventConfig {
   // The following fields define the set of enabled trace categories. Each list
   // item is a glob.
   //
-  // To determine if category X is enabled:
+  // To determine if category is enabled, it is checked against the filters in
+  // the following order:
   //
-  //   if (X in disabled_categories):
-  //     return (X in enabled_categories)
-  //   else if (X in disabled_tags):
-  //     return (X in enabled_categories or X in enabled_tags)
-  //   else return true
+  //   1. Exact matches in enabled categories.
+  //   2. Exact matches in enabled tags.
+  //   3. Exact matches in disabled categories.
+  //   4. Exact matches in disabled tags.
+  //   5. Pattern matches in enabled categories.
+  //   6. Pattern matches in enabled tags.
+  //   7. Pattern matches in disabled categories.
+  //   8. Pattern matches in disabled tags.
+  //
+  // If none of the steps produced a match, the category is enabled by default.
+  //
+  // Examples:
+  //
+  //  - To enable all non-slow/debug categories:
+  //
+  //       No configuration needed, happens by default.
+  //
+  //  - To enable a specific category:
+  //
+  //       disabled_categories = ["*"]
+  //       enabled_categories = ["my_category"]
+  //
+  //  - To enable only categories with a specific tag:
+  //
+  //       disabled_tags = ["*"]
+  //       enabled_tags = ["my_tag"]
   //
   repeated string disabled_categories = 1;  // Default: []
   repeated string enabled_categories = 2;   // Default: []
