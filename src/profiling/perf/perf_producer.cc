@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -128,6 +129,13 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   PERFETTO_LOG("StartDataSource(%zu, %s)", static_cast<size_t>(instance_id),
                config.name().c_str());
 
+  if (config.name() == MetatraceWriter::kDataSourceName) {
+    StartMetatraceSource(instance_id,
+                         static_cast<BufferID>(config.target_buffer()));
+    return;
+  }
+
+  // linux.perf data source
   if (config.name() != kDataSourceName)
     return;
 
@@ -192,6 +200,16 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
 
 void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
   PERFETTO_LOG("StopDataSource(%zu)", static_cast<size_t>(instance_id));
+
+  // Metatrace: stop immediately (will miss the events from the
+  // asynchronous shutdown of the primary data source).
+  auto meta_it = metatrace_writers_.find(instance_id);
+  if (meta_it != metatrace_writers_.end()) {
+    meta_it->second.WriteAllAndFlushTraceWriter([] {});
+    metatrace_writers_.erase(meta_it);
+    return;
+  }
+
   auto ds_it = data_sources_.find(instance_id);
   if (ds_it == data_sources_.end())
     return;
@@ -209,14 +227,22 @@ void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
 void PerfProducer::Flush(FlushRequestID flush_id,
                          const DataSourceInstanceID* data_source_ids,
                          size_t num_data_sources) {
+  bool should_ack_flush = false;
   for (size_t i = 0; i < num_data_sources; i++) {
     auto ds_id = data_source_ids[i];
     PERFETTO_DLOG("Flush(%zu)", static_cast<size_t>(ds_id));
-    auto ds_it = data_sources_.find(ds_id);
-    if (ds_it != data_sources_.end()) {
-      endpoint_->NotifyFlushComplete(flush_id);
+
+    auto meta_it = metatrace_writers_.find(ds_id);
+    if (meta_it != metatrace_writers_.end()) {
+      meta_it->second.WriteAllAndFlushTraceWriter([] {});
+      should_ack_flush = true;
+    }
+    if (data_sources_.find(ds_id) != data_sources_.end()) {
+      should_ack_flush = true;
     }
   }
+  if (should_ack_flush)
+    endpoint_->NotifyFlushComplete(flush_id);
 }
 
 void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
@@ -227,6 +253,8 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
     return;
   }
   DataSource& ds = it->second;
+
+  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_TICK);
 
   // Make a pass over all per-cpu readers.
   bool more_records_available = false;
@@ -256,6 +284,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                             DataSourceInstanceID ds_id,
                                             DataSource* ds) {
   using Status = DataSource::ProcDescriptors::Status;
+  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_CPU);
 
   // If the kernel ring buffer dropped data, record it in the trace.
   size_t cpu = reader->cpu();
@@ -279,7 +308,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       continue;
     }
 
-    // Request proc-fds for the process if this is the first time we see it yet.
+    // Request proc-fds for the process if this is the first time we see it.
     pid_t pid = sample->pid;
     auto& fd_entry = ds->proc_fds[pid];  // created if absent
 
@@ -299,10 +328,14 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 
     // Push the sample into a dedicated unwinding queue.
     unwind_queues_[ds_id].emplace_back(std::move(sample.value()));
+
+    // Metatrace: counter sensible only when there's a single active source.
+    PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_QUEUE_SZ,
+                               unwind_queues_[ds_id].size());
   }
 
-  // Most likely more events in the buffer - technically, max_samples can stop
-  // us right at the boundary.
+  // Most likely more events in the buffer. Though we might be exactly on the
+  // boundary due to |max_samples|.
   return true;
 }
 
@@ -370,6 +403,8 @@ void PerfProducer::TickDataSourceUnwind(DataSourceInstanceID ds_id) {
   }
   auto unwind_it = unwind_queues_.find(ds_id);
   PERFETTO_CHECK(unwind_it != unwind_queues_.end());
+
+  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_TICK);
 
   bool queue_active =
       ProcessUnwindQueue(ds_id, &unwind_it->second, &ds_it->second);
@@ -439,11 +474,12 @@ bool PerfProducer::ProcessUnwindQueue(DataSourceInstanceID ds_id,
 
     // Sample ready - process it.
     if (fd_status == Status::kResolved) {
+      PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_SAMPLE);
+
       PerfProducer::CompletedSample unwound_sample =
           UnwindSample(std::move(sample), &proc_fd_it->second);
 
       PostEmitSample(ds_id, std::move(unwound_sample));
-
       entry.valid = false;
       continue;
     }
@@ -457,6 +493,9 @@ bool PerfProducer::ProcessUnwindQueue(DataSourceInstanceID ds_id,
     queue.pop_front();
   }
 
+  // Metatrace: counter sensible only when there's a single active source.
+  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_QUEUE_SZ,
+                             queue.size());
   PERFETTO_DLOG("Unwind queue drain: [%zu]->[%zu]", num_samples, queue.size());
 
   // Return whether we're done with unwindings for this source.
@@ -638,6 +677,18 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   }
 }
 
+void PerfProducer::StartMetatraceSource(DataSourceInstanceID ds_id,
+                                        BufferID target_buffer) {
+  auto writer = endpoint_->CreateTraceWriter(target_buffer);
+
+  auto it_and_inserted = metatrace_writers_.emplace(
+      std::piecewise_construct, std::make_tuple(ds_id), std::make_tuple());
+  PERFETTO_DCHECK(it_and_inserted.second);
+  // Note: only the first concurrent writer will actually be active.
+  metatrace_writers_[ds_id].Enable(task_runner_, std::move(writer),
+                                   metatrace::TAG_ANY);
+}
+
 void PerfProducer::ConnectWithRetries(const char* socket_name) {
   PERFETTO_DCHECK(state_ == kNotStarted);
   state_ = kNotConnected;
@@ -670,10 +721,19 @@ void PerfProducer::OnConnect() {
   ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
-  DataSourceDescriptor desc;
-  desc.set_name(kDataSourceName);
-  desc.set_will_notify_on_stop(true);
-  endpoint_->RegisterDataSource(desc);
+  {
+    // linux.perf
+    DataSourceDescriptor desc;
+    desc.set_name(kDataSourceName);
+    desc.set_will_notify_on_stop(true);
+    endpoint_->RegisterDataSource(desc);
+  }
+  {
+    // metatrace
+    DataSourceDescriptor desc;
+    desc.set_name(MetatraceWriter::kDataSourceName);
+    endpoint_->RegisterDataSource(desc);
+  }
 }
 
 void PerfProducer::OnDisconnect() {
