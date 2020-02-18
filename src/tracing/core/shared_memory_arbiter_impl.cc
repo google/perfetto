@@ -257,12 +257,13 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
 
     if (!commit_data_req_) {
       commit_data_req_.reset(new CommitDataRequest());
-      weak_this = weak_ptr_factory_.GetWeakPtr();
 
       // Flushing the commit is only supported while we're |fully_bound_|. If we
       // aren't, we'll flush when |fully_bound_| is updated.
-      if (fully_bound_)
+      if (fully_bound_) {
+        weak_this = weak_ptr_factory_.GetWeakPtr();
         task_runner_to_post_callback_on = task_runner_;
+      }
     }
 
     // If a valid chunk is specified, return it and attach it to the request.
@@ -417,6 +418,11 @@ void SharedMemoryArbiterImpl::BindToProducerEndpoint(
 
     producer_endpoint_ = producer_endpoint;
     task_runner_ = task_runner;
+
+    // Now that we're bound to a task runner, also reset the WeakPtrFactory to
+    // it. Because this code runs on the task runner, the factory's weak
+    // pointers will be valid on it.
+    weak_ptr_factory_.Reset(this);
 
     // All writers registered so far should be startup trace writers, since
     // the producer cannot feasibly know the target buffer for any future

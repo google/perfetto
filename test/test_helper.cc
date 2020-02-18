@@ -122,6 +122,14 @@ bool TestHelper::IsShmemProvidedByProducer() {
   return fake_producer_thread_.producer()->IsShmemProvidedByProducer();
 }
 
+void TestHelper::ProduceStartupEventBatch(
+    const protos::gen::TestConfig& config) {
+  auto on_data_written = CreateCheckpoint("startup_data_written");
+  fake_producer_thread_.ProduceStartupEventBatch(config,
+                                                 WrapTask(on_data_written));
+  RunUntilCheckpoint("startup_data_written");
+}
+
 void TestHelper::StartTracing(const TraceConfig& config,
                               base::ScopedFile file) {
   trace_.clear();

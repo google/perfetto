@@ -348,10 +348,8 @@ class PerfettoCmdlineTest : public ::testing::Test {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #define TreeHuggerOnly(x) x
-#define ExcludeTreeHugger(x) DISABLED_##x
 #else
 #define TreeHuggerOnly(x) DISABLED_##x
-#define ExcludeTreeHugger(x) x
 #endif
 
 // TODO(b/73453011): reenable on more platforms (including standalone Android).
@@ -689,12 +687,20 @@ TEST_F(PerfettoTest, ReattachFailsAfterTimeout) {
   EXPECT_FALSE(helper.AttachConsumer("key"));
 }
 
-// TODO(b/148841422): Reenable on treehugger once selinux rules are in place.
-TEST_F(PerfettoTest, ExcludeTreeHugger(TestProducerProvidedSMB)) {
+TEST_F(PerfettoTest, TestProducerProvidedSMB) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
   helper.CreateProducerProvidedSmb();
+
+  protos::gen::TestConfig test_config;
+  test_config.set_seed(42);
+  test_config.set_message_count(1);
+  test_config.set_message_size(1024);
+  test_config.set_send_batch_on_register(true);
+
+  // Write a first batch before connection.
+  helper.ProduceStartupEventBatch(test_config);
 
   helper.StartServiceIfRequired();
   helper.ConnectFakeProducer();
@@ -708,12 +714,10 @@ TEST_F(PerfettoTest, ExcludeTreeHugger(TestProducerProvidedSMB)) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->set_target_buffer(0);
+  *ds_config->mutable_for_testing() = test_config;
 
-  ds_config->mutable_for_testing()->set_seed(42);
-  ds_config->mutable_for_testing()->set_message_count(1);
-  ds_config->mutable_for_testing()->set_message_size(1024);
-  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
-
+  // The data source is configured to emit another batch when it is started via
+  // send_batch_on_register in the TestConfig.
   helper.StartTracing(trace_config);
   helper.WaitForTracingDisabled();
 
@@ -723,8 +727,11 @@ TEST_F(PerfettoTest, ExcludeTreeHugger(TestProducerProvidedSMB)) {
   helper.WaitForReadData();
 
   const auto& packets = helper.trace();
-  ASSERT_EQ(packets.size(), 1u);
+  // We should have produced two batches, one before the producer connected and
+  // another one when the data source was started.
+  ASSERT_EQ(packets.size(), 2u);
   ASSERT_TRUE(packets[0].has_for_testing());
+  ASSERT_TRUE(packets[1].has_for_testing());
 }
 
 // Disable cmdline tests on sanitizets because they use fork() and that messes
