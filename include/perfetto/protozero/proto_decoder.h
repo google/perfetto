@@ -40,7 +40,7 @@ namespace protozero {
 // (see proto_decoder_fuzzer.cc).
 // This class serves also as a building block for TypedProtoDecoder, used when
 // the schema is known at compile time.
-class ProtoDecoder {
+class PERFETTO_EXPORT ProtoDecoder {
  public:
   // Creates a ProtoDecoder using the given |buffer| with size |length| bytes.
   ProtoDecoder(const void* buffer, size_t length)
@@ -273,7 +273,7 @@ class PackedRepeatedFieldIterator {
 // [ field 0 (invalid) ] [ fields 1 .. N ] [ repeated fields ]
 //                                        ^                  ^
 //                                        num_fields_        size_
-class TypedProtoDecoderBase : public ProtoDecoder {
+class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
  public:
   // If the field |id| is known at compile time, prefer the templated
   // specialization at<kFieldNumber>().
