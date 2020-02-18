@@ -664,15 +664,33 @@ export class TraceController extends Controller<States> {
 
         const name =
             this.getTrackName(utid, processName, pid, threadName, tid, upid);
-        addTrackGroupActions.push(Actions.addTrackGroup({
+        const addTrackGroup = Actions.addTrackGroup({
           engineId: this.engineId,
           summaryTrackId,
           name,
           id: pUuid,
           collapsed: !(upid !== null && heapUpids.has(upid)),
-        }));
+        });
+
+        // If the track group contains a heap profile, it should be before all
+        // other processes.
+        if (upid !== null && heapUpids.has(upid)) {
+          addTrackGroupActions.unshift(addTrackGroup);
+        } else {
+          addTrackGroupActions.push(addTrackGroup);
+        }
 
         if (upid !== null) {
+          if (heapUpids.has(upid)) {
+            tracksToAdd.push({
+              engineId: this.engineId,
+              kind: HEAP_PROFILE_TRACK_KIND,
+              name: `Heap Profile`,
+              trackGroup: pUuid,
+              config: {upid}
+            });
+          }
+
           const counterNames = counterUpids.get(upid);
           if (counterNames !== undefined) {
             counterNames.forEach(element => {
@@ -688,16 +706,6 @@ export class TraceController extends Controller<States> {
                   endTs: element.endTs,
                 }
               });
-            });
-          }
-
-          if (heapUpids.has(upid)) {
-            tracksToAdd.push({
-              engineId: this.engineId,
-              kind: HEAP_PROFILE_TRACK_KIND,
-              name: `Heap Profile`,
-              trackGroup: pUuid,
-              config: {upid}
             });
           }
 
