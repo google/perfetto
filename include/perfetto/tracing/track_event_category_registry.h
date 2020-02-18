@@ -108,10 +108,10 @@ struct Category {
 
   static constexpr NameSizes ComputeNameSizes(const char* s) {
     static_assert(kMaxGroupSize == 4, "Unexpected maximum category group size");
-    return NameSizes{static_cast<uint8_t>(GetNthNameSize(0, s, s)),
-                     static_cast<uint8_t>(GetNthNameSize(1, s, s)),
-                     static_cast<uint8_t>(GetNthNameSize(2, s, s)),
-                     static_cast<uint8_t>(GetNthNameSize(3, s, s))};
+    return NameSizes{{static_cast<uint8_t>(GetNthNameSize(0, s, s)),
+                      static_cast<uint8_t>(GetNthNameSize(1, s, s)),
+                      static_cast<uint8_t>(GetNthNameSize(2, s, s)),
+                      static_cast<uint8_t>(GetNthNameSize(3, s, s))}};
   }
 
   static constexpr ssize_t GetNthNameSize(int n,
