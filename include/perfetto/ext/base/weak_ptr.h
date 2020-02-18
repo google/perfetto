@@ -90,8 +90,22 @@ class WeakPtrFactory {
 
   // Can be safely called on any thread, since it simply copies |weak_ptr_|.
   // Note that any accesses to the returned pointer need to be made on the
-  // thread that created the factory.
+  // thread that created/reset the factory.
   WeakPtr<T> GetWeakPtr() const { return weak_ptr_; }
+
+  // Reset the factory to a new owner & thread. May only be called before any
+  // weak pointers were passed out. Future weak pointers will be valid on the
+  // calling thread.
+  void Reset(T* owner) {
+    // Reset thread checker to current thread.
+    PERFETTO_DETACH_FROM_THREAD(thread_checker);
+    PERFETTO_DCHECK_THREAD(thread_checker);
+
+    // We should not have passed out any weak pointers yet at this point.
+    PERFETTO_DCHECK(weak_ptr_.handle_.use_count() == 1);
+
+    weak_ptr_ = WeakPtr<T>(std::shared_ptr<T*>(new T* {owner}));
+  }
 
  private:
   WeakPtrFactory(const WeakPtrFactory&) = delete;

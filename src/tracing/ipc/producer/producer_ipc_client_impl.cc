@@ -46,12 +46,14 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     TracingService::ProducerSMBScrapingMode smb_scraping_mode,
     size_t shared_memory_size_hint_bytes,
     size_t shared_memory_page_size_hint_bytes,
-    std::unique_ptr<SharedMemory> shm) {
+    std::unique_ptr<SharedMemory> shm,
+    std::unique_ptr<SharedMemoryArbiter> shm_arbiter) {
   return std::unique_ptr<TracingService::ProducerEndpoint>(
-      new ProducerIPCClientImpl(
-          service_sock_name, producer, producer_name, task_runner,
-          smb_scraping_mode, shared_memory_size_hint_bytes,
-          shared_memory_page_size_hint_bytes, std::move(shm)));
+      new ProducerIPCClientImpl(service_sock_name, producer, producer_name,
+                                task_runner, smb_scraping_mode,
+                                shared_memory_size_hint_bytes,
+                                shared_memory_page_size_hint_bytes,
+                                std::move(shm), std::move(shm_arbiter)));
 }
 
 ProducerIPCClientImpl::ProducerIPCClientImpl(
@@ -62,16 +64,30 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     TracingService::ProducerSMBScrapingMode smb_scraping_mode,
     size_t shared_memory_size_hint_bytes,
     size_t shared_memory_page_size_hint_bytes,
-    std::unique_ptr<SharedMemory> shm)
+    std::unique_ptr<SharedMemory> shm,
+    std::unique_ptr<SharedMemoryArbiter> shm_arbiter)
     : producer_(producer),
       task_runner_(task_runner),
       ipc_channel_(ipc::Client::CreateInstance(service_sock_name, task_runner)),
       producer_port_(this /* event_listener */),
       shared_memory_(std::move(shm)),
+      shared_memory_arbiter_(std::move(shm_arbiter)),
       name_(producer_name),
       shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
       shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
       smb_scraping_mode_(smb_scraping_mode) {
+  // Check for producer-provided SMB (used by Chrome for startup tracing).
+  if (shared_memory_) {
+    // We also expect a valid (unbound) arbiter. Bind it to this endpoint now.
+    PERFETTO_CHECK(shared_memory_arbiter_);
+    shared_memory_arbiter_->BindToProducerEndpoint(this, task_runner_);
+
+    // If the service accepts our SMB, then it must match our requested page
+    // layout. The protocol doesn't allow the service to change the size and
+    // layout when the SMB is provided by the producer.
+    shared_buffer_page_size_kb_ = shared_memory_page_size_hint_bytes_ / 1024;
+  }
+
   ipc_channel_->BindService(producer_port_.GetWeakPtr());
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
@@ -215,19 +231,14 @@ void ProducerIPCClientImpl::OnServiceRequest(
                                         /*require_seals_if_supported=*/false);
       shared_buffer_page_size_kb_ =
           cmd.setup_tracing().shared_buffer_page_size_kb();
+      shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
+          shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, this,
+          task_runner_);
     } else {
       // Producer-provided SMB (used by Chrome for startup tracing).
-      PERFETTO_CHECK(is_shmem_provided_by_producer_ && shared_memory_);
-      // If the service accepted our SMB, then it must match our requested page
-      // layout. The protocol doesn't allow the sservice to change the size and
-      // layout when the SMB is provided by the producer.
-      shared_buffer_page_size_kb_ = shared_memory_page_size_hint_bytes_ / 1024;
-      // TODO(eseckler): In case of a procucer-provided SMB, create the
-      // SharedMemoryArbiter even earlier to support startup tracing.
+      PERFETTO_CHECK(is_shmem_provided_by_producer_ && shared_memory_ &&
+                     shared_memory_arbiter_);
     }
-    shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
-        shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, this,
-        task_runner_);
     producer_->OnTracingSetup();
     return;
   }
