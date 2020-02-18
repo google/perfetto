@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/consumer.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
@@ -103,21 +104,23 @@ class FakeProducerThread {
                      std::function<void()> start_callback)
       : producer_socket_(producer_socket),
         setup_callback_(std::move(setup_callback)),
-        start_callback_(std::move(start_callback)) {}
+        start_callback_(std::move(start_callback)) {
+    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.fake");
+    runner_->PostTaskAndWaitForTesting([this]() {
+      producer_.reset(
+          new FakeProducer("android.perfetto.FakeProducer", runner_->get()));
+    });
+  }
 
   ~FakeProducerThread() {
-    if (!runner_)
-      return;
     runner_->PostTaskAndWaitForTesting([this]() { producer_.reset(); });
   }
 
   void Connect() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.fake");
     runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(new FakeProducer("android.perfetto.FakeProducer"));
-      producer_->Connect(producer_socket_.c_str(), runner_->get(),
-                         std::move(setup_callback_), std::move(start_callback_),
-                         std::move(shm_));
+      producer_->Connect(producer_socket_.c_str(), std::move(setup_callback_),
+                         std::move(start_callback_), std::move(shm_),
+                         std::move(shm_arbiter_));
     });
   }
 
@@ -128,6 +131,14 @@ class FakeProducerThread {
   void CreateProducerProvidedSmb() {
     PosixSharedMemory::Factory factory;
     shm_ = factory.CreateSharedMemory(1024 * 1024);
+    shm_arbiter_ =
+        SharedMemoryArbiter::CreateUnboundInstance(shm_.get(), base::kPageSize);
+  }
+
+  void ProduceStartupEventBatch(const protos::gen::TestConfig& config,
+                                std::function<void()> callback) {
+    PERFETTO_CHECK(shm_arbiter_);
+    producer_->ProduceStartupEventBatch(config, shm_arbiter_.get(), callback);
   }
 
  private:
@@ -138,6 +149,7 @@ class FakeProducerThread {
   std::function<void()> setup_callback_;
   std::function<void()> start_callback_;
   std::unique_ptr<SharedMemory> shm_;
+  std::unique_ptr<SharedMemoryArbiter> shm_arbiter_;
 };
 
 class TestHelper : public Consumer {
@@ -169,6 +181,7 @@ class TestHelper : public Consumer {
   bool AttachConsumer(const std::string& key);
   void CreateProducerProvidedSmb();
   bool IsShmemProvidedByProducer();
+  void ProduceStartupEventBatch(const protos::gen::TestConfig& config);
 
   void WaitForConsumerConnect();
   void WaitForProducerSetup();
