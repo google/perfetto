@@ -146,6 +146,8 @@ static const char kArray[] = "X[]";
 static const char kDoubleArray[] = "X[][]";
 static const char kNoArray[] = "X";
 static const char kLongNoArray[] = "ABCDE";
+static const char kStaticClassNoArray[] = "java.lang.Class<abc>";
+static const char kStaticClassArray[] = "java.lang.Class<abc[]>";
 
 TEST(HeapGraphTrackerTest, NormalizeTypeName) {
   // sizeof(...) - 1 below to get rid of the null-byte.
@@ -163,6 +165,14 @@ TEST(HeapGraphTrackerTest, NormalizeTypeName) {
                 base::StringView(kLongNoArray, sizeof(kLongNoArray) - 1))
                 .ToStdString(),
             "ABCDE");
+  EXPECT_EQ(NormalizeTypeName(base::StringView(kStaticClassNoArray,
+                                               sizeof(kStaticClassNoArray) - 1))
+                .ToStdString(),
+            "abc");
+  EXPECT_EQ(NormalizeTypeName(base::StringView(kStaticClassArray,
+                                               sizeof(kStaticClassArray) - 1))
+                .ToStdString(),
+            "abc");
 }
 
 TEST(HeapGraphTrackerTest, NumberOfArray) {
