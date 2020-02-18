@@ -39,6 +39,9 @@ BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
 namespace {
 
 std::atomic<perfetto::base::PlatformThreadId> g_main_thread;
+static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
+static constexpr const char kSlowTag[] = "slow";
+static constexpr const char kDebugTag[] = "debug";
 
 struct InternedEventCategory
     : public TrackEventInternedDataIndex<
@@ -48,10 +51,11 @@ struct InternedEventCategory
           SmallInternedDataTraits> {
   static void Add(protos::pbzero::InternedData* interned_data,
                   size_t iid,
-                  const char* value) {
+                  const char* value,
+                  size_t length) {
     auto category = interned_data->add_event_categories();
     category->set_iid(iid);
-    category->set_name(value);
+    category->set_name(value, length);
   }
 };
 
@@ -95,22 +99,28 @@ constexpr protos::pbzero::ClockSnapshot::Clock::BuiltinClocks GetClockType() {
 #endif
 }
 
-bool NameMatchesPattern(const std::string& pattern, const std::string& name) {
+enum class MatchType { kExact, kPattern };
+
+bool NameMatchesPattern(const std::string& pattern,
+                        const std::string& name,
+                        MatchType match_type) {
   // To avoid pulling in all of std::regex, for now we only support a single "*"
   // wildcard at the end of the pattern.
-  // TODO(skyostil): Support comma-separated categories.
   size_t i = pattern.find('*');
   if (i != std::string::npos) {
     PERFETTO_DCHECK(i == pattern.size() - 1);
+    if (match_type != MatchType::kPattern)
+      return false;
     return name.substr(0, i) == pattern.substr(0, i);
   }
   return name == pattern;
 }
 
 bool NameMatchesPatternList(const std::vector<std::string>& patterns,
-                            const std::string& name) {
+                            const std::string& name,
+                            MatchType match_type) {
   for (const auto& pattern : patterns) {
-    if (NameMatchesPattern(pattern, name))
+    if (NameMatchesPattern(pattern, name, match_type))
       return true;
   }
   return false;
@@ -131,9 +141,20 @@ bool TrackEventInternal::Initialize(
   protozero::HeapBuffered<protos::pbzero::TrackEventDescriptor> ted;
   for (size_t i = 0; i < registry.category_count(); i++) {
     auto category = registry.GetCategory(i);
+    // Don't register group categories.
+    if (category->IsGroup())
+      continue;
     auto cat = ted->add_available_categories();
     cat->set_name(category->name);
-    // TODO(skyostil): Advertise category tags and descriptions.
+    if (category->description)
+      cat->set_description(category->description);
+    for (const auto& tag : category->tags) {
+      if (tag)
+        cat->add_tags(tag);
+    }
+    // Disabled-by-default categories get a "slow" tag.
+    if (!strncmp(category->name, kLegacySlowPrefix, strlen(kLegacySlowPrefix)))
+      cat->add_tags(kSlowTag);
   }
   dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
 
@@ -146,7 +167,7 @@ void TrackEventInternal::EnableTracing(
     const protos::gen::TrackEventConfig& config,
     uint32_t instance_index) {
   for (size_t i = 0; i < registry.category_count(); i++) {
-    if (IsCategoryEnabled(config, *registry.GetCategory(i)))
+    if (IsCategoryEnabled(registry, config, *registry.GetCategory(i)))
       registry.EnableCategoryForInstance(i, instance_index);
   }
 }
@@ -161,11 +182,91 @@ void TrackEventInternal::DisableTracing(
 
 // static
 bool TrackEventInternal::IsCategoryEnabled(
+    const TrackEventCategoryRegistry& registry,
     const protos::gen::TrackEventConfig& config,
-    const TrackEventCategory& category) {
-  if (NameMatchesPatternList(config.disabled_categories(), category.name))
-    return NameMatchesPatternList(config.enabled_categories(), category.name);
-  // TODO(skyostil): Support tag-based category configs.
+    const Category& category) {
+  // If this is a group category, check if any of its constituent categories are
+  // enabled. If so, then this one is enabled too.
+  if (category.IsGroup()) {
+    bool result = false;
+    category.ForEachGroupMember([&](const char* member_name, size_t name_size) {
+      for (size_t i = 0; i < registry.category_count(); i++) {
+        const auto ref_category = registry.GetCategory(i);
+        // Groups can't refer to other groups.
+        if (ref_category->IsGroup())
+          continue;
+        // Require an exact match.
+        if (ref_category->name_size() != name_size ||
+            strncmp(ref_category->name, member_name, name_size)) {
+          continue;
+        }
+        if (IsCategoryEnabled(registry, config, *ref_category)) {
+          result = true;
+          // Break ForEachGroupMember() loop.
+          return false;
+        }
+        break;
+      }
+      // No match found => keep iterating.
+      return true;
+    });
+    return result;
+  }
+
+  auto has_matching_tag = [&](std::function<bool(const char*)> matcher) {
+    for (const auto& tag : category.tags) {
+      if (!tag)
+        break;
+      if (matcher(tag))
+        return true;
+    }
+    // Legacy "disabled-by-default" categories automatically get the "slow" tag.
+    if (!strncmp(category.name, kLegacySlowPrefix, strlen(kLegacySlowPrefix)) &&
+        matcher(kSlowTag)) {
+      return true;
+    }
+    return false;
+  };
+
+  // First try exact matches, then pattern matches.
+  const std::array<MatchType, 2> match_types = {MatchType::kExact,
+                                                MatchType::kPattern};
+  for (auto match_type : match_types) {
+    // 1. Enabled categories.
+    if (NameMatchesPatternList(config.enabled_categories(), category.name,
+                               match_type)) {
+      return true;
+    }
+
+    // 2. Enabled tags.
+    if (has_matching_tag([&](const char* tag) {
+          return NameMatchesPatternList(config.enabled_tags(), tag, match_type);
+        })) {
+      return true;
+    }
+
+    // 3. Disabled categories.
+    if (NameMatchesPatternList(config.disabled_categories(), category.name,
+                               match_type)) {
+      return false;
+    }
+
+    // 4. Disabled tags.
+    if (has_matching_tag([&](const char* tag) {
+          if (config.disabled_tags_size()) {
+            return NameMatchesPatternList(config.disabled_tags(), tag,
+                                          match_type);
+          } else {
+            // The "slow" and "debug" tags are disabled by default.
+            return NameMatchesPattern(kSlowTag, tag, match_type) ||
+                   NameMatchesPattern(kDebugTag, tag, match_type);
+          }
+        })) {
+      return false;
+    }
+  }
+
+  // If nothing matched, enable the category by default.
   return true;
 }
 
@@ -224,11 +325,10 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
 EventContext TrackEventInternal::WriteEvent(
     TraceWriterBase* trace_writer,
     TrackEventIncrementalState* incr_state,
-    const char* category,
+    const Category* category,
     const char* name,
     perfetto::protos::pbzero::TrackEvent::Type type,
     uint64_t timestamp) {
-  PERFETTO_DCHECK(category);
   PERFETTO_DCHECK(g_main_thread);
 
   if (incr_state->was_cleared) {
@@ -244,10 +344,14 @@ EventContext TrackEventInternal::WriteEvent(
 
   // We assume that |category| and |name| point to strings with static lifetime.
   // This means we can use their addresses as interning keys.
-  if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-    // TODO(skyostil): Handle multiple categories.
-    size_t category_iid = InternedEventCategory::Get(&ctx, category);
-    track_event->add_category_iids(category_iid);
+  if (category && type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+    category->ForEachGroupMember(
+        [&](const char* member_name, size_t name_size) {
+          size_t category_iid =
+              InternedEventCategory::Get(&ctx, member_name, name_size);
+          track_event->add_category_iids(category_iid);
+          return true;
+        });
   }
   if (name) {
     size_t name_iid = InternedEventName::Get(&ctx, name);
