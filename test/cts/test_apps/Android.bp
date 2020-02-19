@@ -27,7 +27,7 @@ android_test_helper_app {
     srcs: ["src/**/*.java"],
     sdk_version: "current",
     jni_libs: [
-        "libperfettocts_heapprofdtarget",
+        "libperfettocts_native",
         "libnativehelper_compat_libc++",
     ],
 }
@@ -47,7 +47,7 @@ android_test_helper_app {
     srcs: ["src/**/*.java"],
     sdk_version: "current",
     jni_libs: [
-        "libperfettocts_heapprofdtarget",
+        "libperfettocts_native",
         "libnativehelper_compat_libc++",
     ],
 }
@@ -67,7 +67,7 @@ android_test_helper_app {
     srcs: ["src/**/*.java"],
     sdk_version: "current",
     jni_libs: [
-        "libperfettocts_heapprofdtarget",
+        "libperfettocts_native",
         "libnativehelper_compat_libc++",
     ],
 }

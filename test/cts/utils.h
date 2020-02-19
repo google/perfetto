@@ -27,6 +27,9 @@ bool IsDebuggableBuild();
 
 bool IsAppRunning(const std::string& name);
 
+// returns -1 if the process wasn't found
+int PidForProcessName(const std::string& name);
+
 void WaitForProcess(const std::string& process,
                     const std::string& checkpoint_name,
                     base::TestTaskRunner* task_runner,
