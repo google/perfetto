@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS types_per_upid AS
 WITH distinct_unmapped_type_names AS (
   SELECT DISTINCT upid, type_name
   FROM (
-    SELECT upid, RTRIM(type_name, '[]') AS type_name
+    SELECT
+      upid,
+      RTRIM(REPLACE(type_name, 'java.lang.Class<', ''), '[]>') AS type_name
     FROM heap_graph_object
     WHERE deobfuscated_type_name IS NULL
   )
