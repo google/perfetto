@@ -60,6 +60,11 @@ TEST(SystraceParserTest, SystraceEvent) {
   ASSERT_EQ(ParseSystraceTracePoint("C|543|foo|8", &result), Result::kSuccess);
   EXPECT_EQ(result, SystraceTracePoint::C(543, "foo", 8));
 
+  ASSERT_EQ(ParseSystraceTracePoint("C|543|foo|8|", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("C|543|foo|8|group", &result),
+            Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::C(543, "foo", 8, "group"));
+
   ASSERT_EQ(ParseSystraceTracePoint("S|", &result), Result::kFailure);
 
   ASSERT_EQ(ParseSystraceTracePoint("S|123|foo|456", &result),
