@@ -17,11 +17,11 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 import {
   ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-  DEFAULT_VIEWING_OPTION,
   OBJECTS_ALLOCATED_KEY,
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
-  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
+  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
+import {HeapProfileFlamegraphViewingOption} from '../common/state';
 import {timeToCode} from '../common/time';
 
 import {Flamegraph} from './flamegraph';
@@ -37,7 +37,6 @@ export class HeapProfileDetailsPanel extends
   private ts = 0;
   private pid = 0;
   private flamegraph: Flamegraph = new Flamegraph([]);
-  private currentViewingOption = DEFAULT_VIEWING_OPTION;
 
   view() {
     const heapDumpInfo = globals.heapProfileDetails;
@@ -106,8 +105,11 @@ export class HeapProfileDetailsPanel extends
     }
   }
 
-  getButtonsClass(viewingOption = DEFAULT_VIEWING_OPTION): string {
-    return this.currentViewingOption === viewingOption ? '.chosen' : '';
+  getButtonsClass(button: HeapProfileFlamegraphViewingOption): string {
+    if (globals.state.currentHeapProfileFlamegraph === null) return '';
+    return globals.state.currentHeapProfileFlamegraph.viewingOption === button ?
+        '.chosen' :
+        '';
   }
 
   getViewingOptionButtons(): m.Children {
@@ -126,7 +128,7 @@ export class HeapProfileDetailsPanel extends
               this.changeViewingOption(ALLOC_SPACE_MEMORY_ALLOCATED_KEY);
             }
           },
-          'alloc_space'),
+          'alloc space'),
         m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_NOT_FREED_KEY)}`,
           {
             onclick: () => {
@@ -140,11 +142,10 @@ export class HeapProfileDetailsPanel extends
               this.changeViewingOption(OBJECTS_ALLOCATED_KEY);
             }
           },
-          'alloc_objects'));
+          'alloc objects'));
   }
 
-  changeViewingOption(viewingOption: string) {
-    this.currentViewingOption = viewingOption;
+  changeViewingOption(viewingOption: HeapProfileFlamegraphViewingOption) {
     globals.dispatch(Actions.changeViewHeapProfileFlamegraph({viewingOption}));
   }
 
@@ -164,9 +165,11 @@ export class HeapProfileDetailsPanel extends
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     this.changeFlamegraphData();
+    const current = globals.state.currentHeapProfileFlamegraph;
+    if (current === null) return;
     const unit =
-        this.currentViewingOption === SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY ||
-            this.currentViewingOption === ALLOC_SPACE_MEMORY_ALLOCATED_KEY ?
+        current.viewingOption === SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY ||
+            current.viewingOption === ALLOC_SPACE_MEMORY_ALLOCATED_KEY ?
         'B' :
         '';
     this.flamegraph.draw(ctx, size.width, size.height, 0, HEADER_HEIGHT, unit);
