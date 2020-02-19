@@ -261,9 +261,7 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
       ftrace_->GetWeakPtr(), session_id, std::move(ftrace_config),
       endpoint_->CreateTraceWriter(buffer_id)));
   if (!ftrace_->AddDataSource(data_source.get())) {
-    PERFETTO_ELOG(
-        "Failed to setup tracing (too many concurrent sessions or ftrace is "
-        "already in use)");
+    PERFETTO_ELOG("Failed to setup ftrace");
     return nullptr;
   }
   return std::unique_ptr<ProbesDataSource>(std::move(data_source));
