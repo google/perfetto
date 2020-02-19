@@ -157,12 +157,14 @@ bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
 
 bool FtraceProcfs::EnableTracing() {
   KernelLogWrite("perfetto: enabled ftrace\n");
+  PERFETTO_LOG("enabled ftrace");
   std::string path = root_ + "tracing_on";
   return WriteToFile(path, "1");
 }
 
 bool FtraceProcfs::DisableTracing() {
   KernelLogWrite("perfetto: disabled ftrace\n");
+  PERFETTO_LOG("disabled ftrace");
   std::string path = root_ + "tracing_on";
   return WriteToFile(path, "0");
 }
@@ -173,7 +175,10 @@ bool FtraceProcfs::SetTracingOn(bool enable) {
 
 bool FtraceProcfs::IsTracingEnabled() {
   std::string path = root_ + "tracing_on";
-  return ReadOneCharFromFile(path) == '1';
+  char tracing_on = ReadOneCharFromFile(path);
+  if (tracing_on == '\0')
+    PERFETTO_PLOG("Failed to read %s", path.c_str());
+  return tracing_on == '1';
 }
 
 bool FtraceProcfs::SetClock(const std::string& clock_name) {
