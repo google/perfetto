@@ -86,7 +86,9 @@ SqlValue SqliteValueToSqlValue(sqlite3_value* sqlite_val) {
 DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
     : cache_(context.cache),
       schema_(std::move(context.schema)),
-      table_(context.table) {}
+      computation_(context.computation),
+      static_table_(context.static_table),
+      generator_(std::move(context.generator)) {}
 DbSqliteTable::~DbSqliteTable() = default;
 
 void DbSqliteTable::RegisterTable(sqlite3* db,
@@ -94,8 +96,19 @@ void DbSqliteTable::RegisterTable(sqlite3* db,
                                   Table::Schema schema,
                                   const Table* table,
                                   const std::string& name) {
-  SqliteTable::Register<DbSqliteTable, Context>(
-      db, Context{cache, schema, table}, name);
+  Context context{cache, schema, TableComputation::kStatic, table, nullptr};
+  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name);
+}
+
+void DbSqliteTable::RegisterTable(
+    sqlite3* db,
+    QueryCache* cache,
+    std::unique_ptr<DynamicTableGenerator> generator) {
+  Table::Schema schema = generator->CreateSchema();
+  std::string name = generator->TableName();
+  Context context{cache, std::move(schema), TableComputation::kDynamic, nullptr,
+                  std::move(generator)};
+  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name);
 }
 
 util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
@@ -108,7 +121,7 @@ SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
   std::vector<SqliteTable::Column> schema_cols;
   for (uint32_t i = 0; i < schema.columns.size(); ++i) {
     const auto& col = schema.columns[i];
-    schema_cols.emplace_back(i, col.name, col.type);
+    schema_cols.emplace_back(i, col.name, col.type, col.is_hidden);
   }
 
   // TODO(lalitm): this is hardcoded to be the id column but change this to be
@@ -129,7 +142,17 @@ SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
 }
 
 int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  BestIndex(schema_, table_->row_count(), qc, info);
+  switch (computation_) {
+    case TableComputation::kStatic:
+      BestIndex(schema_, static_table_->row_count(), qc, info);
+      break;
+    case TableComputation::kDynamic:
+      util::Status status = generator_->ValidateConstraints(qc);
+      if (!status.ok())
+        return SQLITE_CONSTRAINT;
+      BestIndex(schema_, generator_->EstimateRowCount(), qc, info);
+      break;
+  }
   return SQLITE_OK;
 }
 
@@ -291,15 +314,13 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
 }
 
 std::unique_ptr<SqliteTable::Cursor> DbSqliteTable::CreateCursor() {
-  return std::unique_ptr<Cursor>(new Cursor(this, cache_, table_));
+  return std::unique_ptr<Cursor>(new Cursor(this, cache_));
 }
 
-DbSqliteTable::Cursor::Cursor(SqliteTable* sqlite_table,
-                              QueryCache* cache,
-                              const Table* table)
+DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
     : SqliteTable::Cursor(sqlite_table),
-      cache_(cache),
-      initial_db_table_(table) {}
+      db_sqlite_table_(sqlite_table),
+      cache_(cache) {}
 
 void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     const QueryConstraints& qc,
@@ -314,7 +335,7 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
 
     // Check if the new constraint set is cached by another cursor.
     sorted_cache_table_ =
-        cache_->GetIfCached(initial_db_table_, qc.constraints());
+        cache_->GetIfCached(upstream_table_, qc.constraints());
     return;
   }
 
@@ -343,13 +364,13 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
 
   // If the column is already sorted, we don't need to cache at all.
   uint32_t col = static_cast<uint32_t>(c.column);
-  if (initial_db_table_->GetColumn(col).IsSorted())
+  if (upstream_table_->GetColumn(col).IsSorted())
     return;
 
   // Try again to get the result or start caching it.
   sorted_cache_table_ =
-      cache_->GetOrCache(initial_db_table_, qc.constraints(), [this, col]() {
-        return initial_db_table_->Sort({Order{col, false}});
+      cache_->GetOrCache(upstream_table_, qc.constraints(), [this, col]() {
+        return upstream_table_->Sort({Order{col, false}});
       });
 }
 
@@ -384,6 +405,23 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     const auto& ob = qc.order_by()[i];
     uint32_t col = static_cast<uint32_t>(ob.iColumn);
     orders_[i] = Order{col, static_cast<bool>(ob.desc)};
+  }
+
+  // Setup the upstream table based on the computation state.
+  switch (db_sqlite_table_->computation_) {
+    case TableComputation::kStatic:
+      // If we have a static table, just set the upstream table to be the static
+      // table.
+      upstream_table_ = db_sqlite_table_->static_table_;
+      break;
+    case TableComputation::kDynamic:
+      // If we have a dynamically created table, regenerate the table based on
+      // the new constraints.
+      upstream_table_ =
+          db_sqlite_table_->generator_->ComputeTable(constraints_, orders_);
+      if (!upstream_table_)
+        return SQLITE_CONSTRAINT;
+      break;
   }
 
   // Tries to create a sorted cached table which can be used to speed up
@@ -481,6 +519,8 @@ int DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
   }
   return SQLITE_OK;
 }
+
+DbSqliteTable::DynamicTableGenerator::~DynamicTableGenerator() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

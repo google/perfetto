@@ -845,13 +845,13 @@ filegroup(
 filegroup(
     name = "src_trace_processor_lib",
     srcs = [
+        "src/trace_processor/experimental_counter_dur_generator.cc",
+        "src/trace_processor/experimental_counter_dur_generator.h",
+        "src/trace_processor/experimental_flamegraph_generator.cc",
+        "src/trace_processor/experimental_flamegraph_generator.h",
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/sql_stats_table.cc",
         "src/trace_processor/sql_stats_table.h",
-        "src/trace_processor/sqlite_experimental_counter_dur_table.cc",
-        "src/trace_processor/sqlite_experimental_counter_dur_table.h",
-        "src/trace_processor/sqlite_experimental_flamegraph_table.cc",
-        "src/trace_processor/sqlite_experimental_flamegraph_table.h",
         "src/trace_processor/sqlite_raw_table.cc",
         "src/trace_processor/sqlite_raw_table.h",
         "src/trace_processor/stats_table.cc",

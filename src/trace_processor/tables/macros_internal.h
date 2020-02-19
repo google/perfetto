@@ -234,7 +234,9 @@ class MacroTable : public Table {
   schema.columns.emplace_back(Table::Schema::Column{        \
       #name, TypedColumn<type>::SqlValueType(), false,      \
       static_cast<bool>(FlagsForColumn(ColumnIndex::name) & \
-                        Column::Flag::kSorted)});
+                        Column::Flag::kSorted),             \
+      static_cast<bool>(FlagsForColumn(ColumnIndex::name) & \
+                        Column::Flag::kHidden)});
 
 // Defines the accessors for a column.
 #define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)       \
@@ -374,10 +376,10 @@ class MacroTable : public Table {
                                                                               \
     static Table::Schema Schema() {                                           \
       Table::Schema schema;                                                   \
-      schema.columns.emplace_back(                                            \
-          Table::Schema::Column{"id", SqlValue::Type::kLong, true, true});    \
       schema.columns.emplace_back(Table::Schema::Column{                      \
-          "type", SqlValue::Type::kString, false, false});                    \
+          "id", SqlValue::Type::kLong, true, true, false});                   \
+      schema.columns.emplace_back(Table::Schema::Column{                      \
+          "type", SqlValue::Type::kString, false, false, false});             \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_SCHEMA);                \
       return schema;                                                          \
     }                                                                         \

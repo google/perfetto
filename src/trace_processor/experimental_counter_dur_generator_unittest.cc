@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite_experimental_counter_dur_table.h"
+#include "src/trace_processor/experimental_counter_dur_generator.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -25,11 +25,11 @@ namespace {
 tables::CounterTable::Row CounterRow(int64_t ts, uint32_t track_id) {
   tables::CounterTable::Row row;
   row.ts = ts;
-  row.track_id = TrackId{track_id};
+  row.track_id = tables::TrackTable::Id{track_id};
   return row;
 }
 
-TEST(SqliteExperimentalCounterDurTable, SmokeDur) {
+TEST(ExperimentalCounterDurGenerator, SmokeDur) {
   StringPool pool;
   tables::CounterTable table(&pool, nullptr);
 
@@ -40,7 +40,7 @@ TEST(SqliteExperimentalCounterDurTable, SmokeDur) {
   table.Insert(CounterRow(105 /* ts */, 2 /* track_id */));
   table.Insert(CounterRow(110 /* ts */, 2 /* track_id */));
 
-  auto dur = SqliteExperimentalCounterDurTable::ComputeDurColumn(table);
+  auto dur = ExperimentalCounterDurGenerator::ComputeDurColumn(table);
   ASSERT_EQ(dur.size(), table.row_count());
 
   ASSERT_EQ(dur.GetNonNull(0), 5);
