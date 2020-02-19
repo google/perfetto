@@ -36,9 +36,21 @@ __attribute__((noreturn)) void perfetto_test_allocations() {
   }
 }
 
+// Runs continuously as a target for the sampling perf profiler tests.
+__attribute__((noreturn)) void perfetto_busy_wait() {
+  for (volatile unsigned i = 0;; i++) {
+  }
+}
+
 }  // namespace
 
 extern "C" JNIEXPORT void JNICALL
 Java_android_perfetto_cts_app_MainActivity_runNative(JNIEnv*, jclass) {
   perfetto_test_allocations();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_android_perfetto_cts_app_BusyWaitActivity_runNativeBusyWait(JNIEnv*,
+                                                                 jclass) {
+  perfetto_busy_wait();
 }

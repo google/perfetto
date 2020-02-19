@@ -16,16 +16,29 @@
  -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="android.perfetto.cts.app.debuggable">
+    package="android.perfetto.cts.app.profileable">
 
-    <application android:debuggable="true">
+    <application>
+        <profileable android:shell="true"/>
         <activity
           android:name="android.perfetto.cts.app.MainActivity"
           android:exported="false">
         </activity>
         <activity-alias
-          android:name="android.perfetto.cts.app.debuggable.MainActivity"
+          android:name="android.perfetto.cts.app.profileable.MainActivity"
           android:targetActivity="android.perfetto.cts.app.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity
+          android:name="android.perfetto.cts.app.BusyWaitActivity"
+          android:exported="false">
+        </activity>
+        <activity-alias
+          android:name="android.perfetto.cts.app.profileable.BusyWaitActivity"
+          android:targetActivity="android.perfetto.cts.app.BusyWaitActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
