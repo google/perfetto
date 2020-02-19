@@ -82,6 +82,7 @@ class Table {
       SqlValue::Type type;
       bool is_id;
       bool is_sorted;
+      bool is_hidden;
     };
     std::vector<Column> columns;
   };

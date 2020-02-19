@@ -298,13 +298,13 @@ if (enable_perfetto_trace_processor_json) {
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
+      "experimental_counter_dur_generator.cc",
+      "experimental_counter_dur_generator.h",
+      "experimental_flamegraph_generator.cc",
+      "experimental_flamegraph_generator.h",
       "read_trace.cc",
       "sql_stats_table.cc",
       "sql_stats_table.h",
-      "sqlite_experimental_counter_dur_table.cc",
-      "sqlite_experimental_counter_dur_table.h",
-      "sqlite_experimental_flamegraph_table.cc",
-      "sqlite_experimental_flamegraph_table.h",
       "sqlite_raw_table.cc",
       "sqlite_raw_table.h",
       "stats_table.cc",
@@ -409,7 +409,7 @@ perfetto_unittest_source_set("unittests") {
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
-    sources += [ "sqlite_experimental_counter_dur_table_unittest.cc" ]
+    sources += [ "experimental_counter_dur_generator_unittest.cc" ]
     deps += [
       ":lib",
       "../../gn:sqlite",
