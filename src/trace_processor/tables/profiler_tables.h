@@ -88,9 +88,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
 #define PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES(NAME, PARENT, C)        \
   NAME(ExperimentalFlamegraphNodesTable, "experimental_flamegraph_nodes") \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                       \
-  C(int64_t, ts, Column::Flag::kSorted)                                   \
-  C(uint32_t, upid)                                                       \
-  C(StringPool::Id, profile_type)                                         \
+  C(int64_t, ts, Column::Flag::kSorted | Column::Flag::kHidden)           \
+  C(uint32_t, upid, Column::Flag::kHidden)                                \
+  C(StringPool::Id, profile_type, Column::Flag::kHidden)                  \
   C(uint32_t, depth)                                                      \
   C(StringPool::Id, name)                                                 \
   C(StringPool::Id, map_name)                                             \

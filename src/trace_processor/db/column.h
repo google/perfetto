@@ -96,6 +96,12 @@ class Column {
     // This is used to speed up filters as we can safely index SparseVector
     // directly if this flag is set.
     kNonNull = 1 << 1,
+
+    // Indicates that the data in the column is "hidden". This can by used to
+    // hint to users of Table and Column that this column should not be
+    // displayed to the user as it is part of the internal implementation
+    // details of the table.
+    kHidden = 1 << 2,
   };
 
   // Flags specified for an id column.
