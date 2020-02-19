@@ -219,14 +219,16 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
   PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ##__VA_ARGS__)
 
 // Emit a slice which has zero duration.
-// TODO(skyostil): Add support for process-wide and global instant events.
 #define TRACE_EVENT_INSTANT(category, name, ...)                            \
   PERFETTO_INTERNAL_TRACK_EVENT(                                            \
       category, name, ::perfetto::protos::pbzero::TrackEvent::TYPE_INSTANT, \
       ##__VA_ARGS__)
 
-// TODO(skyostil): Add arguments.
-// TODO(skyostil): Add async events.
+// Efficiently determine if the given static or dynamic trace category or
+// category group is enabled for tracing.
+#define TRACE_EVENT_CATEGORY_ENABLED(category) \
+  PERFETTO_INTERNAL_CATEGORY_ENABLED(category)
+
 // TODO(skyostil): Add flow events.
 // TODO(skyostil): Add counters.
 
