@@ -48,8 +48,10 @@ struct SystraceTracePoint {
 
   static SystraceTracePoint C(uint32_t tgid,
                               base::StringView name,
-                              double value) {
-    return SystraceTracePoint('C', tgid, std::move(name), value);
+                              double value,
+                              base::StringView category_group = "") {
+    return SystraceTracePoint('C', tgid, std::move(name), value,
+                              category_group);
   }
 
   static SystraceTracePoint S(uint32_t tgid,
@@ -64,8 +66,12 @@ struct SystraceTracePoint {
     return SystraceTracePoint('F', tgid, std::move(name), value);
   }
 
-  SystraceTracePoint(char p, uint32_t tg, base::StringView n, double v)
-      : phase(p), tgid(tg), name(std::move(n)), value(v) {}
+  SystraceTracePoint(char p,
+                     uint32_t tg,
+                     base::StringView n,
+                     double v,
+                     base::StringView c = "")
+      : phase(p), tgid(tg), name(std::move(n)), value(v), category_group(c) {}
 
   // Phase can be one of B, E, C, S, F.
   char phase = '\0';
@@ -77,6 +83,9 @@ struct SystraceTracePoint {
 
   // For phase = 'C' only.
   double value = 0;
+
+  // For phase = 'C' only (from Chrome).
+  base::StringView category_group;
 
   // Visible for unittesting.
   friend std::ostream& operator<<(std::ostream& os,
@@ -94,6 +103,7 @@ struct SystraceTracePoint {
 // 4. C|1636|wq:monitor|0
 // 5. S|1636|frame_capture|123
 // 6. F|1636|frame_capture|456
+// 7. C|3209|TransfersBytesPendingOnDisk-value|0|Blob
 // Visible for unittesting.
 inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
                                                    SystraceTracePoint* out) {
@@ -160,10 +170,13 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
       out->name = base::StringView(s + name_index, name_length.value());
 
       size_t value_index = name_index + name_length.value() + 1;
-      size_t value_len = len - value_index;
+      size_t value_pipe = str.find('|', value_index);
+      size_t value_len = value_pipe == base::StringView::npos
+                             ? len - value_index
+                             : value_pipe - value_index;
       if (value_len == 0)
         return SystraceParseResult::kFailure;
-      if (*(s + value_index + value_len - 1) == '\n')
+      if (s[value_index + value_len - 1] == '\n')
         value_len--;
       std::string value_str(s + value_index, value_len);
       base::Optional<double> maybe_value = base::StringToDouble(value_str);
@@ -171,6 +184,16 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
         return SystraceParseResult::kFailure;
       }
       out->value = maybe_value.value();
+
+      if (value_pipe != base::StringView::npos) {
+        size_t group_len = len - value_pipe - 1;
+        if (group_len == 0)
+          return SystraceParseResult::kFailure;
+        if (s[len - 1] == '\n')
+          group_len--;
+        out->category_group = base::StringView(s + value_pipe + 1, group_len);
+      }
+
       return SystraceParseResult::kSuccess;
     }
     default:
