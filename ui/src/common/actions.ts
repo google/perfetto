@@ -15,9 +15,14 @@
 import {Draft} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {Area, CallsiteInfo} from '../common/state';
+import {
+  Area,
+  CallsiteInfo,
+  HeapProfileFlamegraphViewingOption
+} from '../common/state';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 
+import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
 import {
   AdbRecordingTarget,
   createEmptyState,
@@ -461,6 +466,7 @@ export const StateActions = {
       upid: args.upid,
       ts: args.ts,
       type: args.type,
+      viewingOption: DEFAULT_VIEWING_OPTION,
     };
   },
 
@@ -471,7 +477,8 @@ export const StateActions = {
   },
 
   changeViewHeapProfileFlamegraph(
-      state: StateDraft, args: {viewingOption: string}): void {
+      state: StateDraft,
+      args: {viewingOption: HeapProfileFlamegraphViewingOption}): void {
     if (state.currentHeapProfileFlamegraph === null) return;
     state.currentHeapProfileFlamegraph.viewingOption = args.viewingOption;
   },

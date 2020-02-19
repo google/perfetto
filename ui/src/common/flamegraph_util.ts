@@ -14,10 +14,10 @@
 
 import {CallsiteInfo} from '../common/state';
 
-export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'space';
-export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'alloc_space';
-export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'objects';
-export const OBJECTS_ALLOCATED_KEY = 'alloc_objects';
+export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE';
+export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE';
+export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS';
+export const OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS';
 
 export const DEFAULT_VIEWING_OPTION = SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY;
 
