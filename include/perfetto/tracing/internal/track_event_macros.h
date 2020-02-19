@@ -102,22 +102,21 @@
 // if so, emits one trace event with the given arguments.
 #define PERFETTO_INTERNAL_TRACK_EVENT(category, ...)                      \
   do {                                                                    \
-    using namespace ::PERFETTO_TRACK_EVENT_NAMESPACE;                     \
-    using namespace ::perfetto::internal;                                 \
+    namespace tns = ::PERFETTO_TRACK_EVENT_NAMESPACE;                     \
     /* Compute the category index outside the lambda to work around a */  \
     /* GCC 7 bug */                                                       \
     constexpr auto PERFETTO_UID(kCatIndex) =                              \
         PERFETTO_GET_CATEGORY_INDEX(category);                            \
-    if (internal::IsDynamicCategory(category)) {                          \
-      TrackEvent::CallIfEnabled([&](uint32_t instances) {                 \
-        TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(            \
+    if (tns::internal::IsDynamicCategory(category)) {                     \
+      tns::TrackEvent::CallIfEnabled([&](uint32_t instances) {            \
+        tns::TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(       \
             instances, category, ##__VA_ARGS__);                          \
       });                                                                 \
     } else {                                                              \
-      TrackEvent::CallIfCategoryEnabled<PERFETTO_UID(kCatIndex)>(         \
+      tns::TrackEvent::CallIfCategoryEnabled<PERFETTO_UID(kCatIndex)>(    \
           [&](uint32_t instances) {                                       \
             /* TODO(skyostil): Get rid of the category name parameter. */ \
-            TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(        \
+            tns::TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(   \
                 instances, nullptr, ##__VA_ARGS__);                       \
           });                                                             \
     }                                                                     \
