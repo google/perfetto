@@ -19,7 +19,7 @@
 
 #include "perfetto/tracing/data_source.h"
 
-#include <stdint.h>
+#include <stddef.h>
 
 #include <atomic>
 #include <utility>
@@ -116,10 +116,10 @@ struct Category {
                       static_cast<uint8_t>(GetNthNameSize(3, s, s))}};
   }
 
-  static constexpr ssize_t GetNthNameSize(int n,
-                                          const char* start,
-                                          const char* end,
-                                          int counter = 0) {
+  static constexpr ptrdiff_t GetNthNameSize(int n,
+                                            const char* start,
+                                            const char* end,
+                                            int counter = 0) {
     return (!*end || *end == ',')
                ? ((!*end || counter == n)
                       ? (counter == n ? end - start : 0)
