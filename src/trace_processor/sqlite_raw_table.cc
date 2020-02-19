@@ -53,9 +53,10 @@ std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
 }  // namespace
 
 SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
-    : DbSqliteTable(db,
-                    {context.cache, tables::RawTable::Schema(),
-                     &context.storage->raw_table()}),
+    : DbSqliteTable(
+          db,
+          {context.cache, tables::RawTable::Schema(), TableComputation::kStatic,
+           &context.storage->raw_table(), nullptr}),
       storage_(context.storage) {
   auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));

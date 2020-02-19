@@ -20,6 +20,7 @@
 #include <sqlite3.h>
 
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -212,7 +213,7 @@ class SqliteTable : public sqlite3_vtab {
     auto create_fn = [](sqlite3* xdb, void* arg, int argc,
                         const char* const* argv, sqlite3_vtab** tab,
                         char** pzErr) {
-      const auto* xdesc = static_cast<const TableDescriptor<Context>*>(arg);
+      auto* xdesc = static_cast<TableDescriptor<Context>*>(arg);
       auto table = xdesc->factory(xdb, std::move(xdesc->context));
       table->name_ = xdesc->name;
 
