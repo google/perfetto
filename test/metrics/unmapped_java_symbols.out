@@ -6,6 +6,7 @@ unmapped_java_symbols {
     }
     type_name: "FactoryProducerDelegateImplActor"
     type_name: "a"
+    type_name: "abc"
     field {
       field_name: "FactoryProducerDelegateImplActor.a"
     }
