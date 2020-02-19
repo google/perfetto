@@ -21,7 +21,7 @@ import android.os.Bundle;
 
 public class MainActivity extends Activity {
     static {
-        System.loadLibrary("perfettocts_heapprofdtarget");
+        System.loadLibrary("perfettocts_native");
     }
 
     @Override
@@ -36,8 +36,7 @@ public class MainActivity extends Activity {
                     ex.printStackTrace();
                 }
             }
-        })
-                .start();
+        }).start();
     }
 
     private static native void runNative();
