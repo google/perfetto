@@ -19,6 +19,8 @@
 
 #include "perfetto/tracing/data_source.h"
 
+#include <stdint.h>
+
 #include <atomic>
 #include <utility>
 
