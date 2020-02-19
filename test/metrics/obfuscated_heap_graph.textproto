@@ -37,6 +37,11 @@ packet {
       type_id: 2
       self_size: 32
     }
+    objects {
+      id: 0x03
+      type_id: 3
+      self_size: 32
+    }
     continued: true
     index: 1
   }
@@ -52,6 +57,10 @@ packet {
     type_names {
       iid: 2
       str: "a"
+    }
+    type_names {
+      iid: 3
+      str: "java.lang.Class<abc[]>"
     }
     field_names {
       iid: 1
