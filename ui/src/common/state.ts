@@ -48,6 +48,9 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
+export type HeapProfileFlamegraphViewingOption =
+    'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS';
+
 export interface CallsiteInfo {
   id: number;
   parentId: number;
@@ -182,8 +185,8 @@ export interface HeapProfileFlamegraph {
   upid: number;
   ts: number;
   type: string;
+  viewingOption: HeapProfileFlamegraphViewingOption;
   expandedCallsite?: CallsiteInfo;
-  viewingOption?: string;
 }
 
 export interface ChromeSliceSelection {
