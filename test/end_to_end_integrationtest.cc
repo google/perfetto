@@ -268,14 +268,6 @@ class PerfettoTest : public ::testing::Test {
     while (!ftrace_procfs_ && kTracingPaths[index]) {
       ftrace_procfs_ = FtraceProcfs::Create(kTracingPaths[index++]);
     }
-    if (!ftrace_procfs_)
-      return;
-    ftrace_procfs_->SetTracingOn(false);
-  }
-
-  void TearDown() override {
-    if (ftrace_procfs_)
-      ftrace_procfs_->SetTracingOn(false);
   }
 
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
