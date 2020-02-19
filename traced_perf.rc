@@ -14,7 +14,6 @@
 
 service traced_perf /system/bin/traced_perf
     class late_start
-    disabled
     # socket for receiving /proc/pid/{maps,mem} file descriptors
     socket traced_perf stream 0666 root root
     user nobody
