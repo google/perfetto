@@ -828,6 +828,7 @@ cc_library_static {
     "test/cts/end_to_end_integrationtest_cts.cc",
     "test/cts/heapprofd_java_test_cts.cc",
     "test/cts/heapprofd_test_cts.cc",
+    "test/cts/traced_perf_test_cts.cc",
     "test/cts/utils.cc",
   ],
   static_libs: [
