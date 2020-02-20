@@ -501,7 +501,10 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
       PERFETTO_ELOG("ftrace in use by non-Perfetto.");
       return false;
     }
-    ftrace_->EnableTracing();
+    if (!ftrace_->EnableTracing()) {
+      PERFETTO_ELOG("Failed to enable ftrace.");
+      return false;
+    }
   }
 
   active_configs_.insert(id);
@@ -555,7 +558,8 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     active_configs_.erase(active_it);
     if (active_configs_.empty()) {
       // This was the last active config, disable ftrace.
-      ftrace_->DisableTracing();
+      if (!ftrace_->DisableTracing())
+        PERFETTO_ELOG("Failed to disable ftrace.");
     }
   }
 
