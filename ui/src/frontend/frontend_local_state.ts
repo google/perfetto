@@ -328,6 +328,7 @@ export class FrontendLocalState {
     const endSec = Math.min(ts.end, globals.state.traceTime.endSec);
     this.visibleWindowTime = new TimeSpan(startSec, endSec);
     this.timeScale.setTimeBounds(this.visibleWindowTime);
+    this.updateResolution(this.timeScale.startPx, this.timeScale.endPx);
   }
 
   // We lock an area selection by adding an area note. When we select the note
@@ -361,6 +362,7 @@ export class FrontendLocalState {
 
   updateResolution(pxStart: number, pxEnd: number) {
     this.timeScale.setLimitsPx(pxStart, pxEnd);
+    this._visibleState.lastUpdate = Date.now() / 1000;
     this._visibleState.resolution = globals.getCurResolution();
     this.ratelimitedUpdateVisible();
   }
