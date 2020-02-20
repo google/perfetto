@@ -124,7 +124,7 @@ void StopApp(const std::string& app_name,
   });
 }
 
-void StopApp(std::string app_name) {
+void StopApp(const std::string& app_name) {
   std::string stop_cmd = "am force-stop " + app_name;
   system(stop_cmd.c_str());
 }

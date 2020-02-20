@@ -45,7 +45,7 @@ void StopApp(const std::string& app_name,
              const std::string& checkpoint_name,
              base::TestTaskRunner* task_runner);
 
-void StopApp(std::string app_name);
+void StopApp(const std::string& app_name);
 
 }  // namespace perfetto
 
