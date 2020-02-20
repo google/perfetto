@@ -131,6 +131,7 @@ class TrackEventParser {
   const StringId flow_direction_value_out_id_;
   const StringId flow_direction_value_inout_id_;
   const StringId chrome_user_event_action_args_key_id_;
+  const StringId chrome_user_event_action_hash_args_key_id_;
   const StringId chrome_legacy_ipc_class_args_key_id_;
   const StringId chrome_legacy_ipc_line_args_key_id_;
   const StringId chrome_keyed_service_name_args_key_id_;

@@ -161,6 +161,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
       flow_direction_value_inout_id_(context->storage->InternString("inout")),
       chrome_user_event_action_args_key_id_(
           context->storage->InternString("user_event.action")),
+      chrome_user_event_action_hash_args_key_id_(
+          context->storage->InternString("user_event.action_hash")),
       chrome_legacy_ipc_class_args_key_id_(
           context->storage->InternString("legacy_ipc.class")),
       chrome_legacy_ipc_line_args_key_id_(
@@ -1327,6 +1329,10 @@ void TrackEventParser::ParseChromeUserEvent(
     StringId action_id = context_->storage->InternString(event.action());
     inserter->AddArg(chrome_user_event_action_args_key_id_,
                      Variadic::String(action_id));
+  }
+  if (event.has_action_hash()) {
+    inserter->AddArg(chrome_user_event_action_hash_args_key_id_,
+                     Variadic::UnsignedInteger(event.action_hash()));
   }
 }
 
