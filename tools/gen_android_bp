@@ -63,6 +63,7 @@ default_targets = [
     '//src/traced/service:traced',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
+    '//test:perfetto_gtest_logcat_printer',
 ]
 
 # Host targets
@@ -184,6 +185,8 @@ additional_args = {
 def enable_gtest_and_gmock(module):
   module.static_libs.add('libgmock')
   module.static_libs.add('libgtest')
+  if module.name != 'perfetto_gtest_logcat_printer':
+    module.whole_static_libs.add('perfetto_gtest_logcat_printer')
 
 
 def enable_protobuf_full(module):
@@ -310,12 +313,14 @@ class Target(object):
     self.name = name
     self.shared_libs = set()
     self.static_libs = set()
+    self.whole_static_libs = set()
     self.cflags = set()
 
   def to_string(self, output):
     nested_out = []
     self._output_field(nested_out, 'shared_libs')
     self._output_field(nested_out, 'static_libs')
+    self._output_field(nested_out, 'whole_static_libs')
     self._output_field(nested_out, 'cflags')
 
     if nested_out:
@@ -340,6 +345,7 @@ class Module(object):
     self.comment = 'GN: ' + gn_utils.label_without_toolchain(gn_target)
     self.shared_libs = set()
     self.static_libs = set()
+    self.whole_static_libs = set()
     self.tools = set()
     self.cmd = None
     self.host_supported = False
@@ -375,6 +381,7 @@ class Module(object):
     self._output_field(output, 'srcs')
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
+    self._output_field(output, 'whole_static_libs')
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
     self._output_field(output, 'host_supported')
