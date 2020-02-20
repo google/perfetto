@@ -151,3 +151,16 @@ source_set("in_process_backend") {
   ]
   sources = [ "internal/in_process_tracing_backend.cc" ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":platform_posix",
+      "../..:libperfetto_client_experimental",
+      "../../../../../gn:benchmark",
+      "../../../../../gn:default_deps",
+    ]
+    sources = [ "api_benchmark.cc" ]
+  }
+}
