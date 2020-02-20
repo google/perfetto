@@ -80,6 +80,9 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
   // for the sake of getting the callback posted back.
   shmem_arbiter_->FlushPendingCommitDataRequests(callback);
   protobuf_stream_writer_.Reset({nullptr, nullptr});
+
+  // |last_packet_size_field_| might have pointed into the chunk we returned.
+  last_packet_size_field_ = nullptr;
 }
 
 TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
