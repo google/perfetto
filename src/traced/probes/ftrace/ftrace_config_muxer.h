@@ -121,7 +121,6 @@ class FtraceConfigMuxer {
     std::vector<std::string> atrace_apps;
     std::vector<std::string> atrace_categories;
     size_t cpu_buffer_size_pages = 0;
-    bool tracing_on = false;
     bool atrace_on = false;
   };
 
