@@ -48,7 +48,8 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
       id_(id),
       target_buffer_(target_buffer),
       buffer_exhausted_policy_(buffer_exhausted_policy),
-      protobuf_stream_writer_(this) {
+      protobuf_stream_writer_(this),
+      process_id_(base::GetProcessId()) {
   // TODO(primiano): we could handle the case of running out of TraceWriterID(s)
   // more gracefully and always return a no-op TracePacket in NewTracePacket().
   PERFETTO_CHECK(id_ != 0);
@@ -85,6 +86,11 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   // If we hit this, the caller is calling NewTracePacket() without having
   // finalized the previous packet.
   PERFETTO_CHECK(cur_packet_->is_finalized());
+  // If we hit this, this trace writer was created in a different process. This
+  // likely means that the process forked while tracing was active, and the
+  // forked child process tried to emit a trace event. This is not supported, as
+  // it would lead to two processes writing to the same tracing SMB.
+  PERFETTO_DCHECK(process_id_ == base::GetProcessId());
 
   fragmenting_packet_ = false;
 
