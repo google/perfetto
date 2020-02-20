@@ -27,6 +27,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -105,6 +107,20 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
                                           const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/format";
   return ReadFileIntoString(path);
+}
+
+std::vector<std::string> FtraceProcfs::ReadEnabledEvents() {
+  std::string path = root_ + "set_event";
+  std::string s = ReadFileIntoString(path);
+  base::StringSplitter ss(s, '\n');
+  std::vector<std::string> events;
+  while (ss.Next()) {
+    std::string event = ss.cur_token();
+    if (event.size() == 0)
+      continue;
+    events.push_back(base::StripChars(event, ":", '/'));
+  }
+  return events;
 }
 
 std::string FtraceProcfs::ReadPageHeaderFormat() const {
