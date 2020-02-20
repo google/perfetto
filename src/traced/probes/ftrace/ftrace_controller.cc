@@ -105,6 +105,8 @@ const char* const FtraceController::kTracingPaths[] = {
 // We don't know what state the rest of the system and process is so as far
 // as possible avoid allocations.
 void HardResetFtraceState() {
+  PERFETTO_LOG("Hard resetting ftrace state.");
+
   WriteToFile("/sys/kernel/debug/tracing/tracing_on", "0");
   WriteToFile("/sys/kernel/debug/tracing/buffer_size_kb", "4");
   WriteToFile("/sys/kernel/debug/tracing/events/enable", "0");
