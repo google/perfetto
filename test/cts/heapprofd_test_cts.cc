@@ -137,8 +137,10 @@ void AssertExpectedAllocationsPresent(
   // Until then, look for an allocation that is a multiple of the expected
   // allocation size.
   bool found_alloc = false;
+  bool found_proc_dump = false;
   for (const auto& packet : packets) {
     for (const auto& proc_dump : packet.profile_packet().process_dumps()) {
+      found_proc_dump = true;
       for (const auto& sample : proc_dump.samples()) {
         if (sample.self_allocated() > 0 &&
             sample.self_allocated() % kExpectedIndividualAllocSz == 0) {
@@ -151,6 +153,7 @@ void AssertExpectedAllocationsPresent(
       }
     }
   }
+  ASSERT_TRUE(found_proc_dump);
   ASSERT_TRUE(found_alloc);
 }
 
