@@ -428,8 +428,6 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
 
-    PERFETTO_DCHECK(!current_state_.tracing_on);
-
     // If someone outside of perfetto is using ftrace give up now.
     if (is_ftrace_enabled) {
       PERFETTO_ELOG("ftrace in use by non-Perfetto.");
@@ -497,20 +495,16 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
     return false;
   }
 
+  if (active_configs_.empty()) {
+    if (ftrace_->IsTracingEnabled()) {
+      // If someone outside of perfetto is using ftrace give up now.
+      PERFETTO_ELOG("ftrace in use by non-Perfetto.");
+      return false;
+    }
+    ftrace_->EnableTracing();
+  }
+
   active_configs_.insert(id);
-  if (active_configs_.size() > 1) {
-    PERFETTO_DCHECK(current_state_.tracing_on);
-    return true;  // We are not the first, ftrace is already enabled. All done.
-  }
-
-  PERFETTO_DCHECK(!current_state_.tracing_on);
-  if (ftrace_->IsTracingEnabled()) {
-    // If someone outside of perfetto is using ftrace give up now.
-    return false;
-  }
-
-  ftrace_->EnableTracing();
-  current_state_.tracing_on = true;
   return true;
 }
 
@@ -558,12 +552,10 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   // If there aren't any more active configs, disable ftrace.
   auto active_it = active_configs_.find(config_id);
   if (active_it != active_configs_.end()) {
-    PERFETTO_DCHECK(current_state_.tracing_on);
     active_configs_.erase(active_it);
     if (active_configs_.empty()) {
       // This was the last active config, disable ftrace.
       ftrace_->DisableTracing();
-      current_state_.tracing_on = false;
     }
   }
 
