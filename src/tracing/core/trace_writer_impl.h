@@ -17,6 +17,7 @@
 #ifndef SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 #define SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 
+#include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
@@ -129,6 +130,10 @@ class TraceWriterImpl : public TraceWriter,
   // later sent out-of-band to the tracing service, who will patch the required
   // chunks, if they are still around.
   PatchList patch_list_;
+
+  // PID of the process that created the trace writer. Used for a DCHECK that
+  // aims to detect unsupported process forks while tracing.
+  const base::PlatformProcessId process_id_;
 };
 
 }  // namespace perfetto

@@ -880,6 +880,12 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
                         chunk_meta->is_complete())) {
     stats_.set_chunks_read(stats_.chunks_read() + 1);
     stats_.set_bytes_read(stats_.bytes_read() + chunk_meta->chunk_record->size);
+  } else {
+    // We have at least one more packet to parse. It should be within the chunk.
+    if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=
+        chunk_meta->chunk_record->size) {
+      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+    }
   }
 
   chunk_meta->set_last_read_packet_skipped(false);
