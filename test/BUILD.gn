@@ -144,3 +144,17 @@ if (enable_perfetto_benchmarks) {
     sources = [ "benchmark_main.cc" ]
   }
 }  # if (enable_perfetto_benchmarks)
+
+if (perfetto_build_with_android || (is_android && perfetto_build_standalone)) {
+  # This is used only in-tree builds. It's built in standalone builds just to
+  # get build coverage.
+  static_library("perfetto_gtest_logcat_printer") {
+    testonly = true
+    complete_static_lib = true
+    sources = [ "gtest_logcat_printer.cc" ]
+    deps = [
+      "../gn:default_deps",
+      "../gn:gtest_and_gmock",
+    ]
+  }
+}

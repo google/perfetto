@@ -51,7 +51,7 @@
 #define PERFETTO_PRINTF_FORMAT(x, y) \
   __attribute__((__format__(__printf__, x, y)))
 #else
-#defien PERFETTO_PRINTF_FORMAT(x, y)
+#define PERFETTO_PRINTF_FORMAT(x, y)
 #endif
 
 namespace perfetto {
