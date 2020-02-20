@@ -44,7 +44,8 @@ constexpr uint64_t kExpectedIndividualAllocSz = 4153;
 static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
               "kTestSamplingInterval invalid");
 
-std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
+std::vector<protos::gen::TracePacket> ProfileRuntime(
+    const std::string& app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -85,7 +86,8 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   return helper.trace();
 }
 
-std::vector<protos::gen::TracePacket> ProfileStartup(std::string app_name) {
+std::vector<protos::gen::TracePacket> ProfileStartup(
+    const std::string& app_name) {
   base::TestTaskRunner task_runner;
 
   if (IsAppRunning(app_name)) {
@@ -129,7 +131,7 @@ std::vector<protos::gen::TracePacket> ProfileStartup(std::string app_name) {
 }
 
 void AssertExpectedAllocationsPresent(
-    std::vector<protos::gen::TracePacket> packets) {
+    const std::vector<protos::gen::TracePacket>& packets) {
   ASSERT_GT(packets.size(), 0u);
 
   // TODO(rsavitski): assert particular stack frames once we clarify the
@@ -154,7 +156,8 @@ void AssertExpectedAllocationsPresent(
   ASSERT_TRUE(found_alloc);
 }
 
-void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
+void AssertNoProfileContents(
+    const std::vector<protos::gen::TracePacket>& packets) {
   // If profile packets are present, they must be empty.
   for (const auto& packet : packets) {
     ASSERT_EQ(packet.profile_packet().process_dumps_size(), 0);
