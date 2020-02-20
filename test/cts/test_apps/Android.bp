@@ -30,6 +30,7 @@ android_test_helper_app {
         "libperfettocts_native",
         "libnativehelper_compat_libc++",
     ],
+    jni_uses_platform_apis: true,
 }
 
 android_test_helper_app {
@@ -50,6 +51,7 @@ android_test_helper_app {
         "libperfettocts_native",
         "libnativehelper_compat_libc++",
     ],
+    jni_uses_platform_apis: true,
 }
 
 android_test_helper_app {
@@ -70,4 +72,5 @@ android_test_helper_app {
         "libperfettocts_native",
         "libnativehelper_compat_libc++",
     ],
+    jni_uses_platform_apis: true,
 }
