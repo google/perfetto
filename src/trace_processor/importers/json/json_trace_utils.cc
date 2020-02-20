@@ -58,6 +58,7 @@ base::Optional<int64_t> CoerceToInt64(const Json::Value& value) {
   switch (static_cast<size_t>(value.type())) {
     case Json::realValue:
     case Json::uintValue:
+      return static_cast<int64_t>(value.asUInt64());
     case Json::intValue:
       return value.asInt64();
     case Json::stringValue: {
