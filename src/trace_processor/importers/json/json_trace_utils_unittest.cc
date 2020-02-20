@@ -35,6 +35,8 @@ TEST(JsonTraceUtilsTest, CoerceToInt64) {
   ASSERT_EQ(CoerceToInt64(Json::Value(42)).value_or(-1), 42);
   ASSERT_EQ(CoerceToInt64(Json::Value("42")).value_or(-1), 42);
   ASSERT_EQ(CoerceToInt64(Json::Value(42.1)).value_or(-1), 42);
+  ASSERT_EQ(CoerceToInt64(Json::Value{18446744073709551615ULL}).value_or(0),
+            -1);
   ASSERT_FALSE(CoerceToInt64(Json::Value("foo")).has_value());
   ASSERT_FALSE(CoerceToInt64(Json::Value("1234!")).has_value());
 }
