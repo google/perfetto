@@ -836,6 +836,9 @@ cc_library_static {
     "libgtest",
     "libperfetto_client_experimental",
   ],
+  whole_static_libs: [
+    "perfetto_gtest_logcat_printer",
+  ],
   export_include_dirs: [
     "include",
     "include/perfetto/base/build_configs/android_tree",
@@ -1210,6 +1213,25 @@ cc_defaults {
   },
 }
 
+// GN: //test:perfetto_gtest_logcat_printer
+cc_library_static {
+  name: "perfetto_gtest_logcat_printer",
+  srcs: [
+    "test/gtest_logcat_printer.cc",
+  ],
+  static_libs: [
+    "libgmock",
+    "libgtest",
+  ],
+  export_include_dirs: [
+    "include",
+    "include/perfetto/base/build_configs/android_tree",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
+
 // GN: //include/perfetto/base:base
 filegroup {
   name: "perfetto_include_perfetto_base_base",
@@ -1429,6 +1451,9 @@ cc_test {
     "libgmock",
     "libgtest",
     "libperfetto_client_experimental",
+  ],
+  whole_static_libs: [
+    "perfetto_gtest_logcat_printer",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -7257,6 +7282,9 @@ cc_test {
   static_libs: [
     "libgmock",
     "libgtest",
+  ],
+  whole_static_libs: [
+    "perfetto_gtest_logcat_printer",
   ],
   generated_headers: [
     "gen_merged_sql_metrics",
