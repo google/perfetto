@@ -144,7 +144,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
 #endif
   // Suppress incorrect "variable may be uninitialized" error for if condition
   // after this loop. error_code = LastErrorCode gets run at least once.
-  uint8_t error_code = 0;
+  unwindstack::ErrorCode error_code = unwindstack::ERROR_NONE;
   for (int attempt = 0; attempt < 2; ++attempt) {
     if (attempt > 0) {
       if (metadata->last_maps_reparse_time + kMapsReparseInterval >
@@ -177,7 +177,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   if (error_code != unwindstack::ERROR_NONE) {
     PERFETTO_DLOG("Unwinding error %" PRIu8, error_code);
     unwindstack::FrameData frame_data{};
-    frame_data.function_name = "ERROR " + std::to_string(error_code);
+    frame_data.function_name =
+        "ERROR " + StringifyLibUnwindstackError(error_code);
     frame_data.map_name = "ERROR";
 
     out->frames.emplace_back(std::move(frame_data), "");

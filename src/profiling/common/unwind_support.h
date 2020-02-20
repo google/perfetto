@@ -125,6 +125,8 @@ struct UnwindingMetadata {
 #endif
 };
 
+std::string StringifyLibUnwindstackError(unwindstack::ErrorCode);
+
 }  // namespace profiling
 }  // namespace perfetto
 
