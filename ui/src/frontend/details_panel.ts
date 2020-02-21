@@ -214,7 +214,7 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     if (globals.frontendLocalState.selectedArea.area !== undefined) {
-      detailsPanels.set('cpu_slices', m(AggregationPanel));
+      detailsPanels.set('cpu_slices', m(AggregationPanel, {kind: 'CPU'}));
     }
 
     const wasShowing = this.showDetailsPanel;
