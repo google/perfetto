@@ -234,29 +234,12 @@ class TrackEventCategoryRegistry {
   // passed in.
   static constexpr size_t kInvalidCategoryIndex = static_cast<size_t>(-1);
   static constexpr size_t kDynamicCategoryIndex = static_cast<size_t>(-2);
-  constexpr size_t Find(const char* name,
-                        bool is_dynamic,
-                        size_t index = 0) const {
-    return is_dynamic ? kDynamicCategoryIndex
-                      : (index == category_count_)
-                            ? kInvalidCategoryIndex
-                            : StringEq(categories_[index].name, name)
-                                  ? index
-                                  : Find(name, false, index + 1);
+  constexpr size_t Find(const char* name, bool is_dynamic) const {
+    return CheckIsValidCategoryIndex(FindImpl(name, is_dynamic));
   }
 
   constexpr size_t Find(const DynamicCategory&, bool) const {
     return kDynamicCategoryIndex;
-  }
-
-  // A helper for validating that a category was registered at compile time or
-  // was in the allowed list of statically defined dynamic categories.
-  template <size_t CategoryIndex>
-  static constexpr size_t Validate() {
-    static_assert(CategoryIndex != kInvalidCategoryIndex,
-                  "A track event used an unknown category. Please add it to "
-                  "PERFETTO_DEFINE_CATEGORIES().");
-    return CategoryIndex;
   }
 
   constexpr bool ValidateCategories(size_t index = 0) const {
@@ -269,6 +252,35 @@ class TrackEventCategoryRegistry {
 
  private:
   // TODO(skyostil): Make the compile-time routines nicer with C++14.
+  constexpr size_t FindImpl(const char* name,
+                            bool is_dynamic,
+                            size_t index = 0) const {
+    return is_dynamic ? kDynamicCategoryIndex
+                      : (index == category_count_)
+                            ? kInvalidCategoryIndex
+                            : StringEq(categories_[index].name, name)
+                                  ? index
+                                  : FindImpl(name, false, index + 1);
+  }
+
+  // A compile time helper for checking that a category index is valid.
+  static constexpr size_t CheckIsValidCategoryIndex(size_t index) {
+    // Relies on PERFETTO_CHECK() (and the surrounding lambda) being a
+    // non-constexpr function, which will fail the build if the given |index| is
+    // invalid. The funny formatting here is so that clang shows the comment
+    // below as part of the error message.
+    // clang-format off
+    return index != kInvalidCategoryIndex ? index : \
+        /* Invalid category -- add it to PERFETTO_DEFINE_CATEGORIES(). */ [] {
+        PERFETTO_CHECK(
+            false &&
+            "A track event used an unknown category. Please add it to "
+            "PERFETTO_DEFINE_CATEGORIES().");
+        return kInvalidCategoryIndex;
+      }();
+    // clang-format on
+  }
+
   static constexpr bool IsValidCategoryName(const char* name) {
     return (!name || *name == '\"' || *name == '*' || *name == ' ')
                ? false

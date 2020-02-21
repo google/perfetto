@@ -662,6 +662,13 @@ TEST_F(PerfettoApiTest, TrackEventStartStopAndStopBlocking) {
   }
 }
 
+// This is a build-only regression test that checks you can have a track event
+// inside a template.
+template <typename T>
+void TestTrackEventInsideTemplate(T) {
+  TRACE_EVENT_BEGIN("cat", "Name");
+}
+
 TEST_F(PerfettoApiTest, TrackEvent) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
@@ -765,6 +772,9 @@ TEST_F(PerfettoApiTest, TrackEvent) {
   EXPECT_TRUE(process_descriptor_found);
   EXPECT_TRUE(begin_found);
   EXPECT_TRUE(end_found);
+
+  // Dummy instantiation of test template.
+  TestTrackEventInsideTemplate(true);
 }
 
 TEST_F(PerfettoApiTest, TrackEventCategories) {
