@@ -6471,6 +6471,7 @@ filegroup {
     "src/traced/probes/ftrace/compact_sched.cc",
     "src/traced/probes/ftrace/cpu_reader.cc",
     "src/traced/probes/ftrace/cpu_stats_parser.cc",
+    "src/traced/probes/ftrace/discover_vendor_tracepoints.cc",
     "src/traced/probes/ftrace/event_info.cc",
     "src/traced/probes/ftrace/event_info_constants.cc",
     "src/traced/probes/ftrace/ftrace_config_muxer.cc",
@@ -6627,6 +6628,7 @@ filegroup {
   srcs: [
     "src/traced/probes/ftrace/cpu_reader_unittest.cc",
     "src/traced/probes/ftrace/cpu_stats_parser_unittest.cc",
+    "src/traced/probes/ftrace/discover_vendor_tracepoints_unittest.cc",
     "src/traced/probes/ftrace/event_info_unittest.cc",
     "src/traced/probes/ftrace/format_parser_unittest.cc",
     "src/traced/probes/ftrace/ftrace_config_muxer_unittest.cc",
