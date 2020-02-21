@@ -91,6 +91,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
   C(int64_t, ts, Column::Flag::kSorted | Column::Flag::kHidden)           \
   C(uint32_t, upid, Column::Flag::kHidden)                                \
   C(StringPool::Id, profile_type, Column::Flag::kHidden)                  \
+  C(StringPool::Id, focus_str, Column::Flag::kHidden)                     \
   C(uint32_t, depth)                                                      \
   C(StringPool::Id, name)                                                 \
   C(StringPool::Id, map_name)                                             \
