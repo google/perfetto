@@ -49,8 +49,8 @@ import {
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
-import {AggregationController} from './aggregation_controller';
 import {Child, Children, Controller} from './controller';
+import {CpuAggregationController} from './cpu_aggregation_controller';
 import {globals} from './globals';
 import {
   HeapProfileController,
@@ -155,7 +155,7 @@ export class TraceController extends Controller<States> {
         childControllers.push(
             Child('heapProfile', HeapProfileController, heapProfileArgs));
         childControllers.push(
-            Child('aggregation', AggregationController, {engine}));
+            Child('aggregation', CpuAggregationController, {engine}));
         childControllers.push(Child('search', SearchController, {
           engine,
           app: globals,

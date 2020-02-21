@@ -24,9 +24,8 @@ export interface AggregationPanelAttrs {
 }
 
 export class AggregationPanel extends Panel<AggregationPanelAttrs> {
-  view({attrs}: m.CVnode<AggregationPanelAttrs>) {
+  view() {
     // In the future we will get different data based on the kind.
-    if (attrs.kind !== 'CPU') return;
     const data = globals.aggregateCpuData;
     return m(
         '.details-panel',

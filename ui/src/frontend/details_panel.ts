@@ -213,7 +213,8 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.set('android_logs', m(LogPanel, {}));
     }
 
-    if (globals.frontendLocalState.selectedArea.area !== undefined) {
+    if (globals.aggregateCpuData.columns.length > 0 &&
+        globals.aggregateCpuData.columns[0].data.length > 0) {
       detailsPanels.set('cpu_slices', m(AggregationPanel, {kind: 'CPU'}));
     }
 
