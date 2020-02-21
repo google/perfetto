@@ -85,7 +85,7 @@ AtraceHalWrapper::AtraceHalWrapper() {
 AtraceHalWrapper::~AtraceHalWrapper() {
   if (lib_)
     lib_->ForgetService();
-};
+}
 
 std::vector<std::string> AtraceHalWrapper::ListCategories() {
   if (!lib_)
