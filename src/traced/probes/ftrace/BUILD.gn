@@ -60,6 +60,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "cpu_reader_unittest.cc",
     "cpu_stats_parser_unittest.cc",
+    "discover_vendor_tracepoints_unittest.cc",
     "event_info_unittest.cc",
     "format_parser_unittest.cc",
     "ftrace_config_muxer_unittest.cc",
@@ -122,6 +123,8 @@ source_set("ftrace") {
     "cpu_reader.h",
     "cpu_stats_parser.cc",
     "cpu_stats_parser.h",
+    "discover_vendor_tracepoints.cc",
+    "discover_vendor_tracepoints.h",
     "event_info.cc",
     "event_info.h",
     "event_info_constants.cc",
