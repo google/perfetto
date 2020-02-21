@@ -33,6 +33,7 @@ class ExperimentalFlamegraphGenerator
     int64_t ts;
     UniquePid upid;
     std::string profile_type;
+    std::string focus_str;
   };
 
   ExperimentalFlamegraphGenerator(TraceProcessorContext* context);
