@@ -24,9 +24,11 @@
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
 
-using testing::HasSubstr;
-using testing::Not;
 using testing::Contains;
+using testing::HasSubstr;
+using testing::IsEmpty;
+using testing::Not;
+using testing::UnorderedElementsAre;
 
 namespace perfetto {
 namespace {
@@ -221,6 +223,29 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_FtraceControllerHardReset) {
   EXPECT_EQ(ReadFile("tracing_on"), "0\n");
   EXPECT_EQ(ReadFile("events/enable"), "0\n");
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello")));
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define MAYBE_ReadEnabledEvents ReadEnabledEvents
+#else
+#define MAYBE_ReadEnabledEvents DISABLED_ReadEnabledEvents
+#endif
+TEST(FtraceProcfsIntegrationTest, MAYBE_ReadEnabledEvents) {
+  FtraceProcfs ftrace(GetFtracePath());
+  ResetFtrace(&ftrace);
+
+  EXPECT_THAT(ftrace.ReadEnabledEvents(), IsEmpty());
+
+  ftrace.EnableEvent("sched", "sched_switch");
+  ftrace.EnableEvent("kmem", "kmalloc");
+
+  EXPECT_THAT(ftrace.ReadEnabledEvents(),
+              UnorderedElementsAre("sched/sched_switch", "kmem/kmalloc"));
+
+  ftrace.DisableEvent("sched", "sched_switch");
+  ftrace.DisableEvent("kmem", "kmalloc");
+
+  EXPECT_THAT(ftrace.ReadEnabledEvents(), IsEmpty());
 }
 
 }  // namespace perfetto
