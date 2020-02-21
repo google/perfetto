@@ -28,4 +28,5 @@ android_test_helper_app {
         "libperfettocts_jni",
         "libnativehelper_compat_libc++",
     ],
+    jni_uses_platform_apis: true,
 }
