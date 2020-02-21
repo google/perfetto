@@ -87,11 +87,9 @@
 // the category hasn't been registered or added to the list of allowed dynamic
 // categories. See PERFETTO_DEFINE_CATEGORIES.
 #define PERFETTO_GET_CATEGORY_INDEX(category)                                  \
-  ::perfetto::internal::TrackEventCategoryRegistry::Validate<                  \
-      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry   \
-          .Find(category,                                                      \
-                ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory( \
-                    category))>()
+  ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry.Find( \
+      category,                                                                \
+      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(category))
 
 // Generate a unique variable name with a given prefix.
 #define PERFETTO_INTERNAL_CONCAT2(a, b) a##b
