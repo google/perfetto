@@ -152,6 +152,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("mdss", "mdp_sspp_change"));
         events.insert(GroupAndName("mdss", "mdp_sspp_set"));
         AddEventGroup(table, "mali_systrace", &events);
+
         AddEventGroup(table, "sde", &events);
         events.insert(GroupAndName("sde", "tracing_mark_write"));
         events.insert(GroupAndName("sde", "sde_perf_update_bus"));
@@ -417,9 +418,15 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
   return pages;
 }
 
-FtraceConfigMuxer::FtraceConfigMuxer(FtraceProcfs* ftrace,
-                                     ProtoTranslationTable* table)
-    : ftrace_(ftrace), table_(table), current_state_(), ds_configs_() {}
+FtraceConfigMuxer::FtraceConfigMuxer(
+    FtraceProcfs* ftrace,
+    ProtoTranslationTable* table,
+    std::map<std::string, std::vector<GroupAndName>> vendor_events)
+    : ftrace_(ftrace),
+      table_(table),
+      current_state_(),
+      ds_configs_(),
+      vendor_events_(vendor_events) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
 FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
@@ -447,6 +454,18 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
+
+  // Vendors can provide a set of extra ftrace categories to be enabled when a
+  // specific atrace category is used (e.g. "gfx" -> ["my_hw/my_custom_event",
+  // "my_hw/my_special_gpu"]). Merge them with the hard coded events for each
+  // categories.
+  for (const std::string& category : request.atrace_categories()) {
+    if (vendor_events_.count(category)) {
+      for (const GroupAndName& event : vendor_events_[category]) {
+        events.insert(event);
+      }
+    }
+  }
 
   if (RequiresAtrace(request))
     UpdateAtrace(request);
