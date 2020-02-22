@@ -74,6 +74,7 @@ JOIN slice ON (
   slice.track_id = thread_track.id
   AND slice.ts BETWEEN launches.ts AND launches.ts + launches.dur)
 WHERE slice.name IN (
+  'PostFork',
   'ActivityThreadMain',
   'bindApplication',
   'activityStart',
@@ -123,6 +124,33 @@ SELECT
             WHERE launch_id = launches.id AND state = 'interruptible'
             ), 0)
       ),
+      'to_post_fork', (
+        SELECT slice.ts - l.ts
+        FROM launch_main_threads l
+        JOIN thread_track USING (utid)
+        JOIN slice ON (
+          slice.track_id = thread_track.id
+          AND slice.ts BETWEEN l.ts AND l.ts + l.dur)
+        WHERE launch_id = launches.id AND slice.name = 'PostFork'
+      ),
+      'to_activity_thread_main', (
+        SELECT slice.ts - l.ts
+        FROM launch_main_threads l
+        JOIN thread_track USING (utid)
+        JOIN slice ON (
+          slice.track_id = thread_track.id
+          AND slice.ts BETWEEN l.ts AND l.ts + l.dur)
+        WHERE launch_id = launches.id AND slice.name = 'ActivityThreadMain'
+      ),
+      'to_bind_application', (
+        SELECT slice.ts - l.ts
+        FROM launch_main_threads l
+        JOIN thread_track USING (utid)
+        JOIN slice ON (
+          slice.track_id = thread_track.id
+          AND slice.ts BETWEEN l.ts AND l.ts + l.dur)
+        WHERE launch_id = launches.id AND slice.name = 'bindApplication'
+      ),
       'other_processes_spawned_count', (
         SELECT COUNT(1) FROM process
         WHERE (process.name IS NULL OR process.name != launches.package)
@@ -134,6 +162,10 @@ SELECT
           WHERE launching_events.launch_type = 'S'
           AND launching_events.ts BETWEEN launches.ts AND launches.ts + launches.dur
         )
+      ),
+      'time_post_fork', (
+        SELECT slice_proto FROM main_process_slice
+        WHERE launch_id = launches.id AND name = 'PostFork'
       ),
       'time_activity_thread_main', (
         SELECT slice_proto FROM main_process_slice
