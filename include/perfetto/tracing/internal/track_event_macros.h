@@ -140,4 +140,11 @@
     }()                                                                       \
   }
 
+#define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)                         \
+  (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(category)   \
+       ? ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::                      \
+             IsDynamicCategoryEnabled(::perfetto::DynamicCategory(category)) \
+       : ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled<    \
+             PERFETTO_GET_CATEGORY_INDEX(category)>())
+
 #endif  // INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_MACROS_H_

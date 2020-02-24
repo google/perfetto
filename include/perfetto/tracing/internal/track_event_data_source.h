@@ -109,6 +109,23 @@ class TrackEventDataSource
     Base::template Trace([](typename Base::TraceContext ctx) { ctx.Flush(); });
   }
 
+  // Determine if tracing for the given static category is enabled.
+  template <size_t CategoryIndex>
+  static bool IsCategoryEnabled() {
+    return Registry->GetCategoryState(CategoryIndex)
+        ->load(std::memory_order_relaxed);
+  }
+
+  // Determine if tracing for the given dynamic category is enabled.
+  static bool IsDynamicCategoryEnabled(
+      const DynamicCategory& dynamic_category) {
+    bool enabled = false;
+    Base::template Trace([&](typename Base::TraceContext ctx) {
+      enabled = IsDynamicCategoryEnabled(&ctx, dynamic_category);
+    });
+    return enabled;
+  }
+
   // This is the inlined entrypoint for all track event trace points. It tries
   // to be as lightweight as possible in terms of instructions and aims to
   // compile down to an unlikely conditional jump to the actual trace writing
