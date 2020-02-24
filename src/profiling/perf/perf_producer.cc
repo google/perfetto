@@ -221,10 +221,11 @@ void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
   InitiateReaderStop(&ds);
 }
 
-// TODO(rsavitski): ignoring flushes for now, as it is involved given
-// out-of-order unwinding and proc-fd timeouts. Instead of responding to
-// explicit flushes, we can ensure that we're otherwise well-behaved (do not
-// reorder packets too much).
+// The perf data sources ignore flush requests, as flushing would be
+// unnecessarily complicated given out-of-order unwinding and proc-fd timeouts.
+// Instead of responding to explicit flushes, we can ensure that we're otherwise
+// well-behaved (do not reorder packets too much), and let the service scrape
+// the SMB.
 void PerfProducer::Flush(FlushRequestID flush_id,
                          const DataSourceInstanceID* data_source_ids,
                          size_t num_data_sources) {
@@ -748,8 +749,9 @@ void PerfProducer::ConnectWithRetries(const char* socket_name) {
 void PerfProducer::ConnectService() {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(producer_socket_name_, this,
-                                         kProducerName, task_runner_);
+  endpoint_ = ProducerIPCClient::Connect(
+      producer_socket_name_, this, kProducerName, task_runner_,
+      TracingService::ProducerSMBScrapingMode::kEnabled);
 }
 
 void PerfProducer::IncreaseConnectionBackoff() {
