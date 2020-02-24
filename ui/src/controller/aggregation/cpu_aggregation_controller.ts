@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AggregateData} from '../common/aggregation_data';
-import {Engine} from '../common/engine';
-import {TimestampedAreaSelection} from '../common/state';
-import {toNs} from '../common/time';
-
+import {AggregateData} from '../../common/aggregation_data';
+import {Engine} from '../../common/engine';
+import {TimestampedAreaSelection} from '../../common/state';
+import {toNs} from '../../common/time';
 import {AggregationController} from './aggregation_controller';
 
 export class CpuAggregationController extends AggregationController {

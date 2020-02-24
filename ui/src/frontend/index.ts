@@ -175,8 +175,8 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishAggregateData(args: AggregateData) {
-    globals.aggregateCpuData = args;
+  publishAggregateData(args: {data: AggregateData, kind: string}) {
+    globals.setAggregateData(args.kind, args.data);
     this.redraw();
   }
 

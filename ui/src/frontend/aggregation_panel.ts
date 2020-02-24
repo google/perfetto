@@ -15,25 +15,22 @@
 import * as m from 'mithril';
 
 import {AggregateData} from '../common/aggregation_data';
-
-import {globals} from './globals';
 import {Panel} from './panel';
 
 export interface AggregationPanelAttrs {
-  kind: 'CPU';
+  data: AggregateData;
 }
 
 export class AggregationPanel extends Panel<AggregationPanelAttrs> {
-  view() {
-    // In the future we will get different data based on the kind.
-    const data = globals.aggregateCpuData;
+  view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     return m(
         '.details-panel',
         m('.details-panel-heading.aggregation',
-          m('table', m('tr', data.columns.map(col => (m('th', col.title)))))),
+          m('table',
+            m('tr', attrs.data.columns.map(col => (m('th', col.title)))))),
         m(
             '.details-table.aggregation',
-            m('table', this.getRows(data)),
+            m('table', this.getRows(attrs.data)),
             ));
   }
 

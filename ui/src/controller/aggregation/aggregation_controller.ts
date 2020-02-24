@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AggregateData} from 'src/common/aggregation_data';
 
-import {Engine} from '../common/engine';
-import {TimestampedAreaSelection} from '../common/state';
+import {AggregateData} from '../../common/aggregation_data';
 
-import {Controller} from './controller';
-import {globals} from './globals';
+import {Engine} from '../../common/engine';
+import {TimestampedAreaSelection} from '../../common/state';
+
+import {Controller} from '../controller';
+import {globals} from '../globals';
 
 export interface AggregationControllerArgs {
   engine: Engine;
+  kind: string;
 }
 
 export abstract class AggregationController extends Controller<'main'> {
@@ -50,7 +52,9 @@ export abstract class AggregationController extends Controller<'main'> {
       this.requestingData = true;
       Object.assign(this.previousArea, selectedArea);
       this.onAreaSelectionChange(this.args.engine, selectedArea)
-          .then(data => globals.publish('AggregateData', data))
+          .then(
+              data => globals.publish(
+                  'AggregateData', {data, kind: this.args.kind}))
           .catch(reason => {
             console.error(reason);
           })
