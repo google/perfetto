@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/experimental_flamegraph_generator.h"
 
+#include <regex.h>
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -67,6 +68,34 @@ ExperimentalFlamegraphGenerator::InputValues GetInputValues(
                                                       focus_str};
 }
 
+class RegexMatcher {
+ public:
+  explicit RegexMatcher(const std::string& str) {
+    valid_ =
+        regcomp(&re_, str.c_str(), REG_EXTENDED | REG_NOSUB | REG_ICASE) == 0;
+  }
+
+  RegexMatcher(const RegexMatcher&) = delete;
+  RegexMatcher& operator=(const RegexMatcher&) = delete;
+
+  bool matches(const char* string) const {
+    if (!valid_) {
+      return false;
+    }
+    return regexec(&re_, string, 0, nullptr, 0) == 0;
+  }
+
+  ~RegexMatcher() {
+    if (valid_) {
+      regfree(&re_);
+    }
+  }
+
+ private:
+  bool valid_;
+  regex_t re_;
+};
+
 enum class FocusedState {
   kNotFocused,
   kFocusedPropagating,
@@ -76,7 +105,7 @@ enum class FocusedState {
 using tables::ExperimentalFlamegraphNodesTable;
 std::vector<FocusedState> ComputeFocusedState(
     const ExperimentalFlamegraphNodesTable& table,
-    const std::string& focus_str) {
+    const RegexMatcher& focus_re) {
   // Each row corresponds to a node in the flame chart tree with its parent ptr.
   // Root trees (no parents) will have a null parent ptr.
   std::vector<FocusedState> focused(table.row_count());
@@ -86,8 +115,7 @@ std::vector<FocusedState> ComputeFocusedState(
     // Constraint: all descendants MUST come after their parents.
     PERFETTO_DCHECK(!parent_id.has_value() || *parent_id < table.id()[i]);
 
-    // TODO(149833691): change to regex
-    if (table.name().GetString(i).ToStdString() == focus_str) {
+    if (focus_re.matches(table.name().GetString(i).c_str())) {
       // Mark as focused
       focused[i] = FocusedState::kFocusedPropagating;
       auto current = parent_id;
@@ -126,8 +154,9 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
   if (in->row_count() == 0 || focus_str.empty()) {
     return in;
   }
+  RegexMatcher focus_re(focus_str.c_str());
   std::vector<FocusedState> focused_state =
-      ComputeFocusedState(*in.get(), focus_str);
+      ComputeFocusedState(*in.get(), focus_re);
   std::unique_ptr<ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
           storage->mutable_string_pool(), nullptr));
