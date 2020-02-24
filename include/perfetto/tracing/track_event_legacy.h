@@ -1154,12 +1154,9 @@ class TrackEventLegacy {
                                    TRACE_EVENT_FLAG_NONE)
 
 // Macro to efficiently determine if a given category group is enabled.
-#define TRACE_EVENT_CATEGORY_GROUP_ENABLED(category, ret)                      \
-  do {                                                                         \
-    *ret =                                                                     \
-        ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
-            .GetCategoryState(PERFETTO_GET_CATEGORY_INDEX(category))           \
-            ->load(std::memory_order_relaxed);                                 \
+#define TRACE_EVENT_CATEGORY_GROUP_ENABLED(category, ret) \
+  do {                                                    \
+    *ret = TRACE_EVENT_CATEGORY_ENABLED(category);        \
   } while (0)
 
 // Macro to efficiently determine, through polling, if a new trace has begun.
@@ -1194,9 +1191,16 @@ class TrackEventLegacy {
 // the given category or not. A zero value means tracing is disabled and
 // non-zero indicates at least one tracing session for this category is active.
 // Note that callers should not make any assumptions at what each bit represents
-// in the status byte.
+// in the status byte. Does not support dynamic categories.
 #define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)                 \
   reinterpret_cast<const uint8_t*>(                                          \
+      [&] {                                                                  \
+        static_assert(                                                       \
+            !::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(  \
+                category),                                                   \
+            "Enabled flag pointers are not supported for dynamic trace "     \
+            "categories.");                                                  \
+      },                                                                     \
       ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
           .GetCategoryState(PERFETTO_GET_CATEGORY_INDEX(category)))
 
