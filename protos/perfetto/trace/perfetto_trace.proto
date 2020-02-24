@@ -3411,6 +3411,10 @@ message Profiling {
 // Individual performance sampling packet payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
 // Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
+// There are three distinct views of this message:
+// * completely processed sample (callstack_iid set)
+// * indication of kernel buffer data loss (kernel_records_lost set)
+// * indication of skipped samples (sample_skipped_reason set)
 message PerfSample {
   optional uint32 cpu = 1;
   optional uint32 pid = 2;
@@ -3424,10 +3428,8 @@ message PerfSample {
   optional uint64 callstack_iid = 4;
 
   // If set, stack unwinding was incomplete due to an error.
-  // Unset values should be treated as UNWIND_ERROR_NONE. Decoder is responsible
-  // for correctly handling the "unknown on-the-wire values are decoded as the
-  // first enum value" caveat.
-  optional Profiling.StackUnwindError unwind_error = 16;
+  // Unset values should be treated as UNWIND_ERROR_NONE.
+  oneof optional_unwind_error { Profiling.StackUnwindError unwind_error = 16; };
 
   // If set, indicates that this message is not a sample, but rather an
   // indication of data loss in the ring buffer allocated for |cpu|. Such data
@@ -3442,6 +3444,18 @@ message PerfSample {
   // specific time bounds of that loss (which would require tracking precedessor
   // & successor timestamps, which is not deemed necessary at the moment).
   optional uint64 kernel_records_lost = 17;
+
+  // If set, indicates that the profiler encountered a sample that was relevant,
+  // but was skipped as it was considered to be not unwindable (e.g. the process
+  // no longer exists).
+  enum ProfilerStage {
+    PROFILER_STAGE_UNKNOWN = 0;
+    PROFILER_STAGE_READ = 1;
+    PROFILER_STAGE_UNWIND = 2;
+  }
+  oneof optional_sample_skipped_reason {
+    ProfilerStage sample_skipped_reason = 18;
+  };
 }
 // End of protos/perfetto/trace/profiling/profile_packet.proto
 

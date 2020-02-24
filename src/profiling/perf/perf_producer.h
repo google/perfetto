@@ -152,6 +152,11 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
   };
 
+  enum class ProfilerStage {
+    kRead = 0,
+    kUnwind,
+  };
+
   void ConnectService();
   void Restart();
   void ResetConnectionBackoff();
@@ -187,6 +192,14 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   void EmitRingBufferLoss(DataSourceInstanceID ds_id,
                           size_t cpu,
                           uint64_t records_lost);
+  // Emit a packet indicating that a sample was relevant, but skipped as it was
+  // considered to be not unwindable (e.g. the process no longer exists).
+  void PostEmitSkippedSample(DataSourceInstanceID ds_id,
+                             ProfilerStage stage,
+                             ParsedSample sample);
+  void EmitSkippedSample(DataSourceInstanceID ds_id,
+                         ProfilerStage stage,
+                         ParsedSample sample);
 
   // Starts the shutdown of the given data source instance, starting with the
   // reader frontend.
