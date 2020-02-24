@@ -15,6 +15,7 @@
  */
 
 #include <stdlib.h>
+#include <sys/system_properties.h>
 #include <sys/types.h>
 
 #include "perfetto/base/logging.h"
@@ -31,6 +32,16 @@
 
 namespace perfetto {
 namespace {
+
+// Skip these tests if the device in question doesn't have the necessary kernel
+// LSM hooks in perf_event_open. This comes up when a device with an older
+// kernel upgrades to R.
+bool HasPerfLsmHooks() {
+  char buf[PROP_VALUE_MAX + 1] = {};
+  int ret = __system_property_get("sys.init.perf_lsm_hooks", buf);
+  PERFETTO_CHECK(ret >= 0);
+  return std::string(buf) == "1";
+}
 
 std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   base::TestTaskRunner task_runner;
@@ -51,8 +62,9 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
+  trace_config.add_buffers()->set_size_kb(20 * 1024);
+  trace_config.set_duration_ms(3000);
+  trace_config.set_data_source_stop_timeout_ms(8000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.perf");
@@ -66,7 +78,7 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
 
   // start tracing
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000 /*ms*/);
+  helper.WaitForTracingDisabled(15000 /*ms*/);
   helper.ReadData();
   helper.WaitForReadData();
 
@@ -77,39 +89,50 @@ void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
                                   int target_pid) {
   ASSERT_GT(packets.size(), 0u);
 
-  int samples_found = 0;
+  int total_perf_packets = 0;
+  int total_samples = 0;
+  int target_samples = 0;
   for (const auto& packet : packets) {
     if (!packet.has_perf_sample())
       continue;
 
-    EXPECT_GT(packet.timestamp(), 0u) << "all samples should have a timestamp";
+    total_perf_packets++;
+    EXPECT_GT(packet.timestamp(), 0u) << "all packets should have a timestamp";
     const auto& sample = packet.perf_sample();
-    if (sample.pid() != static_cast<uint32_t>(target_pid))
-      continue;
-
-    // TODO(rsavitski): include |sample.has_sample_skipped_reason| once that is
-    // merged.
     if (sample.has_kernel_records_lost())
       continue;
+    if (sample.has_sample_skipped_reason())
+      continue;
 
-    // A full sample
+    total_samples++;
     EXPECT_GT(sample.tid(), 0u);
     EXPECT_GT(sample.callstack_iid(), 0u);
-    samples_found += 1;
+
+    if (sample.pid() == static_cast<uint32_t>(target_pid))
+      target_samples++;
   }
-  EXPECT_GT(samples_found, 0);
+
+  EXPECT_GT(target_samples, 0) << "packets.size(): " << packets.size()
+                               << ", total_perf_packets: " << total_perf_packets
+                               << ", total_samples: " << total_samples << "\n";
 }
 
 void AssertNoStacksForPid(std::vector<protos::gen::TracePacket> packets,
                           int target_pid) {
+  // The process can still be sampled, but the stacks should be discarded
+  // without unwinding.
   for (const auto& packet : packets) {
     if (packet.perf_sample().pid() == static_cast<uint32_t>(target_pid)) {
       EXPECT_EQ(packet.perf_sample().callstack_iid(), 0u);
+      EXPECT_TRUE(packet.perf_sample().has_sample_skipped_reason());
     }
   }
 }
 
 TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
+  if (!HasPerfLsmHooks())
+    return;
+
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
@@ -120,6 +143,9 @@ TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
 }
 
 TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
+  if (!HasPerfLsmHooks())
+    return;
+
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
@@ -130,6 +156,9 @@ TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
 }
 
 TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
+  if (!HasPerfLsmHooks())
+    return;
+
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileSystemWide(app_name);
   int app_pid = PidForProcessName(app_name);
