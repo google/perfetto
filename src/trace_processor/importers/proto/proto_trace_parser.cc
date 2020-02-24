@@ -333,15 +333,24 @@ void ProtoTraceParser::ParsePerfSample(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
     ConstBytes blob) {
-  protos::pbzero::PerfSample::Decoder sample(blob.data, blob.size);
+  using PerfSample = protos::pbzero::PerfSample;
+  PerfSample::Decoder sample(blob.data, blob.size);
 
-  // Not a sample, but an indication of data loss.
+  // Not a sample, but an indication of data loss in the ring buffer shared with
+  // the kernel.
   if (sample.kernel_records_lost() > 0) {
     PERFETTO_DCHECK(sample.pid() == 0);
 
     context_->storage->IncrementIndexedStats(
         stats::perf_cpu_lost_records, static_cast<int>(sample.cpu()),
         static_cast<int64_t>(sample.kernel_records_lost()));
+    return;
+  }
+
+  // Sample that wasn't unwound (likely because we failed to look up the
+  // proc-fds for it).
+  if (sample.has_sample_skipped_reason()) {
+    context_->storage->IncrementStats(stats::perf_samples_skipped);
     return;
   }
 
