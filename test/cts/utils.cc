@@ -54,7 +54,7 @@ bool IsDebuggableBuild() {
 
 // note: cannot use gtest macros due to return type
 bool IsAppRunning(const std::string& name) {
-  std::string cmd = "pgrep -f " + name;
+  std::string cmd = "pgrep -f ^" + name + "$";
   int retcode = system(cmd.c_str());
   PERFETTO_CHECK(retcode >= 0);
   int exit_status = WEXITSTATUS(retcode);
@@ -66,9 +66,7 @@ bool IsAppRunning(const std::string& name) {
 }
 
 int PidForProcessName(const std::string& name) {
-  // quirk: need to exclude ourselves from the result as the pgrep's cmdline
-  // matches itself when invoked via popen.
-  std::string cmd = "pgrep -f " + name + " | grep -v $$";
+  std::string cmd = "pgrep -f ^" + name + "$";
   FILE* fp = popen(cmd.c_str(), "re");
   if (!fp)
     return -1;
