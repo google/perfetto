@@ -18,7 +18,7 @@ import("perfetto.gni")
 # tools/install-build-deps --check-only ${args}.
 # It's used to ensure that deps are current before building.
 template("perfetto_check_build_deps") {
-  if (perfetto_build_standalone) {
+  if (perfetto_build_standalone && !skip_buildtools_check) {
     action(target_name) {
       out_file = "$target_gen_dir/$target_name.check"
       out_file_path = rebase_path(out_file, root_build_dir)
