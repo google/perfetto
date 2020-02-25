@@ -30,7 +30,7 @@ struct ContiguousMemoryRange {
 
   inline bool is_valid() const { return begin != nullptr; }
   inline void reset() { begin = nullptr; }
-  inline size_t size() { return static_cast<size_t>(end - begin); }
+  inline size_t size() const { return static_cast<size_t>(end - begin); }
 };
 
 }  // namespace protozero
