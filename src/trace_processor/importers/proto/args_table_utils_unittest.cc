@@ -49,16 +49,25 @@ class ArgsTableUtilsTest : public ::testing::Test {
     sequence_state_.reset(new PacketSequenceState(&context_));
   }
 
-  bool HasArg(ArgSetId set_id, const base::StringView& key, Variadic value) {
+  /**
+   * Check whether the argument set contains the value with given flat_key and
+   * key and is equal to the given value.
+   */
+  bool HasArg(ArgSetId set_id,
+              const base::StringView& flat_key,
+              const base::StringView& key,
+              Variadic value) {
     const auto& args = storage_->arg_table();
     auto key_id = storage_->string_pool().GetId(key);
     EXPECT_TRUE(key_id);
+    auto flat_key_id = storage_->string_pool().GetId(flat_key);
+    EXPECT_TRUE(flat_key_id);
 
     RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
     bool found = false;
     for (auto it = rm.IterateRows(); it; it.Next()) {
       if (args.key()[it.row()] == key_id) {
-        EXPECT_EQ(args.flat_key()[it.row()], key_id);
+        EXPECT_EQ(args.flat_key()[it.row()], flat_key_id);
         if (storage_->GetArgValue(it.row()) == value) {
           found = true;
           break;
@@ -66,6 +75,14 @@ class ArgsTableUtilsTest : public ::testing::Test {
       }
     }
     return found;
+  }
+
+  /**
+   * Implementation of HasArg for a simple case when flat_key is equals to key,
+   * so that two won't have to be repeated for each assertion.
+   */
+  bool HasArg(ArgSetId set_id, const base::StringView& key, Variadic value) {
+    return HasArg(set_id, key, key, value);
   }
 
   uint32_t arg_set_id_ = 1;
@@ -181,9 +198,14 @@ TEST_F(ArgsTableUtilsTest, BasicSingleLayerProto) {
   EXPECT_TRUE(HasArg(
       ArgSetId(arg_set_id_), "field_string",
       Variadic::String(*context_.storage->string_pool().GetId("FizzBuzz"))));
-  // TODO(nuskos): Repeated fields aren't currently supported correctly.
   EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "repeated_int32",
-                     Variadic::Integer(2000000)));
+                     "repeated_int32[0]", Variadic::Integer(1)));
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "repeated_int32",
+                     "repeated_int32[1]", Variadic::Integer(-1)));
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "repeated_int32",
+                     "repeated_int32[2]", Variadic::Integer(100)));
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "repeated_int32",
+                     "repeated_int32[3]", Variadic::Integer(2000000)));
 }
 
 TEST_F(ArgsTableUtilsTest, NestedProto) {
