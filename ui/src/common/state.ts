@@ -186,6 +186,7 @@ export interface HeapProfileFlamegraph {
   ts: number;
   type: string;
   viewingOption: HeapProfileFlamegraphViewingOption;
+  focusRegex: string;
   expandedCallsite?: CallsiteInfo;
 }
 

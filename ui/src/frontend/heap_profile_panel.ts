@@ -27,6 +27,7 @@ import {timeToCode} from '../common/time';
 import {Flamegraph} from './flamegraph';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
+import {debounce} from './rate_limiters';
 
 interface HeapProfileDetailsPanelAttrs {}
 
@@ -37,6 +38,11 @@ export class HeapProfileDetailsPanel extends
   private ts = 0;
   private pid = 0;
   private flamegraph: Flamegraph = new Flamegraph([]);
+  private focusRegex = '';
+  private updateFocusRegexDebounced = debounce(() => {
+    this.updateFocusRegex();
+  }, 20);
+
 
   view() {
     const heapDumpInfo = globals.heapProfileDetails;
@@ -76,6 +82,7 @@ export class HeapProfileDetailsPanel extends
             }
           },
           m('.details-panel-heading.heap-profile',
+            {onclick: (e: MouseEvent) => e.stopPropagation()},
             [
               m('div.options',
                 [
@@ -86,6 +93,15 @@ export class HeapProfileDetailsPanel extends
                 [
                   m('div.time',
                     `Snapshot time: ${timeToCode(heapDumpInfo.ts)}`),
+                  m('input[type=text][placeholder=Focus]', {
+                    oninput: (e: Event) => {
+                      const target = (e.target as HTMLInputElement);
+                      this.focusRegex = target.value;
+                      this.updateFocusRegexDebounced();
+                    },
+                    // Required to stop hot-key handling:
+                    onkeydown: (e: Event) => e.stopPropagation(),
+                  }),
                   m('button.download',
                     {
                       onclick: () => {
@@ -103,6 +119,12 @@ export class HeapProfileDetailsPanel extends
           '.details-panel',
           m('.details-panel-heading', m('h2', `Heap Profile`)));
     }
+  }
+
+  private updateFocusRegex() {
+    globals.dispatch(Actions.changeFocusHeapProfileFlamegraph({
+      focusRegex: this.focusRegex,
+    }));
   }
 
   getButtonsClass(button: HeapProfileFlamegraphViewingOption): string {
