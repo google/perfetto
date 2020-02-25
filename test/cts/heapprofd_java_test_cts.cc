@@ -70,6 +70,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   helper.WaitForTracingDisabled(10000 /*ms*/);
   helper.ReadData();
   helper.WaitForReadData();
+  PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name, "new.app.stopped", &task_runner);
   task_runner.RunUntilCheckpoint("new.app.stopped", 1000 /*ms*/);
   return helper.trace();
