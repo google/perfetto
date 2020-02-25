@@ -48,6 +48,11 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     throw new Error('Incoming message has no source');
   }
 
+  // This can happen if an extension tries to postMessage.
+  if (messageEvent.source !== window.opener) {
+    return;
+  }
+
   if (!('data' in messageEvent)) {
     throw new Error('Incoming message has no data property');
   }
