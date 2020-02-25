@@ -24,7 +24,6 @@ import {
 import {TimeSpan} from '../common/time';
 
 import {randomColor} from './colorizer';
-import {Tab} from './details_panel';
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
 
@@ -103,7 +102,7 @@ export class FrontendLocalState {
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
-  currentTab?: Tab;
+  currentTab?: string;
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
@@ -234,7 +233,6 @@ export class FrontendLocalState {
       lastUpdate: Date.now() / 1000
     };
     this.selectAreaDebounced();
-    globals.frontendLocalState.currentTab = 'cpu_slices';
     globals.rafScheduler.scheduleFullRedraw();
   }
 
@@ -284,7 +282,6 @@ export class FrontendLocalState {
       }));
     }
 
-    globals.frontendLocalState.currentTab = 'cpu_slices';
     globals.rafScheduler.scheduleFullRedraw();
   }
 
