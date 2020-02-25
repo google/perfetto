@@ -53,9 +53,8 @@ Table* ExperimentalCounterDurGenerator::ComputeTable(
   // sparsevector in the table after freeing the sparsevector.
   std::unique_ptr<SparseVector<int64_t>> dur_column(
       new SparseVector<int64_t>(ComputeDurColumn(*counter_table_)));
-  counter_with_dur_table_.reset(
-      new Table(counter_with_dur_table_->ExtendWithColumn(
-          "dur", dur_column.get(), TypedColumn<int64_t>::default_flags())));
+  counter_with_dur_table_.reset(new Table(counter_table_->ExtendWithColumn(
+      "dur", dur_column.get(), TypedColumn<int64_t>::default_flags())));
   dur_column_ = std::move(dur_column);
   return counter_with_dur_table_.get();
 }
