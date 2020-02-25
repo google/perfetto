@@ -131,7 +131,7 @@ void AssertNoStacksForPid(std::vector<protos::gen::TracePacket> packets,
 
 TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
   if (!HasPerfLsmHooks())
-    return;
+    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
 
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileSystemWide(app_name);
@@ -144,7 +144,7 @@ TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
 
 TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
   if (!HasPerfLsmHooks())
-    return;
+    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
 
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileSystemWide(app_name);
@@ -157,7 +157,7 @@ TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
 
 TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
   if (!HasPerfLsmHooks())
-    return;
+    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
 
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileSystemWide(app_name);
