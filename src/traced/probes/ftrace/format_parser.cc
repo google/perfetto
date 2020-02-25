@@ -72,8 +72,9 @@ bool ParseFtraceEventBody(base::StringSplitter* ss,
       if (IsCommonFieldName(GetNameFromTypeAndName(type_and_name))) {
         if (common_fields)
           common_fields->push_back(field);
-      } else if (fields)
+      } else if (fields) {
         fields->push_back(field);
+      }
       continue;
     }
 
