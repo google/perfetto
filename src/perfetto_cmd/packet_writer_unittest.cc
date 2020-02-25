@@ -42,6 +42,16 @@ namespace {
 
 using TracePacketProto = protos::gen::TracePacket;
 
+std::string RandomString(size_t size) {
+  std::minstd_rand0 rnd(0);
+  std::uniform_int_distribution<> dist(0, 255);
+  std::string s;
+  s.resize(size);
+  for (size_t i = 0; i < s.size(); i++)
+    s[i] = static_cast<char>(dist(rnd));
+  return s;
+}
+
 template <typename F>
 TracePacket CreateTracePacket(F fill_function) {
   TracePacketProto msg;
@@ -83,20 +93,18 @@ std::string Decompress(const std::string& data) {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 TEST(PacketWriterTest, FilePacketWriter) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
+  std::vector<perfetto::TracePacket> packets;
+  packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
+    auto* for_testing = msg->mutable_for_testing();
+    for_testing->set_str("abc");
+  }));
+
   {
     std::unique_ptr<PacketWriter> writer = CreateFilePacketWriter(*f);
-
-    std::vector<perfetto::TracePacket> packets;
-
-    packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
-      auto* for_testing = msg->mutable_for_testing();
-      for_testing->set_str("abc");
-    }));
-
     EXPECT_TRUE(writer->WritePackets(std::move(packets)));
   }
 
@@ -113,23 +121,21 @@ TEST(PacketWriterTest, FilePacketWriter) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 TEST(PacketWriterTest, ZipPacketWriter) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
-  {
-    std::unique_ptr<PacketWriter> writer =
-        CreateZipPacketWriter(CreateFilePacketWriter(*f));
-
     std::vector<perfetto::TracePacket> packets;
-
     packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
       auto* for_testing = msg->mutable_for_testing();
       for_testing->set_str("abc");
     }));
 
-    EXPECT_TRUE(writer->WritePackets(std::move(packets)));
-  }
+    {
+      std::unique_ptr<PacketWriter> writer =
+          CreateZipPacketWriter(CreateFilePacketWriter(*f));
+      EXPECT_TRUE(writer->WritePackets(std::move(packets)));
+    }
 
   std::string s;
   fseek(*f, 0, SEEK_SET);
@@ -148,7 +154,7 @@ TEST(PacketWriterTest, ZipPacketWriter) {
 }
 
 TEST(PacketWriterTest, ZipPacketWriter_Empty) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
@@ -161,7 +167,7 @@ TEST(PacketWriterTest, ZipPacketWriter_Empty) {
 }
 
 TEST(PacketWriterTest, ZipPacketWriter_EmptyWithEmptyWrite) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
@@ -177,33 +183,31 @@ TEST(PacketWriterTest, ZipPacketWriter_EmptyWithEmptyWrite) {
 }
 
 TEST(PacketWriterTest, ZipPacketWriter_ShouldCompress) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
   size_t uncompressed_size = 0;
 
+  std::vector<perfetto::TracePacket> packets;
+  for (size_t i = 0; i < 200; i++) {
+    packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
+      auto* for_testing = msg->mutable_for_testing();
+      for_testing->set_str("abcdefghijklmn");
+    }));
+
+    packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
+      auto* for_testing = msg->mutable_for_testing();
+      for_testing->set_str("abcdefghijklmn");
+    }));
+
+    for (const TracePacket& packet : packets)
+      uncompressed_size += packet.size();
+  }
+
   {
     std::unique_ptr<PacketWriter> writer =
         CreateZipPacketWriter(CreateFilePacketWriter(*f));
-
-    for (size_t i = 0; i < 200; i++) {
-      std::vector<perfetto::TracePacket> packets;
-
-      packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
-        auto* for_testing = msg->mutable_for_testing();
-        for_testing->set_str("abcdefghijklmn");
-      }));
-
-      packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
-        auto* for_testing = msg->mutable_for_testing();
-        for_testing->set_str("abcdefghijklmn");
-      }));
-
-      for (const TracePacket& packet : packets)
-        uncompressed_size += packet.size();
-
-      EXPECT_TRUE(writer->WritePackets(std::move(packets)));
-    }
+    EXPECT_TRUE(writer->WritePackets(std::move(packets)));
   }
 
   std::string s;
@@ -232,24 +236,14 @@ TEST(PacketWriterTest, ZipPacketWriter_ShouldCompress) {
 }
 
 TEST(PacketWriterTest, ZipPacketWriter_LargePacket) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
   std::vector<perfetto::TracePacket> packets;
 
-  std::minstd_rand0 rnd(0);
-  std::uniform_int_distribution<> dist(0, 255);
-  auto random_string = [&dist, &rnd](size_t size) {
-    std::string s;
-    s.resize(size);
-    for (size_t i = 0; i < s.size(); i++)
-      s[i] = static_cast<char>(dist(rnd));
-    return s;
-  };
-
-  auto add_packet = [&packets, &random_string](size_t size) {
-    std::string s = random_string(size);
+  auto add_packet = [&packets](size_t size) {
+    std::string s = RandomString(size);
     packets.push_back(CreateTracePacket([&s](TracePacketProto* msg) {
       auto* for_testing = msg->mutable_for_testing();
       for_testing->set_str(s);
@@ -263,9 +257,11 @@ TEST(PacketWriterTest, ZipPacketWriter_LargePacket) {
   add_packet(1 * 1024);
   add_packet(2 * 1024 * 1024);
 
-  std::unique_ptr<PacketWriter> writer =
-      CreateZipPacketWriter(CreateFilePacketWriter(*f));
-  EXPECT_TRUE(writer->WritePackets(std::move(packets)));
+  {
+    std::unique_ptr<PacketWriter> writer =
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
+    EXPECT_TRUE(writer->WritePackets(std::move(packets)));
+  }
 
   std::string s;
   fseek(*f, 0, SEEK_SET);
@@ -277,37 +273,24 @@ TEST(PacketWriterTest, ZipPacketWriter_LargePacket) {
 }
 
 TEST(PacketWriterTest, ZipPacketWriter_ShouldSplitPackets) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateUnlinked();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
-  std::minstd_rand0 rnd(0);
-  std::uniform_int_distribution<> dist(0, 255);
-  auto randomString = [&dist, &rnd]() {
-    std::string s;
-    s.resize(1024);
-    for (size_t i = 0; i < s.size(); i++)
-      s[i] = static_cast<char>(dist(rnd));
-    return s;
-  };
+  std::vector<perfetto::TracePacket> packets;
+
+  for (uint32_t i = 0; i < 1000; i++) {
+    packets.push_back(CreateTracePacket([i](TracePacketProto* msg) {
+      auto* for_testing = msg->mutable_for_testing();
+      for_testing->set_seq_value(i);
+      for_testing->set_str(RandomString(1024));
+    }));
+  }
 
   {
     std::unique_ptr<PacketWriter> writer =
         CreateZipPacketWriter(CreateFilePacketWriter(*f));
-
-    for (uint32_t i = 0; i < 1000; i++) {
-      std::vector<perfetto::TracePacket> packets;
-
-      std::string s = randomString();
-
-      packets.push_back(CreateTracePacket([i, &s](TracePacketProto* msg) {
-        auto* for_testing = msg->mutable_for_testing();
-        for_testing->set_seq_value(i);
-        for_testing->set_str(s);
-      }));
-
-      EXPECT_TRUE(writer->WritePackets(std::move(packets)));
-    }
+    EXPECT_TRUE(writer->WritePackets(std::move(packets)));
   }
 
   std::string s;
