@@ -35,15 +35,51 @@ export interface HeapProfileControllerArgs {
 }
 const MIN_PIXEL_DISPLAYED = 1;
 
+class TablesCache {
+  private engine: Engine;
+  private cache: Map<string, string>;
+  private prefix: string;
+  private tableId: number;
+  private cacheSizeLimit: number;
+
+  constructor(engine: Engine, prefix: string) {
+    this.engine = engine;
+    this.cache = new Map<string, string>();
+    this.prefix = prefix;
+    this.tableId = 0;
+    this.cacheSizeLimit = 10;
+  }
+
+  async getTableName(query: string): Promise<string> {
+    let tableName = this.cache.get(query);
+    if (tableName === undefined) {
+      // TODO(hjd): This should be LRU.
+      if (this.cache.size > this.cacheSizeLimit) {
+        for (const name of this.cache.values()) {
+          await this.engine.query(`drop table ${name}`);
+        }
+        this.cache.clear();
+      }
+      tableName = `${this.prefix}_${this.tableId++}`;
+      await this.engine.query(
+          `create temp table if not exists ${tableName} as ${query}`);
+      this.cache.set(query, tableName);
+    }
+    return tableName;
+  }
+}
+
 export class HeapProfileController extends Controller<'main'> {
   private flamegraphDatasets: Map<string, CallsiteInfo[]> = new Map();
   private lastSelectedHeapProfile?: HeapProfileFlamegraph;
   private requestingData = false;
   private queuedRequest = false;
   private heapProfileDetails: HeapProfileDetails = {};
+  private cache: TablesCache;
 
   constructor(private args: HeapProfileControllerArgs) {
     super('main');
+    this.cache = new TablesCache(args.engine, 'grouped_callsites');
   }
 
   run() {
@@ -66,6 +102,13 @@ export class HeapProfileController extends Controller<'main'> {
                 Object.assign(this.heapProfileDetails, result);
               }
 
+              // TODO(hjd): Clean this up.
+              if (this.lastSelectedHeapProfile &&
+                  this.lastSelectedHeapProfile.focusRegex !==
+                      selection.focusRegex) {
+                this.flamegraphDatasets.clear();
+              }
+
               this.lastSelectedHeapProfile = this.copyHeapProfile(selection);
 
               const expandedId = selectedHeapProfile.expandedCallsite ?
@@ -86,7 +129,8 @@ export class HeapProfileController extends Controller<'main'> {
                           DEFAULT_VIEWING_OPTION,
                       selection.ts,
                       selectedHeapProfile.upid,
-                      selectedHeapProfile.type)
+                      selectedHeapProfile.type,
+                      selectedHeapProfile.focusRegex)
                   .then(flamegraphData => {
                     if (flamegraphData !== undefined && selection &&
                         selection.kind === selectedHeapProfile.kind &&
@@ -122,7 +166,8 @@ export class HeapProfileController extends Controller<'main'> {
       ts: heapProfile.ts,
       type: heapProfile.type,
       expandedCallsite: heapProfile.expandedCallsite,
-      viewingOption: heapProfile.viewingOption
+      viewingOption: heapProfile.viewingOption,
+      focusRegex: heapProfile.focusRegex,
     };
   }
 
@@ -136,6 +181,7 @@ export class HeapProfileController extends Controller<'main'> {
            this.lastSelectedHeapProfile.upid !== selection.upid ||
            this.lastSelectedHeapProfile.viewingOption !==
                selection.viewingOption ||
+           this.lastSelectedHeapProfile.focusRegex !== selection.focusRegex ||
            this.lastSelectedHeapProfile.expandedCallsite !==
                selection.expandedCallsite)));
   }
@@ -155,7 +201,7 @@ export class HeapProfileController extends Controller<'main'> {
 
   async getFlamegraphData(
       baseKey: string, viewingOption: string, ts: number, upid: number,
-      type: string): Promise<CallsiteInfo[]> {
+      type: string, focusRegex: string): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
     const key = `${baseKey}-${viewingOption}`;
     if (this.flamegraphDatasets.has(key)) {
@@ -166,7 +212,8 @@ export class HeapProfileController extends Controller<'main'> {
       // Collecting data for drawing flamegraph for selected heap profile.
       // Data needs to be in following format:
       // id, name, parent_id, depth, total_size
-      const tableName = await this.prepareViewsAndTables(ts, upid, type);
+      const tableName =
+          await this.prepareViewsAndTables(ts, upid, type, focusRegex);
       currentData =
           await this.getFlamegraphDataFromTables(tableName, viewingOption);
       this.flamegraphDatasets.set(key, currentData);
@@ -254,26 +301,22 @@ export class HeapProfileController extends Controller<'main'> {
     return flamegraphData;
   }
 
-  private async prepareViewsAndTables(ts: number, upid: number, type: string):
-      Promise<string> {
+  private async prepareViewsAndTables(
+      ts: number, upid: number, type: string,
+      focusRegex: string): Promise<string> {
     // Creating unique names for views so we can reuse and not delete them
     // for each marker.
-    const tableNameGroupedCallsitesForFlamegraph =
-        this.tableName(`grouped_callsites_for_flamegraph`);
+    let whereClause = '';
+    if (focusRegex !== '') {
+      whereClause = `where focus_str = '${focusRegex}'`;
+    }
 
-    await this.args.engine.query(`create temp table if not exists ${
-        tableNameGroupedCallsitesForFlamegraph} as
-        select id, name, map_name, parent_id, depth, cumulative_size,
+    return this.cache.getTableName(
+        `select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count
-        from experimental_flamegraph(${ts}, ${upid}, '${type}')`);
-    return tableNameGroupedCallsitesForFlamegraph;
-  }
-
-  tableName(name: string): string {
-    const selection = globals.state.currentHeapProfileFlamegraph;
-    if (!selection) return name;
-    return `${name}_${selection.upid}_${selection.ts}`;
+          from experimental_flamegraph(${ts}, ${upid}, '${type}') ${
+            whereClause}`);
   }
 
   getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):
