@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 syntax = "proto2";
-
 package perfetto.protos;
 
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
-message JavaHeapStats {
-  // Next id: 6
-  message Sample {
-    optional int64 ts = 1;
-    optional int64 heap_size = 2;
-    optional int64 obj_count = 4;
-    optional int64 reachable_heap_size = 3;
-    optional int64 reachable_obj_count = 5;
+message JavaHeapHistogram {
+  message TypeCount {
+    optional string type_name = 1;
+    optional uint32 obj_count = 2;
+    optional uint32 reachable_obj_count = 3;
   }
 
-  // Heap stats per process. One sample per dump (can be > 1 if continuous
-  // dump is enabled).
+  message Sample {
+    optional int64 ts = 1;
+    repeated TypeCount type_count = 2;
+  }
+
+  // Heap stats per process. One sample per dump (with continuous dump you can
+  // have more samples differentiated by ts).
   message InstanceStats {
     optional uint32 upid = 1;
     optional AndroidProcessMetadata process = 2;
