@@ -110,10 +110,10 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
          this.prevAreaSelection.lastUpdate >= selection.lastUpdate) ||
         area === undefined ||
         globals.frontendLocalState.areaY.start === undefined ||
-        globals.frontendLocalState.areaY.end === undefined) {
+        globals.frontendLocalState.areaY.end === undefined ||
+        this.panelPositions.length === 0) {
       return;
     }
-
     // Only get panels from the current panel container if the selection began
     // in this container.
     const panelContainerTop = this.panelPositions[0].y;
