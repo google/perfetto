@@ -18,7 +18,7 @@
     grid-area: sidebar;
     z-index: 4;
     background-color: #262f3c;
-    overflow: visible;
+    overflow: hidden;
     width: var(--sidebar-width);
     display: flex;
     flex-direction: column;
