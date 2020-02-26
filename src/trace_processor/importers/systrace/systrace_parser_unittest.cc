@@ -37,7 +37,6 @@ TEST(SystraceParserTest, SystraceEvent) {
   ASSERT_EQ(ParseSystraceTracePoint("|\n", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("||\n", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("||\n", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("E", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("B", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("C", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("S", &result), Result::kFailure);
@@ -49,6 +48,12 @@ TEST(SystraceParserTest, SystraceEvent) {
 
   ASSERT_EQ(ParseSystraceTracePoint("B|42|Bar\n", &result), Result::kSuccess);
   EXPECT_EQ(result, SystraceTracePoint::B(42, "Bar"));
+
+  ASSERT_EQ(ParseSystraceTracePoint("E\n", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::E(0));
+
+  ASSERT_EQ(ParseSystraceTracePoint("E", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::E(0));
 
   ASSERT_EQ(ParseSystraceTracePoint("E|42\n", &result), Result::kSuccess);
   EXPECT_EQ(result, SystraceTracePoint::E(42));
