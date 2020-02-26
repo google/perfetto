@@ -86,12 +86,15 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
 }
 
 void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
-                                  int target_pid) {
+                                  int pid) {
+  uint32_t target_pid = static_cast<uint32_t>(pid);
   ASSERT_GT(packets.size(), 0u);
 
   int total_perf_packets = 0;
-  int total_samples = 0;
+  int lost_records_packets = 0;
+  int full_samples = 0;
   int target_samples = 0;
+  int target_skipped_samples = 0;
   for (const auto& packet : packets) {
     if (!packet.has_perf_sample())
       continue;
@@ -99,30 +102,39 @@ void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
     total_perf_packets++;
     EXPECT_GT(packet.timestamp(), 0u) << "all packets should have a timestamp";
     const auto& sample = packet.perf_sample();
-    if (sample.has_kernel_records_lost())
+    if (sample.has_kernel_records_lost()) {
+      lost_records_packets++;
       continue;
-    if (sample.has_sample_skipped_reason())
+    }
+    if (sample.has_sample_skipped_reason()) {
+      if (sample.pid() == target_pid)
+        target_skipped_samples++;
       continue;
+    }
 
-    total_samples++;
+    full_samples++;
     EXPECT_GT(sample.tid(), 0u);
     EXPECT_GT(sample.callstack_iid(), 0u);
 
-    if (sample.pid() == static_cast<uint32_t>(target_pid))
+    if (sample.pid() == target_pid)
       target_samples++;
   }
 
-  EXPECT_GT(target_samples, 0) << "packets.size(): " << packets.size()
-                               << ", total_perf_packets: " << total_perf_packets
-                               << ", total_samples: " << total_samples << "\n";
+  EXPECT_GT(target_samples, 0)
+      << "target_pid: " << target_pid << ", packets.size(): " << packets.size()
+      << ", total_perf_packets: " << total_perf_packets
+      << ", full_samples: " << full_samples
+      << ", lost_records_packets: " << lost_records_packets
+      << ", target_skipped_samples: " << target_skipped_samples << "\n";
 }
 
 void AssertNoStacksForPid(std::vector<protos::gen::TracePacket> packets,
-                          int target_pid) {
+                          int pid) {
+  uint32_t target_pid = static_cast<uint32_t>(pid);
   // The process can still be sampled, but the stacks should be discarded
   // without unwinding.
   for (const auto& packet : packets) {
-    if (packet.perf_sample().pid() == static_cast<uint32_t>(target_pid)) {
+    if (packet.perf_sample().pid() == target_pid) {
       EXPECT_EQ(packet.perf_sample().callstack_iid(), 0u);
       EXPECT_TRUE(packet.perf_sample().has_sample_skipped_reason());
     }
