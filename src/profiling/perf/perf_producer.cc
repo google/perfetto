@@ -51,7 +51,9 @@ constexpr uint32_t kUnwindTickPeriodMs = 200;
 // TODO(rsavitski): this is better calculated (at setup) from the buffer and
 // sample sizes.
 constexpr size_t kMaxSamplesPerCpuPerReadTick = 32;
-constexpr uint32_t kProcDescriptorTimeoutMs = 200;
+// TODO(rsavitski): consider making this part of the config (for slow testing
+// platforms).
+constexpr uint32_t kProcDescriptorTimeoutMs = 400;
 
 constexpr size_t kUnwindingMaxFrames = 1000;
 
