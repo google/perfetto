@@ -139,6 +139,7 @@ TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
   AssertHasSampledStacksForPid(packets, app_pid);
+  PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
@@ -152,6 +153,7 @@ TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
   AssertHasSampledStacksForPid(packets, app_pid);
+  PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
@@ -169,6 +171,7 @@ TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
   else
     AssertNoStacksForPid(packets, app_pid);
 
+  PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
 }
 
