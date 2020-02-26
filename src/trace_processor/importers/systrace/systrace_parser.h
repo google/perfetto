@@ -111,21 +111,28 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
   size_t len = str.size();
   *out = {};
 
+  // We don't support empty events.
+  if (len == 0)
+    return SystraceParseResult::kFailure;
+
   constexpr const char* kClockSyncPrefix = "trace_event_clock_sync:";
   if (len >= strlen(kClockSyncPrefix) &&
       strncmp(kClockSyncPrefix, s, strlen(kClockSyncPrefix)) == 0)
     return SystraceParseResult::kUnsupported;
 
-  if (len < 2)
+  char ph = s[0];
+  if (ph != 'B' && ph != 'E' && ph != 'C' && ph != 'S' && ph != 'F')
+    return SystraceParseResult::kFailure;
+
+  out->phase = ph;
+
+  // We only support E events with no arguments.
+  if (len == 1 && ph != 'E')
     return SystraceParseResult::kFailure;
 
   // If str matches '[BEC]\|[0-9]+[\|\n]?' set tgid_length to the length of
   // the number. Otherwise return kFailure.
-  if (s[1] != '|' && s[1] != '\n')
-    return SystraceParseResult::kFailure;
-
-  char ph = s[0];
-  if (ph != 'B' && ph != 'E' && ph != 'C' && ph != 'S' && ph != 'F')
+  if (len >= 2 && s[1] != '|' && s[1] != '\n')
     return SystraceParseResult::kFailure;
 
   size_t tgid_length = 0;
@@ -141,7 +148,6 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
   std::string tgid_str(s + 2, tgid_length);
   out->tgid = base::StringToUInt32(tgid_str).value_or(0);
 
-  out->phase = ph;
   switch (ph) {
     case 'B': {
       size_t name_index = 2 + tgid_length + 1;
