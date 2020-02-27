@@ -95,6 +95,7 @@ class TrackEventParser {
   void ParseChromeUserEvent(protozero::ConstBytes chrome_user_event,
                             ArgsTracker::BoundInserter* inserter);
   void ParseChromeLatencyInfo(protozero::ConstBytes chrome_latency_info,
+                              PacketSequenceStateGeneration* sequence_state,
                               ArgsTracker::BoundInserter* inserter);
   void ParseChromeLegacyIpc(protozero::ConstBytes chrome_legacy_ipc,
                             ArgsTracker::BoundInserter* inserter);

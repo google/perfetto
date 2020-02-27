@@ -962,7 +962,6 @@ filegroup(
         "src/trace_processor/importers/ninja/ninja_log_parser.h",
         "src/trace_processor/importers/proto/args_table_utils.cc",
         "src/trace_processor/importers/proto/args_table_utils.h",
-        "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h",
         "src/trace_processor/importers/proto/packet_sequence_state.cc",
         "src/trace_processor/importers/proto/packet_sequence_state.h",
         "src/trace_processor/importers/proto/profile_module.cc",
@@ -1006,6 +1005,14 @@ filegroup(
         "src/trace_processor/track_tracker.cc",
         "src/trace_processor/track_tracker.h",
         "src/trace_processor/virtual_destructors.cc",
+    ],
+)
+
+# GN target: //src/trace_processor:track_event_descriptor
+filegroup(
+    name = "src_trace_processor_track_event_descriptor",
+    srcs = [
+        "src/trace_processor/importers/proto/track_event.descriptor.h",
     ],
 )
 
@@ -2719,6 +2726,7 @@ perfetto_cc_library(
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
+        ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
     ],
     hdrs = [
@@ -2805,6 +2813,7 @@ perfetto_cc_binary(
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
+        ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
     ],
     visibility = [
@@ -2964,6 +2973,7 @@ perfetto_cc_binary(
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
+        ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",
