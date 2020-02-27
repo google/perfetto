@@ -983,6 +983,11 @@ int TraceProcessorMain(int argc, char** argv) {
                   size_mb / t_load_s);
   }  // if (!trace_file_path.empty())
 
+  // Print out the stats to stderr for the trace.
+  if (!PrintStats()) {
+    return 1;
+  }
+
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
   if (options.enable_httpd) {
     RunHttpRPCServer(std::move(tp));
@@ -993,11 +998,6 @@ int TraceProcessorMain(int argc, char** argv) {
 #if PERFETTO_HAS_SIGNAL_H()
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
-
-  // Print out the stats to stderr for the trace.
-  if (!PrintStats()) {
-    return 1;
-  }
 
   auto t_run_start = base::GetWallTimeNs();
 
