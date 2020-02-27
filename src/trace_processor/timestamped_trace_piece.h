@@ -25,14 +25,14 @@
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/value.h>
-#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 // Json traces are only supported in some build configurations (standalone, UI).
 namespace Json {
 class Value {};
 }  // namespace Json
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 // GCC can't figure out the relationship between TimestampedTracePiece's type
 // and the union, and thus thinks that we may be moving or destroying
