@@ -245,6 +245,7 @@ int ExportTraceToDatabase(const std::string& output_name) {
     return 1;
   }
 
+  // Export real and virtual tables.
   auto tables_it = g_tp->ExecuteQuery(
       "SELECT name FROM perfetto_tables UNION "
       "SELECT name FROM sqlite_master WHERE type='table'");
@@ -265,6 +266,34 @@ int ExportTraceToDatabase(const std::string& output_name) {
     }
   }
   status = tables_it.Status();
+  if (!status.ok()) {
+    PERFETTO_ELOG("SQLite error: %s", status.c_message());
+    return 1;
+  }
+
+  // Export views.
+  auto views_it =
+      g_tp->ExecuteQuery("SELECT sql FROM sqlite_master WHERE type='view'");
+  for (uint32_t rows = 0; views_it.Next(); rows++) {
+    std::string sql = views_it.Get(0).string_value;
+    // View statements are of the form "CREATE VIEW name AS stmt". We need to
+    // rewrite name to point to the exported db.
+    const std::string kPrefix = "CREATE VIEW ";
+    PERFETTO_CHECK(sql.find(kPrefix) == 0);
+    sql = sql.substr(0, kPrefix.size()) + "perfetto_export." +
+          sql.substr(kPrefix.size());
+
+    auto export_it = g_tp->ExecuteQuery(sql);
+    bool export_has_more = export_it.Next();
+    PERFETTO_DCHECK(!export_has_more);
+
+    status = export_it.Status();
+    if (!status.ok()) {
+      PERFETTO_ELOG("SQLite error: %s", status.c_message());
+      return 1;
+    }
+  }
+  status = views_it.Status();
   if (!status.ok()) {
     PERFETTO_ELOG("SQLite error: %s", status.c_message());
     return 1;

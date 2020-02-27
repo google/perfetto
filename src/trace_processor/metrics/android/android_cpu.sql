@@ -62,12 +62,21 @@ SELECT
       END
     FROM core_layout_type
   ) AS core_type,
-  CAST(SUM(dur * freq) AS INT) AS cycles,
-  CAST(SUM(dur * freq / 1000000) AS INT) AS mcycles,
-  CAST(SUM(dur) AS INT) AS runtime_ns,
-  CAST(MIN(freq) AS INT) AS min_freq_khz,
-  CAST(MAX(freq) AS INT) AS max_freq_khz,
-  CAST((SUM(dur * freq) / SUM(dur)) AS INT) AS avg_freq_khz
+  -- We divide by 1e3 here as dur is in ns and freq_khz in khz. In total
+  -- this means we need to divide the duration by 1e9 and multiply the
+  -- frequency by 1e3 then multiply again by 1e3 to get millicycles
+  -- i.e. divide by 1e3 in total.
+  -- We use millicycles as we want to preserve this level of precision
+  -- for future calculations.
+  SUM(dur * freq_khz / 1000) AS millicycles,
+  CAST(SUM(dur * freq_khz / 1000000 / 1000000) AS INT) AS mcycles,
+  SUM(dur) AS runtime_ns,
+  MIN(freq_khz) AS min_freq_khz,
+  MAX(freq_khz) AS max_freq_khz,
+  -- We choose to work in micros space in both the numerator and
+  -- denominator as this gives us good enough precision without risking
+  -- overflows.
+  CAST(SUM(dur * freq_khz / 1000) / SUM(dur / 1000) AS INT) AS avg_freq_khz
 FROM cpu_freq_sched_per_thread
 GROUP BY utid, cpu;
 
@@ -80,7 +89,11 @@ SELECT
     'runtime_ns', SUM(runtime_ns),
     'min_freq_khz', MIN(min_freq_khz),
     'max_freq_khz', MAX(max_freq_khz),
-    'avg_freq_khz', (SUM(cycles) / SUM(runtime_ns))
+    -- In total here, we need to divide the denominator by 1e9 (to convert
+    -- ns to s) and divide the numerator by 1e6 (to convert millicycles to
+    -- kcycles). In total, this means we need to multiply the expression as
+    -- a whole by 1e3.
+    'avg_freq_khz', CAST((SUM(millicycles) / SUM(runtime_ns)) * 1000 AS INT)
   ) AS proto
 FROM raw_metrics_per_core
 GROUP BY utid, core_type;
@@ -124,7 +137,9 @@ SELECT
     'runtime_ns', SUM(runtime_ns),
     'min_freq_khz', MIN(min_freq_khz),
     'max_freq_khz', MAX(max_freq_khz),
-    'avg_freq_khz', (SUM(cycles) / SUM(runtime_ns))
+    -- See above for a breakdown of the maths used to compute the
+    -- multiplicative factor.
+    'avg_freq_khz', CAST((SUM(millicycles) / SUM(runtime_ns)) * 1000 AS INT)
   ) AS proto
 FROM raw_metrics_per_core
 GROUP BY utid;
@@ -155,7 +170,9 @@ SELECT
     'runtime_ns', SUM(runtime_ns),
     'min_freq_khz', MIN(min_freq_khz),
     'max_freq_khz', MAX(max_freq_khz),
-    'avg_freq_khz', (SUM(cycles) / SUM(runtime_ns))
+    -- See above for a breakdown of the maths used to compute the
+    -- multiplicative factor.
+    'avg_freq_khz', CAST((SUM(millicycles) / SUM(runtime_ns)) * 1000 AS INT)
   ) AS proto
 FROM raw_metrics_per_core
 JOIN thread USING (utid)

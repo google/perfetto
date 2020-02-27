@@ -132,7 +132,7 @@ class ProtoToArgsTable {
   // beginning. I.E. ".perfetto.protos.TrackEvent". And must match one of the
   // descriptors already added through |AddProtoFileDescriptor|.
   //
-  // IMPORTANT: currently bytes fields and repeated fields are not supported.
+  // IMPORTANT: currently bytes fields are not supported.
   //
   // TODO(b/145578432): Add support for repeated fields and byte fields.
   util::Status InternProtoIntoArgsTable(const protozero::ConstBytes& cb,
@@ -168,7 +168,8 @@ class ProtoToArgsTable {
       const protozero::ConstBytes& cb,
       const std::string& type,
       ArgsTracker::BoundInserter* inserter,
-      std::string* prefix);
+      std::string* key_prefix,
+      std::string* flat_key_prefix);
 
   using OverrideIterator =
       std::vector<std::pair<std::string, ParsingOverride>>::iterator;
@@ -180,7 +181,8 @@ class ProtoToArgsTable {
   ParsingOverrideState state_;
   std::vector<std::pair<std::string, ParsingOverride>> overrides_;
   DescriptorPool pool_;
-  std::string prefix_;
+  std::string key_prefix_;
+  std::string flat_key_prefix_;
 };
 
 }  // namespace trace_processor

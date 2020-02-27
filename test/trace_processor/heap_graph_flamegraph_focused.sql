@@ -11,5 +11,5 @@ FROM experimental_flamegraph(
   (select max(graph_sample_ts) from heap_graph_object),
   (select max(upid) from heap_graph_object),
   'graph')
-WHERE focus_str = 'LeftChild0'
+WHERE focus_str = 'left'
 LIMIT 10
