@@ -24,7 +24,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_processor_context.h"
 
 namespace Json {
 class Value;
@@ -65,7 +64,7 @@ class PacketSequenceState;
 // from there to the end.
 class TraceSorter {
  public:
-  TraceSorter(TraceProcessorContext*, int64_t window_size_ns);
+  TraceSorter(std::unique_ptr<TraceParser> parser, int64_t window_size_ns);
 
   inline void PushTracePacket(int64_t timestamp,
                               PacketSequenceState* state,
@@ -236,7 +235,7 @@ class TraceSorter {
     SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
 
-  TraceProcessorContext* const context_;
+  std::unique_ptr<TraceParser> parser_;
 
   // queues_[0] is the general (non-ftrace) queue.
   // queues_[1] is the ftrace queue for CPU(0).
