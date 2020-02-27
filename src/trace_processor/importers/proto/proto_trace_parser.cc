@@ -369,7 +369,7 @@ void ProtoTraceParser::ParsePerfSample(
     return;
   }
 
-  context_->perf_sample_tracker_->AddStackToSliceTrack(
+  context_->perf_sample_tracker->AddStackToSliceTrack(
       ts, *cs_id, sample.pid(), sample.tid(), sample.cpu());
 }
 
