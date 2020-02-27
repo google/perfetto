@@ -18,33 +18,18 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/gzip_trace_parser.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
-#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
-#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
-
-// JSON parsing and exporting is only supported in the standalone and
-// Chromium builds.
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
-#include "src/trace_processor/importers/json/json_trace_parser.h"
-#include "src/trace_processor/importers/json/json_trace_tokenizer.h"
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
-
 namespace perfetto {
 namespace trace_processor {
 namespace {
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 const char kNoZlibErr[] =
     "Cannot open compressed trace. zlib not enabled in the build config";
-#endif
 
 inline bool isspace(unsigned char c) {
   return ::isspace(c);
@@ -82,14 +67,15 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
     switch (trace_type) {
       case kJsonTraceType: {
         PERFETTO_DLOG("JSON trace detected");
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
-        reader_.reset(new JsonTraceTokenizer(context_));
-        // JSON traces have no guarantees about the order of events in them.
-        context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
-        context_->parser.reset(new JsonTraceParser(context_));
-#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
-        PERFETTO_FATAL("JSON traces not supported.");
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+        if (context_->json_trace_tokenizer && context_->json_trace_parser) {
+          reader_ = std::move(context_->json_trace_tokenizer);
+
+          // JSON traces have no guarantees about the order of events in them.
+          context_->sorter.reset(new TraceSorter(
+              std::move(context_->json_trace_parser), kMaxWindowSize));
+        } else {
+          return util::ErrStatus("JSON support is disabled");
+        }
         break;
       }
       case kProtoTraceType: {
@@ -97,8 +83,9 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         // This will be reduced once we read the trace config and we see flush
         // period being set.
         reader_.reset(new ProtoTraceTokenizer(context_));
-        context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
-        context_->parser.reset(new ProtoTraceParser(context_));
+        context_->sorter.reset(new TraceSorter(
+            std::unique_ptr<TraceParser>(new ProtoTraceParser(context_)),
+            kMaxWindowSize));
         context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
         break;
       }
@@ -108,15 +95,17 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         break;
       }
       case kFuchsiaTraceType: {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         PERFETTO_DLOG("Fuchsia trace detected");
-        // Fuschia traces can have massively out of order events.
-        reader_.reset(new FuchsiaTraceTokenizer(context_));
-        context_->sorter.reset(new TraceSorter(context_, kMaxWindowSize));
-        context_->parser.reset(new FuchsiaTraceParser(context_));
-#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
-        PERFETTO_FATAL("Fuchsia traces not supported.");
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
+        if (context_->fuchsia_trace_parser &&
+            context_->fuchsia_trace_tokenizer) {
+          reader_ = std::move(context_->fuchsia_trace_tokenizer);
+
+          // Fuschia traces can have massively out of order events.
+          context_->sorter.reset(new TraceSorter(
+              std::move(context_->fuchsia_trace_parser), kMaxWindowSize));
+        } else {
+          return util::ErrStatus("Fuchsia support is disabled");
+        }
         break;
       }
       case kSystraceTraceType:
@@ -129,21 +118,18 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
           return util::ErrStatus("Systrace support is disabled");
         }
       case kGzipTraceType:
-        PERFETTO_DLOG("gzip trace detected");
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-        reader_.reset(new GzipTraceParser(context_));
-        break;
-#else
-        return util::ErrStatus(kNoZlibErr);
-#endif
       case kCtraceTraceType:
-        PERFETTO_DLOG("ctrace trace detected");
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-        reader_.reset(new GzipTraceParser(context_));
-        break;
-#else
-        return util::ErrStatus(kNoZlibErr);
-#endif
+        if (trace_type == kGzipTraceType) {
+          PERFETTO_DLOG("gzip trace detected");
+        } else {
+          PERFETTO_DLOG("ctrace trace detected");
+        }
+        if (context_->gzip_trace_parser) {
+          reader_ = std::move(context_->gzip_trace_parser);
+          break;
+        } else {
+          return util::ErrStatus(kNoZlibErr);
+        }
       case kUnknownTraceType:
         return util::ErrStatus("Unknown trace type provided");
     }

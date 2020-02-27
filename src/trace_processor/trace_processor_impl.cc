@@ -26,7 +26,13 @@
 #include "src/trace_processor/additional_modules.h"
 #include "src/trace_processor/experimental_counter_dur_generator.h"
 #include "src/trace_processor/experimental_flamegraph_generator.h"
+#include "src/trace_processor/gzip_trace_parser.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/importers/json/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_trace_tokenizer.h"
+#include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/sql_stats_table.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
@@ -387,7 +393,22 @@ void EnsureSqliteInitialized() {
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg) {
+  context_.fuchsia_trace_tokenizer.reset(new FuchsiaTraceTokenizer(&context_));
+  context_.fuchsia_trace_parser.reset(new FuchsiaTraceParser(&context_));
+
+  context_.systrace_trace_parser.reset(new SystraceTraceParser(&context_));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+  context_.gzip_trace_parser.reset(new GzipTraceParser(&context_));
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+  context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
+  context_.json_trace_parser.reset(new JsonTraceParser(&context_));
+#endif
+
   RegisterAdditionalModules(&context_);
+
   sqlite3* db = nullptr;
   EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
