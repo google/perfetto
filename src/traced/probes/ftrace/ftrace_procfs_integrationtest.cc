@@ -107,11 +107,12 @@ TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(TraceMarker)) {
 }
 
 TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableEvent)) {
-  ftrace_->EnableEvent("sched", "sched_switch");
+  ASSERT_TRUE(ftrace_->EnableEvent("sched", "sched_switch"));
   sleep(1);
+  ASSERT_TRUE(ftrace_->DisableEvent("sched", "sched_switch"));
+
   EXPECT_THAT(GetTraceOutput(), HasSubstr("sched_switch"));
 
-  ftrace_->DisableEvent("sched", "sched_switch");
   ftrace_->ClearTrace();
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
@@ -169,7 +170,6 @@ TEST_F(FtraceProcfsIntegrationTest,
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");
   EXPECT_EQ(ReadFile("tracing_on"), "1\n");
   EXPECT_EQ(ReadFile("events/enable"), "X\n");
-  EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello"));
 
   HardResetFtraceState();
 
