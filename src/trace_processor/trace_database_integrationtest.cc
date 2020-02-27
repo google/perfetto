@@ -217,7 +217,9 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz15252) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_17805", 4096).ok());
+  // This trace fails to load as it's detected as a systrace but is full of
+  // garbage data.
+  ASSERT_TRUE(!LoadTrace("clusterfuzz_17805", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
