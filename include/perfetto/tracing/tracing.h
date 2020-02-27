@@ -204,7 +204,7 @@ class PERFETTO_EXPORT TracingSession {
   // after stopping. Reading the trace data is a destructive operation w.r.t.
   // contents of the trace buffer and is not idempotent.
   // A single ReadTrace() call can yield >1 callback invocations, until
-  // |has_more| is true.
+  // |has_more| is false.
   using ReadTraceCallback = std::function<void(ReadTraceCallbackArgs)>;
   virtual void ReadTrace(ReadTraceCallback) = 0;
 

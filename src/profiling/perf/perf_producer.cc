@@ -51,6 +51,9 @@ constexpr uint32_t kUnwindTickPeriodMs = 200;
 // TODO(rsavitski): this is better calculated (at setup) from the buffer and
 // sample sizes.
 constexpr size_t kMaxSamplesPerCpuPerReadTick = 32;
+// TODO(rsavitski): consider making this part of the config (for slow testing
+// platforms).
+constexpr uint32_t kProcDescriptorTimeoutMs = 400;
 
 constexpr size_t kUnwindingMaxFrames = 1000;
 
@@ -118,6 +121,13 @@ PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
       proc_fd_getter_(proc_fd_getter),
       weak_factory_(this) {
   proc_fd_getter->SetDelegate(this);
+
+  // Enable the static unwinding cache, clearing it first in case we're
+  // reconstructing the class in |Restart|.
+  // TODO(rsavitski): the toggling needs to be done on the same thread as
+  // unwinding (right now this is on the same primary thread).
+  unwindstack::Elf::SetCachingEnabled(false);
+  unwindstack::Elf::SetCachingEnabled(true);
 }
 
 // TODO(rsavitski): consider configure at setup + enable at start instead.
@@ -220,10 +230,11 @@ void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
   InitiateReaderStop(&ds);
 }
 
-// TODO(rsavitski): ignoring flushes for now, as it is involved given
-// out-of-order unwinding and proc-fd timeouts. Instead of responding to
-// explicit flushes, we can ensure that we're otherwise well-behaved (do not
-// reorder packets too much).
+// The perf data sources ignore flush requests, as flushing would be
+// unnecessarily complicated given out-of-order unwinding and proc-fd timeouts.
+// Instead of responding to explicit flushes, we can ensure that we're otherwise
+// well-behaved (do not reorder packets too much), and let the service scrape
+// the SMB.
 void PerfProducer::Flush(FlushRequestID flush_id,
                          const DataSourceInstanceID* data_source_ids,
                          size_t num_data_sources) {
@@ -316,13 +327,14 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       PERFETTO_DLOG("New pid: [%d]", static_cast<int>(pid));
       fd_entry.status = Status::kResolving;
       proc_fd_getter_->GetDescriptorsForPid(pid);  // response is async
-      PostDescriptorLookupTimeout(ds_id, pid, /*timeout_ms=*/1000);
+      PostDescriptorLookupTimeout(ds_id, pid, kProcDescriptorTimeoutMs);
     }
 
-    // TODO(rsavitski): consider recording skipped entries in the trace.
     if (fd_entry.status == Status::kSkip) {
       PERFETTO_DLOG("Skipping sample for previously poisoned pid [%d]",
                     static_cast<int>(pid));
+      PostEmitSkippedSample(ds_id, ProfilerStage::kRead,
+                            std::move(sample.value()));
       continue;
     }
 
@@ -461,6 +473,8 @@ bool PerfProducer::ProcessUnwindQueue(DataSourceInstanceID ds_id,
     if (fd_status == Status::kSkip) {
       PERFETTO_DLOG("Skipping sample for pid [%d]",
                     static_cast<int>(sample.pid));
+      PostEmitSkippedSample(ds_id, ProfilerStage::kUnwind,
+                            std::move(entry.sample));
       entry.valid = false;
       continue;
     }
@@ -549,7 +563,9 @@ PerfProducer::CompletedSample PerfProducer::UnwindSample(
   PERFETTO_DLOG("Frames from unwindstack:");
   std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
   for (unwindstack::FrameData& frame : frames) {
-    PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
+    if (PERFETTO_DLOG_IS_ON())
+      PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
+
     ret.frames.emplace_back(unwind_state.AnnotateFrame(std::move(frame)));
   }
 
@@ -608,8 +624,8 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   perf_sample->set_cpu(sample.cpu);
   perf_sample->set_pid(static_cast<uint32_t>(sample.pid));
   perf_sample->set_tid(static_cast<uint32_t>(sample.tid));
-  perf_sample->set_callstack_iid(callstack_iid);
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.cpu_mode));
+  perf_sample->set_callstack_iid(callstack_iid);
   if (sample.unwind_error != unwindstack::ERROR_NONE) {
     perf_sample->set_unwind_error(ToProtoEnum(sample.unwind_error));
   }
@@ -642,6 +658,49 @@ void PerfProducer::EmitRingBufferLoss(DataSourceInstanceID ds_id,
   perf_sample->set_kernel_records_lost(records_lost);
 }
 
+void PerfProducer::PostEmitSkippedSample(DataSourceInstanceID ds_id,
+                                         ProfilerStage stage,
+                                         ParsedSample sample) {
+  // hack: c++11 lambdas can't be moved into, so stash the sample on the heap.
+  ParsedSample* raw_sample = new ParsedSample(std::move(sample));
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this, ds_id, stage, raw_sample] {
+    if (weak_this)
+      weak_this->EmitSkippedSample(ds_id, stage, std::move(*raw_sample));
+    delete raw_sample;
+  });
+}
+
+void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
+                                     ProfilerStage stage,
+                                     ParsedSample sample) {
+  auto ds_it = data_sources_.find(ds_id);
+  if (ds_it == data_sources_.end()) {
+    PERFETTO_DLOG("EmitSkippedSample(%zu): source gone",
+                  static_cast<size_t>(ds_id));
+    return;
+  }
+  DataSource& ds = ds_it->second;
+
+  auto packet = ds.trace_writer->NewTracePacket();
+  packet->set_timestamp(sample.timestamp);
+  auto* perf_sample = packet->set_perf_sample();
+  perf_sample->set_cpu(sample.cpu);
+  perf_sample->set_pid(static_cast<uint32_t>(sample.pid));
+  perf_sample->set_tid(static_cast<uint32_t>(sample.tid));
+  perf_sample->set_cpu_mode(ToCpuModeEnum(sample.cpu_mode));
+
+  using PerfSample = protos::pbzero::PerfSample;
+  switch (stage) {
+    case ProfilerStage::kRead:
+      perf_sample->set_sample_skipped_reason(PerfSample::PROFILER_STAGE_READ);
+      break;
+    case ProfilerStage::kUnwind:
+      perf_sample->set_sample_skipped_reason(PerfSample::PROFILER_STAGE_UNWIND);
+      break;
+  }
+}
+
 void PerfProducer::InitiateReaderStop(DataSource* ds) {
   PERFETTO_DLOG("InitiateReaderStop");
   ds->reader_stopping = true;
@@ -671,9 +730,13 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
 
   endpoint_->NotifyDataSourceStopped(ds_id);
 
-  // If there are no more data sources, purge internings.
+  // Clean up resources if there are no more active sources.
   if (data_sources_.empty()) {
+    // purge internings
     callstack_trie_.ClearTrie();
+    // clear and re-enable libunwindstack's cache
+    unwindstack::Elf::SetCachingEnabled(false);
+    unwindstack::Elf::SetCachingEnabled(true);
   }
 }
 
@@ -701,8 +764,9 @@ void PerfProducer::ConnectWithRetries(const char* socket_name) {
 void PerfProducer::ConnectService() {
   PERFETTO_DCHECK(state_ == kNotConnected);
   state_ = kConnecting;
-  endpoint_ = ProducerIPCClient::Connect(producer_socket_name_, this,
-                                         kProducerName, task_runner_);
+  endpoint_ = ProducerIPCClient::Connect(
+      producer_socket_name_, this, kProducerName, task_runner_,
+      TracingService::ProducerSMBScrapingMode::kEnabled);
 }
 
 void PerfProducer::IncreaseConnectionBackoff() {

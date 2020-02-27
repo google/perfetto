@@ -106,9 +106,16 @@ void DbSqliteTable::RegisterTable(
     std::unique_ptr<DynamicTableGenerator> generator) {
   Table::Schema schema = generator->CreateSchema();
   std::string name = generator->TableName();
+
+  // Figure out if the table needs explicit args (in the form of constraints
+  // on hidden columns) passed to it in order to make the query valid.
+  util::Status status = generator->ValidateConstraints({});
+  bool requires_args = !status.ok();
+
   Context context{cache, std::move(schema), TableComputation::kDynamic, nullptr,
                   std::move(generator)};
-  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name);
+  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name,
+                                                false, requires_args);
 }
 
 util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {

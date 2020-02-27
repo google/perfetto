@@ -32,6 +32,7 @@ import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/unmapped_java_symbols.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
+import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
 
 // Trace processor metadata
@@ -52,7 +53,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 21
+// Next id: 22
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -97,6 +98,9 @@ message TraceMetrics {
 
   // If the trace contains a heap graph, output allocation statistics.
   optional JavaHeapStats java_heap_stats = 17;
+
+  // If the trace contains a heap graph, output histogram.
+  optional JavaHeapHistogram java_heap_histogram = 21;
 
   // Metrics used to find potential culprits of low-memory kills.
   optional AndroidLmkReasonMetric android_lmk_reason = 18;
