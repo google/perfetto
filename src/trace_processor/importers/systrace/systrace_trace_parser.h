@@ -21,6 +21,8 @@
 #include <regex>
 
 #include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/systrace/systrace_line_parser.h"
+#include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_context.h"
 
@@ -45,18 +47,14 @@ class SystraceTraceParser : public ChunkedTraceReader {
     kEndOfSystrace,
   };
 
-  util::Status ParseSingleSystraceEvent(const std::string& buffer);
-
-  TraceProcessorContext* const context_;
-  const StringId sched_wakeup_name_id_ = kNullStringId;
-  const StringId cpu_idle_name_id_ = kNullStringId;
-  const std::regex line_matcher_;
-
   ParseState state_ = ParseState::kBeforeParse;
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
   std::deque<uint8_t> partial_buf_;
+
+  SystraceLineTokenizer line_tokenizer_;
+  SystraceLineParser line_parser_;
 };
 
 }  // namespace trace_processor
