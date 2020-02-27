@@ -9,6 +9,8 @@ java_heap_stats {
       ts: 10
       heap_size: 992
       reachable_heap_size: 352
+      obj_count: 6
+      reachable_obj_count: 3
     }
   }
 }

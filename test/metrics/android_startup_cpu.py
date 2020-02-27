@@ -24,13 +24,13 @@ trace.add_system_info(fingerprint="fingerprint/walleye/P")
 trace.add_ftrace_packet(cpu=0)
 
 # CPU counters for CPU 0.
-trace.add_cpufreq(ts=9, freq=500000, cpu=0)
-trace.add_cpufreq(ts=15, freq=1400000, cpu=0)
-trace.add_cpufreq(ts=17, freq=2500000, cpu=0)
+trace.add_cpufreq(ts=9 * 1000000, freq=500000, cpu=0)
+trace.add_cpufreq(ts=15 * 1000000, freq=1400000, cpu=0)
+trace.add_cpufreq(ts=17 * 1000000, freq=2500000, cpu=0)
 
 # CPU counters for CPU 6.
-trace.add_cpufreq(ts=11, freq=2000000, cpu=6)
-trace.add_cpufreq(ts=15, freq=8000000, cpu=6)
+trace.add_cpufreq(ts=11 * 1000000, freq=2000000, cpu=6)
+trace.add_cpufreq(ts=15 * 1000000, freq=8000000, cpu=6)
 
 # Add 3 processes. This also adds one main thread per process.
 trace.add_process_tree_packet()
@@ -45,17 +45,17 @@ trace.add_thread(tid=6, tgid=2, cmdline="p2-t3")
 
 # Schedule threads in CPU 0.
 trace.add_ftrace_packet(cpu=0)
-trace.add_sched(ts=10, prev_pid=0, next_pid=1)
-trace.add_sched(ts=12, prev_pid=1, next_pid=3)
-trace.add_sched(ts=16, prev_pid=3, next_pid=4)
-trace.add_sched(ts=17, prev_pid=4, next_pid=2)
-trace.add_sched(ts=19, prev_pid=2, next_pid=0)
+trace.add_sched(ts=10 * 1000000, prev_pid=0, next_pid=1)
+trace.add_sched(ts=12 * 1000000, prev_pid=1, next_pid=3)
+trace.add_sched(ts=16 * 1000000, prev_pid=3, next_pid=4)
+trace.add_sched(ts=17 * 1000000, prev_pid=4, next_pid=2)
+trace.add_sched(ts=19 * 1000000, prev_pid=2, next_pid=0)
 
 # Schedule threads in CPU 6.
 trace.add_ftrace_packet(cpu=6)
-trace.add_sched(ts=11, prev_pid=0, next_pid=5)
-trace.add_sched(ts=13, prev_pid=5, next_pid=6)
-trace.add_sched(ts=16, prev_pid=6, next_pid=3)
-trace.add_sched(ts=18, prev_pid=3, next_pid=0)
+trace.add_sched(ts=11 * 1000000, prev_pid=0, next_pid=5)
+trace.add_sched(ts=13 * 1000000, prev_pid=5, next_pid=6)
+trace.add_sched(ts=16 * 1000000, prev_pid=6, next_pid=3)
+trace.add_sched(ts=18 * 1000000, prev_pid=3, next_pid=0)
 
 print(trace.trace.SerializeToString())
