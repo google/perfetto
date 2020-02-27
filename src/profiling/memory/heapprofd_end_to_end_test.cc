@@ -15,8 +15,10 @@
  */
 
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/pipe.h"
@@ -307,6 +309,18 @@ class HeapprofdEndToEnd : public ::testing::TestWithParam<bool> {
   }
 };
 
+void KillAssertRunning(pid_t pid) {
+  char buf[128];
+  PERFETTO_CHECK(snprintf(buf, sizeof(buf), "/proc/%" PRIdMAX,
+                          static_cast<intmax_t>(pid)) > 0);
+  // Assert /proc/<pid> exists.
+  struct stat unused;
+  PERFETTO_CHECK(stat(buf, &unused) == 0);
+  int wstatus;
+  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
+  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, &wstatus, 0)) == pid);
+}
+
 TEST_P(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
 
@@ -336,8 +350,7 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoProcesses) {
@@ -370,10 +383,8 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
-  PERFETTO_CHECK(kill(pid2, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid2, nullptr, 0)) == pid2);
+  KillAssertRunning(pid);
+  KillAssertRunning(pid2);
 }
 
 TEST_P(HeapprofdEndToEnd, FinalFlush) {
@@ -402,8 +413,7 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 }
 
 TEST_P(HeapprofdEndToEnd, NativeStartup) {
@@ -457,8 +467,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -538,8 +547,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -615,8 +623,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -692,8 +699,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -800,8 +806,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
                       kSecondIterationBytes);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 }
 
 TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
@@ -851,12 +856,9 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   ValidateRejectedConcurrent(helper_concurrent.get(),
                              static_cast<uint64_t>(pid), true);
 
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
+  KillAssertRunning(pid);
 }
 
-// TODO(rsavitski): fold exit status assertions into existing tests where
-// possible.
 TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   constexpr uint64_t kTestAllocSize = 128;
   base::Pipe start_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
