@@ -27,11 +27,11 @@ namespace trace_processor {
 ProtoToArgsTable::ProtoToArgsTable(
     PacketSequenceStateGeneration* sequence_state,
     TraceProcessorContext* context,
-    std::string starting_prefix,
+    const std::string& starting_prefix,
     size_t prefix_size_hint)
     : state_{context, sequence_state},
-      key_prefix_(std::move(starting_prefix)),
-      flat_key_prefix_(std::move(starting_prefix)) {
+      key_prefix_(starting_prefix),
+      flat_key_prefix_(starting_prefix) {
   key_prefix_.reserve(prefix_size_hint);
   flat_key_prefix_.reserve(prefix_size_hint);
 }

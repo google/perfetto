@@ -42,14 +42,18 @@ if (enable_perfetto_ui) {
   }
 }
 
+source_set("track_event_descriptor") {
+  sources = [ "importers/proto/track_event.descriptor.h" ]
+}
+
 source_set("protozero_to_text") {
   sources = [
-    "importers/proto/track_event.descriptor.h",
     "protozero_to_text.cc",
     "protozero_to_text.h",
   ]
   deps = [
     ":descriptors",
+    ":track_event_descriptor",
     "../../gn:default_deps",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace/track_event:zero",
@@ -99,7 +103,6 @@ source_set("storage_minimal") {
     "importers/ninja/ninja_log_parser.h",
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
-    "importers/proto/chrome_compositor_scheduler_state.descriptor.h",
     "importers/proto/packet_sequence_state.cc",
     "importers/proto/packet_sequence_state.h",
     "importers/proto/profile_module.cc",
@@ -146,6 +149,7 @@ source_set("storage_minimal") {
   ]
   deps = [
     ":descriptors",
+    ":track_event_descriptor",
     "../../gn:default_deps",
     "../base",
     "../protozero",
