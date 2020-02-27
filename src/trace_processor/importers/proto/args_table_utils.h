@@ -106,7 +106,7 @@ class ProtoToArgsTable {
   // size needed.
   ProtoToArgsTable(PacketSequenceStateGeneration* sequence_state,
                    TraceProcessorContext* context,
-                   std::string starting_prefix = "",
+                   const std::string& starting_prefix = "",
                    size_t prefix_size_hint = 64);
 
   // Adds a compile time reflection of a set of proto files. You must provide

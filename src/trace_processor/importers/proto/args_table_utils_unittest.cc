@@ -24,7 +24,6 @@
 #include "src/protozero/test/example_proto/test_messages.descriptor.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/args_tracker.h"
-#include "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -90,17 +89,6 @@ class ArgsTableUtilsTest : public ::testing::Test {
   TraceProcessorContext context_;
   TraceStorage* storage_;
 };
-
-TEST_F(ArgsTableUtilsTest, EnsureChromeCompositorStateDescriptorParses) {
-  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
-                          0);
-  auto status = helper.AddProtoFileDescriptor(
-      kChromeCompositorSchedulerStateDescriptor.data(),
-      kChromeCompositorSchedulerStateDescriptor.size());
-  EXPECT_TRUE(status.ok())
-      << "Failed to parse kChromeCompositorSchedulerStateDescriptor: "
-      << status.message();
-}
 
 TEST_F(ArgsTableUtilsTest, EnsureTestMessageProtoParses) {
   ProtoToArgsTable helper(sequence_state_->current_generation(), &context_, "",
@@ -412,6 +400,43 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
                      Variadic::String(*file_name_id)));
   EXPECT_TRUE(
       HasArg(ArgSetId(arg_set_id_), "line_number", Variadic::Integer(2)));
+}
+
+TEST_F(ArgsTableUtilsTest, NonEmptyPrefix) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+  msg->add_repeated_int32(1);
+  msg->add_repeated_int32(-1);
+  msg->add_repeated_int32(100);
+  msg->add_repeated_int32(2000000);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  storage_->mutable_track_table()->Insert({});
+  ProtoToArgsTable helper(sequence_state_->current_generation(), &context_,
+                          "prefix", 0);
+  auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
+  status = helper.InternProtoIntoArgsTable(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", &inserter);
+
+  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
+                           << status.message();
+
+  context_.args_tracker->Flush();
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
+                     "prefix.repeated_int32[0]", Variadic::Integer(1)));
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
+                     "prefix.repeated_int32[1]", Variadic::Integer(-1)));
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
+                     "prefix.repeated_int32[2]", Variadic::Integer(100)));
+  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
+                     "prefix.repeated_int32[3]", Variadic::Integer(2000000)));
 }
 
 }  // namespace
