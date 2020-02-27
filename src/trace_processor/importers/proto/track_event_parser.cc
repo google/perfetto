@@ -26,8 +26,8 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
-#include "src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/track_tracker.h"
 
@@ -694,7 +694,8 @@ void TrackEventParser::ParseTrackEvent(
       ParseChromeHistogramSample(event.chrome_histogram_sample(), inserter);
     }
     if (event.has_chrome_latency_info()) {
-      ParseChromeLatencyInfo(event.chrome_latency_info(), inserter);
+      ParseChromeLatencyInfo(event.chrome_latency_info(), sequence_state,
+                             inserter);
     }
 
     if (legacy_passthrough_utid) {
@@ -1288,9 +1289,8 @@ void TrackEventParser::ParseCcScheduler(
   ProtoToArgsTable helper(sequence_state, context_,
                           /* starting_prefix = */ "",
                           kCcSchedulerStateMaxColumnLength);
-  auto status = helper.AddProtoFileDescriptor(
-      kChromeCompositorSchedulerStateDescriptor.data(),
-      kChromeCompositorSchedulerStateDescriptor.size());
+  auto status = helper.AddProtoFileDescriptor(kTrackEventDescriptor.data(),
+                                              kTrackEventDescriptor.size());
   PERFETTO_DCHECK(status.ok());
 
   // Switch |source_location_iid| into its interned data variant.
@@ -1371,26 +1371,17 @@ void TrackEventParser::ParseChromeKeyedService(
 
 void TrackEventParser::ParseChromeLatencyInfo(
     protozero::ConstBytes chrome_latency_info,
+    PacketSequenceStateGeneration* sequence_state,
     ArgsTracker::BoundInserter* inserter) {
-  protos::pbzero::ChromeLatencyInfo::Decoder event(chrome_latency_info.data,
-                                                   chrome_latency_info.size);
-
-  if (event.has_trace_id()) {
-    inserter->AddArg(chrome_latency_info_trace_id_key_id_,
-                     Variadic::Integer(event.trace_id()));
-  }
-  if (event.has_step()) {
-    size_t step_index = static_cast<size_t>(event.step());
-    if (step_index >= chrome_latency_info_step_ids_.size())
-      step_index = 0;
-    inserter->AddArg(
-        chrome_latency_info_step_key_id_,
-        Variadic::String(chrome_latency_info_step_ids_[step_index]));
-  }
-  if (event.has_frame_tree_node_id()) {
-    inserter->AddArg(chrome_latency_info_frame_tree_node_id_key_id_,
-                     Variadic::Integer(event.frame_tree_node_id()));
-  }
+  // TODO(ddrone): make sure that ProtoToArgsTable can be re-used and avoid
+  // creating an instance per method call by making it an instance variable.
+  ProtoToArgsTable helper(sequence_state, context_,
+                          /* starting_prefix = */ "latency_info");
+  auto status = helper.AddProtoFileDescriptor(kTrackEventDescriptor.data(),
+                                              kTrackEventDescriptor.size());
+  PERFETTO_DCHECK(status.ok());
+  helper.InternProtoIntoArgsTable(
+      chrome_latency_info, ".perfetto.protos.ChromeLatencyInfo", inserter);
 }
 
 void TrackEventParser::ParseChromeHistogramSample(
