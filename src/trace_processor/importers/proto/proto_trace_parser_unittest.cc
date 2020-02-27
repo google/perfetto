@@ -215,8 +215,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.slice_tracker.reset(slice_);
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
-    context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
-    context_.parser.reset(new ProtoTraceParser(&context_));
+    context_.sorter.reset(new TraceSorter(CreateParser(), 0 /*window size*/));
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
@@ -261,6 +260,10 @@ class ProtoTraceParserTest : public ::testing::Test {
   }
 
  protected:
+  std::unique_ptr<TraceParser> CreateParser() {
+    return std::unique_ptr<TraceParser>(new ProtoTraceParser(&context_));
+  }
+
   std::unique_ptr<protozero::ScatteredHeapBuffer> heap_buf_;
   std::unique_ptr<protozero::ScatteredStreamWriter> stream_writer_;
   protos::pbzero::Trace trace_;
@@ -628,7 +631,7 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
 TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -673,7 +676,7 @@ TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -727,7 +730,7 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -810,7 +813,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -890,7 +893,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1053,7 +1056,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1197,7 +1200,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 // TODO(eseckler): Also test instant events on separate tracks.
 TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   // Sequence 1.
   {
@@ -1383,7 +1386,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1444,7 +1447,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     // Event should be discarded because it specifies delta timestamps and no
@@ -1486,7 +1489,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1587,7 +1590,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
 
 TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1703,7 +1706,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   MockBoundInserter inserter;
 
   {
@@ -1909,7 +1912,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1977,7 +1980,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2056,7 +2059,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2168,7 +2171,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   clock_->AddSnapshot(
       {{protos::pbzero::ClockSnapshot::Clock::BOOTTIME, 0},
@@ -2213,7 +2216,7 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 
 TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2242,7 +2245,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   static const int kIntValue = 123;
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2281,7 +2284,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   static const char kFullData[] = "aaabbb";
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2311,7 +2314,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   static const char kUserTraceEvent[] = "{\"user\":1}";
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2345,7 +2348,7 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   static const char kTag2[] = "tag2";
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   auto* metadata = trace_.add_packet()->set_chrome_benchmark_metadata();
   metadata->set_benchmark_name(kName);
