@@ -24,6 +24,7 @@
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -423,8 +424,16 @@ void TrackEventParser::ParseTrackEvent(
     auto* decoder = sequence_state->LookupInternedMessage<
         protos::pbzero::InternedData::kEventCategoriesFieldNumber,
         protos::pbzero::EventCategory>(category_iids[0]);
-    if (decoder)
+    if (decoder) {
       category_id = storage->InternString(decoder->name());
+    } else {
+      char buffer[32];
+      base::StringWriter writer(buffer, sizeof(buffer));
+      writer.AppendLiteral("unknown(");
+      writer.AppendUnsignedInt(category_iids[0]);
+      writer.AppendChar(')');
+      category_id = storage->InternString(writer.GetStringView());
+    }
   } else if (category_iids.empty() && category_strings.size() == 1) {
     category_id = storage->InternString(category_strings[0]);
   } else if (category_iids.size() + category_strings.size() > 1) {
