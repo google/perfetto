@@ -167,40 +167,35 @@ void AssertNoProfileContents(
   }
 }
 
-// TODO(b/150085813): Re-enable this once it is fixed.
-TEST(DISABLED_HeapprofdCtsTest, DebuggableAppRuntime) {
+TEST(HeapprofdCtsTest, DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-// TODO(b/150085813): Re-enable this once it is fixed.
-TEST(DISABLED_HeapprofdCtsTest, DebuggableAppStartup) {
+TEST(HeapprofdCtsTest, DebuggableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileStartup(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-// TODO(b/150085813): Re-enable this once it is fixed.
-TEST(DISABLED_HeapprofdCtsTest, ProfileableAppRuntime) {
+TEST(HeapprofdCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-// TODO(b/150085813): Re-enable this once it is fixed.
-TEST(DISABLED_HeapprofdCtsTest, ProfileableAppStartup) {
+TEST(HeapprofdCtsTest, ProfileableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileStartup(app_name);
   AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
-// TODO(b/150085813): Re-enable this once it is fixed.
-TEST(DISABLED_HeapprofdCtsTest, ReleaseAppRuntime) {
+TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
@@ -212,8 +207,7 @@ TEST(DISABLED_HeapprofdCtsTest, ReleaseAppRuntime) {
   StopApp(app_name);
 }
 
-// TODO(b/150085813): Re-enable this once it is fixed.
-TEST(DISABLED_HeapprofdCtsTest, ReleaseAppStartup) {
+TEST(HeapprofdCtsTest, ReleaseAppStartup) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileStartup(app_name);
 
