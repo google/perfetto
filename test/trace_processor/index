@@ -167,6 +167,7 @@ track_event_same_tids.textproto track_event_slices.sql track_event_same_tids_sli
 track_event_typed_args.textproto track_event_slices.sql track_event_typed_args_slices.out
 track_event_typed_args.textproto track_event_args.sql track_event_typed_args_args.out
 track_event_tracks.textproto track_event_slices.sql track_event_tracks_slices.out
+track_event_with_atrace.textproto track_event_slices.sql track_event_with_atrace.out
 track_event_merged_debug_annotations.textproto track_event_args.sql track_event_merged_debug_annotations_args.out
 
 # Parsing of an html file with systrace data inside
