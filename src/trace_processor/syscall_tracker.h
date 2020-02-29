@@ -38,6 +38,7 @@ enum Architecture {
   kAarch32,  // 64-bit kernel running a 32-bit process (should be rare).
   kAarch64,  // 64-bit kernel running a 64-bit process (most new devices).
   kX86_64,
+  kX86,
 };
 
 class SyscallTracker : public Destructible {
