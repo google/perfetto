@@ -241,6 +241,7 @@ source_set("storage_full") {
     "syscalls_aarch32.h",
     "syscalls_aarch64.h",
     "syscalls_armeabi.h",
+    "syscalls_x86.h",
     "syscalls_x86_64.h",
   ]
   public_deps = [ ":storage_minimal" ]
