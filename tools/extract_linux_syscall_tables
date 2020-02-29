@@ -44,6 +44,9 @@ def Main():
   response = urllib2.urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_64.tbl')
   syscalls['x86_64'] = parse_tlb(response.read())
 
+  response = urllib2.urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_32.tbl')
+  syscalls['x86'] = parse_tlb(response.read())
+
   response = urllib2.urlopen(KSRC + 'arch/arm/tools/syscall.tbl')
   syscalls['armeabi'] = parse_tlb(response.read())
 
@@ -58,6 +61,7 @@ def Main():
   syscalls['aarch64'] = parse_def(response.read())
 
   print_table('x86_64')
+  print_table('x86')
   print_table('aarch64')
   print_table('armeabi')
   print_table('aarch32')
