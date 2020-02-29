@@ -933,6 +933,7 @@ filegroup(
         "src/trace_processor/syscalls_aarch32.h",
         "src/trace_processor/syscalls_aarch64.h",
         "src/trace_processor/syscalls_armeabi.h",
+        "src/trace_processor/syscalls_x86.h",
         "src/trace_processor/syscalls_x86_64.h",
     ],
 )

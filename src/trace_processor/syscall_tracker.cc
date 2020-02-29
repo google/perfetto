@@ -26,6 +26,7 @@
 #include "src/trace_processor/syscalls_aarch32.h"
 #include "src/trace_processor/syscalls_aarch64.h"
 #include "src/trace_processor/syscalls_armeabi.h"
+#include "src/trace_processor/syscalls_x86.h"
 #include "src/trace_processor/syscalls_x86_64.h"
 
 namespace perfetto {
@@ -75,6 +76,10 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
     case kX86_64:
       num_syscalls = GetSyscalls(kSyscalls_x86_64);
       syscall_table = &kSyscalls_x86_64[0];
+      break;
+    case kX86:
+      num_syscalls = GetSyscalls(kSyscalls_x86);
+      syscall_table = &kSyscalls_x86[0];
       break;
     case kUnknown:
       num_syscalls = 0;
