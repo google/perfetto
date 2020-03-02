@@ -60,15 +60,14 @@ message AndroidStartupMetric {
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
 
-    // The ratio between the cpu time of the activity process
-    // to all other processes in the system.
-    optional double other_process_to_activity_cpu_ratio = 12;
-
     optional uint32 to_post_fork = 13;
     optional uint32 to_activity_thread_main = 14;
     optional uint32 to_bind_application = 15;
 
     optional Slice time_post_fork = 16;
+
+    // Deprecated was other_process_to_activity_cpu_ratio
+    reserved 12;
   }
 
   // Next id: 7
