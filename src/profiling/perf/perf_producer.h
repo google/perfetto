@@ -91,15 +91,23 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
   };
 
   struct DataSource {
-    DataSource(std::unique_ptr<TraceWriter> _trace_writer,
+    DataSource(EventConfig _event_cfg,
+               std::unique_ptr<TraceWriter> _trace_writer,
                std::vector<EventReader> _per_cpu_readers)
-        : trace_writer(std::move(_trace_writer)),
+        : event_cfg(std::move(_event_cfg)),
+          trace_writer(std::move(_trace_writer)),
           per_cpu_readers(std::move(_per_cpu_readers)) {}
 
-    std::unique_ptr<TraceWriter> trace_writer;
+    const EventConfig event_cfg;
 
+    std::unique_ptr<TraceWriter> trace_writer;
     // Indexed by cpu, vector never resized.
     std::vector<EventReader> per_cpu_readers;
+    // Tracks the incremental state for interned entries.
+    InterningOutputTracker interning_output;
+
+    bool reader_stopping = false;
+    bool unwind_stopping = false;
 
     // TODO(rsavitski): under a single-threaded model, directly shared between
     // the reader and the "unwinder". If/when lifting unwinding into a separate
@@ -109,19 +117,19 @@ class PerfProducer : public Producer, public ProcDescriptorDelegate {
     // ready/poisoned).
     // TODO(rsavitski): find a more descriptive name.
     struct ProcDescriptors {
-      enum class Status { kInitial, kResolving, kResolved, kSkip };
+      enum class Status {
+        kInitial,
+        kResolving,
+        kResolved,
+        kExpired,
+        kRejected
+      };
 
       Status status = Status::kInitial;
       UnwindingMetadata unwind_state{/*maps_fd=*/base::ScopedFile{},
                                      /*mem_fd=*/base::ScopedFile{}};
     };
     std::map<pid_t, ProcDescriptors> proc_fds;  // keyed by pid
-
-    // Tracks the incremental state for interned entries.
-    InterningOutputTracker interning_output;
-
-    bool reader_stopping = false;
-    bool unwind_stopping = false;
   };
 
   // Entry in an unwinding queue. Either a sample that requires unwinding, or a
