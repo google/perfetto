@@ -17,6 +17,7 @@ android_startup {
       time_activity_manager {
         dur_ns: 8
       }
+      other_process_to_activity_cpu_ratio: 0.975609756098
     }
   }
 }
