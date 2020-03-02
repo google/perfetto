@@ -261,7 +261,8 @@ function popupFileSelectionDialogOldUI(e: Event) {
   getFileElement().click();
 }
 
-function openCurrentTraceWithOldUI() {
+function openCurrentTraceWithOldUI(e: Event) {
+  e.preventDefault();
   console.assert(isTraceLoaded());
   if (!isTraceLoaded) return;
   const engine = Object.values(globals.state.engines)[0];
