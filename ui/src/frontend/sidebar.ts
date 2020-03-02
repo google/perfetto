@@ -142,6 +142,7 @@ const SECTIONS = [
         a: dispatchCreatePermalink,
         i: 'share',
         checkDownloadDisabled: true,
+        internalUserOnly: true,
       },
       {
         t: 'Download',
@@ -624,6 +625,9 @@ export class Sidebar implements m.ClassComponent {
           href: typeof item.a === 'string' ? item.a : '#',
           disabled: false,
         };
+        if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
+          if (!globals.isInternalUser) continue;
+        }
         if (isDownloadAndShareDisabled() &&
             item.hasOwnProperty('checkDownloadDisabled')) {
           attrs = {
