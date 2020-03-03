@@ -19,7 +19,7 @@
 #include <signal.h>
 
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "src/profiling/memory/proc_utils.h"
+#include "src/profiling/common/proc_utils.h"
 
 namespace perfetto {
 namespace profiling {
