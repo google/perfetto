@@ -108,7 +108,7 @@ class EventReader {
 
  private:
   EventReader(uint32_t cpu,
-              const EventConfig& event_cfg,
+              perf_event_attr event_attr,
               base::ScopedFile perf_fd,
               PerfRingBuffer ring_buffer);
 
@@ -116,7 +116,7 @@ class EventReader {
 
   // All events are cpu-bound (thread-scoped events not supported).
   const uint32_t cpu_;
-  const EventConfig event_cfg_;
+  const perf_event_attr event_attr_;
   base::ScopedFile perf_fd_;
   PerfRingBuffer ring_buffer_;
 };

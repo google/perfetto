@@ -115,9 +115,9 @@ cc_binary {
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
+    ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_memory_daemon",
-    ":perfetto_src_profiling_memory_proc_utils",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
@@ -196,9 +196,9 @@ cc_library_shared {
     ":perfetto_include_perfetto_profiling_normalize",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
+    ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_malloc_hooks",
-    ":perfetto_src_profiling_memory_proc_utils",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
@@ -1403,11 +1403,11 @@ cc_test {
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
+    ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_daemon",
     ":perfetto_src_profiling_memory_end_to_end_tests",
-    ":perfetto_src_profiling_memory_proc_utils",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
@@ -5791,11 +5791,20 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/common:proc_utils
+filegroup {
+  name: "perfetto_src_profiling_common_proc_utils",
+  srcs: [
+    "src/profiling/common/proc_utils.cc",
+  ],
+}
+
 // GN: //src/profiling/common:unittests
 filegroup {
   name: "perfetto_src_profiling_common_unittests",
   srcs: [
     "src/profiling/common/interner_unittest.cc",
+    "src/profiling/common/proc_utils_unittest.cc",
   ],
 }
 
@@ -5853,14 +5862,6 @@ filegroup {
   ],
 }
 
-// GN: //src/profiling/memory:proc_utils
-filegroup {
-  name: "perfetto_src_profiling_memory_proc_utils",
-  srcs: [
-    "src/profiling/memory/proc_utils.cc",
-  ],
-}
-
 // GN: //src/profiling/memory:ring_buffer
 filegroup {
   name: "perfetto_src_profiling_memory_ring_buffer",
@@ -5893,7 +5894,6 @@ filegroup {
     "src/profiling/memory/client_unittest.cc",
     "src/profiling/memory/heapprofd_producer_unittest.cc",
     "src/profiling/memory/page_idle_checker_unittest.cc",
-    "src/profiling/memory/proc_utils_unittest.cc",
     "src/profiling/memory/sampler_unittest.cc",
     "src/profiling/memory/system_property_unittest.cc",
     "src/profiling/memory/unwinding_unittest.cc",
@@ -7205,12 +7205,12 @@ cc_test {
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
+    ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_common_unittests",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_deobfuscator",
     ":perfetto_src_profiling_memory_client",
     ":perfetto_src_profiling_memory_daemon",
-    ":perfetto_src_profiling_memory_proc_utils",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_ring_buffer_unittests",
     ":perfetto_src_profiling_memory_scoped_spinlock",
@@ -7672,6 +7672,7 @@ cc_binary {
     ":perfetto_include_perfetto_ext_ipc_ipc",
     ":perfetto_include_perfetto_ext_tracing_core_core",
     ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
+    ":perfetto_include_perfetto_profiling_normalize",
     ":perfetto_include_perfetto_protozero_protozero",
     ":perfetto_include_perfetto_tracing_core_core",
     ":perfetto_include_perfetto_tracing_core_forward_decls",
@@ -7722,6 +7723,7 @@ cc_binary {
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
+    ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_perf_proc_descriptors",
     ":perfetto_src_profiling_perf_producer",

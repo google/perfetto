@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_MEMORY_PROC_UTILS_H_
-#define SRC_PROFILING_MEMORY_PROC_UTILS_H_
+#ifndef SRC_PROFILING_COMMON_PROC_UTILS_H_
+#define SRC_PROFILING_COMMON_PROC_UTILS_H_
 
 #include <sys/types.h>
 #include <set>
@@ -54,4 +54,4 @@ bool GetCmdlineForPID(pid_t pid, std::string* name);
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_MEMORY_PROC_UTILS_H_
+#endif  // SRC_PROFILING_COMMON_PROC_UTILS_H_
