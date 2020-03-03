@@ -34,6 +34,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/profiling/common/callstack_trie.h"
+#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/event_reader.h"
 
@@ -113,6 +114,33 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
   return Profiling::UNWIND_ERROR_UNKNOWN;
 }
 
+bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
+  bool reject_cmd = false;
+  std::string cmdline;
+  if (GetCmdlineForPID(pid, &cmdline)) {  // normalized form
+    // reject if absent from non-empty whitelist, or present in blacklist
+    reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
+                 filter.exclude_cmdlines.count(cmdline);
+  } else {
+    PERFETTO_LOG("Failed to look up cmdline for pid [%d]",
+                 static_cast<int>(pid));
+    // reject only if there's a whitelist present
+    reject_cmd = filter.cmdlines.size() > 0;
+  }
+
+  bool reject_pid = (filter.pids.size() && !filter.pids.count(pid)) ||
+                    filter.exclude_pids.count(pid);
+
+  if (reject_cmd || reject_pid) {
+    PERFETTO_DLOG(
+        "Rejecting samples for pid [%d] due to cmdline(%d) or pid(%d)",
+        static_cast<int>(pid), reject_cmd, reject_pid);
+
+    return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
@@ -182,7 +210,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   bool inserted;
   std::tie(ds_it, inserted) = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(instance_id),
-      std::forward_as_tuple(std::move(writer), std::move(per_cpu_readers)));
+      std::forward_as_tuple(event_config.value(), std::move(writer),
+                            std::move(per_cpu_readers)));
   PERFETTO_CHECK(inserted);
 
   // Write out a packet to initialize the incremental state for this sequence.
@@ -315,26 +344,44 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     }
 
     if (!sample->regs) {
-      // skip kernel threads/workers
-      continue;
+      continue;  // skip kernel threads/workers
     }
 
     // Request proc-fds for the process if this is the first time we see it.
     pid_t pid = sample->pid;
     auto& fd_entry = ds->proc_fds[pid];  // created if absent
 
+    // Seeing pid for the first time.
     if (fd_entry.status == Status::kInitial) {
       PERFETTO_DLOG("New pid: [%d]", static_cast<int>(pid));
+
+      // Check whether samples for this new process should be
+      // dropped due to the target whitelist/blacklist.
+      const TargetFilter& filter = ds->event_cfg.filter();
+      if (ShouldRejectDueToFilter(pid, filter)) {
+        fd_entry.status = Status::kRejected;
+        continue;
+      }
+
+      // At this point, sampled process is known to be of interest, so start
+      // resolving the proc-fds.
       fd_entry.status = Status::kResolving;
       proc_fd_getter_->GetDescriptorsForPid(pid);  // response is async
       PostDescriptorLookupTimeout(ds_id, pid, kProcDescriptorTimeoutMs);
     }
 
-    if (fd_entry.status == Status::kSkip) {
-      PERFETTO_DLOG("Skipping sample for previously poisoned pid [%d]",
+    if (fd_entry.status == Status::kExpired) {
+      PERFETTO_DLOG("Skipping sample for previously expired pid [%d]",
                     static_cast<int>(pid));
       PostEmitSkippedSample(ds_id, ProfilerStage::kRead,
                             std::move(sample.value()));
+      continue;
+    }
+
+    // Previously failed the target filter check.
+    if (fd_entry.status == Status::kRejected) {
+      PERFETTO_DLOG("Skipping sample for pid [%d] due to target filter",
+                    static_cast<int>(pid));
       continue;
     }
 
@@ -400,7 +447,7 @@ void PerfProducer::DescriptorLookupTimeout(DataSourceInstanceID ds_id,
   auto proc_fd_it = ds.proc_fds.find(pid);
   if (proc_fd_it != ds.proc_fds.end() &&
       proc_fd_it->second.status == Status::kResolving) {
-    proc_fd_it->second.status = Status::kSkip;
+    proc_fd_it->second.status = Status::kExpired;
     PERFETTO_DLOG("Descriptor lookup timeout of pid [%d] for DS [%zu]",
                   static_cast<int>(pid), static_cast<size_t>(ds_it->first));
   }
@@ -468,9 +515,10 @@ bool PerfProducer::ProcessUnwindQueue(DataSourceInstanceID ds_id,
 
     auto fd_status = proc_fd_it->second.status;
     PERFETTO_CHECK(fd_status != Status::kInitial);
+    PERFETTO_CHECK(fd_status != Status::kRejected);
 
     // Giving up on the sample (proc-fd lookup timed out).
-    if (fd_status == Status::kSkip) {
+    if (fd_status == Status::kExpired) {
       PERFETTO_DLOG("Skipping sample for pid [%d]",
                     static_cast<int>(sample.pid));
       PostEmitSkippedSample(ds_id, ProfilerStage::kUnwind,
@@ -716,7 +764,7 @@ void PerfProducer::InitiateUnwindStop(DataSource* ds) {
 }
 
 void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
-  PERFETTO_DLOG("FinishDataSourceStop(%zu)", static_cast<size_t>(ds_id));
+  PERFETTO_LOG("FinishDataSourceStop(%zu)", static_cast<size_t>(ds_id));
   auto ds_it = data_sources_.find(ds_id);
   PERFETTO_CHECK(ds_it != data_sources_.end());
   DataSource& ds = ds_it->second;
