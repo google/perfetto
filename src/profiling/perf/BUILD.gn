@@ -49,6 +49,7 @@ source_set("producer") {
   deps = [
     ":proc_descriptors",
     "../../../gn:default_deps",
+    "../../../include/perfetto/profiling:normalize",
     "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/config/profiling:zero",
     "../../../protos/perfetto/trace:zero",
@@ -59,6 +60,7 @@ source_set("producer") {
     "../common:callstack_trie",
     "../common:interner",
     "../common:interning_output",
+    "../common:proc_utils",
     "../common:unwind_support",
   ]
   sources = [

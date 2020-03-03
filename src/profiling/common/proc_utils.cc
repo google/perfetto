@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/proc_utils.h"
+#include "src/profiling/common/proc_utils.h"
 
 #include <inttypes.h>
 #include <sys/stat.h>
