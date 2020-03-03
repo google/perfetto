@@ -604,6 +604,17 @@ message JavaHeapStats {
 
 // End of protos/perfetto/metrics/android/java_heap_stats.proto
 
+// Begin of protos/perfetto/metrics/android/display_metrics.proto
+
+message AndroidDisplayMetrics {
+  // Stat that reports the number of duplicate frames submitted
+  // to the display for rendering. That is frames that have the same
+  // pixels values but where still submitted. It is tracked based on
+  // comparing the MISR of the current frame vs previous frame.
+  optional uint32 total_duplicate_frames = 1;
+}
+// End of protos/perfetto/metrics/android/display_metrics.proto
+
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
@@ -624,7 +635,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 22
+// Next id: 23
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -680,6 +691,8 @@ message TraceMetrics {
   optional UnmappedJavaSymbols unmapped_java_symbols = 19;
 
   optional AndroidHwuiMetric android_hwui_metric = 20;
+
+  optional AndroidDisplayMetrics display_metrics = 22;
 
   // Demo extensions.
   extensions 450 to 499;
