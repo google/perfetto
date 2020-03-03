@@ -20,6 +20,7 @@ import "protos/perfetto/trace/track_event/chrome_process_descriptor.proto";
 import "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
+import "protos/perfetto/trace/track_event/counter_descriptor.proto";
 
 package perfetto.protos;
 
@@ -36,7 +37,7 @@ package perfetto.protos;
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 8.
+// Next id: 9.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -49,9 +50,13 @@ message TrackDescriptor {
   // A parent track reference can be used to describe relationships between
   // tracks. For example, to define an asynchronous track which is scoped to a
   // specific process, specify the uuid for that process's process track here.
+  // Similarly, to associate a COUNTER_THREAD_TIME_NS counter track with a
+  // thread, specify the uuid for that thread's thread track here.
   optional uint64 parent_uuid = 5;
 
-  // Name of the track.
+  // Name of the track. Optional - if unspecified, it may be derived from the
+  // process/thread name (process/thread tracks), the first event's name (async
+  // tracks), or counter name (counter tracks).
   optional string name = 2;
 
   // Associate the track with a process, making it the process-global track.
@@ -74,4 +79,9 @@ message TrackDescriptor {
   // view.
   optional ThreadDescriptor thread = 4;
   optional ChromeThreadDescriptor chrome_thread = 7;
+
+  // Descriptor for a counter track. If set, the track will only support
+  // TYPE_COUNTER TrackEvents (and values provided via TrackEvent's
+  // |extra_counter_values|).
+  optional CounterDescriptor counter = 8;
 }
