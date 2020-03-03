@@ -5781,14 +5781,35 @@ message JavaHprofConfig {
 message PerfEventConfig {
   // If true, sample events on all CPUs.
   optional bool all_cpus = 1;
+
   // Per-cpu sampling frequency (requested from the kernel). Not guaranteed to
   // be honored as the kernel can throttle the sampling rate if it's too high.
   // If unset, an implementation-defined default is used.
   optional uint32 sampling_frequency = 2;
+
   // Size (in 4k pages) of each per-cpu ring buffer that is filled by the
   // kernel. If set, must be a power of two.
   // If unset, an implementation-defined default is used.
   optional uint32 ring_buffer_pages = 3;
+
+  // Process ID (TGID) whitelist. If this list is not empty, only matching
+  // samples will be retained. If multiple whitelists and blacklists are
+  // specified by the config, then all of them are evaluated for each sampled
+  // process.
+  repeated int32 target_pid = 4;
+
+  // Command line whitelist, matched against the
+  // /proc/<pid>/cmdline (not the comm string), with both sides being
+  // "normalized". Normalization is as follows: (1) trim everything beyond the
+  // first null or "@" byte; (2) if the string contains forward slashes, trim
+  // everything up to and including the last one.
+  repeated string target_cmdline = 5;
+
+  // PID blacklist.
+  repeated int32 exclude_pid = 6;
+
+  // Command line blacklist. Normalized in the same way as |target_cmdline|.
+  repeated string exclude_cmdline = 7;
 }
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
