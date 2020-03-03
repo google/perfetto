@@ -35,7 +35,13 @@ using testing::UnorderedElementsAre;
 // concurrently on the same machine. Android instead uses one emulator instance
 // for each worker.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define ANDROID_ONLY_TEST(x) x
+// On Android these tests conflict with traced_probes which expects to be the
+// only one modifying tracing. This led to the Setup code which attempts to
+// to skip these tests when traced_probes is using tracing. Unfortunately this
+// is racey and we still see spurious failures in practice. For now disable
+// these tests on Android also.
+// TODO(b/150675975) Re-enable these tests.
+#define ANDROID_ONLY_TEST(x) DISABLED_##x
 #else
 #define ANDROID_ONLY_TEST(x) DISABLED_##x
 #endif
