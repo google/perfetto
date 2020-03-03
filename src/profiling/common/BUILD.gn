@@ -64,14 +64,31 @@ source_set("interning_output") {
   ]
 }
 
+source_set("proc_utils") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/profiling:normalize",
+    "../../base",
+  ]
+  sources = [
+    "proc_utils.cc",
+    "proc_utils.h",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":interner",
+    ":proc_utils",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/profiling:normalize",
     "../../base",
     "../../base:test_support",
   ]
-  sources = [ "interner_unittest.cc" ]
+  sources = [
+    "interner_unittest.cc",
+    "proc_utils_unittest.cc",
+  ]
 }
