@@ -17,6 +17,7 @@
 -- Create the base tables and views containing the launch spans.
 SELECT RUN_METRIC('android/android_startup_launches.sql');
 SELECT RUN_METRIC('android/android_task_state.sql');
+SELECT RUN_METRIC('android/process_metadata.sql');
 
 -- Slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
@@ -89,6 +90,14 @@ SELECT
     'package_name', launches.package,
     'process_name', (
       SELECT name FROM process
+      WHERE upid IN (
+        SELECT upid FROM launch_processes
+        WHERE launch_id = launches.id
+        LIMIT 1
+      )
+    ),
+    'process', (
+      SELECT metadata FROM process_metadata
       WHERE upid IN (
         SELECT upid FROM launch_processes
         WHERE launch_id = launches.id
