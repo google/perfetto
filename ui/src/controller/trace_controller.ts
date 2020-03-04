@@ -931,7 +931,7 @@ export class TraceController extends Controller<States> {
       select ts, dur, utid, cpu,
       case when end_state is not null then 'Running'
       when lag(end_state) over ordered is not null
-      then lag(end_state) over ordered else 'Runnable'
+      then lag(end_state) over ordered else 'R'
       end as state
       from thread_span window ordered as
       (partition by utid order by ts)`);
