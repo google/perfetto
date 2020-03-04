@@ -497,6 +497,9 @@ class PerfettoApiTest : public ::testing::Test {
                    std::string(1, static_cast<char>(legacy_event.phase()));
           break;
         }
+        case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
+          slice += "C";
+          break;
         default:
           ADD_FAILURE();
       }
