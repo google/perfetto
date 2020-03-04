@@ -78,7 +78,7 @@ PACKAGES_LIST_CFG = '''data_sources {
 }
 '''
 
-CFG_IDENT = '      '
+CFG_INDENT = '      '
 CFG = '''buffers {{
   size_kb: 32768
 }}
@@ -277,10 +277,10 @@ def main(argv):
       except ValueError:
         print("FATAL: invalid PID %s" % pid, file=sys.stderr)
         fail = True
-      target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
+      target_cfg += '{}pid: {}\n'.format(CFG_INDENT, pid)
   if args.name:
     for name in args.name.split(','):
-      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
+      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_INDENT, name)
 
   if fail:
     parser.print_help()
