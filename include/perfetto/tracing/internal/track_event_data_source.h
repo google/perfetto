@@ -406,6 +406,17 @@ class TrackEventDataSource
     TrackRegistry::Get()->EraseTrack(track);
   }
 
+  // Returns the current trace timestamp in nanoseconds. Note the returned
+  // timebase may vary depending on the platform, but will always match the
+  // timestamps recorded by track events (see GetTraceClockId).
+  static uint64_t GetTraceTimeNs() { return TrackEventInternal::GetTimeNs(); }
+
+  // Returns the type of clock used by GetTraceTimeNs().
+  static constexpr protos::pbzero::ClockSnapshot::Clock::BuiltinClocks
+  GetTraceClockId() {
+    return TrackEventInternal::GetClockId();
+  }
+
  private:
   // Each category has its own enabled/disabled state, stored in the category
   // registry.
