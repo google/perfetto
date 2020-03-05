@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/process_metadata.proto";
+
 // Android app startup metrics.
 message AndroidStartupMetric {
   // A simplified view of the task state durations for a thread
@@ -91,6 +93,9 @@ message AndroidStartupMetric {
     optional uint32 activity_hosting_process_count = 6;
 
     optional ToFirstFrame to_first_frame = 5;
+
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 7;
   }
 
   repeated Startup startup = 1;
