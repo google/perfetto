@@ -22,8 +22,11 @@ trace = synth_common.create_trace()
 trace.add_process_tree_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
-trace.add_process(3, 1, 'com.google.android.calendar')
+trace.add_process(3, 1, 'com.google.android.calendar', 10001)
 trace.add_process(4, 1, 'com.google.android.calendar')
+
+trace.add_package_list(
+    ts=1, name='com.google.android.calendar', uid=10001, version_code=123)
 
 trace.add_ftrace_packet(cpu=0)
 # Intent without any corresponding end state, will be ignored

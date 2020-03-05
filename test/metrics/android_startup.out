@@ -3,6 +3,20 @@ android_startup {
     startup_id: 2
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
+    process: {
+      name: "com.google.android.calendar"
+      uid: 10001
+      package {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+    }
     zygote_new_process: false
     activity_hosting_process_count: 2
     to_first_frame {
