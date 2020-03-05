@@ -354,6 +354,9 @@ message AndroidStartupMetric {
     optional uint32 activity_hosting_process_count = 6;
 
     optional ToFirstFrame to_first_frame = 5;
+
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 7;
   }
 
   repeated Startup startup = 1;
