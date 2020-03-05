@@ -41,7 +41,7 @@ namespace perfetto {
 namespace trace_processor {
 
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context), systrace_line_parser_(context) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
@@ -53,7 +53,13 @@ void JsonTraceParser::ParseFtracePacket(uint32_t,
 
 void JsonTraceParser::ParseTracePacket(int64_t timestamp,
                                        TimestampedTracePiece ttp) {
-  PERFETTO_DCHECK(ttp.json_value != nullptr);
+  PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
+                  ttp.type == TimestampedTracePiece::Type::kSystraceLine);
+  if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
+    systrace_line_parser_.ParseLine(*ttp.systrace_line);
+    return;
+  }
+
   const Json::Value& value = *(ttp.json_value);
 
   ProcessTracker* procs = context_->process_tracker.get();
