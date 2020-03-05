@@ -111,6 +111,7 @@ std::string SafeDebugAnnotationName(const std::string& raw_name) {
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context)
     : context_(context),
+      proto_to_args_{context_},
       task_file_name_args_key_id_(
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
@@ -255,7 +256,35 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
            context_->storage->InternString("CompositorTileWorker&"),
            context_->storage->InternString("ServiceWorkerThread&"),
            context_->storage->InternString("MemoryInfra"),
-           context_->storage->InternString("StackSamplingProfiler")}} {}
+           context_->storage->InternString("StackSamplingProfiler")}} {
+  auto status = proto_to_args_.AddProtoFileDescriptor(
+      kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+  PERFETTO_DCHECK(status.ok());
+
+  // Switch |source_location_iid| into its interned data variant.
+  proto_to_args_.AddParsingOverride(
+      "begin_impl_frame_args.current_args.source_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field, ArgsTracker::BoundInserter* inserter) {
+        return MaybeParseSourceLocation("begin_impl_frame_args.current_args",
+                                        state, field, inserter);
+      });
+  proto_to_args_.AddParsingOverride(
+      "begin_impl_frame_args.last_args.source_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field, ArgsTracker::BoundInserter* inserter) {
+        return MaybeParseSourceLocation("begin_impl_frame_args.last_args",
+                                        state, field, inserter);
+      });
+  proto_to_args_.AddParsingOverride(
+      "begin_frame_observer_state.last_begin_frame_args.source_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field, ArgsTracker::BoundInserter* inserter) {
+        return MaybeParseSourceLocation(
+            "begin_frame_observer_state.last_begin_frame_args", state, field,
+            inserter);
+      });
+}
 
 void TrackEventParser::ParseTrackDescriptor(
     protozero::ConstBytes track_descriptor) {
@@ -1292,41 +1321,10 @@ void TrackEventParser::ParseCcScheduler(
     ConstBytes cc,
     PacketSequenceStateGeneration* sequence_state,
     ArgsTracker::BoundInserter* outer_inserter) {
-  // The 79 decides the initial amount of memory reserved in the prefix. This
-  // was determined my manually counting the length of the longest column.
-  constexpr size_t kCcSchedulerStateMaxColumnLength = 79;
-  ProtoToArgsTable helper(sequence_state, context_,
-                          /* starting_prefix = */ "",
-                          kCcSchedulerStateMaxColumnLength);
-  auto status = helper.AddProtoFileDescriptor(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
-  PERFETTO_DCHECK(status.ok());
-
-  // Switch |source_location_iid| into its interned data variant.
-  helper.AddParsingOverride(
-      "begin_impl_frame_args.current_args.source_location_iid",
-      [](const ProtoToArgsTable::ParsingOverrideState& state,
-         const protozero::Field& field, ArgsTracker::BoundInserter* inserter) {
-        return MaybeParseSourceLocation("begin_impl_frame_args.current_args",
-                                        state, field, inserter);
-      });
-  helper.AddParsingOverride(
-      "begin_impl_frame_args.last_args.source_location_iid",
-      [](const ProtoToArgsTable::ParsingOverrideState& state,
-         const protozero::Field& field, ArgsTracker::BoundInserter* inserter) {
-        return MaybeParseSourceLocation("begin_impl_frame_args.last_args",
-                                        state, field, inserter);
-      });
-  helper.AddParsingOverride(
-      "begin_frame_observer_state.last_begin_frame_args.source_location_iid",
-      [](const ProtoToArgsTable::ParsingOverrideState& state,
-         const protozero::Field& field, ArgsTracker::BoundInserter* inserter) {
-        return MaybeParseSourceLocation(
-            "begin_frame_observer_state.last_begin_frame_args", state, field,
-            inserter);
-      });
-  helper.InternProtoIntoArgsTable(
-      cc, ".perfetto.protos.ChromeCompositorSchedulerState", outer_inserter);
+  proto_to_args_.InternProtoIntoArgsTable(
+      cc, ".perfetto.protos.ChromeCompositorSchedulerState", outer_inserter,
+      sequence_state,
+      /* prefix= */ "cc_scheduler_state");
 }
 
 void TrackEventParser::ParseChromeUserEvent(
@@ -1382,15 +1380,9 @@ void TrackEventParser::ParseChromeLatencyInfo(
     protozero::ConstBytes chrome_latency_info,
     PacketSequenceStateGeneration* sequence_state,
     ArgsTracker::BoundInserter* inserter) {
-  // TODO(ddrone): make sure that ProtoToArgsTable can be re-used and avoid
-  // creating an instance per method call by making it an instance variable.
-  ProtoToArgsTable helper(sequence_state, context_,
-                          /* starting_prefix = */ "latency_info");
-  auto status = helper.AddProtoFileDescriptor(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
-  PERFETTO_DCHECK(status.ok());
-  helper.InternProtoIntoArgsTable(
-      chrome_latency_info, ".perfetto.protos.ChromeLatencyInfo", inserter);
+  proto_to_args_.InternProtoIntoArgsTable(
+      chrome_latency_info, ".perfetto.protos.ChromeLatencyInfo", inserter,
+      sequence_state, "latency_info");
 }
 
 void TrackEventParser::ParseChromeHistogramSample(
