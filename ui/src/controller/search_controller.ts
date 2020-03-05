@@ -262,10 +262,6 @@ export class SearchController extends Controller<'main'> {
 
   private async query(query: string) {
     const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
     return result;
   }
 }
