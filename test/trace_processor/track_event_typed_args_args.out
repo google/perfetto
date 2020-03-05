@@ -3,4 +3,8 @@
 2,"legacy_ipc.class","legacy_ipc.class","[NULL]","AUTOMATION"
 2,"legacy_ipc.line","legacy_ipc.line",10,"[NULL]"
 3,"keyed_service.name","keyed_service.name","[NULL]","MediaRouter"
+4,"latency_info.component_info.component_type","latency_info.component_info[0].component_type","[NULL]","COMPONENT_INPUT_EVENT_LATENCY_FIRST_SCROLL_UPDATE_ORIGINAL"
+4,"latency_info.component_info.time_ns","latency_info.component_info[0].time_ns",1201,"[NULL]"
+4,"latency_info.component_info.time_ns","latency_info.component_info[1].time_ns",928310,"[NULL]"
+4,"latency_info.is_coalesced","latency_info.is_coalesced",1,"[NULL]"
 4,"latency_info.trace_id","latency_info.trace_id",7,"[NULL]"
