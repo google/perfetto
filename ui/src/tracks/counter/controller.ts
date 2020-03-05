@@ -67,7 +67,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       from (
         select
           ts,
-          lead(ts, 1, ts) over (order by ts) as ts_end,
+          lead(ts, 1, ts) over (order by ts) as ts_end
         from counter
         where track_id = ${this.config.trackId}
       )
@@ -75,8 +75,8 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     // Only quantize if we have too much data to draw.
     const isQuantized = result[0] > LIMIT;
-    // |resolution| is in s/px we want # ns for 10px window:
-    const bucketSizeNs = Math.round(resolution * 10 * 1e9);
+    // |resolution| is in s/px we want # ns for 1px window:
+    const bucketSizeNs = Math.round(resolution * 1e9);
     let windowStartNs = startNs;
     if (isQuantized) {
       windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
@@ -89,7 +89,8 @@ class CounterTrackController extends TrackController<Config, Data> {
     quantum=${isQuantized ? bucketSizeNs : 0}`);
 
     let query = `select min(ts) as ts,
-      max(value) as value
+      max(value) as value,
+      -1 as id
       from ${this.tableName('span')}
       group by quantum_ts limit ${LIMIT};`;
 

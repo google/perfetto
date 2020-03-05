@@ -39,9 +39,9 @@ export class SelectionController extends Controller<'main'> {
     if (selection.kind === 'THREAD_STATE') {
       const sqlQuery = `SELECT id FROM sched WHERE utid = ${selection.utid}
                         and ts = ${toNs(selection.ts)}`;
-      this.args.engine.query(sqlQuery).then(result => {
-        const id = result.columns[0].longValues![0] as number;
-        this.sliceDetails(id);
+      this.args.engine.queryOneRow(sqlQuery).then(result => {
+        const id = result[0];
+        if (id !== undefined) this.sliceDetails(id);
       });
       return;
     }
@@ -74,10 +74,6 @@ export class SelectionController extends Controller<'main'> {
     } else if (selectedKind === 'SLICE') {
       this.sliceDetails(selectedId as number);
     } else if (selectedKind === 'CHROME_SLICE') {
-      if (selectedId === -1) {
-        globals.publish('SliceDetails', {ts: 0, name: 'Summarized slice'});
-        return;
-      }
       const sqlQuery = `SELECT ts, dur, name, cat, arg_set_id FROM slices
       WHERE slice_id = ${selectedId}`;
       this.args.engine.query(sqlQuery).then(result => {
