@@ -249,6 +249,7 @@ class CounterTrack extends Track<Config, Data> {
       return false;
     } else {
       const counterId = data.ids[left];
+      if (counterId === -1) return true;
       globals.makeSelection(Actions.selectCounter({
         leftTs: toNs(data.timestamps[left]),
         rightTs: right !== -1 ? toNs(data.timestamps[right]) : -1,

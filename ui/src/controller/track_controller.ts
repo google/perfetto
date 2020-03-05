@@ -78,10 +78,6 @@ export abstract class TrackController<Config = {},
 
   protected async query(query: string) {
     const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
     return result;
   }
 

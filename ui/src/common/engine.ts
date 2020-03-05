@@ -76,7 +76,11 @@ export abstract class Engine {
       args.timeQueuedNs = Math.floor(performance.now() * 1e6);
       const argsEncoded = RawQueryArgs.encode(args).finish();
       const respEncoded = await this.rawQuery(argsEncoded);
-      return RawQueryResult.decode(respEncoded);
+      const result = RawQueryResult.decode(respEncoded);
+      if (!result.error) return result;
+      // Query failed
+      console.error(`Query error "${sqlQuery}": ${result.error}`);
+      throw new Error(`Query error "${sqlQuery}": ${result.error}`);
     } finally {
       this.loadingTracker.endLoading();
     }
