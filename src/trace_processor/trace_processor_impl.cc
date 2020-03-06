@@ -332,6 +332,55 @@ void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 #endif
 }
 
+void LastNonNullStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc != 1) {
+    sqlite3_result_error(ctx,
+                         "Unsupported number of args passed to LAST_NON_NULL",
+                         -1);
+    return;
+  }
+  sqlite3_value* value = argv[0];
+  if (sqlite3_value_type(value) == SQLITE_NULL) {
+    return;
+  }
+  sqlite3_value** ptr = reinterpret_cast<sqlite3_value**>(
+      sqlite3_aggregate_context(ctx, sizeof(sqlite3_value*)));
+  if (ptr) {
+    if (*ptr != nullptr) {
+      sqlite3_value_free(*ptr);
+    }
+    *ptr = sqlite3_value_dup(value);
+  }
+}
+
+void LastNonNullInverse(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  // Do nothing.
+  base::ignore_result(ctx);
+  base::ignore_result(argc);
+  base::ignore_result(argv);
+}
+
+void LastNonNullValue(sqlite3_context* ctx) {
+  sqlite3_value** ptr =
+      reinterpret_cast<sqlite3_value**>(sqlite3_aggregate_context(ctx, 0));
+  if (!ptr || !*ptr) {
+    sqlite3_result_null(ctx);
+  } else {
+    sqlite3_result_value(ctx, *ptr);
+  }
+}
+
+void LastNonNullFinal(sqlite3_context* ctx) {
+  sqlite3_value** ptr =
+      reinterpret_cast<sqlite3_value**>(sqlite3_aggregate_context(ctx, 0));
+  if (!ptr || !*ptr) {
+    sqlite3_result_null(ctx);
+  } else {
+    sqlite3_result_value(ctx, *ptr);
+    sqlite3_value_free(*ptr);
+  }
+}
+
 void CreateHashFunction(sqlite3* db) {
   auto ret = sqlite3_create_function_v2(
       db, "HASH", -1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr, &Hash,
@@ -347,6 +396,16 @@ void CreateDemangledNameFunction(sqlite3* db) {
       nullptr, nullptr, nullptr);
   if (ret != SQLITE_OK) {
     PERFETTO_ELOG("Error initializing DEMANGLE: %s", sqlite3_errmsg(db));
+  }
+}
+
+void CreateLastNonNullFunction(sqlite3* db) {
+  auto ret = sqlite3_create_window_function(
+      db, "LAST_NON_NULL", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
+      &LastNonNullStep, &LastNonNullFinal, &LastNonNullValue,
+      &LastNonNullInverse, nullptr);
+  if (ret) {
+    PERFETTO_ELOG("Error initializing LAST_NON_NULL");
   }
 }
 
@@ -422,6 +481,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 #endif
   CreateHashFunction(db);
   CreateDemangledNameFunction(db);
+  CreateLastNonNullFunction(db);
 
   SetupMetrics(this, *db_, &sql_metrics_);
 
