@@ -56,7 +56,6 @@ class AndroidLogDataSource : public ProbesDataSource {
     std::string name;
     std::vector<std::string> fields;
   };
-  static constexpr int kTypeId = 6;
 
   AndroidLogDataSource(DataSourceConfig,
                        base::TaskRunner*,

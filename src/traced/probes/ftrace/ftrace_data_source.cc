@@ -25,15 +25,12 @@
 
 namespace perfetto {
 
-// static
-constexpr int FtraceDataSource::kTypeId;
-
 FtraceDataSource::FtraceDataSource(
     base::WeakPtr<FtraceController> controller_weak,
     TracingSessionID session_id,
     const FtraceConfig& config,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, Type::kFtrace),
       config_(config),
       writer_(std::move(writer)),
       controller_weak_(std::move(controller_weak)) {}
