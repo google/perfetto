@@ -109,7 +109,8 @@ PackagesListDataSource::PackagesListDataSource(
     const DataSourceConfig& ds_config,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId), writer_(std::move(writer)) {
+    : ProbesDataSource(session_id, Type::kPackagesList),
+      writer_(std::move(writer)) {
   PackagesListConfig::Decoder cfg(ds_config.packages_list_config_raw());
   for (auto name = cfg.package_name_filter(); name; ++name) {
     package_name_filter_.emplace((*name).ToStdString());
