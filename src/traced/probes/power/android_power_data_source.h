@@ -34,8 +34,6 @@ class TaskRunner;
 
 class AndroidPowerDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 5;
-
   AndroidPowerDataSource(DataSourceConfig,
                          base::TaskRunner*,
                          TracingSessionID,

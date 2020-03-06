@@ -79,9 +79,6 @@ class StaticMapDelegate : public FileScanner::Delegate {
 
 }  // namespace
 
-// static
-constexpr int InodeFileDataSource::kTypeId;
-
 void CreateStaticDeviceToInodeMap(
     const std::string& root_directory,
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
@@ -110,7 +107,7 @@ InodeFileDataSource::InodeFileDataSource(
         static_file_map,
     LRUInodeCache* cache,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, Type::kInodeFile),
       task_runner_(task_runner),
       static_file_map_(static_file_map),
       cache_(cache),
@@ -297,7 +294,7 @@ void InodeFileDataSource::RemoveFromNextMissingInodes(
 bool InodeFileDataSource::OnInodeFound(BlockDeviceID block_device_id,
                                        Inode inode_number,
                                        const std::string& path,
-                                       InodeFileMap_Entry_Type type) {
+                                       InodeFileMap_Entry_Type inode_type) {
   auto it = missing_inodes_.find(block_device_id);
   if (it == missing_inodes_.end())
     return true;
@@ -318,7 +315,7 @@ bool InodeFileDataSource::OnInodeFound(BlockDeviceID block_device_id,
     FillInodeEntry(AddToCurrentTracePacket(block_device_id), inode_number,
                    *cur_val);
   } else {
-    InodeMapValue new_val(InodeMapValue(type, {path}));
+    InodeMapValue new_val(InodeMapValue(inode_type, {path}));
     cache_->Insert(key, new_val);
     FillInodeEntry(AddToCurrentTracePacket(block_device_id), inode_number,
                    new_val);

@@ -27,8 +27,19 @@ namespace perfetto {
 // Base class for all data sources in traced_probes.
 class ProbesDataSource {
  public:
-  // |type_id| is a home-brewed RTTI, e.g. InodeFileDataSource::kTypeId.
-  ProbesDataSource(TracingSessionID, int type_id);
+  enum class Type {
+    kInvalid = 0,
+    kFtrace,
+    kInodeFile,
+    kProcessStats,
+    kSysStats,
+    kAndroidPower,
+    kAndroidLog,
+    kPackagesList,
+    kMetaTrace
+  };
+
+  ProbesDataSource(TracingSessionID, Type);
   virtual ~ProbesDataSource();
 
   virtual void Start() = 0;
@@ -43,7 +54,7 @@ class ProbesDataSource {
   }
 
   const TracingSessionID tracing_session_id;
-  const int type_id;
+  const Type type;
   bool started = false;  // Set by probes_producer.cc.
 
  private:

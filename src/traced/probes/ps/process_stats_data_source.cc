@@ -83,15 +83,12 @@ inline uint32_t ToU32(const char* str) {
 
 }  // namespace
 
-// static
-constexpr int ProcessStatsDataSource::kTypeId;
-
 ProcessStatsDataSource::ProcessStatsDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
     const DataSourceConfig& ds_config)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, Type::kProcessStats),
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {
