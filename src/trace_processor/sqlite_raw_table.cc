@@ -50,58 +50,125 @@ std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
           .ToStdString());
   return std::make_tuple(major_version.value(), minor_version.value());
 }
-}  // namespace
 
-SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
-    : DbSqliteTable(
-          db,
-          {context.cache, tables::RawTable::Schema(), TableComputation::kStatic,
-           &context.storage->raw_table(), nullptr}),
-      storage_(context.storage) {
-  auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
-    thiz->ToSystrace(ctx, argc, argv);
-  };
-  sqlite3_create_function(db, "to_ftrace", 1,
-                          SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
-                          nullptr);
+int FreeString(char* ptr) {
+  free(ptr);
+  return 0;
 }
 
-SqliteRawTable::~SqliteRawTable() = default;
+struct FtraceTime {
+  FtraceTime(int64_t ns)
+      : secs(ns / 1000000000LL), micros((ns - secs * 1000000000LL) / 1000) {}
 
-void SqliteRawTable::RegisterTable(sqlite3* db,
-                                   QueryCache* cache,
-                                   const TraceStorage* storage) {
-  SqliteTable::Register<SqliteRawTable, Context>(db, Context{cache, storage},
-                                                 "raw");
+  const int64_t secs;
+  const int64_t micros;
+};
+
+class SystraceSerializer {
+ public:
+  using ScopedString = base::ScopedResource<char*, FreeString, nullptr>;
+
+  SystraceSerializer(const TraceStorage* storage, uint32_t raw_row)
+      : storage_(storage), raw_row_(raw_row) {}
+
+  ScopedString SerializeToString();
+
+ private:
+  void SerializePrefix(base::StringWriter* writer);
+  void SerializeArgs(NullTermStringView event_name,
+                     ArgSetId arg_set_id,
+                     base::StringWriter* writer);
+  bool ParseGfpFlags(Variadic value, base::StringWriter* writer);
+
+  const TraceStorage* storage_ = nullptr;
+  uint32_t raw_row_ = 0;
+};
+
+SystraceSerializer::ScopedString SystraceSerializer::SerializeToString() {
+  const auto& raw = storage_->raw_table();
+
+  char line[4096];
+  base::StringWriter writer(line, sizeof(line));
+
+  SerializePrefix(&writer);
+
+  const auto& event_name = storage_->GetString(raw.name()[raw_row_]);
+  writer.AppendChar(' ');
+  if (event_name == "print") {
+    writer.AppendString("tracing_mark_write");
+  } else {
+    writer.AppendString(event_name.c_str(), event_name.size());
+  }
+  writer.AppendChar(':');
+
+  SerializeArgs(event_name, raw.arg_set_id()[raw_row_], &writer);
+
+  return ScopedString(writer.CreateStringCopy());
 }
 
-bool SqliteRawTable::ParseGfpFlags(Variadic value, base::StringWriter* writer) {
-  const auto& metadata_table = storage_->metadata_table();
+void SystraceSerializer::SerializePrefix(base::StringWriter* writer) {
+  const auto& raw = storage_->raw_table();
 
-  auto opt_name_idx = metadata_table.name().IndexOf(
-      metadata::kNames[metadata::KeyIDs::system_name]);
-  auto opt_release_idx = metadata_table.name().IndexOf(
-      metadata::kNames[metadata::KeyIDs::system_release]);
-  if (!opt_name_idx || !opt_release_idx)
-    return false;
+  int64_t ts = raw.ts()[raw_row_];
+  uint32_t cpu = raw.cpu()[raw_row_];
 
-  StringId name = metadata_table.str_value()[*opt_name_idx];
-  base::StringView system_name = storage_->GetString(name);
-  if (system_name != "Linux")
-    return false;
+  UniqueTid utid = raw.utid()[raw_row_];
+  uint32_t tid = storage_->thread_table().tid()[utid];
 
-  StringId release = metadata_table.str_value()[*opt_release_idx];
-  base::StringView system_release = storage_->GetString(release);
-  auto version = ParseKernelReleaseVersion(system_release);
+  uint32_t tgid = 0;
+  auto opt_upid = storage_->thread_table().upid()[utid];
+  if (opt_upid.has_value()) {
+    tgid = storage_->process_table().pid()[*opt_upid];
+  }
+  auto name = storage_->GetString(storage_->thread_table().name()[utid]);
 
-  WriteGfpFlag(value.uint_value, version, writer);
-  return true;
+  FtraceTime ftrace_time(ts);
+  if (tid == 0) {
+    name = "<idle>";
+  } else if (name == "") {
+    name = "<unknown>";
+  } else if (name == "CrRendererMain") {
+    // TODO(taylori): Remove this when crbug.com/978093 is fixed or
+    // when a better solution is found.
+    name = "CrRendererMainThread";
+  }
+
+  int64_t padding = 16 - static_cast<int64_t>(name.size());
+  if (padding > 0) {
+    writer->AppendChar(' ', static_cast<size_t>(padding));
+  }
+  for (size_t i = 0; i < name.size(); ++i) {
+    char c = name.data()[i];
+    writer->AppendChar(c == '-' ? '_' : c);
+  }
+  writer->AppendChar('-');
+
+  size_t pre_pid_pos = writer->pos();
+  writer->AppendInt(tid);
+  size_t pid_chars = writer->pos() - pre_pid_pos;
+  if (PERFETTO_LIKELY(pid_chars < 5)) {
+    writer->AppendChar(' ', 5 - pid_chars);
+  }
+
+  writer->AppendLiteral(" (");
+  if (tgid == 0) {
+    writer->AppendLiteral("-----");
+  } else {
+    writer->AppendPaddedInt<' ', 5>(tgid);
+  }
+  writer->AppendLiteral(") [");
+  writer->AppendPaddedInt<'0', 3>(cpu);
+  writer->AppendLiteral("] .... ");
+
+  writer->AppendInt(ftrace_time.secs);
+  writer->AppendChar('.');
+  writer->AppendPaddedInt<'0', 6>(ftrace_time.micros);
+  writer->AppendChar(':');
 }
 
-void SqliteRawTable::FormatSystraceArgs(NullTermStringView event_name,
-                                        ArgSetId arg_set_id,
-                                        base::StringWriter* writer) {
+void SystraceSerializer::SerializeArgs(NullTermStringView event_name,
+                                       ArgSetId arg_set_id,
+                                       base::StringWriter* writer) {
   const auto& set_ids = storage_->arg_table().arg_set_id();
 
   // TODO(lalitm): this code is quite hacky for performance reasons. We assume
@@ -373,6 +440,56 @@ void SqliteRawTable::FormatSystraceArgs(NullTermStringView event_name,
   }
 }
 
+bool SystraceSerializer::ParseGfpFlags(Variadic value,
+                                       base::StringWriter* writer) {
+  const auto& metadata_table = storage_->metadata_table();
+
+  auto opt_name_idx = metadata_table.name().IndexOf(
+      metadata::kNames[metadata::KeyIDs::system_name]);
+  auto opt_release_idx = metadata_table.name().IndexOf(
+      metadata::kNames[metadata::KeyIDs::system_release]);
+  if (!opt_name_idx || !opt_release_idx)
+    return false;
+
+  StringId name = metadata_table.str_value()[*opt_name_idx];
+  base::StringView system_name = storage_->GetString(name);
+  if (system_name != "Linux")
+    return false;
+
+  StringId release = metadata_table.str_value()[*opt_release_idx];
+  base::StringView system_release = storage_->GetString(release);
+  auto version = ParseKernelReleaseVersion(system_release);
+
+  WriteGfpFlag(value.uint_value, version, writer);
+  return true;
+}
+
+}  // namespace
+
+SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
+    : DbSqliteTable(
+          db,
+          {context.cache, tables::RawTable::Schema(), TableComputation::kStatic,
+           &context.storage->raw_table(), nullptr}),
+      storage_(context.storage) {
+  auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
+    thiz->ToSystrace(ctx, argc, argv);
+  };
+  sqlite3_create_function(db, "to_ftrace", 1,
+                          SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
+                          nullptr);
+}
+
+SqliteRawTable::~SqliteRawTable() = default;
+
+void SqliteRawTable::RegisterTable(sqlite3* db,
+                                   QueryCache* cache,
+                                   const TraceStorage* storage) {
+  SqliteTable::Register<SqliteRawTable, Context>(db, Context{cache, storage},
+                                                 "raw");
+}
+
 void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
                                 int argc,
                                 sqlite3_value** argv) {
@@ -381,34 +498,9 @@ void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
     return;
   }
   uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
-  const auto& raw_evts = storage_->raw_table();
 
-  UniqueTid utid = raw_evts.utid()[row];
-  uint32_t tgid = 0;
-  auto opt_upid = storage_->thread_table().upid()[utid];
-  if (opt_upid.has_value()) {
-    tgid = storage_->process_table().pid()[*opt_upid];
-  }
-  const auto& name = storage_->GetString(storage_->thread_table().name()[utid]);
-
-  char line[4096];
-  base::StringWriter writer(line, sizeof(line));
-
-  ftrace_utils::FormatSystracePrefix(raw_evts.ts()[row], raw_evts.cpu()[row],
-                                     storage_->thread_table().tid()[utid], tgid,
-                                     base::StringView(name), &writer);
-
-  const auto& event_name = storage_->GetString(raw_evts.name()[row]);
-  writer.AppendChar(' ');
-  if (event_name == "print") {
-    writer.AppendString("tracing_mark_write");
-  } else {
-    writer.AppendString(event_name.c_str(), event_name.size());
-  }
-  writer.AppendChar(':');
-
-  FormatSystraceArgs(event_name, raw_evts.arg_set_id()[row], &writer);
-  sqlite3_result_text(ctx, writer.CreateStringCopy(), -1, free);
+  SystraceSerializer seralizer(storage_, row);
+  sqlite3_result_text(ctx, seralizer.SerializeToString().release(), -1, free);
 }
 
 }  // namespace trace_processor
