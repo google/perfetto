@@ -89,7 +89,7 @@ AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
                                            base::TaskRunner* task_runner,
                                            TracingSessionID session_id,
                                            std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, Type::kAndroidLog),
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {

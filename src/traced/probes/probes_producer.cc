@@ -344,7 +344,7 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
 
   // MetatraceDataSource special case: re-flush and ack the stop (to record the
   // flushes of other data sources).
-  if (data_source->type_id == MetatraceDataSource::kTypeId) {
+  if (data_source->type == ProbesDataSource::Type::kMetaTrace) {
     data_source->Flush(FlushRequestID{0}, [] {});
     endpoint_->NotifyDataSourceStopped(id);
   }
@@ -486,14 +486,14 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
     ProbesDataSource* ds = it->second;
     if (!ds->started)
       continue;
-    switch (ds->type_id) {
-      case FtraceDataSource::kTypeId:
+    switch (ds->type) {
+      case ProbesDataSource::Type::kFtrace:
         metadata = static_cast<FtraceDataSource*>(ds)->mutable_metadata();
         break;
-      case InodeFileDataSource::kTypeId:
+      case ProbesDataSource::Type::kInodeFile:
         inode_data_source = static_cast<InodeFileDataSource*>(ds);
         break;
-      case ProcessStatsDataSource::kTypeId: {
+      case ProbesDataSource::Type::kProcessStats: {
         // A trace session might have declared more than one ps data source.
         // In those cases we often use one for a full dump on startup (
         // targeting a dedicated buffer) and another one for on-demand dumps
@@ -504,12 +504,13 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
           ps_data_source = ps;
         break;
       }
-      case SysStatsDataSource::kTypeId:
-      case AndroidLogDataSource::kTypeId:
-      case PackagesListDataSource::kTypeId:
-      case MetatraceDataSource::kTypeId:
+      case ProbesDataSource::Type::kSysStats:
+      case ProbesDataSource::Type::kAndroidPower:
+      case ProbesDataSource::Type::kAndroidLog:
+      case ProbesDataSource::Type::kPackagesList:
+      case ProbesDataSource::Type::kMetaTrace:
         break;
-      default:
+      case ProbesDataSource::Type::kInvalid:
         PERFETTO_DFATAL("Invalid data source.");
     }  // switch (type_id)
   }    // for (session_data_sources_)

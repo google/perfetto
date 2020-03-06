@@ -48,8 +48,6 @@ class ProcessStats_Process;
 
 class ProcessStatsDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 3;
-
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,

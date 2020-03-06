@@ -50,7 +50,6 @@ bool ParsePackagesListStream(protos::pbzero::PackagesList* packages_list,
 
 class PackagesListDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 7;
   PackagesListDataSource(const DataSourceConfig& ds_config,
                          TracingSessionID session_id,
                          std::unique_ptr<TraceWriter> writer);
