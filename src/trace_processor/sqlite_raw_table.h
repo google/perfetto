@@ -39,11 +39,7 @@ class SqliteRawTable : public DbSqliteTable {
   static void RegisterTable(sqlite3* db, QueryCache*, const TraceStorage*);
 
  private:
-  void FormatSystraceArgs(NullTermStringView event_name,
-                          ArgSetId arg_set_id,
-                          base::StringWriter* writer);
   void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
-  bool ParseGfpFlags(Variadic value, base::StringWriter* writer);
 
   const TraceStorage* const storage_;
 };
