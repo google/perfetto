@@ -88,7 +88,7 @@ AndroidPowerDataSource::AndroidPowerDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, Type::kAndroidPower),
       task_runner_(task_runner),
       rail_descriptors_logged_(false),
       writer_(std::move(writer)),
