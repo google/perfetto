@@ -24,6 +24,7 @@
 #include <unordered_map>
 
 #include "src/trace_processor/importers/json/json_tracker.h"
+#include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_parser.h"
 
@@ -49,6 +50,7 @@ class JsonTraceParser : public TraceParser {
 
  private:
   TraceProcessorContext* const context_;
+  SystraceLineParser systrace_line_parser_;
 };
 
 }  // namespace trace_processor
