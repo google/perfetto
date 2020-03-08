@@ -997,6 +997,7 @@ filegroup(
         "src/trace_processor/slice_tracker.h",
         "src/trace_processor/stack_profile_tracker.cc",
         "src/trace_processor/stack_profile_tracker.h",
+        "src/trace_processor/status_macros.h",
         "src/trace_processor/syscall_tracker.h",
         "src/trace_processor/timestamped_trace_piece.h",
         "src/trace_processor/trace_blob_view.h",
