@@ -71,10 +71,8 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
-      parser_.ParseTrackEvent(
-          ttp.timestamp, ttp.track_event_data->thread_timestamp,
-          ttp.track_event_data->thread_instruction_count,
-          ttp.track_event_data->sequence_state, decoder.track_event());
+      parser_.ParseTrackEvent(ttp.timestamp, ttp.track_event_data.get(),
+                              decoder.track_event());
       break;
     case TracePacket::kProcessDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
