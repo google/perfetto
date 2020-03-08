@@ -96,10 +96,19 @@ source_set("proc_descriptors") {
   ]
 }
 
+source_set("unwinding") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../../src/base",
+  ]
+  sources = [ "unwind_queue.h" ]
+}
+
 source_set("producer_unittests") {
   testonly = true
   deps = [
     ":producer",
+    ":unwinding",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/config:cpp",
@@ -109,5 +118,8 @@ source_set("producer_unittests") {
     "../../../src/protozero",
     "../../base",
   ]
-  sources = [ "event_config_unittest.cc" ]
+  sources = [
+    "event_config_unittest.cc",
+    "unwind_queue_unittest.cc",
+  ]
 }
