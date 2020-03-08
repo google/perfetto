@@ -134,6 +134,7 @@ source_set("storage_minimal") {
     "slice_tracker.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
+    "status_macros.h",
     "syscall_tracker.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
