@@ -214,7 +214,8 @@ class TracingServiceImpl : public TracingService {
 
     // Whether the consumer is interested in DataSourceInstance state change
     // events.
-    uint32_t enabled_observable_event_types_ = ObservableEventType::kNone;
+    uint32_t observable_events_mask_ = 0;
+
     // ObservableEvents that will be sent to the consumer. If set, a task to
     // flush the events to the consumer has been queued.
     std::unique_ptr<ObservableEvents> observable_events_;
