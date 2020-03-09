@@ -89,15 +89,15 @@ class StackOverlayMemory : public unwindstack::Memory {
  public:
   StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
                      uint64_t sp,
-                     uint8_t* stack,
+                     const uint8_t* stack,
                      size_t size);
   size_t Read(uint64_t addr, void* dst, size_t size) override;
 
  private:
   std::shared_ptr<unwindstack::Memory> mem_;
-  uint64_t sp_;
-  uint64_t stack_end_;
-  uint8_t* stack_;
+  const uint64_t sp_;
+  const uint64_t stack_end_;
+  const uint8_t* const stack_;
 };
 
 struct UnwindingMetadata {
