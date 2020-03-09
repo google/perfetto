@@ -68,8 +68,6 @@ namespace profiling {
 // task every time a sample has been unwound. Evaluate how bad these wakeups are
 // in practice, and consider also implementing a batching strategy for the
 // unwinder->serialization handoff (which isn't very latency-sensitive).
-// TODO(rsavitski): re-enable unwindstack's cache with fixed / external locking
-// (the enabling and disabling is not thread-safe).
 class Unwinder {
  public:
   friend class UnwinderHandle;
@@ -123,8 +121,7 @@ class Unwinder {
   };
 
   // Must be instantiated via the |UnwinderHandle|.
-  Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner)
-      : task_runner_(task_runner), delegate_(delegate) {}
+  Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner);
 
   // Marks the data source as valid and active at the unwinding stage.
   void StartDataSource(DataSourceInstanceID ds_id);
@@ -157,6 +154,8 @@ class Unwinder {
   // samples, and informs the service that it can continue the shutdown
   // sequence.
   void FinishDataSourceStop(DataSourceInstanceID ds_id);
+
+  void ResetAndEnableUnwindstackCache();
 
   base::UnixTaskRunner* const task_runner_;
   Delegate* const delegate_;

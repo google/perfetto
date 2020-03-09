@@ -16,6 +16,8 @@
 
 #include "src/profiling/perf/unwinding.h"
 
+#include <mutex>
+
 #include <inttypes.h>
 
 #include "perfetto/ext/base/metatrace.h"
@@ -29,6 +31,11 @@ namespace perfetto {
 namespace profiling {
 
 Unwinder::Delegate::~Delegate() = default;
+
+Unwinder::Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner)
+    : task_runner_(task_runner), delegate_(delegate) {
+  ResetAndEnableUnwindstackCache();
+}
 
 void Unwinder::PostStartDataSource(DataSourceInstanceID ds_id) {
   // No need for a weak pointer as the associated task runner quits (stops
@@ -354,8 +361,26 @@ void Unwinder::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   PERFETTO_CHECK(ds.status == DataSourceState::Status::kShuttingDown);
   data_sources_.erase(it);
 
+  // Clean up state if there are no more active sources.
+  if (data_sources_.empty())
+    ResetAndEnableUnwindstackCache();
+
   // Inform service thread that the unwinder is done with the source.
   delegate_->PostFinishDataSourceStop(ds_id);
+}
+
+void Unwinder::ResetAndEnableUnwindstackCache() {
+  PERFETTO_DLOG("resetting unwindstack cache");
+  // Libunwindstack uses an unsynchronized variable for setting/checking whether
+  // the cache is enabled. Therefore unwinding and cache toggling should stay on
+  // the same thread, but we might be moving unwinding across threads if we're
+  // recreating |Unwinder| instances (during a reconnect to traced). Therefore,
+  // use our own static lock to synchronize the cache toggling.
+  // TODO(rsavitski): consider fixing this in libunwindstack itself.
+  static std::mutex* lock = new std::mutex{};
+  std::lock_guard<std::mutex> guard{*lock};
+  unwindstack::Elf::SetCachingEnabled(false);  // free any existing state
+  unwindstack::Elf::SetCachingEnabled(true);   // reallocate a fresh cache
 }
 
 }  // namespace profiling
