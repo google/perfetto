@@ -78,10 +78,12 @@ ATRACE_CATEGORIES.set('nnapi', 'Neural Network API');
 ATRACE_CATEGORIES.set('rro', 'Resource Overlay');
 
 const LOG_BUFFERS = new Map<string, string>();
+LOG_BUFFERS.set('LID_DEFAULT', 'Main');
 LOG_BUFFERS.set('LID_RADIO', 'Radio');
 LOG_BUFFERS.set('LID_EVENTS', 'Binary events');
 LOG_BUFFERS.set('LID_SYSTEM', 'System');
 LOG_BUFFERS.set('LID_CRASH', 'Crash');
+LOG_BUFFERS.set('LID_STATS', 'Stats');
 LOG_BUFFERS.set('LID_SECURITY', 'Security');
 LOG_BUFFERS.set('LID_KERNEL', 'Kernel');
 
