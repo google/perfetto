@@ -38,8 +38,7 @@ class ExperimentalCounterDurGenerator
                       const std::vector<Order>&) override;
 
   // public + static for testing
-  static SparseVector<int64_t> ComputeDurColumn(
-      const tables::CounterTable& table);
+  static SparseVector<int64_t> ComputeDurColumn(const Table& table);
 
  private:
   const tables::CounterTable* counter_table_ = nullptr;
