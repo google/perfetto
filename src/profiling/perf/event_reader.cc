@@ -249,10 +249,6 @@ base::Optional<ParsedSample> EventReader::ReadUntilSample(
       return base::nullopt;  // caught up with the writer
 
     auto* event_hdr = reinterpret_cast<const perf_event_header*>(event);
-    PERFETTO_DLOG("record header: [%zu][%zu][%zu]",
-                  static_cast<size_t>(event_hdr->type),
-                  static_cast<size_t>(event_hdr->misc),
-                  static_cast<size_t>(event_hdr->size));
 
     if (event_hdr->type == PERF_RECORD_SAMPLE) {
       ParsedSample sample = ParseSampleRecord(cpu_, event);
@@ -333,7 +329,6 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   if (event_attr_.sample_type & PERF_SAMPLE_STACK_USER) {
     uint64_t max_stack_size;  // the requested size
     parse_pos = ReadValue(&max_stack_size, parse_pos);
-    PERFETTO_DLOG("max_stack_size: %" PRIu64 "", max_stack_size);
 
     const char* stack_start = parse_pos;
     parse_pos += max_stack_size;  // skip to dyn_size
@@ -343,7 +338,8 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     if (max_stack_size > 0) {
       uint64_t filled_stack_size;
       parse_pos = ReadValue(&filled_stack_size, parse_pos);
-      PERFETTO_DLOG("filled_stack_size: %" PRIu64 "", filled_stack_size);
+      PERFETTO_DLOG("sampled stack size: %" PRIu64 " / %" PRIu64 "",
+                    filled_stack_size, max_stack_size);
 
       // copy stack bytes into a vector
       size_t payload_sz = static_cast<size_t>(filled_stack_size);

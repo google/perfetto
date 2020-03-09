@@ -38,7 +38,7 @@ struct ReadView {
 // Single-writer, single-reader ring buffer of fixed-size entries (of any
 // default-constructible type). Size of the buffer is static for the lifetime of
 // UnwindQueue, and must be a power of two.
-// Writer side appends entries once at a time, and must stop if there
+// Writer side appends entries one at a time, and must stop if there
 // is no available capacity.
 // Reader side sees all unconsumed entries, and can advance the reader position
 // by any amount.

@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_config.h"
 
 namespace perfetto {
@@ -66,16 +67,6 @@ class PerfRingBuffer {
   // to a contiguous record.
   constexpr static size_t kMaxPerfRecordSize = 1 << 16;  // max size 64k
   alignas(uint64_t) char reconstructed_record_[kMaxPerfRecordSize];
-};
-
-struct ParsedSample {
-  uint32_t cpu = 0;
-  pid_t pid = 0;
-  pid_t tid = 0;
-  uint64_t timestamp = 0;
-  uint16_t cpu_mode = PERF_RECORD_MISC_CPUMODE_UNKNOWN;
-  std::unique_ptr<unwindstack::Regs> regs;
-  std::vector<char> stack;
 };
 
 class EventReader {
