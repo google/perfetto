@@ -51,7 +51,7 @@ constexpr uint32_t kReadTickPeriodMs = 200;
 // TODO(rsavitski): this is better calculated (at setup) from the buffer and
 // sample sizes.
 constexpr size_t kMaxSamplesPerCpuPerReadTick = 64;
-// TODO(rsavitski): make this part of the config (for slow test platforms).
+
 constexpr uint32_t kProcDescriptorTimeoutMs = 400;
 
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
@@ -399,12 +399,19 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 void PerfProducer::OnProcDescriptors(pid_t pid,
                                      base::ScopedFile maps_fd,
                                      base::ScopedFile mem_fd) {
-  // Find first fit data source that is waiting on descriptors for the process.
+  // Find first-fit data source that requested descriptors for the process.
   for (auto& it : data_sources_) {
     DataSourceState& ds = it.second;
     auto proc_status_it = ds.process_states.find(pid);
-    if (proc_status_it != ds.process_states.end() &&
-        proc_status_it->second == ProcessTrackingStatus::kResolving) {
+    if (proc_status_it == ds.process_states.end())
+      continue;
+
+    // Match against either resolving, or expired state. In the latter
+    // case, it means that the async response was slow enough that we've marked
+    // the lookup as expired (but can now recover for future samples).
+    auto proc_status = proc_status_it->second;
+    if (proc_status == ProcessTrackingStatus::kResolving ||
+        proc_status == ProcessTrackingStatus::kExpired) {
       PERFETTO_DLOG("Handing off proc-fds for pid [%d] to DS [%zu]",
                     static_cast<int>(pid), static_cast<size_t>(it.first));
 
@@ -437,11 +444,15 @@ void PerfProducer::DescriptorLookupTimeout(DataSourceInstanceID ds_id,
   if (ds_it == data_sources_.end())
     return;
 
-  // If the request is still outstanding, poison the pid for this source.
   DataSourceState& ds = ds_it->second;
   auto proc_status_it = ds.process_states.find(pid);
-  if (proc_status_it != ds.process_states.end() &&
-      proc_status_it->second == ProcessTrackingStatus::kResolving) {
+  if (proc_status_it == ds.process_states.end())
+    return;
+
+  // If the request is still outstanding, mark the process as expired (causing
+  // outstanding and future samples to be discarded).
+  auto proc_status = proc_status_it->second;
+  if (proc_status == ProcessTrackingStatus::kResolving) {
     PERFETTO_DLOG("Descriptor lookup timeout of pid [%d] for DS [%zu]",
                   static_cast<int>(pid), static_cast<size_t>(ds_it->first));
 
