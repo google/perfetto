@@ -5953,6 +5953,7 @@ filegroup {
   name: "perfetto_src_profiling_perf_producer_unittests",
   srcs: [
     "src/profiling/perf/event_config_unittest.cc",
+    "src/profiling/perf/unwind_queue_unittest.cc",
   ],
 }
 
@@ -5970,6 +5971,11 @@ filegroup {
   srcs: [
     "src/profiling/perf/traced_perf.cc",
   ],
+}
+
+// GN: //src/profiling/perf:unwinding
+filegroup {
+  name: "perfetto_src_profiling_perf_unwinding",
 }
 
 // GN: //src/profiling/symbolizer:symbolize_database
@@ -7242,6 +7248,7 @@ cc_test {
     ":perfetto_src_profiling_perf_producer",
     ":perfetto_src_profiling_perf_producer_unittests",
     ":perfetto_src_profiling_perf_regs_parsing",
+    ":perfetto_src_profiling_perf_unwinding",
     ":perfetto_src_profiling_unittests",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_protozero_testing_messages_cpp_gen",
