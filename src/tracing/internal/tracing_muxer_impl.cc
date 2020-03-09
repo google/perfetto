@@ -142,7 +142,7 @@ void TracingMuxerImpl::ConsumerImpl::Initialize(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   service_ = std::move(endpoint);
   // Observe data source instance events so we get notified when tracing starts.
-  service_->ObserveEvents(ConsumerEndpoint::kDataSourceInstances);
+  service_->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnConnect() {

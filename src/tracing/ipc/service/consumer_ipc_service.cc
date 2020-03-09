@@ -170,22 +170,15 @@ void ConsumerIPCService::ObserveEvents(
 
   remote_consumer->observe_events_response = std::move(resp);
 
-  bool observe_instances = false;
+  uint32_t events_mask = 0;
   for (const auto& type : req.events_to_observe()) {
-    switch (static_cast<int>(type)) {
-      case protos::gen::ObservableEvents::TYPE_DATA_SOURCES_INSTANCES:
-        observe_instances = true;
-        break;
-      default:
-        PERFETTO_DFATAL("Unknown ObservableEvent type: %d", type);
-        break;
-    }
+    events_mask |= static_cast<uint32_t>(type);
   }
-  remote_consumer->service_endpoint->ObserveEvents(observe_instances);
+  remote_consumer->service_endpoint->ObserveEvents(events_mask);
 
   // If no events are to be observed, close the stream immediately so that the
   // client can clean up.
-  if (req.events_to_observe().size() == 0)
+  if (events_mask == 0)
     remote_consumer->CloseObserveEventsResponseStream();
 }
 
