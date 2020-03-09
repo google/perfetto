@@ -29,7 +29,7 @@ namespace profiling {
 
 StackOverlayMemory::StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
                                        uint64_t sp,
-                                       uint8_t* stack,
+                                       const uint8_t* stack,
                                        size_t size)
     : mem_(std::move(mem)), sp_(sp), stack_end_(sp + size), stack_(stack) {}
 
