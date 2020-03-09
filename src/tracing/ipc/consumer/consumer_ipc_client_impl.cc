@@ -307,10 +307,12 @@ void ConsumerIPCClientImpl::ObserveEvents(uint32_t enabled_event_types) {
   }
 
   protos::gen::ObserveEventsRequest req;
-  if (enabled_event_types & ObservableEventType::kDataSourceInstances) {
-    req.add_events_to_observe(
-        protos::gen::ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+  for (uint32_t i = 0; i < 32; i++) {
+    const uint32_t event_id = 1u << i;
+    if (enabled_event_types & event_id)
+      req.add_events_to_observe(static_cast<ObservableEvents::Type>(event_id));
   }
+
   ipc::Deferred<protos::gen::ObserveEventsResponse> async_response;
   // The IPC layer guarantees that callbacks are destroyed after this object
   // is destroyed (by virtue of destroying the |consumer_port_|). In turn the
@@ -319,8 +321,8 @@ void ConsumerIPCClientImpl::ObserveEvents(uint32_t enabled_event_types) {
   async_response.Bind(
       [this](ipc::AsyncResult<protos::gen::ObserveEventsResponse> response) {
         // Skip empty response, which the service sends to close the stream.
-        if (!response->events().instance_state_changes().size()) {
-          PERFETTO_DCHECK(!response.has_more());
+        if (!response.has_more()) {
+          PERFETTO_DCHECK(!response->events().instance_state_changes().size());
           return;
         }
         consumer_->OnObservableEvents(response->events());
