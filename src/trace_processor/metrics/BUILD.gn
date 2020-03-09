@@ -30,6 +30,7 @@ sql_files = [
   "android/android_task_state.sql",
   "android/android_startup.sql",
   "android/android_package_list.sql",
+  "android/android_task_names.sql",
   "android/display_metrics.sql",
   "android/heap_profile_callsites.sql",
   "android/android_hwui_metric.sql",
