@@ -21,25 +21,25 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/forward_decls.h"
 
 namespace perfetto {
 
 // Base class for all data sources in traced_probes.
 class ProbesDataSource {
  public:
-  enum class Type {
-    kInvalid = 0,
-    kFtrace,
-    kInodeFile,
-    kProcessStats,
-    kSysStats,
-    kAndroidPower,
-    kAndroidLog,
-    kPackagesList,
-    kMetaTrace
+  // Static properties for a data source. Needs to be available before
+  // instantiating each data source. It must have static lifetime.
+  struct Descriptor {
+    enum Flags : uint32_t {
+      kFlagsNone = 0,
+      kHandlesIncrementalState = 1 << 0,
+    };
+    const char* const name;
+    uint32_t flags;
   };
 
-  ProbesDataSource(TracingSessionID, Type);
+  ProbesDataSource(TracingSessionID, const Descriptor*);
   virtual ~ProbesDataSource();
 
   virtual void Start() = 0;
@@ -54,7 +54,7 @@ class ProbesDataSource {
   }
 
   const TracingSessionID tracing_session_id;
-  const Type type;
+  const Descriptor* const descriptor;
   bool started = false;  // Set by probes_producer.cc.
 
  private:

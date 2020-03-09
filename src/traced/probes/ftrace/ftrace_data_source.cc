@@ -25,12 +25,18 @@
 
 namespace perfetto {
 
+// static
+const ProbesDataSource::Descriptor FtraceDataSource::descriptor = {
+    /*name*/ "linux.ftrace",
+    /*flags*/ Descriptor::kFlagsNone,
+};
+
 FtraceDataSource::FtraceDataSource(
     base::WeakPtr<FtraceController> controller_weak,
     TracingSessionID session_id,
     const FtraceConfig& config,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, Type::kFtrace),
+    : ProbesDataSource(session_id, &descriptor),
       config_(config),
       writer_(std::move(writer)),
       controller_weak_(std::move(controller_weak)) {}

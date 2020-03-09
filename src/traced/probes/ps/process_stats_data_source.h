@@ -48,6 +48,8 @@ class ProcessStats_Process;
 
 class ProcessStatsDataSource : public ProbesDataSource {
  public:
+  static const ProbesDataSource::Descriptor descriptor;
+
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
