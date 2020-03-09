@@ -47,7 +47,7 @@ heap_graph_sample_protos AS (
   LEFT JOIN anon_and_swap_span ON
     base_stats.upid = anon_and_swap_span.upid
     AND anon_and_swap_span.ts <= base_stats.graph_sample_ts
-    AND base_stats.graph_sample_ts <= anon_and_swap_span.ts + anon_and_swap_span.dur
+    AND base_stats.graph_sample_ts < anon_and_swap_span.ts + anon_and_swap_span.dur
   GROUP BY 1
 )
 SELECT JavaHeapStats(
