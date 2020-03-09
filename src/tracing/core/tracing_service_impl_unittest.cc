@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/consumer.h"
+#include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -2771,8 +2772,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   producer->WaitForDataSourceStart("data_source");
 
   // Calling ObserveEvents should cause an event for the initial instance state.
-  consumer->ObserveEvents(TracingService::ConsumerEndpoint::
-                              ObservableEventType::kDataSourceInstances);
+  consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
   {
     auto events = consumer->WaitForObservableEvents();
 
@@ -2837,8 +2837,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstances) {
   producer->WaitForDataSourceStart("data_source");
 
   // Stop observing events.
-  consumer->ObserveEvents(
-      TracingService::ConsumerEndpoint::ObservableEventType::kNone);
+  consumer->ObserveEvents(0);
 
   // Disabling should now no longer cause events to be sent to the consumer.
   consumer->DisableTracing();
@@ -2867,8 +2866,7 @@ TEST_F(TracingServiceImplTest, ObserveEventsDataSourceInstancesUnregister) {
   producer->WaitForDataSourceStart("data_source");
 
   // Calling ObserveEvents should cause an event for the initial instance state.
-  consumer->ObserveEvents(TracingService::ConsumerEndpoint::
-                              ObservableEventType::kDataSourceInstances);
+  consumer->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
   {
     ObservableEvents event;
     ObservableEvents::DataSourceInstanceStateChange* change =
