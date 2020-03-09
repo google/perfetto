@@ -15,6 +15,17 @@ packet {
   }
 }
 packet {
+  timestamp: 1
+  process_stats {
+    processes {
+      pid: 2
+      rss_anon_kb: 1000
+      vm_swap_kb: 0
+      oom_score_adj: 0
+    }
+  }
+}
+packet {
   timestamp: 10
   process_stats {
     processes {
@@ -77,6 +88,7 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 999
+  timestamp: 10
   heap_graph {
     pid: 2
     type_names {
@@ -113,17 +125,6 @@ packet {
     }
     continued: false
     index: 1
-  }
-}
-packet {
-  timestamp: 11
-  process_stats {
-    processes {
-      pid: 2
-      rss_anon_kb: 1000
-      vm_swap_kb: 0
-      oom_score_adj: 0
-    }
   }
 }
 packet {
