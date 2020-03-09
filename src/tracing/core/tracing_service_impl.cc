@@ -45,6 +45,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/consumer.h"
+#include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -2622,33 +2623,28 @@ void TracingServiceImpl::ConsumerEndpointImpl::GetTraceStats() {
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::ObserveEvents(
-    uint32_t enabled_event_types) {
+    uint32_t events_mask) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  enabled_observable_event_types_ = enabled_event_types;
-
-  if (enabled_observable_event_types_ == ObservableEventType::kNone)
-    return;
-
-  PERFETTO_DCHECK(enabled_observable_event_types_ ==
-                  ObservableEventType::kDataSourceInstances);
-
+  observable_events_mask_ = events_mask;
   TracingSession* session = service_->GetTracingSession(tracing_session_id_);
   if (!session)
     return;
 
-  // Issue initial states
-  for (const auto& kv : session->data_source_instances) {
-    ProducerEndpointImpl* producer = service_->GetProducer(kv.first);
-    PERFETTO_DCHECK(producer);
-    OnDataSourceInstanceStateChange(*producer, kv.second);
+  if (observable_events_mask_ & ObservableEvents::TYPE_DATA_SOURCES_INSTANCES) {
+    // Issue initial states.
+    for (const auto& kv : session->data_source_instances) {
+      ProducerEndpointImpl* producer = service_->GetProducer(kv.first);
+      PERFETTO_DCHECK(producer);
+      OnDataSourceInstanceStateChange(*producer, kv.second);
+    }
   }
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::OnDataSourceInstanceStateChange(
     const ProducerEndpointImpl& producer,
     const DataSourceInstance& instance) {
-  if (!(enabled_observable_event_types_ &
-        ObservableEventType::kDataSourceInstances)) {
+  if (!(observable_events_mask_ &
+        ObservableEvents::TYPE_DATA_SOURCES_INSTANCES)) {
     return;
   }
 
