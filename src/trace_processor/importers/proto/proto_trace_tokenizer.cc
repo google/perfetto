@@ -34,6 +34,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/track_tracker.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -391,6 +392,8 @@ void ProtoTraceTokenizer::HandleIncrementalStateCleared(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnIncrementalStateCleared();
+  context_->track_tracker->OnIncrementalStateCleared(
+      packet_decoder.trusted_packet_sequence_id());
 }
 
 void ProtoTraceTokenizer::HandlePreviousPacketDropped(

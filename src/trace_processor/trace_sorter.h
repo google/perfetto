@@ -140,14 +140,8 @@ class TraceSorter {
   }
 
   inline void PushTrackEventPacket(int64_t timestamp,
-                                   int64_t thread_time,
-                                   int64_t thread_instruction_count,
-                                   PacketSequenceState* state,
-                                   TraceBlobView packet) {
+                                   std::unique_ptr<TrackEventData> data) {
     auto* queue = GetQueue(0);
-    std::unique_ptr<TrackEventData> data(
-        new TrackEventData{std::move(packet), state->current_generation(),
-                           thread_time, thread_instruction_count});
     queue->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(data)));
     MaybeExtractEvents(queue);
