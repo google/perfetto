@@ -108,6 +108,10 @@ class RepeatedFieldIterator {
     FindNextMatchingId();
   }
 
+  // Constructs an invalid iterator.
+  RepeatedFieldIterator()
+      : field_id_(0u), iter_(nullptr), end_(nullptr), last_(nullptr) {}
+
   explicit operator bool() const { return iter_ != end_; }
   const Field& field() const { return *iter_; }
 

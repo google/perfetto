@@ -68,16 +68,15 @@ struct TracePacketData {
 };
 
 struct TrackEventData : public TracePacketData {
-  TrackEventData(TraceBlobView pv,
-                 PacketSequenceStateGeneration* generation,
-                 int64_t thread_ts,
-                 int64_t thread_ic)
-      : TracePacketData{std::move(pv), generation},
-        thread_timestamp(thread_ts),
-        thread_instruction_count(thread_ic) {}
+  TrackEventData(TraceBlobView pv, PacketSequenceStateGeneration* generation)
+      : TracePacketData{std::move(pv), generation} {}
 
-  int64_t thread_timestamp;
-  int64_t thread_instruction_count;
+  static constexpr size_t kMaxNumExtraCounters = 8;
+
+  int64_t thread_timestamp = 0;
+  int64_t thread_instruction_count = 0;
+  int64_t counter_value = 0;
+  std::array<int64_t, kMaxNumExtraCounters> extra_counter_values = {};
 };
 
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that

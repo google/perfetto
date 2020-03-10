@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
@@ -43,6 +44,7 @@
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_user_event.pbzero.h"
+#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -142,12 +144,21 @@ class TrackEventParser::EventImporter {
 
     RETURN_IF_ERROR(ParseTrackAssociation());
 
+    // Counter-type events don't support arguments (those are on the
+    // CounterDescriptor instead). All they have is a |counter_value|.
+    if (event_.type() == TrackEvent::TYPE_COUNTER) {
+      ParseCounterEvent();
+      return util::OkStatus();
+    }
+
+    // Parse extra counter values before parsing the actual event. This way, we
+    // can update the slice's thread time / instruction count fields based on
+    // these counter values.
+    ParseExtraCounterValues();
+
     // TODO(eseckler): Replace phase with type and remove handling of
     // legacy_event_.phase() once it is no longer used by producers.
     int32_t phase = ParsePhaseOrType();
-
-    // TODO(eseckler): Also handle TYPE_COUNTER events and extra_counter_*
-    // fields.
 
     switch (static_cast<char>(phase)) {
       case 'B':  // TRACE_EVENT_PHASE_BEGIN.
@@ -257,11 +268,11 @@ class TrackEventParser::EventImporter {
 
     // Consider track_uuid from the packet and TrackEventDefaults, fall back to
     // the default descriptor track (uuid 0).
-    uint64_t track_uuid = event_.has_track_uuid()
-                              ? event_.track_uuid()
-                              : (defaults_ && defaults_->has_track_uuid()
-                                     ? defaults_->track_uuid()
-                                     : 0u);
+    track_uuid_ = event_.has_track_uuid()
+                      ? event_.track_uuid()
+                      : (defaults_ && defaults_->has_track_uuid()
+                             ? defaults_->track_uuid()
+                             : 0u);
 
     // Determine track from track_uuid specified in either TrackEvent or
     // TrackEventDefaults. If a non-default track is not set, we either:
@@ -271,12 +282,12 @@ class TrackEventParser::EventImporter {
     //      specify an explicit track uuid or use legacy event phases instead of
     //      TrackEvent types), or
     //   b) a default track.
-    if (track_uuid) {
+    if (track_uuid_) {
       base::Optional<TrackId> opt_track_id =
-          track_tracker->GetDescriptorTrack(track_uuid);
+          track_tracker->GetDescriptorTrack(track_uuid_);
       if (!opt_track_id) {
         return util::ErrStatus("TrackEvent with unknown track_uuid %" PRIu64,
-                               track_uuid);
+                               track_uuid_);
       }
       track_id_ = *opt_track_id;
 
@@ -437,6 +448,57 @@ class TrackEventParser::EventImporter {
       default:
         PERFETTO_FATAL("unexpected event type %d", event_.type());
         return 0;
+    }
+  }
+
+  void ParseCounterEvent() {
+    // Tokenizer ensures that TYPE_COUNTER events are associated with counter
+    // tracks and have values.
+    PERFETTO_DCHECK(storage_->counter_track_table().id().IndexOf(track_id_));
+    PERFETTO_DCHECK(event_.has_counter_value());
+
+    context_->event_tracker->PushCounter(ts_, event_data_->counter_value,
+                                         track_id_);
+  }
+
+  void ParseExtraCounterValues() {
+    if (!event_.has_extra_counter_values())
+      return;
+
+    protozero::RepeatedFieldIterator<uint64_t> track_uuid_it;
+    if (event_.has_extra_counter_track_uuids()) {
+      track_uuid_it = event_.extra_counter_track_uuids();
+    } else if (defaults_->has_extra_counter_track_uuids()) {
+      track_uuid_it = defaults_->extra_counter_track_uuids();
+    }
+
+    size_t index = 0;
+    for (auto value_it = event_.extra_counter_values(); value_it;
+         ++value_it, ++track_uuid_it, ++index) {
+      // Tokenizer ensures that there aren't more values than uuids, that we
+      // don't have more values than kMaxNumExtraCounters and that the
+      // track_uuids are for valid counter tracks.
+      PERFETTO_DCHECK(track_uuid_it);
+      PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
+
+      base::Optional<TrackId> track_id =
+          context_->track_tracker->GetDescriptorTrack(*track_uuid_it);
+      base::Optional<uint32_t> counter_row =
+          storage_->counter_track_table().id().IndexOf(*track_id);
+
+      int64_t value = event_data_->extra_counter_values[index];
+      context_->event_tracker->PushCounter(ts_, value, *track_id);
+
+      // Also import thread_time and thread_instruction_count counters into
+      // slice columns to simplify JSON export.
+      StringId counter_name =
+          storage_->counter_track_table().name()[*counter_row];
+      if (counter_name == parser_->counter_name_thread_time_id_) {
+        event_data_->thread_timestamp = value;
+      } else if (counter_name ==
+                 parser_->counter_name_thread_instruction_count_id_) {
+        event_data_->thread_instruction_count = value;
+      }
     }
   }
 
@@ -1136,6 +1198,7 @@ class TrackEventParser::EventImporter {
   // Importing state.
   StringId category_id_;
   StringId name_id_;
+  uint64_t track_uuid_;
   TrackId track_id_;
   base::Optional<UniqueTid> utid_;
   base::Optional<UniqueTid> upid_;
@@ -1149,6 +1212,10 @@ class TrackEventParser::EventImporter {
 TrackEventParser::TrackEventParser(TraceProcessorContext* context)
     : context_(context),
       proto_to_args_(context_),
+      counter_name_thread_time_id_(
+          context->storage->InternString("thread_time")),
+      counter_name_thread_instruction_count_id_(
+          context->storage->InternString("thread_instruction_count")),
       task_file_name_args_key_id_(
           context->storage->InternString("task.posted_from.file_name")),
       task_function_name_args_key_id_(
@@ -1293,7 +1360,10 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
            context_->storage->InternString("CompositorTileWorker&"),
            context_->storage->InternString("ServiceWorkerThread&"),
            context_->storage->InternString("MemoryInfra"),
-           context_->storage->InternString("StackSamplingProfiler")}} {
+           context_->storage->InternString("StackSamplingProfiler")}},
+      counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
+                         context_->storage->InternString("count"),
+                         context_->storage->InternString("bytes")}} {
   auto status = proto_to_args_.AddProtoFileDescriptor(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
   PERFETTO_DCHECK(status.ok());
@@ -1340,6 +1410,8 @@ void TrackEventParser::ParseTrackDescriptor(
     UniquePid upid = ParseProcessDescriptor(decoder.process());
     if (decoder.has_chrome_process())
       ParseChromeProcessDescriptor(upid, decoder.chrome_process());
+  } else if (decoder.has_counter()) {
+    ParseCounterDescriptor(track_id, decoder.counter());
   }
 
   if (decoder.has_name()) {
@@ -1428,6 +1500,39 @@ void TrackEventParser::ParseChromeThreadDescriptor(
           : 0u;
   StringId name_id = chrome_thread_name_ids_[name_index];
   context_->process_tracker->SetThreadNameIfUnset(utid, name_id);
+}
+
+void TrackEventParser::ParseCounterDescriptor(
+    TrackId track_id,
+    protozero::ConstBytes counter_descriptor) {
+  using protos::pbzero::CounterDescriptor;
+
+  CounterDescriptor::Decoder decoder(counter_descriptor);
+  auto* counter_tracks = context_->storage->mutable_counter_track_table();
+
+  size_t unit_index = static_cast<size_t>(decoder.unit());
+  if (unit_index >= counter_unit_ids_.size())
+    unit_index = CounterDescriptor::UNIT_UNSPECIFIED;
+
+  switch (decoder.type()) {
+    case CounterDescriptor::COUNTER_UNSPECIFIED:
+      break;
+    case CounterDescriptor::COUNTER_THREAD_TIME_NS:
+      unit_index = CounterDescriptor::UNIT_TIME_NS;
+      counter_tracks->mutable_name()->Set(
+          *counter_tracks->id().IndexOf(track_id),
+          counter_name_thread_time_id_);
+      break;
+    case CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT:
+      unit_index = CounterDescriptor::UNIT_COUNT;
+      counter_tracks->mutable_name()->Set(
+          *counter_tracks->id().IndexOf(track_id),
+          counter_name_thread_instruction_count_id_);
+      break;
+  }
+
+  counter_tracks->mutable_unit()->Set(*counter_tracks->id().IndexOf(track_id),
+                                      counter_unit_ids_[unit_index]);
 }
 
 void TrackEventParser::ParseTrackEvent(int64_t ts,
