@@ -25,10 +25,12 @@ import {
   BufferConfig,
   ChromeConfig,
   ConsumerPort,
-  ContinuousDumpConfig,
   DataSourceConfig,
   FtraceConfig,
   HeapprofdConfig,
+  JavaContinuousDumpConfig,
+  JavaHprofConfig,
+  NativeContinuousDumpConfig,
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
@@ -243,13 +245,36 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
       });
     }
     if (uiCfg.hpContinuousDumpsInterval > 0) {
-      heapprofd.continuousDumpConfig = new ContinuousDumpConfig();
+      heapprofd.continuousDumpConfig = new NativeContinuousDumpConfig();
       heapprofd.continuousDumpConfig.dumpIntervalMs =
           uiCfg.hpContinuousDumpsInterval;
       heapprofd.continuousDumpConfig.dumpPhaseMs =
           uiCfg.hpContinuousDumpsPhase > 0 ? uiCfg.hpContinuousDumpsPhase :
                                              undefined;
     }
+  }
+
+  let javaHprof: JavaHprofConfig|undefined = undefined;
+  if (uiCfg.javaHeapDump) {
+    const theJavaHprof = new HeapprofdConfig();
+    if (uiCfg.jpProcesses !== '') {
+      uiCfg.jpProcesses.split('\n').forEach(value => {
+        if (isNaN(+value)) {
+          theJavaHprof.processCmdline.push(value);
+        } else {
+          theJavaHprof.pid.push(+value);
+        }
+      });
+    }
+    if (uiCfg.jpContinuousDumpsInterval > 0) {
+      theJavaHprof.continuousDumpConfig = new JavaContinuousDumpConfig();
+      theJavaHprof.continuousDumpConfig.dumpIntervalMs =
+          uiCfg.jpContinuousDumpsInterval;
+      theJavaHprof.continuousDumpConfig.dumpPhaseMs =
+          uiCfg.jpContinuousDumpsPhase > 0 ? uiCfg.jpContinuousDumpsPhase :
+                                             undefined;
+    }
+    javaHprof = theJavaHprof;
   }
 
   if (uiCfg.procStats || procThreadAssociationPolling || trackInitialOomScore) {
@@ -381,6 +406,15 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     ds.config.targetBuffer = 0;
     ds.config.name = 'android.heapprofd';
     ds.config.heapprofdConfig = heapprofd;
+    protoCfg.dataSources.push(ds);
+  }
+
+  if (javaHprof !== undefined) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.targetBuffer = 0;
+    ds.config.name = 'android.java_hprof';
+    ds.config.javaHprofConfig = javaHprof;
     protoCfg.dataSources.push(ds);
   }
 

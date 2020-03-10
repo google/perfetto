@@ -364,6 +364,11 @@ export interface RecordConfig {
   hpContinuousDumpsInterval: number;
   hpSharedMemoryBuffer: number;
 
+  javaHeapDump: boolean;
+  jpProcesses: string;
+  jpContinuousDumpsPhase: number;
+  jpContinuousDumpsInterval: number;
+
   procStats: boolean;
   procStatsPeriodMs: number;
 
@@ -421,6 +426,11 @@ export function createEmptyRecordConfig(): RecordConfig {
     hpContinuousDumpsPhase: 0,
     hpContinuousDumpsInterval: 0,
     hpSharedMemoryBuffer: 8 * 1048576,
+
+    javaHeapDump: false,
+    jpProcesses: '',
+    jpContinuousDumpsPhase: 0,
+    jpContinuousDumpsInterval: 0,
 
     memLmk: false,
     procStats: false,

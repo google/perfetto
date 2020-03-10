@@ -25,11 +25,14 @@ import BatteryCounters =
 import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
 import ConsumerPort = protos.perfetto.protos.ConsumerPort;
-import ContinuousDumpConfig =
+import NativeContinuousDumpConfig =
     protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
+import JavaContinuousDumpConfig =
+    protos.perfetto.protos.JavaHprofConfig.ContinuousDumpConfig;
 import DataSourceConfig = protos.perfetto.protos.DataSourceConfig;
 import FtraceConfig = protos.perfetto.protos.FtraceConfig;
 import HeapprofdConfig = protos.perfetto.protos.HeapprofdConfig;
+import JavaHprofConfig = protos.perfetto.protos.JavaHprofConfig;
 import IAndroidPowerConfig = protos.perfetto.protos.IAndroidPowerConfig;
 import IBufferConfig = protos.perfetto.protos.TraceConfig.IBufferConfig;
 import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
@@ -207,7 +210,6 @@ export {
   BufferConfig,
   ChromeConfig,
   ConsumerPort,
-  ContinuousDumpConfig,
   DataSourceConfig,
   FtraceConfig,
   HeapprofdConfig,
@@ -217,12 +219,15 @@ export {
   IRawQueryArgs,
   ISysStatsConfig,
   ITraceConfig,
+  JavaContinuousDumpConfig,
+  JavaHprofConfig,
   MeminfoCounters,
+  NativeContinuousDumpConfig,
   ProcessStatsConfig,
   RawQueryArgs,
   RawQueryResult,
-  StatusResult,
   StatCounters,
+  StatusResult,
   SysStatsConfig,
   TraceConfig,
   VmstatCounters,
