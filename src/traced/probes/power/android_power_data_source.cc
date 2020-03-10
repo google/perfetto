@@ -42,6 +42,12 @@ constexpr uint32_t kMinPollIntervalMs = 100;
 constexpr size_t kMaxNumRails = 32;
 }  // namespace
 
+// static
+const ProbesDataSource::Descriptor AndroidPowerDataSource::descriptor = {
+    /*name*/ "android.power",
+    /*flags*/ Descriptor::kFlagsNone,
+};
+
 // Dynamically loads the libperfetto_android_internal.so library which
 // allows to proxy calls to android hwbinder in in-tree builds.
 struct AndroidPowerDataSource::DynamicLibLoader {
@@ -88,7 +94,7 @@ AndroidPowerDataSource::AndroidPowerDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, Type::kAndroidPower),
+    : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       rail_descriptors_logged_(false),
       writer_(std::move(writer)),
@@ -209,11 +215,11 @@ void AndroidPowerDataSource::WritePowerRailsData() {
     }
 
     for (const auto& rail_descriptor : rail_descriptors) {
-      auto* descriptor = rails_proto->add_rail_descriptor();
-      descriptor->set_index(rail_descriptor.index);
-      descriptor->set_rail_name(rail_descriptor.rail_name);
-      descriptor->set_subsys_name(rail_descriptor.subsys_name);
-      descriptor->set_sampling_rate(rail_descriptor.sampling_rate);
+      auto* rail_desc_proto = rails_proto->add_rail_descriptor();
+      rail_desc_proto->set_index(rail_descriptor.index);
+      rail_desc_proto->set_rail_name(rail_descriptor.rail_name);
+      rail_desc_proto->set_subsys_name(rail_descriptor.subsys_name);
+      rail_desc_proto->set_sampling_rate(rail_descriptor.sampling_rate);
     }
   }
 

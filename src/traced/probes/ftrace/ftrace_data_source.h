@@ -54,6 +54,8 @@ class FtraceEventBundle;
 // FtraceController.
 class FtraceDataSource : public ProbesDataSource {
  public:
+  static const ProbesDataSource::Descriptor descriptor;
+
   FtraceDataSource(base::WeakPtr<FtraceController>,
                    TracingSessionID,
                    const FtraceConfig&,
