@@ -211,9 +211,8 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
       PERFETTO_DLOG("Unwinder skipping sample for pid [%d]",
                     static_cast<int>(pid));
 
-      delegate_->PostEmitSkippedSample(entry.data_source_id,
-                                       ProfilerStage::kUnwind,
-                                       std::move(entry.sample));
+      delegate_->PostEmitUnwinderSkippedSample(entry.data_source_id,
+                                               std::move(entry.sample));
       entry.valid = false;
       continue;
     }

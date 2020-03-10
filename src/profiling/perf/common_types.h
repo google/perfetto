@@ -83,11 +83,6 @@ struct CompletedSample {
   unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
 };
 
-enum class ProfilerStage {
-  kRead = 0,
-  kUnwind,
-};
-
 }  // namespace profiling
 }  // namespace perfetto
 

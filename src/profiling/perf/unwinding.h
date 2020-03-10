@@ -78,9 +78,8 @@ class Unwinder {
    public:
     virtual void PostEmitSample(DataSourceInstanceID ds_id,
                                 CompletedSample sample) = 0;
-    virtual void PostEmitSkippedSample(DataSourceInstanceID ds_id,
-                                       ProfilerStage stage,
-                                       ParsedSample sample) = 0;
+    virtual void PostEmitUnwinderSkippedSample(DataSourceInstanceID ds_id,
+                                               ParsedSample sample) = 0;
     virtual void PostFinishDataSourceStop(DataSourceInstanceID ds_id) = 0;
 
     virtual ~Delegate();
