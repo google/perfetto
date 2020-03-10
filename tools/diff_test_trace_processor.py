@@ -175,7 +175,7 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
 
 
 def run_all_tests(trace_processor, trace_descriptor_path,
-                  metrics_message_factory, tests):
+                  metrics_message_factory, tests, keep_input):
   perf_data = []
   test_failure = 0
   for test in tests:
@@ -191,12 +191,12 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       continue
 
     if trace_path.endswith('.py'):
-      gen_trace_file = tempfile.NamedTemporaryFile()
+      gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
       python_cmd = ['python', trace_path, trace_descriptor_path]
       subprocess.check_call(python_cmd, stdout=gen_trace_file)
       gen_trace_path = os.path.realpath(gen_trace_file.name)
     elif trace_path.endswith('.textproto'):
-      gen_trace_file = tempfile.NamedTemporaryFile()
+      gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
       serialize_text_proto_to_file(trace_descriptor_path, trace_path,
                                    gen_trace_file)
       gen_trace_path = os.path.realpath(gen_trace_file.name)
@@ -230,7 +230,11 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       perf_lines = tmp_perf_file.readlines()
 
     if gen_trace_file:
-      gen_trace_file.close()
+      if keep_input:
+        print "Saving generated input trace: ", gen_trace_path
+      else:
+        gen_trace_file.close()
+        os.remove(gen_trace_path)
 
     if result.expected == result.actual:
       assert len(perf_lines) == 1
@@ -326,6 +330,10 @@ def main():
       type=str,
       help='Filter the name of trace files to diff test (regex syntax)')
   parser.add_argument(
+      '--keep-input',
+      action='store_true',
+      help='Save the (generated) input pb file for debugging')
+  parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
@@ -368,9 +376,9 @@ def main():
       metrics_descriptor_path)
 
   test_run_start = datetime.datetime.now()
-  test_failure, perf_data = run_all_tests(args.trace_processor,
-                                          trace_descriptor_path,
-                                          metrics_message_factory, tests)
+  test_failure, perf_data = run_all_tests(
+      args.trace_processor, trace_descriptor_path, metrics_message_factory,
+      tests, args.keep_input)
   test_run_end = datetime.datetime.now()
 
   sys.stderr.write('[==========] {} tests ran. ({} ms total)\n'.format(
