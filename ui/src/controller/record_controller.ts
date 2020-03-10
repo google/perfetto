@@ -229,52 +229,51 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
   let heapprofd: HeapprofdConfig|undefined = undefined;
   if (uiCfg.heapProfiling) {
     // TODO(taylori): Check or inform user if buffer size are too small.
-    if (heapprofd === undefined) heapprofd = new HeapprofdConfig();
-    heapprofd.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
+    const cfg = new HeapprofdConfig();
+    cfg.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
     if (uiCfg.hpSharedMemoryBuffer >= 8192 &&
         uiCfg.hpSharedMemoryBuffer % 4096 === 0) {
-      heapprofd.shmemSizeBytes = uiCfg.hpSharedMemoryBuffer;
+      cfg.shmemSizeBytes = uiCfg.hpSharedMemoryBuffer;
     }
-    if (uiCfg.hpProcesses !== '') {
-      uiCfg.hpProcesses.split('\n').forEach(value => {
-        if (isNaN(+value)) {
-          heapprofd!.processCmdline.push(value);
-        } else {
-          heapprofd!.pid.push(+value);
-        }
-      });
+    for (const value of uiCfg.hpProcesses.split('\n')) {
+      if (value === '') {
+        // Ignore empty lines
+      } else if (isNaN(+value)) {
+        cfg.processCmdline.push(value);
+      } else {
+        cfg.pid.push(+value);
+      }
     }
     if (uiCfg.hpContinuousDumpsInterval > 0) {
-      heapprofd.continuousDumpConfig = new NativeContinuousDumpConfig();
-      heapprofd.continuousDumpConfig.dumpIntervalMs =
-          uiCfg.hpContinuousDumpsInterval;
-      heapprofd.continuousDumpConfig.dumpPhaseMs =
-          uiCfg.hpContinuousDumpsPhase > 0 ? uiCfg.hpContinuousDumpsPhase :
-                                             undefined;
+      const cdc = cfg.continuousDumpConfig = new NativeContinuousDumpConfig();
+      cdc.dumpIntervalMs = uiCfg.hpContinuousDumpsInterval;
+      if (uiCfg.hpContinuousDumpsPhase > 0) {
+        cdc.dumpPhaseMs = uiCfg.hpContinuousDumpsPhase;
+      }
     }
+    heapprofd = cfg;
   }
 
   let javaHprof: JavaHprofConfig|undefined = undefined;
   if (uiCfg.javaHeapDump) {
-    const theJavaHprof = new HeapprofdConfig();
-    if (uiCfg.jpProcesses !== '') {
-      uiCfg.jpProcesses.split('\n').forEach(value => {
-        if (isNaN(+value)) {
-          theJavaHprof.processCmdline.push(value);
-        } else {
-          theJavaHprof.pid.push(+value);
-        }
-      });
+    const cfg = new HeapprofdConfig();
+    for (const value of uiCfg.jpProcesses.split('\n')) {
+      if (value === '') {
+        // Ignore empty lines
+      } else if (isNaN(+value)) {
+        cfg.processCmdline.push(value);
+      } else {
+        cfg.pid.push(+value);
+      }
     }
     if (uiCfg.jpContinuousDumpsInterval > 0) {
-      theJavaHprof.continuousDumpConfig = new JavaContinuousDumpConfig();
-      theJavaHprof.continuousDumpConfig.dumpIntervalMs =
-          uiCfg.jpContinuousDumpsInterval;
-      theJavaHprof.continuousDumpConfig.dumpPhaseMs =
-          uiCfg.jpContinuousDumpsPhase > 0 ? uiCfg.jpContinuousDumpsPhase :
-                                             undefined;
+      const cdc = cfg.continuousDumpConfig = new JavaContinuousDumpConfig();
+      cdc.dumpIntervalMs = uiCfg.jpContinuousDumpsInterval;
+      if (uiCfg.hpContinuousDumpsPhase > 0) {
+        cdc.dumpPhaseMs = uiCfg.jpContinuousDumpsPhase;
+      }
     }
-    javaHprof = theJavaHprof;
+    javaHprof = cfg;
   }
 
   if (uiCfg.procStats || procThreadAssociationPolling || trackInitialOomScore) {
