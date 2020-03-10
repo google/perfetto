@@ -675,6 +675,7 @@ filegroup(
         "src/trace_processor/containers/null_term_string_view.h",
         "src/trace_processor/containers/row_map.cc",
         "src/trace_processor/containers/row_map.h",
+        "src/trace_processor/containers/sparse_vector.cc",
         "src/trace_processor/containers/sparse_vector.h",
         "src/trace_processor/containers/string_pool.cc",
         "src/trace_processor/containers/string_pool.h",

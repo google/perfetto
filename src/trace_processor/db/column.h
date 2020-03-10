@@ -109,6 +109,22 @@ class Column {
 
   template <typename T>
   Column(const char* name,
+         std::unique_ptr<SparseVector<T>> storage,
+         /* Flag */ uint32_t flags,
+         Table* table,
+         uint32_t col_idx_in_table,
+         uint32_t row_map_idx)
+      : Column(name,
+               ToColumnType<T>(),
+               flags,
+               table,
+               col_idx_in_table,
+               row_map_idx,
+               std::move(storage),
+               storage.get()) {}
+
+  template <typename T>
+  Column(const char* name,
          SparseVector<T>* storage,
          /* Flag */ uint32_t flags,
          Table* table,
@@ -120,6 +136,7 @@ class Column {
                table,
                col_idx_in_table,
                row_map_idx,
+               nullptr,
                storage) {}
 
   // Create a Column has the same name and is backed by the same data as
@@ -405,7 +422,8 @@ class Column {
          Table* table,
          uint32_t col_idx_in_table,
          uint32_t row_map_idx,
-         void* sparse_vector);
+         std::unique_ptr<SparseVectorBase> owned_sparse_vector,
+         SparseVectorBase* sparse_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
@@ -556,9 +574,14 @@ class Column {
     return string_pool_->Get(sparse_vector<StringPool::Id>().GetNonNull(idx));
   }
 
+  // Only filled for columns which own the data inside them. Generally this is
+  // only true for columns which are dynamically generated at runtime.
+  // Keep this before |sparse_vector_|.
+  std::unique_ptr<SparseVectorBase> owned_sparse_vector_;
+
   // type_ is used to cast sparse_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;
-  void* sparse_vector_ = nullptr;
+  SparseVectorBase* sparse_vector_ = nullptr;
 
   const char* name_ = nullptr;
   uint32_t flags_ = Flag::kNoFlag;
