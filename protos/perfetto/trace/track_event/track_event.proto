@@ -163,8 +163,11 @@ message TrackEvent {
   // extra_counter_values[N] is for the counter track referenced by
   // extra_counter_track_uuids[N].
   //
-  // |extra_counter_track_uuids| may also be set via TrackEventDefaults. Setting
-  // it to [0] clears the default for a specific packet.
+  // |extra_counter_track_uuids| may also be set via TrackEventDefaults. There
+  // should always be equal or more uuids than values. It is valid to set more
+  // uuids (e.g. via defaults) than values. If uuids are specified in
+  // TrackEventDefaults and a TrackEvent, the TrackEvent uuids override the
+  // default uuid list.
   //
   // For example, this allows snapshotting the thread time clock at each
   // thread-track BEGIN and END event to capture the cpu time delta of a slice.
@@ -310,7 +313,7 @@ message TrackEvent {
 // corresponding fields in TrackEvent.
 message TrackEventDefaults {
   optional uint64 track_uuid = 11;
-  optional uint64 extra_counter_track_uuids = 31;
+  repeated uint64 extra_counter_track_uuids = 31;
 
   // TODO(eseckler): Support default values for more TrackEvent fields.
 }
