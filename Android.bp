@@ -6214,6 +6214,7 @@ filegroup {
     "src/trace_processor/containers/bit_vector.cc",
     "src/trace_processor/containers/bit_vector_iterators.cc",
     "src/trace_processor/containers/row_map.cc",
+    "src/trace_processor/containers/sparse_vector.cc",
     "src/trace_processor/containers/string_pool.cc",
   ],
 }
