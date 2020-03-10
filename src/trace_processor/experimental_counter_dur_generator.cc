@@ -45,7 +45,7 @@ util::Status ExperimentalCounterDurGenerator::ValidateConstraints(
   return util::OkStatus();
 }
 
-Table* ExperimentalCounterDurGenerator::ComputeTable(
+std::unique_ptr<Table> ExperimentalCounterDurGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&) {
   std::vector<Constraint> constraints;
@@ -57,15 +57,10 @@ Table* ExperimentalCounterDurGenerator::ComputeTable(
   }
   Table table = counter_table_->Filter(constraints);
 
-  // We structure the code the following way (instead of just resetting the
-  // unique_ptr fields) to ensure that we don't hold onto a pointer to the
-  // sparsevector in the table after freeing the sparsevector.
   std::unique_ptr<SparseVector<int64_t>> dur_column(
       new SparseVector<int64_t>(ComputeDurColumn(table)));
-  counter_with_dur_table_.reset(new Table(table.ExtendWithColumn(
-      "dur", dur_column.get(), TypedColumn<int64_t>::default_flags())));
-  dur_column_ = std::move(dur_column);
-  return counter_with_dur_table_.get();
+  return std::unique_ptr<Table>(new Table(table.ExtendWithColumn(
+      "dur", std::move(dur_column), TypedColumn<int64_t>::default_flags())));
 }
 
 // static
