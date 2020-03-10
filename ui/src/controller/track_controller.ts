@@ -106,8 +106,9 @@ export abstract class TrackController<Config = {},
   run() {
     const visibleState = globals.state.frontendLocalState.visibleState;
     if (visibleState === undefined || visibleState.resolution === undefined ||
-        visibleState.resolution === Infinity)
+        visibleState.resolution === Infinity) {
       return;
+    }
     const dur = visibleState.endSec - visibleState.startSec;
     if (globals.state.visibleTracks.includes(this.trackId) &&
         this.shouldRequestData(visibleState)) {
