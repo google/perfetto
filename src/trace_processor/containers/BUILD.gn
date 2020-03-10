@@ -23,6 +23,7 @@ source_set("containers") {
     "null_term_string_view.h",
     "row_map.cc",
     "row_map.h",
+    "sparse_vector.cc",
     "sparse_vector.h",
     "string_pool.cc",
     "string_pool.h",

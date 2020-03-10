@@ -150,14 +150,14 @@ class Table {
 
   template <typename T>
   Table ExtendWithColumn(const char* name,
-                         SparseVector<T>* sv,
+                         std::unique_ptr<SparseVector<T>> sv,
                          uint32_t flags) const {
     PERFETTO_DCHECK(sv->size() == row_count_);
 
     uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
     Table ret = Copy();
-    ret.columns_.emplace_back(
-        Column(name, sv, flags, &ret, GetColumnCount(), row_map_count));
+    ret.columns_.emplace_back(Column(name, std::move(sv), flags, &ret,
+                                     GetColumnCount(), row_map_count));
     ret.row_maps_.emplace_back(RowMap(0, sv->size()));
     return ret;
   }

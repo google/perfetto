@@ -63,13 +63,9 @@ class DbSqliteTable : public SqliteTable {
 
     // Dynamically computes the table given the constraints and order by
     // vectors.
-    //
-    // Implementations should store the generated table inside a stable pointer
-    // (e.g. unique_ptr, shared_ptr or similar) and return the pointer to that
-    // object. The pointer should not be freed until a successive call to
-    // |ComputeTable|.
-    virtual Table* ComputeTable(const std::vector<Constraint>& cs,
-                                const std::vector<Order>& ob) = 0;
+    virtual std::unique_ptr<Table> ComputeTable(
+        const std::vector<Constraint>& cs,
+        const std::vector<Order>& ob) = 0;
   };
 
   class Cursor : public SqliteTable::Cursor {
@@ -110,6 +106,10 @@ class DbSqliteTable : public SqliteTable {
     QueryCache* cache_ = nullptr;
 
     const Table* upstream_table_ = nullptr;
+
+    // Only valid for |db_sqlite_table_->computation_| ==
+    // TableComputation::kDynamic.
+    std::unique_ptr<Table> dynamic_table_;
 
     // Only valid for Mode::kSingleRow.
     base::Optional<uint32_t> single_row_;
