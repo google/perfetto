@@ -32,6 +32,7 @@ Column::Column(const Column& column,
              table,
              col_idx,
              row_map_idx,
+             nullptr,
              column.sparse_vector_) {}
 
 Column::Column(const char* name,
@@ -40,8 +41,10 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
-               void* sparse_vector)
-    : type_(type),
+               std::unique_ptr<SparseVectorBase> owned_sparse_vector,
+               SparseVectorBase* sparse_vector)
+    : owned_sparse_vector_(std::move(owned_sparse_vector)),
+      type_(type),
       sparse_vector_(sparse_vector),
       name_(name),
       flags_(flags),
@@ -52,7 +55,7 @@ Column::Column(const char* name,
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
   return Column("id", ColumnType::kId, kIdFlags, table, col_idx, row_map_idx,
-                nullptr);
+                nullptr, nullptr);
 }
 
 void Column::StableSort(bool desc, std::vector<uint32_t>* idx) const {

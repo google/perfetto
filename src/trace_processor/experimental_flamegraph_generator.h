@@ -43,11 +43,10 @@ class ExperimentalFlamegraphGenerator
   std::string TableName() override;
   uint32_t EstimateRowCount() override;
   util::Status ValidateConstraints(const QueryConstraints&) override;
-  Table* ComputeTable(const std::vector<Constraint>& cs,
-                      const std::vector<Order>& ob) override;
+  std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>& cs,
+                                      const std::vector<Order>& ob) override;
 
  private:
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> table_;
   TraceProcessorContext* context_;
 };
 
