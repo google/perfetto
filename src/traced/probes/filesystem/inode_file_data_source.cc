@@ -79,6 +79,12 @@ class StaticMapDelegate : public FileScanner::Delegate {
 
 }  // namespace
 
+// static
+const ProbesDataSource::Descriptor InodeFileDataSource::descriptor = {
+    /*name*/ "linux.inode_file_map",
+    /*flags*/ Descriptor::kFlagsNone,
+};
+
 void CreateStaticDeviceToInodeMap(
     const std::string& root_directory,
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
@@ -107,7 +113,7 @@ InodeFileDataSource::InodeFileDataSource(
         static_file_map,
     LRUInodeCache* cache,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, Type::kInodeFile),
+    : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       static_file_map_(static_file_map),
       cache_(cache),

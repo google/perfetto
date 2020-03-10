@@ -53,6 +53,8 @@ void CreateStaticDeviceToInodeMap(
 class InodeFileDataSource : public ProbesDataSource,
                             public FileScanner::Delegate {
  public:
+  static const ProbesDataSource::Descriptor descriptor;
+
   InodeFileDataSource(
       DataSourceConfig,
       base::TaskRunner*,
