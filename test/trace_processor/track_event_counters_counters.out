@@ -1,0 +1,9 @@
+"counter_name","process","thread","thread_process","unit","track_args","ts","value"
+"thread_time","[NULL]","t1","p1","ns",1,1000,1000000.000000
+"thread_time","[NULL]","t1","p1","ns",1,1100,1010000.000000
+"thread_time","[NULL]","t1","p1","ns",1,2000,2000000.000000
+"thread_time","[NULL]","t1","p1","ns",1,2200,2010000.000000
+"MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",2,3000,1024.000000
+"MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",2,3100,2048.000000
+"thread_time","[NULL]","t1","p1","ns",1,4000,2020000.000000
+"MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",2,4000,1024.000000
