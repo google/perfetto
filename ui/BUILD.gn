@@ -366,10 +366,9 @@ copy("query_dist") {
 
 copy("assets_dist") {
   sources = [
-              "src/assets/heap_profiler.png",
-              "src/assets/logo-3d.png",
               "src/assets/brand.png",
               "src/assets/favicon.png",
+              "src/assets/logo-3d.png",
               "src/assets/rec_atrace.png",
               "src/assets/rec_battery_counters.png",
               "src/assets/rec_board_voltage.png",
@@ -385,6 +384,7 @@ copy("assets_dist") {
               "src/assets/rec_long_trace.png",
               "src/assets/rec_mem_hifreq.png",
               "src/assets/rec_meminfo.png",
+              "src/assets/rec_native_heap_profiler.png",
               "src/assets/rec_one_shot.png",
               "src/assets/rec_ps_stats.png",
               "src/assets/rec_ring_buf.png",
