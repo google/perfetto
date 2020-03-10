@@ -711,6 +711,8 @@ class TrackEventParser::EventImporter {
 
   void ParseTrackEventArgs(BoundInserter* inserter) {
     auto log_errors = [this](util::Status status) {
+      if (status.ok())
+        return;
       // Log error but continue parsing the other args.
       storage_->IncrementStats(stats::track_event_parser_errors);
       PERFETTO_DLOG("%s", status.c_message());
