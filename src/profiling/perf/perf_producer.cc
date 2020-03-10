@@ -118,8 +118,8 @@ bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
     reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
                  filter.exclude_cmdlines.count(cmdline);
   } else {
-    PERFETTO_LOG("Failed to look up cmdline for pid [%d]",
-                 static_cast<int>(pid));
+    PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
+                  static_cast<int>(pid));
     // reject only if there's a whitelist present
     reject_cmd = filter.cmdlines.size() > 0;
   }

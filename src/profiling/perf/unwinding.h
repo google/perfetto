@@ -27,6 +27,7 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -109,8 +110,11 @@ class Unwinder {
     };
 
     Status status = Status::kResolving;
-    UnwindingMetadata unwind_state{/*maps_fd=*/base::ScopedFile{},
-                                   /*mem_fd=*/base::ScopedFile{}};
+    // Present iff status == kResolved.
+    base::Optional<UnwindingMetadata> unwind_state;
+    // Used to distinguish first-time unwinding attempts for a process, for
+    // logging purposes.
+    bool attempted_unwinding = false;
   };
 
   struct DataSourceState {
@@ -142,7 +146,8 @@ class Unwinder {
   base::FlatSet<DataSourceInstanceID> ConsumeAndUnwindReadySamples();
 
   CompletedSample UnwindSample(const ParsedSample& sample,
-                               UnwindingMetadata* unwind_state);
+                               UnwindingMetadata* unwind_state,
+                               bool pid_unwound_before);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we
