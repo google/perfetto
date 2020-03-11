@@ -222,6 +222,16 @@ export interface AdbRecordingTarget extends RecordingTarget {
   serial: string;
 }
 
+export interface Sorting {
+  column: string;
+  direction: 'DESC'|'ASC';
+}
+
+export interface AggregationState {
+  id: string;
+  sorting?: Sorting;
+}
+
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
@@ -242,6 +252,7 @@ export interface State {
   traceTime: TraceTime;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
+  aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
   scrollingTracks: string[];
   pinnedTracks: string[];
@@ -666,6 +677,7 @@ export function createEmptyState(): State {
     engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
+    aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],
     pinnedTracks: [],
