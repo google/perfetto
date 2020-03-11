@@ -101,8 +101,6 @@ UnwindingMetadata::UnwindingMetadata(base::ScopedFile maps_fd,
           new unwindstack::DexFiles(fd_mem)))
 #endif
 {
-  if (!maps_fd)
-    return;
   if (!fd_maps.Parse())
     PERFETTO_DLOG("Failed initial maps parse");
 }

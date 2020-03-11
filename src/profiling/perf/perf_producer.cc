@@ -118,8 +118,8 @@ bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
     reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
                  filter.exclude_cmdlines.count(cmdline);
   } else {
-    PERFETTO_LOG("Failed to look up cmdline for pid [%d]",
-                 static_cast<int>(pid));
+    PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
+                  static_cast<int>(pid));
     // reject only if there's a whitelist present
     reject_cmd = filter.cmdlines.size() > 0;
   }
@@ -341,8 +341,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     if (process_state == ProcessTrackingStatus::kExpired) {
       PERFETTO_DLOG("Skipping sample for previously expired pid [%d]",
                     static_cast<int>(pid));
-      PostEmitSkippedSample(ds_id, ProfilerStage::kRead,
-                            std::move(sample.value()));
+      PostEmitSkippedSample(ds_id, std::move(sample.value()),
+                            SampleSkipReason::kReadStage);
       continue;
     }
 
@@ -376,16 +376,16 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                    process_state == ProcessTrackingStatus::kResolving);
 
     // Push the sample into the unwinding queue if there is room.
-    // TODO(rsavitski): this can silently drop entries. We should either record
-    // them (e.g. using |PostEmitSkippedSample|), or rearchitect the kernel
-    // buffer reading s.t. we can retain the blocked samples (putting
-    // back-pressure on the kernel ring buffer instead).
     auto& queue = unwinding_worker_->unwind_queue();
     WriteView write_view = queue.BeginWrite();
     if (write_view.valid) {
       queue.at(write_view.write_pos) =
           UnwindEntry{ds_id, std::move(sample.value())};
       queue.CommitWrite();
+    } else {
+      PERFETTO_DLOG("Unwinder queue full, skipping sample.");
+      PostEmitSkippedSample(ds_id, std::move(sample.value()),
+                            SampleSkipReason::kUnwindEnqueue);
     }
   }
 
@@ -530,22 +530,28 @@ void PerfProducer::EmitRingBufferLoss(DataSourceInstanceID ds_id,
   perf_sample->set_kernel_records_lost(records_lost);
 }
 
+void PerfProducer::PostEmitUnwinderSkippedSample(DataSourceInstanceID ds_id,
+                                                 ParsedSample sample) {
+  PostEmitSkippedSample(ds_id, std::move(sample),
+                        SampleSkipReason::kUnwindStage);
+}
+
 void PerfProducer::PostEmitSkippedSample(DataSourceInstanceID ds_id,
-                                         ProfilerStage stage,
-                                         ParsedSample sample) {
+                                         ParsedSample sample,
+                                         SampleSkipReason reason) {
   // hack: c++11 lambdas can't be moved into, so stash the sample on the heap.
   ParsedSample* raw_sample = new ParsedSample(std::move(sample));
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, stage, raw_sample] {
+  task_runner_->PostTask([weak_this, ds_id, raw_sample, reason] {
     if (weak_this)
-      weak_this->EmitSkippedSample(ds_id, stage, std::move(*raw_sample));
+      weak_this->EmitSkippedSample(ds_id, std::move(*raw_sample), reason);
     delete raw_sample;
   });
 }
 
 void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
-                                     ProfilerStage stage,
-                                     ParsedSample sample) {
+                                     ParsedSample sample,
+                                     SampleSkipReason reason) {
   auto ds_it = data_sources_.find(ds_id);
   PERFETTO_CHECK(ds_it != data_sources_.end());
   DataSourceState& ds = ds_it->second;
@@ -559,12 +565,18 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.cpu_mode));
 
   using PerfSample = protos::pbzero::PerfSample;
-  switch (stage) {
-    case ProfilerStage::kRead:
-      perf_sample->set_sample_skipped_reason(PerfSample::PROFILER_STAGE_READ);
+  switch (reason) {
+    case SampleSkipReason::kReadStage:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_READ_STAGE);
       break;
-    case ProfilerStage::kUnwind:
-      perf_sample->set_sample_skipped_reason(PerfSample::PROFILER_STAGE_UNWIND);
+    case SampleSkipReason::kUnwindEnqueue:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE);
+      break;
+    case SampleSkipReason::kUnwindStage:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_UNWIND_STAGE);
       break;
   }
 }
