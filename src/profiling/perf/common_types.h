@@ -34,6 +34,13 @@ namespace profiling {
 // A parsed perf sample record (PERF_RECORD_SAMPLE from the kernel buffer).
 // Self-contained, used as as input to the callstack unwinding.
 struct ParsedSample {
+  // move-only
+  ParsedSample() = default;
+  ParsedSample(const ParsedSample&) = delete;
+  ParsedSample& operator=(const ParsedSample&) = delete;
+  ParsedSample(ParsedSample&&) noexcept = default;
+  ParsedSample& operator=(ParsedSample&&) noexcept = default;
+
   uint16_t cpu_mode = PERF_RECORD_MISC_CPUMODE_UNKNOWN;
   uint32_t cpu = 0;
   pid_t pid = 0;
@@ -64,8 +71,8 @@ struct CompletedSample {
   CompletedSample() = default;
   CompletedSample(const CompletedSample&) = delete;
   CompletedSample& operator=(const CompletedSample&) = delete;
-  CompletedSample(CompletedSample&&) = default;
-  CompletedSample& operator=(CompletedSample&&) = default;
+  CompletedSample(CompletedSample&&) noexcept = default;
+  CompletedSample& operator=(CompletedSample&&) noexcept = default;
 
   uint16_t cpu_mode = PERF_RECORD_MISC_CPUMODE_UNKNOWN;
   uint32_t cpu = 0;
@@ -74,11 +81,6 @@ struct CompletedSample {
   uint64_t timestamp = 0;
   std::vector<FrameData> frames;
   unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
-};
-
-enum class ProfilerStage {
-  kRead = 0,
-  kUnwind,
 };
 
 }  // namespace profiling
