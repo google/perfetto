@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/perf_producer.h"
 
+#include <random>
 #include <utility>
 
 #include <unistd.h>
@@ -64,8 +65,44 @@ size_t NumberOfCpus() {
   return static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
 }
 
-uint64_t NowMs() {
-  return static_cast<uint64_t>(base::GetWallTimeMs().count());
+uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id) {
+  // Normally, we'd schedule the next tick at the next |kReadTickPeriodMs|
+  // boundary of the boot clock. However, to avoid aligning the read tasaks of
+  // all concurrent data sources, we select a deterministic offset based on the
+  // data source id.
+  std::minstd_rand prng(static_cast<std::minstd_rand::result_type>(ds_id));
+  std::uniform_int_distribution<uint32_t> dist(0, kReadTickPeriodMs - 1);
+  uint32_t ds_period_offset = dist(prng);
+
+  uint64_t now_ms = static_cast<uint64_t>(base::GetWallTimeMs().count());
+  return kReadTickPeriodMs - ((now_ms - ds_period_offset) % kReadTickPeriodMs);
+}
+
+bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
+  bool reject_cmd = false;
+  std::string cmdline;
+  if (GetCmdlineForPID(pid, &cmdline)) {  // normalized form
+    // reject if absent from non-empty whitelist, or present in blacklist
+    reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
+                 filter.exclude_cmdlines.count(cmdline);
+  } else {
+    PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
+                  static_cast<int>(pid));
+    // reject only if there's a whitelist present
+    reject_cmd = filter.cmdlines.size() > 0;
+  }
+
+  bool reject_pid = (filter.pids.size() && !filter.pids.count(pid)) ||
+                    filter.exclude_pids.count(pid);
+
+  if (reject_cmd || reject_pid) {
+    PERFETTO_DLOG(
+        "Rejecting samples for pid [%d] due to cmdline(%d) or pid(%d)",
+        static_cast<int>(pid), reject_cmd, reject_pid);
+
+    return true;
+  }
+  return false;
 }
 
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
@@ -108,33 +145,6 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
       return Profiling::UNWIND_ERROR_INVALID_ELF;
   }
   return Profiling::UNWIND_ERROR_UNKNOWN;
-}
-
-bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
-  bool reject_cmd = false;
-  std::string cmdline;
-  if (GetCmdlineForPID(pid, &cmdline)) {  // normalized form
-    // reject if absent from non-empty whitelist, or present in blacklist
-    reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
-                 filter.exclude_cmdlines.count(cmdline);
-  } else {
-    PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
-                  static_cast<int>(pid));
-    // reject only if there's a whitelist present
-    reject_cmd = filter.cmdlines.size() > 0;
-  }
-
-  bool reject_pid = (filter.pids.size() && !filter.pids.count(pid)) ||
-                    filter.exclude_pids.count(pid);
-
-  if (reject_cmd || reject_pid) {
-    PERFETTO_DLOG(
-        "Rejecting samples for pid [%d] due to cmdline(%d) or pid(%d)",
-        static_cast<int>(pid), reject_cmd, reject_pid);
-
-    return true;
-  }
-  return false;
 }
 
 }  // namespace
@@ -218,7 +228,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
         if (weak_this)
           weak_this->TickDataSourceRead(instance_id);
       },
-      kReadTickPeriodMs - (NowMs() % kReadTickPeriodMs));
+      TimeToNextReadTickMs(instance_id));
 }
 
 void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
@@ -303,7 +313,7 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
           if (weak_this)
             weak_this->TickDataSourceRead(ds_id);
         },
-        kReadTickPeriodMs - (NowMs() % kReadTickPeriodMs));
+        TimeToNextReadTickMs(ds_id));
   }
 }
 
