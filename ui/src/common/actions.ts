@@ -188,6 +188,32 @@ export const StateActions = {
     };
   },
 
+  updateAggregateSorting(
+      state: StateDraft, args: {id: string, column: string}) {
+    let prefs = state.aggregatePreferences[args.id];
+    if (!prefs) {
+      prefs = {id: args.id};
+      state.aggregatePreferences[args.id] = prefs;
+    }
+
+    if (!prefs.sorting || prefs.sorting.column !== args.column) {
+      // No sorting set for current column.
+      state.aggregatePreferences[args.id].sorting = {
+        column: args.column,
+        direction: 'DESC'
+      };
+    } else if (prefs.sorting.direction === 'DESC') {
+      // Toggle the direction if the column is currently sorted.
+      state.aggregatePreferences[args.id].sorting = {
+        column: args.column,
+        direction: 'ASC'
+      };
+    } else {
+      // If direction is currently 'ASC' toggle to no sorting.
+      state.aggregatePreferences[args.id].sorting = undefined;
+    }
+  },
+
   setVisibleTracks(state: StateDraft, args: {tracks: string[]}) {
     state.visibleTracks = args.tracks;
   },
