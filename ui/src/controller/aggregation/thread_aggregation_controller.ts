@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AggregateData} from '../../common/aggregation_data';
+import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {TimestampedAreaSelection} from '../../common/state';
-import {translateState} from '../../common/thread_state';
+import {Sorting, TimestampedAreaSelection} from '../../common/state';
 import {toNs} from '../../common/time';
 import {
   Config,
@@ -25,86 +24,101 @@ import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
 
-
 export class ThreadAggregationController extends AggregationController {
-  async onAreaSelectionChange(
+  async createAggregateView(
       engine: Engine, selectedArea: TimestampedAreaSelection) {
+    await engine.query(`drop view if exists ${this.kind};`);
     const area = selectedArea.area;
-    if (area === undefined) {
-      return {columns: [], strings: []};
-    }
+    if (area === undefined) return false;
+
     // TODO(taylori): Thread state tracks should have a real track id in the
     // trace processor.
     const utids = [];
     for (const trackId of area.tracks) {
       const track = globals.state.tracks[trackId];
-      if (track.kind === THREAD_STATE_TRACK_KIND) {
+      // Track will be undefined for track groups.
+      if (track !== undefined && track.kind === THREAD_STATE_TRACK_KIND) {
         utids.push((track.config as Config).utid);
       }
     }
+    if (utids.length === 0) return false;
 
-    const query = `SELECT process.name, pid, thread.name, tid,
+    const query = `create view ${this.kind} as
+      SELECT process.name as process_name, pid, thread.name as thread_name, tid,
       state,
       sum(dur) AS total_dur,
       sum(dur)/count(1) as avg_dur,
-      count(1) as occurences
+      count(1) as occurrences
       FROM process
       JOIN thread USING(upid)
       JOIN thread_state USING(utid)
       WHERE utid IN (${utids}) AND
       thread_state.ts + thread_state.dur > ${toNs(area.startSec)} AND
       thread_state.ts < ${toNs(area.endSec)}
-      GROUP BY utid, state ORDER BY total_dur DESC`;
+      GROUP BY utid, state`;
 
-    const result = await engine.query(query);
+    await engine.query(query);
+    return true;
+  }
 
-    const numRows = +result.numRecords;
-    const aggregateData: AggregateData = {
-      columns: [
-        {title: 'Process', kind: 'STRING', data: new Uint16Array(numRows)},
-        {title: 'PID', kind: 'NUMBER', data: new Uint16Array(numRows)},
-        {title: 'Thread', kind: 'STRING', data: new Uint16Array(numRows)},
-        {title: 'TID', kind: 'NUMBER', data: new Uint16Array(numRows)},
-        {title: 'State', kind: 'STRING', data: new Uint16Array(numRows)},
-        {
-          title: 'Wall duration (ms)',
-          kind: 'TIMESTAMP_NS',
-          data: new Float64Array(numRows)
-        },
-        {
-          title: 'Avg Wall duration (ms)',
-          kind: 'TIMESTAMP_NS',
-          data: new Float64Array(numRows)
-        },
-        {title: 'Occurrences', kind: 'NUMBER', data: new Uint16Array(numRows)}
-      ],
-      strings: [],
-    };
+  getColumnDefinitions(): ColumnDef[] {
+    return [
+      {
+        title: 'Process',
+        kind: 'STRING',
+        columnConstructor: Uint16Array,
+        columnId: 'process_name',
+      },
+      {
+        title: 'PID',
+        kind: 'NUMBER',
+        columnConstructor: Uint16Array,
+        columnId: 'pid'
+      },
+      {
+        title: 'Thread',
+        kind: 'STRING',
+        columnConstructor: Uint16Array,
+        columnId: 'thread_name'
+      },
+      {
+        title: 'TID',
+        kind: 'NUMBER',
+        columnConstructor: Uint16Array,
+        columnId: 'tid'
+      },
+      {
+        title: 'State',
+        kind: 'STATE',
+        columnConstructor: Uint16Array,
+        columnId: 'state'
+      },
+      {
+        title: 'Wall duration (ms)',
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
+        columnId: 'total_dur'
+      },
+      {
+        title: 'Avg Wall duration (ms)',
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
+        columnId: 'avg_dur'
+      },
+      {
+        title: 'Occurrences',
+        kind: 'NUMBER',
+        columnConstructor: Uint16Array,
+        columnId: 'occurrences'
+      }
+    ];
+  }
 
-    const stringIndexes = new Map<string, number>();
-    function internString(str: string) {
-      let idx = stringIndexes.get(str);
-      if (idx !== undefined) return idx;
-      idx = aggregateData.strings.length;
-      aggregateData.strings.push(str);
-      stringIndexes.set(str, idx);
-      return idx;
-    }
+  getTabName() {
+    return 'Thread States';
+  }
 
-    for (let row = 0; row < numRows; row++) {
-      const cols = result.columns;
-      aggregateData.columns[0].data[row] =
-          internString(cols[0].stringValues![row]);
-      aggregateData.columns[1].data[row] = cols[1].longValues![row] as number;
-      aggregateData.columns[2].data[row] =
-          internString(cols[2].stringValues![row]);
-      aggregateData.columns[3].data[row] = cols[3].longValues![row] as number;
-      aggregateData.columns[4].data[row] =
-          internString(translateState(cols[4].stringValues![row]));
-      aggregateData.columns[5].data[row] = cols[5].longValues![row] as number;
-      aggregateData.columns[6].data[row] = cols[6].longValues![row] as number;
-      aggregateData.columns[7].data[row] = cols[7].longValues![row] as number;
-    }
-    return aggregateData;
+  getDefaultSorting(): Sorting {
+    return {column: 'total_dur', direction: 'DESC'};
   }
 }

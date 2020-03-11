@@ -60,7 +60,6 @@
 
     i.material-icons {
       font-size: 24px;
-      vertical-align: middle;
       margin-right: 5px;
       margin-top: 1px;
       &:hover{
@@ -104,6 +103,15 @@
       padding: 0 10px;
       th {
         font-weight: 500;
+      }
+    }
+    &.aggregation {
+      th {
+        cursor: pointer;
+        .material-icons {
+          margin-left: 2px;
+          font-size: 18px;
+        }
       }
     }
     h2 {
@@ -151,7 +159,6 @@
         .material-icons {
           font-size: 15px;
           margin-right: 3px;
-          vertical-align: middle;
         }
       }
       .title {
@@ -186,13 +193,17 @@
     .material-icons {
       @include transition(0.3s);
       font-size: 16px;
-      border-radius: 3px;
-      margin-left: 5px;
-      border: 1px solid transparent;
-      background-color: #e8e8e8;
+      margin-left: 5px; 
       &:hover {
         cursor: pointer;
-        border: #475566 solid 1px;
+      }
+      &.grey {
+        border-radius: 3px;
+        border: 1px solid transparent;
+        background-color: #e8e8e8;
+        &:hover {
+          border: #475566 solid 1px;
+        }
       }
     }
   }
