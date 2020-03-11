@@ -14,11 +14,16 @@
 
 import * as m from 'mithril';
 
-import {AggregateData} from '../common/aggregation_data';
+import {Actions} from '../common/actions';
+import {AggregateData, Column} from '../common/aggregation_data';
+import {translateState} from '../common/thread_state';
+
+import {globals} from './globals';
 import {Panel} from './panel';
 
 export interface AggregationPanelAttrs {
   data: AggregateData;
+  kind: string;
 }
 
 export class AggregationPanel extends Panel<AggregationPanelAttrs> {
@@ -27,11 +32,32 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
         '.details-panel',
         m('.details-panel-heading.aggregation',
           m('table',
-            m('tr', attrs.data.columns.map(col => (m('th', col.title)))))),
+            m('tr',
+              attrs.data.columns.map(
+                  col => this.formatColumnHeading(col, attrs.kind))))),
         m(
             '.details-table.aggregation',
             m('table', this.getRows(attrs.data)),
             ));
+  }
+
+  formatColumnHeading(col: Column, id: string) {
+    const pref = globals.state.aggregatePreferences[id];
+    let sortIcon = '';
+    if (pref && pref.sorting && pref.sorting.column === col.columnId) {
+      sortIcon = pref.sorting.direction === 'DESC' ? 'arrow_drop_down' :
+                                                     'arrow_drop_up';
+    }
+    return m(
+        'th',
+        {
+          onclick: () => {
+            globals.dispatch(
+                Actions.updateAggregateSorting({id, column: col.columnId}));
+          }
+        },
+        col.title,
+        m('i.material-icons', sortIcon));
   }
 
   getRows(data: AggregateData) {
@@ -53,6 +79,9 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
         return `${data.strings[data.columns[columnIndex].data[rowIndex]]}`;
       case 'TIMESTAMP_NS':
         return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
+      case 'STATE':
+        return translateState(
+            `${data.strings[data.columns[columnIndex].data[rowIndex]]}`);
       case 'NUMBER':
       default:
         return `${data.columns[columnIndex].data[rowIndex]}`;
