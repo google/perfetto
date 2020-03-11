@@ -65,9 +65,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private fullscreenHeight = DEFAULT_DETAILS_HEIGHT_PX;
   private tabNames = new Map<string, string>([
     ['current_selection', 'Current Selection'],
-    ['cpu', 'CPU Slices'],
     ['android_logs', 'Android Logs'],
-    ['thread_state', 'Thread States']
   ]);
 
 
@@ -125,7 +123,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               globals.rafScheduler.scheduleFullRedraw();
             }
           },
-          this.tabNames.get(key));
+          this.tabNames.get(key) === undefined ? key : this.tabNames.get(key));
     };
     return m(
         '.handle',
@@ -217,7 +215,8 @@ export class DetailsPanel implements m.ClassComponent {
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
       if (value.columns.length > 0 && value.columns[0].data.length > 0) {
-        detailsPanels.set(key, m(AggregationPanel, {data: value}));
+        detailsPanels.set(
+            value.tabName, m(AggregationPanel, {kind: key, data: value}));
       }
     }
 
