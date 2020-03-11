@@ -323,15 +323,14 @@ message AndroidStartupMetric {
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
 
-    // The ratio between the cpu time of the activity process
-    // to all other processes in the system.
-    optional double other_process_to_activity_cpu_ratio = 12;
-
     optional uint32 to_post_fork = 13;
     optional uint32 to_activity_thread_main = 14;
     optional uint32 to_bind_application = 15;
 
     optional Slice time_post_fork = 16;
+
+    // Deprecated was other_process_to_activity_cpu_ratio
+    reserved 12;
   }
 
   // Next id: 7
@@ -355,6 +354,9 @@ message AndroidStartupMetric {
     optional uint32 activity_hosting_process_count = 6;
 
     optional ToFirstFrame to_first_frame = 5;
+
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 7;
   }
 
   repeated Startup startup = 1;
@@ -583,13 +585,17 @@ message JavaHeapHistogram {
 // Begin of protos/perfetto/metrics/android/java_heap_stats.proto
 
 message JavaHeapStats {
-  // Next id: 6
+  // Next id: 7
   message Sample {
     optional int64 ts = 1;
+    // Size of the Java heap in bytes
     optional int64 heap_size = 2;
     optional int64 obj_count = 4;
+    // Size of the reachable objects in bytes.
     optional int64 reachable_heap_size = 3;
     optional int64 reachable_obj_count = 5;
+    // Sum of anonymous RSS + swap pages in bytes.
+    optional int64 anon_rss_and_swap_size = 6;
   }
 
   // Heap stats per process. One sample per dump (can be > 1 if continuous
@@ -604,6 +610,41 @@ message JavaHeapStats {
 }
 
 // End of protos/perfetto/metrics/android/java_heap_stats.proto
+
+// Begin of protos/perfetto/metrics/android/display_metrics.proto
+
+message AndroidDisplayMetrics {
+  // Stat that reports the number of duplicate frames submitted
+  // to the display for rendering. That is frames that have the same
+  // pixels values but where still submitted. It is tracked based on
+  // comparing the MISR of the current frame vs previous frame.
+  optional uint32 total_duplicate_frames = 1;
+}
+// End of protos/perfetto/metrics/android/display_metrics.proto
+
+// Begin of protos/perfetto/metrics/android/task_names.proto
+
+message AndroidTaskNames {
+  message Process {
+    optional int64 pid = 1;
+
+    // Process name.
+    optional string process_name = 2;
+
+    // Names of all threads for this process.
+    repeated string thread_name = 3;
+
+    // User id under which this process runs.
+    optional int64 uid = 4;
+
+    // Packages matching the process uid.
+    repeated string uid_package_name = 5;
+  }
+
+  repeated Process process = 1;
+}
+
+// End of protos/perfetto/metrics/android/task_names.proto
 
 // Begin of protos/perfetto/metrics/metrics.proto
 
@@ -625,7 +666,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 22
+// Next id: 24
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -681,6 +722,10 @@ message TraceMetrics {
   optional UnmappedJavaSymbols unmapped_java_symbols = 19;
 
   optional AndroidHwuiMetric android_hwui_metric = 20;
+
+  optional AndroidDisplayMetrics display_metrics = 22;
+
+  optional AndroidTaskNames android_task_names = 23;
 
   // Demo extensions.
   extensions 450 to 499;

@@ -31,8 +31,6 @@ SOURCE_TARGET = {
         'src/perfetto_cmd/perfetto_config.descriptor.h',
     'protos/perfetto/metrics/metrics.proto':
         'src/trace_processor/metrics/metrics.descriptor.h',
-    'protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto':
-        'src/trace_processor/importers/proto/chrome_compositor_scheduler_state.descriptor.h',
     'src/protozero/test/example_proto/test_messages.proto':
         'src/protozero/test/example_proto/test_messages.descriptor.h',
     'protos/perfetto/trace/track_event/track_event.proto':

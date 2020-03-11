@@ -39,14 +39,18 @@ void DirectDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
   snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
   auto maps_fd = base::ScopedFile{open(buf, O_RDONLY | O_CLOEXEC)};
   if (!maps_fd) {
-    PERFETTO_PLOG("Failed to open [%s]", buf);
+    if (errno != ENOENT)  // not surprising if the process has quit
+      PERFETTO_PLOG("Failed to open [%s]", buf);
+
     return;
   }
 
   snprintf(buf, sizeof(buf), "/proc/%d/mem", pid);
   auto mem_fd = base::ScopedFile{open(buf, O_RDONLY | O_CLOEXEC)};
   if (!mem_fd) {
-    PERFETTO_PLOG("Failed to open [%s]", buf);
+    if (errno != ENOENT)  // not surprising if the process has quit
+      PERFETTO_PLOG("Failed to open [%s]", buf);
+
     return;
   }
 
@@ -74,7 +78,7 @@ void AndroidRemoteDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
   PERFETTO_DLOG("Sending signal to pid [%d]", pid);
   union sigval signal_value;
   signal_value.sival_int = kPerfProfilerSignalValue;
-  if (sigqueue(pid, kProfilerSignal, signal_value) != 0) {
+  if (sigqueue(pid, kProfilerSignal, signal_value) != 0 && errno != ESRCH) {
     PERFETTO_DPLOG("Failed sigqueue(%d)", pid);
   }
 }
@@ -98,6 +102,9 @@ void AndroidRemoteDescriptorGetter::OnDisconnect(base::UnixSocket* self) {
   active_connections_.erase(it);
 }
 
+// Note: this callback will fire twice for a given connection. Once for the file
+// descriptors, and once during the disconnect (with 0 bytes available in the
+// socket).
 void AndroidRemoteDescriptorGetter::OnDataAvailable(base::UnixSocket* self) {
   // Expect two file descriptors (maps, followed by mem).
   base::ScopedFile fds[2];

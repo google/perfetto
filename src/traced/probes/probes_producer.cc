@@ -61,15 +61,17 @@ constexpr uint32_t kFlushTimeoutMs = 1000;
 constexpr size_t kTracingSharedMemSizeHintBytes = 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
 
-constexpr char kFtraceSourceName[] = "linux.ftrace";
-constexpr char kProcessStatsSourceName[] = "linux.process_stats";
-constexpr char kInodeMapSourceName[] = "linux.inode_file_map";
-constexpr char kSysStatsSourceName[] = "linux.sys_stats";
-constexpr char kAndroidPowerSourceName[] = "android.power";
-constexpr char kAndroidLogSourceName[] = "android.log";
-constexpr char kPackagesListSourceName[] = "android.packages_list";
-
-}  // namespace.
+ProbesDataSource::Descriptor const* const kAllDataSources[]{
+    &FtraceDataSource::descriptor,        //
+    &ProcessStatsDataSource::descriptor,  //
+    &InodeFileDataSource::descriptor,     //
+    &SysStatsDataSource::descriptor,      //
+    &AndroidPowerDataSource::descriptor,  //
+    &AndroidLogDataSource::descriptor,    //
+    &PackagesListDataSource::descriptor,  //
+    &MetatraceDataSource::descriptor,     //
+};
+}  // namespace
 
 // State transition diagram:
 //                    +----------------------------+
@@ -92,54 +94,19 @@ void ProbesProducer::OnConnect() {
   ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kFtraceSourceName);
-    endpoint_->RegisterDataSource(desc);
-  }
+  // Register all the data sources.
+  for (const FtraceDataSource::Descriptor* desc : kAllDataSources) {
+    DataSourceDescriptor proto_desc;
+    proto_desc.set_name(desc->name);
 
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kProcessStatsSourceName);
-    desc.set_handles_incremental_state_clear(true);
-    endpoint_->RegisterDataSource(desc);
-  }
+    // TODO(primiano): remove in next CL.
+    if (desc == &MetatraceDataSource::descriptor)
+      proto_desc.set_will_notify_on_stop(true);
 
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kInodeMapSourceName);
-    endpoint_->RegisterDataSource(desc);
-  }
-
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kSysStatsSourceName);
-    endpoint_->RegisterDataSource(desc);
-  }
-
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kAndroidPowerSourceName);
-    endpoint_->RegisterDataSource(desc);
-  }
-
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kAndroidLogSourceName);
-    endpoint_->RegisterDataSource(desc);
-  }
-
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(kPackagesListSourceName);
-    endpoint_->RegisterDataSource(desc);
-  }
-
-  {
-    DataSourceDescriptor desc;
-    desc.set_name(MetatraceDataSource::kDataSourceName);
-    desc.set_will_notify_on_stop(true);
-    endpoint_->RegisterDataSource(desc);
+    using Flags = ProbesDataSource::Descriptor::Flags;
+    if (desc->flags & Flags::kHandlesIncrementalState)
+      proto_desc.set_handles_incremental_state_clear(true);
+    endpoint_->RegisterDataSource(proto_desc);
   }
 }
 
@@ -181,21 +148,21 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
   PERFETTO_CHECK(session_id > 0);
 
   std::unique_ptr<ProbesDataSource> data_source;
-  if (config.name() == kFtraceSourceName) {
+  if (config.name() == FtraceDataSource::descriptor.name) {
     data_source = CreateFtraceDataSource(session_id, config);
-  } else if (config.name() == kInodeMapSourceName) {
+  } else if (config.name() == InodeFileDataSource::descriptor.name) {
     data_source = CreateInodeFileDataSource(session_id, config);
-  } else if (config.name() == kProcessStatsSourceName) {
+  } else if (config.name() == ProcessStatsDataSource::descriptor.name) {
     data_source = CreateProcessStatsDataSource(session_id, config);
-  } else if (config.name() == kSysStatsSourceName) {
+  } else if (config.name() == SysStatsDataSource::descriptor.name) {
     data_source = CreateSysStatsDataSource(session_id, config);
-  } else if (config.name() == kAndroidPowerSourceName) {
+  } else if (config.name() == AndroidPowerDataSource::descriptor.name) {
     data_source = CreateAndroidPowerDataSource(session_id, config);
-  } else if (config.name() == kAndroidLogSourceName) {
+  } else if (config.name() == AndroidLogDataSource::descriptor.name) {
     data_source = CreateAndroidLogDataSource(session_id, config);
-  } else if (config.name() == kPackagesListSourceName) {
+  } else if (config.name() == PackagesListDataSource::descriptor.name) {
     data_source = CreatePackagesListDataSource(session_id, config);
-  } else if (config.name() == MetatraceDataSource::kDataSourceName) {
+  } else if (config.name() == MetatraceDataSource::descriptor.name) {
     data_source = CreateMetatraceDataSource(session_id, config);
   }
 
@@ -344,7 +311,7 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
 
   // MetatraceDataSource special case: re-flush and ack the stop (to record the
   // flushes of other data sources).
-  if (data_source->type_id == MetatraceDataSource::kTypeId) {
+  if (data_source->descriptor == &MetatraceDataSource::descriptor) {
     data_source->Flush(FlushRequestID{0}, [] {});
     endpoint_->NotifyDataSourceStopped(id);
   }
@@ -486,32 +453,21 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
     ProbesDataSource* ds = it->second;
     if (!ds->started)
       continue;
-    switch (ds->type_id) {
-      case FtraceDataSource::kTypeId:
-        metadata = static_cast<FtraceDataSource*>(ds)->mutable_metadata();
-        break;
-      case InodeFileDataSource::kTypeId:
-        inode_data_source = static_cast<InodeFileDataSource*>(ds);
-        break;
-      case ProcessStatsDataSource::kTypeId: {
-        // A trace session might have declared more than one ps data source.
-        // In those cases we often use one for a full dump on startup (
-        // targeting a dedicated buffer) and another one for on-demand dumps
-        // targeting the main buffer.
-        // Only use the one that has on-demand dumps enabled, if any.
-        auto ps = static_cast<ProcessStatsDataSource*>(ds);
-        if (ps->on_demand_dumps_enabled())
-          ps_data_source = ps;
-        break;
-      }
-      case SysStatsDataSource::kTypeId:
-      case AndroidLogDataSource::kTypeId:
-      case PackagesListDataSource::kTypeId:
-      case MetatraceDataSource::kTypeId:
-        break;
-      default:
-        PERFETTO_DFATAL("Invalid data source.");
-    }  // switch (type_id)
+
+    if (ds->descriptor == &FtraceDataSource::descriptor) {
+      metadata = static_cast<FtraceDataSource*>(ds)->mutable_metadata();
+    } else if (ds->descriptor == &InodeFileDataSource::descriptor) {
+      inode_data_source = static_cast<InodeFileDataSource*>(ds);
+    } else if (ds->descriptor == &ProcessStatsDataSource::descriptor) {
+      // A trace session might have declared more than one ps data source.
+      // In those cases we often use one for a full dump on startup (
+      // targeting a dedicated buffer) and another one for on-demand dumps
+      // targeting the main buffer.
+      // Only use the one that has on-demand dumps enabled, if any.
+      auto ps = static_cast<ProcessStatsDataSource*>(ds);
+      if (ps->on_demand_dumps_enabled())
+        ps_data_source = ps;
+    }
   }    // for (session_data_sources_)
 }
 

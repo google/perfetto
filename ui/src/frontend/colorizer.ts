@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ThreadDesc} from './globals';
 import {hsl} from 'color-convert';
+import {translateState} from '../common/thread_state';
+import {ThreadDesc} from './globals';
 
 export interface Color {
   c: string;
@@ -81,19 +82,31 @@ const LIGHT_GREY: Color = {
   s: 0,
   l: 87
 };
+const ORANGE: Color = {
+  c: 'orange',
+  h: 36,
+  s: 100,
+  l: 50
+};
+const INDIGO: Color = {
+  c: 'indigo',
+  h: 231,
+  s: 48,
+  l: 48
+};
 
-export function colorForState(state: string): Readonly<Color> {
-  switch (state) {
-    case 'Running':
-    case 'Busy':
-      return DARK_GREEN;
-    case 'Runnable':
-    case 'R':
-    case 'R+':
-      return LIME_GREEN;
-    default:
-      return LIGHT_GREY;
+export function colorForState(stateCode: string): Readonly<Color> {
+  const state = translateState(stateCode);
+  if (state === 'Running') {
+    return DARK_GREEN;
+  } else if (state.startsWith('Runnable')) {
+    return LIME_GREEN;
+  } else if (state.includes('Uninterruptible Sleep')) {
+    return ORANGE;
+  } else if (state.includes('Sleeping')) {
+    return LIGHT_GREY;
   }
+  return INDIGO;
 }
 
 export function colorForTid(tid: number): Color {

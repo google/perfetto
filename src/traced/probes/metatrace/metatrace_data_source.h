@@ -32,8 +32,7 @@ class TaskRunner;
 
 class MetatraceDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 8;
-  static const char* kDataSourceName;
+  static const ProbesDataSource::Descriptor descriptor;
 
   MetatraceDataSource(base::TaskRunner*,
                       TracingSessionID,

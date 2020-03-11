@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
 import {inflate} from 'pako';
-
 import {assertTrue} from '../base/logging';
-
-import {globals} from './globals';
+import {showModal} from './modal';
 
 function readText(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -84,7 +83,6 @@ export function openFileWithLegacyTraceViewer(file: File) {
   }
 }
 
-
 export function openBufferWithLegacyTraceViewer(
     name: string, data: ArrayBuffer|string, size: number) {
   if (data instanceof ArrayBuffer) {
@@ -101,49 +99,36 @@ export function openBufferWithLegacyTraceViewer(
     }
   }
 
-  document.body.style.transition =
-      'filter 1s ease, transform 1s cubic-bezier(0.985, 0.005, 1.000, 0.225)';
-  document.body.style.filter = 'grayscale(1) blur(10px) opacity(0)';
-  document.body.style.transform = 'scale(0)';
-  const transitionPromise = new Promise(resolve => {
-    document.body.addEventListener('transitionend', (e: TransitionEvent) => {
-      if (e.propertyName === 'transform') {
-        resolve();
-      }
+  // The location.pathname mangling is to make this code work also when hosted
+  // in a non-root sub-directory, for the case of CI artifacts.
+  const urlParts = location.pathname.split('/');
+  urlParts[urlParts.length - 1] = 'assets/catapult_trace_viewer.html';
+  const catapultUrl = urlParts.join('/');
+  const newWin = window.open(catapultUrl) as Window;
+  if (newWin) {
+    // Popup succeedeed.
+    newWin.addEventListener('load', (e: Event) => {
+      const doc = (e.target as Document);
+      const ctl = doc.querySelector('x-profiling-view') as TraceViewerAPI;
+      ctl.setActiveTrace(name, data);
     });
-  });
+    return;
+  }
 
-  const loadPromise = new Promise(resolve => {
-    fetch('/assets/catapult_trace_viewer.html').then(resp => {
-      resp.text().then(content => {
-        resolve(content);
-      });
-    });
+  // Popup blocker detected.
+  showModal({
+    title: 'Open trace in the legacy Catapult Trace Viewer',
+    content: m(
+        'div',
+        m('div', 'You are seeing this interstitial because popups are blocked'),
+        m('div', 'Enable popups to skip this dialog next time.')),
+    buttons: [{
+      text: 'Open legacy UI',
+      primary: true,
+      id: 'open_legacy',
+      action: () => openBufferWithLegacyTraceViewer(name, data, size),
+    }],
   });
-
-  Promise.all([loadPromise, transitionPromise]).then(args => {
-    const fetchResult = args[0] as string;
-    replaceWindowWithTraceViewer(name, data, fetchResult);
-  });
-}
-
-// Replaces the contents of the current window with the Catapult's legacy
-// trace viewer HTML, passed in |htmlContent|.
-// This is in its own function to avoid leaking variables from the current
-// document we are about to destroy.
-function replaceWindowWithTraceViewer(
-    name: string, data: ArrayBuffer|string, htmlContent: string) {
-  globals.shutdown();
-  const newWin = window.open('', '_self') as Window;
-  newWin.document.open('text/html', 'replace');
-  newWin.document.addEventListener('readystatechange', () => {
-    const doc = newWin.document;
-    if (doc.readyState !== 'complete') return;
-    const ctl = doc.querySelector('x-profiling-view') as TraceViewerAPI;
-    ctl.setActiveTrace(name, data);
-  });
-  newWin.document.write(htmlContent);
-  newWin.document.close();
 }
 
 // TraceViewer method that we wire up to trigger the file load.

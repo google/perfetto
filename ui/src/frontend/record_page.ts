@@ -45,8 +45,6 @@ import {
 } from './record_widgets';
 import {Router} from './router';
 
-
-
 const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
 
 const ATRACE_CATEGORIES = new Map<string, string>();
@@ -78,10 +76,12 @@ ATRACE_CATEGORIES.set('nnapi', 'Neural Network API');
 ATRACE_CATEGORIES.set('rro', 'Resource Overlay');
 
 const LOG_BUFFERS = new Map<string, string>();
+LOG_BUFFERS.set('LID_DEFAULT', 'Main');
 LOG_BUFFERS.set('LID_RADIO', 'Radio');
 LOG_BUFFERS.set('LID_EVENTS', 'Binary events');
 LOG_BUFFERS.set('LID_SYSTEM', 'System');
 LOG_BUFFERS.set('LID_CRASH', 'Crash');
+LOG_BUFFERS.set('LID_STATS', 'Stats');
 LOG_BUFFERS.set('LID_SECURITY', 'Security');
 LOG_BUFFERS.set('LID_KERNEL', 'Kernel');
 
@@ -304,7 +304,7 @@ function HeapSettings(cssClass: string) {
   ];
 
   return m(
-      `.record-section${cssClass}`,
+      `.${cssClass}`,
       m(Textarea, {
         title: 'Names or pids of the processes to track',
         placeholder: 'One per line, e.g.:\n' +
@@ -366,6 +366,58 @@ function HeapSettings(cssClass: string) {
   );
 }
 
+function JavaHeapDumpSettings(cssClass: string) {
+  const valuesForMS = [
+    0,
+    1000,
+    10 * 1000,
+    30 * 1000,
+    60 * 1000,
+    5 * 60 * 1000,
+    10 * 60 * 1000,
+    30 * 60 * 1000,
+    60 * 60 * 1000
+  ];
+
+  return m(
+      `.${cssClass}`,
+      m(Textarea, {
+        title: 'Names or pids of the processes to track',
+        placeholder: 'One per line, e.g.:\n' +
+            'com.android.vending\n' +
+            '1503',
+        set: (cfg, val) => cfg.jpProcesses = val,
+        get: (cfg) => cfg.jpProcesses
+      } as TextareaAttrs),
+      m(Slider, {
+        title: 'Continuous dumps interval ',
+        description: 'Time between following dumps (0 = disabled)',
+        cssClass: '.thin',
+        values: valuesForMS,
+        unit: 'ms',
+        min: 0,
+        set: (cfg, val) => {
+          cfg.jpContinuousDumpsInterval = val;
+        },
+        get: (cfg) => cfg.jpContinuousDumpsInterval
+      } as SliderAttrs),
+      m(Slider, {
+        title: 'Continuous dumps phase',
+        description: 'Time before first dump',
+        cssClass: `.thin${
+            globals.state.recordConfig.jpContinuousDumpsInterval === 0 ?
+                '.greyed-out' :
+                ''}`,
+        values: valuesForMS,
+        unit: 'ms',
+        min: 0,
+        disabled: globals.state.recordConfig.jpContinuousDumpsInterval === 0,
+        set: (cfg, val) => cfg.jpContinuousDumpsPhase = val,
+        get: (cfg) => cfg.jpContinuousDumpsPhase
+      } as SliderAttrs),
+  );
+}
+
 function MemorySettings(cssClass: string) {
   const meminfoOpts = new Map<string, string>();
   for (const x in MeminfoCounters) {
@@ -385,7 +437,7 @@ function MemorySettings(cssClass: string) {
       `.record-section${cssClass}`,
       m(Probe,
         {
-          title: 'Heap profiling',
+          title: 'Native heap profiling',
           img: 'heap_profiler.png',
           descr: `Track native heap allocations & deallocations of an Android
                process. (Available on Android 10+)`,
@@ -393,6 +445,16 @@ function MemorySettings(cssClass: string) {
           isEnabled: (cfg) => cfg.heapProfiling
         } as ProbeAttrs,
         HeapSettings(cssClass)),
+      m(Probe,
+        {
+          title: 'Java heap dumps',
+          img: 'rec_java_heap_dump.png',
+          descr: `Dump information about the Java object graph of an
+          Android app. (Available on Android 11+)`,
+          setEnabled: (cfg, val) => cfg.javaHeapDump = val,
+          isEnabled: (cfg) => cfg.javaHeapDump
+        } as ProbeAttrs,
+        JavaHeapDumpSettings(cssClass)),
       m(Probe,
         {
           title: 'Kernel meminfo',

@@ -20,20 +20,18 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
+
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace Json {
 class Value;
 }
 
 namespace perfetto {
-
-namespace protos {
-namespace pbzero {
-class TrackEvent_LegacyEvent_Decoder;
-}  // namespace pbzero
-}  // namespace protos
 
 namespace trace_processor {
 
@@ -49,62 +47,21 @@ class TrackEventParser {
   UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
 
   void ParseTrackEvent(int64_t ts,
-                       int64_t tts,
-                       int64_t ticount,
-                       PacketSequenceStateGeneration*,
+                       TrackEventData* event_data,
                        protozero::ConstBytes);
 
  private:
-  void ParseChromeProcessDescriptor(UniquePid upid, protozero::ConstBytes);
-  void ParseChromeThreadDescriptor(UniqueTid utid, protozero::ConstBytes);
-  void ParseLegacyEventAsRawEvent(
-      int64_t ts,
-      int64_t tts,
-      int64_t ticount,
-      base::Optional<UniqueTid> utid,
-      StringId category_id,
-      StringId name_id,
-      const protos::pbzero::TrackEvent_LegacyEvent_Decoder& legacy_event,
-      SliceTracker::SetArgsCallback slice_args_callback);
-  void ParseDebugAnnotationArgs(protozero::ConstBytes debug_annotation,
-                                PacketSequenceStateGeneration*,
-                                ArgsTracker::BoundInserter* inserter);
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  // Returns true if any arguments were inserted underneath |key|.
-  bool ParseJsonValueArgs(const Json::Value& value,
-                          base::StringView flat_key,
-                          base::StringView key,
-                          ArgsTracker::BoundInserter* inserter);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  // Returns true if any arguments were inserted underneath |key|.
-  bool ParseNestedValueArgs(protozero::ConstBytes nested_value,
-                            base::StringView flat_key,
-                            base::StringView key,
-                            ArgsTracker::BoundInserter* inserter);
-  void ParseTaskExecutionArgs(protozero::ConstBytes task_execution,
-                              PacketSequenceStateGeneration*,
-                              ArgsTracker::BoundInserter* inserter);
-  void ParseLogMessage(protozero::ConstBytes,
-                       PacketSequenceStateGeneration*,
-                       int64_t,
-                       base::Optional<UniqueTid>,
-                       ArgsTracker::BoundInserter* inserter);
-  void ParseCcScheduler(protozero::ConstBytes cc_scheduler,
-                        PacketSequenceStateGeneration*,
-                        ArgsTracker::BoundInserter* inserter);
-  void ParseChromeUserEvent(protozero::ConstBytes chrome_user_event,
-                            ArgsTracker::BoundInserter* inserter);
-  void ParseChromeLatencyInfo(protozero::ConstBytes chrome_latency_info,
-                              ArgsTracker::BoundInserter* inserter);
-  void ParseChromeLegacyIpc(protozero::ConstBytes chrome_legacy_ipc,
-                            ArgsTracker::BoundInserter* inserter);
-  void ParseChromeKeyedService(protozero::ConstBytes chrome_keyed_service,
-                               ArgsTracker::BoundInserter* inserter);
-  void ParseChromeHistogramSample(protozero::ConstBytes chrome_keyed_service,
-                                  ArgsTracker::BoundInserter* inserter);
+  class EventImporter;
+
+  void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
+  void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
+  void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
+  ProtoToArgsTable proto_to_args_;
 
+  const StringId counter_name_thread_time_id_;
+  const StringId counter_name_thread_instruction_count_id_;
   const StringId task_file_name_args_key_id_;
   const StringId task_function_name_args_key_id_;
   const StringId task_line_number_args_key_id_;
@@ -146,6 +103,7 @@ class TrackEventParser {
   std::array<StringId, 38> chrome_legacy_ipc_class_ids_;
   std::array<StringId, 9> chrome_process_name_ids_;
   std::array<StringId, 14> chrome_thread_name_ids_;
+  std::array<StringId, 4> counter_unit_ids_;
 };
 
 }  // namespace trace_processor

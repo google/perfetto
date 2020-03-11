@@ -142,6 +142,7 @@ const SECTIONS = [
         a: dispatchCreatePermalink,
         i: 'share',
         checkDownloadDisabled: true,
+        internalUserOnly: true,
       },
       {
         t: 'Download',
@@ -261,7 +262,8 @@ function popupFileSelectionDialogOldUI(e: Event) {
   getFileElement().click();
 }
 
-function openCurrentTraceWithOldUI() {
+function openCurrentTraceWithOldUI(e: Event) {
+  e.preventDefault();
   console.assert(isTraceLoaded());
   if (!isTraceLoaded) return;
   const engine = Object.values(globals.state.engines)[0];
@@ -623,6 +625,9 @@ export class Sidebar implements m.ClassComponent {
           href: typeof item.a === 'string' ? item.a : '#',
           disabled: false,
         };
+        if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
+          if (!globals.isInternalUser) continue;
+        }
         if (isDownloadAndShareDisabled() &&
             item.hasOwnProperty('checkDownloadDisabled')) {
           attrs = {
