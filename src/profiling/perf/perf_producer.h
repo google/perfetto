@@ -92,9 +92,8 @@ class PerfProducer : public Producer,
   // Unwinder::Delegate impl (callbacks from unwinder):
   void PostEmitSample(DataSourceInstanceID ds_id,
                       CompletedSample sample) override;
-  void PostEmitSkippedSample(DataSourceInstanceID ds_id,
-                             ProfilerStage stage,
-                             ParsedSample sample) override;
+  void PostEmitUnwinderSkippedSample(DataSourceInstanceID ds_id,
+                                     ParsedSample sample) override;
   void PostFinishDataSourceStop(DataSourceInstanceID ds_id) override;
 
  private:
@@ -143,6 +142,13 @@ class PerfProducer : public Producer,
     std::map<pid_t, ProcessTrackingStatus> process_states;
   };
 
+  // For |EmitSkippedSample|.
+  enum class SampleSkipReason {
+    kReadStage = 0,  // discarded at read stage
+    kUnwindEnqueue,  // discarded due to unwinder queue being full
+    kUnwindStage,    // discarded at unwind stage
+  };
+
   void ConnectService();
   void Restart();
   void ResetConnectionBackoff();
@@ -170,11 +176,15 @@ class PerfProducer : public Producer,
   void EmitRingBufferLoss(DataSourceInstanceID ds_id,
                           size_t cpu,
                           uint64_t records_lost);
+
+  void PostEmitSkippedSample(DataSourceInstanceID ds_id,
+                             ParsedSample sample,
+                             SampleSkipReason reason);
   // Emit a packet indicating that a sample was relevant, but skipped as it was
   // considered to be not unwindable (e.g. the process no longer exists).
   void EmitSkippedSample(DataSourceInstanceID ds_id,
-                         ProfilerStage stage,
-                         ParsedSample sample);
+                         ParsedSample sample,
+                         SampleSkipReason reason);
 
   // Starts the shutdown of the given data source instance, starting with
   // pausing the reader frontend. Once the reader reaches the point where all

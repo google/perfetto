@@ -94,6 +94,9 @@ void Unwinder::AdoptProcDescriptors(DataSourceInstanceID ds_id,
 
   ProcessState& proc_state = ds.process_states[pid];  // insert if new
   PERFETTO_DCHECK(proc_state.status != ProcessState::Status::kResolved);
+  PERFETTO_DCHECK(!proc_state.unwind_state.has_value());
+
+  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_PARSE);
 
   proc_state.status = ProcessState::Status::kResolved;
   proc_state.unwind_state =
@@ -118,9 +121,9 @@ void Unwinder::RecordTimedOutProcDescriptors(DataSourceInstanceID ds_id,
 
   ProcessState& proc_state = ds.process_states[pid];  // insert if new
   PERFETTO_DCHECK(proc_state.status == ProcessState::Status::kResolving);
+  PERFETTO_DCHECK(!proc_state.unwind_state.has_value());
 
   proc_state.status = ProcessState::Status::kExpired;
-  // proc_state.unwind_state is clear as the preceding state is kResolving
 }
 
 void Unwinder::PostProcessQueue() {
@@ -208,9 +211,8 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
       PERFETTO_DLOG("Unwinder skipping sample for pid [%d]",
                     static_cast<int>(pid));
 
-      delegate_->PostEmitSkippedSample(entry.data_source_id,
-                                       ProfilerStage::kUnwind,
-                                       std::move(entry.sample));
+      delegate_->PostEmitUnwinderSkippedSample(entry.data_source_id,
+                                               std::move(entry.sample));
       entry.valid = false;
       continue;
     }
@@ -228,8 +230,11 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
     if (proc_state.status == ProcessState::Status::kResolved) {
       PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_SAMPLE);
 
+      PERFETTO_CHECK(proc_state.unwind_state.has_value());
       CompletedSample unwound_sample =
-          UnwindSample(entry.sample, &proc_state.unwind_state);
+          UnwindSample(entry.sample, &proc_state.unwind_state.value(),
+                       proc_state.attempted_unwinding);
+      proc_state.attempted_unwinding = true;
 
       delegate_->PostEmitSample(entry.data_source_id,
                                 std::move(unwound_sample));
@@ -260,7 +265,8 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 }
 
 CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
-                                       UnwindingMetadata* unwind_state) {
+                                       UnwindingMetadata* unwind_state,
+                                       bool pid_unwound_before) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(unwind_state);
 
@@ -287,6 +293,11 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
   // TODO(rsavitski): consider rate-limiting unwind retries.
   for (int attempt = 0; attempt < 2; attempt++) {
+    metatrace::ScopedEvent m(metatrace::TAG_PRODUCER,
+                             pid_unwound_before
+                                 ? metatrace::PROFILER_UNWIND_ATTEMPT
+                                 : metatrace::PROFILER_UNWIND_INITIAL_ATTEMPT);
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     unwinder.SetJitDebug(unwind_state->jit_debug.get(), regs_copy->Arch());
     unwinder.SetDexFiles(unwind_state->dex_files.get(), regs_copy->Arch());
@@ -299,12 +310,14 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
     // Otherwise, reparse the maps, and possibly retry the unwind.
     PERFETTO_DLOG("Reparsing maps for pid [%d]", static_cast<int>(sample.pid));
+    PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_REPARSE);
     unwind_state->ReparseMaps();
   }
 
   PERFETTO_DLOG("Frames from unwindstack for pid [%d]:",
                 static_cast<int>(sample.pid));
   std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
+  ret.frames.reserve(frames.size());
   for (unwindstack::FrameData& frame : frames) {
     if (PERFETTO_DLOG_IS_ON())
       PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
@@ -318,7 +331,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   if (error_code != unwindstack::ERROR_NONE) {
     PERFETTO_DLOG("Unwinding error %" PRIu8, error_code);
     unwindstack::FrameData frame_data{};
-    frame_data.function_name = "ERROR " + std::to_string(error_code);
+    frame_data.function_name =
+        "ERROR " + StringifyLibUnwindstackError(error_code);
     frame_data.map_name = "ERROR";
     ret.frames.emplace_back(std::move(frame_data), /*build_id=*/"");
     ret.unwind_error = error_code;

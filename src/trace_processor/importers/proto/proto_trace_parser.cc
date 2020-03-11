@@ -347,10 +347,17 @@ void ProtoTraceParser::ParsePerfSample(
     return;
   }
 
-  // Sample that wasn't unwound (likely because we failed to look up the
-  // proc-fds for it).
+  // Sample that looked relevant for the tracing session, but had to be skipped.
+  // Either we failed to look up the procfs file descriptors necessary for
+  // remote stack unwinding (not unexpected in most cases), or the unwind queue
+  // was out of capacity (producer lost data on its own).
   if (sample.has_sample_skipped_reason()) {
     context_->storage->IncrementStats(stats::perf_samples_skipped);
+
+    if (sample.sample_skipped_reason() ==
+        PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE)
+      context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
+
     return;
   }
 
