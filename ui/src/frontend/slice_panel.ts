@@ -55,7 +55,7 @@ export class SliceDetailsPanel extends Panel {
                 m('th', `Thread`),
                 m('td',
                   `${threadInfo.threadName} [${threadInfo.tid}]`,
-                  m('i.material-icons',
+                  m('i.material-icons.grey',
                     {onclick: () => this.goToThread(), title: 'Go to thread'},
                     'call_made'))),
               m('tr',

@@ -39,7 +39,6 @@
         line-height: 36px;
         &:before {
             @include material-icon('search');
-            vertical-align: middle;
             margin: 5px;
             color: #aaa;
             grid-area: icon;
@@ -106,11 +105,8 @@
           .current {
             padding-right: 10px;
           }
-          .material-icons {
-            vertical-align: middle;
-            &.left {
-              border-right: rgb(218, 217, 217) solid 1px;
-            }
+          .material-icons.left {
+            border-right: rgb(218, 217, 217) solid 1px;
           }
         }
     }

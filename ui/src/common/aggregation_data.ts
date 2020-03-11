@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Column =
-    (StringColumn|TimestampColumn|NumberColumn)&{title: string};
+export type Column = (StringColumn|TimestampColumn|NumberColumn|StateColumn)&
+    {title: string, columnId: string};
 
 export interface StringColumn {
   kind: 'STRING';
@@ -30,7 +30,21 @@ export interface NumberColumn {
   data: Uint16Array;
 }
 
+export interface StateColumn {
+  kind: 'STATE';
+  data: Uint16Array;
+}
+
+type TypedArrayConstructor = Uint16ArrayConstructor|Float64ArrayConstructor;
+export interface ColumnDef {
+  title: string;
+  kind: string;
+  columnConstructor: TypedArrayConstructor;
+  columnId: string;
+}
+
 export interface AggregateData {
+  tabName: string;
   columns: Column[];
   // For string interning.
   strings: string[];

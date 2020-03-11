@@ -162,11 +162,11 @@ export class TraceController extends Controller<States> {
         childControllers.push(Child(
             'cpu_aggregation',
             CpuAggregationController,
-            {engine, kind: 'cpu'}));
+            {engine, kind: 'cpu_aggregation'}));
         childControllers.push(Child(
             'thread_aggregation',
             ThreadAggregationController,
-            {engine, kind: 'thread_state'}));
+            {engine, kind: 'thread_state_aggregation'}));
         childControllers.push(Child('search', SearchController, {
           engine,
           app: globals,
