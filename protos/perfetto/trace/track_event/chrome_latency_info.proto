@@ -59,8 +59,8 @@ message ChromeLatencyInfo {
   message ComponentInfo {
     optional LatencyComponentType component_type = 1;
 
-    // Nanosecond timestamp in CLOCK_MONOTONIC domain
-    optional uint64 time_ns = 2;
+    // Microsecond timestamp in CLOCK_MONOTONIC domain
+    optional uint64 time_us = 2;
   };
 
   repeated ComponentInfo component_info = 4;
