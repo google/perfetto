@@ -116,6 +116,7 @@ synth_1.py filter_counter.sql synth_1_filter_counter.out
 counters_where_cpu.py counters_where_cpu.sql counters_where_cpu_counters_where_cpu.out
 counters_group_by_freq.py counters_group_by_freq.sql counters_group_by_freq_counters_group_by_freq.out
 ../data/example_android_trace_30s.pb filter_row_vector.sql filter_row_vector_example_android_trace_30s.out
+../data/example_android_trace_30s.pb counter_dur.sql counter_dur_example_android_trace_30s.out
 
 # Null printing
 synth_1.py nulls.sql nulls.out
