@@ -137,8 +137,7 @@ base::Optional<base::UnixSocketRaw> Client::ConnectToHeapprofd(
 // static
 std::shared_ptr<Client> Client::CreateAndHandshake(
     base::UnixSocketRaw sock,
-    UnhookedAllocator<Client> unhooked_allocator,
-    bool allow_extra_guardrails) {
+    UnhookedAllocator<Client> unhooked_allocator) {
   if (!sock) {
     PERFETTO_DFATAL_OR_ELOG("Socket not connected.");
     return nullptr;
@@ -216,13 +215,6 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
       return nullptr;
     }
     recv += static_cast<size_t>(rd);
-  }
-
-  if (client_config.enable_extra_guardrails && !allow_extra_guardrails) {
-    PERFETTO_ELOG(
-        "enable_extra_guardrails is not allowed in fork mode. Not "
-        "enabling heapprofd.");
-    return nullptr;
   }
 
   if (!shmem_fd) {

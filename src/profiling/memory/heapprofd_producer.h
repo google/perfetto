@@ -186,8 +186,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     LogHistogram unwinding_time_us;
     HeapTracker heap_tracker;
 
-    bool has_samples = false;
-
     base::Optional<PageIdleChecker> page_idle_checker;
   };
 
