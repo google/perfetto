@@ -245,14 +245,22 @@ if (enable_perfetto_trace_processor_sqlite) {
     if (perfetto_root_path == "//") {
       public_deps = [ "//buildtools:sqlite" ]
     } else {
-      public_deps = [ "//third_party/sqlite:sqlite" ]
+      if (build_with_chromium) {
+        public_deps = [ "//third_party/sqlite:sqlite_dev" ]
+      } else {
+        public_deps = [ "//third_party/sqlite:sqlite" ]
+      }
       public_configs = [ ":sqlite_third_party_include_path" ]
     }
   }
 }
 
 config("sqlite_third_party_include_path") {
-  include_dirs = [ "//third_party/sqlite" ]
+  if (build_with_chromium) {
+    include_dirs = [ "//third_party/sqlite/dev" ]
+  } else {
+    include_dirs = [ "//third_party/sqlite" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_json) {
