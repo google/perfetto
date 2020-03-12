@@ -39,9 +39,9 @@ export class SelectionController extends Controller<'main'> {
     if (selection.kind === 'THREAD_STATE') {
       const sqlQuery = `SELECT id FROM sched WHERE utid = ${selection.utid}
                         and ts = ${toNs(selection.ts)}`;
-      this.args.engine.queryOneRow(sqlQuery).then(result => {
-        const id = result[0];
-        if (id !== undefined) this.sliceDetails(id);
+      this.args.engine.query(sqlQuery).then(result => {
+        if (result.columns[0].longValues!.length === 0) return;
+        this.sliceDetails(+result.columns[0].longValues![0]);
       });
       return;
     }
