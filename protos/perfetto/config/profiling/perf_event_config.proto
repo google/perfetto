@@ -18,7 +18,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// TODO(b/144281346): unstable, do not use. Will change in incompatible ways.
 // At the time of writing, the config options are restricted to the periodic
 // system-wide stack sampling use-case.
 message PerfEventConfig {
@@ -29,6 +28,10 @@ message PerfEventConfig {
   // be honored as the kernel can throttle the sampling rate if it's too high.
   // If unset, an implementation-defined default is used.
   optional uint32 sampling_frequency = 2;
+
+  // How often the per-cpu ring buffers are read by the producer.
+  // If unset, an implementation-defined default is used.
+  optional uint32 ring_buffer_read_period_ms = 8;
 
   // Size (in 4k pages) of each per-cpu ring buffer that is filled by the
   // kernel. If set, must be a power of two.
