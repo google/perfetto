@@ -31,8 +31,6 @@ namespace profiling {
 
 namespace {
 
-constexpr size_t kDefaultDataPagesPerRingBuffer = 256;  // 1 MB (256 x 4k pages)
-
 template <typename T>
 const char* ReadValue(T* value_out, const char* ptr) {
   memcpy(value_out, reinterpret_cast<const void*>(ptr), sizeof(T));
@@ -220,18 +218,8 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
     return base::nullopt;
   }
 
-  // choose a reasonable ring buffer size
-  size_t ring_buffer_pages = kDefaultDataPagesPerRingBuffer;
-  size_t config_pages = event_cfg.ring_buffer_pages();
-  if (config_pages) {
-    if (!IsPowerOfTwo(config_pages)) {
-      PERFETTO_ELOG("kernel buffer size must be a power of two pages");
-      return base::nullopt;
-    }
-    ring_buffer_pages = config_pages;
-  }
-
-  auto ring_buffer = PerfRingBuffer::Allocate(perf_fd.get(), ring_buffer_pages);
+  auto ring_buffer =
+      PerfRingBuffer::Allocate(perf_fd.get(), event_cfg.ring_buffer_pages());
   if (!ring_buffer.has_value()) {
     return base::nullopt;
   }
