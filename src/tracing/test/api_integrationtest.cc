@@ -761,7 +761,8 @@ TEST_F(PerfettoApiTest, TrackEvent) {
 #else
     constexpr auto kClockMonotonic =
         perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
-    EXPECT_EQ(packet.timestamp_clock_id(), kClockMonotonic);
+    EXPECT_EQ(packet.timestamp_clock_id(),
+              static_cast<uint32_t>(kClockMonotonic));
 #endif
     if (track_event.type() ==
         perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
