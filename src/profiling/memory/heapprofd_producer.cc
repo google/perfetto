@@ -293,10 +293,6 @@ void HeapprofdProducer::OnTracingSetup() {}
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& ds_config) {
   PERFETTO_DLOG("Setting up data source.");
-  if (mode_ == HeapprofdMode::kChild && ds_config.enable_extra_guardrails()) {
-    PERFETTO_ELOG("enable_extra_guardrails is not supported on user.");
-    return;
-  }
 
   HeapprofdConfig heapprofd_config;
   heapprofd_config.ParseFromString(ds_config.heapprofd_config_raw());
@@ -356,6 +352,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   cli_config.block_client = heapprofd_config.block_client();
   cli_config.block_client_timeout_us =
       heapprofd_config.block_client_timeout_us();
+  cli_config.enable_extra_guardrails = ds_config.enable_extra_guardrails();
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines);
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
@@ -547,6 +544,10 @@ void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
 void HeapprofdProducer::DumpProcessState(DataSource* data_source,
                                          pid_t pid,
                                          ProcessState* process_state) {
+  if (!process_state->has_samples) {
+    return;
+  }
+
   HeapTracker& heap_tracker = process_state->heap_tracker;
 
   bool from_startup =
@@ -902,6 +903,7 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
   }
 
   ProcessState& process_state = process_state_it->second;
+  process_state.has_samples = true;
   HeapTracker& heap_tracker = process_state.heap_tracker;
 
   if (alloc_rec.error)
@@ -990,6 +992,7 @@ void HeapprofdProducer::HandleSocketDisconnected(
   if (process_state_it == ds.process_states.end())
     return;
   ProcessState& process_state = process_state_it->second;
+
   process_state.disconnected = !ds.shutting_down;
   process_state.buffer_overran =
       stats.num_writes_overflow > 0 && !ds.config.block_client();
