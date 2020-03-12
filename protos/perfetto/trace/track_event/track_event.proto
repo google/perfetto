@@ -87,7 +87,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 12 (up to 15). Next id: 30.
+// Next reserved id: 13 (up to 15). Next id: 32.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -134,7 +134,11 @@ message TrackEvent {
     // of slice events on the same track.
     TYPE_INSTANT = 3;
 
-    // TODO(eseckler): Add support for counters.
+    // Event that provides a value for a counter track. |track_uuid| should
+    // refer to a counter track and |counter_value| set to the new value. Note
+    // that most other TrackEvent fields (e.g. categories, name, ..) are not
+    // supported for TYPE_COUNTER events. See also CounterDescriptor.
+    TYPE_COUNTER = 4;
   }
   optional Type type = 9;
 
@@ -145,31 +149,32 @@ message TrackEvent {
   // implicit trace-global track (uuid 0). See TrackDescriptor::uuid.
   optional uint64 track_uuid = 11;
 
+  // A new value for a counter track. |track_uuid| should refer to a track with
+  // a CounterDescriptor, and |type| should be TYPE_COUNTER. For a more
+  // efficient encoding of counter values that are sampled at the beginning/end
+  // of a slice, see |extra_counter_values| and |extra_counter_track_uuids|.
+  // Counter values can optionally be encoded in as delta values (positive or
+  // negative) on each packet sequence (see CounterIncrementalBase).
+  optional int64 counter_value = 30;
+
+  // To encode counter values more efficiently, we support attaching additional
+  // counter values to a TrackEvent of any type. All values will share the same
+  // timestamp specified in the TracePacket. The value at
+  // extra_counter_values[N] is for the counter track referenced by
+  // extra_counter_track_uuids[N].
+  //
+  // |extra_counter_track_uuids| may also be set via TrackEventDefaults. There
+  // should always be equal or more uuids than values. It is valid to set more
+  // uuids (e.g. via defaults) than values. If uuids are specified in
+  // TrackEventDefaults and a TrackEvent, the TrackEvent uuids override the
+  // default uuid list.
+  //
+  // For example, this allows snapshotting the thread time clock at each
+  // thread-track BEGIN and END event to capture the cpu time delta of a slice.
+  repeated uint64 extra_counter_track_uuids = 31;
+  repeated int64 extra_counter_values = 12;
+
   // TODO(eseckler): Add flow event support.
-
-  // TODO(eseckler): Encode thread_time and thread_instruction_count using a
-  // ClockSnapshot + clock id instead of ThreadDescriptor's reference values.
-
-  // CPU time for the current thread (e.g., CLOCK_THREAD_CPUTIME_ID) in
-  // microseconds.
-  oneof thread_time {
-    // Delta timestamp value since the last TrackEvent or ThreadDescriptor. To
-    // calculate the absolute timestamp value, sum up all delta values of the
-    // preceding TrackEvents since the last ThreadDescriptor and add the sum to
-    // the |reference_timestamp| in ThreadDescriptor. This value should always
-    // be positive.
-    int64 thread_time_delta_us = 2;
-    // This is a one-off absolute value that does not affect delta timestamp
-    // computation in subsequent TrackEvents.
-    int64 thread_time_absolute_us = 17;
-  }
-
-  // Value of the instruction counter for the current thread.
-  oneof thread_instruction_count {
-    // Same encoding as |thread_time| field above.
-    int64 thread_instruction_count_delta = 8;
-    int64 thread_instruction_count_absolute = 20;
-  }
 
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
@@ -209,6 +214,33 @@ message TrackEvent {
     // This is a one-off value that does not affect delta timestamp computation
     // in subsequent TrackEvents.
     int64 timestamp_absolute_us = 16;
+  }
+
+  // Deprecated. Use |extra_counter_values| and |extra_counter_track_uuids| to
+  // encode thread time instead.
+  //
+  // CPU time for the current thread (e.g., CLOCK_THREAD_CPUTIME_ID) in
+  // microseconds.
+  oneof thread_time {
+    // Delta timestamp value since the last TrackEvent or ThreadDescriptor. To
+    // calculate the absolute timestamp value, sum up all delta values of the
+    // preceding TrackEvents since the last ThreadDescriptor and add the sum to
+    // the |reference_timestamp| in ThreadDescriptor. This value should always
+    // be positive.
+    int64 thread_time_delta_us = 2;
+    // This is a one-off absolute value that does not affect delta timestamp
+    // computation in subsequent TrackEvents.
+    int64 thread_time_absolute_us = 17;
+  }
+
+  // Deprecated. Use |extra_counter_values| and |extra_counter_track_uuids| to
+  // encode thread instruction count instead.
+  //
+  // Value of the instruction counter for the current thread.
+  oneof thread_instruction_count {
+    // Same encoding as |thread_time| field above.
+    int64 thread_instruction_count_delta = 8;
+    int64 thread_instruction_count_absolute = 20;
   }
 
   // Apart from {category, time, thread time, tid, pid}, other legacy trace
@@ -281,6 +313,7 @@ message TrackEvent {
 // corresponding fields in TrackEvent.
 message TrackEventDefaults {
   optional uint64 track_uuid = 11;
+  repeated uint64 extra_counter_track_uuids = 31;
 
   // TODO(eseckler): Support default values for more TrackEvent fields.
 }

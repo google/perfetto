@@ -94,13 +94,6 @@ class TaskState {
   uint16_t state_ = 0;
 };
 
-void FormatSystracePrefix(int64_t timestamp,
-                          uint32_t cpu,
-                          uint32_t pid,
-                          uint32_t tgid,
-                          base::StringView name,
-                          base::StringWriter* writer);
-
 }  // namespace ftrace_utils
 }  // namespace trace_processor
 }  // namespace perfetto

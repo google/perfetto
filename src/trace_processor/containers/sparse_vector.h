@@ -28,6 +28,13 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Base class for SparseVector which allows type erasure to be implemented (e.g.
+// allows for std::unique_ptr<SparseVectorBase>).
+class SparseVectorBase {
+ public:
+  virtual ~SparseVectorBase();
+};
+
 // A data structure which compactly stores a list of possibly nullable data.
 //
 // Internally, this class is implemented using a combination of a std::deque
@@ -36,10 +43,11 @@ namespace trace_processor {
 // a slight cost (searching the BitVector to find the index into the std::deque)
 // when looking up the data.
 template <typename T>
-class SparseVector {
+class SparseVector : public SparseVectorBase {
  public:
   // Creates an empty SparseVector.
   SparseVector() = default;
+  ~SparseVector() override = default;
 
   SparseVector(SparseVector&&) = default;
   SparseVector& operator=(SparseVector&&) noexcept = default;

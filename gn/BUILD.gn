@@ -82,8 +82,6 @@ action("gen_buildflags") {
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
     "PERFETTO_TP_HTTPD=$perfetto_tp_httpd",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
-    "PERFETTO_TP_JSON_IMPORT=$enable_perfetto_trace_processor_json_import",
-    "PERFETTO_TP_FUCHSIA=$enable_perfetto_trace_processor_fuchsia",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
   ]

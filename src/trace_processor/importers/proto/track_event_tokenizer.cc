@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
 
 #include "perfetto/base/logging.h"
-#include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
@@ -32,6 +31,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
@@ -45,61 +45,73 @@ TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context)
 
 ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     PacketSequenceState* state,
-    const protos::pbzero::TracePacket::Decoder& packet_decoder,
+    const protos::pbzero::TracePacket::Decoder& packet,
     int64_t packet_timestamp) {
-  auto track_descriptor_field = packet_decoder.track_descriptor();
-  protos::pbzero::TrackDescriptor::Decoder track_descriptor_decoder(
-      track_descriptor_field.data, track_descriptor_field.size);
+  auto track_descriptor_field = packet.track_descriptor();
+  protos::pbzero::TrackDescriptor::Decoder track(track_descriptor_field.data,
+                                                 track_descriptor_field.size);
 
-  if (!track_descriptor_decoder.has_uuid()) {
+  if (!track.has_uuid()) {
     PERFETTO_ELOG("TrackDescriptor packet without uuid");
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
 
-  if (track_descriptor_decoder.has_thread()) {
-    auto thread_descriptor_field = track_descriptor_decoder.thread();
-    protos::pbzero::ThreadDescriptor::Decoder thread_descriptor_decoder(
-        thread_descriptor_field.data, thread_descriptor_field.size);
+  if (track.has_thread()) {
+    protos::pbzero::ThreadDescriptor::Decoder thread(track.thread());
 
-    if (!thread_descriptor_decoder.has_pid() ||
-        !thread_descriptor_decoder.has_tid()) {
+    if (!thread.has_pid() || !thread.has_tid()) {
       PERFETTO_ELOG(
           "No pid or tid in ThreadDescriptor for track with uuid %" PRIu64,
-          track_descriptor_decoder.uuid());
+          track.uuid());
       context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
     if (state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(state, thread_descriptor_decoder);
+      TokenizeThreadDescriptor(state, thread);
     }
 
     context_->track_tracker->ReserveDescriptorThreadTrack(
-        track_descriptor_decoder.uuid(), track_descriptor_decoder.parent_uuid(),
-        static_cast<uint32_t>(thread_descriptor_decoder.pid()),
-        static_cast<uint32_t>(thread_descriptor_decoder.tid()),
-        packet_timestamp);
-  } else if (track_descriptor_decoder.has_process()) {
-    auto process_descriptor_field = track_descriptor_decoder.process();
-    protos::pbzero::ProcessDescriptor::Decoder process_descriptor_decoder(
-        process_descriptor_field.data, process_descriptor_field.size);
+        track.uuid(), track.parent_uuid(), static_cast<uint32_t>(thread.pid()),
+        static_cast<uint32_t>(thread.tid()), packet_timestamp);
+  } else if (track.has_process()) {
+    protos::pbzero::ProcessDescriptor::Decoder process(track.process());
 
-    if (!process_descriptor_decoder.has_pid()) {
+    if (!process.has_pid()) {
       PERFETTO_ELOG("No pid in ProcessDescriptor for track with uuid %" PRIu64,
-                    track_descriptor_decoder.uuid());
+                    track.uuid());
       context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
     context_->track_tracker->ReserveDescriptorProcessTrack(
-        track_descriptor_decoder.uuid(),
-        static_cast<uint32_t>(process_descriptor_decoder.pid()),
-        packet_timestamp);
+        track.uuid(), static_cast<uint32_t>(process.pid()), packet_timestamp);
+  } else if (track.has_counter()) {
+    protos::pbzero::CounterDescriptor::Decoder counter(track.counter());
+
+    StringId category_id = kNullStringId;
+    if (counter.has_categories()) {
+      // TODO(eseckler): Support multi-category events in the table schema.
+      std::string categories;
+      for (auto it = counter.categories(); it; ++it) {
+        if (!categories.empty())
+          categories += ",";
+        categories.append((*it).data, (*it).size);
+      }
+      if (!categories.empty()) {
+        category_id =
+            context_->storage->InternString(base::StringView(categories));
+      }
+    }
+
+    context_->track_tracker->ReserveDescriptorCounterTrack(
+        track.uuid(), track.parent_uuid(), category_id,
+        counter.unit_multiplier(), counter.is_incremental(),
+        packet.trusted_packet_sequence_id());
   } else {
-    context_->track_tracker->ReserveDescriptorChildTrack(
-        track_descriptor_decoder.uuid(),
-        track_descriptor_decoder.parent_uuid());
+    context_->track_tracker->ReserveDescriptorChildTrack(track.uuid(),
+                                                         track.parent_uuid());
   }
 
   // Let ProtoTraceTokenizer forward the packet to the parser.
@@ -108,8 +120,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     PacketSequenceState* state,
-    const protos::pbzero::TracePacket::Decoder& packet_decoder) {
-  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+    const protos::pbzero::TracePacket::Decoder& packet) {
+  if (PERFETTO_UNLIKELY(!packet.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("ThreadDescriptor packet without trusted_packet_sequence_id");
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
@@ -125,10 +137,8 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     return ModuleResult::Handled();
   }
 
-  auto thread_descriptor_field = packet_decoder.thread_descriptor();
-  protos::pbzero::ThreadDescriptor::Decoder thread_descriptor_decoder(
-      thread_descriptor_field.data, thread_descriptor_field.size);
-  TokenizeThreadDescriptor(state, thread_descriptor_decoder);
+  protos::pbzero::ThreadDescriptor::Decoder thread(packet.thread_descriptor());
+  TokenizeThreadDescriptor(state, thread);
 
   // Let ProtoTraceTokenizer forward the packet to the parser.
   return ModuleResult::Ignored();
@@ -136,54 +146,41 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
     PacketSequenceState* state,
-    const protos::pbzero::ThreadDescriptor::Decoder&
-        thread_descriptor_decoder) {
+    const protos::pbzero::ThreadDescriptor::Decoder& thread) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state->SetThreadDescriptor(
-      thread_descriptor_decoder.pid(), thread_descriptor_decoder.tid(),
-      thread_descriptor_decoder.reference_timestamp_us() * 1000,
-      thread_descriptor_decoder.reference_thread_time_us() * 1000,
-      thread_descriptor_decoder.reference_thread_instruction_count());
+  state->SetThreadDescriptor(thread.pid(), thread.tid(),
+                             thread.reference_timestamp_us() * 1000,
+                             thread.reference_thread_time_us() * 1000,
+                             thread.reference_thread_instruction_count());
 }
 
 void TrackEventTokenizer::TokenizeTrackEventPacket(
     PacketSequenceState* state,
-    const protos::pbzero::TracePacket::Decoder& packet_decoder,
-    TraceBlobView* packet,
+    const protos::pbzero::TracePacket::Decoder& packet,
+    TraceBlobView* packet_blob,
     int64_t packet_timestamp) {
-  constexpr auto kTimestampDeltaUsFieldNumber =
-      protos::pbzero::TrackEvent::kTimestampDeltaUsFieldNumber;
-  constexpr auto kTimestampAbsoluteUsFieldNumber =
-      protos::pbzero::TrackEvent::kTimestampAbsoluteUsFieldNumber;
-  constexpr auto kThreadTimeDeltaUsFieldNumber =
-      protos::pbzero::TrackEvent::kThreadTimeDeltaUsFieldNumber;
-  constexpr auto kThreadTimeAbsoluteUsFieldNumber =
-      protos::pbzero::TrackEvent::kThreadTimeAbsoluteUsFieldNumber;
-  constexpr auto kThreadInstructionCountDeltaFieldNumber =
-      protos::pbzero::TrackEvent::kThreadInstructionCountDeltaFieldNumber;
-  constexpr auto kThreadInstructionCountAbsoluteFieldNumber =
-      protos::pbzero::TrackEvent::kThreadInstructionCountAbsoluteFieldNumber;
-
-  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
+  if (PERFETTO_UNLIKELY(!packet.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("TrackEvent packet without trusted_packet_sequence_id");
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return;
   }
 
-  auto field = packet_decoder.track_event();
-  protozero::ProtoDecoder event_decoder(field.data, field.size);
+  auto field = packet.track_event();
+  protos::pbzero::TrackEvent::Decoder event(field.data, field.size);
+
+  protos::pbzero::TrackEventDefaults::Decoder* defaults =
+      state->current_generation()->GetTrackEventDefaults();
 
   int64_t timestamp;
-  int64_t thread_timestamp = 0;
-  int64_t thread_instructions = 0;
+  std::unique_ptr<TrackEventData> data(
+      new TrackEventData(std::move(*packet_blob), state->current_generation()));
 
   // TODO(eseckler): Remove handling of timestamps relative to ThreadDescriptors
   // once all producers have switched to clock-domain timestamps (e.g.
   // TracePacket's timestamp).
 
-  if (auto ts_delta_field =
-          event_decoder.FindField(kTimestampDeltaUsFieldNumber)) {
+  if (event.has_timestamp_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!state->track_event_timestamps_valid()) {
@@ -191,7 +188,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       return;
     }
     timestamp = state->IncrementAndGetTrackEventTimeNs(
-        ts_delta_field.as_int64() * 1000);
+        event.timestamp_delta_us() * 1000);
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
@@ -199,9 +196,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
         protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
-  } else if (int64_t ts_absolute_us =
-                 event_decoder.FindField(kTimestampAbsoluteUsFieldNumber)
-                     .as_int64()) {
+  } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
     timestamp = ts_absolute_us * 1000;
 
@@ -211,7 +206,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
         protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
-  } else if (packet_decoder.has_timestamp()) {
+  } else if (packet.has_timestamp()) {
     timestamp = packet_timestamp;
   } else {
     PERFETTO_ELOG("TrackEvent without valid timestamp");
@@ -219,42 +214,121 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     return;
   }
 
-  if (auto tt_delta_field =
-          event_decoder.FindField(kThreadTimeDeltaUsFieldNumber)) {
+  if (event.has_thread_time_delta_us()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!state->track_event_timestamps_valid()) {
       context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
       return;
     }
-    thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
-        tt_delta_field.as_int64() * 1000);
-  } else if (auto tt_absolute_field =
-                 event_decoder.FindField(kThreadTimeAbsoluteUsFieldNumber)) {
+    data->thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
+        event.thread_time_delta_us() * 1000);
+  } else if (event.has_thread_time_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
-    thread_timestamp = tt_absolute_field.as_int64() * 1000;
+    data->thread_timestamp = event.thread_time_absolute_us() * 1000;
   }
 
-  if (auto ti_delta_field =
-          event_decoder.FindField(kThreadInstructionCountDeltaFieldNumber)) {
+  if (event.has_thread_instruction_count_delta()) {
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!state->track_event_timestamps_valid()) {
       context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
       return;
     }
-    thread_instructions =
+    data->thread_instruction_count =
         state->IncrementAndGetTrackEventThreadInstructionCount(
-            ti_delta_field.as_int64());
-  } else if (auto ti_absolute_field = event_decoder.FindField(
-                 kThreadInstructionCountAbsoluteFieldNumber)) {
+            event.thread_instruction_count_delta());
+  } else if (event.has_thread_instruction_count_absolute()) {
     // One-off absolute timestamps don't affect delta computation.
-    thread_instructions = ti_absolute_field.as_int64();
+    data->thread_instruction_count = event.thread_instruction_count_absolute();
   }
 
-  context_->sorter->PushTrackEventPacket(timestamp, thread_timestamp,
-                                         thread_instructions, state,
-                                         std::move(*packet));
+  // TODO(eseckler): Also convert & attach counter values from TYPE_COUNTER
+  // events and extra_counter_* fields.
+  if (event.type() == protos::pbzero::TrackEvent::TYPE_COUNTER) {
+    // Consider track_uuid from the packet and TrackEventDefaults.
+    uint64_t track_uuid;
+    if (event.has_track_uuid()) {
+      track_uuid = event.track_uuid();
+    } else if (defaults->has_track_uuid()) {
+      track_uuid = defaults->track_uuid();
+    } else {
+      PERFETTO_DLOG(
+          "Ignoring TrackEvent with counter_value but without track_uuid");
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      return;
+    }
+
+    if (!event.has_counter_value()) {
+      PERFETTO_DLOG(
+          "Ignoring TrackEvent with TYPE_COUNTER but without counter_value for "
+          "track_uuid %" PRIu64,
+          track_uuid);
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      return;
+    }
+
+    base::Optional<int64_t> value =
+        context_->track_tracker->ConvertToAbsoluteCounterValue(
+            track_uuid, packet.trusted_packet_sequence_id(),
+            event.counter_value());
+
+    if (!value) {
+      PERFETTO_DLOG("Ignoring TrackEvent with invalid track_uuid %" PRIu64,
+                    track_uuid);
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      return;
+    }
+
+    data->counter_value = *value;
+  }
+
+  if (event.has_extra_counter_values()) {
+    // Consider extra_counter_track_uuids from the packet and
+    // TrackEventDefaults.
+    protozero::RepeatedFieldIterator<uint64_t> track_uuid_it;
+    if (event.has_extra_counter_track_uuids()) {
+      track_uuid_it = event.extra_counter_track_uuids();
+    } else if (defaults->has_extra_counter_track_uuids()) {
+      track_uuid_it = defaults->extra_counter_track_uuids();
+    } else {
+      PERFETTO_DLOG(
+          "Ignoring TrackEvent with extra_counter_values but without "
+          "extra_counter_track_uuids");
+      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      return;
+    }
+
+    size_t index = 0;
+    for (auto value_it = event.extra_counter_values(); value_it;
+         ++value_it, ++track_uuid_it, ++index) {
+      if (!track_uuid_it) {
+        PERFETTO_DLOG(
+            "Ignoring TrackEvent with more extra_counter_values than "
+            "extra_counter_track_uuids");
+        context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+        return;
+      }
+      if (index >= TrackEventData::kMaxNumExtraCounters) {
+        PERFETTO_ELOG(
+            "Ignoring TrackEvent with more extra_counter_values than "
+            "TrackEventData::kMaxNumExtraCounters");
+        context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+        return;
+      }
+      base::Optional<int64_t> value =
+          context_->track_tracker->ConvertToAbsoluteCounterValue(
+              *track_uuid_it, packet.trusted_packet_sequence_id(), *value_it);
+      if (!value) {
+        PERFETTO_DLOG("Ignoring TrackEvent with invalid extra counter track");
+        context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+        return;
+      }
+      data->extra_counter_values[index] = *value;
+    }
+  }
+
+  context_->sorter->PushTrackEventPacket(timestamp, std::move(data));
 }
 
 }  // namespace trace_processor

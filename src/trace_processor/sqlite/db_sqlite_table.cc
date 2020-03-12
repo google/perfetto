@@ -424,8 +424,9 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     case TableComputation::kDynamic:
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
-      upstream_table_ =
+      dynamic_table_ =
           db_sqlite_table_->generator_->ComputeTable(constraints_, orders_);
+      upstream_table_ = dynamic_table_.get();
       if (!upstream_table_)
         return SQLITE_CONSTRAINT;
       break;

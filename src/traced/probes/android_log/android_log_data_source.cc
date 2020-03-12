@@ -85,11 +85,17 @@ inline bool ReadAndAdvance(const char** ptr, const char* end, T* out) {
 
 }  // namespace
 
+// static
+const ProbesDataSource::Descriptor AndroidLogDataSource::descriptor = {
+    /*name*/ "android.log",
+    /*flags*/ Descriptor::kFlagsNone,
+};
+
 AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
                                            base::TaskRunner* task_runner,
                                            TracingSessionID session_id,
                                            std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {

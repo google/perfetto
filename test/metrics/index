@@ -27,3 +27,5 @@ obfuscated_heap_graph.textproto unmapped_java_symbols unmapped_java_symbols.out
 
 # Json output
 ../data/memory_counters.pb trace_metadata trace_metadata.json.out
+
+process_uids.textproto android_task_names android_task_names.out

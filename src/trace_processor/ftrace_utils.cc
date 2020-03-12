@@ -26,16 +26,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
 
-namespace {
-struct FtraceTime {
-  FtraceTime(int64_t ns)
-      : secs(ns / 1000000000LL), micros((ns - secs * 1000000000LL) / 1000) {}
-
-  const int64_t secs;
-  const int64_t micros;
-};
-}  // namespace
-
 TaskState::TaskState(uint16_t raw_state) {
   if (raw_state > kMaxState) {
     state_ = 0;
@@ -184,56 +174,6 @@ TaskState::TaskStateStr TaskState::ToString(char separator) const {
   TaskStateStr output{};
   memcpy(output.data(), buffer, std::min(pos, output.size() - 1));
   return output;
-}
-
-void FormatSystracePrefix(int64_t timestamp,
-                          uint32_t cpu,
-                          uint32_t pid,
-                          uint32_t tgid,
-                          base::StringView name,
-                          base::StringWriter* writer) {
-  FtraceTime ftrace_time(timestamp);
-  if (pid == 0) {
-    name = "<idle>";
-  } else if (name == "") {
-    name = "<unknown>";
-  } else if (name == "CrRendererMain") {
-    // TODO(taylori): Remove this when crbug.com/978093 is fixed or
-    // when a better solution is found.
-    name = "CrRendererMainThread";
-  }
-
-  int64_t padding = 16 - static_cast<int64_t>(name.size());
-  if (padding > 0) {
-    writer->AppendChar(' ', static_cast<size_t>(padding));
-  }
-  for (size_t i = 0; i < name.size(); ++i) {
-    char c = name.data()[i];
-    writer->AppendChar(c == '-' ? '_' : c);
-  }
-  writer->AppendChar('-');
-
-  size_t pre_pid_pos = writer->pos();
-  writer->AppendInt(pid);
-  size_t pid_chars = writer->pos() - pre_pid_pos;
-  if (PERFETTO_LIKELY(pid_chars < 5)) {
-    writer->AppendChar(' ', 5 - pid_chars);
-  }
-
-  writer->AppendLiteral(" (");
-  if (tgid == 0) {
-    writer->AppendLiteral("-----");
-  } else {
-    writer->AppendPaddedInt<' ', 5>(tgid);
-  }
-  writer->AppendLiteral(") [");
-  writer->AppendPaddedInt<'0', 3>(cpu);
-  writer->AppendLiteral("] .... ");
-
-  writer->AppendInt(ftrace_time.secs);
-  writer->AppendChar('.');
-  writer->AppendPaddedInt<'0', 6>(ftrace_time.micros);
-  writer->AppendChar(':');
 }
 
 }  // namespace ftrace_utils

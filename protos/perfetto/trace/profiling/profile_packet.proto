@@ -211,14 +211,14 @@ message PerfSample {
   optional uint64 kernel_records_lost = 17;
 
   // If set, indicates that the profiler encountered a sample that was relevant,
-  // but was skipped as it was considered to be not unwindable (e.g. the process
-  // no longer exists).
-  enum ProfilerStage {
-    PROFILER_STAGE_UNKNOWN = 0;
-    PROFILER_STAGE_READ = 1;
-    PROFILER_STAGE_UNWIND = 2;
+  // but was skipped.
+  enum SampleSkipReason {
+    PROFILER_SKIP_UNKNOWN = 0;
+    PROFILER_SKIP_READ_STAGE = 1;
+    PROFILER_SKIP_UNWIND_STAGE = 2;
+    PROFILER_SKIP_UNWIND_ENQUEUE = 3;
   }
   oneof optional_sample_skipped_reason {
-    ProfilerStage sample_skipped_reason = 18;
+    SampleSkipReason sample_skipped_reason = 18;
   };
 }

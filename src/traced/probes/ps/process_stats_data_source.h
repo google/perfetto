@@ -48,7 +48,7 @@ class ProcessStats_Process;
 
 class ProcessStatsDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 3;
+  static const ProbesDataSource::Descriptor descriptor;
 
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,

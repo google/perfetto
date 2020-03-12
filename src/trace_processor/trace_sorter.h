@@ -24,7 +24,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_processor_context.h"
 
 namespace Json {
 class Value;
@@ -35,6 +34,7 @@ namespace trace_processor {
 
 class FuchsiaProviderView;
 class PacketSequenceState;
+struct SystraceLine;
 
 // This class takes care of sorting events parsed from the trace stream in
 // arbitrary order and pushing them to the next pipeline stages (parsing) in
@@ -65,7 +65,7 @@ class PacketSequenceState;
 // from there to the end.
 class TraceSorter {
  public:
-  TraceSorter(TraceProcessorContext*, int64_t window_size_ns);
+  TraceSorter(std::unique_ptr<TraceParser> parser, int64_t window_size_ns);
 
   inline void PushTracePacket(int64_t timestamp,
                               PacketSequenceState* state,
@@ -92,6 +92,15 @@ class TraceSorter {
     auto* queue = GetQueue(0);
     queue->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(record)));
+    MaybeExtractEvents(queue);
+  }
+
+  inline void PushSystraceLine(std::unique_ptr<SystraceLine> systrace_line) {
+    DCHECK_ftrace_batch_cpu(kNoBatch);
+    auto* queue = GetQueue(0);
+    int64_t timestamp = systrace_line->ts;
+    queue->Append(TimestampedTracePiece(timestamp, packet_idx_++,
+                                        std::move(systrace_line)));
     MaybeExtractEvents(queue);
   }
 
@@ -131,14 +140,8 @@ class TraceSorter {
   }
 
   inline void PushTrackEventPacket(int64_t timestamp,
-                                   int64_t thread_time,
-                                   int64_t thread_instruction_count,
-                                   PacketSequenceState* state,
-                                   TraceBlobView packet) {
+                                   std::unique_ptr<TrackEventData> data) {
     auto* queue = GetQueue(0);
-    std::unique_ptr<TrackEventData> data(
-        new TrackEventData{std::move(packet), state->current_generation(),
-                           thread_time, thread_instruction_count});
     queue->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(data)));
     MaybeExtractEvents(queue);
@@ -236,7 +239,7 @@ class TraceSorter {
     SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
 
-  TraceProcessorContext* const context_;
+  std::unique_ptr<TraceParser> parser_;
 
   // queues_[0] is the general (non-ftrace) queue.
   // queues_[1] is the ftrace queue for CPU(0).

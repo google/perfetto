@@ -78,10 +78,6 @@ export abstract class TrackController<Config = {},
 
   protected async query(query: string) {
     const result = await this.engine.query(query);
-    if (result.error) {
-      console.error(`Query error "${query}": ${result.error}`);
-      throw new Error(`Query error "${query}": ${result.error}`);
-    }
     return result;
   }
 
@@ -109,7 +105,10 @@ export abstract class TrackController<Config = {},
 
   run() {
     const visibleState = globals.state.frontendLocalState.visibleState;
-    if (visibleState === undefined) return;
+    if (visibleState === undefined || visibleState.resolution === undefined ||
+        visibleState.resolution === Infinity) {
+      return;
+    }
     const dur = visibleState.endSec - visibleState.startSec;
     if (globals.state.visibleTracks.includes(this.trackId) &&
         this.shouldRequestData(visibleState)) {

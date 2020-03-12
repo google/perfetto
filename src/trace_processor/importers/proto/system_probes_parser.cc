@@ -296,6 +296,8 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
       syscall_tracker->SetArchitecture(kAarch64);
     } else if (machine == "x86_64") {
       syscall_tracker->SetArchitecture(kX86_64);
+    } else if (machine == "i686") {
+      syscall_tracker->SetArchitecture(kX86);
     } else {
       PERFETTO_ELOG("Unknown architecture %s", machine.ToStdString().c_str());
     }

@@ -952,8 +952,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
     PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 INSTANTIATE_TEST_CASE_P(DISABLED_Run, HeapprofdEndToEnd, Bool(), TestSuffix);
 #else
-// TODO(b/150085813): Re-enable this once it is fixed.
-INSTANTIATE_TEST_CASE_P(DISABLED_Run, HeapprofdEndToEnd, Bool(), TestSuffix);
+INSTANTIATE_TEST_CASE_P(Run, HeapprofdEndToEnd, Bool(), TestSuffix);
 #endif
 
 }  // namespace

@@ -16,7 +16,7 @@
 
 // For bazel build.
 #include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
@@ -41,7 +41,7 @@ namespace perfetto {
 namespace trace_processor {
 
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context), systrace_line_parser_(context) {}
 
 JsonTraceParser::~JsonTraceParser() = default;
 
@@ -53,7 +53,13 @@ void JsonTraceParser::ParseFtracePacket(uint32_t,
 
 void JsonTraceParser::ParseTracePacket(int64_t timestamp,
                                        TimestampedTracePiece ttp) {
-  PERFETTO_DCHECK(ttp.json_value != nullptr);
+  PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
+                  ttp.type == TimestampedTracePiece::Type::kSystraceLine);
+  if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
+    systrace_line_parser_.ParseLine(*ttp.systrace_line);
+    return;
+  }
+
   const Json::Value& value = *(ttp.json_value);
 
   ProcessTracker* procs = context_->process_tracker.get();
@@ -129,4 +135,4 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)

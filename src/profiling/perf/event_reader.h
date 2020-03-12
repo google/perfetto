@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_config.h"
 
 namespace perfetto {
@@ -68,16 +69,6 @@ class PerfRingBuffer {
   alignas(uint64_t) char reconstructed_record_[kMaxPerfRecordSize];
 };
 
-struct ParsedSample {
-  uint32_t cpu = 0;
-  pid_t pid = 0;
-  pid_t tid = 0;
-  uint64_t timestamp = 0;
-  uint16_t cpu_mode = PERF_RECORD_MISC_CPUMODE_UNKNOWN;
-  std::unique_ptr<unwindstack::Regs> regs;
-  std::vector<char> stack;
-};
-
 class EventReader {
  public:
   // Allow base::Optional<EventReader> without making the constructor public.
@@ -108,7 +99,7 @@ class EventReader {
 
  private:
   EventReader(uint32_t cpu,
-              const EventConfig& event_cfg,
+              perf_event_attr event_attr,
               base::ScopedFile perf_fd,
               PerfRingBuffer ring_buffer);
 
@@ -116,7 +107,7 @@ class EventReader {
 
   // All events are cpu-bound (thread-scoped events not supported).
   const uint32_t cpu_;
-  const EventConfig event_cfg_;
+  const perf_event_attr event_attr_;
   base::ScopedFile perf_fd_;
   PerfRingBuffer ring_buffer_;
 };

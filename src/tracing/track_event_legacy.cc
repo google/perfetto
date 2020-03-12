@@ -37,10 +37,11 @@ namespace internal {
 void LegacyTraceId::Write(protos::pbzero::TrackEvent::LegacyEvent* event,
                           uint32_t event_flags) const {
   // Legacy flow events always use bind_id.
-  if (event_flags & (TRACE_EVENT_FLAG_FLOW_OUT | TRACE_EVENT_FLAG_FLOW_IN)) {
+  if (event_flags &
+      (legacy::kTraceEventFlagFlowOut | legacy::kTraceEventFlagFlowIn)) {
     // Flow bind_ids don't have scopes, so we need to mangle in-process ones to
     // avoid collisions.
-    if (id_flags_ & TRACE_EVENT_FLAG_HAS_LOCAL_ID) {
+    if (id_flags_ & legacy::kTraceEventFlagHasLocalId) {
       event->set_bind_id(raw_id_ ^ ProcessTrack::Current().uuid);
     } else {
       event->set_bind_id(raw_id_);
@@ -48,17 +49,17 @@ void LegacyTraceId::Write(protos::pbzero::TrackEvent::LegacyEvent* event,
     return;
   }
 
-  uint32_t scope_flags =
-      id_flags_ & (TRACE_EVENT_FLAG_HAS_ID | TRACE_EVENT_FLAG_HAS_LOCAL_ID |
-                   TRACE_EVENT_FLAG_HAS_GLOBAL_ID);
+  uint32_t scope_flags = id_flags_ & (legacy::kTraceEventFlagHasId |
+                                      legacy::kTraceEventFlagHasLocalId |
+                                      legacy::kTraceEventFlagHasGlobalId);
   switch (scope_flags) {
-    case TRACE_EVENT_FLAG_HAS_ID:
+    case legacy::kTraceEventFlagHasId:
       event->set_unscoped_id(raw_id_);
       break;
-    case TRACE_EVENT_FLAG_HAS_LOCAL_ID:
+    case legacy::kTraceEventFlagHasLocalId:
       event->set_local_id(raw_id_);
       break;
-    case TRACE_EVENT_FLAG_HAS_GLOBAL_ID:
+    case legacy::kTraceEventFlagHasGlobalId:
       event->set_global_id(raw_id_);
       break;
   }

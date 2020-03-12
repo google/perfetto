@@ -215,8 +215,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.slice_tracker.reset(slice_);
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
-    context_.sorter.reset(new TraceSorter(&context_, 0 /*window size*/));
-    context_.parser.reset(new ProtoTraceParser(&context_));
+    context_.sorter.reset(new TraceSorter(CreateParser(), 0 /*window size*/));
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
@@ -261,6 +260,10 @@ class ProtoTraceParserTest : public ::testing::Test {
   }
 
  protected:
+  std::unique_ptr<TraceParser> CreateParser() {
+    return std::unique_ptr<TraceParser>(new ProtoTraceParser(&context_));
+  }
+
   std::unique_ptr<protozero::ScatteredHeapBuffer> heap_buf_;
   std::unique_ptr<protozero::ScatteredStreamWriter> stream_writer_;
   protos::pbzero::Trace trace_;
@@ -628,7 +631,7 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
 TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -673,7 +676,7 @@ TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -727,7 +730,7 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -787,14 +790,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   MockBoundInserter inserter;
 
+  StringId unknown_cat = storage_->InternString("unknown(1)");
+
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
   EXPECT_CALL(*slice_,
               Scoped(1005000, track, kNullStringId, kNullStringId, 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
-  EXPECT_CALL(*slice_, Begin(1010000, track, kNullStringId, kNullStringId, _))
+  EXPECT_CALL(*slice_, Begin(1010000, track, unknown_cat, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
-  EXPECT_CALL(*slice_, End(1020000, track, kNullStringId, kNullStringId, _))
+  EXPECT_CALL(*slice_, End(1020000, track, unknown_cat, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
   context_.sorter->ExtractEventsForced();
@@ -810,7 +815,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -867,14 +872,17 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   MockBoundInserter inserter;
 
+  StringId unknown_cat1 = storage_->InternString("unknown(1)");
+  StringId unknown_cat2 = storage_->InternString("unknown(2)");
+
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Begin(1010000, track, kNullStringId, kNullStringId, _))
+  EXPECT_CALL(*slice_, Begin(1010000, track, unknown_cat1, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(0u)));
   EXPECT_CALL(*slice_,
-              Scoped(1015000, track, kNullStringId, kNullStringId, 0, _))
+              Scoped(1015000, track, unknown_cat2, kNullStringId, 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(1u)));
-  EXPECT_CALL(*slice_, End(1020000, track, kNullStringId, kNullStringId, _))
+  EXPECT_CALL(*slice_, End(1020000, track, unknown_cat1, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(0u)));
 
   context_.sorter->ExtractEventsForced();
@@ -890,7 +898,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1053,7 +1061,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1197,7 +1205,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 // TODO(eseckler): Also test instant events on separate tracks.
 TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   // Sequence 1.
   {
@@ -1383,7 +1391,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1444,7 +1452,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     // Event should be discarded because it specifies delta timestamps and no
@@ -1486,7 +1494,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1577,17 +1585,18 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   row.upid = 1u;
   storage_->mutable_thread_table()->Insert(row);
 
+  StringId unknown_cat = storage_->InternString("unknown(1)");
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
-  EXPECT_CALL(*slice_, Begin(1010000, track, kNullStringId, kNullStringId, _));
-  EXPECT_CALL(*slice_, End(2010000, track, kNullStringId, kNullStringId, _));
+  EXPECT_CALL(*slice_, Begin(1010000, track, unknown_cat, kNullStringId, _));
+  EXPECT_CALL(*slice_, End(2010000, track, unknown_cat, kNullStringId, _));
 
   context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1703,7 +1712,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   MockBoundInserter inserter;
 
   {
@@ -1909,7 +1918,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -1977,7 +1986,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
 TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2056,7 +2065,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2168,7 +2177,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   clock_->AddSnapshot(
       {{protos::pbzero::ClockSnapshot::Clock::BOOTTIME, 0},
@@ -2204,16 +2213,17 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
+  StringId unknown_cat = storage_->InternString("unknown(1)");
 
   // Timestamp should be adjusted to trace time (BOOTTIME).
-  EXPECT_CALL(*slice_, Begin(10000, track, kNullStringId, kNullStringId, _));
+  EXPECT_CALL(*slice_, Begin(10000, track, unknown_cat, kNullStringId, _));
 
   context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2242,7 +2252,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   static const int kIntValue = 123;
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2281,7 +2291,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   static const char kFullData[] = "aaabbb";
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2311,7 +2321,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   static const char kUserTraceEvent[] = "{\"user\":1}";
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_.add_packet();
@@ -2345,7 +2355,7 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   static const char kTag2[] = "tag2";
 
   context_.sorter.reset(new TraceSorter(
-      &context_, std::numeric_limits<int64_t>::max() /*window size*/));
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   auto* metadata = trace_.add_packet()->set_chrome_benchmark_metadata();
   metadata->set_benchmark_name(kName);

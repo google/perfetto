@@ -30,6 +30,7 @@
 #include "src/trace_processor/trace_processor_context.h"
 
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -156,20 +157,36 @@ class PacketSequenceStateGeneration {
   template <uint32_t FieldId, typename MessageType>
   typename MessageType::Decoder* LookupInternedMessage(uint64_t iid);
 
-  // Returns |nullptr| if no defaults were set in the given generation.
+  // Returns |nullptr| if no defaults were set.
   InternedMessageView* GetTracePacketDefaultsView() {
     if (!trace_packet_defaults_)
       return nullptr;
     return &trace_packet_defaults_.value();
   }
 
-  // Returns |nullptr| if no defaults were set in the given generation.
-  typename protos::pbzero::TracePacketDefaults::Decoder*
-  GetTracePacketDefaults() {
+  // Returns |nullptr| if no defaults were set.
+  protos::pbzero::TracePacketDefaults::Decoder* GetTracePacketDefaults() {
     InternedMessageView* view = GetTracePacketDefaultsView();
     if (!view)
       return nullptr;
     return view->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
+  }
+
+  // Returns |nullptr| if no TrackEventDefaults were set.
+  protos::pbzero::TrackEventDefaults::Decoder* GetTrackEventDefaults() {
+    auto* packet_defaults_view = GetTracePacketDefaultsView();
+    if (packet_defaults_view) {
+      auto* track_event_defaults_view =
+          packet_defaults_view
+              ->GetOrCreateSubmessageView<protos::pbzero::TracePacketDefaults,
+                                          protos::pbzero::TracePacketDefaults::
+                                              kTrackEventDefaultsFieldNumber>();
+      if (track_event_defaults_view) {
+        return track_event_defaults_view
+            ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
+      }
+    }
+    return nullptr;
   }
 
   PacketSequenceState* state() const { return state_; }

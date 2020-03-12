@@ -34,17 +34,14 @@ class ExperimentalCounterDurGenerator
   std::string TableName() override;
   uint32_t EstimateRowCount() override;
   util::Status ValidateConstraints(const QueryConstraints&) override;
-  Table* ComputeTable(const std::vector<Constraint>&,
-                      const std::vector<Order>&) override;
+  std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>&,
+                                      const std::vector<Order>&) override;
 
   // public + static for testing
-  static SparseVector<int64_t> ComputeDurColumn(
-      const tables::CounterTable& table);
+  static SparseVector<int64_t> ComputeDurColumn(const Table& table);
 
  private:
   const tables::CounterTable* counter_table_ = nullptr;
-  std::unique_ptr<Table> counter_with_dur_table_;
-  std::unique_ptr<SparseVector<int64_t>> dur_column_;
 };
 
 }  // namespace trace_processor

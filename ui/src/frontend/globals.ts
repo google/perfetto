@@ -118,6 +118,11 @@ class Globals {
     count: new Uint8Array(0),
   };
 
+  // This variable is set by the is_internal_user.js script if the user is a
+  // googler. This is used to avoid exposing features that are not ready yet
+  // for public consumption. The gated features themselves are not secret.
+  isInternalUser = false;
+
   initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
     this._controllerWorker = controllerWorker;

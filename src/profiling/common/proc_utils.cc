@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/proc_utils.h"
+#include "src/profiling/common/proc_utils.h"
 
 #include <inttypes.h>
 #include <sys/stat.h>
@@ -68,11 +68,7 @@ bool GetCmdlineForPID(pid_t pid, std::string* name) {
   std::string filename = "/proc/" + std::to_string(pid) + "/cmdline";
   base::ScopedFile fd(base::OpenFile(filename, O_RDONLY | O_CLOEXEC));
   if (!fd) {
-    // We do not expect errors other than permission errors here.
-    if (errno != EPERM && errno != EACCES)
-      PERFETTO_PLOG("Failed to open %s", filename.c_str());
-    else
-      PERFETTO_DPLOG("Failed to open %s", filename.c_str());
+    PERFETTO_DPLOG("Failed to open %s", filename.c_str());
     return false;
   }
   char cmdline[512];

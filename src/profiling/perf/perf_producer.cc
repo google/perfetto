@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/perf_producer.h"
 
+#include <random>
 #include <utility>
 
 #include <unistd.h>
@@ -34,7 +35,9 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/profiling/common/callstack_trie.h"
+#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/common/unwind_support.h"
+#include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_reader.h"
 
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
@@ -45,17 +48,12 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-// TODO(rsavitski): for low sampling rates, look into epoll to detect samples.
 constexpr uint32_t kReadTickPeriodMs = 200;
-constexpr uint32_t kUnwindTickPeriodMs = 200;
 // TODO(rsavitski): this is better calculated (at setup) from the buffer and
 // sample sizes.
-constexpr size_t kMaxSamplesPerCpuPerReadTick = 32;
-// TODO(rsavitski): consider making this part of the config (for slow testing
-// platforms).
-constexpr uint32_t kProcDescriptorTimeoutMs = 400;
+constexpr size_t kMaxSamplesPerCpuPerReadTick = 64;
 
-constexpr size_t kUnwindingMaxFrames = 1000;
+constexpr uint32_t kProcDescriptorTimeoutMs = 400;
 
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
@@ -67,8 +65,44 @@ size_t NumberOfCpus() {
   return static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
 }
 
-uint64_t NowMs() {
-  return static_cast<uint64_t>(base::GetWallTimeMs().count());
+uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id) {
+  // Normally, we'd schedule the next tick at the next |kReadTickPeriodMs|
+  // boundary of the boot clock. However, to avoid aligning the read tasaks of
+  // all concurrent data sources, we select a deterministic offset based on the
+  // data source id.
+  std::minstd_rand prng(static_cast<std::minstd_rand::result_type>(ds_id));
+  std::uniform_int_distribution<uint32_t> dist(0, kReadTickPeriodMs - 1);
+  uint32_t ds_period_offset = dist(prng);
+
+  uint64_t now_ms = static_cast<uint64_t>(base::GetWallTimeMs().count());
+  return kReadTickPeriodMs - ((now_ms - ds_period_offset) % kReadTickPeriodMs);
+}
+
+bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
+  bool reject_cmd = false;
+  std::string cmdline;
+  if (GetCmdlineForPID(pid, &cmdline)) {  // normalized form
+    // reject if absent from non-empty whitelist, or present in blacklist
+    reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
+                 filter.exclude_cmdlines.count(cmdline);
+  } else {
+    PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
+                  static_cast<int>(pid));
+    // reject only if there's a whitelist present
+    reject_cmd = filter.cmdlines.size() > 0;
+  }
+
+  bool reject_pid = (filter.pids.size() && !filter.pids.count(pid)) ||
+                    filter.exclude_pids.count(pid);
+
+  if (reject_cmd || reject_pid) {
+    PERFETTO_DLOG(
+        "Rejecting samples for pid [%d] due to cmdline(%d) or pid(%d)",
+        static_cast<int>(pid), reject_cmd, reject_pid);
+
+    return true;
+  }
+  return false;
 }
 
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
@@ -119,15 +153,9 @@ PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
                            base::TaskRunner* task_runner)
     : task_runner_(task_runner),
       proc_fd_getter_(proc_fd_getter),
+      unwinding_worker_(this),
       weak_factory_(this) {
   proc_fd_getter->SetDelegate(this);
-
-  // Enable the static unwinding cache, clearing it first in case we're
-  // reconstructing the class in |Restart|.
-  // TODO(rsavitski): the toggling needs to be done on the same thread as
-  // unwinding (right now this is on the same primary thread).
-  unwindstack::Elf::SetCachingEnabled(false);
-  unwindstack::Elf::SetCachingEnabled(true);
 }
 
 // TODO(rsavitski): consider configure at setup + enable at start instead.
@@ -178,16 +206,20 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   auto writer = endpoint_->CreateTraceWriter(buffer_id);
 
   // Construct the data source instance.
-  std::map<DataSourceInstanceID, DataSource>::iterator ds_it;
+  std::map<DataSourceInstanceID, DataSourceState>::iterator ds_it;
   bool inserted;
   std::tie(ds_it, inserted) = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(instance_id),
-      std::forward_as_tuple(std::move(writer), std::move(per_cpu_readers)));
+      std::forward_as_tuple(event_config.value(), std::move(writer),
+                            std::move(per_cpu_readers)));
   PERFETTO_CHECK(inserted);
 
   // Write out a packet to initialize the incremental state for this sequence.
   InterningOutputTracker::WriteFixedInterningsPacket(
       ds_it->second.trace_writer.get());
+
+  // Inform unwinder of the new data source instance.
+  unwinding_worker_->PostStartDataSource(instance_id);
 
   // Kick off periodic read task.
   auto weak_this = weak_factory_.GetWeakPtr();
@@ -196,16 +228,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
         if (weak_this)
           weak_this->TickDataSourceRead(instance_id);
       },
-      kReadTickPeriodMs - (NowMs() % kReadTickPeriodMs));
-
-  // Set up unwind queue and kick off a periodic task to process it.
-  unwind_queues_.emplace(instance_id, std::deque<UnwindEntry>{});
-  task_runner_->PostDelayedTask(
-      [weak_this, instance_id] {
-        if (weak_this)
-          weak_this->TickDataSourceUnwind(instance_id);
-      },
-      kUnwindTickPeriodMs - (NowMs() % kUnwindTickPeriodMs));
+      TimeToNextReadTickMs(instance_id));
 }
 
 void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
@@ -226,7 +249,7 @@ void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
 
   // Start shutting down the reading frontend, which will propagate the stop
   // further as the intermediate buffers are cleared.
-  DataSource& ds = ds_it->second;
+  DataSourceState& ds = ds_it->second;
   InitiateReaderStop(&ds);
 }
 
@@ -263,7 +286,7 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
                   static_cast<size_t>(ds_id));
     return;
   }
-  DataSource& ds = it->second;
+  DataSourceState& ds = it->second;
 
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_TICK);
 
@@ -276,8 +299,12 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
     }
   }
 
-  if (PERFETTO_UNLIKELY(ds.reader_stopping) && !more_records_available) {
-    InitiateUnwindStop(&ds);
+  // Wake up the unwinder as we've (likely) pushed samples into its queue.
+  unwinding_worker_->PostProcessQueue();
+
+  if (PERFETTO_UNLIKELY(ds.status == DataSourceState::Status::kShuttingDown) &&
+      !more_records_available) {
+    unwinding_worker_->PostInitiateDataSourceStop(ds_id);
   } else {
     // otherwise, keep reading
     auto weak_this = weak_factory_.GetWeakPtr();
@@ -286,15 +313,14 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
           if (weak_this)
             weak_this->TickDataSourceRead(ds_id);
         },
-        kReadTickPeriodMs - (NowMs() % kReadTickPeriodMs));
+        TimeToNextReadTickMs(ds_id));
   }
 }
 
 bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
                                             size_t max_samples,
                                             DataSourceInstanceID ds_id,
-                                            DataSource* ds) {
-  using Status = DataSource::ProcDescriptors::Status;
+                                            DataSourceState* ds) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_CPU);
 
   // If the kernel ring buffer dropped data, record it in the trace.
@@ -315,59 +341,93 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     }
 
     if (!sample->regs) {
-      // skip kernel threads/workers
-      continue;
+      continue;  // skip kernel threads/workers
     }
 
     // Request proc-fds for the process if this is the first time we see it.
     pid_t pid = sample->pid;
-    auto& fd_entry = ds->proc_fds[pid];  // created if absent
+    auto& process_state = ds->process_states[pid];  // insert if new
 
-    if (fd_entry.status == Status::kInitial) {
+    if (process_state == ProcessTrackingStatus::kExpired) {
+      PERFETTO_DLOG("Skipping sample for previously expired pid [%d]",
+                    static_cast<int>(pid));
+      PostEmitSkippedSample(ds_id, std::move(sample.value()),
+                            SampleSkipReason::kReadStage);
+      continue;
+    }
+
+    // Previously failed the target filter check.
+    if (process_state == ProcessTrackingStatus::kRejected) {
+      PERFETTO_DLOG("Skipping sample for pid [%d] due to target filter",
+                    static_cast<int>(pid));
+      continue;
+    }
+
+    // Seeing pid for the first time.
+    if (process_state == ProcessTrackingStatus::kInitial) {
       PERFETTO_DLOG("New pid: [%d]", static_cast<int>(pid));
-      fd_entry.status = Status::kResolving;
+
+      // Check whether samples for this new process should be
+      // dropped due to the target whitelist/blacklist.
+      const TargetFilter& filter = ds->event_cfg.filter();
+      if (ShouldRejectDueToFilter(pid, filter)) {
+        process_state = ProcessTrackingStatus::kRejected;
+        continue;
+      }
+
+      // At this point, sampled process is known to be of interest, so start
+      // resolving the proc-fds.
+      process_state = ProcessTrackingStatus::kResolving;
       proc_fd_getter_->GetDescriptorsForPid(pid);  // response is async
       PostDescriptorLookupTimeout(ds_id, pid, kProcDescriptorTimeoutMs);
     }
 
-    if (fd_entry.status == Status::kSkip) {
-      PERFETTO_DLOG("Skipping sample for previously poisoned pid [%d]",
-                    static_cast<int>(pid));
-      PostEmitSkippedSample(ds_id, ProfilerStage::kRead,
-                            std::move(sample.value()));
-      continue;
+    PERFETTO_CHECK(process_state == ProcessTrackingStatus::kResolved ||
+                   process_state == ProcessTrackingStatus::kResolving);
+
+    // Push the sample into the unwinding queue if there is room.
+    auto& queue = unwinding_worker_->unwind_queue();
+    WriteView write_view = queue.BeginWrite();
+    if (write_view.valid) {
+      queue.at(write_view.write_pos) =
+          UnwindEntry{ds_id, std::move(sample.value())};
+      queue.CommitWrite();
+    } else {
+      PERFETTO_DLOG("Unwinder queue full, skipping sample.");
+      PostEmitSkippedSample(ds_id, std::move(sample.value()),
+                            SampleSkipReason::kUnwindEnqueue);
     }
-
-    // Push the sample into a dedicated unwinding queue.
-    unwind_queues_[ds_id].emplace_back(std::move(sample.value()));
-
-    // Metatrace: counter sensible only when there's a single active source.
-    PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_QUEUE_SZ,
-                               unwind_queues_[ds_id].size());
   }
 
-  // Most likely more events in the buffer. Though we might be exactly on the
-  // boundary due to |max_samples|.
+  // Most likely more events in the kernel buffer. Though we might be exactly on
+  // the boundary due to |max_samples|.
   return true;
 }
 
-// TODO(rsavitski): first-fit makes descriptor request fulfillment not true
-// FIFO.
+// Note: first-fit makes descriptor request fulfillment not true FIFO. But the
+// edge-cases where it matters are very unlikely.
 void PerfProducer::OnProcDescriptors(pid_t pid,
                                      base::ScopedFile maps_fd,
                                      base::ScopedFile mem_fd) {
-  using Status = DataSource::ProcDescriptors::Status;
-  // Find first fit data source that is waiting on descriptors for the process.
+  // Find first-fit data source that requested descriptors for the process.
   for (auto& it : data_sources_) {
-    DataSource& ds = it.second;
-    auto proc_fd_it = ds.proc_fds.find(pid);
-    if (proc_fd_it != ds.proc_fds.end() &&
-        proc_fd_it->second.status == Status::kResolving) {
-      proc_fd_it->second.status = Status::kResolved;
-      proc_fd_it->second.unwind_state =
-          UnwindingMetadata{std::move(maps_fd), std::move(mem_fd)};
-      PERFETTO_DLOG("Handed off proc-fds for pid [%d] to DS [%zu]",
+    DataSourceState& ds = it.second;
+    auto proc_status_it = ds.process_states.find(pid);
+    if (proc_status_it == ds.process_states.end())
+      continue;
+
+    // Match against either resolving, or expired state. In the latter
+    // case, it means that the async response was slow enough that we've marked
+    // the lookup as expired (but can now recover for future samples).
+    auto proc_status = proc_status_it->second;
+    if (proc_status == ProcessTrackingStatus::kResolving ||
+        proc_status == ProcessTrackingStatus::kExpired) {
+      PERFETTO_DLOG("Handing off proc-fds for pid [%d] to DS [%zu]",
                     static_cast<int>(pid), static_cast<size_t>(it.first));
+
+      proc_status_it->second = ProcessTrackingStatus::kResolved;
+      unwinding_worker_->PostAdoptProcDescriptors(
+          it.first, pid, std::move(maps_fd), std::move(mem_fd));
       return;  // done
     }
   }
@@ -390,198 +450,27 @@ void PerfProducer::PostDescriptorLookupTimeout(DataSourceInstanceID ds_id,
 
 void PerfProducer::DescriptorLookupTimeout(DataSourceInstanceID ds_id,
                                            pid_t pid) {
-  using Status = DataSource::ProcDescriptors::Status;
   auto ds_it = data_sources_.find(ds_id);
   if (ds_it == data_sources_.end())
     return;
 
-  // If the request is still outstanding, poison the pid for this source.
-  DataSource& ds = ds_it->second;
-  auto proc_fd_it = ds.proc_fds.find(pid);
-  if (proc_fd_it != ds.proc_fds.end() &&
-      proc_fd_it->second.status == Status::kResolving) {
-    proc_fd_it->second.status = Status::kSkip;
+  DataSourceState& ds = ds_it->second;
+  auto proc_status_it = ds.process_states.find(pid);
+  if (proc_status_it == ds.process_states.end())
+    return;
+
+  // If the request is still outstanding, mark the process as expired (causing
+  // outstanding and future samples to be discarded).
+  auto proc_status = proc_status_it->second;
+  if (proc_status == ProcessTrackingStatus::kResolving) {
     PERFETTO_DLOG("Descriptor lookup timeout of pid [%d] for DS [%zu]",
                   static_cast<int>(pid), static_cast<size_t>(ds_it->first));
+
+    proc_status_it->second = ProcessTrackingStatus::kExpired;
+    // Also inform the unwinder of the state change (so that it can discard any
+    // of the already-enqueued samples).
+    unwinding_worker_->PostRecordTimedOutProcDescriptors(ds_id, pid);
   }
-}
-
-void PerfProducer::TickDataSourceUnwind(DataSourceInstanceID ds_id) {
-  auto ds_it = data_sources_.find(ds_id);
-  if (ds_it == data_sources_.end()) {
-    PERFETTO_DLOG("TickDataSourceUnwind(%zu): source gone",
-                  static_cast<size_t>(ds_id));
-    return;
-  }
-  auto unwind_it = unwind_queues_.find(ds_id);
-  PERFETTO_CHECK(unwind_it != unwind_queues_.end());
-
-  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_TICK);
-
-  bool queue_active =
-      ProcessUnwindQueue(ds_id, &unwind_it->second, &ds_it->second);
-
-  auto weak_this = weak_factory_.GetWeakPtr();
-  if (!queue_active) {
-    // Done with unwindings, push the source teardown to the end of the task
-    // queue (to still process enqueued sampled).
-    // TODO(rsavitski): under a dedicated unwinder thread, teardown of unwinding
-    // state will happen here.
-    task_runner_->PostTask([weak_this, ds_id] {
-      if (weak_this)
-        weak_this->FinishDataSourceStop(ds_id);
-    });
-  } else {
-    // Otherwise, keep unwinding.
-    task_runner_->PostDelayedTask(
-        [weak_this, ds_id] {
-          if (weak_this)
-            weak_this->TickDataSourceUnwind(ds_id);
-        },
-        kUnwindTickPeriodMs - (NowMs() % kUnwindTickPeriodMs));
-  }
-}
-
-// TODO(rsavitski): if we want to put a bound on the queue size (not as a
-// function of proc-fd timeout), then the reader could purge kResolving entries
-// from the start beyond that threshold.
-// TODO(rsavitski): DataSource input won't be needed once fd-tracking in the
-// unwinder is separated from fd-tracking in the reading frontend.
-bool PerfProducer::ProcessUnwindQueue(DataSourceInstanceID ds_id,
-                                      std::deque<UnwindEntry>* input_queue,
-                                      DataSource* ds_ptr) {
-  using Status = DataSource::ProcDescriptors::Status;
-  auto& queue = *input_queue;
-  auto& ds = *ds_ptr;
-
-  // Iterate over the queue, handling unwindable samples, and then marking them
-  // as processed.
-  size_t num_samples = queue.size();
-  for (size_t i = 0; i < num_samples; i++) {
-    UnwindEntry& entry = queue[i];
-    if (!entry.valid)
-      continue;  // already processed
-
-    ParsedSample& sample = entry.sample;
-    auto proc_fd_it = ds.proc_fds.find(sample.pid);
-    PERFETTO_CHECK(proc_fd_it != ds.proc_fds.end());  // must be present
-
-    auto fd_status = proc_fd_it->second.status;
-    PERFETTO_CHECK(fd_status != Status::kInitial);
-
-    // Giving up on the sample (proc-fd lookup timed out).
-    if (fd_status == Status::kSkip) {
-      PERFETTO_DLOG("Skipping sample for pid [%d]",
-                    static_cast<int>(sample.pid));
-      PostEmitSkippedSample(ds_id, ProfilerStage::kUnwind,
-                            std::move(entry.sample));
-      entry.valid = false;
-      continue;
-    }
-
-    // Still waiting on the proc-fds.
-    if (fd_status == Status::kResolving) {
-      PERFETTO_DLOG("Still resolving sample for pid [%d]",
-                    static_cast<int>(sample.pid));
-      continue;
-    }
-
-    // Sample ready - process it.
-    if (fd_status == Status::kResolved) {
-      PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_SAMPLE);
-
-      PerfProducer::CompletedSample unwound_sample =
-          UnwindSample(std::move(sample), &proc_fd_it->second);
-
-      PostEmitSample(ds_id, std::move(unwound_sample));
-      entry.valid = false;
-      continue;
-    }
-  }
-
-  // Pop all leading processed entries.
-  for (size_t i = 0; i < num_samples; i++) {
-    PERFETTO_DCHECK(queue.size() > 0);
-    if (queue.front().valid)
-      break;
-    queue.pop_front();
-  }
-
-  // Metatrace: counter sensible only when there's a single active source.
-  PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_QUEUE_SZ,
-                             queue.size());
-  PERFETTO_DLOG("Unwind queue drain: [%zu]->[%zu]", num_samples, queue.size());
-
-  // Return whether we're done with unwindings for this source.
-  if (PERFETTO_UNLIKELY(ds.unwind_stopping) && queue.empty()) {
-    return false;
-  }
-  return true;
-}
-
-PerfProducer::CompletedSample PerfProducer::UnwindSample(
-    ParsedSample sample,
-    DataSource::ProcDescriptors* process_state) {
-  PerfProducer::CompletedSample ret;
-  ret.cpu = sample.cpu;
-  ret.pid = sample.pid;
-  ret.tid = sample.tid;
-  ret.timestamp = sample.timestamp;
-  ret.cpu_mode = sample.cpu_mode;
-
-  auto& unwind_state = process_state->unwind_state;
-
-  // Overlay the stack bytes over /proc/<pid>/mem.
-  std::shared_ptr<unwindstack::Memory> overlay_memory =
-      std::make_shared<StackOverlayMemory>(
-          unwind_state.fd_mem, sample.regs->sp(),
-          reinterpret_cast<uint8_t*>(sample.stack.data()), sample.stack.size());
-
-  // Unwindstack clobbers registers, so make a copy in case we need to retry.
-  auto working_regs = std::unique_ptr<unwindstack::Regs>{sample.regs->Clone()};
-
-  unwindstack::ErrorCode error_code = unwindstack::ERROR_NONE;
-  unwindstack::Unwinder unwinder(kUnwindingMaxFrames, &unwind_state.fd_maps,
-                                 working_regs.get(), overlay_memory);
-
-  for (int attempt = 0; attempt < 2; attempt++) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    unwinder.SetJitDebug(unwind_state.jit_debug.get(), working_regs->Arch());
-    unwinder.SetDexFiles(unwind_state.dex_files.get(), working_regs->Arch());
-#endif
-    unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
-                    /*map_suffixes_to_ignore=*/nullptr);
-    error_code = unwinder.LastErrorCode();
-    if (error_code != unwindstack::ERROR_INVALID_MAP)
-      break;
-
-    // Otherwise, reparse the maps, and possibly retry the unwind.
-    PERFETTO_DLOG("Reparsing maps");
-    unwind_state.ReparseMaps();
-  }
-
-  PERFETTO_DLOG("Frames from unwindstack:");
-  std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
-  for (unwindstack::FrameData& frame : frames) {
-    if (PERFETTO_DLOG_IS_ON())
-      PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
-
-    ret.frames.emplace_back(unwind_state.AnnotateFrame(std::move(frame)));
-  }
-
-  // In case of an unwinding error, add a synthetic error frame (which will
-  // appear as a caller of the partially-unwound fragment), for easier
-  // visualization of errors.
-  if (error_code != unwindstack::ERROR_NONE) {
-    PERFETTO_DLOG("Unwinding error %" PRIu8, error_code);
-    unwindstack::FrameData frame_data{};
-    frame_data.function_name = "ERROR " + std::to_string(error_code);
-    frame_data.map_name = "ERROR";
-    ret.frames.emplace_back(std::move(frame_data), /*build_id=*/"");
-    ret.unwind_error = error_code;
-  }
-
-  return ret;
 }
 
 void PerfProducer::PostEmitSample(DataSourceInstanceID ds_id,
@@ -599,11 +488,8 @@ void PerfProducer::PostEmitSample(DataSourceInstanceID ds_id,
 void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
                               CompletedSample sample) {
   auto ds_it = data_sources_.find(ds_id);
-  if (ds_it == data_sources_.end()) {
-    PERFETTO_DLOG("EmitSample(%zu): source gone", static_cast<size_t>(ds_id));
-    return;
-  }
-  DataSource& ds = ds_it->second;
+  PERFETTO_CHECK(ds_it != data_sources_.end());
+  DataSourceState& ds = ds_it->second;
 
   // intern callsite
   GlobalCallstackTrie::Node* callstack_root =
@@ -635,12 +521,8 @@ void PerfProducer::EmitRingBufferLoss(DataSourceInstanceID ds_id,
                                       size_t cpu,
                                       uint64_t records_lost) {
   auto ds_it = data_sources_.find(ds_id);
-  if (ds_it == data_sources_.end()) {
-    PERFETTO_DLOG("EmitRingBufferLoss(%zu): source gone",
-                  static_cast<size_t>(ds_id));
-    return;
-  }
-  DataSource& ds = ds_it->second;
+  PERFETTO_CHECK(ds_it != data_sources_.end());
+  DataSourceState& ds = ds_it->second;
   PERFETTO_DLOG("DataSource(%zu): cpu%zu lost [%" PRIu64 "] records",
                 static_cast<size_t>(ds_id), cpu, records_lost);
 
@@ -658,29 +540,31 @@ void PerfProducer::EmitRingBufferLoss(DataSourceInstanceID ds_id,
   perf_sample->set_kernel_records_lost(records_lost);
 }
 
+void PerfProducer::PostEmitUnwinderSkippedSample(DataSourceInstanceID ds_id,
+                                                 ParsedSample sample) {
+  PostEmitSkippedSample(ds_id, std::move(sample),
+                        SampleSkipReason::kUnwindStage);
+}
+
 void PerfProducer::PostEmitSkippedSample(DataSourceInstanceID ds_id,
-                                         ProfilerStage stage,
-                                         ParsedSample sample) {
+                                         ParsedSample sample,
+                                         SampleSkipReason reason) {
   // hack: c++11 lambdas can't be moved into, so stash the sample on the heap.
   ParsedSample* raw_sample = new ParsedSample(std::move(sample));
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, stage, raw_sample] {
+  task_runner_->PostTask([weak_this, ds_id, raw_sample, reason] {
     if (weak_this)
-      weak_this->EmitSkippedSample(ds_id, stage, std::move(*raw_sample));
+      weak_this->EmitSkippedSample(ds_id, std::move(*raw_sample), reason);
     delete raw_sample;
   });
 }
 
 void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
-                                     ProfilerStage stage,
-                                     ParsedSample sample) {
+                                     ParsedSample sample,
+                                     SampleSkipReason reason) {
   auto ds_it = data_sources_.find(ds_id);
-  if (ds_it == data_sources_.end()) {
-    PERFETTO_DLOG("EmitSkippedSample(%zu): source gone",
-                  static_cast<size_t>(ds_id));
-    return;
-  }
-  DataSource& ds = ds_it->second;
+  PERFETTO_CHECK(ds_it != data_sources_.end());
+  DataSourceState& ds = ds_it->second;
 
   auto packet = ds.trace_writer->NewTracePacket();
   packet->set_timestamp(sample.timestamp);
@@ -691,52 +575,55 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.cpu_mode));
 
   using PerfSample = protos::pbzero::PerfSample;
-  switch (stage) {
-    case ProfilerStage::kRead:
-      perf_sample->set_sample_skipped_reason(PerfSample::PROFILER_STAGE_READ);
+  switch (reason) {
+    case SampleSkipReason::kReadStage:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_READ_STAGE);
       break;
-    case ProfilerStage::kUnwind:
-      perf_sample->set_sample_skipped_reason(PerfSample::PROFILER_STAGE_UNWIND);
+    case SampleSkipReason::kUnwindEnqueue:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE);
+      break;
+    case SampleSkipReason::kUnwindStage:
+      perf_sample->set_sample_skipped_reason(
+          PerfSample::PROFILER_SKIP_UNWIND_STAGE);
       break;
   }
 }
 
-void PerfProducer::InitiateReaderStop(DataSource* ds) {
+void PerfProducer::InitiateReaderStop(DataSourceState* ds) {
   PERFETTO_DLOG("InitiateReaderStop");
-  ds->reader_stopping = true;
+  PERFETTO_CHECK(ds->status != DataSourceState::Status::kShuttingDown);
+
+  ds->status = DataSourceState::Status::kShuttingDown;
   for (auto& event_reader : ds->per_cpu_readers) {
     event_reader.PauseEvents();
   }
 }
 
-void PerfProducer::InitiateUnwindStop(DataSource* ds) {
-  PERFETTO_DLOG("InitiateUnwindStop");
-  PERFETTO_CHECK(ds->reader_stopping);
-  ds->unwind_stopping = true;
+void PerfProducer::PostFinishDataSourceStop(DataSourceInstanceID ds_id) {
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_producer, ds_id] {
+    if (weak_producer)
+      weak_producer->FinishDataSourceStop(ds_id);
+  });
 }
 
 void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
-  PERFETTO_DLOG("FinishDataSourceStop(%zu)", static_cast<size_t>(ds_id));
+  PERFETTO_LOG("FinishDataSourceStop(%zu)", static_cast<size_t>(ds_id));
   auto ds_it = data_sources_.find(ds_id);
   PERFETTO_CHECK(ds_it != data_sources_.end());
-  DataSource& ds = ds_it->second;
-
-  PERFETTO_CHECK(ds.reader_stopping);
-  PERFETTO_CHECK(ds.unwind_stopping);
+  DataSourceState& ds = ds_it->second;
+  PERFETTO_CHECK(ds.status == DataSourceState::Status::kShuttingDown);
 
   ds.trace_writer->Flush();
-  data_sources_.erase(ds_id);
-  unwind_queues_.erase(ds_id);
+  data_sources_.erase(ds_it);
 
   endpoint_->NotifyDataSourceStopped(ds_id);
 
   // Clean up resources if there are no more active sources.
   if (data_sources_.empty()) {
-    // purge internings
-    callstack_trie_.ClearTrie();
-    // clear and re-enable libunwindstack's cache
-    unwindstack::Elf::SetCachingEnabled(false);
-    unwindstack::Elf::SetCachingEnabled(true);
+    callstack_trie_.ClearTrie();  // purge internings
   }
 }
 
