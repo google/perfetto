@@ -94,10 +94,6 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
 
     const rawResult = await this.query(query);
 
-    if (rawResult.error) {
-      throw new Error(`Query error "${query}": ${rawResult.error}`);
-    }
-
     const numRows = +rawResult.numRecords;
 
     const slices: Data = {

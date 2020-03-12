@@ -25,10 +25,12 @@ import {
   BufferConfig,
   ChromeConfig,
   ConsumerPort,
-  ContinuousDumpConfig,
   DataSourceConfig,
   FtraceConfig,
   HeapprofdConfig,
+  JavaContinuousDumpConfig,
+  JavaHprofConfig,
+  NativeContinuousDumpConfig,
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
@@ -227,29 +229,51 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
   let heapprofd: HeapprofdConfig|undefined = undefined;
   if (uiCfg.heapProfiling) {
     // TODO(taylori): Check or inform user if buffer size are too small.
-    if (heapprofd === undefined) heapprofd = new HeapprofdConfig();
-    heapprofd.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
+    const cfg = new HeapprofdConfig();
+    cfg.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
     if (uiCfg.hpSharedMemoryBuffer >= 8192 &&
         uiCfg.hpSharedMemoryBuffer % 4096 === 0) {
-      heapprofd.shmemSizeBytes = uiCfg.hpSharedMemoryBuffer;
+      cfg.shmemSizeBytes = uiCfg.hpSharedMemoryBuffer;
     }
-    if (uiCfg.hpProcesses !== '') {
-      uiCfg.hpProcesses.split('\n').forEach(value => {
-        if (isNaN(+value)) {
-          heapprofd!.processCmdline.push(value);
-        } else {
-          heapprofd!.pid.push(+value);
-        }
-      });
+    for (const value of uiCfg.hpProcesses.split('\n')) {
+      if (value === '') {
+        // Ignore empty lines
+      } else if (isNaN(+value)) {
+        cfg.processCmdline.push(value);
+      } else {
+        cfg.pid.push(+value);
+      }
     }
     if (uiCfg.hpContinuousDumpsInterval > 0) {
-      heapprofd.continuousDumpConfig = new ContinuousDumpConfig();
-      heapprofd.continuousDumpConfig.dumpIntervalMs =
-          uiCfg.hpContinuousDumpsInterval;
-      heapprofd.continuousDumpConfig.dumpPhaseMs =
-          uiCfg.hpContinuousDumpsPhase > 0 ? uiCfg.hpContinuousDumpsPhase :
-                                             undefined;
+      const cdc = cfg.continuousDumpConfig = new NativeContinuousDumpConfig();
+      cdc.dumpIntervalMs = uiCfg.hpContinuousDumpsInterval;
+      if (uiCfg.hpContinuousDumpsPhase > 0) {
+        cdc.dumpPhaseMs = uiCfg.hpContinuousDumpsPhase;
+      }
     }
+    heapprofd = cfg;
+  }
+
+  let javaHprof: JavaHprofConfig|undefined = undefined;
+  if (uiCfg.javaHeapDump) {
+    const cfg = new HeapprofdConfig();
+    for (const value of uiCfg.jpProcesses.split('\n')) {
+      if (value === '') {
+        // Ignore empty lines
+      } else if (isNaN(+value)) {
+        cfg.processCmdline.push(value);
+      } else {
+        cfg.pid.push(+value);
+      }
+    }
+    if (uiCfg.jpContinuousDumpsInterval > 0) {
+      const cdc = cfg.continuousDumpConfig = new JavaContinuousDumpConfig();
+      cdc.dumpIntervalMs = uiCfg.jpContinuousDumpsInterval;
+      if (uiCfg.hpContinuousDumpsPhase > 0) {
+        cdc.dumpPhaseMs = uiCfg.jpContinuousDumpsPhase;
+      }
+    }
+    javaHprof = cfg;
   }
 
   if (uiCfg.procStats || procThreadAssociationPolling || trackInitialOomScore) {
@@ -381,6 +405,15 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
     ds.config.targetBuffer = 0;
     ds.config.name = 'android.heapprofd';
     ds.config.heapprofdConfig = heapprofd;
+    protoCfg.dataSources.push(ds);
+  }
+
+  if (javaHprof !== undefined) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.targetBuffer = 0;
+    ds.config.name = 'android.java_hprof';
+    ds.config.javaHprofConfig = javaHprof;
     protoCfg.dataSources.push(ds);
   }
 

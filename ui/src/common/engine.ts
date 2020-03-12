@@ -68,7 +68,7 @@ export abstract class Engine {
    * Shorthand for sending a SQL query to the engine.
    * Deals with {,un}marshalling of request/response args.
    */
-  async query(sqlQuery: string): Promise<RawQueryResult> {
+  async query(sqlQuery: string, userQuery = false): Promise<RawQueryResult> {
     this.loadingTracker.beginLoading();
     try {
       const args = new RawQueryArgs();
@@ -76,7 +76,11 @@ export abstract class Engine {
       args.timeQueuedNs = Math.floor(performance.now() * 1e6);
       const argsEncoded = RawQueryArgs.encode(args).finish();
       const respEncoded = await this.rawQuery(argsEncoded);
-      return RawQueryResult.decode(respEncoded);
+      const result = RawQueryResult.decode(respEncoded);
+      if (!result.error || userQuery) return result;
+      // Query failed, throw an error since it was not a user query
+      console.error(`Query error "${sqlQuery}": ${result.error}`);
+      throw new Error(`Query error "${sqlQuery}": ${result.error}`);
     } finally {
       this.loadingTracker.endLoading();
     }

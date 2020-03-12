@@ -15,6 +15,7 @@
 --
 
 SELECT RUN_METRIC('android/process_metadata.sql');
+SELECT RUN_METRIC('android/process_mem.sql');
 
 CREATE VIEW java_heap_stats_output AS
 WITH
@@ -33,15 +34,20 @@ base_stats AS (
 -- Group by upid
 heap_graph_sample_protos AS (
   SELECT
-    upid,
+    base_stats.upid,
     RepeatedField(JavaHeapStats_Sample(
       'ts', graph_sample_ts,
       'heap_size', total_size,
       'obj_count', total_obj_count,
       'reachable_heap_size', reachable_size,
-      'reachable_obj_count', reachable_obj_count
+      'reachable_obj_count', reachable_obj_count,
+      'anon_rss_and_swap_size', CAST(anon_and_swap_val AS INTEGER)
     )) sample_protos
   FROM base_stats
+  LEFT JOIN anon_and_swap_span ON
+    base_stats.upid = anon_and_swap_span.upid
+    AND anon_and_swap_span.ts <= base_stats.graph_sample_ts
+    AND base_stats.graph_sample_ts < anon_and_swap_span.ts + anon_and_swap_span.dur
   GROUP BY 1
 )
 SELECT JavaHeapStats(

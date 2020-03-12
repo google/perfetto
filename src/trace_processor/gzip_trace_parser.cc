@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+// For bazel build.
+#include "perfetto/base/build_config.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+
 #include "src/trace_processor/gzip_trace_parser.h"
 
 #include <string>
@@ -100,3 +104,5 @@ void GzipTraceParser::NotifyEndOfFile() {}
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)

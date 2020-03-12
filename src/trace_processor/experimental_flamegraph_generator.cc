@@ -247,32 +247,35 @@ util::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
              : util::ErrStatus("Failed to find required constraints");
 }
 
-Table* ExperimentalFlamegraphGenerator::ComputeTable(
+std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&) {
   // Get the input column values and compute the flamegraph using them.
   auto values = GetInputValues(cs);
 
+  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> table;
   if (values.profile_type == "graph") {
     auto* tracker = HeapGraphTracker::GetOrCreate(context_);
-    table_ = tracker->BuildFlamegraph(values.ts, values.upid);
+    table = tracker->BuildFlamegraph(values.ts, values.upid);
   }
   if (values.profile_type == "native") {
-    table_ =
+    table =
         BuildNativeFlamegraph(context_->storage.get(), values.upid, values.ts);
   }
   if (!values.focus_str.empty()) {
-    table_ = FocusTable(context_->storage.get(), std::move(table_),
-                        values.focus_str);
+    table =
+        FocusTable(context_->storage.get(), std::move(table), values.focus_str);
     // The pseudocolumns must be populated because as far as SQLite is concerned
     // these are equality constraints.
     auto focus_id =
         context_->storage->InternString(base::StringView(values.focus_str));
-    for (uint32_t i = 0; i < table_->row_count(); ++i) {
-      table_->mutable_focus_str()->Set(i, focus_id);
+    for (uint32_t i = 0; i < table->row_count(); ++i) {
+      table->mutable_focus_str()->Set(i, focus_id);
     }
   }
-  return table_.get();
+  // We need to explicitly std::move as clang complains about a bug in old
+  // compilers otherwise (-Wreturn-std-move-in-c++11).
+  return std::move(table);
 }
 
 Table::Schema ExperimentalFlamegraphGenerator::CreateSchema() {

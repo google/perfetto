@@ -23,7 +23,6 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/base/test/utils.h"
-#include "src/trace_processor/importers/json/json_trace_parser.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -139,7 +138,7 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Demangle) {
   ASSERT_TRUE(it.Get(0).is_null());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
   auto it = Query(
@@ -179,7 +178,7 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
 TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14357) {
   ASSERT_FALSE(LoadTrace("clusterfuzz_14357", 4096).ok());
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14730) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14730", 4096).ok());
@@ -189,7 +188,6 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14753) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14753", 4096).ok());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14762) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14762", 4096 * 1024).ok());
   auto it = Query("select sum(value) from stats where severity = 'error';");
@@ -210,14 +208,15 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14799) {
   ASSERT_TRUE(it.Next());
   ASSERT_GT(it.Get(0).long_value, 0);
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz15252) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_15252", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_17805", 4096).ok());
+  // This trace fails to load as it's detected as a systrace but is full of
+  // garbage data.
+  ASSERT_TRUE(!LoadTrace("clusterfuzz_17805", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {

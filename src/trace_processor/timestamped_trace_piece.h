@@ -21,18 +21,19 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/value.h>
-#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 // Json traces are only supported in some build configurations (standalone, UI).
 namespace Json {
 class Value {};
 }  // namespace Json
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 // GCC can't figure out the relationship between TimestampedTracePiece's type
 // and the union, and thus thinks that we may be moving or destroying
@@ -67,16 +68,15 @@ struct TracePacketData {
 };
 
 struct TrackEventData : public TracePacketData {
-  TrackEventData(TraceBlobView pv,
-                 PacketSequenceStateGeneration* generation,
-                 int64_t thread_ts,
-                 int64_t thread_ic)
-      : TracePacketData{std::move(pv), generation},
-        thread_timestamp(thread_ts),
-        thread_instruction_count(thread_ic) {}
+  TrackEventData(TraceBlobView pv, PacketSequenceStateGeneration* generation)
+      : TracePacketData{std::move(pv), generation} {}
 
-  int64_t thread_timestamp;
-  int64_t thread_instruction_count;
+  static constexpr size_t kMaxNumExtraCounters = 8;
+
+  int64_t thread_timestamp = 0;
+  int64_t thread_instruction_count = 0;
+  int64_t counter_value = 0;
+  std::array<int64_t, kMaxNumExtraCounters> extra_counter_values = {};
 };
 
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
@@ -90,7 +90,8 @@ struct TimestampedTracePiece {
     kInlineSchedWaking,
     kJsonValue,
     kFuchsiaRecord,
-    kTrackEvent
+    kTrackEvent,
+    kSystraceLine,
   };
 
   TimestampedTracePiece(int64_t ts,
@@ -131,6 +132,14 @@ struct TimestampedTracePiece {
         timestamp(ts),
         packet_idx(idx),
         type(Type::kTrackEvent) {}
+
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        std::unique_ptr<SystraceLine> ted)
+      : systrace_line(std::move(ted)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kSystraceLine) {}
 
   TimestampedTracePiece(int64_t ts, uint64_t idx, InlineSchedSwitch iss)
       : sched_switch(std::move(iss)),
@@ -175,6 +184,9 @@ struct TimestampedTracePiece {
         new (&track_event_data)
             std::unique_ptr<TrackEventData>(std::move(ttp.track_event_data));
         break;
+      case Type::kSystraceLine:
+        new (&systrace_line)
+            std::unique_ptr<SystraceLine>(std::move(ttp.systrace_line));
     }
     timestamp = ttp.timestamp;
     packet_idx = ttp.packet_idx;
@@ -215,6 +227,9 @@ struct TimestampedTracePiece {
       case Type::kTrackEvent:
         track_event_data.~unique_ptr();
         break;
+      case Type::kSystraceLine:
+        systrace_line.~unique_ptr();
+        break;
     }
   }
 
@@ -240,6 +255,7 @@ struct TimestampedTracePiece {
     std::unique_ptr<Json::Value> json_value;
     std::unique_ptr<FuchsiaRecord> fuchsia_record;
     std::unique_ptr<TrackEventData> track_event_data;
+    std::unique_ptr<SystraceLine> systrace_line;
   };
 
   int64_t timestamp;

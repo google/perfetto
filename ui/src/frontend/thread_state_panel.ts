@@ -73,7 +73,7 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
 
     return [
       `${translateState(state)} on CPU ${cpu}`,
-      m('i.material-icons',
+      m('i.material-icons.grey',
         {
           onclick: () => {
             if (globals.sliceDetails.id && globals.sliceDetails.ts) {

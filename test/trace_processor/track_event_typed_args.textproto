@@ -61,6 +61,14 @@ packet {
     type: 3
     chrome_latency_info {
       trace_id: 7
+      component_info {
+        component_type: 3
+        time_ns: 1201
+      }
+      component_info {
+        time_ns: 928310
+      }
+      is_coalesced: true
     }
   }
 }

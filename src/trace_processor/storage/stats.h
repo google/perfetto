@@ -133,7 +133,8 @@ namespace stats {
   F(empty_chrome_metadata,                    kSingle,  kError,    kTrace),    \
   F(perf_cpu_lost_records,                    kIndexed, kDataLoss, kTrace),    \
   F(ninja_parse_errors,                       kSingle,  kError,    kTrace),    \
-  F(perf_samples_skipped,                     kSingle,  kInfo,     kTrace)
+  F(perf_samples_skipped,                     kSingle,  kInfo,     kTrace),    \
+  F(perf_samples_skipped_dataloss,            kSingle,  kDataLoss, kTrace)
 // clang-format on
 
 enum Type {

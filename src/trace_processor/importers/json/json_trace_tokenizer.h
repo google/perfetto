@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace Json {
@@ -32,13 +33,56 @@ namespace trace_processor {
 class TraceProcessorContext;
 
 // Visible for testing.
-enum ReadDictRes { kFoundDict, kNeedsMoreData, kEndOfTrace, kFatalError };
+enum class ReadDictRes {
+  kFoundDict,
+  kNeedsMoreData,
+  kEndOfTrace,
+  kEndOfArray,
+  kFatalError,
+};
 
+// Parses at most one JSON dictionary and returns a pointer to the end of it,
+// or nullptr if no dict could be detected.
+// This is to avoid decoding the full trace in memory and reduce heap traffic.
+// E.g.  input:  { a:1 b:{ c:2, d:{ e:3 } } } , { a:4, ... },
+//       output: [   only this is parsed    ] ^return value points here.
 // Visible for testing.
 ReadDictRes ReadOneJsonDict(const char* start,
                             const char* end,
                             Json::Value* value,
                             const char** next);
+
+enum class ReadKeyRes {
+  kFoundKey,
+  kNeedsMoreData,
+  kEndOfDictionary,
+  kFatalError,
+};
+
+// Parses at most one JSON key and returns a pointer to the start of the value
+// associated with that key.
+// This is to avoid decoding the full trace in memory and reduce heap traffic.
+// E.g. input:  a:1 b:{ c:2}}
+//     output:    ^ return value points here, key is set to "a".
+// Note: even if the whole key may be available, this method will return
+// kNeedsMoreData until the first character of the value is available.
+// Visible for testing.
+ReadKeyRes ReadOneJsonKey(const char* start,
+                          const char* end,
+                          std::string* key,
+                          const char** next);
+
+enum class ReadSystemLineRes {
+  kFoundLine,
+  kNeedsMoreData,
+  kEndOfSystemTrace,
+  kFatalError,
+};
+
+ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
+                                         const char* end,
+                                         std::string* line,
+                                         const char** next);
 
 // Reads a JSON trace in chunks and extracts top level json objects.
 class JsonTraceTokenizer : public ChunkedTraceReader {
@@ -51,7 +95,49 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   void NotifyEndOfFile() override;
 
  private:
+  // Enum which tracks which type of JSON trace we are dealing with.
+  enum class TraceFormat {
+    // Enum value when ther outer-most layer is a dictionary with multiple
+    // key value pairs
+    kOuterDictionary,
+
+    // Enum value when we only have trace events (i.e. the outermost
+    // layer is just a array of trace events).
+    kOnlyTraceEvents,
+  };
+
+  // Enum which tracks our current position within the trace.
+  enum class TracePosition {
+    // This indicates that we are inside the outermost dictionary of the
+    // trace and need to read the next key of the dictionary.
+    // This position is only valid when the |format_| == |kOuterDictionary|.
+    kDictionaryKey,
+
+    // This indicates we are inside the systemTraceEvents string.
+    // This position is only valid when the |format_| == |kOuterDictionary|.
+    kSystemTraceEventsString,
+
+    // This indicates we are waiting for the entire metadata dictionary to be
+    // available.
+    kWaitingForMetadataDictionary,
+
+    // This indicates where are inside the traceEvents array.
+    kTraceEventsArray,
+
+    // This indicates we cannot parse any more data in the trace.
+    kEof,
+  };
+
+  util::Status ParseInternal(const char* start,
+                             const char* end,
+                             const char** next);
+
   TraceProcessorContext* const context_;
+
+  TraceFormat format_ = TraceFormat::kOuterDictionary;
+  TracePosition position_ = TracePosition::kDictionaryKey;
+
+  SystraceLineTokenizer systrace_line_tokenizer_;
 
   uint64_t offset_ = 0;
   // Used to glue together JSON objects that span across two (or more)

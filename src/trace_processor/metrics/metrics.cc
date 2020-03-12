@@ -225,17 +225,22 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
   if (field.is_repeated() && !is_inside_repeated)
     return AppendRepeated(field, ptr, size);
 
-  switch (field.type()) {
-    case FieldDescriptorProto::TYPE_MESSAGE:
-      return AppendSingleMessage(field, ptr, size);
-    default: {
-      return util::ErrStatus(
-          "Tried to write value of type bytes into field %s (in proto type %s) "
-          "which has type %d",
-          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
-    }
+  if (field.type() == FieldDescriptorProto::TYPE_MESSAGE)
+    return AppendSingleMessage(field, ptr, size);
+
+  if (size == 0) {
+    return util::ErrStatus(
+        "Tried to write null value into field %s (in proto type %s). "
+        "Nulls are only supported for message protos; all other types should"
+        "ensure that nulls are not passed to proto builder functions by using"
+        "the SQLite IFNULL/COALESCE functions.",
+        field.name().c_str(), descriptor_->full_name().c_str());
   }
-  PERFETTO_FATAL("For GCC");
+
+  return util::ErrStatus(
+      "Tried to write value of type bytes into field %s (in proto type %s) "
+      "which has type %d",
+      field.name().c_str(), descriptor_->full_name().c_str(), field.type());
 }
 
 util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,

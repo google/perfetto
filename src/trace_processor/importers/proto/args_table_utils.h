@@ -98,16 +98,8 @@ class ProtoToArgsTable {
     std::string* str_;
   };
 
-  // |sequence_state| provides access to interning data.
   // |context| provides access to storage.
-  //
-  // |starting_prefix| will be prepended to all columns.
-  // |prefix_size_hint| allows the class to upfront reserve the expected string
-  // size needed.
-  ProtoToArgsTable(PacketSequenceStateGeneration* sequence_state,
-                   TraceProcessorContext* context,
-                   std::string starting_prefix = "",
-                   size_t prefix_size_hint = 64);
+  explicit ProtoToArgsTable(TraceProcessorContext* context);
 
   // Adds a compile time reflection of a set of proto files. You must provide
   // the descriptor before attempting to parse this with
@@ -121,7 +113,9 @@ class ProtoToArgsTable {
                                       size_t proto_descriptor_array_size);
 
   // Given a view of bytes that represent a serialized protozero message of
-  // |type| we will parse each field into the Args table using RowId |row|.
+  // |type| we will parse each field into the Args table using RowId |row|,
+  // adding |key_prefix| in front of each name (can be an empty string if no
+  // prefix is needed).
   //
   // Returns on any error with a status describing the problem. However any
   // added values before encountering the error will be added to the
@@ -134,10 +128,13 @@ class ProtoToArgsTable {
   //
   // IMPORTANT: currently bytes fields are not supported.
   //
-  // TODO(b/145578432): Add support for repeated fields and byte fields.
-  util::Status InternProtoIntoArgsTable(const protozero::ConstBytes& cb,
-                                        const std::string& type,
-                                        ArgsTracker::BoundInserter* inserter);
+  // TODO(b/145578432): Add support for byte fields.
+  util::Status InternProtoIntoArgsTable(
+      const protozero::ConstBytes& cb,
+      const std::string& type,
+      ArgsTracker::BoundInserter* inserter,
+      PacketSequenceStateGeneration* sequence_state,
+      const std::string& key_prefix);
 
   // Installs an override for the field at the specified path. We will invoke
   // |parsing_override| when the field is encountered.
@@ -168,21 +165,21 @@ class ProtoToArgsTable {
       const protozero::ConstBytes& cb,
       const std::string& type,
       ArgsTracker::BoundInserter* inserter,
-      std::string* key_prefix,
-      std::string* flat_key_prefix);
+      ParsingOverrideState state);
 
   using OverrideIterator =
       std::vector<std::pair<std::string, ParsingOverride>>::iterator;
   OverrideIterator FindOverride(const std::string& field);
 
   Variadic ConvertProtoTypeToVariadic(const FieldDescriptor& descriptor,
-                                      const protozero::Field& field);
+                                      const protozero::Field& field,
+                                      ParsingOverrideState state);
 
-  ParsingOverrideState state_;
   std::vector<std::pair<std::string, ParsingOverride>> overrides_;
   DescriptorPool pool_;
   std::string key_prefix_;
   std::string flat_key_prefix_;
+  TraceProcessorContext* context_;
 };
 
 }  // namespace trace_processor
