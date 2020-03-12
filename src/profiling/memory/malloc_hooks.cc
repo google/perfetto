@@ -253,8 +253,8 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon(
                   perfetto::profiling::kHeapprofdSocketFile);
     return nullptr;
   }
-  return Client::CreateAndHandshake(std::move(sock.value()),
-                                    unhooked_allocator);
+  return Client::CreateAndHandshake(std::move(sock.value()), unhooked_allocator,
+                                    /*allow_extra_guardrails=*/true);
 }
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
@@ -333,8 +333,9 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
     return nullptr;
   }
 
-  return perfetto::profiling::Client::CreateAndHandshake(std::move(parent_sock),
-                                                         unhooked_allocator);
+  return perfetto::profiling::Client::CreateAndHandshake(
+      std::move(parent_sock), unhooked_allocator,
+      /*allow_extra_guardrails=*/false);
 }
 
 // Note: android_mallopt(M_RESET_HOOKS) is mutually exclusive with

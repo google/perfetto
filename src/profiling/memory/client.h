@@ -61,7 +61,8 @@ class Client {
   // control block in one block of memory.
   static std::shared_ptr<Client> CreateAndHandshake(
       base::UnixSocketRaw sock,
-      UnhookedAllocator<Client> unhooked_allocator);
+      UnhookedAllocator<Client> unhooked_allocator,
+      bool allow_extra_guardrails);
 
   static base::Optional<base::UnixSocketRaw> ConnectToHeapprofd(
       const std::string& sock_name);
