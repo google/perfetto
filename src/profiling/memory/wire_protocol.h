@@ -46,7 +46,6 @@ struct ClientConfiguration {
   uint64_t interval;
   bool block_client;
   uint64_t block_client_timeout_us;
-  bool enable_extra_guardrails;
 };
 
 // Types needed for the wire format used for communication between the client
