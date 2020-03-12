@@ -15,7 +15,7 @@
 const states: {[key: string]: string} = {
   'R': 'Runnable',
   'S': 'Sleeping',
-  'D': 'Uninterruptible Sleep (Blocking I/O)',
+  'D': 'Uninterruptible Sleep',
   'T': 'Stopped',
   't': 'Traced',
   'X': 'Exit (Dead)',
@@ -30,7 +30,7 @@ const states: {[key: string]: string} = {
 
 export function translateState(state: string|undefined) {
   if (state === undefined) return '';
-  if (state === 'Running' || state === 'Busy') {
+  if (state === 'Running' || state === 'Various states') {
     return state;
   }
   let result = states[state[0]];
