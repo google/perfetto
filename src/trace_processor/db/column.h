@@ -109,22 +109,6 @@ class Column {
 
   template <typename T>
   Column(const char* name,
-         std::unique_ptr<SparseVector<T>> storage,
-         /* Flag */ uint32_t flags,
-         Table* table,
-         uint32_t col_idx_in_table,
-         uint32_t row_map_idx)
-      : Column(name,
-               ToColumnType<T>(),
-               flags,
-               table,
-               col_idx_in_table,
-               row_map_idx,
-               std::move(storage),
-               storage.get()) {}
-
-  template <typename T>
-  Column(const char* name,
          SparseVector<T>* storage,
          /* Flag */ uint32_t flags,
          Table* table,
@@ -136,8 +120,8 @@ class Column {
                table,
                col_idx_in_table,
                row_map_idx,
-               nullptr,
-               storage) {}
+               storage,
+               nullptr) {}
 
   // Create a Column has the same name and is backed by the same data as
   // |column| but is associated to a different table.
@@ -149,6 +133,18 @@ class Column {
   // Columns are movable but not copyable.
   Column(Column&&) noexcept = default;
   Column& operator=(Column&&) = default;
+
+  template <typename T>
+  static Column WithOwnedStorage(const char* name,
+                                 std::unique_ptr<SparseVector<T>> storage,
+                                 /* Flag */ uint32_t flags,
+                                 Table* table,
+                                 uint32_t col_idx_in_table,
+                                 uint32_t row_map_idx) {
+    SparseVector<T>* ptr = storage.get();
+    return Column(name, ToColumnType<T>(), flags, table, col_idx_in_table,
+                  row_map_idx, ptr, std::move(storage));
+  }
 
   // Creates a Column which returns the index as the value of the row.
   static Column IdColumn(Table* table,
@@ -422,8 +418,8 @@ class Column {
          Table* table,
          uint32_t col_idx_in_table,
          uint32_t row_map_idx,
-         std::unique_ptr<SparseVectorBase> owned_sparse_vector,
-         SparseVectorBase* sparse_vector);
+         SparseVectorBase* sparse_vector,
+         std::unique_ptr<SparseVectorBase> owned_sparse_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
