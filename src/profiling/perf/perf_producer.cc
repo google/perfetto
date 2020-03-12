@@ -48,11 +48,6 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-constexpr uint32_t kReadTickPeriodMs = 200;
-// TODO(rsavitski): this is better calculated (at setup) from the buffer and
-// sample sizes.
-constexpr size_t kMaxSamplesPerCpuPerReadTick = 64;
-
 constexpr uint32_t kProcDescriptorTimeoutMs = 400;
 
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
@@ -65,17 +60,17 @@ size_t NumberOfCpus() {
   return static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
 }
 
-uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id) {
-  // Normally, we'd schedule the next tick at the next |kReadTickPeriodMs|
-  // boundary of the boot clock. However, to avoid aligning the read tasaks of
+uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
+  // Normally, we'd schedule the next tick at the next |period_ms|
+  // boundary of the boot clock. However, to avoid aligning the read tasks of
   // all concurrent data sources, we select a deterministic offset based on the
   // data source id.
   std::minstd_rand prng(static_cast<std::minstd_rand::result_type>(ds_id));
-  std::uniform_int_distribution<uint32_t> dist(0, kReadTickPeriodMs - 1);
+  std::uniform_int_distribution<uint32_t> dist(0, period_ms - 1);
   uint32_t ds_period_offset = dist(prng);
 
   uint64_t now_ms = static_cast<uint64_t>(base::GetWallTimeMs().count());
-  return kReadTickPeriodMs - ((now_ms - ds_period_offset) % kReadTickPeriodMs);
+  return period_ms - ((now_ms - ds_period_offset) % period_ms);
 }
 
 bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
@@ -222,13 +217,14 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
   unwinding_worker_->PostStartDataSource(instance_id);
 
   // Kick off periodic read task.
+  auto tick_period_ms = ds_it->second.event_config.read_tick_period_ms();
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_this, instance_id] {
         if (weak_this)
           weak_this->TickDataSourceRead(instance_id);
       },
-      TimeToNextReadTickMs(instance_id));
+      TimeToNextReadTickMs(instance_id, tick_period_ms));
 }
 
 void PerfProducer::StopDataSource(DataSourceInstanceID instance_id) {
@@ -291,10 +287,10 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_TICK);
 
   // Make a pass over all per-cpu readers.
+  uint32_t max_samples = ds.event_config.samples_per_tick_limit();
   bool more_records_available = false;
   for (EventReader& reader : ds.per_cpu_readers) {
-    if (ReadAndParsePerCpuBuffer(&reader, kMaxSamplesPerCpuPerReadTick, ds_id,
-                                 &ds)) {
+    if (ReadAndParsePerCpuBuffer(&reader, max_samples, ds_id, &ds)) {
       more_records_available = true;
     }
   }
@@ -307,18 +303,19 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
     unwinding_worker_->PostInitiateDataSourceStop(ds_id);
   } else {
     // otherwise, keep reading
+    auto tick_period_ms = it->second.event_config.read_tick_period_ms();
     auto weak_this = weak_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
         [weak_this, ds_id] {
           if (weak_this)
             weak_this->TickDataSourceRead(ds_id);
         },
-        TimeToNextReadTickMs(ds_id));
+        TimeToNextReadTickMs(ds_id, tick_period_ms));
   }
 }
 
 bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
-                                            size_t max_samples,
+                                            uint32_t max_samples,
                                             DataSourceInstanceID ds_id,
                                             DataSourceState* ds) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_CPU);
@@ -333,7 +330,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     });
   };
 
-  for (size_t i = 0; i < max_samples; i++) {
+  for (uint32_t i = 0; i < max_samples; i++) {
     base::Optional<ParsedSample> sample =
         reader->ReadUntilSample(records_lost_callback);
     if (!sample) {
@@ -369,7 +366,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 
       // Check whether samples for this new process should be
       // dropped due to the target whitelist/blacklist.
-      const TargetFilter& filter = ds->event_cfg.filter();
+      const TargetFilter& filter = ds->event_config.filter();
       if (ShouldRejectDueToFilter(pid, filter)) {
         process_state = ProcessTrackingStatus::kRejected;
         continue;
@@ -393,7 +390,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
           UnwindEntry{ds_id, std::move(sample.value())};
       queue.CommitWrite();
     } else {
-      PERFETTO_DLOG("Unwinder queue full, skipping sample.");
+      PERFETTO_DLOG("Unwinder queue full, skipping sample");
       PostEmitSkippedSample(ds_id, std::move(sample.value()),
                             SampleSkipReason::kUnwindEnqueue);
     }
