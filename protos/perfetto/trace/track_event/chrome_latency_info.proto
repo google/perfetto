@@ -34,4 +34,35 @@ message ChromeLatencyInfo {
 
   optional Step step = 2;
   optional int32 frame_tree_node_id = 3;
+
+  // This enum is a copy of LatencyComponentType enum in Chrome, located in
+  // ui/latency/latency_info.h, modulo added UNKNOWN value per protobuf
+  // practices.
+  enum LatencyComponentType {
+    COMPONENT_UNSPECIFIED = 0;
+    COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH = 1;
+    COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL = 2;
+    COMPONENT_INPUT_EVENT_LATENCY_FIRST_SCROLL_UPDATE_ORIGINAL = 3;
+    COMPONENT_INPUT_EVENT_LATENCY_ORIGINAL = 4;
+    COMPONENT_INPUT_EVENT_LATENCY_UI = 5;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERER_MAIN = 6;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_MAIN = 7;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_IMPL = 8;
+    COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_LAST_EVENT = 9;
+    COMPONENT_INPUT_EVENT_LATENCY_ACK_RWH = 10;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERER_SWAP = 11;
+    COMPONENT_DISPLAY_COMPOSITOR_RECEIVED_FRAME = 12;
+    COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER = 13;
+    COMPONENT_INPUT_EVENT_LATENCY_FRAME_SWAP = 14;
+  }
+
+  message ComponentInfo {
+    optional LatencyComponentType component_type = 1;
+
+    // Nanosecond timestamp in CLOCK_MONOTONIC domain
+    optional uint64 time_ns = 2;
+  };
+
+  repeated ComponentInfo component_info = 4;
+  optional bool is_coalesced = 5;
 }

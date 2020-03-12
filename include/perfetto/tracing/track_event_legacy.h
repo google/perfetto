@@ -38,6 +38,36 @@
 // Constants.
 // ----------------------------------------------------------------------------
 
+namespace perfetto {
+namespace legacy {
+
+enum TraceEventFlag {
+  kTraceEventFlagNone = 0,
+  kTraceEventFlagCopy = 1u << 0,
+  kTraceEventFlagHasId = 1u << 1,
+  kTraceEventFlagScopeOffset = 1u << 2,
+  kTraceEventFlagScopeExtra = 1u << 3,
+  kTraceEventFlagExplicitTimestamp = 1u << 4,
+  kTraceEventFlagAsyncTTS = 1u << 5,
+  kTraceEventFlagBindToEnclosing = 1u << 6,
+  kTraceEventFlagFlowIn = 1u << 7,
+  kTraceEventFlagFlowOut = 1u << 8,
+  kTraceEventFlagHasContextId = 1u << 9,
+  kTraceEventFlagHasProcessId = 1u << 10,
+  kTraceEventFlagHasLocalId = 1u << 11,
+  kTraceEventFlagHasGlobalId = 1u << 12,
+  // TODO(eseckler): Remove once we have native support for typed proto events
+  // in TRACE_EVENT macros.
+  kTraceEventFlagTypedProtoArgs = 1u << 15,
+  kTraceEventFlagJavaStringLiterals = 1u << 16,
+};
+
+enum PerfettoLegacyCurrentThreadId { kCurrentThreadId };
+
+}  // namespace legacy
+}  // namespace perfetto
+
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 // The following constants are defined in the global namespace, since they were
 // originally implemented as macros.
 
@@ -69,24 +99,38 @@ static constexpr char TRACE_EVENT_PHASE_ENTER_CONTEXT = '(';
 static constexpr char TRACE_EVENT_PHASE_LEAVE_CONTEXT = ')';
 
 // Flags for changing the behavior of TRACE_EVENT_API_ADD_TRACE_EVENT.
-static constexpr uint32_t TRACE_EVENT_FLAG_NONE = 0;
-static constexpr uint32_t TRACE_EVENT_FLAG_COPY = 1u << 0;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_ID = 1u << 1;
-static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_OFFSET = 1u << 2;
-static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_EXTRA = 1u << 3;
-static constexpr uint32_t TRACE_EVENT_FLAG_EXPLICIT_TIMESTAMP = 1u << 4;
-static constexpr uint32_t TRACE_EVENT_FLAG_ASYNC_TTS = 1u << 5;
-static constexpr uint32_t TRACE_EVENT_FLAG_BIND_TO_ENCLOSING = 1u << 6;
-static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_IN = 1u << 7;
-static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_OUT = 1u << 8;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_CONTEXT_ID = 1u << 9;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_PROCESS_ID = 1u << 10;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_LOCAL_ID = 1u << 11;
-static constexpr uint32_t TRACE_EVENT_FLAG_HAS_GLOBAL_ID = 1u << 12;
-// TODO(eseckler): Remove once we have native support for typed proto events in
-// TRACE_EVENT macros.
-static constexpr uint32_t TRACE_EVENT_FLAG_TYPED_PROTO_ARGS = 1u << 15;
-static constexpr uint32_t TRACE_EVENT_FLAG_JAVA_STRING_LITERALS = 1u << 16;
+static constexpr uint32_t TRACE_EVENT_FLAG_NONE =
+    perfetto::legacy::kTraceEventFlagNone;
+static constexpr uint32_t TRACE_EVENT_FLAG_COPY =
+    perfetto::legacy::kTraceEventFlagCopy;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_ID =
+    perfetto::legacy::kTraceEventFlagHasId;
+static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_OFFSET =
+    perfetto::legacy::kTraceEventFlagScopeOffset;
+static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_EXTRA =
+    perfetto::legacy::kTraceEventFlagScopeExtra;
+static constexpr uint32_t TRACE_EVENT_FLAG_EXPLICIT_TIMESTAMP =
+    perfetto::legacy::kTraceEventFlagExplicitTimestamp;
+static constexpr uint32_t TRACE_EVENT_FLAG_ASYNC_TTS =
+    perfetto::legacy::kTraceEventFlagAsyncTTS;
+static constexpr uint32_t TRACE_EVENT_FLAG_BIND_TO_ENCLOSING =
+    perfetto::legacy::kTraceEventFlagBindToEnclosing;
+static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_IN =
+    perfetto::legacy::kTraceEventFlagFlowIn;
+static constexpr uint32_t TRACE_EVENT_FLAG_FLOW_OUT =
+    perfetto::legacy::kTraceEventFlagFlowOut;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_CONTEXT_ID =
+    perfetto::legacy::kTraceEventFlagHasContextId;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_PROCESS_ID =
+    perfetto::legacy::kTraceEventFlagHasProcessId;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_LOCAL_ID =
+    perfetto::legacy::kTraceEventFlagHasLocalId;
+static constexpr uint32_t TRACE_EVENT_FLAG_HAS_GLOBAL_ID =
+    perfetto::legacy::kTraceEventFlagHasGlobalId;
+static constexpr uint32_t TRACE_EVENT_FLAG_TYPED_PROTO_ARGS =
+    perfetto::legacy::kTraceEventFlagTypedProtoArgs;
+static constexpr uint32_t TRACE_EVENT_FLAG_JAVA_STRING_LITERALS =
+    perfetto::legacy::kTraceEventFlagJavaStringLiterals;
 
 static constexpr uint32_t TRACE_EVENT_FLAG_SCOPE_MASK =
     TRACE_EVENT_FLAG_SCOPE_OFFSET | TRACE_EVENT_FLAG_SCOPE_EXTRA;
@@ -111,7 +155,10 @@ static constexpr char TRACE_EVENT_SCOPE_NAME_GLOBAL = 'g';
 static constexpr char TRACE_EVENT_SCOPE_NAME_PROCESS = 'p';
 static constexpr char TRACE_EVENT_SCOPE_NAME_THREAD = 't';
 
-enum PerfettoLegacyCurrentThreadId { TRACE_EVENT_API_CURRENT_THREAD_ID };
+static constexpr auto TRACE_EVENT_API_CURRENT_THREAD_ID =
+    perfetto::legacy::kCurrentThreadId;
+
+#endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
 // ----------------------------------------------------------------------------
 // Internal legacy trace point implementation.
@@ -182,11 +229,11 @@ class LegacyTraceId {
         : scope_(scope), raw_id_(raw_id) {}
     WithScope(const char* scope, LocalId local_id)
         : scope_(scope), raw_id_(local_id.raw_id()) {
-      id_flags_ = TRACE_EVENT_FLAG_HAS_LOCAL_ID;
+      id_flags_ = legacy::kTraceEventFlagHasLocalId;
     }
     WithScope(const char* scope, GlobalId global_id)
         : scope_(scope), raw_id_(global_id.raw_id()) {
-      id_flags_ = TRACE_EVENT_FLAG_HAS_GLOBAL_ID;
+      id_flags_ = legacy::kTraceEventFlagHasGlobalId;
     }
     WithScope(const char* scope, uint64_t prefix, uint64_t raw_id)
         : scope_(scope), has_prefix_(true), prefix_(prefix), raw_id_(raw_id) {}
@@ -195,7 +242,7 @@ class LegacyTraceId {
           has_prefix_(true),
           prefix_(prefix),
           raw_id_(global_id.raw_id()) {
-      id_flags_ = TRACE_EVENT_FLAG_HAS_GLOBAL_ID;
+      id_flags_ = legacy::kTraceEventFlagHasGlobalId;
     }
     uint64_t raw_id() const { return raw_id_; }
     const char* scope() const { return scope_; }
@@ -208,12 +255,12 @@ class LegacyTraceId {
     bool has_prefix_ = false;
     uint64_t prefix_;
     uint64_t raw_id_;
-    uint32_t id_flags_ = TRACE_EVENT_FLAG_HAS_ID;
+    uint32_t id_flags_ = legacy::kTraceEventFlagHasId;
   };
 
   LegacyTraceId(const void* raw_id)
       : raw_id_(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(raw_id))) {
-    id_flags_ = TRACE_EVENT_FLAG_HAS_LOCAL_ID;
+    id_flags_ = legacy::kTraceEventFlagHasLocalId;
   }
   explicit LegacyTraceId(uint64_t raw_id) : raw_id_(raw_id) {}
   explicit LegacyTraceId(uint32_t raw_id) : raw_id_(raw_id) {}
@@ -228,10 +275,10 @@ class LegacyTraceId {
   explicit LegacyTraceId(int8_t raw_id)
       : raw_id_(static_cast<uint64_t>(raw_id)) {}
   explicit LegacyTraceId(LocalId raw_id) : raw_id_(raw_id.raw_id()) {
-    id_flags_ = TRACE_EVENT_FLAG_HAS_LOCAL_ID;
+    id_flags_ = legacy::kTraceEventFlagHasLocalId;
   }
   explicit LegacyTraceId(GlobalId raw_id) : raw_id_(raw_id.raw_id()) {
-    id_flags_ = TRACE_EVENT_FLAG_HAS_GLOBAL_ID;
+    id_flags_ = legacy::kTraceEventFlagHasGlobalId;
   }
   explicit LegacyTraceId(WithScope scoped_id)
       : scope_(scoped_id.scope()),
@@ -254,8 +301,16 @@ class LegacyTraceId {
   bool has_prefix_ = false;
   uint64_t prefix_;
   uint64_t raw_id_;
-  uint32_t id_flags_ = TRACE_EVENT_FLAG_HAS_ID;
+  uint32_t id_flags_ = legacy::kTraceEventFlagHasId;
 };
+
+}  // namespace internal
+}  // namespace perfetto
+
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+
+namespace perfetto {
+namespace internal {
 
 class TrackEventLegacy {
  public:
@@ -419,8 +474,6 @@ class TrackEventLegacy {
 
 }  // namespace internal
 }  // namespace perfetto
-
-#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
 // Implementations for the INTERNAL_* adapter macros used by the trace points
 // below.

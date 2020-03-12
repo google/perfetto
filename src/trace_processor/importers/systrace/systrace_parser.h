@@ -145,6 +145,8 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
     tgid_length++;
   }
 
+  // If len == 1, tgid_length will be 0 which will ensure we don't do
+  // an out of bounds read.
   std::string tgid_str(s + 2, tgid_length);
   out->tgid = base::StringToUInt32(tgid_str).value_or(0);
 

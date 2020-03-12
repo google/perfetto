@@ -497,6 +497,9 @@ class PerfettoApiTest : public ::testing::Test {
                    std::string(1, static_cast<char>(legacy_event.phase()));
           break;
         }
+        case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
+          slice += "C";
+          break;
         default:
           ADD_FAILURE();
       }
@@ -689,11 +692,19 @@ TEST_F(PerfettoApiTest, TrackEvent) {
   std::map<uint64_t, std::string> event_names;
   ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
+  auto now = perfetto::TrackEvent::GetTraceTimeNs();
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  auto clock_id = perfetto::protos::pbzero::ClockSnapshot::Clock::BOOTTIME;
+#else
+  auto clock_id = perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
+#endif
+  EXPECT_EQ(clock_id, perfetto::TrackEvent::GetTraceClockId());
+
   bool incremental_state_was_cleared = false;
   bool begin_found = false;
   bool end_found = false;
   bool process_descriptor_found = false;
-  auto now = perfetto::test::GetTraceTimeNs();
   uint32_t sequence_id = 0;
   int32_t cur_pid = perfetto::test::GetCurrentProcessId();
   for (const auto& packet : trace.packet()) {

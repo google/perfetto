@@ -29,13 +29,15 @@
 namespace perfetto {
 
 // static
-const char* MetatraceDataSource::kDataSourceName =
-    MetatraceWriter::kDataSourceName;
+const ProbesDataSource::Descriptor MetatraceDataSource::descriptor = {
+    /*name*/ MetatraceWriter::kDataSourceName,
+    /*flags*/ Descriptor::kFlagsNone,
+};
 
 MetatraceDataSource::MetatraceDataSource(base::TaskRunner* task_runner,
                                          TracingSessionID session_id,
                                          std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       trace_writer_(std::move(writer)) {}
 

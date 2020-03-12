@@ -32,6 +32,7 @@ class ArgsTracker;
 class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
+class ForwardingTraceParser;
 class FtraceModule;
 class GlobalArgsTracker;
 class HeapGraphTracker;
@@ -54,17 +55,18 @@ class TraceProcessorContext {
   Config config;
 
   std::unique_ptr<TraceStorage> storage;
+
+  std::unique_ptr<ChunkedTraceReader> chunk_reader;
+  std::unique_ptr<TraceSorter> sorter;
+
   std::unique_ptr<TrackTracker> track_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
-  std::unique_ptr<TraceParser> parser;
-  std::unique_ptr<TraceSorter> sorter;
-  std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
-  std::unique_ptr<PerfSampleTracker> perf_sample_tracker_;
+  std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
 
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker.
@@ -73,24 +75,28 @@ class TraceProcessorContext {
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
-  // type is only available in some targets. To access these fields use the
-  // GetOrCreate() method on their subclass type, e.g.
+  // type is only available in storage_full target. To access these fields use
+  // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
-
-  // storage_full targets:
   std::unique_ptr<Destructible> syscall_tracker;     // SyscallTracker
   std::unique_ptr<Destructible> sched_tracker;       // SchedEventTracker
   std::unique_ptr<Destructible> systrace_parser;     // SystraceParser
   std::unique_ptr<Destructible> heap_graph_tracker;  // HeapGraphTracker
+  std::unique_ptr<Destructible> json_tracker;        // JsonTracker
 
-  // When json importing is enabled:
-  std::unique_ptr<Destructible> json_tracker;  // JsonTracker
-
-  // This will be nullptr in the minimal build (storage_minimal target), and
-  // a pointer to the instance of SystraceTraceParser class in the full build
-  // (storage_full target). The corresponding initialization happens in
-  // register_additional_modules.cc.
+  // These fields are trace readers which will be called by |forwarding_parser|
+  // once the format of the trace is discovered. They are placed here as they
+  // are only available in the storage_full target.
+  std::unique_ptr<ChunkedTraceReader> json_trace_tokenizer;
+  std::unique_ptr<ChunkedTraceReader> fuchsia_trace_tokenizer;
   std::unique_ptr<ChunkedTraceReader> systrace_trace_parser;
+  std::unique_ptr<ChunkedTraceReader> gzip_trace_parser;
+
+  // These fields are trace parsers which will be called by |forwarding_parser|
+  // once the format of the trace is discovered. They are placed here as they
+  // are only available in the storage_full target.
+  std::unique_ptr<TraceParser> json_trace_parser;
+  std::unique_ptr<TraceParser> fuchsia_trace_parser;
 
   // The module at the index N is registered to handle field id N in
   // TracePacket.

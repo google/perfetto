@@ -34,7 +34,7 @@ class TaskRunner;
 
 class AndroidPowerDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 5;
+  static const ProbesDataSource::Descriptor descriptor;
 
   AndroidPowerDataSource(DataSourceConfig,
                          base::TaskRunner*,

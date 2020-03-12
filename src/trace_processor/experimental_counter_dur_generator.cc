@@ -45,29 +45,40 @@ util::Status ExperimentalCounterDurGenerator::ValidateConstraints(
   return util::OkStatus();
 }
 
-Table* ExperimentalCounterDurGenerator::ComputeTable(
-    const std::vector<Constraint>&,
+std::unique_ptr<Table> ExperimentalCounterDurGenerator::ComputeTable(
+    const std::vector<Constraint>& cs,
     const std::vector<Order>&) {
-  // We structure the code the following way (instead of just resetting the
-  // unique_ptr fields) to ensure that we don't hold onto a pointer to the
-  // sparsevector in the table after freeing the sparsevector.
+  std::vector<Constraint> constraints;
+  for (const auto& c : cs) {
+    if (c.col_idx ==
+        static_cast<uint32_t>(tables::CounterTable::ColumnIndex::track_id)) {
+      constraints.push_back(c);
+    }
+  }
+  Table table = counter_table_->Filter(constraints);
+
   std::unique_ptr<SparseVector<int64_t>> dur_column(
-      new SparseVector<int64_t>(ComputeDurColumn(*counter_table_)));
-  counter_with_dur_table_.reset(new Table(counter_table_->ExtendWithColumn(
-      "dur", dur_column.get(), TypedColumn<int64_t>::default_flags())));
-  dur_column_ = std::move(dur_column);
-  return counter_with_dur_table_.get();
+      new SparseVector<int64_t>(ComputeDurColumn(table)));
+  return std::unique_ptr<Table>(new Table(table.ExtendWithColumn(
+      "dur", std::move(dur_column), TypedColumn<int64_t>::default_flags())));
 }
 
 // static
 SparseVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
-    const tables::CounterTable& table) {
+    const Table& table) {
   // Keep track of the last seen row for each track id.
   std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
   SparseVector<int64_t> dur;
+
+  const auto* ts_col = reinterpret_cast<const TypedColumn<int64_t>*>(
+      table.GetColumnByName("ts"));
+  const auto* track_id_col =
+      reinterpret_cast<const TypedColumn<tables::CounterTrackTable::Id>*>(
+          table.GetColumnByName("track_id"));
+
   for (uint32_t i = 0; i < table.row_count(); ++i) {
     // Check if we already have a previous row for the current track id.
-    TrackId track_id = table.track_id()[i];
+    TrackId track_id = (*track_id_col)[i];
     auto it = last_row_for_track_id.find(track_id);
     if (it == last_row_for_track_id.end()) {
       // This means we don't have any row - start tracking this row for the
@@ -78,7 +89,7 @@ SparseVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
       // the duration of the previous row to be up to the current ts.
       uint32_t old_row = it->second;
       it->second = i;
-      dur.Set(old_row, table.ts()[i] - table.ts()[old_row]);
+      dur.Set(old_row, (*ts_col)[i] - (*ts_col)[old_row]);
     }
     // Append -1 to mark this event as not having been finished. On a later
     // row, we may set this to have the correct value.

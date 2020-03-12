@@ -42,13 +42,16 @@ source_set("traced_perf_main") {
 
 source_set("producer") {
   public_deps = [
+    ":common_types",
     ":regs_parsing",
+    ":unwinding",
     "../../../include/perfetto/tracing/core",
     "../../../src/tracing/core:service",  # for metatrace
   ]
   deps = [
     ":proc_descriptors",
     "../../../gn:default_deps",
+    "../../../include/perfetto/profiling:normalize",
     "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/config/profiling:zero",
     "../../../protos/perfetto/trace:zero",
@@ -59,7 +62,7 @@ source_set("producer") {
     "../common:callstack_trie",
     "../common:interner",
     "../common:interning_output",
-    "../common:unwind_support",
+    "../common:proc_utils",
   ]
   sources = [
     "event_config.h",
@@ -67,6 +70,34 @@ source_set("producer") {
     "event_reader.h",
     "perf_producer.cc",
     "perf_producer.h",
+  ]
+}
+
+source_set("common_types") {
+  public_deps = [ "../../../gn:libunwindstack" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../common:unwind_support",
+  ]
+  sources = [ "common_types.h" ]
+}
+
+source_set("unwinding") {
+  public_deps = [
+    "../../../gn:libunwindstack",
+    "../../../src/tracing/core:service",  # for metatrace
+  ]
+  deps = [
+    ":common_types",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/tracing/core",
+    "../../../src/base",
+    "../common:unwind_support",
+  ]
+  sources = [
+    "unwind_queue.h",
+    "unwinding.cc",
+    "unwinding.h",
   ]
 }
 
@@ -98,6 +129,7 @@ source_set("producer_unittests") {
   testonly = true
   deps = [
     ":producer",
+    ":unwinding",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/config:cpp",
@@ -107,5 +139,8 @@ source_set("producer_unittests") {
     "../../../src/protozero",
     "../../base",
   ]
-  sources = [ "event_config_unittest.cc" ]
+  sources = [
+    "event_config_unittest.cc",
+    "unwind_queue_unittest.cc",
+  ]
 }

@@ -21,14 +21,25 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/forward_decls.h"
 
 namespace perfetto {
 
 // Base class for all data sources in traced_probes.
 class ProbesDataSource {
  public:
-  // |type_id| is a home-brewed RTTI, e.g. InodeFileDataSource::kTypeId.
-  ProbesDataSource(TracingSessionID, int type_id);
+  // Static properties for a data source. Needs to be available before
+  // instantiating each data source. It must have static lifetime.
+  struct Descriptor {
+    enum Flags : uint32_t {
+      kFlagsNone = 0,
+      kHandlesIncrementalState = 1 << 0,
+    };
+    const char* const name;
+    uint32_t flags;
+  };
+
+  ProbesDataSource(TracingSessionID, const Descriptor*);
   virtual ~ProbesDataSource();
 
   virtual void Start() = 0;
@@ -43,7 +54,7 @@ class ProbesDataSource {
   }
 
   const TracingSessionID tracing_session_id;
-  const int type_id;
+  const Descriptor* const descriptor;
   bool started = false;  // Set by probes_producer.cc.
 
  private:
