@@ -18,6 +18,7 @@
 
 #include <signal.h>
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/profiling/common/proc_utils.h"
 
@@ -82,8 +83,13 @@ void JavaHprofProducer::SetupDataSource(DataSourceInstanceID id,
   ds.id = id;
   for (uint64_t pid : config.pid())
     ds.pids.emplace(static_cast<pid_t>(pid));
-  auto normalized_cmdlines = NormalizeCmdlines(config.process_cmdline());
-  FindPidsForCmdlines(normalized_cmdlines, &ds.pids);
+  base::Optional<std::vector<std::string>> normalized_cmdlines =
+      NormalizeCmdlines(config.process_cmdline());
+  if (!normalized_cmdlines.has_value()) {
+    PERFETTO_ELOG("Rejecting data source due to invalid cmdline in config.");
+    return;
+  }
+  FindPidsForCmdlines(normalized_cmdlines.value(), &ds.pids);
   ds.config = std::move(config);
   data_sources_.emplace(id, std::move(ds));
 }

@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -317,14 +318,18 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
 
-  std::vector<std::string> normalized_cmdlines =
+  base::Optional<std::vector<std::string>> normalized_cmdlines =
       NormalizeCmdlines(heapprofd_config.process_cmdline());
+  if (!normalized_cmdlines.has_value()) {
+    PERFETTO_ELOG("Rejecting data source due to invalid cmdline in config.");
+    return;
+  }
 
   // Child mode is only interested in the first data source matching the
   // already-connected process.
   if (mode_ == HeapprofdMode::kChild) {
     if (!ConfigTargetsProcess(heapprofd_config, target_process_,
-                              normalized_cmdlines)) {
+                              normalized_cmdlines.value())) {
       PERFETTO_DLOG("Child mode skipping setup of unrelated data source.");
       return;
     }
@@ -357,7 +362,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   cli_config.block_client_timeout_us =
       heapprofd_config.block_client_timeout_us();
   data_source.config = heapprofd_config;
-  data_source.normalized_cmdlines = std::move(normalized_cmdlines);
+  data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
 
   InterningOutputTracker::WriteFixedInterningsPacket(
