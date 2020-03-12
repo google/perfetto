@@ -32,8 +32,8 @@ Column::Column(const Column& column,
              table,
              col_idx,
              row_map_idx,
-             nullptr,
-             column.sparse_vector_) {}
+             column.sparse_vector_,
+             nullptr) {}
 
 Column::Column(const char* name,
                ColumnType type,
@@ -41,8 +41,8 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
-               std::unique_ptr<SparseVectorBase> owned_sparse_vector,
-               SparseVectorBase* sparse_vector)
+               SparseVectorBase* sparse_vector,
+               std::unique_ptr<SparseVectorBase> owned_sparse_vector)
     : owned_sparse_vector_(std::move(owned_sparse_vector)),
       type_(type),
       sparse_vector_(sparse_vector),
