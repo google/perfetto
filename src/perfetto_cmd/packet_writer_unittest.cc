@@ -42,16 +42,6 @@ namespace {
 
 using TracePacketProto = protos::gen::TracePacket;
 
-std::string RandomString(size_t size) {
-  std::minstd_rand0 rnd(0);
-  std::uniform_int_distribution<> dist(0, 255);
-  std::string s;
-  s.resize(size);
-  for (size_t i = 0; i < s.size(); i++)
-    s[i] = static_cast<char>(dist(rnd));
-  return s;
-}
-
 template <typename F>
 TracePacket CreateTracePacket(F fill_function) {
   TracePacketProto msg;
@@ -65,6 +55,16 @@ TracePacket CreateTracePacket(F fill_function) {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+std::string RandomString(size_t size) {
+  std::minstd_rand0 rnd(0);
+  std::uniform_int_distribution<> dist(0, 255);
+  std::string s;
+  s.resize(size);
+  for (size_t i = 0; i < s.size(); i++)
+    s[i] = static_cast<char>(dist(rnd));
+  return s;
+}
+
 std::string Decompress(const std::string& data) {
   uint8_t out[1024];
 
