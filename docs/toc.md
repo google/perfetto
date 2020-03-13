@@ -2,7 +2,7 @@
   * [Contributing](contributing.md)
   * [Build instructions](build-instructions.md)
   * [Running tests](testing.md)
-* App instrumentation
+* Instrumenting and tracing
   * [App instrumentation](app-instrumentation.md)
   * [Recording traces](recording-traces.md)
 * On-device tracer
