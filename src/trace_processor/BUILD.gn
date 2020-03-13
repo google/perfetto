@@ -100,6 +100,8 @@ source_set("storage_minimal") {
     "importers/ftrace/ftrace_module.h",
     "importers/fuchsia/fuchsia_record.h",
     "importers/fuchsia/fuchsia_trace_utils.h",
+    "importers/gzip/gzip_utils.cc",
+    "importers/gzip/gzip_utils.h",
     "importers/ninja/ninja_log_parser.cc",
     "importers/ninja/ninja_log_parser.h",
     "importers/proto/args_table_utils.cc",
@@ -210,6 +212,8 @@ source_set("storage_full") {
     "importers/fuchsia/fuchsia_trace_tokenizer.cc",
     "importers/fuchsia/fuchsia_trace_tokenizer.h",
     "importers/fuchsia/fuchsia_trace_utils.cc",
+    "importers/gzip/gzip_trace_parser.cc",
+    "importers/gzip/gzip_trace_parser.h",
     "importers/proto/android_probes_module.cc",
     "importers/proto/android_probes_module.h",
     "importers/proto/android_probes_parser.cc",
@@ -270,13 +274,6 @@ source_set("storage_full") {
       "importers/json/json_tracker.h",
     ]
     deps += [ "../../gn:jsoncpp" ]
-  }
-  if (enable_perfetto_zlib) {
-    sources += [
-      "gzip_trace_parser.cc",
-      "gzip_trace_parser.h",
-    ]
-    deps += [ "../../gn:zlib" ]
   }
 }
 
@@ -448,11 +445,15 @@ source_set("integrationtests") {
   sources = []
   deps = []
   if (enable_perfetto_trace_processor_sqlite) {
-    sources += [ "trace_database_integrationtest.cc" ]
+    sources += [
+      "read_trace_integrationtest.cc",
+      "trace_database_integrationtest.cc",
+    ]
     deps += [
       ":lib",
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
+      "../../protos/perfetto/trace:zero",
       "../base",
       "../base:test_support",
       "sqlite",

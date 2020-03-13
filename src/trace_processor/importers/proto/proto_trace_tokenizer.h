@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/trace_blob_view.h"
 
@@ -92,6 +93,9 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
   // Stores incremental state and references to interned data, e.g. for track
   // event protos.
   std::unique_ptr<ProtoIncrementalState> incremental_state;
+
+  // Allows support for compressed trace packets.
+  GzipDecompressor decompressor_;
 };
 
 }  // namespace trace_processor
