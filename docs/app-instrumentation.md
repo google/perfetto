@@ -94,7 +94,7 @@ There are a few main types of track events:
 3. **Flows**, which are used to connect related slices that span different
   tracks together. For example, if an image file is first loaded from
   the network and then decoded on a thread pool, a flow event can be used to
-  highlight its path through the system.
+  highlight its path through the system. (Not fully implemented yet).
 
 The [Perfetto UI](https://ui.perfetto.dev) has built in support for track
 events, which provides a useful way to quickly visualize the internal
@@ -125,7 +125,7 @@ Then, declare static storage for the categories in a cc file (e.g.,
 `example_tracing.cc`):
 
 ```C++
-#include "my_tracing.h"
+#include "example_tracing.h"
 
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 ```
