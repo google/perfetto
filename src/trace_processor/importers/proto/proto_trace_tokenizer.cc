@@ -29,6 +29,7 @@
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/storage/stats.h"
@@ -42,10 +43,6 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-#include <zlib.h>
-#endif
-
 namespace perfetto {
 namespace trace_processor {
 
@@ -57,36 +54,33 @@ namespace {
 constexpr uint8_t kTracePacketTag =
     MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-TraceBlobView Decompress(TraceBlobView input) {
+TraceBlobView Decompress(GzipDecompressor* decompressor, TraceBlobView input) {
+  PERFETTO_DCHECK(gzip_utils::IsGzipSupported());
+
   uint8_t out[4096];
-  std::string s;
 
-  z_stream stream{};
-  stream.next_in = const_cast<uint8_t*>(input.data());
-  stream.avail_in = static_cast<unsigned int>(input.length());
+  std::vector<uint8_t> data;
+  data.reserve(input.length());
 
-  if (inflateInit(&stream) != Z_OK)
-    return TraceBlobView(nullptr, 0, 0);
+  // Ensure that the decompressor is able to cope with a new stream of data.
+  decompressor->Reset();
+  decompressor->SetInput(input.data(), input.length());
 
-  int ret;
-  do {
-    stream.next_out = out;
-    stream.avail_out = sizeof(out);
-    ret = inflate(&stream, Z_NO_FLUSH);
-    if (ret != Z_STREAM_END && ret != Z_OK) {
-      inflateEnd(&stream);
+  using ResultCode = GzipDecompressor::ResultCode;
+  for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
+    auto res = decompressor->Decompress(out, base::ArraySize(out));
+    ret = res.ret;
+    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
+        ret == ResultCode::kNeedsMoreInput)
       return TraceBlobView(nullptr, 0, 0);
-    }
-    s.append(reinterpret_cast<char*>(out), sizeof(out) - stream.avail_out);
-  } while (ret != Z_STREAM_END);
-  inflateEnd(&stream);
 
-  std::unique_ptr<uint8_t[]> output(new uint8_t[s.size()]);
-  memcpy(output.get(), s.data(), s.size());
-  return TraceBlobView(std::move(output), 0, s.size());
+    data.insert(data.end(), out, out + res.bytes_written);
+  }
+
+  std::unique_ptr<uint8_t[]> output(new uint8_t[data.size()]);
+  memcpy(output.get(), data.data(), data.size());
+  return TraceBlobView(std::move(output), 0, data.size());
 }
-#endif  //  PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace
 
@@ -315,11 +309,14 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_compressed_packets()) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+    if (!gzip_utils::IsGzipSupported())
+      return util::Status("Cannot decode compressed packets. Zlib not enabled");
+
     protozero::ConstBytes field = decoder.compressed_packets();
     const size_t field_off = packet.offset_of(field.data);
     TraceBlobView compressed_packets = packet.slice(field_off, field.size);
-    TraceBlobView packets = Decompress(std::move(compressed_packets));
+    TraceBlobView packets =
+        Decompress(&decompressor_, std::move(compressed_packets));
 
     const uint8_t* start = packets.data();
     const uint8_t* end = packets.data() + packets.length();
@@ -339,11 +336,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
       if (PERFETTO_UNLIKELY(!status.ok()))
         return status;
     }
-
     return util::OkStatus();
-#else
-    return util::Status("Cannot decode compressed packets. Zlib not enabled");
-#endif
   }
 
   // If we're not forcing a full sort and this is a write_into_file trace, then
