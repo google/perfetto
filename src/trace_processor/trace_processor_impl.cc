@@ -26,6 +26,7 @@
 #include "src/trace_processor/additional_modules.h"
 #include "src/trace_processor/experimental_counter_dur_generator.h"
 #include "src/trace_processor/experimental_flamegraph_generator.h"
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
@@ -47,10 +48,6 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#include "src/trace_processor/export_json.h"
-#endif
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <cxxabi.h>
@@ -246,7 +243,6 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 void ExportJson(sqlite3_context* ctx, int /*argc*/, sqlite3_value** argv) {
   TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
   FILE* output;
@@ -282,7 +278,6 @@ void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
     PERFETTO_ELOG("Error initializing EXPORT_JSON");
   }
 }
-#endif
 
 void Hash(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   base::Hash hash;
@@ -457,13 +452,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   context_.systrace_trace_parser.reset(new SystraceTraceParser(&context_));
 
-  if (gzip_utils::IsGzipSupported())
+  if (gzip::IsGzipSupported())
     context_.gzip_trace_parser.reset(new GzipTraceParser(&context_));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
-  context_.json_trace_parser.reset(new JsonTraceParser(&context_));
-#endif
+  if (json::IsJsonSupported()) {
+    context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
+    context_.json_trace_parser.reset(new JsonTraceParser(&context_));
+  }
 
   RegisterAdditionalModules(&context_);
 
@@ -475,9 +470,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateBuiltinViews(db);
   db_.reset(std::move(db));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   CreateJsonExportFunction(this->context_.storage.get(), db);
-#endif
   CreateHashFunction(db);
   CreateDemangledNameFunction(db);
   CreateLastNonNullFunction(db);
