@@ -27,7 +27,7 @@ struct z_stream_s {};
 
 namespace perfetto {
 namespace trace_processor {
-namespace gzip_utils {
+namespace gzip {
 
 bool IsGzipSupported() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -37,7 +37,7 @@ bool IsGzipSupported() {
 #endif
 }
 
-}  // namespace gzip_utils
+}  // namespace gzip
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
