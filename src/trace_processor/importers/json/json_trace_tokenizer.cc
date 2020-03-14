@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-// For bazel build.
-#include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
-#include <json/reader.h>
-#include <json/value.h>
-
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_utils.h"
 
-#include "src/trace_processor/importers/json/json_trace_utils.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -36,6 +31,7 @@ namespace trace_processor {
 
 namespace {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 util::Status AppendUnescapedCharacter(char c,
                                       bool is_escaping,
                                       std::string* key) {
@@ -103,9 +99,11 @@ ReadStringRes ReadOneJsonString(const char* start,
   }
   return ReadStringRes::kNeedsMoreData;
 }
+#endif
 
 }  // namespace
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 ReadDictRes ReadOneJsonDict(const char* start,
                             const char* end,
                             Json::Value* value,
@@ -141,12 +139,13 @@ ReadDictRes ReadOneJsonDict(const char* start,
         return ReadDictRes::kEndOfTrace;
       if (--braces > 0)
         continue;
-      Json::Reader reader;
-      if (!reader.parse(dict_begin, s + 1, *value, /*collectComments=*/false)) {
-        PERFETTO_ELOG("JSON error: %s",
-                      reader.getFormattedErrorMessages().c_str());
+      size_t len = static_cast<size_t>((s + 1) - dict_begin);
+      auto opt_value = json::ParseJsonString(base::StringView(dict_begin, len));
+      if (!opt_value) {
+        PERFETTO_ELOG("Error while parsing JSON string during tokenization");
         return ReadDictRes::kFatalError;
       }
+      *value = std::move(*opt_value);
       *next = s + 1;
       return ReadDictRes::kFoundDict;
     }
@@ -263,6 +262,7 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
   }
   return ReadSystemLineRes::kNeedsMoreData;
 }
+#endif
 
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
@@ -270,6 +270,9 @@ JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
 util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
                                        size_t size) {
+  PERFETTO_DCHECK(json::IsJsonSupported());
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   buffer_.insert(buffer_.end(), data.get(), data.get() + size);
   const char* buf = buffer_.data();
   const char* next = buf;
@@ -330,11 +333,22 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
   offset_ += static_cast<uint64_t>(next - buf);
   buffer_.erase(buffer_.begin(), buffer_.begin() + (next - buf));
   return util::OkStatus();
+#else
+  perfetto::base::ignore_result(data);
+  perfetto::base::ignore_result(size);
+  perfetto::base::ignore_result(context_);
+  perfetto::base::ignore_result(format_);
+  perfetto::base::ignore_result(position_);
+  perfetto::base::ignore_result(offset_);
+  return util::ErrStatus("Cannot parse JSON trace due to missing JSON support");
+#endif
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 util::Status JsonTraceTokenizer::ParseInternal(const char* start,
                                                const char* end,
                                                const char** out) {
+  PERFETTO_DCHECK(json::IsJsonSupported());
   JsonTracker* json_tracker = JsonTracker::GetOrCreate(context_);
   auto* trace_sorter = context_->sorter.get();
 
@@ -466,10 +480,10 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
   *out = next;
   return util::OkStatus();
 }
+#endif
 
 void JsonTraceTokenizer::NotifyEndOfFile() {}
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)

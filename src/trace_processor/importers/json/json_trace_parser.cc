@@ -14,15 +14,9 @@
  * limitations under the License.
  */
 
-// For bazel build.
-#include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
 #include <inttypes.h>
-#include <json/reader.h>
-#include <json/value.h>
 
 #include <limits>
 #include <string>
@@ -30,8 +24,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/importers/json/json_trace_utils.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -53,6 +47,9 @@ void JsonTraceParser::ParseFtracePacket(uint32_t,
 
 void JsonTraceParser::ParseTracePacket(int64_t timestamp,
                                        TimestampedTracePiece ttp) {
+  PERFETTO_DCHECK(json::IsJsonSupported());
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
                   ttp.type == TimestampedTracePiece::Type::kSystraceLine);
   if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
@@ -130,9 +127,14 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
     }
   }
+#else
+  perfetto::base::ignore_result(timestamp);
+  perfetto::base::ignore_result(ttp);
+  perfetto::base::ignore_result(context_);
+  PERFETTO_ELOG("Cannot parse JSON trace due to missing JSON support");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
