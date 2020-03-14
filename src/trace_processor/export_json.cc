@@ -14,17 +14,10 @@
  * limitations under the License.
  */
 
-// For bazel build.
-#include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "src/trace_processor/export_json.h"
 
 #include <inttypes.h>
-#include <json/reader.h>
-#include <json/value.h>
-#include <json/writer.h>
 #include <stdio.h>
 
 #include <algorithm>
@@ -32,12 +25,19 @@
 #include <deque>
 #include <limits>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#include <json/reader.h>
+#include <json/writer.h>
+#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -45,6 +45,24 @@ namespace json {
 
 namespace {
 
+class FileWriter : public OutputWriter {
+ public:
+  FileWriter(FILE* file) : file_(file) {}
+  ~FileWriter() override { fflush(file_); }
+
+  util::Status AppendString(const std::string& s) override {
+    size_t written =
+        fwrite(s.data(), sizeof(std::string::value_type), s.size(), file_);
+    if (written != s.size())
+      return util::ErrStatus("Error writing to file: %d", ferror(file_));
+    return util::OkStatus();
+  }
+
+ private:
+  FILE* file_;
+};
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
@@ -103,23 +121,6 @@ void ConvertLegacyFlowEventArgs(const Json::Value& legacy_args,
     }
   }
 }
-
-class FileWriter : public OutputWriter {
- public:
-  FileWriter(FILE* file) : file_(file) {}
-  ~FileWriter() override { fflush(file_); }
-
-  util::Status AppendString(const std::string& s) override {
-    size_t written =
-        fwrite(s.data(), sizeof(std::string::value_type), s.size(), file_);
-    if (written != s.size())
-      return util::ErrStatus("Error writing to file: %d", ferror(file_));
-    return util::OkStatus();
-  }
-
- private:
-  FILE* file_;
-};
 
 class JsonExporter {
  public:
@@ -1320,6 +1321,8 @@ class JsonExporter {
       exported_pids_and_tids_to_utids_;
 };
 
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+
 }  // namespace
 
 OutputWriter::OutputWriter() = default;
@@ -1330,9 +1333,18 @@ util::Status ExportJson(const TraceStorage* storage,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   JsonExporter exporter(storage, output, std::move(argument_filter),
                         std::move(metadata_filter), std::move(label_filter));
   return exporter.Export();
+#else
+  perfetto::base::ignore_result(storage);
+  perfetto::base::ignore_result(output);
+  perfetto::base::ignore_result(argument_filter);
+  perfetto::base::ignore_result(metadata_filter);
+  perfetto::base::ignore_result(label_filter);
+  return util::ErrStatus("JSON support is not compiled in this build");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
 util::Status ExportJson(TraceProcessorStorage* tp,
@@ -1356,4 +1368,3 @@ util::Status ExportJson(const TraceStorage* storage, FILE* output) {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)

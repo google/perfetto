@@ -55,7 +55,7 @@ constexpr uint8_t kTracePacketTag =
     MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
 
 TraceBlobView Decompress(GzipDecompressor* decompressor, TraceBlobView input) {
-  PERFETTO_DCHECK(gzip_utils::IsGzipSupported());
+  PERFETTO_DCHECK(gzip::IsGzipSupported());
 
   uint8_t out[4096];
 
@@ -309,7 +309,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_compressed_packets()) {
-    if (!gzip_utils::IsGzipSupported())
+    if (!gzip::IsGzipSupported())
       return util::Status("Cannot decode compressed packets. Zlib not enabled");
 
     protozero::ConstBytes field = decoder.compressed_packets();

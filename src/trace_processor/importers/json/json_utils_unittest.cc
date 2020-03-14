@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 
 #include <json/value.h>
 
