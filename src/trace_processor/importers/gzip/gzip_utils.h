@@ -24,13 +24,13 @@ struct z_stream_s;
 namespace perfetto {
 namespace trace_processor {
 
-namespace gzip_utils {
+namespace gzip {
 
 // Returns whether gzip related functioanlity is supported with the current
 // build flags.
 bool IsGzipSupported();
 
-}  // namespace gzip_utils
+}  // namespace gzip
 
 class GzipDecompressor {
  public:
