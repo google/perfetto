@@ -129,7 +129,7 @@ util::Status ReadTrace(
 util::Status DecompressTrace(const uint8_t* data,
                              size_t size,
                              std::vector<uint8_t>* output) {
-  if (!gzip_utils::IsGzipSupported()) {
+  if (!gzip::IsGzipSupported()) {
     return util::ErrStatus(
         "Cannot decompress trace in build where zlib is disabled");
   }
