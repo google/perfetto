@@ -32,6 +32,7 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 // Visible for testing.
 enum class ReadDictRes {
   kFoundDict,
@@ -83,6 +84,7 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
                                          const char* end,
                                          std::string* line,
                                          const char** next);
+#endif
 
 // Reads a JSON trace in chunks and extracts top level json objects.
 class JsonTraceTokenizer : public ChunkedTraceReader {
@@ -128,9 +130,11 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
     kEof,
   };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   util::Status ParseInternal(const char* start,
                              const char* end,
                              const char** next);
+#endif
 
   TraceProcessorContext* const context_;
 
