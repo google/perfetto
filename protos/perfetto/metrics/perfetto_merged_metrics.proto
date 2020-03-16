@@ -292,13 +292,17 @@ message AndroidStartupMetric {
     optional int64 interruptible_sleep_dur_ns = 4;
   }
 
-  message Slice { optional int64 dur_ns = 1; }
+  message Slice {
+    optional int64 dur_ns = 1;
+    optional double dur_ms = 2;
+  }
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // All times and durations in nanoseconds (ns).
+  // Next id: 21.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
+    optional double dur_ms = 17;
     optional TaskStateBreakdown main_thread_by_task_state = 2;
 
     // In this timespan, how many processes (apart from the main activity) were
@@ -323,14 +327,18 @@ message AndroidStartupMetric {
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
 
-    optional uint32 to_post_fork = 13;
-    optional uint32 to_activity_thread_main = 14;
-    optional uint32 to_bind_application = 15;
+    optional Slice to_post_fork = 18;
+    optional Slice to_activity_thread_main = 19;
+    optional Slice to_bind_application = 20;
 
     optional Slice time_post_fork = 16;
 
     // Deprecated was other_process_to_activity_cpu_ratio
     reserved 12;
+
+    // Removed: was uint32 versions of to_post_fork, to_activity_thread_main and
+    // to_bind_application.
+    reserved 13, 14, 15;
   }
 
   // Next id: 7
