@@ -30,7 +30,9 @@ android_startup {
       other_processes_spawned_count: 1
       time_activity_manager {
         dur_ns: 8
+        dur_ms: 8e-06
       }
+      dur_ms: 0.000108
     }
   }
 }
