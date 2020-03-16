@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import {search, searchEq} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
 import {translateState} from '../../common/thread_state';
+import {checkerboardExcept} from '../../frontend/checkerboard';
 import {Color, colorForState} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
@@ -68,6 +68,15 @@ class ThreadStateTrack extends Track<Config, Data> {
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     if (data === undefined) return;  // Can't possibly draw anything.
+
+    checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        timeScale.timeToPx(visibleWindowTime.start),
+        timeScale.timeToPx(visibleWindowTime.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end),
+    );
 
     const shouldGroupBusyStates = groupBusyStates(data.resolution);
 
@@ -161,7 +170,7 @@ class ThreadStateTrack extends Track<Config, Data> {
       let colorStop = 0;
       for (const [color, value] of sorted.entries()) {
         const colorString = `hsl(${color.h},${color.s}%,${color.l}%)`;
-        colorStop = Math.min(1, colorStop + value);
+        colorStop = Math.max(0, Math.min(1, colorStop + value));
         gradient.addColorStop(colorStop, colorString);
       }
       ctx.fillStyle = gradient;
