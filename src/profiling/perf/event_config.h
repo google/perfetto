@@ -52,6 +52,9 @@ class EventConfig {
   uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }
   uint32_t read_tick_period_ms() const { return read_tick_period_ms_; }
   uint32_t samples_per_tick_limit() const { return samples_per_tick_limit_; }
+  uint32_t remote_descriptor_timeout_ms() const {
+    return remote_descriptor_timeout_ms_;
+  }
 
   const TargetFilter& filter() const { return target_filter_; }
 
@@ -65,14 +68,14 @@ class EventConfig {
               uint32_t ring_buffer_pages,
               uint32_t read_tick_period_ms,
               uint32_t samples_per_tick_limit,
+              uint32_t remote_descriptor_timeout_ms,
               TargetFilter target_filter);
 
   // If true, process all system-wide samples.
   const bool target_all_cpus_;
 
-  // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel. If
-  // zero, |EventReader| will choose a default value. Must be a power of two
-  // otherwise.
+  // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel.
+  // Must be a power of two.
   const uint32_t ring_buffer_pages_;
 
   // Parameter struct for |perf_event_open| calls.
@@ -84,6 +87,9 @@ class EventConfig {
   // Guardrail for the amount of samples a given read attempt will extract from
   // *each* per-cpu buffer.
   const uint32_t samples_per_tick_limit_;
+
+  // Timeout for proc-fd lookup.
+  const uint32_t remote_descriptor_timeout_ms_;
 
   // Parsed whitelist/blacklist for filtering samples.
   const TargetFilter target_filter_;
