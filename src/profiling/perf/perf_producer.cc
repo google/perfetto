@@ -48,8 +48,6 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-constexpr uint32_t kProcDescriptorTimeoutMs = 400;
-
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
@@ -376,7 +374,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       // resolving the proc-fds.
       process_state = ProcessTrackingStatus::kResolving;
       proc_fd_getter_->GetDescriptorsForPid(pid);  // response is async
-      PostDescriptorLookupTimeout(ds_id, pid, kProcDescriptorTimeoutMs);
+      PostDescriptorLookupTimeout(
+          ds_id, pid, ds->event_config.remote_descriptor_timeout_ms());
     }
 
     PERFETTO_CHECK(process_state == ProcessTrackingStatus::kResolved ||

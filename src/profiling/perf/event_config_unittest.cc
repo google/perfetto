@@ -101,6 +101,27 @@ TEST(EventConfigTest, ReadTickPeriodDefaultedIfUnset) {
   }
 }
 
+TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
+  {  // if unset, a default is used
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_GT(event_config->remote_descriptor_timeout_ms(), 0u);
+  }
+  {  // otherwise, given value used
+    uint32_t timeout_ms = 300;
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_remote_descriptor_timeout_ms(timeout_ms);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_EQ(event_config->remote_descriptor_timeout_ms(), timeout_ms);
+  }
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
