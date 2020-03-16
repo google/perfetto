@@ -35,6 +35,7 @@ namespace {
 constexpr uint64_t kDefaultSamplingFrequencyHz = 10;
 constexpr uint32_t kDefaultDataPagesPerRingBuffer = 256;  // 1 MB: 256x 4k pages
 constexpr uint32_t kDefaultReadTickPeriodMs = 100;
+constexpr uint32_t kDefaultRemoteDescriptorTimeoutMs = 100;
 
 base::Optional<std::string> Normalize(const protozero::ConstChars& src) {
   // Construct a null-terminated string that will be mutated by the normalizer.
@@ -117,6 +118,11 @@ base::Optional<EventConfig> EventConfig::Create(
   if (!ring_buffer_pages.has_value())
     return base::nullopt;
 
+  uint32_t remote_descriptor_timeout_ms =
+      pb_config.remote_descriptor_timeout_ms()
+          ? pb_config.remote_descriptor_timeout_ms()
+          : kDefaultRemoteDescriptorTimeoutMs;
+
   uint32_t read_tick_period_ms = pb_config.ring_buffer_read_period_ms()
                                      ? pb_config.ring_buffer_read_period_ms()
                                      : kDefaultReadTickPeriodMs;
@@ -140,7 +146,7 @@ base::Optional<EventConfig> EventConfig::Create(
 
   return EventConfig(pb_config, sampling_frequency, ring_buffer_pages.value(),
                      read_tick_period_ms, samples_per_tick_limit,
-                     std::move(filter.value()));
+                     remote_descriptor_timeout_ms, std::move(filter.value()));
 }
 
 EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
@@ -148,11 +154,13 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
                          uint32_t samples_per_tick_limit,
+                         uint32_t remote_descriptor_timeout_ms,
                          TargetFilter target_filter)
     : target_all_cpus_(cfg.all_cpus()),
       ring_buffer_pages_(ring_buffer_pages),
       read_tick_period_ms_(read_tick_period_ms),
       samples_per_tick_limit_(samples_per_tick_limit),
+      remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
       target_filter_(std::move(target_filter)) {
   auto& pe = perf_event_attr_;
   pe.size = sizeof(perf_event_attr);

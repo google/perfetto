@@ -1324,8 +1324,10 @@ message JavaHprofConfig {
 
 // Begin of protos/perfetto/config/profiling/perf_event_config.proto
 
+// Configuration for the traced_perf profiler.
+//
 // At the time of writing, the config options are restricted to the periodic
-// system-wide stack sampling use-case.
+// system-wide stack sampling use-case (|all_cpus| must be true).
 message PerfEventConfig {
   // If true, sample events on all CPUs.
   optional bool all_cpus = 1;
@@ -1343,6 +1345,16 @@ message PerfEventConfig {
   // kernel. If set, must be a power of two.
   // If unset, an implementation-defined default is used.
   optional uint32 ring_buffer_pages = 3;
+
+  // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
+  // sampled process. This is primarily for Android, where this lookup is
+  // asynchronous. As long as the producer is waiting, the associated samples
+  // will be kept enqueued (putting pressure on the capacity of the shared
+  // unwinding queue). Once a lookup for a process expires, all associated
+  // samples are discarded. However, if the lookup still succeeds after the
+  // timeout, future samples will be handled normally.
+  // If unset, an implementation-defined default is used.
+  optional uint32 remote_descriptor_timeout_ms = 9;
 
   // Process ID (TGID) whitelist. If this list is not empty, only matching
   // samples will be retained. If multiple whitelists and blacklists are
