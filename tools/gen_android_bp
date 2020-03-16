@@ -178,6 +178,7 @@ additional_args = {
     'trace_processor_shell': [
       ('dist', {'targets': ['sdk_repo']}),
       ('stl', 'libc++_static'),
+      ('strip', {'keep_symbols': True})
     ],
 }
 
@@ -366,6 +367,7 @@ class Module(object):
     self.lto = None
     self.stl = None
     self.dist = dict()
+    self.strip = dict()
     self.data = set()
     # The genrule_XXX below are properties that must to be propagated back
     # on the module(s) that depend on the genrule.
@@ -396,6 +398,7 @@ class Module(object):
     self._output_field(output, 'header_libs')
     self._output_field(output, 'required')
     self._output_field(output, 'dist')
+    self._output_field(output, 'strip')
     self._output_field(output, 'tool_files')
     self._output_field(output, 'data')
     self._output_field(output, 'stl')
