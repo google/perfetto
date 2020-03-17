@@ -7590,6 +7590,9 @@ cc_binary_host {
       "sdk_repo",
     ],
   },
+  strip: {
+    keep_symbols: true,
+  },
   stl: "libc++_static",
 }
 
