@@ -53,6 +53,8 @@ struct ParsedSample {
 // Entry in an unwinding queue. Either a sample that requires unwinding, or a
 // tombstoned entry (valid == false).
 struct UnwindEntry {
+  static UnwindEntry Invalid() { return UnwindEntry{}; }
+
   UnwindEntry() = default;  // for initial unwinding queue entries' state
 
   UnwindEntry(uint64_t _data_source_id, ParsedSample _sample)
