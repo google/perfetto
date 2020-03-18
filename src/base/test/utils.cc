@@ -29,29 +29,43 @@
 #include <unistd.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#include <mach-o/dyld.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
-std::string GetTestDataPath(const std::string& path) {
+std::string GetCurExecutableDir() {
+  std::string self_path;
+  char buf[PATH_MAX];
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-  char buf[PATH_MAX];
-  ssize_t bytes = readlink("/proc/self/exe", buf, sizeof(buf));
-  PERFETTO_CHECK(bytes != -1);
+  ssize_t size = readlink("/proc/self/exe", buf, sizeof(buf));
+  PERFETTO_CHECK(size != -1);
   // readlink does not null terminate.
-  buf[bytes] = 0;
-  std::string self_path = std::string(buf);
+  self_path = std::string(buf, static_cast<size_t>(size));
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  uint32_t size = sizeof(buf);
+  PERFETTO_CHECK(_NSGetExecutablePath(buf, &size) == 0);
+  self_path = std::string(buf, size);
+#else
+  PERFETTO_FATAL(
+      "GetCurExecutableDir() not implemented on the current platform");
+#endif
   // Cut binary name.
-  self_path = self_path.substr(0, self_path.find_last_of("/"));
+  return self_path.substr(0, self_path.find_last_of("/"));
+}
+
+std::string GetTestDataPath(const std::string& path) {
+  std::string self_path = GetCurExecutableDir();
   std::string full_path = self_path + "/../../" + path;
   if (access(full_path.c_str(), F_OK) == 0)
     return full_path;
   full_path = self_path + "/" + path;
   if (access(full_path.c_str(), F_OK) == 0)
     return full_path;
-#endif
-  // TODO(hjd): Implement on MacOS/Windows
   // Fall back to relative to root dir.
   return path;
 }
