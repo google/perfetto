@@ -50,6 +50,7 @@
 namespace perfetto {
 namespace base {
 
+std::string GetCurExecutableDir();
 std::string GetTestDataPath(const std::string& path);
 
 }  // namespace base
