@@ -213,7 +213,7 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 
       delegate_->PostEmitUnwinderSkippedSample(entry.data_source_id,
                                                std::move(entry.sample));
-      entry.valid = false;
+      entry = UnwindEntry::Invalid();
       continue;
     }
 
@@ -238,7 +238,7 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 
       delegate_->PostEmitSample(entry.data_source_id,
                                 std::move(unwound_sample));
-      entry.valid = false;
+      entry = UnwindEntry::Invalid();
       continue;
     }
   }
