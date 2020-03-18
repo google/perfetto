@@ -73,15 +73,18 @@ enum Tags : uint32_t {
 
 // Append only, see above.
 //
-// FTRACE_SERVICE_COMMIT_DATA is a bit-packed representation of an event, see
-// tracing_service_impl.cc for the format.
+// Values that aren't used as counters:
+// * FTRACE_SERVICE_COMMIT_DATA is a bit-packed representation of an event, see
+//   tracing_service_impl.cc for the format.
+// * PROFILER_UNWIND_CURRENT_PID represents the PID that is being unwound.
 //
 #define PERFETTO_METATRACE_COUNTERS(F) \
   F(COUNTER_ZERO_UNUSED),\
   F(FTRACE_PAGES_DRAINED), \
   F(PS_PIDS_SCANNED), \
   F(TRACE_SERVICE_COMMIT_DATA), \
-  F(PROFILER_UNWIND_QUEUE_SZ)
+  F(PROFILER_UNWIND_QUEUE_SZ), \
+  F(PROFILER_UNWIND_CURRENT_PID)
 
 // clang-format on
 
