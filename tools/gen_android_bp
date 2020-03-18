@@ -178,7 +178,7 @@ additional_args = {
     'trace_processor_shell': [
       ('dist', {'targets': ['sdk_repo']}),
       ('stl', 'libc++_static'),
-      ('strip', {'keep_symbols': True})
+      ('strip', {'all': True})
     ],
 }
 

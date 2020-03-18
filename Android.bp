@@ -7591,7 +7591,7 @@ cc_binary_host {
     ],
   },
   strip: {
-    keep_symbols: true,
+    all: true,
   },
   stl: "libc++_static",
 }
