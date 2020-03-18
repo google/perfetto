@@ -28,65 +28,24 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/subprocess.h"
 
 namespace perfetto {
 
 namespace {
 
 std::string RunClangFmt(const std::string& input) {
-  std::string output;
-  pid_t pid;
-  base::Pipe input_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
-  base::Pipe output_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
-  if ((pid = fork()) == 0) {
-    // Child
-    PERFETTO_CHECK(dup2(*input_pipe.rd, STDIN_FILENO) != -1);
-    PERFETTO_CHECK(dup2(*output_pipe.wr, STDOUT_FILENO) != -1);
-    input_pipe.wr.reset();
-    output_pipe.rd.reset();
-    PERFETTO_CHECK(execl("buildtools/linux64/clang-format", "clang-format",
-                         nullptr) != -1);
-  }
-  PERFETTO_CHECK(pid > 0);
-  // Parent
-  size_t written = 0;
-  size_t bytes_read = 0;
-  input_pipe.rd.reset();
-  output_pipe.wr.reset();
-  // This cannot be left uninitialized because there's as continue statement
-  // before the first assignment to this in the loop.
-  ssize_t r = -1;
-  do {
-    if (written < input.size()) {
-      ssize_t w =
-          write(*input_pipe.wr, &(input[written]), input.size() - written);
-      if (w == -1) {
-        if (errno == EAGAIN || errno == EINTR)
-          continue;
-        PERFETTO_FATAL("write failed");
-      }
-      written += static_cast<size_t>(w);
-      if (written == input.size())
-        input_pipe.wr.reset();
-    }
-
-    if (bytes_read + base::kPageSize > output.size())
-      output.resize(output.size() + base::kPageSize);
-    r = read(*output_pipe.rd, &(output[bytes_read]), base::kPageSize);
-    if (r == -1) {
-      if (errno == EAGAIN || errno == EINTR)
-        continue;
-      PERFETTO_FATAL("read failed");
-    }
-    if (r > 0)
-      bytes_read += static_cast<size_t>(r);
-  } while (r != 0);
-  output.resize(bytes_read);
-
-  int wstatus;
-  waitpid(pid, &wstatus, 0);
-  PERFETTO_CHECK(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0);
-  return output;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+  const std::string platform = "mac";
+#else
+  const std::string platform = "linux64";
+#endif
+  base::Subprocess clang_fmt({"buildtools/" + platform + "/clang-format"});
+  clang_fmt.args.stdout_mode = base::Subprocess::kBuffer;
+  clang_fmt.args.stderr_mode = base::Subprocess::kInherit;
+  clang_fmt.args.input = input;
+  PERFETTO_CHECK(clang_fmt.Call());
+  return std::move(clang_fmt.output());
 }
 
 }  // namespace
