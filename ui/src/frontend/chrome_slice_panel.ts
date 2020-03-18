@@ -22,7 +22,8 @@ import {Panel, PanelSize} from './panel';
 export class ChromeSliceDetailsPanel extends Panel {
   view() {
     const sliceInfo = globals.sliceDetails;
-    if (sliceInfo.ts && sliceInfo.dur && sliceInfo.name) {
+    if (sliceInfo.ts !== undefined && sliceInfo.dur !== undefined &&
+        sliceInfo.name !== undefined) {
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', `Slice Details`)),
