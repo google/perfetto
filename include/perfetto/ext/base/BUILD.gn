@@ -34,6 +34,7 @@ source_set("base") {
     "string_utils.h",
     "string_view.h",
     "string_writer.h",
+    "subprocess.h",
     "temp_file.h",
     "thread_annotations.h",
     "thread_checker.h",

@@ -35,6 +35,14 @@ source_set("end_to_end_integrationtests") {
     "../src/base:test_support",
     "../src/traced/probes/ftrace",
   ]
+
+  # These binaries are requires by the cmdline tests, which invoke perfetto
+  # and trigger_perfetto via Subprocess.
+  data_deps = [
+    "../src/perfetto_cmd:perfetto",
+    "../src/perfetto_cmd:trigger_perfetto",
+  ]
+
   sources = [ "end_to_end_integrationtest.cc" ]
   if (start_daemons_for_testing) {
     cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
