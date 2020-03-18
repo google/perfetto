@@ -90,15 +90,22 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   StringId name_id = storage->InternString(name);
   UniqueTid utid = procs->UpdateThread(tid, pid);
 
+  auto args_inserter = [this, &value](ArgsTracker::BoundInserter* inserter) {
+    if (value.isMember("args")) {
+      json::AddJsonValueToArgs(value["args"], /* flat_key = */ "args",
+                               /* key = */ "args", context_->storage.get(),
+                               inserter);
+    }
+  };
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->Begin(timestamp, track_id, cat_id, name_id);
+      slice_tracker->Begin(timestamp, track_id, cat_id, name_id, args_inserter);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->End(timestamp, track_id, cat_id, name_id);
+      slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
@@ -108,7 +115,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
-                            opt_dur.value());
+                            opt_dur.value(), args_inserter);
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
