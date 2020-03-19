@@ -46,11 +46,14 @@ source_set("base") {
     sources += [
       "event_fd.cc",
       "pipe.cc",
-      "subprocess.cc",
       "temp_file.cc",
       "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
+  }
+
+  if (!is_win && !is_nacl) {
+    sources += [ "subprocess.cc" ]
   }
 
   if (enable_stack_trace) {
@@ -136,13 +139,15 @@ perfetto_unittest_source_set("unittests") {
   if (!is_win) {
     sources += [
       "metatrace_unittest.cc",
-      "subprocess_unittest.cc",
       "task_runner_unittest.cc",
       "temp_file_unittest.cc",
       "thread_checker_unittest.cc",
       "thread_task_runner_unittest.cc",
       "utils_unittest.cc",
     ]
+  }
+  if (!is_win && !is_nacl) {
+    sources += [ "subprocess_unittest.cc" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     # This causes some problems on the chromium waterfall.
