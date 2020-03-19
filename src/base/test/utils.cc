@@ -38,18 +38,19 @@ namespace base {
 
 std::string GetCurExecutableDir() {
   std::string self_path;
-  char buf[PATH_MAX];
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  char buf[PATH_MAX];
   ssize_t size = readlink("/proc/self/exe", buf, sizeof(buf));
   PERFETTO_CHECK(size != -1);
   // readlink does not null terminate.
   self_path = std::string(buf, static_cast<size_t>(size));
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-  uint32_t size = sizeof(buf);
-  PERFETTO_CHECK(_NSGetExecutablePath(buf, &size) == 0);
-  self_path = std::string(buf, size);
+  uint32_t size = 0;
+  PERFETTO_CHECK(_NSGetExecutablePath(nullptr, &size));
+  self_path.resize(size);
+  PERFETTO_CHECK(_NSGetExecutablePath(&self_path[0], &size) == 0);
 #else
   PERFETTO_FATAL(
       "GetCurExecutableDir() not implemented on the current platform");
