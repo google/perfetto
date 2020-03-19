@@ -29,6 +29,12 @@
 #include <unistd.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+#include <corecrt_io.h>
+#include <io.h>
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
 #include <mach-o/dyld.h>
 #endif
