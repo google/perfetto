@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/custom_options.descriptor.h"
@@ -581,20 +582,17 @@ util::Status PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
   return it->Status();
 }
 
-bool IsBlankLine(char* buffer) {
-  size_t buf_size = strlen(buffer);
-  for (size_t i = 0; i < buf_size; ++i) {
-    // We can index into buffer[i+1], because strlen does not include the
-    // trailing \0, so even if \r is the last character, this is not out
-    // of bound.
-    if (buffer[i] == '\r') {
-      if (buffer[i + 1] != '\n')
-        return false;
-    } else if (buffer[i] != ' ' && buffer[i] != '\t' && buffer[i] != '\n') {
-      return false;
-    }
-  }
-  return true;
+bool IsBlankLine(const std::string& buffer) {
+  return buffer == "\n" || buffer == "\r\n";
+}
+
+bool IsCommentLine(const std::string& buffer) {
+  return base::StartsWith(buffer, "--");
+}
+
+bool HasEndOfQueryDelimiter(const std::string& buffer) {
+  return base::EndsWith(buffer, ";\n") || base::EndsWith(buffer, ";") ||
+         base::EndsWith(buffer, ";\r\n");
 }
 
 bool LoadQueries(FILE* input, std::vector<std::string>* output) {
@@ -602,11 +600,19 @@ bool LoadQueries(FILE* input, std::vector<std::string>* output) {
   while (!feof(input) && !ferror(input)) {
     std::string sql_query;
     while (fgets(buffer, sizeof(buffer), input)) {
-      if (IsBlankLine(buffer))
+      std::string line = buffer;
+      if (IsBlankLine(line))
         break;
-      sql_query.append(buffer);
+
+      if (IsCommentLine(line))
+        continue;
+
+      sql_query.append(line);
+
+      if (HasEndOfQueryDelimiter(line))
+        break;
     }
-    if (sql_query.back() == '\n')
+    if (!sql_query.empty() && sql_query.back() == '\n')
       sql_query.resize(sql_query.size() - 1);
 
     // If we have a new line at the end of the file or an extra new line
