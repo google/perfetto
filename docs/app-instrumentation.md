@@ -106,7 +106,8 @@ and performance analysis.
 A typical use case for track events is annotating a function with a scoped
 track event, so that function's execution shows up in a trace. To start using
 track events, first define the set of categories that your events will fall
-into. Each category can be separately enabled or disabled for tracing.
+into. Each category can be separately enabled or disabled for tracing (see
+[Category configuration](#category-configuration).
 
 Add the list of categories into a header file (e.g., `example_tracing.h`)
 like this:
@@ -216,26 +217,337 @@ TRACE_EVENT("category", "MyEvent", [&](perfetto::EventContext ctx) {
 });
 ```
 
+The lambda function passed to the macro is only called if tracing is enabled for
+the given category. It is always called synchronously and possibly multiple
+times if multiple concurrent tracing sessions are active.
+
 Now that you have instrumented your app with track events, you are ready to
 start [recording traces](recording-traces.md).
 
-# Custom data sources
-
-TODO(skyostil).
-
 ## Category configuration
 
-TODO(skyostil).
+All track events are assigned to one more trace categories. For example:
+
+```C++
+TRACE_EVENT("rendering", ...);  // Event in the "rendering" category.
+```
+
+By default, all non-debug and non-slow track event categories are enabled for
+tracing. *Debug* and *slow* categories are categories with special tags:
+
+  - `"debug"` categories can give more verbose debugging output for a particular
+    subsystem.
+  - `"slow"` categories record enough data that they can affect the interactive
+    performance of your app.
+
+Category tags can be can be defined like this:
+
+```C++
+perfetto::Category("rendering.debug")
+    .SetDescription("Debug events from the graphics subsystem")
+    .SetTags("debug", "my_custom_tag")
+```
+
+A single trace event can also belong to multiple categories:
+
+```C++
+// Event in the "rendering" and "benchmark" categories.
+TRACE_EVENT("rendering,benchmark", ...);
+```
+
+A corresponding category group entry must be added to the category registry:
+
+```C++
+perfetto::Category::Group("rendering,benchmark")
+```
+
+It's also possible to efficiently query whether a given category is enabled
+for tracing:
+
+```C++
+if (TRACE_EVENT_CATEGORY_ENABLED("rendering")) {
+  // ...
+}
+```
+
+The `TrackEventConfig` field in Perfetto's `TraceConfig` can be used to
+select which categories are enabled for tracing:
+
+```protobuf
+message TrackEventConfig {
+  // Each list item is a glob. Each category is matched against the lists
+  // as explained below.
+  repeated string disabled_categories = 1;  // Default: []
+  repeated string enabled_categories = 2;   // Default: []
+  repeated string disabled_tags = 3;        // Default: [“slow”, “debug”]
+  repeated string enabled_tags = 4;         // Default: []
+}
+```
+
+To determine if a category is enabled, it is checked against the filters in the
+following order:
+
+1. Exact matches in enabled categories.
+2. Exact matches in enabled tags.
+3. Exact matches in disabled categories.
+4. Exact matches in disabled tags.
+5. Pattern matches in enabled categories.
+6. Pattern matches in enabled tags.
+7. Pattern matches in disabled categories.
+8. Pattern matches in disabled tags.
+
+If none of the steps produced a match, the category is enabled by default. In
+other words, every category is implicitly enabled unless specifically disabled.
+For example:
+
+| Setting                         | Needed configuration                         |
+| ------------------------------- | -------------------------------------------- |
+| Enable just specific categories | `enabled_categories = [“foo”, “bar”, “baz”]` |
+|                                 | `disabled_categories = [“*”]`                |
+| Enable all non-slow categories  | (Happens by default.)                        |
+| Enable specific tags            | `disabled_tags = [“*”]`                      |
+|                                 | `enabled_tags = [“foo”, “bar”]`              |
+
+## Dynamic and test-only categories
+
+Ideally all trace categories should be defined at compile time as shown
+above, as this ensures trace points will have minimal runtime and binary size
+overhead. However, in some cases trace categories can only be determined at
+runtime (e.g., by JavaScript). These can be used by trace points as follows:
+
+```C++
+perfetto::DynamicCategory dynamic_category{"nodejs.something"};
+TRACE_EVENT(dynamic_category, "SomeEvent", ...);
+```
+
+> Tip: It's also possible to use dynamic event names by passing `nullptr` as
+> the name and filling in the `TrackEvent::name` field manually.
+
+Some trace categories are only useful for testing, and they should not make
+it into a production binary. These types of categories can be defined with a
+list of prefix strings:
+
+```C++
+PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES(
+   "test",
+   "cat"
+);
+```
+
+# Custom data sources
+
+For most uses, track events are the most straightforward way of instrumenting
+your app for tracing. However, in some rare circumstances they are not
+flexible enough, e.g., when the data doesn't fit the notion of a track or is
+high volume enough that it need strongly typed schema to minimize the size of
+each event. In this case, you can implement a *custom data source* for
+Perfetto.
+
+Note that when working with custom data sources, you will also need
+corresponding changes in [trace processor](trace-processor.md) to enable
+importing your data format.
+
+A custom data source is a subclass of `perfetto::DataSource`. Perfetto with
+automatically create one instance of the class for each tracing session it is
+active in (usually just one).
+
+```C++
+class CustomDataSource : public perfetto::DataSource<CustomDataSource> {
+ public:
+  void OnSetup(const SetupArgs&) override {
+    // Use this callback to apply any custom configuration to your data source
+    // based on the TraceConfig in SetupArgs.
+  }
+
+  void OnStart(const StartArgs&) override {
+    // This notification can be used to initialize the GPU driver, enable
+    // counters, etc. StartArgs will contains the DataSourceDescriptor,
+    // which can be extended.
+  }
+
+  void OnStop(const StopArgs&) override {
+    // Undo any initialization done in OnStart.
+  }
+
+  // Data sources can also have per-instance state.
+  int my_custom_state = 0;
+};
+```
+
+Custom data sources need to be registered with Perfetto:
+
+```C++
+int main(int argv, char** argc) {
+  ...
+  perfetto::Tracing::Initialize(args);
+  // Add the following:
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("com.example.custom_data_source");
+  CustomDataSource::Register(dsd);
+}
+```
+
+As with all data sources, the custom data source needs to be specified in the
+trace config to enable tracing:
+
+```C++
+perfetto::TraceConfig cfg;
+auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+ds_cfg->set_name("com.example.custom_data_source");
+```
+
+Finally, call the `Trace()` method to record an event with your custom data
+source. The lambda function passed to that method will only be called if tracing
+is enabled. It is always called synchronously and possibly multiple times if
+multiple concurrent tracing sessions are active.
+
+```C++
+CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+  auto packet = ctx.NewTracePacket();
+  packet->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
+  packet->set_for_testing()->set_str("Hello world!");
+});
+```
+
+If necessary the `Trace()` method can access the custom data source state
+(`my_custom_state` in the example above). Doing so, will take a mutex to
+ensure data source isn't destroyed (e.g., because of stopping tracing) while
+the `Trace()` method is called on another thread. For example:
+
+```C++
+CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+  auto safe_handle = trace_args.GetDataSourceLocked();  // Holds a RAII lock.
+  DoSomethingWith(safe_handle->my_custom_state);
+});
+```
+
+# Performance
+
+Perfetto's trace points are designed to have minimal overhead when tracing is
+disabled while providing high throughput for data intensive tracing use
+cases. While exact timings will depend on your system, there is a
+[microbenchmark](../src/tracing/api_benchmark.cc) which gives some ballpark
+figures:
+
+| Scenario | Runtime on Pixel 3 XL | Runtime on ThinkStation P920 |
+| -------- | --------------------- | ---------------------------- |
+| `TRACE_EVENT(...)` (disabled)              | 2 ns   | 1 ns   |
+| `TRACE_EVENT("cat", "name")`               | 285 ns | 630 ns |
+| `TRACE_EVENT("cat", "name", <lambda>)`     | 304 ns | 663 ns |
+| `TRACE_EVENT("cat", "name", "key", value)` | 354 ns | 664 ns |
+| `DataSource::Trace(<lambda>)` (disabled)   | 2 ns   | 1 ns   |
+| `DataSource::Trace(<lambda>)`              | 133 ns | 58 ns  |
 
 # Advanced topics
 
 ## Tracks
 
-TODO(skyostil).
+Every track event is associated with a track, which specifies the timeline
+the event belongs to. In most cases, a track corresponds to a visual
+horizontal track in the Perfetto UI like this:
+
+![Track timelines shown in the Perfetto UI](
+  track-timeline.png "Track timelines in the Perfetto UI")
+
+Events that describe parallel sequences (e.g., separate
+threads) should use separate tracks, while sequential events (e.g., nested
+function calls) generally belong on the same track.
+
+Perfetto supports three kinds of tracks:
+
+1. `Track` – a basic timeline.
+
+2. `ProcessTrack` – a timeline that represents a single process in the system.
+
+3. `ThreadTrack` – a timeline that represents a single thread in the system.
+
+Tracks can have a parent track, which is used to group related tracks
+together. For example, the parent of a `ThreadTrack` is the `ProcessTrack` of
+the process the thread belongs to. By default, tracks are grouped under the
+current process's `ProcessTrack`.
+
+A track is identified by a uuid, which must be unique across the entire
+recorded trace. To minimize the chances of accidental collisions, the uuids
+of child tracks are combined with those of their parents, with each
+`ProcessTrack` having a random, per-process uuid.
+
+By default, track events (e.g., `TRACE_EVENT`) use the `ThreadTrack` for the
+calling thread. This can be overridden, for example, to mark events that
+begin and end on a different thread:
+
+```C++
+void OnNewRequest(size_t request_id) {
+  // Open a slice when the request came in.
+  TRACE_EVENT_BEGIN("category", "HandleRequest", perfetto::Track(request_id));
+
+  // Start a thread to handle the request.
+  std::thread worker_thread([=] {
+    // ... produce response ...
+
+    // Close the slice for the request now that we finished handling it.
+    TRACE_EVENT_END("category", perfetto::Track(request_id));
+  });
+```
+Tracks can also optionally be annotated with metadata:
+
+```C++
+perfetto::TrackEvent::SetTrackDescriptor(
+    track, [](perfetto::protos::pbzero::TrackDescriptor* desc) {
+  desc->set_name("MyTrack");
+});
+```
+
+The metadata remains valid between tracing sessions. To free up data for a
+track, call EraseTrackDescriptor:
+
+```C++
+perfetto::TrackEvent::EraseTrackDescriptor(track);
+```
 
 ## Interning
 
-TODO(skyostil).
+Interning can be used to avoid repeating the same constant data (e.g., event
+names) throughout the trace. Perfetto automatically performs interning for
+most strings passed to `TRACE_EVENT`, but it's also possible to also define
+your own types of interned data.
+
+First, define an interning index for your type. It should map to a specific
+field of
+[interned_data.proto](../protos/perfetto/trace/interned_data/interned_data.proto)
+and specify how the interned data is written into that message when seen for
+the first time.
+
+```C++
+struct MyInternedData
+    : public perfetto::TrackEventInternedDataIndex<
+        MyInternedData,
+        perfetto::protos::pbzero::InternedData::kMyInternedDataFieldNumber,
+        const char*> {
+  static void Add(perfetto::protos::pbzero::InternedData* interned_data,
+                   size_t iid,
+                   const char* value) {
+    auto my_data = interned_data->add_my_interned_data();
+    my_data->set_iid(iid);
+    my_data->set_value(value);
+  }
+};
+```
+
+Next, use your interned data in a trace point as shown below. The interned
+string will only be emitted the first time the trace point is hit (unless the
+trace buffer has wrapped around).
+
+```C++
+TRACE_EVENT(
+   "category", "Event", [&](perfetto::EventContext ctx) {
+     auto my_message = ctx.event()->set_my_message();
+     size_t iid = MyInternedData::Get(&ctx, "Repeated data to be interned");
+     my_message->set_iid(iid);
+   });
+```
+
+Note that interned data is strongly typed, i.e., each class of interned data
+uses a separate namespace for identifiers.
 
 ## Counters
 
