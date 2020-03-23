@@ -124,9 +124,7 @@ class CpuSliceTrack extends Track<Config, Data> {
       }
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
-      const rectWidth = rectEnd - rectStart;
-      if (rectWidth < 0.3) continue;
-
+      const rectWidth = Math.max(1, rectEnd - rectStart);
       const threadInfo = globals.threads.get(utid);
 
       // TODO: consider de-duplicating this code with the copied one from
@@ -162,7 +160,7 @@ class CpuSliceTrack extends Track<Config, Data> {
         color.s -= 20;
       }
       ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-      ctx.fillRect(rectStart, MARGIN_TOP, rectEnd - rectStart, RECT_HEIGHT);
+      ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
@@ -189,12 +187,13 @@ class CpuSliceTrack extends Track<Config, Data> {
         const color = colorForThread(globals.threads.get(utid));
         const rectStart = timeScale.timeToPx(tStart);
         const rectEnd = timeScale.timeToPx(tEnd);
+        const rectWidth = Math.max(1, rectEnd - rectStart);
+
         // Draw a rectangle around the slice that is currently selected.
         ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
         ctx.beginPath();
         ctx.lineWidth = 3;
-        ctx.strokeRect(
-            rectStart, MARGIN_TOP - 1.5, rectEnd - rectStart, RECT_HEIGHT + 3);
+        ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth, RECT_HEIGHT + 3);
         ctx.closePath();
         // Draw arrow from wakeup time of current slice.
         if (details.wakeupTs) {
