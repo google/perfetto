@@ -274,7 +274,6 @@
   transition: opacity 0.25s ease;
   opacity: 0;
   visibility: hidden;
-  overflow: auto;
 
   &:not(.active) {
     max-height: 0;
