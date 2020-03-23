@@ -5923,6 +5923,7 @@ filegroup {
     "src/profiling/memory/client_unittest.cc",
     "src/profiling/memory/heapprofd_producer_unittest.cc",
     "src/profiling/memory/page_idle_checker_unittest.cc",
+    "src/profiling/memory/parse_smaps_unittest.cc",
     "src/profiling/memory/sampler_unittest.cc",
     "src/profiling/memory/system_property_unittest.cc",
     "src/profiling/memory/unwinding_unittest.cc",
