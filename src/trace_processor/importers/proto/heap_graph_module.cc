@@ -159,6 +159,15 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     }
     heap_graph_tracker->AddObject(seq_id, upid, ts, std::move(obj));
   }
+  for (auto it = heap_graph.types(); it; ++it) {
+    protos::pbzero::HeapGraphType::Decoder entry(*it);
+    const char* str = reinterpret_cast<const char*>(entry.class_name().data);
+    auto str_view = base::StringView(str, entry.class_name().size);
+
+    heap_graph_tracker->AddInternedType(
+        seq_id, entry.id(), context_->storage->InternString(str_view),
+        entry.location_id());
+  }
   for (auto it = heap_graph.type_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
     const char* str = reinterpret_cast<const char*>(entry.str().data);
@@ -173,6 +182,14 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     auto str_view = base::StringView(str, entry.str().size);
 
     heap_graph_tracker->AddInternedFieldName(seq_id, entry.iid(), str_view);
+  }
+  for (auto it = heap_graph.location_names(); it; ++it) {
+    protos::pbzero::InternedString::Decoder entry(*it);
+    const char* str = reinterpret_cast<const char*>(entry.str().data);
+    auto str_view = base::StringView(str, entry.str().size);
+
+    heap_graph_tracker->AddInternedLocationName(
+        seq_id, entry.iid(), context_->storage->InternString(str_view));
   }
   for (auto it = heap_graph.roots(); it; ++it) {
     protos::pbzero::HeapGraphRoot::Decoder entry(*it);
