@@ -68,10 +68,10 @@ std::string GetCurExecutableDir() {
 std::string GetTestDataPath(const std::string& path) {
   std::string self_path = GetCurExecutableDir();
   std::string full_path = self_path + "/../../" + path;
-  if (access(full_path.c_str(), F_OK) == 0)
+  if (access(full_path.c_str(), 0 /*F_OK*/) == 0)
     return full_path;
   full_path = self_path + "/" + path;
-  if (access(full_path.c_str(), F_OK) == 0)
+  if (access(full_path.c_str(), 0 /*F_OK*/) == 0)
     return full_path;
   // Fall back to relative to root dir.
   return path;
