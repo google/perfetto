@@ -52,7 +52,7 @@ source_set("base") {
     ]
   }
 
-  if (!is_win && !is_nacl) {
+  if (!is_win && !is_nacl && !is_fuchsia) {
     sources += [ "subprocess.cc" ]
   }
 
@@ -146,7 +146,7 @@ perfetto_unittest_source_set("unittests") {
       "utils_unittest.cc",
     ]
   }
-  if (!is_win && !is_nacl) {
+  if (!is_win && !is_nacl && !is_fuchsia) {
     sources += [ "subprocess_unittest.cc" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
