@@ -194,7 +194,7 @@ TEST(SubprocessTest, Entrypoint) {
   p.args.stdout_mode = Subprocess::kBuffer;
   p.args.entrypoint_for_testing = [] {
     char buf[32]{};
-    fgets(buf, sizeof(buf), stdin);
+    PERFETTO_CHECK(fgets(buf, sizeof(buf), stdin));
     PERFETTO_CHECK(strcmp(buf, "ping\n") == 0);
     printf("pong\n");
     fflush(stdout);
