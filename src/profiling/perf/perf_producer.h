@@ -167,10 +167,14 @@ class PerfProducer : public Producer,
                                 DataSourceInstanceID ds_id,
                                 DataSourceState* ds);
 
-  void PostDescriptorLookupTimeout(DataSourceInstanceID ds_id,
-                                   pid_t pid,
-                                   uint32_t timeout_ms);
-  void DescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
+  void InitiateDescriptorLookup(DataSourceInstanceID ds_id,
+                                pid_t pid,
+                                uint32_t timeout_ms);
+  // Do not call directly, use |InitiateDescriptorLookup|.
+  void StartDescriptorLookup(DataSourceInstanceID ds_id,
+                             pid_t pid,
+                             uint32_t timeout_ms);
+  void EvaluateDescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
 
   void EmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
   void EmitRingBufferLoss(DataSourceInstanceID ds_id,
