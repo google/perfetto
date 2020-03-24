@@ -12,22 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Notes:
+# * socket used for receiving /proc/pid/{maps,mem} file descriptors
+# * readproc group to stat(/proc/pid) to find out UID of processes, and read
+#   /proc/pid/cmdline.
+# * KILL capability for sending BIONIC_SIGNAL_PROFILER.
+# * DAC_READ_SEARCH capability for stack unwinding and on-device symbolization (requires
+#   opening libraries/executables for sections not already mapped in).
+# * foreground task group as unwinding based on minidebug info is a heavyweight action.
 service traced_perf /system/bin/traced_perf
     class late_start
-    # socket for receiving /proc/pid/{maps,mem} file descriptors
     socket traced_perf stream 0666 root root
     user nobody
-    # readproc to stat(/proc/pid) to find out UID of processes, and read
-    # /proc/pid/cmdline.
     group nobody readproc
-    # KILL for sending BIONIC_SIGNAL_PROFILER.
-    # DAC_READ_SEARCH for stack unwinding and on-device symbolization (requires
-    # opening libraries/executables for sections not already mapped in).
     capabilities KILL DAC_READ_SEARCH
     writepid /dev/cpuset/foreground/tasks
 
+# Daemon run state:
+# * initially off (no clauses match by default)
+# * |persist.traced_perf.enable| forces daemon to run unconditionally
+# * if kernel doesn't have perf_event_open LSM hooks, daemon is stopped
+# * otherwise, follow |traced.lazy.traced_perf| as an on-demand service
 on property:persist.traced_perf.enable=1
     start traced_perf
-on property:persist.traced_perf.enable=0
+on property:persist.traced_perf.enable=0 && property:sys.init.perf_lsm_hooks=""
+    stop traced_perf
+on property:persist.traced_perf.enable=0 && property:sys.init.perf_lsm_hooks=1 && property:traced.lazy.traced_perf=1
+    start traced_perf
+on property:persist.traced_perf.enable=0 && property:sys.init.perf_lsm_hooks=1 && property:traced.lazy.traced_perf=""
     stop traced_perf
 

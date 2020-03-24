@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACKER_H_
 
 #include "src/trace_processor/destructible.h"
-#include "src/trace_processor/importers/json/json_trace_utils.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/trace_processor_context.h"
 
 namespace Json {

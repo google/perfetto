@@ -65,6 +65,7 @@ source_set("producer") {
     "../common:proc_utils",
   ]
   sources = [
+    "event_config.cc",
     "event_config.h",
     "event_reader.cc",
     "event_reader.h",
@@ -133,8 +134,7 @@ source_set("producer_unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/config:cpp",
-    "../../../protos/perfetto/config:zero",
-    "../../../protos/perfetto/config/profiling:zero",
+    "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../src/protozero",
     "../../base",

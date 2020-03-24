@@ -14,15 +14,9 @@
  * limitations under the License.
  */
 
-// For bazel build.
-#include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
 #include <inttypes.h>
-#include <json/reader.h>
-#include <json/value.h>
 
 #include <limits>
 #include <string>
@@ -30,8 +24,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/importers/json/json_trace_utils.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_processor_context.h"
@@ -53,6 +47,9 @@ void JsonTraceParser::ParseFtracePacket(uint32_t,
 
 void JsonTraceParser::ParseTracePacket(int64_t timestamp,
                                        TimestampedTracePiece ttp) {
+  PERFETTO_DCHECK(json::IsJsonSupported());
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
                   ttp.type == TimestampedTracePiece::Type::kSystraceLine);
   if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
@@ -93,15 +90,22 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   StringId name_id = storage->InternString(name);
   UniqueTid utid = procs->UpdateThread(tid, pid);
 
+  auto args_inserter = [this, &value](ArgsTracker::BoundInserter* inserter) {
+    if (value.isMember("args")) {
+      json::AddJsonValueToArgs(value["args"], /* flat_key = */ "args",
+                               /* key = */ "args", context_->storage.get(),
+                               inserter);
+    }
+  };
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->Begin(timestamp, track_id, cat_id, name_id);
+      slice_tracker->Begin(timestamp, track_id, cat_id, name_id, args_inserter);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->End(timestamp, track_id, cat_id, name_id);
+      slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
@@ -111,7 +115,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
-                            opt_dur.value());
+                            opt_dur.value(), args_inserter);
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
@@ -130,9 +134,14 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
     }
   }
+#else
+  perfetto::base::ignore_result(timestamp);
+  perfetto::base::ignore_result(ttp);
+  perfetto::base::ignore_result(context_);
+  PERFETTO_ELOG("Cannot parse JSON trace due to missing JSON support");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)

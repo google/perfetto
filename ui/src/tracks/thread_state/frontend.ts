@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import {search, searchEq} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
 import {translateState} from '../../common/thread_state';
-import {colorForState} from '../../frontend/colorizer';
+import {checkerboardExcept} from '../../frontend/checkerboard';
+import {Color, colorForState} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -26,13 +26,27 @@ import {trackRegistry} from '../../frontend/track_registry';
 import {
   Config,
   Data,
-  groupBusyStates,
+  StatePercent,
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
 const MARGIN_TOP = 4;
 const RECT_HEIGHT = 14;
 const EXCESS_WIDTH = 10;
+
+function groupBusyStates(resolution: number) {
+  return resolution >= 0.0001;
+}
+
+function getSummarizedSliceText(breakdownMap: StatePercent) {
+  let result = 'Various (';
+  const sorted =
+      new Map([...breakdownMap.entries()].sort((a, b) => b[1] - a[1]));
+  for (const [state, value] of sorted.entries()) {
+    result += `${state}: ${value * 100}%, `;
+  }
+  return result.slice(0, result.length - 2) + ')';
+}
 
 class ThreadStateTrack extends Track<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
@@ -55,6 +69,15 @@ class ThreadStateTrack extends Track<Config, Data> {
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
+    checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        timeScale.timeToPx(visibleWindowTime.start),
+        timeScale.timeToPx(visibleWindowTime.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end),
+    );
+
     const shouldGroupBusyStates = groupBusyStates(data.resolution);
 
     ctx.textAlign = 'center';
@@ -72,9 +95,16 @@ class ThreadStateTrack extends Track<Config, Data> {
         if (state === 'x') continue;
         const rectStart = timeScale.timeToPx(tStart);
         const rectEnd = timeScale.timeToPx(tEnd);
-        const color = colorForState(state);
-        ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
         let rectWidth = rectEnd - rectStart;
+        const color = colorForState(state);
+        let text = translateState(state);
+        const breakdown = data.summarisedStateBreakdowns.get(i);
+        if (breakdown) {
+          colorSummarizedSlice(breakdown, rectStart, rectEnd);
+          text = getSummarizedSliceText(breakdown);
+        } else {
+          ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
+        }
         if (shouldGroupBusyStates && rectWidth < 1) {
           rectWidth = 1;
         }
@@ -82,9 +112,9 @@ class ThreadStateTrack extends Track<Config, Data> {
 
         // Don't render text when we have less than 10px to play with.
         if (rectWidth < 10) continue;
-        const title = cropText(translateState(state), charWidth, rectWidth);
+        const title = cropText(text, charWidth, rectWidth);
         const rectXCenter = rectStart + rectWidth / 2;
-        ctx.fillStyle = color.l < 80 ? '#fff' : '#404040';
+        ctx.fillStyle = color.l > 80 || breakdown ? '#404040' : '#fff';
         ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
       }
     }
@@ -115,6 +145,35 @@ class ThreadStateTrack extends Track<Config, Data> {
             rectStart, MARGIN_TOP - 1.5, rectEnd - rectStart, RECT_HEIGHT + 3);
         ctx.closePath();
       }
+    }
+
+    // Make a gradient ordered most common to least based on the colors of the
+    // states within the summarized slice.
+    function colorSummarizedSlice(
+        breakdownMap: StatePercent, rectStart: number, rectEnd: number) {
+      const gradient =
+          ctx.createLinearGradient(rectStart, MARGIN_TOP, rectEnd, MARGIN_TOP);
+      // Sometimes multiple states have the same color e.g R, R+
+      const colorMap = new Map<Color, number>();
+      for (const [state, value] of breakdownMap.entries()) {
+        const color = colorForState(state);
+        const currentColorValue = colorMap.get(color);
+        if (currentColorValue === undefined) {
+          colorMap.set(color, value);
+        } else {
+          colorMap.set(color, currentColorValue + value);
+        }
+      }
+
+      const sorted =
+          new Map([...colorMap.entries()].sort((a, b) => b[1] - a[1]));
+      let colorStop = 0;
+      for (const [color, value] of sorted.entries()) {
+        const colorString = `hsl(${color.h},${color.s}%,${color.l}%)`;
+        colorStop = Math.max(0, Math.min(1, colorStop + value));
+        gradient.addColorStop(colorStop, colorString);
+      }
+      ctx.fillStyle = gradient;
     }
   }
 

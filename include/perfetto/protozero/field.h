@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
@@ -184,9 +185,16 @@ class Field {
 
   // Serializes the field back into a proto-encoded byte stream and appends it
   // to |dst|. |dst| is resized accordingly.
-  void SerializeAndAppendTo(std::string* dst);
+  void SerializeAndAppendTo(std::string* dst) const;
+
+  // Serializes the field back into a proto-encoded byte stream and appends it
+  // to |dst|. |dst| is resized accordingly.
+  void SerializeAndAppendTo(std::vector<uint8_t>* dst) const;
 
  private:
+  template <typename Container>
+  void SerializeAndAppendToInternal(Container* dst) const;
+
   // Fields are deliberately not initialized to keep the class trivially
   // constructible. It makes a large perf difference for ProtoDecoder.
 
