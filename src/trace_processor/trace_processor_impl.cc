@@ -329,9 +329,8 @@ void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
 void LastNonNullStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (argc != 1) {
-    sqlite3_result_error(ctx,
-                         "Unsupported number of args passed to LAST_NON_NULL",
-                         -1);
+    sqlite3_result_error(
+        ctx, "Unsupported number of args passed to LAST_NON_NULL", -1);
     return;
   }
   sqlite3_value* value = argv[0];

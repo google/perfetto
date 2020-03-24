@@ -26,6 +26,23 @@
 namespace perfetto {
 namespace trace_processor {
 
+class SystraceSerializer {
+ public:
+  using ScopedCString = std::unique_ptr<char, void (*)(void*)>;
+
+  SystraceSerializer(const TraceStorage* storage);
+
+  ScopedCString SerializeToString(uint32_t raw_row);
+
+ private:
+  using StringIdMap = std::unordered_map<StringId, std::vector<uint32_t>>;
+
+  void SerializePrefix(uint32_t raw_row, base::StringWriter* writer);
+
+  StringIdMap proto_id_to_arg_index_by_event_;
+  const TraceStorage* storage_ = nullptr;
+};
+
 class SqliteRawTable : public DbSqliteTable {
  public:
   struct Context {
@@ -41,7 +58,7 @@ class SqliteRawTable : public DbSqliteTable {
  private:
   void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
-  const TraceStorage* const storage_;
+  SystraceSerializer serializer_;
 };
 
 }  // namespace trace_processor
