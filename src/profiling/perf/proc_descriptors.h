@@ -42,6 +42,9 @@ class ProcDescriptorGetter {
  public:
   virtual void GetDescriptorsForPid(pid_t pid) = 0;
   virtual void SetDelegate(ProcDescriptorDelegate* delegate) = 0;
+  // TODO(b/151835887): attempt to remove the race condition in the Android
+  // platform itself, and remove this best-effort workaround.
+  virtual bool RequiresDelayedRequest() { return false; }
 
   virtual ~ProcDescriptorGetter();
 };
@@ -75,6 +78,7 @@ class AndroidRemoteDescriptorGetter : public ProcDescriptorGetter,
   // ProcDescriptorGetter impl:
   void GetDescriptorsForPid(pid_t pid) override;
   void SetDelegate(ProcDescriptorDelegate* delegate) override;
+  bool RequiresDelayedRequest() override { return true; }
 
   // UnixSocket::EventListener impl:
   void OnNewIncomingConnection(
