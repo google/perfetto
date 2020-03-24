@@ -90,6 +90,8 @@ def AdbCall(*args):
 
 
 def AdbPush(host, device):
+  if not os.path.exists(host):
+    logging.fatal('Cannot find %s. Was it built?', host)
   cmd = [ADB_PATH, 'push', host, device]
   print '> adb push ' + ' '.join(cmd[2:])
   with open(os.devnull) as devnull:
@@ -153,6 +155,10 @@ def Main():
   #
   # See https://android.googlesource.com/platform/system/core/+/master/rootdir/etc/ld.config.txt.
   AdbPush(test_bin, "/data/nativetest")
+
+  # These two binaries are required to run perfetto_integrationtests.
+  AdbPush(os.path.join(args.out_dir, "perfetto"), "/data/nativetest")
+  AdbPush(os.path.join(args.out_dir, "trigger_perfetto"), "/data/nativetest")
 
   if not args.no_data_deps:
     for dep in EnumerateDataDeps():

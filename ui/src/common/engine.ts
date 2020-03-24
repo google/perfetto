@@ -89,7 +89,18 @@ export abstract class Engine {
   async queryOneRow(query: string): Promise<number[]> {
     const result = await this.query(query);
     const res: number[] = [];
-    result.columns.map(c => res.push(+c.longValues![0]));
+    if (result.numRecords === 0) return res;
+    for (const col of result.columns) {
+      if (col.longValues!.length === 0) {
+        console.error(
+            `queryOneRow should only be used for queries that return long values
+             : ${query}`);
+        throw new Error(
+            `queryOneRow should only be used for queries that return long values
+             : ${query}`);
+      }
+      res.push(+col.longValues![0]);
+    }
     return res;
   }
 

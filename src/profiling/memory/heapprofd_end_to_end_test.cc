@@ -22,6 +22,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/heapprofd_producer.h"
@@ -126,19 +127,11 @@ void __attribute__((noreturn)) ContinuousMalloc(size_t bytes) {
   }
 }
 
-pid_t ForkContinuousMalloc(size_t bytes) {
-  // Make sure forked process does not get reparented to init.
-  setsid();
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      PERFETTO_FATAL("Failed to fork.");
-    case 0:
-      ContinuousMalloc(bytes);
-    default:
-      break;
-  }
-  return pid;
+base::Subprocess ForkContinuousMalloc(size_t bytes) {
+  base::Subprocess proc;
+  proc.args.entrypoint_for_testing = [bytes] { ContinuousMalloc(bytes); };
+  proc.Start();
+  return proc;
 }
 
 void __attribute__((constructor)) RunContinuousMalloc() {
@@ -309,22 +302,18 @@ class HeapprofdEndToEnd : public ::testing::TestWithParam<bool> {
   }
 };
 
-void KillAssertRunning(pid_t pid) {
-  char buf[128];
-  PERFETTO_CHECK(snprintf(buf, sizeof(buf), "/proc/%" PRIdMAX,
-                          static_cast<intmax_t>(pid)) > 0);
-  // Assert /proc/<pid> exists.
-  struct stat unused;
-  PERFETTO_CHECK(stat(buf, &unused) == 0);
-  int wstatus;
-  PERFETTO_CHECK(kill(pid, SIGKILL) == 0);
-  PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, &wstatus, 0)) == pid);
+// This checks that the child is still running (to ensure it didn't crash
+// unxpectedly) and then kills it.
+void KillAssertRunning(base::Subprocess* child) {
+  ASSERT_EQ(child->Poll(), base::Subprocess::kRunning);
+  child->KillAndWaitForTermination();
 }
 
 TEST_P(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
 
-  pid_t pid = ForkContinuousMalloc(kAllocSize);
+  base::Subprocess child = ForkContinuousMalloc(kAllocSize);
+  const auto pid = child.pid();
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
@@ -350,15 +339,17 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   constexpr size_t kAllocSize = 1024;
   constexpr size_t kAllocSize2 = 7;
 
-  pid_t pid = ForkContinuousMalloc(kAllocSize);
-  pid_t pid2 = ForkContinuousMalloc(kAllocSize2);
+  base::Subprocess child = ForkContinuousMalloc(kAllocSize);
+  base::Subprocess child2 = ForkContinuousMalloc(kAllocSize2);
+  const auto pid = child.pid();
+  const auto pid2 = child2.pid();
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
@@ -383,14 +374,15 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
 
-  KillAssertRunning(pid);
-  KillAssertRunning(pid2);
+  KillAssertRunning(&child);
+  KillAssertRunning(&child2);
 }
 
 TEST_P(HeapprofdEndToEnd, FinalFlush) {
   constexpr size_t kAllocSize = 1024;
 
-  pid_t pid = ForkContinuousMalloc(kAllocSize);
+  base::Subprocess child = ForkContinuousMalloc(kAllocSize);
+  const auto pid = child.pid();
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
@@ -413,7 +405,7 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, NativeStartup) {
@@ -442,32 +434,19 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
   // has received the trace config.
   sleep(1);
 
-  // Make sure the forked process does not get reparented to init.
-  setsid();
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      PERFETTO_FATAL("Failed to fork.");
-    case 0: {
-      const char* envp[] = {"HEAPPROFD_TESTING_RUN_MALLOC=1", nullptr};
-      int null = open("/dev/null", O_RDWR);
-      dup2(null, STDIN_FILENO);
-      dup2(null, STDOUT_FILENO);
-      dup2(null, STDERR_FILENO);
-      PERFETTO_CHECK(execle("/proc/self/exe", "heapprofd_continuous_malloc",
-                            nullptr, envp) == 0);
-      break;
-    }
-    default:
-      break;
-  }
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.argv0_override = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC=1");
+  child.Start();
 
   helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -481,7 +460,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
-      EXPECT_EQ(static_cast<pid_t>(dump.pid()), pid);
+      EXPECT_EQ(static_cast<pid_t>(dump.pid()), child.pid());
       profile_packets++;
       for (const auto& sample : dump.samples()) {
         samples++;
@@ -522,32 +501,19 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
   // has received the trace config.
   sleep(1);
 
-  // Make sure the forked process does not get reparented to init.
-  setsid();
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      PERFETTO_FATAL("Failed to fork.");
-    case 0: {
-      const char* envp[] = {"HEAPPROFD_TESTING_RUN_MALLOC=1", nullptr};
-      int null = open("/dev/null", O_RDWR);
-      dup2(null, STDIN_FILENO);
-      dup2(null, STDOUT_FILENO);
-      dup2(null, STDERR_FILENO);
-      PERFETTO_CHECK(execle("/proc/self/exe", "heapprofd_continuous_malloc",
-                            nullptr, envp) == 0);
-      break;
-    }
-    default:
-      break;
-  }
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.argv0_override = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC=1");
+  child.Start();
 
   helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -561,7 +527,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
-      EXPECT_EQ(static_cast<pid_t>(dump.pid()), pid);
+      EXPECT_EQ(static_cast<pid_t>(dump.pid()), child.pid());
       profile_packets++;
       for (const auto& sample : dump.samples()) {
         samples++;
@@ -593,25 +559,12 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   heapprofd_config.set_all(false);
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
-  // Make sure the forked process does not get reparented to init.
-  setsid();
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      PERFETTO_FATAL("Failed to fork.");
-    case 0: {
-      const char* envp[] = {"HEAPPROFD_TESTING_RUN_MALLOC=1", nullptr};
-      int null = open("/dev/null", O_RDWR);
-      dup2(null, STDIN_FILENO);
-      dup2(null, STDOUT_FILENO);
-      dup2(null, STDERR_FILENO);
-      PERFETTO_CHECK(execle("/proc/self/exe", "heapprofd_continuous_malloc",
-                            nullptr, envp) == 0);
-      break;
-    }
-    default:
-      break;
-  }
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.argv0_override = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC=1");
+  child.Start();
 
   // Wait to make sure process is fully initialized, so we do not accidentally
   // match it by the startup logic.
@@ -623,7 +576,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -637,7 +590,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
-      EXPECT_EQ(static_cast<pid_t>(dump.pid()), pid);
+      EXPECT_EQ(static_cast<pid_t>(dump.pid()), child.pid());
       profile_packets++;
       for (const auto& sample : dump.samples()) {
         samples++;
@@ -670,24 +623,12 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   // Make sure the forked process does not get reparented to init.
-  setsid();
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      PERFETTO_FATAL("Failed to fork.");
-    case 0: {
-      const char* envp[] = {"HEAPPROFD_TESTING_RUN_MALLOC=1", nullptr};
-      int null = open("/dev/null", O_RDWR);
-      dup2(null, STDIN_FILENO);
-      dup2(null, STDOUT_FILENO);
-      dup2(null, STDERR_FILENO);
-      PERFETTO_CHECK(execle("/proc/self/exe", "heapprofd_continuous_malloc",
-                            nullptr, envp) == 0);
-      break;
-    }
-    default:
-      break;
-  }
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.argv0_override = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC=1");
+  child.Start();
 
   // Wait to make sure process is fully initialized, so we do not accidentally
   // match it by the startup logic.
@@ -699,7 +640,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
@@ -713,7 +654,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
-      EXPECT_EQ(static_cast<pid_t>(dump.pid()), pid);
+      EXPECT_EQ(static_cast<pid_t>(dump.pid()), child.pid());
       profile_packets++;
       for (const auto& sample : dump.samples()) {
         samples++;
@@ -735,34 +676,35 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   base::Pipe signal_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
   base::Pipe ack_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
 
-  setsid();
-  pid_t pid = fork();
-  switch (pid) {
-    case -1:
-      PERFETTO_FATAL("Failed to fork.");
-    case 0: {
-      size_t bytes = kFirstIterationBytes;
-      signal_pipe.wr.reset();
-      ack_pipe.rd.reset();
-      for (;;) {
-        AllocateAndFree(bytes);
-        char buf[1];
-        if (bool(signal_pipe.rd) &&
-            read(*signal_pipe.rd, buf, sizeof(buf)) == 0) {
-          // make sure the client has noticed that the session has stopped
-          AllocateAndFree(bytes);
+  base::Subprocess child;
+  int signal_pipe_rd = *signal_pipe.rd;
+  int ack_pipe_wr = *ack_pipe.wr;
+  child.args.preserve_fds.push_back(signal_pipe_rd);
+  child.args.preserve_fds.push_back(ack_pipe_wr);
+  child.args.entrypoint_for_testing = [signal_pipe_rd, ack_pipe_wr] {
+    // The Subprocess harness takes care of closing all the unused pipe ends.
+    size_t bytes = kFirstIterationBytes;
+    bool signalled = false;
+    for (;;) {
+      AllocateAndFree(bytes);
+      char buf[1];
+      if (!signalled && read(signal_pipe_rd, buf, sizeof(buf)) == 1) {
+        signalled = true;
+        PERFETTO_EINTR(close(signal_pipe_rd));
 
-          bytes = kSecondIterationBytes;
-          signal_pipe.rd.reset();
-          ack_pipe.wr.reset();
-        }
-        usleep(10 * kMsToUs);
+        // make sure the client has noticed that the session has stopped
+        AllocateAndFree(bytes);
+
+        bytes = kSecondIterationBytes;
+        PERFETTO_CHECK(PERFETTO_EINTR(write(ack_pipe_wr, "1", 1)) == 1);
+        PERFETTO_EINTR(close(ack_pipe_wr));
       }
-      PERFETTO_FATAL("Should be unreachable");
+      usleep(10 * kMsToUs);
     }
-    default:
-      break;
-  }
+    PERFETTO_FATAL("Should be unreachable");
+  };
+  child.Start();
+  auto pid = child.pid();
 
   signal_pipe.rd.reset();
   ack_pipe.wr.reset();
@@ -789,9 +731,10 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
                       kFirstIterationBytes);
 
+  PERFETTO_CHECK(PERFETTO_EINTR(write(*signal_pipe.wr, "1", 1)) == 1);
   signal_pipe.wr.reset();
   char buf[1];
-  ASSERT_EQ(read(*ack_pipe.rd, buf, sizeof(buf)), 0);
+  ASSERT_EQ(PERFETTO_EINTR(read(*ack_pipe.rd, buf, sizeof(buf))), 1);
   ack_pipe.rd.reset();
 
   // A brief sleep to allow the client to notice that the profiling session is
@@ -806,13 +749,14 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
                       kSecondIterationBytes);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   constexpr size_t kAllocSize = 1024;
 
-  pid_t pid = ForkContinuousMalloc(kAllocSize);
+  base::Subprocess child = ForkContinuousMalloc(kAllocSize);
+  const auto pid = child.pid();
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
@@ -856,18 +800,20 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   ValidateRejectedConcurrent(helper_concurrent.get(),
                              static_cast<uint64_t>(pid), true);
 
-  KillAssertRunning(pid);
+  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   constexpr uint64_t kTestAllocSize = 128;
   base::Pipe start_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
+  base::Subprocess child;
+  int start_pipe_wr = *start_pipe.wr;
+  child.args.preserve_fds.push_back(start_pipe_wr);
+  child.args.entrypoint_for_testing = [start_pipe_wr] {
+    PERFETTO_CHECK(PERFETTO_EINTR(write(start_pipe_wr, "1", 1)) == 1);
+    PERFETTO_CHECK(PERFETTO_EINTR(close(start_pipe_wr)) == 0);
 
-  setsid();
-  pid_t pid = fork();
-  if (pid == 0) {  // child
-    start_pipe.rd.reset();
-    start_pipe.wr.reset();
+    // The subprocess harness will take care of closing
     for (int i = 0; i < 200; i++) {
       // malloc and leak, otherwise the free batching will cause us to filter
       // out the allocations (as we don't see the interleaved frees).
@@ -877,10 +823,9 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
       }
       usleep(10 * kMsToUs);
     }
-    exit(0);
-  }
-
-  ASSERT_NE(pid, -1) << "Failed to fork.";
+  };
+  child.Start();
+  auto pid = child.pid();
   start_pipe.wr.reset();
 
   // Construct tracing config (without starting profiling).
@@ -900,20 +845,16 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 
   // Wait for child to have been scheduled at least once.
   char buf[1] = {};
-  ASSERT_EQ(PERFETTO_EINTR(read(*start_pipe.rd, buf, sizeof(buf))), 0);
+  ASSERT_EQ(PERFETTO_EINTR(read(*start_pipe.rd, buf, sizeof(buf))), 1);
   start_pipe.rd.reset();
 
   // Trace until child exits.
   helper->StartTracing(trace_config);
 
-  siginfo_t siginfo = {};
-  int wait_ret =
-      PERFETTO_EINTR(waitid(P_PID, static_cast<id_t>(pid), &siginfo, WEXITED));
-  ASSERT_FALSE(wait_ret) << "Failed to waitid.";
-
-  // Assert that the child exited successfully.
-  EXPECT_EQ(siginfo.si_code, CLD_EXITED) << "Child did not exit by itself.";
-  EXPECT_EQ(siginfo.si_status, 0) << "Child's exit status not successful.";
+  // Wait for the child and assert that it exited successfully.
+  EXPECT_TRUE(child.Wait(30000));
+  EXPECT_EQ(child.status(), base::Subprocess::kExited);
+  EXPECT_EQ(child.returncode(), 0);
 
   // Assert that we did profile the process.
   helper->FlushAndWait(2000);

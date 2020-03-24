@@ -52,6 +52,10 @@ source_set("base") {
     ]
   }
 
+  if (!is_win && !is_nacl && !is_fuchsia) {
+    sources += [ "subprocess.cc" ]
+  }
+
   if (enable_stack_trace) {
     deps += [ ":debug_crash_stack_trace" ]
   }
@@ -141,6 +145,9 @@ perfetto_unittest_source_set("unittests") {
       "thread_task_runner_unittest.cc",
       "utils_unittest.cc",
     ]
+  }
+  if (!is_win && !is_nacl && !is_fuchsia) {
+    sources += [ "subprocess_unittest.cc" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     # This causes some problems on the chromium waterfall.

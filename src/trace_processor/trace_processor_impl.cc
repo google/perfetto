@@ -26,10 +26,11 @@
 #include "src/trace_processor/additional_modules.h"
 #include "src/trace_processor/experimental_counter_dur_generator.h"
 #include "src/trace_processor/experimental_flamegraph_generator.h"
-#include "src/trace_processor/gzip_trace_parser.h"
+#include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
+#include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -47,10 +48,6 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#include "src/trace_processor/export_json.h"
-#endif
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <cxxabi.h>
@@ -246,7 +243,6 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 void ExportJson(sqlite3_context* ctx, int /*argc*/, sqlite3_value** argv) {
   TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
   FILE* output;
@@ -282,7 +278,6 @@ void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
     PERFETTO_ELOG("Error initializing EXPORT_JSON");
   }
 }
-#endif
 
 void Hash(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   base::Hash hash;
@@ -334,9 +329,8 @@ void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
 void LastNonNullStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (argc != 1) {
-    sqlite3_result_error(ctx,
-                         "Unsupported number of args passed to LAST_NON_NULL",
-                         -1);
+    sqlite3_result_error(
+        ctx, "Unsupported number of args passed to LAST_NON_NULL", -1);
     return;
   }
   sqlite3_value* value = argv[0];
@@ -457,14 +451,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   context_.systrace_trace_parser.reset(new SystraceTraceParser(&context_));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  context_.gzip_trace_parser.reset(new GzipTraceParser(&context_));
-#endif
+  if (gzip::IsGzipSupported())
+    context_.gzip_trace_parser.reset(new GzipTraceParser(&context_));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
-  context_.json_trace_parser.reset(new JsonTraceParser(&context_));
-#endif
+  if (json::IsJsonSupported()) {
+    context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
+    context_.json_trace_parser.reset(new JsonTraceParser(&context_));
+  }
 
   RegisterAdditionalModules(&context_);
 
@@ -476,9 +469,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateBuiltinViews(db);
   db_.reset(std::move(db));
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   CreateJsonExportFunction(this->context_.storage.get(), db);
-#endif
   CreateHashFunction(db);
   CreateDemangledNameFunction(db);
   CreateLastNonNullFunction(db);

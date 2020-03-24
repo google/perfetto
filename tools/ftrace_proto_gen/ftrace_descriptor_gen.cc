@@ -106,6 +106,14 @@ MessageDescriptor* GetMessageDescriptorForId(size_t id) {
   return &descriptors[id];
 }
 
+MessageDescriptor* GetMessageDescriptorForName(base::StringView name) {
+  for (MessageDescriptor& descriptor : descriptors) {
+    if (descriptor.name != nullptr && descriptor.name == name)
+      return &descriptor;
+  }
+  return nullptr;
+}
+
 size_t GetDescriptorsSize() {
   return descriptors.size();
 }

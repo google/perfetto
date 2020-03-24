@@ -197,6 +197,7 @@ perfetto_unittest_source_set("unittests") {
     "client_unittest.cc",
     "heapprofd_producer_unittest.cc",
     "page_idle_checker_unittest.cc",
+    "parse_smaps_unittest.cc",
     "sampler_unittest.cc",
     "system_property_unittest.cc",
     "unwinding_unittest.cc",

@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_READ_TRACE_H_
 
 #include <functional>
+#include <vector>
 
 #include "perfetto/base/export.h"
 #include "perfetto/trace_processor/status.h"
@@ -31,6 +32,10 @@ util::Status PERFETTO_EXPORT ReadTrace(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback = {});
+
+util::Status PERFETTO_EXPORT DecompressTrace(const uint8_t* data,
+                                             size_t size,
+                                             std::vector<uint8_t>* output);
 
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -14,15 +14,9 @@
  * limitations under the License.
  */
 
-// For bazel build.
-#include "perfetto/base/build_config.h"
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-
-#include "src/trace_processor/gzip_trace_parser.h"
+#include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 
 #include <string>
-
-#include <zlib.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -33,17 +27,9 @@ namespace perfetto {
 namespace trace_processor {
 
 GzipTraceParser::GzipTraceParser(TraceProcessorContext* context)
-    : context_(context), z_stream_(new z_stream()) {
-  z_stream_->zalloc = Z_NULL;
-  z_stream_->zfree = Z_NULL;
-  z_stream_->opaque = Z_NULL;
-  inflateInit2(z_stream_.get(), 32 + 15);
-}
+    : context_(context) {}
 
-GzipTraceParser::~GzipTraceParser() {
-  // Ensure the call to inflateEnd to prevent leaks of internal state.
-  inflateEnd(z_stream_.get());
-}
+GzipTraceParser::~GzipTraceParser() = default;
 
 util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
                                     size_t size) {
@@ -64,38 +50,27 @@ util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
       len -= strlen(kSystraceFileHeader) + offset;
     }
   }
-
-  z_stream_->next_in = start;
-  z_stream_->avail_in = static_cast<uInt>(len);
+  decompressor_.SetInput(start, len);
 
   // Our default uncompressed buffer size is 32MB as it allows for good
   // throughput.
+  using ResultCode = GzipDecompressor::ResultCode;
   constexpr size_t kUncompressedBufferSize = 32 * 1024 * 1024;
-  int ret = Z_OK;
-  for (; ret != Z_STREAM_END && z_stream_->avail_in != 0;) {
+
+  for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
     std::unique_ptr<uint8_t[]> buffer(new uint8_t[kUncompressedBufferSize]);
-    z_stream_->next_out = buffer.get();
-    z_stream_->avail_out = static_cast<uInt>(kUncompressedBufferSize);
+    auto result =
+        decompressor_.Decompress(buffer.get(), kUncompressedBufferSize);
+    ret = result.ret;
+    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress)
+      return util::ErrStatus("Unable to decompress gzip/ctrace trace");
+    if (ret == ResultCode::kNeedsMoreInput)
+      break;
 
-    ret = inflate(z_stream_.get(), Z_NO_FLUSH);
-    switch (ret) {
-      case Z_NEED_DICT:
-      case Z_DATA_ERROR:
-      case Z_MEM_ERROR:
-        // Ignore inflateEnd error as we will error out anyway.
-        inflateEnd(z_stream_.get());
-        return util::ErrStatus("Error decompressing ctrace file");
-    }
-
-    size_t read = kUncompressedBufferSize - z_stream_->avail_out;
-    util::Status status = inner_->Parse(std::move(buffer), read);
+    util::Status status =
+        inner_->Parse(std::move(buffer), result.bytes_written);
     if (!status.ok())
       return status;
-  }
-  if (ret == Z_STREAM_END) {
-    ret = inflateEnd(z_stream_.get());
-    if (ret == Z_STREAM_ERROR)
-      return util::ErrStatus("Error finishing decompression");
   }
   return util::OkStatus();
 }
@@ -104,5 +79,3 @@ void GzipTraceParser::NotifyEndOfFile() {}
 
 }  // namespace trace_processor
 }  // namespace perfetto
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)

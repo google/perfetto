@@ -674,7 +674,7 @@ export class TraceController extends Controller<States> {
         });
 
         const name =
-            this.getTrackName(utid, processName, pid, threadName, tid, upid);
+            getTrackName({utid, processName, pid, threadName, tid, upid});
         const addTrackGroup = Actions.addTrackGroup({
           engineId: this.engineId,
           summaryTrackId,
@@ -748,7 +748,7 @@ export class TraceController extends Controller<States> {
         tracksToAdd.push({
           engineId: this.engineId,
           kind: THREAD_STATE_TRACK_KIND,
-          name: `${threadName} [${tid}]`,
+          name: getTrackName({utid, tid, threadName}),
           trackGroup: pUuid,
           config: {utid}
         });
@@ -758,12 +758,10 @@ export class TraceController extends Controller<States> {
         tracksToAdd.push({
           engineId: this.engineId,
           kind: SLICE_TRACK_KIND,
-          name: `${threadName} [${tid}]`,
+          name: getTrackName({utid, tid, threadName}),
           trackGroup: pUuid,
-          config: {
-            maxDepth: threadTrack.maxDepth,
-            trackId: threadTrack.trackId
-          },
+          config:
+              {maxDepth: threadTrack.maxDepth, trackId: threadTrack.trackId},
         });
       }
     }
@@ -945,19 +943,37 @@ export class TraceController extends Controller<States> {
       timestamp: Date.now() / 1000,
     }));
   }
+}
 
-  private getTrackName(
-      utid: number, processName: string|null, pid: number|null,
-      threadName: string|null, tid: number|null, upid: number|null) {
-    if (upid !== null && processName !== null && pid !== null) {
-      return `${processName} ${pid}`;
-    } else if (upid !== null && pid !== null) {
-      return `Process ${pid}`;
-    } else if (threadName !== null && tid !== null) {
-      return `${threadName} ${tid}`;
-    } else if (tid !== null) {
-      return `Thread ${tid}`;
-    }
+function getTrackName(args: Partial<{
+  utid: number,
+  processName: string | null,
+  pid: number | null,
+  threadName: string | null,
+  tid: number | null,
+  upid: number | null
+}>) {
+  const {upid, utid, processName, threadName, pid, tid} = args;
+
+  const hasUpid = upid !== undefined && upid !== null;
+  const hasUtid = utid !== undefined && utid !== null;
+  const hasProcessName = processName !== undefined && processName !== null;
+  const hasThreadName = threadName !== undefined && threadName !== null;
+  const hasTid = tid !== undefined && tid !== null;
+  const hasPid = pid !== undefined && pid !== null;
+
+  if (hasUpid && hasPid && hasProcessName) {
+    return `${processName} ${pid}`;
+  } else if (hasUpid && hasPid) {
+    return `Process ${pid}`;
+  } else if (hasThreadName && hasTid) {
+    return `${threadName} ${tid}`;
+  } else if (hasTid) {
+    return `Thread ${tid}`;
+  } else if (hasUpid) {
+    return `upid: ${upid}`;
+  } else if (hasUtid) {
     return `utid: ${utid}`;
   }
+  return 'Unknown';
 }
