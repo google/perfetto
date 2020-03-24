@@ -58,6 +58,12 @@ class TraceProcessorContext {
 
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<TraceSorter> sorter;
+  
+  // Keep the global tracker before the args tracker as we access the global
+  // tracker in the destructor of the args tracker. Also keep it before other
+  // trackers, as they may own ArgsTrackers themselves.
+  std::unique_ptr<GlobalArgsTracker> global_args_tracker;
+  std::unique_ptr<ArgsTracker> args_tracker;
 
   std::unique_ptr<TrackTracker> track_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
@@ -67,11 +73,6 @@ class TraceProcessorContext {
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
-
-  // Keep the global tracker before the args tracker as we access the global
-  // tracker in the destructor of the args tracker.
-  std::unique_ptr<GlobalArgsTracker> global_args_tracker;
-  std::unique_ptr<ArgsTracker> args_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
