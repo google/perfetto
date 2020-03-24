@@ -16,6 +16,8 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Sorting, TimestampedAreaSelection} from '../../common/state';
 import {toNs} from '../../common/time';
+import {Config, CPU_SLICE_TRACK_KIND} from '../../tracks/cpu_slices/common';
+import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -27,10 +29,15 @@ export class CpuAggregationController extends AggregationController {
     const area = selectedArea.area;
     if (area === undefined) return false;
 
-    const cpusInTrace = await engine.getCpus();
-    const selectedCpuTracks =
-        cpusInTrace.filter(x => area.tracks.includes((x + 1).toString()));
-    if (selectedCpuTracks.length === 0) return false;
+    const selectedCpus = [];
+    for (const trackId of area.tracks) {
+      const track = globals.state.tracks[trackId];
+      // Track will be undefined for track groups.
+      if (track !== undefined && track.kind === CPU_SLICE_TRACK_KIND) {
+        selectedCpus.push((track.config as Config).cpu);
+      }
+    }
+    if (selectedCpus.length === 0) return false;
 
     const query = `create view ${this.kind} as
         SELECT process.name as process_name, pid, thread.name as thread_name,
@@ -40,7 +47,7 @@ export class CpuAggregationController extends AggregationController {
         FROM process
         JOIN thread USING(upid)
         JOIN thread_state USING(utid)
-        WHERE cpu IN (${selectedCpuTracks}) AND
+        WHERE cpu IN (${selectedCpus}) AND
         state = "Running" AND
         thread_state.ts + thread_state.dur > ${toNs(area.startSec)} AND
         thread_state.ts < ${toNs(area.endSec)} group by utid`;
