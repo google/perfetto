@@ -120,11 +120,27 @@ void HeapGraphTracker::AddRoot(uint32_t seq_id,
   sequence_state.current_roots.emplace_back(std::move(root));
 }
 
+void HeapGraphTracker::AddInternedLocationName(uint32_t seq_id,
+                                               uint64_t intern_id,
+                                               StringPool::Id strid) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  sequence_state.interned_location_names.emplace(intern_id, strid);
+}
+
 void HeapGraphTracker::AddInternedTypeName(uint32_t seq_id,
                                            uint64_t intern_id,
                                            StringPool::Id strid) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
-  sequence_state.interned_type_names.emplace(intern_id, strid);
+  sequence_state.interned_types[intern_id].name = strid;
+}
+
+void HeapGraphTracker::AddInternedType(uint32_t seq_id,
+                                       uint64_t intern_id,
+                                       StringPool::Id strid,
+                                       uint64_t location_id) {
+  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  sequence_state.interned_types[intern_id].name = strid;
+  sequence_state.interned_types[intern_id].location_id = location_id;
 }
 
 void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
@@ -172,14 +188,15 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
 void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
   for (const SourceObject& obj : sequence_state.current_objects) {
-    auto it = sequence_state.interned_type_names.find(obj.type_id);
-    if (it == sequence_state.interned_type_names.end()) {
+    auto it = sequence_state.interned_types.find(obj.type_id);
+    if (it == sequence_state.interned_types.end()) {
       context_->storage->IncrementIndexedStats(
           stats::heap_graph_invalid_string_id,
           static_cast<int>(sequence_state.current_upid));
       continue;
     }
-    StringPool::Id type_name = it->second;
+    const InternedType& interned_type = it->second;
+    StringPool::Id type_name = interned_type.name;
     context_->storage->mutable_heap_graph_object_table()->Insert(
         {sequence_state.current_upid, sequence_state.current_ts,
          static_cast<int64_t>(obj.object_id),
