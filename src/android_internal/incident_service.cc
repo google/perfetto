@@ -30,25 +30,27 @@ namespace android_internal {
 
 bool StartIncidentReport(const char* dest_pkg,
                          const char* dest_class,
-                         int privacy_level) {
-  android::os::IncidentReportRequest incidentReport;
-  incidentReport.addSection(3026);  // system_trace only
-
-  if (privacy_level != INCIDENT_REPORT_PRIVACY_POLICY_AUTOMATIC &&
-      privacy_level != INCIDENT_REPORT_PRIVACY_POLICY_EXPLICIT) {
+                         int privacy_policy) {
+  if (privacy_policy != INCIDENT_REPORT_PRIVACY_POLICY_AUTOMATIC &&
+      privacy_policy != INCIDENT_REPORT_PRIVACY_POLICY_EXPLICIT) {
     return false;
   }
-  incidentReport.setPrivacyPolicy(privacy_level);
 
-  std::string pkg(dest_pkg);
-  std::string cls(dest_class);
-  if (pkg.size() == 0 || cls.size() == 0) {
+  if (strlen(dest_pkg) == 0 || strlen(dest_class) == 0) {
     return false;
   }
-  incidentReport.setReceiverPackage(pkg);
-  incidentReport.setReceiverClass(cls);
 
-  return incidentReport.takeReport() == 0;
+  AIncidentReportArgs* args = AIncidentReportArgs_init();
+
+  AIncidentReportArgs_addSection(args, 3026);  // system_trace only
+  AIncidentReportArgs_setPrivacyPolicy(args, privacy_policy);
+  AIncidentReportArgs_setReceiverPackage(args, dest_pkg);
+  AIncidentReportArgs_setReceiverClass(args, dest_class);
+
+  int err = AIncidentReportArgs_takeReport(args);
+  AIncidentReportArgs_delete(args);
+
+  return err == 0;
 }
 
 }  // namespace android_internal
