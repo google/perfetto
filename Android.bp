@@ -7588,14 +7588,6 @@ cc_binary_host {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
-  dist: {
-    targets: [
-      "sdk_repo",
-    ],
-  },
-  strip: {
-    all: true,
-  },
   stl: "libc++_static",
 }
 
