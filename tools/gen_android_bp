@@ -176,9 +176,7 @@ additional_args = {
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
-      ('dist', {'targets': ['sdk_repo']}),
       ('stl', 'libc++_static'),
-      ('strip', {'all': True})
     ],
 }
 
