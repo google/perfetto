@@ -29,6 +29,7 @@ cc_test {
   test_suites: [
     "cts",
     "vts",
+    "vts10",
     "general-tests",
   ],
   compile_multilib: "both",
