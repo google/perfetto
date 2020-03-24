@@ -33,6 +33,7 @@ namespace perfetto {
 // Data sources built into the tracing service daemon (traced):
 // * perfetto metatrace
 // * lazy heapprofd daemon starter (android only)
+// * lazy traced_perf daemon starter (android only)
 class BuiltinProducer : public Producer {
  public:
   BuiltinProducer(base::TaskRunner* task_runner, uint32_t lazy_stop_delay_ms);
@@ -63,20 +64,25 @@ class BuiltinProducer : public Producer {
     std::map<DataSourceInstanceID, MetatraceWriter> writers;
   };
 
-  struct LazyHeapprofdState {
+  struct LazyAndroidDaemonState {
     // Track active instances to know when to stop.
     std::set<DataSourceInstanceID> instance_ids;
-    // Delay between the last heapprofd session stopping, and the lazy system
-    // property being unset (to shut down heapprofd).
+    // Delay between the last matching session stopping, and the lazy system
+    // property being unset (to shut down the daemon).
     uint32_t stop_delay_ms;
     uint64_t generation = 0;
   };
+
+  void MaybeInitiateLazyStop(DataSourceInstanceID ds_id,
+                             LazyAndroidDaemonState* lazy_state,
+                             const char* prop_name);
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
 
   MetatraceState metatrace_;
-  LazyHeapprofdState lazy_heapprofd_;
+  LazyAndroidDaemonState lazy_heapprofd_;
+  LazyAndroidDaemonState lazy_traced_perf_;
 
   base::WeakPtrFactory<BuiltinProducer> weak_factory_;  // Keep last.
 };
