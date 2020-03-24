@@ -83,7 +83,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const titleId = data.titles[i];
       const sliceId = data.sliceIds[i];
       const title = data.strings[titleId];
-      const summarizedOffset = data.summarizedOffset[i];
+      const summarizedOffset =
+          data.summarizedOffset ? data.summarizedOffset[i] : -1;
 
       if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
         continue;
