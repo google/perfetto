@@ -48,6 +48,19 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+// TODO(b/151835887): on Android, when using signals, there exists a vulnerable
+// window between a process image being replaced by execve, and the new
+// libc instance reinstalling the proper signal handlers. During this window,
+// the signal disposition is defaulted to terminating the process.
+// This is a best-effort mitigation from the daemon's side, using a heuristic
+// that most execve calls follow a fork. So if we get a sample for a very fresh
+// process, the grace period will give it a chance to get to
+// a properly initialised state prior to getting signalled. This doesn't help
+// cases when a mature process calls execve, or when the target gets descheduled
+// (since this is a naive walltime wait).
+// The proper fix is in the platform, see bug for progress.
+constexpr uint32_t kProcDescriptorsAndroidDelayMs = 50;
+
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 
@@ -371,11 +384,10 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       }
 
       // At this point, sampled process is known to be of interest, so start
-      // resolving the proc-fds.
+      // resolving the proc-fds. Response is async.
       process_state = ProcessTrackingStatus::kResolving;
-      proc_fd_getter_->GetDescriptorsForPid(pid);  // response is async
-      PostDescriptorLookupTimeout(
-          ds_id, pid, ds->event_config.remote_descriptor_timeout_ms());
+      InitiateDescriptorLookup(ds_id, pid,
+                               ds->event_config.remote_descriptor_timeout_ms());
     }
 
     PERFETTO_CHECK(process_state == ProcessTrackingStatus::kResolved ||
@@ -432,20 +444,40 @@ void PerfProducer::OnProcDescriptors(pid_t pid,
       static_cast<int>(pid));
 }
 
-void PerfProducer::PostDescriptorLookupTimeout(DataSourceInstanceID ds_id,
-                                               pid_t pid,
-                                               uint32_t timeout_ms) {
+void PerfProducer::InitiateDescriptorLookup(DataSourceInstanceID ds_id,
+                                            pid_t pid,
+                                            uint32_t timeout_ms) {
+  if (!proc_fd_getter_->RequiresDelayedRequest()) {
+    StartDescriptorLookup(ds_id, pid, timeout_ms);
+    return;
+  }
+
+  // Delay lookups on Android. See comment on |kProcDescriptorsAndroidDelayMs|.
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this, ds_id, pid, timeout_ms] {
+        if (weak_this)
+          weak_this->StartDescriptorLookup(ds_id, pid, timeout_ms);
+      },
+      kProcDescriptorsAndroidDelayMs);
+}
+
+void PerfProducer::StartDescriptorLookup(DataSourceInstanceID ds_id,
+                                         pid_t pid,
+                                         uint32_t timeout_ms) {
+  proc_fd_getter_->GetDescriptorsForPid(pid);
+
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_this, ds_id, pid] {
         if (weak_this)
-          weak_this->DescriptorLookupTimeout(ds_id, pid);
+          weak_this->EvaluateDescriptorLookupTimeout(ds_id, pid);
       },
       timeout_ms);
 }
 
-void PerfProducer::DescriptorLookupTimeout(DataSourceInstanceID ds_id,
-                                           pid_t pid) {
+void PerfProducer::EvaluateDescriptorLookupTimeout(DataSourceInstanceID ds_id,
+                                                   pid_t pid) {
   auto ds_it = data_sources_.find(ds_id);
   if (ds_it == data_sources_.end())
     return;
