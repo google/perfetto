@@ -176,7 +176,8 @@ export class SelectionController extends Controller<'main'> {
     const prevSchedRow = await this.args.engine.queryOneRow(queryPrevSched);
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
-    if (prevSchedRow[0] && wakeupRow[0] < prevSchedRow[0]) {
+    if (wakeupRow[0] === undefined ||
+        (prevSchedRow[0] !== undefined && wakeupRow[0] < prevSchedRow[0])) {
       return undefined;
     }
     const wakeupTs = wakeupRow[0];
