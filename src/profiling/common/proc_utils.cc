@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/profiling/normalize.h"
 
 namespace perfetto {
@@ -41,24 +42,25 @@ bool GetProcFile(pid_t pid, const char* file, char* filename_buf, size_t size) {
 
 }  // namespace
 
-std::vector<std::string> NormalizeCmdlines(
+base::Optional<std::vector<std::string>> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines) {
   std::vector<std::string> normalized_cmdlines;
-  for (std::string cmdline : cmdlines) {
+  normalized_cmdlines.reserve(cmdlines.size());
+
+  for (size_t i = 0; i < cmdlines.size(); i++) {
+    std::string cmdline = cmdlines[i];  // mutable copy
     // Add nullbyte to make sure it's a C string.
     cmdline.resize(cmdline.size() + 1, '\0');
-    std::string normalized;
     char* cmdline_cstr = &(cmdline[0]);
     ssize_t size = NormalizeCmdLine(&cmdline_cstr, cmdline.size());
     if (size == -1) {
-      PERFETTO_PLOG("Failed to normalize cmdline %s. Skipping.",
-                    cmdline.c_str());
-      continue;
+      PERFETTO_PLOG("Failed to normalize cmdline %s. Stopping the parse.",
+                    cmdlines[i].c_str());
+      return base::nullopt;
     }
-    normalized_cmdlines.emplace_back(
-        std::string(cmdline_cstr, static_cast<size_t>(size)));
+    normalized_cmdlines.emplace_back(cmdline_cstr, static_cast<size_t>(size));
   }
-  return normalized_cmdlines;
+  return base::make_optional(normalized_cmdlines);
 }
 
 // This is mostly the same as GetHeapprofdProgramProperty in

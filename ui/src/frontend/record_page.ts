@@ -438,7 +438,7 @@ function MemorySettings(cssClass: string) {
       m(Probe,
         {
           title: 'Native heap profiling',
-          img: 'heap_profiler.png',
+          img: 'rec_native_heap_profiler.png',
           descr: `Track native heap allocations & deallocations of an Android
                process. (Available on Android 10+)`,
           setEnabled: (cfg, val) => cfg.heapProfiling = val,

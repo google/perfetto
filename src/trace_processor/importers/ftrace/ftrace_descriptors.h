@@ -18,6 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_DESCRIPTORS_H_
 
 #include <array>
+
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_utils.h"
 
 namespace perfetto {
@@ -47,6 +49,7 @@ struct MessageDescriptor {
 };
 
 MessageDescriptor* GetMessageDescriptorForId(size_t id);
+MessageDescriptor* GetMessageDescriptorForName(base::StringView name);
 size_t GetDescriptorsSize();
 
 }  // namespace trace_processor

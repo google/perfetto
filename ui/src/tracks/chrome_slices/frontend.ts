@@ -83,19 +83,37 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const titleId = data.titles[i];
       const sliceId = data.sliceIds[i];
       const title = data.strings[titleId];
+      const summarizedOffset =
+          data.summarizedOffset ? data.summarizedOffset[i] : -1;
+
       if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
         continue;
       }
       const rectXStart = Math.max(timeScale.timeToPx(tStart), 0);
-      const rectXEnd = Math.min(timeScale.timeToPx(tEnd), pxEnd);
-      const rectWidth = rectXEnd - rectXStart;
+      let rectXEnd = Math.min(timeScale.timeToPx(tEnd), pxEnd);
+      let rectWidth = rectXEnd - rectXStart;
+      // All slices should be at least 1px.
+      if (rectWidth < 1) {
+        rectWidth = 1;
+        rectXEnd = rectXStart + 1;
+      }
       const rectYStart = TRACK_PADDING + depth * SLICE_HEIGHT;
-
-      const hovered = titleId === this.hoveredTitleId;
       const name = title.replace(/( )?\d+/g, '');
-      const hue = title === 'Busy' ? 88 : hash(name);
+      const hue = hash(name);
       const saturation = 50;
-      ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
+      const hovered = titleId === this.hoveredTitleId;
+      if (summarizedOffset !== -1) {
+        const summarizedSize = data.summarizedSize[i];
+        const nameHues =
+            (data.summaryNameId.slice(
+                 summarizedOffset, summarizedOffset + summarizedSize))
+                .map(id => hash(data.strings[id]));
+        const percents = data.summaryPercent.slice(
+            summarizedOffset, summarizedOffset + summarizedSize);
+        colorSummarizedSlice(nameHues, percents, rectXStart, rectXEnd, hovered);
+      } else {
+        ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
+      }
       ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
 
       // Selected case
@@ -120,6 +138,25 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
+
+    // Make a gradient ordered most common to least common slices within the
+    // summarized slice.
+    function colorSummarizedSlice(
+        nameHues: Uint16Array,
+        percents: Float64Array,
+        rectStart: number,
+        rectEnd: number,
+        hovered: boolean) {
+      const gradient = ctx.createLinearGradient(
+          rectStart, SLICE_HEIGHT, rectEnd, SLICE_HEIGHT);
+      let colorStop = 0;
+      for (let i = 0; i < nameHues.length; i++) {
+        const colorString = `hsl(${nameHues[i]}, 50%, ${hovered ? 30 : 65}%)`;
+        colorStop = Math.max(0, Math.min(1, colorStop + percents[i]));
+        gradient.addColorStop(colorStop, colorString);
+      }
+      ctx.fillStyle = gradient;
+    }
   }
 
   getSliceIndex({x, y}: {x: number, y: number}): number|void {

@@ -20,20 +20,12 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_processor_context.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-#include <json/value.h>
-#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-// Json traces are only supported in some build configurations (standalone, UI).
-namespace Json {
-class Value {};
-}  // namespace Json
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 // GCC can't figure out the relationship between TimestampedTracePiece's type
 // and the union, and thus thinks that we may be moving or destroying

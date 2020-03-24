@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_GZIP_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_GZIP_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_TRACE_PARSER_H_
 
 #include "src/trace_processor/chunked_trace_reader.h"
-
-struct z_stream_s;
+#include "src/trace_processor/importers/gzip/gzip_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -37,11 +36,11 @@ class GzipTraceParser : public ChunkedTraceReader {
 
  private:
   TraceProcessorContext* const context_;
-  std::unique_ptr<z_stream_s> z_stream_;
+  GzipDecompressor decompressor_;
   std::unique_ptr<ChunkedTraceReader> inner_;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_GZIP_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_TRACE_PARSER_H_

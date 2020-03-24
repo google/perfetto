@@ -26,7 +26,8 @@
 
 namespace protozero {
 
-void Field::SerializeAndAppendTo(std::string* dst) {
+template <typename Container>
+void Field::SerializeAndAppendToInternal(Container* dst) const {
   namespace pu = proto_utils;
   size_t initial_size = dst->size();
   dst->resize(initial_size + pu::kMaxSimpleFieldEncodedSize + size_);
@@ -66,6 +67,14 @@ void Field::SerializeAndAppendTo(std::string* dst) {
   PERFETTO_DCHECK(written_size > 0 && written_size < pu::kMaxMessageLength);
   PERFETTO_DCHECK(initial_size + written_size <= dst->size());
   dst->resize(initial_size + written_size);
+}
+
+void Field::SerializeAndAppendTo(std::string* dst) const {
+  SerializeAndAppendToInternal(dst);
+}
+
+void Field::SerializeAndAppendTo(std::vector<uint8_t>* dst) const {
+  SerializeAndAppendToInternal(dst);
 }
 
 }  // namespace protozero
