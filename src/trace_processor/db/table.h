@@ -153,12 +153,12 @@ class Table {
                          std::unique_ptr<SparseVector<T>> sv,
                          uint32_t flags) const {
     PERFETTO_DCHECK(sv->size() == row_count_);
-
+    uint32_t size = sv->size();
     uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
     Table ret = Copy();
-    ret.columns_.emplace_back(Column(name, std::move(sv), flags, &ret,
-                                     GetColumnCount(), row_map_count));
-    ret.row_maps_.emplace_back(RowMap(0, sv->size()));
+    ret.columns_.push_back(Column::WithOwnedStorage(
+        name, std::move(sv), flags, &ret, GetColumnCount(), row_map_count));
+    ret.row_maps_.emplace_back(RowMap(0, size));
     return ret;
   }
 

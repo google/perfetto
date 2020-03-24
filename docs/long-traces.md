@@ -53,7 +53,7 @@ $ tools/gn gen out/mac_release --args="is_debug=false"
 $ tools/ninja -C out/mac_release/ long_trace.cfg.protobuf
 
 # Alternatively, the more verbose variant:
-$ protoc=$(pwd)/out/mac_release/gcc_like_host/protoc
+$ alias protoc=$(pwd)/out/mac_release/protoc
 $ protoc --encode=perfetto.protos.TraceConfig \
         -I$(pwd) \
         $(pwd)/protos/perfetto/config/perfetto_config.proto \

@@ -17,7 +17,13 @@
 #include "perfetto/trace_processor/read_trace.h"
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
+
+#include "src/trace_processor/importers/gzip/gzip_utils.h"
+
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
@@ -117,6 +123,43 @@ util::Status ReadTrace(
 
   if (progress_callback)
     progress_callback(file_size);
+  return util::OkStatus();
+}
+
+util::Status DecompressTrace(const uint8_t* data,
+                             size_t size,
+                             std::vector<uint8_t>* output) {
+  if (!gzip::IsGzipSupported()) {
+    return util::ErrStatus(
+        "Cannot decompress trace in build where zlib is disabled");
+  }
+
+  protos::pbzero::Trace::Decoder decoder(data, size);
+  GzipDecompressor decompressor;
+  for (auto it = decoder.packet(); it; ++it) {
+    protos::pbzero::TracePacket::Decoder packet(*it);
+    if (!packet.has_compressed_packets()) {
+      it->SerializeAndAppendTo(output);
+      continue;
+    }
+
+    // Make sure that to reset the stream between the gzip streams.
+    auto bytes = packet.compressed_packets();
+    decompressor.Reset();
+    decompressor.SetInput(bytes.data, bytes.size);
+
+    using ResultCode = GzipDecompressor::ResultCode;
+    uint8_t out[4096];
+    for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
+      auto res = decompressor.Decompress(out, base::ArraySize(out));
+      ret = res.ret;
+      if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
+          ret == ResultCode::kNeedsMoreInput) {
+        return util::ErrStatus("Failed while decompressing stream");
+      }
+      output->insert(output->end(), out, out + res.bytes_written);
+    }
+  }
   return util::OkStatus();
 }
 

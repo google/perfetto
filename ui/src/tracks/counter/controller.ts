@@ -51,9 +51,9 @@ class CounterTrackController extends TrackController<Config, Data> {
         create view ${this.tableName('counter_view')} as
         select
           ts,
-          lead(ts, 1, ts) over (order by ts) - ts as dur,
+          dur,
           value
-        from counter
+        from experimental_counter_dur
         where track_id = ${this.config.trackId};`);
 
       await this.query(`create virtual table ${this.tableName('span')} using
@@ -67,8 +67,8 @@ class CounterTrackController extends TrackController<Config, Data> {
       from (
         select
           ts,
-          lead(ts, 1, ts) over (order by ts) as ts_end
-        from counter
+          ts + dur as ts_end
+        from experimental_counter_dur
         where track_id = ${this.config.trackId}
       )
       where ts <= ${endNs} and ${startNs} <= ts_end`);
@@ -117,10 +117,10 @@ class CounterTrackController extends TrackController<Config, Data> {
         from (
           select
             ts,
-            lead(ts, 1, ts) over (order by ts) as ts_end,
+            ts + dur as ts_end,
             value,
             id
-          from counter
+          from experimental_counter_dur
           where track_id = ${this.config.trackId}
         )
         where ts <= ${endNs} and ${startNs} <= ts_end

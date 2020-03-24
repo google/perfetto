@@ -21,6 +21,7 @@
 #include <set>
 #include <vector>
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 
 namespace perfetto {
@@ -43,7 +44,7 @@ void ForEachPid(Fn callback) {
   }
 }
 
-std::vector<std::string> NormalizeCmdlines(
+base::Optional<std::vector<std::string>> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines);
 
 void FindAllProfilablePids(std::set<pid_t>* pids);

@@ -121,15 +121,15 @@ class PerfProducer : public Producer,
   struct DataSourceState {
     enum class Status { kActive, kShuttingDown };
 
-    DataSourceState(EventConfig _event_cfg,
+    DataSourceState(EventConfig _event_config,
                     std::unique_ptr<TraceWriter> _trace_writer,
                     std::vector<EventReader> _per_cpu_readers)
-        : event_cfg(std::move(_event_cfg)),
+        : event_config(std::move(_event_config)),
           trace_writer(std::move(_trace_writer)),
           per_cpu_readers(std::move(_per_cpu_readers)) {}
 
     Status status = Status::kActive;
-    const EventConfig event_cfg;
+    const EventConfig event_config;
     std::unique_ptr<TraceWriter> trace_writer;
     // Indexed by cpu, vector never resized.
     std::vector<EventReader> per_cpu_readers;
@@ -163,14 +163,18 @@ class PerfProducer : public Producer,
   // on the amount of samples that will be parsed, which might be more than the
   // number of underlying records (as there might be non-sample records).
   bool ReadAndParsePerCpuBuffer(EventReader* reader,
-                                size_t max_samples,
+                                uint32_t max_samples,
                                 DataSourceInstanceID ds_id,
                                 DataSourceState* ds);
 
-  void PostDescriptorLookupTimeout(DataSourceInstanceID ds_id,
-                                   pid_t pid,
-                                   uint32_t timeout_ms);
-  void DescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
+  void InitiateDescriptorLookup(DataSourceInstanceID ds_id,
+                                pid_t pid,
+                                uint32_t timeout_ms);
+  // Do not call directly, use |InitiateDescriptorLookup|.
+  void StartDescriptorLookup(DataSourceInstanceID ds_id,
+                             pid_t pid,
+                             uint32_t timeout_ms);
+  void EvaluateDescriptorLookupTimeout(DataSourceInstanceID ds_id, pid_t pid);
 
   void EmitSample(DataSourceInstanceID ds_id, CompletedSample sample);
   void EmitRingBufferLoss(DataSourceInstanceID ds_id,

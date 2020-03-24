@@ -213,7 +213,7 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 
       delegate_->PostEmitUnwinderSkippedSample(entry.data_source_id,
                                                std::move(entry.sample));
-      entry.valid = false;
+      entry = UnwindEntry::Invalid();
       continue;
     }
 
@@ -228,7 +228,11 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 
     // Sample ready - process it.
     if (proc_state.status == ProcessState::Status::kResolved) {
+      // Metatrace: emit both a scoped slice, as well as a "counter"
+      // representing the pid being unwound.
       PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_SAMPLE);
+      PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_CURRENT_PID,
+                                 static_cast<int32_t>(pid));
 
       PERFETTO_CHECK(proc_state.unwind_state.has_value());
       CompletedSample unwound_sample =
@@ -236,9 +240,11 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
                        proc_state.attempted_unwinding);
       proc_state.attempted_unwinding = true;
 
+      PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_CURRENT_PID, 0);
+
       delegate_->PostEmitSample(entry.data_source_id,
                                 std::move(unwound_sample));
-      entry.valid = false;
+      entry = UnwindEntry::Invalid();
       continue;
     }
   }

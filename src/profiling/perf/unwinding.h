@@ -35,12 +35,10 @@
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/unwind_queue.h"
 
-namespace {
-constexpr static uint32_t kUnwindQueueCapacity = 2048;
-}
-
 namespace perfetto {
 namespace profiling {
+
+constexpr static uint32_t kUnwindQueueCapacity = 2048;
 
 // Unwinds callstacks based on the sampled stack and register state (see
 // |ParsedSample|). Has a single unwinding ring queue, shared across

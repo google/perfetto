@@ -21,6 +21,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/ftrace_utils.h"
+#include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/gfp_flags.h"
 #include "src/trace_processor/types/variadic.h"
@@ -51,11 +52,6 @@ std::tuple<uint32_t, uint32_t> ParseKernelReleaseVersion(
   return std::make_tuple(major_version.value(), minor_version.value());
 }
 
-int FreeString(char* ptr) {
-  free(ptr);
-  return 0;
-}
-
 struct FtraceTime {
   FtraceTime(int64_t ns)
       : secs(ns / 1000000000LL), micros((ns - secs * 1000000000LL) / 1000) {}
@@ -64,35 +60,443 @@ struct FtraceTime {
   const int64_t micros;
 };
 
-class SystraceSerializer {
+class ArgsSerializer {
  public:
-  using ScopedString = base::ScopedResource<char*, FreeString, nullptr>;
+  ArgsSerializer(const TraceStorage*,
+                 ArgSetId arg_set_id,
+                 NullTermStringView event_name,
+                 std::vector<uint32_t>* field_id_to_arg_index,
+                 base::StringWriter*);
 
-  SystraceSerializer(const TraceStorage* storage, uint32_t raw_row)
-      : storage_(storage), raw_row_(raw_row) {}
-
-  ScopedString SerializeToString();
+  void SerializeArgs();
 
  private:
-  void SerializePrefix(base::StringWriter* writer);
-  void SerializeArgs(NullTermStringView event_name,
-                     ArgSetId arg_set_id,
-                     base::StringWriter* writer);
-  bool ParseGfpFlags(Variadic value, base::StringWriter* writer);
+  using ValueWriter = std::function<void(const Variadic&)>;
+
+  void WriteArgForField(uint32_t field_id) {
+    WriteArgForField(field_id,
+                     [this](const Variadic& v) { return WriteValue(v); });
+  }
+
+  void WriteArgForField(uint32_t field_id, ValueWriter writer) {
+    WriteArgAtRow(FieldIdToRow(field_id), writer);
+  }
+
+  void WriteValueForField(uint32_t field_id) {
+    WriteValueForField(field_id,
+                       [this](const Variadic& v) { return WriteValue(v); });
+  }
+
+  void WriteValueForField(uint32_t field_id, ValueWriter writer) {
+    writer(storage_->GetArgValue(FieldIdToRow(field_id)));
+  }
+
+  void WriteArgAtRow(uint32_t arg_index) {
+    WriteArgAtRow(arg_index,
+                  [this](const Variadic& v) { return WriteValue(v); });
+  }
+
+  void WriteArgAtRow(uint32_t arg_index, ValueWriter writer);
+
+  void WriteValue(const Variadic& variadic);
+
+  bool ParseGfpFlags(Variadic value);
+
+  uint32_t FieldIdToRow(uint32_t field_id) {
+    PERFETTO_DCHECK(field_id > 0);
+    PERFETTO_DCHECK(field_id < field_id_to_arg_index_->size());
+    uint32_t index_in_arg_set = (*field_id_to_arg_index_)[field_id];
+    return start_row_ + index_in_arg_set;
+  }
 
   const TraceStorage* storage_ = nullptr;
-  uint32_t raw_row_ = 0;
+  ArgSetId arg_set_id_ = kInvalidArgSetId;
+  NullTermStringView event_name_;
+  std::vector<uint32_t>* field_id_to_arg_index_;
+
+  RowMap row_map_;
+  uint32_t start_row_ = 0;
+
+  base::StringWriter* writer_ = nullptr;
 };
 
-SystraceSerializer::ScopedString SystraceSerializer::SerializeToString() {
+ArgsSerializer::ArgsSerializer(const TraceStorage* storage,
+                               ArgSetId arg_set_id,
+                               NullTermStringView event_name,
+                               std::vector<uint32_t>* field_id_to_arg_index,
+                               base::StringWriter* writer)
+    : storage_(storage),
+      arg_set_id_(arg_set_id),
+      event_name_(event_name),
+      field_id_to_arg_index_(field_id_to_arg_index),
+      writer_(writer) {
+  const auto& args = storage_->arg_table();
+  const auto& set_ids = args.arg_set_id();
+
+  // We assume that the row map is a contiguous range (which is always the case
+  // because arg_set_ids are contiguous by definition).
+  row_map_ = args.FilterToRowMap({set_ids.eq(arg_set_id_)});
+  start_row_ = row_map_.empty() ? 0 : row_map_.Get(0);
+
+  // If the vector already has entries, we've previously cached the mapping
+  // from field id to arg index.
+  if (!field_id_to_arg_index->empty())
+    return;
+
+  auto* descriptor = GetMessageDescriptorForName(event_name);
+  if (!descriptor) {
+    // If we don't have a descriptor, this event must be a generic ftrace event.
+    // As we can't possibly have any special handling for generic events, just
+    // add a row to the vector (for the invalid field id 0) to remove future
+    // lookups for this event name.
+    field_id_to_arg_index->resize(1);
+    return;
+  }
+
+  // If we have a descriptor, try and create the mapping from proto field id
+  // to the index in the arg set.
+  size_t max = descriptor->max_field_id;
+
+  // We need to reserve an index for the invalid field id 0.
+  field_id_to_arg_index_->resize(max + 1);
+
+  // Go through each field id and find the entry in the args table for that
+  for (uint32_t i = 1; i <= max; ++i) {
+    for (auto it = row_map_.IterateRows(); it; it.Next()) {
+      base::StringView key = args.key().GetString(it.row());
+      if (key == descriptor->fields[i].name) {
+        (*field_id_to_arg_index)[i] = it.index();
+        break;
+      }
+    }
+  }
+}
+
+void ArgsSerializer::SerializeArgs() {
+  if (row_map_.empty())
+    return;
+
+  if (event_name_ == "sched_switch") {
+    using SS = protos::pbzero::SchedSwitchFtraceEvent;
+
+    WriteArgForField(SS::kPrevCommFieldNumber);
+    WriteArgForField(SS::kPrevPidFieldNumber);
+    WriteArgForField(SS::kPrevPrioFieldNumber);
+    WriteArgForField(SS::kPrevStateFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+      auto state = static_cast<uint16_t>(value.int_value);
+      writer_->AppendString(
+          ftrace_utils::TaskState(state).ToString('|').data());
+    });
+    writer_->AppendLiteral(" ==>");
+    WriteArgForField(SS::kNextCommFieldNumber);
+    WriteArgForField(SS::kNextPidFieldNumber);
+    WriteArgForField(SS::kNextPrioFieldNumber);
+    return;
+  } else if (event_name_ == "sched_wakeup") {
+    using SW = protos::pbzero::SchedWakeupFtraceEvent;
+    WriteArgForField(SW::kCommFieldNumber);
+    WriteArgForField(SW::kPidFieldNumber);
+    WriteArgForField(SW::kPrioFieldNumber);
+    WriteArgForField(SW::kTargetCpuFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+      writer_->AppendPaddedInt<'0', 3>(value.int_value);
+    });
+    return;
+  } else if (event_name_ == "clock_set_rate") {
+    using CSR = protos::pbzero::ClockSetRateFtraceEvent;
+
+    // We use the string "todo" as the name to stay consistent with old
+    // trace_to_text print code.
+    writer_->AppendString(" todo");
+    WriteArgForField(CSR::kStateFieldNumber);
+    WriteArgForField(CSR::kCpuIdFieldNumber);
+    return;
+  } else if (event_name_ == "clk_set_rate") {
+    using CSR = protos::pbzero::ClkSetRateFtraceEvent;
+    writer_->AppendLiteral(" ");
+    WriteArgForField(CSR::kNameFieldNumber);
+    writer_->AppendLiteral(" ");
+    WriteArgForField(CSR::kRateFieldNumber);
+    return;
+  } else if (event_name_ == "clock_enable") {
+    using CE = protos::pbzero::ClockEnableFtraceEvent;
+    WriteValueForField(CE::kNameFieldNumber);
+    WriteArgForField(CE::kStateFieldNumber);
+    WriteArgForField(CE::kCpuIdFieldNumber);
+    return;
+  } else if (event_name_ == "clock_disable") {
+    using CD = protos::pbzero::ClockDisableFtraceEvent;
+    WriteValueForField(CD::kNameFieldNumber);
+    WriteArgForField(CD::kStateFieldNumber);
+    WriteArgForField(CD::kCpuIdFieldNumber);
+    return;
+  } else if (event_name_ == "binder_transaction") {
+    using BT = protos::pbzero::BinderTransactionFtraceEvent;
+    writer_->AppendString(" transaction=");
+    WriteValueForField(BT::kDebugIdFieldNumber);
+
+    writer_->AppendString(" dest_node=");
+    WriteValueForField(BT::kTargetNodeFieldNumber);
+
+    writer_->AppendString(" dest_proc=");
+    WriteValueForField(BT::kToProcFieldNumber);
+
+    writer_->AppendString(" dest_thread=");
+    WriteValueForField(BT::kToThreadFieldNumber);
+
+    writer_->AppendString(" reply=");
+    WriteValueForField(BT::kReplyFieldNumber);
+
+    writer_->AppendString(" flags=0x");
+    WriteValueForField(BT::kFlagsFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+
+    writer_->AppendString(" code=0x");
+    WriteValueForField(BT::kCodeFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    return;
+  } else if (event_name_ == "binder_transaction_alloc_buf") {
+    using BTAB = protos::pbzero::BinderTransactionAllocBufFtraceEvent;
+    writer_->AppendString(" transaction=");
+    WriteValueForField(BTAB::kDebugIdFieldNumber);
+    WriteArgForField(BTAB::kDataSizeFieldNumber);
+    WriteArgForField(BTAB::kOffsetsSizeFieldNumber);
+    return;
+  } else if (event_name_ == "binder_transaction_received") {
+    using BTR = protos::pbzero::BinderTransactionReceivedFtraceEvent;
+    writer_->AppendString(" transaction=");
+    WriteValueForField(BTR::kDebugIdFieldNumber);
+    return;
+  } else if (event_name_ == "mm_filemap_add_to_page_cache") {
+    using MFA = protos::pbzero::MmFilemapAddToPageCacheFtraceEvent;
+    writer_->AppendString(" dev ");
+    WriteValueForField(MFA::kSDevFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendUnsignedInt(value.uint_value >> 20);
+    });
+    writer_->AppendString(":");
+    WriteValueForField(MFA::kSDevFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendUnsignedInt(value.uint_value & ((1 << 20) - 1));
+    });
+    writer_->AppendString(" ino ");
+    WriteValueForField(MFA::kIInoFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    writer_->AppendString(" page=0000000000000000");
+    writer_->AppendString(" pfn=");
+    WriteValueForField(MFA::kPfnFieldNumber);
+    writer_->AppendString(" ofs=");
+    WriteValueForField(MFA::kIndexFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendUnsignedInt(value.uint_value << 12);
+    });
+    return;
+  } else if (event_name_ == "print") {
+    using P = protos::pbzero::PrintFtraceEvent;
+
+    writer_->AppendChar(' ');
+    WriteValueForField(P::kBufFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kString);
+
+      NullTermStringView str = storage_->GetString(value.string_value);
+      // If the last character is a newline in a print, just drop it.
+      auto chars_to_print = !str.empty() && str.c_str()[str.size() - 1] == '\n'
+                                ? str.size() - 1
+                                : str.size();
+      writer_->AppendString(str.c_str(), chars_to_print);
+    });
+    return;
+  } else if (event_name_ == "sched_blocked_reason") {
+    using SBR = protos::pbzero::SchedBlockedReasonFtraceEvent;
+    WriteArgForField(SBR::kPidFieldNumber);
+    WriteArgForField(SBR::kIoWaitFieldNumber);
+    WriteArgForField(SBR::kCallerFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    return;
+  } else if (event_name_ == "workqueue_activate_work") {
+    using WAW = protos::pbzero::WorkqueueActivateWorkFtraceEvent;
+    writer_->AppendString(" work struct ");
+    WriteValueForField(WAW::kWorkFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    return;
+  } else if (event_name_ == "workqueue_execute_start") {
+    using WES = protos::pbzero::WorkqueueExecuteStartFtraceEvent;
+    writer_->AppendString(" work struct ");
+    WriteValueForField(WES::kWorkFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    writer_->AppendString(": function ");
+    WriteValueForField(WES::kFunctionFieldNumber,
+                       [this](const Variadic& value) {
+                         PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                         writer_->AppendHexInt(value.uint_value);
+                       });
+    return;
+  } else if (event_name_ == "workqueue_execute_end") {
+    using WE = protos::pbzero::WorkqueueExecuteEndFtraceEvent;
+    writer_->AppendString(" work struct ");
+    WriteValueForField(WE::kWorkFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    return;
+  } else if (event_name_ == "workqueue_queue_work") {
+    using WQW = protos::pbzero::WorkqueueQueueWorkFtraceEvent;
+    writer_->AppendString(" work struct=");
+    WriteValueForField(WQW::kWorkFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    WriteArgForField(WQW::kFunctionFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    WriteArgForField(WQW::kWorkqueueFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendHexInt(value.uint_value);
+    });
+    WriteValueForField(WQW::kReqCpuFieldNumber);
+    WriteValueForField(WQW::kCpuFieldNumber);
+    return;
+  }
+
+  for (auto it = row_map_.IterateRows(); it; it.Next()) {
+    WriteArgAtRow(it.row());
+  }
+}
+
+void ArgsSerializer::WriteArgAtRow(uint32_t arg_row, ValueWriter writer) {
+  const auto& args = storage_->arg_table();
+  const auto& key = storage_->GetString(args.key()[arg_row]);
+  auto value = storage_->GetArgValue(arg_row);
+
+  writer_->AppendChar(' ');
+  writer_->AppendString(key.c_str(), key.size());
+  writer_->AppendChar('=');
+
+  if (key == "gfp_flags" && ParseGfpFlags(value))
+    return;
+  writer(value);
+}
+
+void ArgsSerializer::WriteValue(const Variadic& value) {
+  switch (value.type) {
+    case Variadic::kInt:
+      writer_->AppendInt(value.int_value);
+      break;
+    case Variadic::kUint:
+      writer_->AppendUnsignedInt(value.uint_value);
+      break;
+    case Variadic::kString: {
+      const auto& str = storage_->GetString(value.string_value);
+      writer_->AppendString(str.c_str(), str.size());
+      break;
+    }
+    case Variadic::kReal:
+      writer_->AppendDouble(value.real_value);
+      break;
+    case Variadic::kPointer:
+      writer_->AppendUnsignedInt(value.pointer_value);
+      break;
+    case Variadic::kBool:
+      writer_->AppendBool(value.bool_value);
+      break;
+    case Variadic::kJson: {
+      const auto& str = storage_->GetString(value.json_value);
+      writer_->AppendString(str.c_str(), str.size());
+      break;
+    }
+  }
+}
+
+bool ArgsSerializer::ParseGfpFlags(Variadic value) {
+  const auto& metadata_table = storage_->metadata_table();
+
+  auto opt_name_idx = metadata_table.name().IndexOf(
+      metadata::kNames[metadata::KeyIDs::system_name]);
+  auto opt_release_idx = metadata_table.name().IndexOf(
+      metadata::kNames[metadata::KeyIDs::system_release]);
+  if (!opt_name_idx || !opt_release_idx)
+    return false;
+
+  StringId name = metadata_table.str_value()[*opt_name_idx];
+  base::StringView system_name = storage_->GetString(name);
+  if (system_name != "Linux")
+    return false;
+
+  StringId release = metadata_table.str_value()[*opt_release_idx];
+  base::StringView system_release = storage_->GetString(release);
+  auto version = ParseKernelReleaseVersion(system_release);
+
+  WriteGfpFlag(value.uint_value, version, writer_);
+  return true;
+}
+
+}  // namespace
+
+SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
+    : DbSqliteTable(
+          db,
+          {context.cache, tables::RawTable::Schema(), TableComputation::kStatic,
+           &context.storage->raw_table(), nullptr}),
+      serializer_(context.storage) {
+  auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
+    thiz->ToSystrace(ctx, argc, argv);
+  };
+  sqlite3_create_function(db, "to_ftrace", 1,
+                          SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
+                          nullptr);
+}
+
+SqliteRawTable::~SqliteRawTable() = default;
+
+void SqliteRawTable::RegisterTable(sqlite3* db,
+                                   QueryCache* cache,
+                                   const TraceStorage* storage) {
+  SqliteTable::Register<SqliteRawTable, Context>(db, Context{cache, storage},
+                                                 "raw");
+}
+
+void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
+                                int argc,
+                                sqlite3_value** argv) {
+  if (argc != 1 || sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+    sqlite3_result_error(ctx, "Usage: to_ftrace(id)", -1);
+    return;
+  }
+  uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
+
+  auto str = serializer_.SerializeToString(row);
+  sqlite3_result_text(ctx, str.release(), -1, free);
+}
+
+SystraceSerializer::SystraceSerializer(const TraceStorage* storage)
+    : storage_(storage) {}
+
+SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
+    uint32_t raw_row) {
   const auto& raw = storage_->raw_table();
 
   char line[4096];
   base::StringWriter writer(line, sizeof(line));
 
-  SerializePrefix(&writer);
+  SerializePrefix(raw_row, &writer);
 
-  const auto& event_name = storage_->GetString(raw.name()[raw_row_]);
+  StringId event_name_id = raw.name()[raw_row];
+  NullTermStringView event_name = storage_->GetString(event_name_id);
   writer.AppendChar(' ');
   if (event_name == "print") {
     writer.AppendString("tracing_mark_write");
@@ -101,18 +505,22 @@ SystraceSerializer::ScopedString SystraceSerializer::SerializeToString() {
   }
   writer.AppendChar(':');
 
-  SerializeArgs(event_name, raw.arg_set_id()[raw_row_], &writer);
+  ArgsSerializer serializer(storage_, raw.arg_set_id()[raw_row], event_name,
+                            &proto_id_to_arg_index_by_event_[event_name_id],
+                            &writer);
+  serializer.SerializeArgs();
 
-  return ScopedString(writer.CreateStringCopy());
+  return ScopedCString(writer.CreateStringCopy(), free);
 }
 
-void SystraceSerializer::SerializePrefix(base::StringWriter* writer) {
+void SystraceSerializer::SerializePrefix(uint32_t raw_row,
+                                         base::StringWriter* writer) {
   const auto& raw = storage_->raw_table();
 
-  int64_t ts = raw.ts()[raw_row_];
-  uint32_t cpu = raw.cpu()[raw_row_];
+  int64_t ts = raw.ts()[raw_row];
+  uint32_t cpu = raw.cpu()[raw_row];
 
-  UniqueTid utid = raw.utid()[raw_row_];
+  UniqueTid utid = raw.utid()[raw_row];
   uint32_t tid = storage_->thread_table().tid()[utid];
 
   uint32_t tgid = 0;
@@ -164,343 +572,6 @@ void SystraceSerializer::SerializePrefix(base::StringWriter* writer) {
   writer->AppendChar('.');
   writer->AppendPaddedInt<'0', 6>(ftrace_time.micros);
   writer->AppendChar(':');
-}
-
-void SystraceSerializer::SerializeArgs(NullTermStringView event_name,
-                                       ArgSetId arg_set_id,
-                                       base::StringWriter* writer) {
-  const auto& set_ids = storage_->arg_table().arg_set_id();
-
-  // TODO(lalitm): this code is quite hacky for performance reasons. We assume
-  // that the row map is a contiguous range (which is always the case
-  // because arg_set_ids are contiguous by definition). We also assume that
-  // the proto field order is also the order of insertion (which happens to
-  // be true but proabably shouldn't be relied on).
-  RowMap rm = storage_->arg_table().FilterToRowMap({set_ids.eq(arg_set_id)});
-  if (rm.empty())
-    return;
-
-  uint32_t start_row = rm.Get(0);
-  using ValueWriter = std::function<void(const Variadic&)>;
-  auto write_value = [this, writer](const Variadic& value) {
-    switch (value.type) {
-      case Variadic::kInt:
-        writer->AppendInt(value.int_value);
-        break;
-      case Variadic::kUint:
-        writer->AppendUnsignedInt(value.uint_value);
-        break;
-      case Variadic::kString: {
-        const auto& str = storage_->GetString(value.string_value);
-        writer->AppendString(str.c_str(), str.size());
-        break;
-      }
-      case Variadic::kReal:
-        writer->AppendDouble(value.real_value);
-        break;
-      case Variadic::kPointer:
-        writer->AppendUnsignedInt(value.pointer_value);
-        break;
-      case Variadic::kBool:
-        writer->AppendBool(value.bool_value);
-        break;
-      case Variadic::kJson: {
-        const auto& str = storage_->GetString(value.json_value);
-        writer->AppendString(str.c_str(), str.size());
-        break;
-      }
-    }
-  };
-  auto write_value_at_index = [this, start_row](uint32_t arg_idx,
-                                                ValueWriter value_fn) {
-    value_fn(storage_->GetArgValue(start_row + arg_idx));
-  };
-  auto write_arg = [this, writer, start_row](uint32_t arg_idx,
-                                             ValueWriter value_fn) {
-    uint32_t arg_row = start_row + arg_idx;
-    const auto& args = storage_->arg_table();
-    const auto& key = storage_->GetString(args.key()[arg_row]);
-    auto value = storage_->GetArgValue(arg_row);
-
-    writer->AppendChar(' ');
-    writer->AppendString(key.c_str(), key.size());
-    writer->AppendChar('=');
-
-    if (key == "gfp_flags" && ParseGfpFlags(value, writer))
-      return;
-    value_fn(value);
-  };
-
-  if (event_name == "sched_switch") {
-    using SS = protos::pbzero::SchedSwitchFtraceEvent;
-    write_arg(SS::kPrevCommFieldNumber - 1, write_value);
-    write_arg(SS::kPrevPidFieldNumber - 1, write_value);
-    write_arg(SS::kPrevPrioFieldNumber - 1, write_value);
-    write_arg(SS::kPrevStateFieldNumber - 1, [writer](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
-      auto state = static_cast<uint16_t>(value.int_value);
-      writer->AppendString(ftrace_utils::TaskState(state).ToString('|').data());
-    });
-    writer->AppendLiteral(" ==>");
-    write_arg(SS::kNextCommFieldNumber - 1, write_value);
-    write_arg(SS::kNextPidFieldNumber - 1, write_value);
-    write_arg(SS::kNextPrioFieldNumber - 1, write_value);
-    return;
-  } else if (event_name == "sched_wakeup") {
-    using SW = protos::pbzero::SchedWakeupFtraceEvent;
-    write_arg(SW::kCommFieldNumber - 1, write_value);
-    write_arg(SW::kPidFieldNumber - 1, write_value);
-    write_arg(SW::kPrioFieldNumber - 1, write_value);
-    write_arg(SW::kTargetCpuFieldNumber - 1, [writer](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
-      writer->AppendPaddedInt<'0', 3>(value.int_value);
-    });
-    return;
-  } else if (event_name == "clock_set_rate") {
-    // TODO(lalitm): this is a big hack but the best way to do this now.
-    // Doing this requires overhauling how we deal with args by pushing them all
-    // to an array and then reading back from that array.
-
-    // We use the string "todo" as the name to stay consistent with old
-    // trace_to_text print code.
-    writer->AppendString(" todo");
-    write_arg(0 /* state */, write_value);
-    write_arg(1 /* cpu_id */, write_value);
-    return;
-  } else if (event_name == "clk_set_rate") {
-    using CSR = protos::pbzero::ClkSetRateFtraceEvent;
-    writer->AppendLiteral(" ");
-    write_value_at_index(CSR::kNameFieldNumber - 1, write_value);
-    writer->AppendLiteral(" ");
-    write_value_at_index(CSR::kRateFieldNumber - 1, write_value);
-    return;
-  } else if (event_name == "clock_enable") {
-    using CE = protos::pbzero::ClockEnableFtraceEvent;
-    write_value_at_index(CE::kNameFieldNumber - 1, write_value);
-    write_arg(CE::kStateFieldNumber - 1, write_value);
-    write_arg(CE::kCpuIdFieldNumber - 1, write_value);
-    return;
-  } else if (event_name == "clock_disable") {
-    using CD = protos::pbzero::ClockDisableFtraceEvent;
-    write_value_at_index(CD::kNameFieldNumber - 1, write_value);
-    write_arg(CD::kStateFieldNumber - 1, write_value);
-    write_arg(CD::kCpuIdFieldNumber - 1, write_value);
-    return;
-  } else if (event_name == "binder_transaction") {
-    using BT = protos::pbzero::BinderTransactionFtraceEvent;
-    writer->AppendString(" transaction=");
-    write_value_at_index(BT::kDebugIdFieldNumber - 1, write_value);
-
-    writer->AppendString(" dest_node=");
-    write_value_at_index(BT::kTargetNodeFieldNumber - 1, write_value);
-
-    writer->AppendString(" dest_proc=");
-    write_value_at_index(BT::kToProcFieldNumber - 1, write_value);
-
-    writer->AppendString(" dest_thread=");
-    write_value_at_index(BT::kToThreadFieldNumber - 1, write_value);
-
-    writer->AppendString(" reply=");
-    write_value_at_index(BT::kReplyFieldNumber - 1, write_value);
-
-    writer->AppendString(" flags=0x");
-    write_value_at_index(BT::kFlagsFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-
-    writer->AppendString(" code=0x");
-    write_value_at_index(BT::kCodeFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    return;
-  } else if (event_name == "binder_transaction_alloc_buf") {
-    using BTAB = protos::pbzero::BinderTransactionAllocBufFtraceEvent;
-    writer->AppendString(" transaction=");
-    write_value_at_index(BTAB::kDebugIdFieldNumber - 1, write_value);
-    write_arg(BTAB::kDataSizeFieldNumber - 1, write_value);
-    write_arg(BTAB::kOffsetsSizeFieldNumber - 1, write_value);
-    return;
-  } else if (event_name == "binder_transaction_received") {
-    using BTR = protos::pbzero::BinderTransactionReceivedFtraceEvent;
-    writer->AppendString(" transaction=");
-    write_value_at_index(BTR::kDebugIdFieldNumber - 1, write_value);
-    return;
-  } else if (event_name == "mm_filemap_add_to_page_cache") {
-    using MFA = protos::pbzero::MmFilemapAddToPageCacheFtraceEvent;
-    writer->AppendString(" dev ");
-    write_value_at_index(MFA::kSDevFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendUnsignedInt(value.uint_value >> 20);
-                         });
-    writer->AppendString(":");
-    write_value_at_index(
-        MFA::kSDevFieldNumber - 1, [writer](const Variadic& value) {
-          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-          writer->AppendUnsignedInt(value.uint_value & ((1 << 20) - 1));
-        });
-    writer->AppendString(" ino ");
-    write_value_at_index(MFA::kIInoFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    writer->AppendString(" page=0000000000000000");
-    writer->AppendString(" pfn=");
-    write_value_at_index(MFA::kPfnFieldNumber - 1, write_value);
-    writer->AppendString(" ofs=");
-    write_value_at_index(MFA::kIndexFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendUnsignedInt(value.uint_value << 12);
-                         });
-    return;
-  } else if (event_name == "print") {
-    // 'ip' may be the first field or it may be dropped. We only care
-    // about the 'buf' field which will always appear last.
-    uint32_t arg_row = rm.Get(rm.size() - 1);
-    const auto& value = storage_->GetArgValue(arg_row);
-    const auto& str = storage_->GetString(value.string_value);
-    // If the last character is a newline in a print, just drop it.
-    auto chars_to_print = !str.empty() && str.c_str()[str.size() - 1] == '\n'
-                              ? str.size() - 1
-                              : str.size();
-    writer->AppendChar(' ');
-    writer->AppendString(str.c_str(), chars_to_print);
-    return;
-  } else if (event_name == "sched_blocked_reason") {
-    using SBR = protos::pbzero::SchedBlockedReasonFtraceEvent;
-    write_arg(SBR::kPidFieldNumber - 1, write_value);
-    write_arg(SBR::kIoWaitFieldNumber - 1, write_value);
-    write_arg(SBR::kCallerFieldNumber - 1, [writer](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer->AppendHexInt(value.uint_value);
-    });
-    return;
-  } else if (event_name == "workqueue_activate_work") {
-    using WAW = protos::pbzero::WorkqueueActivateWorkFtraceEvent;
-    writer->AppendString(" work struct ");
-    write_value_at_index(WAW::kWorkFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    return;
-  } else if (event_name == "workqueue_execute_start") {
-    using WES = protos::pbzero::WorkqueueExecuteStartFtraceEvent;
-    writer->AppendString(" work struct ");
-    write_value_at_index(WES::kWorkFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    writer->AppendString(": function ");
-    write_value_at_index(WES::kFunctionFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    return;
-  } else if (event_name == "workqueue_execute_end") {
-    using WE = protos::pbzero::WorkqueueExecuteEndFtraceEvent;
-    writer->AppendString(" work struct ");
-    write_value_at_index(WE::kWorkFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    return;
-  } else if (event_name == "workqueue_queue_work") {
-    using WQW = protos::pbzero::WorkqueueQueueWorkFtraceEvent;
-    writer->AppendString(" work struct=");
-    write_value_at_index(WQW::kWorkFieldNumber - 1,
-                         [writer](const Variadic& value) {
-                           PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-                           writer->AppendHexInt(value.uint_value);
-                         });
-    write_arg(WQW::kFunctionFieldNumber - 1, [writer](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer->AppendHexInt(value.uint_value);
-    });
-    write_arg(WQW::kWorkqueueFieldNumber - 1, [writer](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer->AppendHexInt(value.uint_value);
-    });
-    write_value_at_index(WQW::kReqCpuFieldNumber - 1, write_value);
-    write_value_at_index(WQW::kCpuFieldNumber - 1, write_value);
-    return;
-  }
-
-  for (auto it = rm.IterateRows(); it; it.Next()) {
-    write_arg(it.index(), write_value);
-  }
-}
-
-bool SystraceSerializer::ParseGfpFlags(Variadic value,
-                                       base::StringWriter* writer) {
-  const auto& metadata_table = storage_->metadata_table();
-
-  auto opt_name_idx = metadata_table.name().IndexOf(
-      metadata::kNames[metadata::KeyIDs::system_name]);
-  auto opt_release_idx = metadata_table.name().IndexOf(
-      metadata::kNames[metadata::KeyIDs::system_release]);
-  if (!opt_name_idx || !opt_release_idx)
-    return false;
-
-  StringId name = metadata_table.str_value()[*opt_name_idx];
-  base::StringView system_name = storage_->GetString(name);
-  if (system_name != "Linux")
-    return false;
-
-  StringId release = metadata_table.str_value()[*opt_release_idx];
-  base::StringView system_release = storage_->GetString(release);
-  auto version = ParseKernelReleaseVersion(system_release);
-
-  WriteGfpFlag(value.uint_value, version, writer);
-  return true;
-}
-
-}  // namespace
-
-SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
-    : DbSqliteTable(
-          db,
-          {context.cache, tables::RawTable::Schema(), TableComputation::kStatic,
-           &context.storage->raw_table(), nullptr}),
-      storage_(context.storage) {
-  auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
-    thiz->ToSystrace(ctx, argc, argv);
-  };
-  sqlite3_create_function(db, "to_ftrace", 1,
-                          SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
-                          nullptr);
-}
-
-SqliteRawTable::~SqliteRawTable() = default;
-
-void SqliteRawTable::RegisterTable(sqlite3* db,
-                                   QueryCache* cache,
-                                   const TraceStorage* storage) {
-  SqliteTable::Register<SqliteRawTable, Context>(db, Context{cache, storage},
-                                                 "raw");
-}
-
-void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
-                                int argc,
-                                sqlite3_value** argv) {
-  if (argc != 1 || sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
-    sqlite3_result_error(ctx, "Usage: to_ftrace(id)", -1);
-    return;
-  }
-  uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
-
-  SystraceSerializer seralizer(storage_, row);
-  sqlite3_result_text(ctx, seralizer.SerializeToString().release(), -1, free);
 }
 
 }  // namespace trace_processor

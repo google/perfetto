@@ -217,7 +217,7 @@ const SECTIONS = [
     items: [
       {
         t: 'Controls',
-        a: toggleHelp,
+        a: openHelp,
         i: 'help',
       },
       {
@@ -243,6 +243,11 @@ const vidSection = {
     {t: 'Open video file', a: popupVideoSelectionDialog, i: 'folder_open'},
   ],
 };
+
+function openHelp(e: Event) {
+  e.preventDefault();
+  toggleHelp();
+}
 
 function getFileElement(): HTMLInputElement {
   return document.querySelector('input[type=file]')! as HTMLInputElement;
@@ -623,6 +628,7 @@ export class Sidebar implements m.ClassComponent {
         let attrs = {
           onclick: typeof item.a === 'function' ? item.a : null,
           href: typeof item.a === 'string' ? item.a : '#',
+          target: typeof item.a === 'string' ? '_blank' : null,
           disabled: false,
         };
         if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
@@ -633,7 +639,8 @@ export class Sidebar implements m.ClassComponent {
           attrs = {
             onclick: () => alert('Can not download or share external trace.'),
             href: '#',
-            disabled: true
+            target: null,
+            disabled: true,
           };
         }
         vdomItems.push(

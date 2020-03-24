@@ -39,9 +39,9 @@ export class SelectionController extends Controller<'main'> {
     if (selection.kind === 'THREAD_STATE') {
       const sqlQuery = `SELECT id FROM sched WHERE utid = ${selection.utid}
                         and ts = ${toNs(selection.ts)}`;
-      this.args.engine.queryOneRow(sqlQuery).then(result => {
-        const id = result[0];
-        if (id !== undefined) this.sliceDetails(id);
+      this.args.engine.query(sqlQuery).then(result => {
+        if (result.columns[0].longValues!.length === 0) return;
+        this.sliceDetails(+result.columns[0].longValues![0]);
       });
       return;
     }
@@ -176,7 +176,8 @@ export class SelectionController extends Controller<'main'> {
     const prevSchedRow = await this.args.engine.queryOneRow(queryPrevSched);
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
-    if (prevSchedRow[0] && wakeupRow[0] < prevSchedRow[0]) {
+    if (wakeupRow[0] === undefined ||
+        (prevSchedRow[0] !== undefined && wakeupRow[0] < prevSchedRow[0])) {
       return undefined;
     }
     const wakeupTs = wakeupRow[0];
