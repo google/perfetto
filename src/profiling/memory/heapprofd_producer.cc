@@ -482,6 +482,7 @@ UnwindingWorker& HeapprofdProducer::UnwinderForPID(pid_t pid) {
 void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
+    endpoint_->NotifyDataSourceStopped(id);
     if (mode_ == HeapprofdMode::kCentral)
       PERFETTO_DFATAL_OR_ELOG(
           "Trying to stop non existing data source: %" PRIu64, id);
@@ -644,9 +645,6 @@ void HeapprofdProducer::DumpAll() {
 void HeapprofdProducer::Flush(FlushRequestID flush_id,
                               const DataSourceInstanceID* ids,
                               size_t num_ids) {
-  if (num_ids == 0)
-    return;
-
   size_t& flush_in_progress = flushes_in_progress_[flush_id];
   PERFETTO_DCHECK(flush_in_progress == 0);
   flush_in_progress = num_ids;
@@ -655,6 +653,7 @@ void HeapprofdProducer::Flush(FlushRequestID flush_id,
     if (it == data_sources_.end()) {
       PERFETTO_DFATAL_OR_ELOG("Trying to flush unknown data-source %" PRIu64,
                               ids[i]);
+      flush_in_progress--;
       continue;
     }
     DataSource& data_source = it->second;
@@ -670,6 +669,10 @@ void HeapprofdProducer::Flush(FlushRequestID flush_id,
         });
     };
     data_source.trace_writer->Flush(std::move(callback));
+  }
+  if (flush_in_progress == 0) {
+    endpoint_->NotifyFlushComplete(flush_id);
+    flushes_in_progress_.erase(flush_id);
   }
 }
 
