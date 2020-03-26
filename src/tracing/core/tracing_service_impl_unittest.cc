@@ -298,7 +298,9 @@ TEST_F(TracingServiceImplTest, EnableAndDisableTracing) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(128);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  auto* ds = trace_config.add_data_sources();
+  *ds->add_producer_name_regex_filter() = "mock_[p]roducer";
+  auto* ds_config = ds->mutable_config();
   ds_config->set_name("data_source");
   consumer->EnableTracing(trace_config);
 
@@ -1239,7 +1241,7 @@ TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
 
   // Enable mock_producer_2, the third one should still
   // not get connected.
-  *data_source->add_producer_name_filter() = "mock_producer_2";
+  *data_source->add_producer_name_regex_filter() = ".*_producer_[2]";
   consumer->ChangeTraceConfig(trace_config);
 
   producer2->WaitForTracingSetup();
