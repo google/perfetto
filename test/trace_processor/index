@@ -134,6 +134,7 @@ print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 
 # GPU trace tests.
 gpu_counters.py gpu_counters.sql gpu_counters.out
+gpu_counter_specs.textproto gpu_counter_specs.sql gpu_counter_specs.out
 gpu_render_stages.py gpu_render_stages.sql gpu_render_stages.out
 vulkan_api_events.py vulkan_api_events.sql vulkan_api_events.out
 gpu_log.py gpu_log.sql gpu_log.out

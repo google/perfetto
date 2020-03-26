@@ -194,6 +194,19 @@ void GraphicsEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       auto track_id = context_->track_tracker->CreateGpuCounterTrack(
           name_id, 0 /* gpu_id */, desc_id, unit_id);
       gpu_counter_track_ids_.emplace(counter_id, track_id);
+      if (spec.has_groups()) {
+        for (auto group = spec.groups(); group; ++group) {
+          tables::GpuCounterGroupTable::Row row;
+          row.group_id = *group;
+          row.track_id = track_id;
+          context_->storage->mutable_gpu_counter_group_table()->Insert(row);
+        }
+      } else {
+        tables::GpuCounterGroupTable::Row row;
+        row.group_id = protos::pbzero::GpuCounterDescriptor::UNCLASSIFIED;
+        row.track_id = track_id;
+        context_->storage->mutable_gpu_counter_group_table()->Insert(row);
+      }
     } else {
       // Either counter spec was repeated or it came after counter data.
       PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%d, name=%s)",
