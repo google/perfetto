@@ -24,4 +24,7 @@ message AndroidDisplayMetrics {
   // pixels values but where still submitted. It is tracked based on
   // comparing the MISR of the current frame vs previous frame.
   optional uint32 total_duplicate_frames = 1;
+
+  // Stat reports whether there is any duplicate_frames tracked
+  optional uint32 duplicate_frames_logged = 2;
 }
