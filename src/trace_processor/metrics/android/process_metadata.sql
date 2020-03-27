@@ -16,13 +16,6 @@
 
 SELECT RUN_METRIC('android/android_package_list.sql');
 
--- Create a view of the process with the app ID as defined in
--- //frameworks/base/core/java/android/os/UserHandle.java
--- TODO: move this to the trace processor once the table migration is complete.
-CREATE VIEW IF NOT EXISTS proc_uid AS
-SELECT upid, name, uid % 100000 AS uid
-FROM process;
-
 DROP TABLE IF EXISTS uid_package_count;
 
 CREATE TABLE uid_package_count AS
@@ -34,24 +27,24 @@ DROP TABLE IF EXISTS process_metadata_table;
 
 CREATE TABLE process_metadata_table AS
 SELECT
-  proc_uid.upid,
-  proc_uid.name AS process_name,
-  proc_uid.uid,
+  process.upid,
+  process.name AS process_name,
+  process.android_appid AS uid,
   CASE WHEN uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
   plist.package_name,
   plist.version_code,
   plist.debuggable
-FROM proc_uid
-LEFT JOIN uid_package_count USING (uid)
+FROM process
+LEFT JOIN uid_package_count ON process.android_appid = uid_package_count.uid
 LEFT JOIN package_list plist
 ON (
-  proc_uid.uid = plist.uid
+  process.android_appid = plist.uid
   AND uid_package_count.uid = plist.uid
   AND (
     -- unique match
     uid_package_count.cnt = 1
     -- or process name starts with the package name
-    OR proc_uid.name LIKE plist.package_name || '%')
+    OR process.name LIKE plist.package_name || '%')
   );
 
 CREATE VIEW IF NOT EXISTS process_metadata AS
@@ -63,8 +56,8 @@ WITH upid_packages AS (
     'apk_version_code', package_list.version_code,
     'debuggable', package_list.debuggable
   )) packages_for_uid
-  FROM proc_uid
-  JOIN package_list USING (uid)
+  FROM process
+  JOIN package_list ON process.android_appid = package_list.uid
   GROUP BY upid
 )
 SELECT
