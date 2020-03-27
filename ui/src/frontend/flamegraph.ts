@@ -44,8 +44,14 @@ export function findRootSize(data: CallsiteInfo[]) {
   return totalSize;
 }
 
+export interface NodeRendering {
+  totalSize?: string;
+  selfSize?: string;
+}
+
 export class Flamegraph {
   private isThumbnail = false;
+  private nodeRendering: NodeRendering = {};
   private flamegraphData: CallsiteInfo[];
   private maxDepth = -1;
   private totalSize = -1;
@@ -98,7 +104,9 @@ export class Flamegraph {
    * graph.
    */
   updateDataIfChanged(
-      flamegraphData: CallsiteInfo[], clickedCallsite?: CallsiteInfo) {
+      nodeRendering: NodeRendering, flamegraphData: CallsiteInfo[],
+      clickedCallsite?: CallsiteInfo) {
+    this.nodeRendering = nodeRendering;
     this.clickedCallsite = clickedCallsite;
     if (this.flamegraphData === flamegraphData) {
       return;
@@ -237,47 +245,45 @@ export class Flamegraph {
       const nameText = this.getCallsiteName(this.hoveredCallsite);
       lineSplitter =
           splitIfTooBig(nameText, width, ctx.measureText(nameText).width);
-      const nameTextWidth = lineSplitter.lineWidth;
+      let textWidth = lineSplitter.lineWidth;
       lines.push(...lineSplitter.lines);
 
       const mappingText = this.hoveredCallsite.mapping;
       lineSplitter =
           splitIfTooBig(mappingText, width, ctx.measureText(mappingText).width);
-      const mappingTextWidth = lineSplitter.lineWidth;
+      textWidth = Math.max(textWidth, lineSplitter.lineWidth);
       lines.push(...lineSplitter.lines);
 
-      const percentage = this.hoveredCallsite.totalSize / this.totalSize * 100;
-      const totalSizeText = `total: ${
-          this.displaySize(
-              this.hoveredCallsite.totalSize,
-              unit,
-              unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
-      lineSplitter = splitIfTooBig(
-          totalSizeText, width, ctx.measureText(totalSizeText).width);
-      const totalSizeTextWidth = lineSplitter.lineWidth;
-      lines.push(...lineSplitter.lines);
+      if (this.nodeRendering.totalSize !== undefined) {
+        const percentage =
+            this.hoveredCallsite.totalSize / this.totalSize * 100;
+        const totalSizeText = `${this.nodeRendering.totalSize}: ${
+            this.displaySize(
+                this.hoveredCallsite.totalSize,
+                unit,
+                unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
+        lineSplitter = splitIfTooBig(
+            totalSizeText, width, ctx.measureText(totalSizeText).width);
+        textWidth = Math.max(textWidth, lineSplitter.lineWidth);
+        lines.push(...lineSplitter.lines);
+      }
 
-      let selfSizeWidth = 0;
-      if (this.hoveredCallsite.selfSize > 0) {
+      if (this.nodeRendering.selfSize !== undefined &&
+          this.hoveredCallsite.selfSize > 0) {
         const selfPercentage =
             this.hoveredCallsite.selfSize / this.totalSize * 100;
-        const selfSizeText = `self: ${
+        const selfSizeText = `${this.nodeRendering.selfSize}: ${
             this.displaySize(
                 this.hoveredCallsite.selfSize,
                 unit,
                 unit === 'B' ? 1024 : 1000)} (${selfPercentage.toFixed(2)}%)`;
         lineSplitter = splitIfTooBig(
             selfSizeText, width, ctx.measureText(selfSizeText).width);
-        selfSizeWidth = lineSplitter.lineWidth;
+        textWidth = Math.max(textWidth, lineSplitter.lineWidth);
         lines.push(...lineSplitter.lines);
       }
 
-      const rectWidth = Math.max(
-                            nameTextWidth,
-                            mappingTextWidth,
-                            totalSizeTextWidth,
-                            selfSizeWidth) +
-          16;
+      const rectWidth = textWidth + 16;
       const rectXStart = this.hoveredX + 8 + rectWidth > width ?
           width - rectWidth - 8 :
           this.hoveredX + 8;
