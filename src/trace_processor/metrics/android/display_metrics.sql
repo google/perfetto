@@ -19,8 +19,15 @@ FROM counters
 WHERE name='SAME_FRAME'
 AND value=1;
 
+CREATE VIEW duplicate_frames_logged AS
+SELECT CASE WHEN COUNT(name) > 0 THEN 1 ELSE 0 END AS logs_found
+FROM counters
+WHERE name='SAME_FRAME' AND value=0;
+
 CREATE VIEW display_metrics_output AS
 SELECT AndroidDisplayMetrics(
     'total_duplicate_frames', (SELECT total_duplicate_frames
-                            FROM same_frame)
+                            FROM same_frame),
+    'duplicate_frames_logged', (SELECT logs_found
+                            FROM duplicate_frames_logged)
 );
