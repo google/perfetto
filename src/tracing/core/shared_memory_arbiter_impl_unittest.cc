@@ -402,6 +402,161 @@ TEST_P(SharedMemoryArbiterImplTest, StartupTracing) {
   EXPECT_TRUE(flush_completed);
 }
 
+TEST_P(SharedMemoryArbiterImplTest, AbortStartupTracingForReservation) {
+  constexpr uint16_t kTargetBufferReservationId1 = 1;
+  constexpr uint16_t kTargetBufferReservationId2 = 2;
+
+  // Create an unbound arbiter and a startup writer.
+  arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
+                                             nullptr, nullptr));
+  SharedMemoryABI* shmem_abi = arbiter_->shmem_abi_for_testing();
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId1);
+
+  // Write two packet while unbound and flush the chunk after each packet. The
+  // writer will return the chunk to the arbiter and grab a new chunk for the
+  // second packet. The flush should only add the chunk into the queued commit
+  // request.
+  for (int i = 0; i < 2; i++) {
+    {
+      auto packet = writer->NewTracePacket();
+      packet->set_for_testing()->set_str("foo");
+    }
+    writer->Flush();
+  }
+
+  // Abort the first session. This should clear resolve the two chunks committed
+  // up to this point to an invalid target buffer (ID 0). They will remain
+  // buffered until bound to an endpoint.
+  arbiter_->AbortStartupTracingForReservation(kTargetBufferReservationId1);
+
+  // Bind to producer endpoint. The trace writer should not be registered as its
+  // target buffer is invalid. Since no startup sessions are active anymore, the
+  // arbiter should be fully bound. The commit data request is flushed.
+  EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, _)).Times(0);
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([shmem_abi](const CommitDataRequest& req,
+                                   MockProducerEndpoint::CommitDataCallback) {
+        ASSERT_EQ(2, req.chunks_to_move_size());
+        for (size_t i = 0; i < 2; i++) {
+          EXPECT_EQ(0u, req.chunks_to_move()[i].target_buffer());
+          SharedMemoryABI::Chunk chunk = shmem_abi->TryAcquireChunkForReading(
+              req.chunks_to_move()[i].page(), req.chunks_to_move()[i].chunk());
+          shmem_abi->ReleaseChunkAsFree(std::move(chunk));
+        }
+      }));
+  arbiter_->BindToProducerEndpoint(&mock_producer_endpoint_,
+                                   task_runner_.get());
+  EXPECT_TRUE(IsArbiterFullyBound());
+
+  // SMB should be free again, as no writer holds on to any chunk anymore.
+  for (size_t i = 0; i < shmem_abi->num_pages(); i++)
+    EXPECT_TRUE(shmem_abi->is_page_free(i));
+
+  // Write another packet into another chunk and commit it. It should be sent
+  // to the arbiter with invalid target buffer (ID 0).
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str("foo");
+  }
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([shmem_abi](
+                           const CommitDataRequest& req,
+                           MockProducerEndpoint::CommitDataCallback callback) {
+        ASSERT_EQ(1, req.chunks_to_move_size());
+        EXPECT_EQ(0u, req.chunks_to_move()[0].target_buffer());
+        SharedMemoryABI::Chunk chunk = shmem_abi->TryAcquireChunkForReading(
+            req.chunks_to_move()[0].page(), req.chunks_to_move()[0].chunk());
+        shmem_abi->ReleaseChunkAsFree(std::move(chunk));
+        callback();
+      }));
+  bool flush_completed = false;
+  writer->Flush([&flush_completed] { flush_completed = true; });
+  EXPECT_TRUE(flush_completed);
+
+  // Creating a new startup writer for the same buffer does not cause it to
+  // register.
+  EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, _)).Times(0);
+  std::unique_ptr<TraceWriter> writer1b =
+      arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId1);
+
+  // And a commit on this new writer should again be flushed to the invalid
+  // target buffer.
+  {
+    auto packet = writer1b->NewTracePacket();
+    packet->set_for_testing()->set_str("foo");
+  }
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([shmem_abi](
+                           const CommitDataRequest& req,
+                           MockProducerEndpoint::CommitDataCallback callback) {
+        ASSERT_EQ(1, req.chunks_to_move_size());
+        EXPECT_EQ(0u, req.chunks_to_move()[0].target_buffer());
+        SharedMemoryABI::Chunk chunk = shmem_abi->TryAcquireChunkForReading(
+            req.chunks_to_move()[0].page(), req.chunks_to_move()[0].chunk());
+        shmem_abi->ReleaseChunkAsFree(std::move(chunk));
+        callback();
+      }));
+  flush_completed = false;
+  writer1b->Flush([&flush_completed] { flush_completed = true; });
+  EXPECT_TRUE(flush_completed);
+
+  // Create another startup writer for another target buffer, which puts the
+  // arbiter back into unbound state.
+  std::unique_ptr<TraceWriter> writer2 =
+      arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId2);
+  EXPECT_FALSE(IsArbiterFullyBound());
+
+  // Write a chunk into both writers. Both should be queued up into the next
+  // commit request.
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str("foo");
+  }
+  writer->Flush();
+  {
+    auto packet = writer2->NewTracePacket();
+    packet->set_for_testing()->set_str("bar");
+  }
+  flush_completed = false;
+  writer2->Flush([&flush_completed] { flush_completed = true; });
+
+  // Destroy the first trace writer, which should cause the arbiter to post a
+  // task to unregister it.
+  auto checkpoint_writer =
+      task_runner_->CreateCheckpoint("writer_unregistered");
+  EXPECT_CALL(mock_producer_endpoint_,
+              UnregisterTraceWriter(writer->writer_id()))
+      .WillOnce(testing::InvokeWithoutArgs(checkpoint_writer));
+  writer.reset();
+  task_runner_->RunUntilCheckpoint("writer_unregistered", 5000);
+
+  // Abort the second session. Its commits should now also be associated with
+  // target buffer 0, and both writers' commits flushed.
+  EXPECT_CALL(mock_producer_endpoint_, RegisterTraceWriter(_, _)).Times(0);
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([shmem_abi](
+                           const CommitDataRequest& req,
+                           MockProducerEndpoint::CommitDataCallback callback) {
+        ASSERT_EQ(2, req.chunks_to_move_size());
+        for (size_t i = 0; i < 2; i++) {
+          EXPECT_EQ(0u, req.chunks_to_move()[i].target_buffer());
+          SharedMemoryABI::Chunk chunk = shmem_abi->TryAcquireChunkForReading(
+              req.chunks_to_move()[i].page(), req.chunks_to_move()[i].chunk());
+          shmem_abi->ReleaseChunkAsFree(std::move(chunk));
+        }
+        callback();
+      }));
+
+  arbiter_->AbortStartupTracingForReservation(kTargetBufferReservationId2);
+  EXPECT_TRUE(IsArbiterFullyBound());
+  EXPECT_TRUE(flush_completed);
+
+  // SMB should be free again, as no writer holds on to any chunk anymore.
+  for (size_t i = 0; i < shmem_abi->num_pages(); i++)
+    EXPECT_TRUE(shmem_abi->is_page_free(i));
+}
+
 // TODO(primiano): add multi-threaded tests.
 
 }  // namespace perfetto
