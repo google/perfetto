@@ -96,7 +96,9 @@ export class HeapProfileController extends Controller<'main'> {
             this.copyHeapProfile(selection);
 
         this.getHeapProfileMetadata(
-                selectedHeapProfile.ts, selectedHeapProfile.upid)
+                selection.type,
+                selectedHeapProfile.ts,
+                selectedHeapProfile.upid)
             .then(result => {
               if (result !== undefined) {
                 Object.assign(this.heapProfileDetails, result);
@@ -330,7 +332,7 @@ export class HeapProfileController extends Controller<'main'> {
     return MIN_PIXEL_DISPLAYED * rootSize / width;
   }
 
-  async getHeapProfileMetadata(ts: number, upid: number) {
+  async getHeapProfileMetadata(type: string, ts: number, upid: number) {
     // Don't do anything if selection of the marker stayed the same.
     if ((this.lastSelectedHeapProfile !== undefined &&
          ((this.lastSelectedHeapProfile.ts === ts &&
@@ -343,15 +345,7 @@ export class HeapProfileController extends Controller<'main'> {
     const pidValue = await this.args.engine.query(
         `select pid from process where upid = ${upid}`);
     const pid = pidValue.columns[0].longValues![0];
-    const allocatedMemory = await this.args.engine.query(
-        `select sum(size) from heap_profile_allocation where ts <= ${
-            ts} and size > 0 and upid = ${upid}`);
-    const allocated = allocatedMemory.columns[0].longValues![0];
-    const allocatedNotFreedMemory = await this.args.engine.query(
-        `select sum(size) from heap_profile_allocation where ts <= ${
-            ts} and upid = ${upid}`);
-    const allocatedNotFreed = allocatedNotFreedMemory.columns[0].longValues![0];
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;
-    return {ts: startTime, allocated, allocatedNotFreed, tsNs: ts, pid, upid};
+    return {ts: startTime, tsNs: ts, pid, upid, type};
   }
 }
