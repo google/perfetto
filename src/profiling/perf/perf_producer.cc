@@ -19,6 +19,7 @@
 #include <random>
 #include <utility>
 
+#include <malloc.h>
 #include <unistd.h>
 
 #include <unwindstack/Error.h>
@@ -652,6 +653,13 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   // Clean up resources if there are no more active sources.
   if (data_sources_.empty()) {
     callstack_trie_.ClearTrie();  // purge internings
+#if defined(__BIONIC__)
+    // TODO(b/152414415): libunwindstack's volume of small allocations is
+    // adverarial to scudo, which doesn't automatically release small
+    // allocation regions back to the OS. Forceful purge does reclaim all size
+    // classes.
+    mallopt(M_PURGE, 0);
+#endif
   }
 }
 
