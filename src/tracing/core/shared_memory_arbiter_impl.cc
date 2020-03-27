@@ -658,6 +658,8 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   base::TaskRunner* task_runner = nullptr;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
+    active_writer_ids_.Free(id);
+
     auto it = pending_writers_.find(id);
     if (it != pending_writers_.end()) {
       // Writer hasn't been bound yet and thus also not yet registered with the
@@ -666,7 +668,6 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
       return;
     }
 
-    active_writer_ids_.Free(id);
     task_runner = task_runner_;
   }  // scoped_lock
 
