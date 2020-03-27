@@ -271,6 +271,28 @@ table.half-width {
   }
 }
 
+
+.log-slice-panel {
+  &-container {
+    margin: 5px;
+  }
+  &-row {
+    display: flex;
+  }
+  &-time {
+    width: 110px;
+    padding-right: 20px;
+  }
+  &-indent-box {
+    margin-left: 3px;
+    border-left: 1px solid lightgray;
+    width: 20px;
+  }
+  &-name {
+    margin-bottom: 3px;
+  }
+}
+
 .log-panel {
   width: 100%;
   height: 100%;

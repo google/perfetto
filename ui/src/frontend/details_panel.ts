@@ -22,6 +22,7 @@ import {CounterDetailsPanel} from './counter_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {HeapProfileDetailsPanel} from './heap_profile_panel';
+import {LogSlicesPanel} from './log_slices_panel';
 import {LogPanel} from './logs_panel';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
@@ -218,6 +219,11 @@ export class DetailsPanel implements m.ClassComponent {
         detailsPanels.set(
             value.tabName, m(AggregationPanel, {kind: key, data: value}));
       }
+    }
+
+    if (globals.logSlices.length > 0) {
+      detailsPanels.set(
+          'Log Slices', m(LogSlicesPanel, {slices: globals.logSlices}));
     }
 
     const wasShowing = this.showDetailsPanel;

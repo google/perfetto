@@ -62,6 +62,7 @@ import {
   HeapProfileControllerArgs
 } from './heap_profile_controller';
 import {LoadingManager} from './loading_manager';
+import {LogSlicesController} from './log_slices_controller';
 import {LogsController} from './logs_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
@@ -167,6 +168,8 @@ export class TraceController extends Controller<States> {
             'thread_aggregation',
             ThreadAggregationController,
             {engine, kind: 'thread_state_aggregation'}));
+        childControllers.push(
+            Child('log_slices', LogSlicesController, {engine}));
         childControllers.push(Child('search', SearchController, {
           engine,
           app: globals,

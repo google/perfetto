@@ -180,6 +180,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishLogSlices(args: SliceDetails[]) {
+    globals.setLogSlices(args);
+    this.redraw();
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
