@@ -51,11 +51,10 @@ export interface CounterDetails {
 }
 
 export interface HeapProfileDetails {
+  type?: string;
   id?: number;
   ts?: number;
   tsNs?: number;
-  allocated?: number;
-  allocatedNotFreed?: number;
   pid?: number;
   upid?: number;
   flamegraph?: CallsiteInfo[];
