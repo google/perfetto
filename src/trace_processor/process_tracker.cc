@@ -255,6 +255,10 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
 void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
   auto* process_table = context_->storage->mutable_process_table();
   process_table->mutable_uid()->Set(upid, uid);
+
+  // The notion of the app ID (as derived from the uid) is defined in
+  // frameworks/base/core/java/android/os/UserHandle.java
+  process_table->mutable_android_appid()->Set(upid, uid % 100000);
 }
 
 void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
