@@ -24,7 +24,7 @@ import {
 import {HeapProfileFlamegraphViewingOption} from '../common/state';
 import {timeToCode} from '../common/time';
 
-import {Flamegraph} from './flamegraph';
+import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 import {debounce} from './rate_limiters';
@@ -33,8 +33,34 @@ interface HeapProfileDetailsPanelAttrs {}
 
 const HEADER_HEIGHT = 30;
 
+enum ProfileType {
+  NATIVE_HEAP_PROFILE = 'native',
+  JAVA_HEAP_GRAPH = 'graph',
+}
+
+function isProfileType(s: string): s is ProfileType {
+  return Object.values(ProfileType).includes(s as ProfileType);
+}
+
+function toProfileType(s: string): ProfileType {
+  if (!isProfileType(s)) {
+    throw new Error('Unknown type ${s}');
+  }
+  return s;
+}
+
+const RENDER_SELF_AND_TOTAL: NodeRendering = {
+  selfSize: 'Self',
+  totalSize: 'Total',
+};
+const RENDER_OBJ_COUNT: NodeRendering = {
+  selfSize: 'Self objects',
+  totalSize: 'Subtree objects',
+};
+
 export class HeapProfileDetailsPanel extends
     Panel<HeapProfileDetailsPanelAttrs> {
+  private profileType?: ProfileType = undefined;
   private ts = 0;
   private pid = 0;
   private flamegraph: Flamegraph = new Flamegraph([]);
@@ -43,18 +69,17 @@ export class HeapProfileDetailsPanel extends
     this.updateFocusRegex();
   }, 20);
 
-
   view() {
     const heapDumpInfo = globals.heapProfileDetails;
-    if (heapDumpInfo && heapDumpInfo.ts !== undefined &&
-        heapDumpInfo.allocated !== undefined &&
-        heapDumpInfo.allocatedNotFreed !== undefined &&
-        heapDumpInfo.tsNs !== undefined && heapDumpInfo.pid !== undefined &&
-        heapDumpInfo.upid !== undefined) {
+    if (heapDumpInfo && heapDumpInfo.type !== undefined &&
+        heapDumpInfo.ts !== undefined && heapDumpInfo.tsNs !== undefined &&
+        heapDumpInfo.pid !== undefined && heapDumpInfo.upid !== undefined) {
+      this.profileType = toProfileType(heapDumpInfo.type);
       this.ts = heapDumpInfo.tsNs;
       this.pid = heapDumpInfo.pid;
       if (heapDumpInfo.flamegraph) {
-        this.flamegraph.updateDataIfChanged(heapDumpInfo.flamegraph);
+        this.flamegraph.updateDataIfChanged(
+            this.nodeRendering(), heapDumpInfo.flamegraph);
       }
       const height = heapDumpInfo.flamegraph ?
           this.flamegraph.getHeight() + HEADER_HEIGHT :
@@ -86,7 +111,7 @@ export class HeapProfileDetailsPanel extends
             [
               m('div.options',
                 [
-                  m('div.title', `Heap Profile:`),
+                  m('div.title', this.getTitle()),
                   this.getViewingOptionButtons(),
                 ]),
               m('div.details',
@@ -121,6 +146,34 @@ export class HeapProfileDetailsPanel extends
     }
   }
 
+  private getTitle(): string {
+    switch (this.profileType!) {
+      case ProfileType.NATIVE_HEAP_PROFILE:
+        return 'Heap Profile:';
+      case ProfileType.JAVA_HEAP_GRAPH:
+        return 'Java Heap:';
+      default:
+        throw new Error('unknown type');
+    }
+  }
+
+  private nodeRendering(): NodeRendering {
+    const viewingOption =
+        globals.state.currentHeapProfileFlamegraph!.viewingOption;
+    switch (this.profileType!) {
+      case ProfileType.NATIVE_HEAP_PROFILE:
+        return RENDER_SELF_AND_TOTAL;
+      case ProfileType.JAVA_HEAP_GRAPH:
+        if (viewingOption === OBJECTS_ALLOCATED_NOT_FREED_KEY) {
+          return RENDER_OBJ_COUNT;
+        } else {
+          return RENDER_SELF_AND_TOTAL;
+        }
+      default:
+        throw new Error('unknown type');
+    }
+  }
+
   private updateFocusRegex() {
     globals.dispatch(Actions.changeFocusHeapProfileFlamegraph({
       focusRegex: this.focusRegex,
@@ -135,36 +188,41 @@ export class HeapProfileDetailsPanel extends
   }
 
   getViewingOptionButtons(): m.Children {
-    return m(
-        'div',
-        m(`button${this.getButtonsClass(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY)}`,
-          {
-            onclick: () => {
-              this.changeViewingOption(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY);
-            }
-          },
-          'space'),
-        m(`button${this.getButtonsClass(ALLOC_SPACE_MEMORY_ALLOCATED_KEY)}`,
-          {
-            onclick: () => {
-              this.changeViewingOption(ALLOC_SPACE_MEMORY_ALLOCATED_KEY);
-            }
-          },
-          'alloc space'),
-        m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_NOT_FREED_KEY)}`,
-          {
-            onclick: () => {
-              this.changeViewingOption(OBJECTS_ALLOCATED_NOT_FREED_KEY);
-            }
-          },
-          'objects'),
-        m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_KEY)}`,
-          {
-            onclick: () => {
-              this.changeViewingOption(OBJECTS_ALLOCATED_KEY);
-            }
-          },
-          'alloc objects'));
+    const viewingOptions = [
+      m(`button${this.getButtonsClass(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY)}`,
+        {
+          onclick: () => {
+            this.changeViewingOption(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY);
+          }
+        },
+        'space'),
+      m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_NOT_FREED_KEY)}`,
+        {
+          onclick: () => {
+            this.changeViewingOption(OBJECTS_ALLOCATED_NOT_FREED_KEY);
+          }
+        },
+        'objects'),
+    ];
+
+    if (this.profileType === ProfileType.NATIVE_HEAP_PROFILE) {
+      viewingOptions.push(
+          m(`button${this.getButtonsClass(ALLOC_SPACE_MEMORY_ALLOCATED_KEY)}`,
+            {
+              onclick: () => {
+                this.changeViewingOption(ALLOC_SPACE_MEMORY_ALLOCATED_KEY);
+              }
+            },
+            'alloc space'),
+          m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_KEY)}`,
+            {
+              onclick: () => {
+                this.changeViewingOption(OBJECTS_ALLOCATED_KEY);
+              }
+            },
+            'alloc objects'));
+    }
+    return m('div', ...viewingOptions);
   }
 
   changeViewingOption(viewingOption: HeapProfileFlamegraphViewingOption) {
@@ -182,7 +240,8 @@ export class HeapProfileDetailsPanel extends
   private changeFlamegraphData() {
     const data = globals.heapProfileDetails;
     const flamegraphData = data.flamegraph === undefined ? [] : data.flamegraph;
-    this.flamegraph.updateDataIfChanged(flamegraphData, data.expandedCallsite);
+    this.flamegraph.updateDataIfChanged(
+        this.nodeRendering(), flamegraphData, data.expandedCallsite);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
