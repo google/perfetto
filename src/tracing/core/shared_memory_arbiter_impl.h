@@ -151,6 +151,8 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   void BindStartupTraceWriterRegistry(
       std::unique_ptr<StartupTraceWriterRegistry>,
       BufferID target_buffer) override;
+  void AbortStartupTracingForReservation(
+      uint16_t target_buffer_reservation_id) override;
   void NotifyFlushComplete(FlushRequestID) override;
 
   base::TaskRunner* task_runner() const { return task_runner_; }
@@ -166,9 +168,14 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   friend class StartupTraceWriterTest;
   friend class SharedMemoryArbiterImplTest;
 
+  struct TargetBufferReservation {
+    bool resolved = false;
+    BufferID target_buffer = kInvalidBufferId;
+  };
+
   // Placeholder for the actual target buffer ID of a startup target buffer
   // reservation ID in |target_buffer_reservations_|.
-  static constexpr BufferID kUnboundReservationBufferId = 0;
+  static constexpr BufferID kInvalidBufferId = 0;
 
   static SharedMemoryABI::PageLayout default_page_layout;
 
@@ -186,6 +193,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   // Called by the TraceWriter destructor.
   void ReleaseWriterID(WriterID);
+
+  void BindStartupTargetBufferImpl(std::unique_lock<std::mutex> scoped_lock,
+                                   uint16_t target_buffer_reservation_id,
+                                   BufferID target_buffer_id);
 
   // If any flush callbacks were queued up while the arbiter or any target
   // buffer reservation was unbound, this wraps the pending callbacks into a new
@@ -237,14 +248,15 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   std::vector<std::function<void()>> pending_flush_callbacks_;
 
   // Stores target buffer reservations for writers created via
-  // CreateStartupTraceWriter(). An unbound reservation will be associated with
-  // kStartupBufferPlaceholderId; a bound one is associated with the actual
+  // CreateStartupTraceWriter(). A bound reservation sets
+  // TargetBufferReservation::resolved to true and is associated with the actual
   // BufferID supplied in BindStartupTargetBuffer().
   //
   // TODO(eseckler): Clean up entries from this map. This would probably require
   // a method in SharedMemoryArbiter that allows a producer to invalidate a
   // reservation ID.
-  std::map<MaybeUnboundBufferID, BufferID> target_buffer_reservations_;
+  std::map<MaybeUnboundBufferID, TargetBufferReservation>
+      target_buffer_reservations_;
 
   // --- End lock-protected members ---
 
