@@ -128,6 +128,14 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
       std::unique_ptr<StartupTraceWriterRegistry>,
       BufferID target_buffer) = 0;
 
+  // Treat the reservation as resolved to an invalid buffer. Commits for this
+  // reservation will be flushed to the service ASAP. The service will free
+  // committed chunks but otherwise ignore them. The producer can call this
+  // method, for example, if connection to the tracing service failed or the
+  // session was stopped concurrently before the connection was established.
+  virtual void AbortStartupTracingForReservation(
+      uint16_t target_buffer_reservation_id) = 0;
+
   // Notifies the service that all data for the given FlushRequestID has been
   // committed in the shared memory buffer. Should only be called while bound.
   virtual void NotifyFlushComplete(FlushRequestID) = 0;
