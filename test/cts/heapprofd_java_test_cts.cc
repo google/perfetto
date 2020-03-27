@@ -34,6 +34,18 @@
 namespace perfetto {
 namespace {
 
+std::string RandomSessionName() {
+  std::random_device rd;
+  std::default_random_engine generator(rd());
+  std::uniform_int_distribution<char> distribution('a', 'z');
+
+  constexpr size_t kSessionNameLen = 20;
+  std::string result(kSessionNameLen, '\0');
+  for (size_t i = 0; i < kSessionNameLen; ++i)
+    result[i] = distribution(generator);
+  return result;
+}
+
 std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   base::TestTaskRunner task_runner;
 
@@ -56,6 +68,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(20 * 1024);
   trace_config.set_duration_ms(6000);
+  trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.java_hprof");
