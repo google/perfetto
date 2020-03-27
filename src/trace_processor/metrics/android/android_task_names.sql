@@ -31,8 +31,8 @@ upid_packages AS (
   SELECT
     upid,
     RepeatedField(package_list.package_name) AS packages
-  FROM proc_uid
-  JOIN package_list USING (uid)
+  FROM process
+  JOIN package_list ON process.android_appid = package_list.uid
   GROUP BY 1
 )
 SELECT AndroidTaskNames(
