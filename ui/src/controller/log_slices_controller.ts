@@ -28,6 +28,7 @@ export interface LogSlicesControllerArgs {
 
 export class LogSlicesController extends Controller<'main'> {
   private previousArea: TimestampedAreaSelection = {lastUpdate: 0};
+  private previousSearch: string = '';
   private requestingData = false;
   private queuedRequest = false;
 
@@ -35,18 +36,31 @@ export class LogSlicesController extends Controller<'main'> {
     super('main');
   }
 
+  // TODO this should be centralized
+  getSearch() {
+    const omniboxState = globals.state.frontendLocalState.omniboxState;
+    if (omniboxState.mode == "SEARCH" && omniboxState.omnibox.length >= 4) {
+        return omniboxState.omnibox.trim();
+    } else {
+      return '';
+    }
+  }
+
   run() {
     const selectedArea = globals.state.frontendLocalState.selectedArea;
-
-    const areaChanged = this.previousArea.lastUpdate < selectedArea.lastUpdate;
-    if (!areaChanged) return;
+    const search = this.getSearch();
+    if (this.previousArea.lastUpdate >= selectedArea.lastUpdate &&
+      search === this.previousSearch) {
+      return;
+    };
 
     if (this.requestingData) {
       this.queuedRequest = true;
     } else {
       this.requestingData = true;
       this.previousArea = selectedArea;
-      this.getLogSlices(areaChanged)
+      this.previousSearch = search;
+      this.getLogSlices(search)
           .then(slices => globals.publish('LogSlices', slices))
           .catch(reason => {
             console.error(reason);
@@ -69,12 +83,9 @@ export class LogSlicesController extends Controller<'main'> {
         return colName.replace(/_(\w)/g, ((m: string) => m[1].toUpperCase()));
       });
 
-  async getLogSlices(areaChanged: boolean): Promise<SliceDetails[]> {
+  async getLogSlices(search: string): Promise<SliceDetails[]> {
     const selectedArea = globals.state.frontendLocalState.selectedArea;
 
-    if (!areaChanged) {
-      return [];
-    }
     const area = selectedArea.area;
     if (area === undefined) {
       return [];
@@ -92,11 +103,17 @@ export class LogSlicesController extends Controller<'main'> {
       return [];
     }
 
+    let searchClause = '';
+    if (search.length > 0) {
+        searchClause = `AND slice.name LIKE "%${search}%"`;
+    }
+
     const query = `SELECT ${LogSlicesController.ColumnNames.join(',')}
       FROM slice
       WHERE slice.track_id IN (${trackIds.join(',')}) AND
       slice.ts + slice.dur > ${toNs(area.startSec)} AND
       slice.ts < ${toNs(area.endSec)}
+      ${searchClause}
       ORDER BY ts ASC`;
 
     const result = await this.args.engine.query(query);
