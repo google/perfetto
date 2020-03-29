@@ -22,6 +22,7 @@ import {CounterDetailsPanel} from './counter_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {HeapProfileDetailsPanel} from './heap_profile_panel';
+import {LogSlicesPanel} from './log_slices_panel';
 import {LogPanel} from './logs_panel';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
@@ -193,7 +194,9 @@ export class DetailsPanel implements m.ClassComponent {
               m(HeapProfileDetailsPanel, {key: 'heap_profile'}));
           break;
         case 'CHROME_SLICE':
-          detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
+          if (globals.logSlices.length == 0) {
+            detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
+          }
           break;
         case 'THREAD_STATE':
           detailsPanels.set('current_selection', m(ThreadStatePanel, {
@@ -211,6 +214,10 @@ export class DetailsPanel implements m.ClassComponent {
     }
     if (hasLogs()) {
       detailsPanels.set('android_logs', m(LogPanel, {}));
+    }
+    if (globals.logSlices.length != 0) {
+      detailsPanels.set(
+        'Selected Slices', m(LogSlicesPanel, {slices: globals.logSlices}));
     }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {

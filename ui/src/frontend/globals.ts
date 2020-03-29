@@ -41,6 +41,8 @@ export interface SliceDetails {
   category?: string;
   name?: string;
   args?: Args;
+  depth?: number;
+  trackId?: string;
 }
 
 export interface CounterDetails {
@@ -95,6 +97,7 @@ class Globals {
   private _queryResults?: QueryResultsStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
   private _aggregateDataStore?: AggregateDataStore = undefined;
+  private _logSlices?: SliceDetails[] = undefined;
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
   private _counterDetails?: CounterDetails = undefined;
@@ -135,6 +138,7 @@ class Globals {
     this._queryResults = new Map<string, {}>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._aggregateDataStore = new Map<string, AggregateData>();
+    this._logSlices = [];
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
     this._counterDetails = {};
@@ -202,6 +206,10 @@ class Globals {
     return assertExists(this._aggregateDataStore);
   }
 
+  get logSlices(): SliceDetails[] {
+    return assertExists(this._logSlices);
+  }
+
   get heapProfileDetails() {
     return assertExists(this._heapProfileDetails);
   }
@@ -248,6 +256,10 @@ class Globals {
 
   setAggregateData(kind: string, data: AggregateData) {
     this.aggregateDataStore.set(kind, data);
+  }
+
+  setLogSlices(slices: SliceDetails[]) {
+    this._logSlices = slices;
   }
 
   getCurResolution() {
