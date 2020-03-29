@@ -194,7 +194,9 @@ export class DetailsPanel implements m.ClassComponent {
               m(HeapProfileDetailsPanel, {key: 'heap_profile'}));
           break;
         case 'CHROME_SLICE':
-          detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
+          if (globals.logSlices.length == 0) {
+            detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
+          }
           break;
         case 'THREAD_STATE':
           detailsPanels.set('current_selection', m(ThreadStatePanel, {
@@ -213,17 +215,16 @@ export class DetailsPanel implements m.ClassComponent {
     if (hasLogs()) {
       detailsPanels.set('android_logs', m(LogPanel, {}));
     }
+    if (globals.logSlices.length != 0) {
+      detailsPanels.set(
+        'Selected Slices', m(LogSlicesPanel, {slices: globals.logSlices}));
+    }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
       if (value.columns.length > 0 && value.columns[0].data.length > 0) {
         detailsPanels.set(
             value.tabName, m(AggregationPanel, {kind: key, data: value}));
       }
-    }
-
-    if (globals.logSlices.length > 0) {
-      detailsPanels.set(
-          'Log Slices', m(LogSlicesPanel, {slices: globals.logSlices}));
     }
 
     const wasShowing = this.showDetailsPanel;

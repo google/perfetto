@@ -16,6 +16,9 @@ import * as m from 'mithril';
 
 import {SliceDetails} from './globals';
 import {Panel} from './panel';
+import {globals} from './globals';
+import { ChromeSliceSelection } from 'src/common/state';
+import {Actions} from '../common/actions';
 
 export class LogSlicesPanel extends Panel<{slices: SliceDetails[]}> {
   view({attrs}: m.CVnode<{slices: SliceDetails[]}>) {
@@ -25,6 +28,14 @@ export class LogSlicesPanel extends Panel<{slices: SliceDetails[]}> {
   }
 
   getRows(slices: SliceDetails[]) {
+    const selection = globals.state.currentSelection;
+    let selectedSliceId: number = -1;
+    if (selection != null && selection.kind == 'CHROME_SLICE') {
+      let chromeSliceSelection = selection as ChromeSliceSelection;
+      selectedSliceId = chromeSliceSelection.id;
+    }
+
+
     return slices.map(slice => {
       const formattedTime =
           (slice.ts ? slice.ts : 0).toFixed(6).padStart(12, '0');
@@ -36,14 +47,36 @@ export class LogSlicesPanel extends Panel<{slices: SliceDetails[]}> {
       }
       children.push(m('.log-slice-panel-name', slice.name));
 
+      const isSelected = selectedSliceId === slice.id;
+
       // TODO add hardwired warnings and error colors here
-      const hue = ((slice.trackId ? slice.trackId : 0) * 100) % 360;
+      const hue = ((slice.trackId ? +slice.trackId : 0) * 100) % 360;
+      const lum = isSelected ? 50 : 90;
+      const textColor = isSelected ? 'color: white' : '';
 
       return m(
           '.log-slice-panel-row',
-          {style: `background:hsl(${hue}, 50%, 90%)`},
+          {
+            class: isSelected ? 'selected' : '',
+            onclick: () => {
+              if (slice.id !== undefined && slice.trackId !== undefined) {
+                globals.dispatch(Actions.selectChromeSlice({id: slice.id, trackId: slice.trackId}));
+              }
+            },
+            style: `background:hsl(${hue}, 50%, ${lum}%);${textColor}`
+          },
           children);
     });
+  }
+
+  onupdate({dom}: m.CVnodeDOM<{slices: SliceDetails[]}>) {
+    const rootElem = dom as HTMLElement;
+    const selectedElements = rootElem.getElementsByClassName('selected');
+    if (selectedElements.length > 0) {
+      selectedElements[0].scrollIntoView({
+        block: "nearest"
+      });
+    }
   }
 
   renderCanvas() {}

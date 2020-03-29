@@ -85,35 +85,37 @@ export class LogSlicesController extends Controller<'main'> {
 
   async getLogSlices(search: string): Promise<SliceDetails[]> {
     const selectedArea = globals.state.frontendLocalState.selectedArea;
-
     const area = selectedArea.area;
-    if (area === undefined) {
-      return [];
-    }
+    let queryAndedClauses = [];
+    if (area !== undefined) {
+      queryAndedClauses.push(`slice.ts + slice.dur > ${toNs(area.startSec)}`);
+      queryAndedClauses.push(`slice.ts < ${toNs(area.endSec)}`);
 
-    const trackIds = [];
-    for (const trackId of area.tracks) {
-      const track = globals.state.tracks[trackId];
-      // Track will be undefined for track groups.
-      if (track !== undefined && track.kind === SLICE_TRACK_KIND) {
-        trackIds.push((track.config as Config).trackId);
+      const trackIds = [];
+      for (const trackId of area.tracks) {
+        const track = globals.state.tracks[trackId];
+        // Track will be undefined for track groups.
+        if (track !== undefined && track.kind === SLICE_TRACK_KIND) {
+          trackIds.push((track.config as Config).trackId);
+        }
+      }
+      if (trackIds.length !== 0) {
+        queryAndedClauses.push(`slice.track_id IN (${trackIds.join(',')})`);
       }
     }
-    if (trackIds.length === 0) {
-      return [];
+
+    if (search.length > 0) {
+      queryAndedClauses.push(`AND slice.name LIKE "%${search}%"`);
     }
 
-    let searchClause = '';
-    if (search.length > 0) {
-        searchClause = `AND slice.name LIKE "%${search}%"`;
+    let whereClause = '';
+    if (queryAndedClauses.length > 0) {
+      whereClause = `WHERE ${queryAndedClauses.join(' AND\n')}`;
     }
 
     const query = `SELECT ${LogSlicesController.ColumnNames.join(',')}
       FROM slice
-      WHERE slice.track_id IN (${trackIds.join(',')}) AND
-      slice.ts + slice.dur > ${toNs(area.startSec)} AND
-      slice.ts < ${toNs(area.endSec)}
-      ${searchClause}
+      ${whereClause}
       ORDER BY ts ASC`;
 
     const result = await this.args.engine.query(query);

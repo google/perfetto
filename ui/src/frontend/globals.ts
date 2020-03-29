@@ -42,7 +42,7 @@ export interface SliceDetails {
   name?: string;
   args?: Args;
   depth?: number;
-  trackId?: number;
+  trackId?: string;
 }
 
 export interface CounterDetails {
