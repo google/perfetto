@@ -89,10 +89,11 @@
 
 }
 
+$details-panel-color: #3c4b5d;
 .details-panel {
   font-family: 'Roboto Condensed', sans-serif;
   font-weight: 300;
-  color: #3c4b5d;
+  color: $details-panel-color;
   .details-panel-heading {
     padding: 10px 0 5px 0;
     position: sticky;
@@ -272,12 +273,44 @@ table.half-width {
 }
 
 
+
 .log-slice-panel {
   &-container {
     margin: 5px;
   }
   &-row {
     display: flex;
+    padding: 0px 3px;
+
+    // Classes to specify colors for selected/unselected row background 
+    // classes mapped to different tracks (e.g. tid-1, tid-2, tid-3)
+    // Use a different hue for each track id (giving up after 18 
+    // threads, beyond that background will inherit parent's color).
+    // For search text, white if other text is bright, black if it's dark.
+    $bg_hues:  
+      50, 150, 250, 350, 90, 190, 290, 
+      30, 130, 230, 330, 70, 170, 270, 
+      10, 110, 210, 310;
+    $bg_sat: 50%;
+    // Uses lumens to vary selection color.
+    $bg_lum_light: 93%;
+    $bg_lum_dark: 50%;
+    @each $bg_hue in $bg_hues {
+      $i: index($bg_hues, $bg_hue);
+      &.tid-#{$i - 1} {
+        background: hsl($bg_hue, $bg_sat, $bg_lum_light);
+        &.selected {
+          background: hsl($bg_hue, $bg_sat, $bg_lum_dark);
+          // If showing a darker background (selection), text color is 
+          // brightened for contrast. Needs to leave some brightening
+          // headroom to give enough contrast for highlighting the search text.
+          color: hsl(
+            hue($details-panel-color), 
+            saturation($details-panel-color),
+            85%);
+        }
+      }
+    }
   }
   &-time {
     width: 110px;
@@ -290,6 +323,13 @@ table.half-width {
   }
   &-name {
     margin-bottom: 3px;
+    white-space: pre;
+    &-search {
+      color: black;
+      .selected & {
+        color: white;
+      }
+    }
   }
 }
 

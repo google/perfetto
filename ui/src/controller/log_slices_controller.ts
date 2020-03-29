@@ -88,6 +88,7 @@ export class LogSlicesController extends Controller<'main'> {
     const area = selectedArea.area;
     let queryAndedClauses = [];
     if (area !== undefined) {
+      // TODO tracks should be selectable without selecting a time region.
       queryAndedClauses.push(`slice.ts + slice.dur > ${toNs(area.startSec)}`);
       queryAndedClauses.push(`slice.ts < ${toNs(area.endSec)}`);
 
@@ -105,7 +106,7 @@ export class LogSlicesController extends Controller<'main'> {
     }
 
     if (search.length > 0) {
-      queryAndedClauses.push(`AND slice.name LIKE "%${search}%"`);
+      queryAndedClauses.push(`slice.name LIKE "%${search}%"`);
     }
 
     let whereClause = '';

@@ -27,6 +27,16 @@ export class LogSlicesPanel extends Panel<{slices: SliceDetails[]}> {
         m('.log-slice-panel-container', this.getRows(attrs.slices)));
   }
 
+  // TODO this should be centralized
+  getSearch() {
+    const omniboxState = globals.state.frontendLocalState.omniboxState;
+    if (omniboxState.mode == "SEARCH" && omniboxState.omnibox.length >= 4) {
+        return omniboxState.omnibox.trim();
+    } else {
+      return '';
+    }
+  }
+
   getRows(slices: SliceDetails[]) {
     const selection = globals.state.currentSelection;
     let selectedSliceId: number = -1;
@@ -34,36 +44,53 @@ export class LogSlicesPanel extends Panel<{slices: SliceDetails[]}> {
       let chromeSliceSelection = selection as ChromeSliceSelection;
       selectedSliceId = chromeSliceSelection.id;
     }
-
+    const search = this.getSearch();
+    const searchRegex = new RegExp(search, 'i');
 
     return slices.map(slice => {
+      const isSelected = selectedSliceId === slice.id;
       const formattedTime =
           (slice.ts ? slice.ts : 0).toFixed(6).padStart(12, '0');
+
 
       const children = [m('.log-slice-panel-time', formattedTime)];
       const indent = slice.depth ? slice.depth : 0;
       for (let i = 0; i < indent; i++) {
         children.push(m('.log-slice-panel-indent-box'));
       }
-      children.push(m('.log-slice-panel-name', slice.name));
-
-      const isSelected = selectedSliceId === slice.id;
-
-      // TODO add hardwired warnings and error colors here
-      const hue = ((slice.trackId ? +slice.trackId : 0) * 100) % 360;
-      const lum = isSelected ? 50 : 90;
-      const textColor = isSelected ? 'color: white' : '';
+      // Highlight the search text if there is any
+      if (search.length > 0 && slice.name !== undefined) {
+        const match = slice.name.match(searchRegex);
+        // undefined check to shut compiler up - if match, should always be defined.
+        if (match && match.index !== undefined) {
+          // Left of search text
+          if (match.index > 0) {
+            children.push(m('.log-slice-panel-name', 
+              slice.name.substr(0, match.index)));
+          }
+          // Search text
+          children.push(m('.log-slice-panel-name-search', 
+            slice.name.substr(match.index, search.length)));
+          // Right of search text
+          if (match.index + search.length < slice.name.length) {
+            children.push(m('.log-slice-panel-name', 
+              slice.name.substr(match.index + search.length, 
+              slice.name.length - (match.index + search.length))));
+          }
+        }
+      } else {
+        children.push(m('.log-slice-panel-name', slice.name));
+      }
 
       return m(
           '.log-slice-panel-row',
           {
-            class: isSelected ? 'selected' : '',
+            class: `tid-${slice.trackId} ${isSelected ? 'selected' : ''}`,
             onclick: () => {
               if (slice.id !== undefined && slice.trackId !== undefined) {
                 globals.dispatch(Actions.selectChromeSlice({id: slice.id, trackId: slice.trackId}));
               }
-            },
-            style: `background:hsl(${hue}, 50%, ${lum}%);${textColor}`
+            }
           },
           children);
     });
