@@ -1215,6 +1215,55 @@ TEST_F(PerfettoApiTest, TrackEventCustomTrack) {
   perfetto::TrackEvent::EraseTrackDescriptor(track);
 }
 
+TEST_F(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // Custom track.
+  perfetto::Track track(789);
+
+  auto empty_lambda = [](perfetto::EventContext) {};
+  constexpr uint64_t kBeginEventTime = 10;
+  constexpr uint64_t kEndEventTime = 15;
+  TRACE_EVENT_BEGIN("bar", "Event", track, kBeginEventTime, empty_lambda);
+  TRACE_EVENT_END("bar", track, kEndEventTime, empty_lambda);
+
+  constexpr uint64_t kInstantEventTime = 1;
+  TRACE_EVENT_INSTANT("bar", "InstantEvent", track, kInstantEventTime,
+                      empty_lambda);
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  int event_count = 0;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    event_count++;
+    switch (packet.track_event().type()) {
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN:
+        EXPECT_EQ(packet.timestamp(), kBeginEventTime);
+        break;
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
+        EXPECT_EQ(packet.timestamp(), kEndEventTime);
+        break;
+      case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
+        EXPECT_EQ(packet.timestamp(), kInstantEventTime);
+        break;
+      case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
+      case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
+        ADD_FAILURE();
+    }
+  }
+  EXPECT_EQ(event_count, 3);
+  perfetto::TrackEvent::EraseTrackDescriptor(track);
+}
+
 TEST_F(PerfettoApiTest, TrackEventAnonymousCustomTrack) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"bar"});
