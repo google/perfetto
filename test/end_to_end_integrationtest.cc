@@ -159,7 +159,7 @@ class Exec {
       // to log will likely cause undefined behaviors.
       char ignored = 0;
       PERFETTO_CHECK(PERFETTO_EINTR(read(sync_pipe_rd, &ignored, 1)) > 0);
-      PERFETTO_CHECK(PERFETTO_EINTR(close(sync_pipe_rd)) == 0);
+      PERFETTO_CHECK(close(sync_pipe_rd) == 0 || errno == EINTR);
     };
 
     subprocess_.Start();
