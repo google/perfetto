@@ -88,6 +88,7 @@ class Table {
   };
 
   Table();
+  virtual ~Table();
 
   // We explicitly define the move constructor here because we need to update
   // the Table pointer in each column in the table.
