@@ -24,6 +24,7 @@
 namespace perfetto {
 
 bool IsDebuggableBuild();
+bool IsUserBuild();
 
 bool IsAppRunning(const std::string& name);
 
