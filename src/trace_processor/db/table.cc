@@ -20,6 +20,7 @@ namespace perfetto {
 namespace trace_processor {
 
 Table::Table() = default;
+Table::~Table() = default;
 
 Table::Table(StringPool* pool, const Table* parent) : string_pool_(pool) {
   if (!parent)
