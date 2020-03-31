@@ -93,6 +93,7 @@ class MacroTable : public Table {
                  static_cast<uint32_t>(row_maps_.size()) - 1));
     }
   }
+  ~MacroTable() override;
 
   const char* table_name() const { return name_; }
 
@@ -342,6 +343,7 @@ class MacroTable : public Table {
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
+    ~class_name() override;                                                   \
                                                                               \
     IdAndRow Insert(const Row& row) {                                         \
       Id id;                                                                  \
