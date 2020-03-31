@@ -69,7 +69,7 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
       if (base::Contains(buffer, R"(</script>)")) {
         state_ = ParseState::kEndOfSystrace;
         break;
-      } else if (!base::StartsWith(buffer, "#")) {
+      } else if (!base::StartsWith(buffer, "#") && !buffer.empty()) {
         SystraceLine line;
         util::Status status = line_tokenizer_.Tokenize(buffer, &line);
         if (!status.ok())
