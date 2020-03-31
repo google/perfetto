@@ -6426,6 +6426,9 @@ filegroup {
 // GN: //src/trace_processor/tables:tables
 filegroup {
   name: "perfetto_src_trace_processor_tables_tables",
+  srcs: [
+    "src/trace_processor/tables/table_destructors.cc",
+  ],
 }
 
 // GN: //src/trace_processor/tables:unittests
