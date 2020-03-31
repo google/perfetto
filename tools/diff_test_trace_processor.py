@@ -104,7 +104,7 @@ def write_diff(expected, actual):
 class TestResult(object):
 
   def __init__(self, test_type, input_name, trace, cmd, expected, actual,
-               stderr):
+               stderr, exit_code):
     self.test_type = test_type
     self.input_name = input_name
     self.trace = trace
@@ -112,6 +112,7 @@ class TestResult(object):
     self.expected = expected
     self.actual = actual
     self.stderr = stderr
+    self.exit_code = exit_code
 
 
 def run_metrics_test(trace_processor_path, gen_trace_path, metric,
@@ -151,7 +152,7 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
     actual_text = text_format.MessageToString(actual_message)
 
   return TestResult('metric', metric, gen_trace_path, cmd, expected_text,
-                    actual_text, stderr)
+                    actual_text, stderr, tp.returncode)
 
 
 def run_query_test(trace_processor_path, gen_trace_path, query_path,
@@ -171,7 +172,7 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
   tp = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   (stdout, stderr) = tp.communicate()
   return TestResult('query', query_path, gen_trace_path, cmd, expected, stdout,
-                    stderr)
+                    stderr, tp.returncode)
 
 
 def run_all_tests(trace_processor, trace_descriptor_path,
@@ -236,7 +237,26 @@ def run_all_tests(trace_processor, trace_descriptor_path,
         gen_trace_file.close()
         os.remove(gen_trace_path)
 
-    if result.expected == result.actual:
+    if result.exit_code != 0 or result.expected != result.actual:
+      sys.stderr.write(result.stderr)
+
+      if result.exit_code == 0:
+        sys.stderr.write(
+            'Expected did not match actual for trace {} and {} {}\n'.format(
+                trace_path, result.test_type, result.input_name))
+        sys.stderr.write('Expected file: {}\n'.format(expected_path))
+        sys.stderr.write('Command line: {}\n'.format(' '.join(result.cmd)))
+
+        write_diff(result.expected, result.actual)
+      else:
+        sys.stderr.write('Command line: {}\n'.format(' '.join(result.cmd)))
+
+      sys.stderr.write('[     FAIL ] {} {}\n'.format(
+          os.path.basename(test.query_path_or_metric),
+          os.path.basename(trace_path)))
+
+      test_failure += 1
+    else:
       assert len(perf_lines) == 1
       perf_numbers = perf_lines[0].split(',')
 
@@ -251,22 +271,6 @@ def run_all_tests(trace_processor, trace_descriptor_path,
               os.path.basename(trace_path),
               perf_result.ingest_time_ns / 1000000,
               perf_result.real_time_ns / 1000000))
-    else:
-      sys.stderr.write(result.stderr)
-
-      sys.stderr.write(
-          'Expected did not match actual for trace {} and {} {}\n'.format(
-              trace_path, result.test_type, result.input_name))
-      sys.stderr.write('Expected file: {}\n'.format(expected_path))
-      sys.stderr.write('Command line: {}\n'.format(' '.join(result.cmd)))
-
-      write_diff(result.expected, result.actual)
-
-      sys.stderr.write('[     FAIL ] {} {}\n'.format(
-          os.path.basename(test.query_path_or_metric),
-          os.path.basename(trace_path)))
-
-      test_failure += 1
 
   return test_failure, perf_data
 
