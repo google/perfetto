@@ -813,6 +813,7 @@ filegroup(
         "src/trace_processor/tables/metadata_tables.h",
         "src/trace_processor/tables/profiler_tables.h",
         "src/trace_processor/tables/slice_tables.h",
+        "src/trace_processor/tables/table_destructors.cc",
         "src/trace_processor/tables/track_tables.h",
     ],
 )
