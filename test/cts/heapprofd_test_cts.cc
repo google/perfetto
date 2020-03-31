@@ -218,11 +218,11 @@ TEST(HeapprofdCtsTest, ProfileableAppRuntimeExtraGuardrails) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileRuntime(app_name,
                                        /*enable_extra_guardrails=*/true);
-  if (IsDebuggableBuild())
-    AssertExpectedAllocationsPresent(packets);
-  else
-    AssertNoProfileContents(packets);
 
+  if (IsUserBuild())
+    AssertNoProfileContents(packets);
+  else
+    AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
@@ -231,10 +231,10 @@ TEST(HeapprofdCtsTest, ProfileableAppStartupExtraGuardrails) {
   const auto& packets = ProfileStartup(app_name,
                                        /*enable_extra_guardrails=*/
                                        true);
-  if (IsDebuggableBuild())
-    AssertExpectedAllocationsPresent(packets);
-  else
+  if (IsUserBuild())
     AssertNoProfileContents(packets);
+  else
+    AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
