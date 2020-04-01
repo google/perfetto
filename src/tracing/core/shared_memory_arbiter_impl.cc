@@ -54,7 +54,7 @@ SharedMemoryABI::PageLayout SharedMemoryArbiterImpl::default_page_layout =
     SharedMemoryABI::PageLayout::kPageDiv1;
 
 // static
-constexpr BufferID SharedMemoryArbiterImpl::kUnboundReservationBufferId;
+constexpr BufferID SharedMemoryArbiterImpl::kInvalidBufferId;
 
 // static
 std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
@@ -452,42 +452,94 @@ void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
   PERFETTO_DCHECK(target_buffer_id > 0);
   PERFETTO_CHECK(!initially_bound_);
 
+  std::unique_lock<std::mutex> scoped_lock(lock_);
+
+  // We should already be bound to an endpoint, but not fully bound.
+  PERFETTO_CHECK(!fully_bound_);
+  PERFETTO_CHECK(producer_endpoint_);
+  PERFETTO_CHECK(task_runner_);
+  PERFETTO_CHECK(task_runner_->RunsTasksOnCurrentThread());
+
+  BindStartupTargetBufferImpl(std::move(scoped_lock),
+                              target_buffer_reservation_id, target_buffer_id);
+}
+
+void SharedMemoryArbiterImpl::AbortStartupTracingForReservation(
+    uint16_t target_buffer_reservation_id) {
+  PERFETTO_CHECK(!initially_bound_);
+
+  std::unique_lock<std::mutex> scoped_lock(lock_);
+
+  // If we are already bound to an arbiter, we may need to flush after aborting
+  // the session, and thus should be running on the arbiter's task runner.
+  if (task_runner_ && !task_runner_->RunsTasksOnCurrentThread()) {
+    // We shouldn't post tasks while locked.
+    auto* task_runner = task_runner_;
+    scoped_lock.unlock();
+
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner->PostTask([weak_this, target_buffer_reservation_id]() {
+      if (!weak_this)
+        return;
+      weak_this->AbortStartupTracingForReservation(
+          target_buffer_reservation_id);
+    });
+    return;
+  }
+
+  PERFETTO_CHECK(!fully_bound_);
+
+  // Bind the target buffer reservation to an invalid buffer (ID 0), so that
+  // existing commits, as well as future commits (of currently acquired chunks),
+  // will be released as free free by the service but otherwise ignored (i.e.
+  // not copied into any valid target buffer).
+  BindStartupTargetBufferImpl(std::move(scoped_lock),
+                              target_buffer_reservation_id,
+                              /*target_buffer_id=*/kInvalidBufferId);
+}
+
+void SharedMemoryArbiterImpl::BindStartupTargetBufferImpl(
+    std::unique_lock<std::mutex> scoped_lock,
+    uint16_t target_buffer_reservation_id,
+    BufferID target_buffer_id) {
+  // We should already be bound to an endpoint if the target buffer is valid.
+  PERFETTO_DCHECK((producer_endpoint_ && task_runner_) ||
+                  target_buffer_id == kInvalidBufferId);
+
   MaybeUnboundBufferID reserved_id =
       MakeTargetBufferIdForReservation(target_buffer_reservation_id);
 
   bool should_flush = false;
   std::function<void()> flush_callback;
   std::vector<std::pair<WriterID, BufferID>> writers_to_register;
-  {
-    std::lock_guard<std::mutex> scoped_lock(lock_);
 
-    // We should already be bound to an endpoint, but not fully bound.
-    PERFETTO_CHECK(!fully_bound_);
-    PERFETTO_CHECK(producer_endpoint_);
-    PERFETTO_CHECK(task_runner_);
-    PERFETTO_CHECK(task_runner_->RunsTasksOnCurrentThread());
+  TargetBufferReservation& reservation =
+      target_buffer_reservations_[reserved_id];
+  PERFETTO_CHECK(!reservation.resolved);
+  reservation.resolved = true;
+  reservation.target_buffer = target_buffer_id;
 
-    PERFETTO_CHECK(target_buffer_reservations_[reserved_id] ==
-                   kUnboundReservationBufferId);
-    target_buffer_reservations_[reserved_id] = target_buffer_id;
-
-    // Collect trace writers associated with the reservation.
-    for (auto it = pending_writers_.begin(); it != pending_writers_.end();) {
-      if (it->second == reserved_id) {
+  // Collect trace writers associated with the reservation.
+  for (auto it = pending_writers_.begin(); it != pending_writers_.end();) {
+    if (it->second == reserved_id) {
+      // No need to register writers that have an invalid target buffer.
+      if (target_buffer_id != kInvalidBufferId) {
         writers_to_register.push_back(
             std::make_pair(it->first, target_buffer_id));
-        it = pending_writers_.erase(it);
-      } else {
-        it++;
       }
+      it = pending_writers_.erase(it);
+    } else {
+      it++;
     }
+  }
 
-    // If all buffer reservations are bound, we can flush pending commits.
-    if (UpdateFullyBoundLocked()) {
-      should_flush = true;
-      flush_callback = TakePendingFlushCallbacksLocked();
-    }
-  }  // scoped_lock
+  // If all buffer reservations are bound, we can flush pending commits.
+  if (UpdateFullyBoundLocked()) {
+    should_flush = true;
+    flush_callback = TakePendingFlushCallbacksLocked();
+  }
+
+  scoped_lock.unlock();
 
   // Register any newly bound trace writers with the service.
   for (const auto& writer_and_target_buffer : writers_to_register) {
@@ -620,9 +672,9 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
       // |target_buffer_reservations_|. Otherwise, if the reservation was
       // already bound, choose the bound buffer ID now.
       auto it_and_inserted = target_buffer_reservations_.insert(
-          {target_buffer, kUnboundReservationBufferId});
-      if (it_and_inserted.first->second != kUnboundReservationBufferId)
-        target_buffer = it_and_inserted.first->second;
+          {target_buffer, TargetBufferReservation()});
+      if (it_and_inserted.first->second.resolved)
+        target_buffer = it_and_inserted.first->second.target_buffer;
     }
 
     if (IsReservationTargetBufferId(target_buffer)) {
@@ -633,7 +685,7 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
       // Mark the arbiter as not fully bound, since we now have at least one
       // unbound trace writer / target buffer reservation.
       fully_bound_ = false;
-    } else {
+    } else if (target_buffer != kInvalidBufferId) {
       // Trace writer is bound, so arbiter should be bound to an endpoint, too.
       PERFETTO_CHECK(producer_endpoint_ && task_runner_);
       task_runner_to_register_on = task_runner_;
@@ -658,6 +710,8 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   base::TaskRunner* task_runner = nullptr;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
+    active_writer_ids_.Free(id);
+
     auto it = pending_writers_.find(id);
     if (it != pending_writers_.end()) {
       // Writer hasn't been bound yet and thus also not yet registered with the
@@ -666,7 +720,6 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
       return;
     }
 
-    active_writer_ids_.Free(id);
     task_runner = task_runner_;
   }  // scoped_lock
 
@@ -689,34 +742,37 @@ bool SharedMemoryArbiterImpl::ReplaceCommitPlaceholderBufferIdsLocked() {
       continue;
     const auto it = target_buffer_reservations_.find(chunk.target_buffer());
     PERFETTO_DCHECK(it != target_buffer_reservations_.end());
-    if (it->second == kUnboundReservationBufferId) {
+    if (!it->second.resolved) {
       all_placeholders_replaced = false;
       continue;
     }
-    chunk.set_target_buffer(it->second);
+    chunk.set_target_buffer(it->second.target_buffer);
   }
   for (auto& chunk : *commit_data_req_->mutable_chunks_to_patch()) {
     if (!IsReservationTargetBufferId(chunk.target_buffer()))
       continue;
     const auto it = target_buffer_reservations_.find(chunk.target_buffer());
     PERFETTO_DCHECK(it != target_buffer_reservations_.end());
-    if (it->second == kUnboundReservationBufferId) {
+    if (!it->second.resolved) {
       all_placeholders_replaced = false;
       continue;
     }
-    chunk.set_target_buffer(it->second);
+    chunk.set_target_buffer(it->second.target_buffer);
   }
   return all_placeholders_replaced;
 }
 
 bool SharedMemoryArbiterImpl::UpdateFullyBoundLocked() {
-  PERFETTO_DCHECK(producer_endpoint_);
+  if (!producer_endpoint_) {
+    PERFETTO_DCHECK(!fully_bound_);
+    return false;
+  }
   // We're fully bound if all target buffer reservations have a valid associated
   // BufferID.
   fully_bound_ = std::none_of(
       target_buffer_reservations_.begin(), target_buffer_reservations_.end(),
-      [](std::pair<MaybeUnboundBufferID, BufferID> entry) {
-        return entry.second == kUnboundReservationBufferId;
+      [](std::pair<MaybeUnboundBufferID, TargetBufferReservation> entry) {
+        return !entry.second.resolved;
       });
   return fully_bound_;
 }
