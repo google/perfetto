@@ -262,6 +262,9 @@ button.close {
         &:hover {
             background-color: hsl(214, 22%, 90%);
         }
+        &[clickable] {
+          cursor: pointer;
+        }
     }
 }
 
