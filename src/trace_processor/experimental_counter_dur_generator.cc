@@ -70,10 +70,10 @@ SparseVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
   std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
   SparseVector<int64_t> dur;
 
-  const auto* ts_col = reinterpret_cast<const TypedColumn<int64_t>*>(
-      table.GetColumnByName("ts"));
+  const auto* ts_col =
+      TypedColumn<int64_t>::FromColumn(table.GetColumnByName("ts"));
   const auto* track_id_col =
-      reinterpret_cast<const TypedColumn<tables::CounterTrackTable::Id>*>(
+      TypedColumn<tables::CounterTrackTable::Id>::FromColumn(
           table.GetColumnByName("track_id"));
 
   for (uint32_t i = 0; i < table.row_count(); ++i) {
