@@ -153,15 +153,26 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
   });
 }
 
+base::Optional<uint32_t> GetRssAnonAndSwap(pid_t pid) {
+  std::string path = "/proc/" + std::to_string(pid) + "/status";
+  std::string status;
+  bool read_proc = base::ReadFile(path, &status);
+  if (!read_proc) {
+    PERFETTO_ELOG("Failed to read %s", path.c_str());
+    return base::nullopt;
+  }
+  auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
+  auto swap = ParseProcStatusSize(status, "VmSwap:");
+  if (anon_rss.has_value() && swap.has_value()) {
+    return *anon_rss + *swap;
+  }
+  return base::nullopt;
+}
+
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
   for (auto it = pids->begin(); it != pids->end();) {
-    std::string path = "/proc/" + std::to_string(*it) + "/status";
-    std::string status;
-    bool read_proc = base::ReadFile(path, &status);
-    if (!read_proc) {
-      PERFETTO_ELOG("Failed to read %s", path.c_str());
-    }
-    if (read_proc && IsUnderAnonRssAndSwapThreshold(*it, min_size_kb, status)) {
+    base::Optional<uint32_t> rss_and_swap = GetRssAnonAndSwap(*it);
+    if (rss_and_swap && rss_and_swap < min_size_kb) {
       it = pids->erase(it);
     } else {
       ++it;
