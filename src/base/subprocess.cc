@@ -243,7 +243,7 @@ void Subprocess::Start() {
     PERFETTO_CHECK(wait_res == pid);
     base::ignore_result(PERFETTO_EINTR(
         write(exit_status_pipe_wr, &pid_stat, sizeof(pid_stat))));
-    PERFETTO_CHECK(PERFETTO_EINTR(close(exit_status_pipe_wr)) == 0);
+    PERFETTO_CHECK(close(exit_status_pipe_wr) == 0 || errno == EINTR);
   });
 }
 

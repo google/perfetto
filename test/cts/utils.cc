@@ -52,6 +52,13 @@ bool IsDebuggableBuild() {
   return std::string(buf) == "1";
 }
 
+bool IsUserBuild() {
+  char buf[PROP_VALUE_MAX + 1] = {};
+  int ret = __system_property_get("ro.build.type", buf);
+  PERFETTO_CHECK(ret >= 0);
+  return std::string(buf) == "user";
+}
+
 // note: cannot use gtest macros due to return type
 bool IsAppRunning(const std::string& name) {
   std::string cmd = "pgrep -f ^" + name + "$";

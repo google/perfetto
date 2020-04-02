@@ -39,6 +39,7 @@ uint8_t g_page[base::kPageSize];
 using perfetto::protos::pbzero::FtraceEventBundle;
 
 void FuzzCpuReaderParsePage(const uint8_t* data, size_t size);
+void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size);
 
 // TODO(rsavitski): make the fuzzer generate multi-page payloads.
 void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {

@@ -220,36 +220,21 @@ std::string ReadSystemProperty(const char* key) {
   return prop_value;
 }
 
-bool ShouldForkPrivateDaemon() {
-  std::string build_type = ReadSystemProperty("ro.build.type");
-  if (build_type.empty()) {
-    PERFETTO_ELOG(
-        "Cannot determine platform build type, proceeding in fork mode "
-        "profiling.");
-    return true;
-  }
-
-  // On development builds, we support both modes of profiling, depending on a
-  // system property.
-  if (build_type == "userdebug" || build_type == "eng") {
-    // Note: if renaming the property, also update system_property.cc
-    std::string mode = ReadSystemProperty("heapprofd.userdebug.mode");
-    return mode == "fork";
-  }
-
-  // User/other builds - always fork private profiler.
-  return true;
+bool ForceForkPrivateDaemon() {
+  // Note: if renaming the property, also update system_property.cc
+  std::string mode = ReadSystemProperty("heapprofd.userdebug.mode");
+  return mode == "fork";
 }
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
-  PERFETTO_DLOG("Constructing client for central daemon.");
+  PERFETTO_LOG("Constructing client for central daemon.");
   using perfetto::profiling::Client;
 
   perfetto::base::Optional<perfetto::base::UnixSocketRaw> sock =
       Client::ConnectToHeapprofd(perfetto::profiling::kHeapprofdSocketFile);
   if (!sock) {
-    PERFETTO_ELOG("Failed to connect to %s.",
+    PERFETTO_ELOG("Failed to connect to %s. This is benign on user builds.",
                   perfetto::profiling::kHeapprofdSocketFile);
     return nullptr;
   }
@@ -259,7 +244,7 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon(
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
-  PERFETTO_DLOG("Setting up fork mode profiling.");
+  PERFETTO_LOG("Setting up fork mode profiling.");
   perfetto::base::UnixSocketRaw parent_sock;
   perfetto::base::UnixSocketRaw child_sock;
   std::tie(parent_sock, child_sock) = perfetto::base::UnixSocketRaw::CreatePair(
@@ -388,7 +373,8 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
       AbortOnSpinlockTimeout();
 
     if (g_client.ref()) {
-      PERFETTO_LOG("Rejecting concurrent profiling initialization.");
+      PERFETTO_LOG("%s: Rejecting concurrent profiling initialization.",
+                   getprogname());
       return true;  // success as we're in a valid state
     }
     old_client = g_client.ref();
@@ -404,16 +390,18 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
 
   // These factory functions use heap objects, so we need to run them without
   // the spinlock held.
-  std::shared_ptr<Client> client =
-      ShouldForkPrivateDaemon()
-          ? CreateClientAndPrivateDaemon(unhooked_allocator)
-          : CreateClientForCentralDaemon(unhooked_allocator);
+  std::shared_ptr<Client> client;
+  if (!ForceForkPrivateDaemon())
+    client = CreateClientForCentralDaemon(unhooked_allocator);
+  if (!client) 
+    client = CreateClientAndPrivateDaemon(unhooked_allocator);
 
   if (!client) {
-    PERFETTO_LOG("heapprofd_client not initialized, not installing hooks.");
+    PERFETTO_LOG("%s: heapprofd_client not initialized, not installing hooks.",
+                 getprogname());
     return false;
   }
-  PERFETTO_LOG("heapprofd_client initialized.");
+  PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
     if (PERFETTO_UNLIKELY(!s.locked()))

@@ -92,7 +92,7 @@ struct TrackEventIncrementalState {
 // The backend portion of the track event trace point implemention. Outlined to
 // a separate .cc file so it can be shared by different track event category
 // namespaces.
-class TrackEventInternal {
+class PERFETTO_EXPORT TrackEventInternal {
  public:
   static bool Initialize(
       const TrackEventCategoryRegistry&,

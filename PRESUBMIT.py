@@ -44,7 +44,7 @@ def CheckChange(input, output):
   results += CheckBinaryDescriptors(input, output)
   results += CheckMergedTraceConfigProto(input, output)
   results += CheckWhitelist(input, output)
-  results += CheckBadCpp(input, output)
+  results += CheckBannedCpp(input, output)
   return results
 
 
@@ -109,9 +109,7 @@ def CheckIncludeGuards(input_api, output_api):
   return []
 
 
-def CheckBadCpp(input_api, output_api):
-  tool = 'tools/check_include_violations'
-
+def CheckBannedCpp(input_api, output_api):
   bad_cpp = [
       (r'\bNULL\b', 'New code should not use NULL prefer nullptr'),
       (r'\bstd::stoi\b',
@@ -130,6 +128,9 @@ def CheckBadCpp(input_api, output_api):
        'std::stod throws exceptions prefer base::StringToDouble()'),
       (r'\bstd::stold\b',
        'std::stold throws exceptions prefer base::StringToDouble()'),
+      (r'\bPERFETTO_EINTR\(close\(',
+       'close(2) must not be retried on EINTR on Linux and other OSes '
+       'that we run on, as the fd will be closed.'),
   ]
 
   def file_filter(x):
@@ -141,7 +142,7 @@ def CheckBadCpp(input_api, output_api):
       for regex, message in bad_cpp:
         if input_api.re.search(regex, line):
           errors.append(
-              output_api.PresubmitError('Banned C++:\n  {}:{} {}'.format(
+              output_api.PresubmitError('Banned pattern:\n  {}:{} {}'.format(
                   f.LocalPath(), line_number, message)))
   return errors
 
