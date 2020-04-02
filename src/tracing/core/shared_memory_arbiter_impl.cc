@@ -720,6 +720,12 @@ void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
       return;
     }
 
+    // A trace writer from an aborted session may be destroyed before the
+    // arbiter is bound to a task runner. In that case, it was never registered
+    // with the service.
+    if (!task_runner_)
+      return;
+
     task_runner = task_runner_;
   }  // scoped_lock
 
