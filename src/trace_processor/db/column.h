@@ -292,6 +292,12 @@ class Column {
   // Returns the type of this Column in terms of SqlValue::Type.
   SqlValue::Type type() const { return ToSqlValueType(type_); }
 
+  // Test the type of this Column.
+  template <typename T>
+  bool IsColumnType() const {
+    return ToColumnType<T>() == type_;
+  }
+
   // Returns the index of the current column in the containing table.
   uint32_t index_in_table() const { return col_idx_in_table_; }
 
