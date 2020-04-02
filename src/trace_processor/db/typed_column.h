@@ -138,6 +138,17 @@ struct TypedColumn : public Column {
     return Column::ToSqlValueType<serialized_type>();
   }
 
+  // Reinterpret cast a Column to TypedColumn or crash if that is likely to be
+  // unsafe.
+  static const TypedColumn<T>* FromColumn(const Column* column) {
+    if (column->IsColumnType<serialized_type>() &&
+        (column->IsNullable() == TH::is_optional) && !column->IsId()) {
+      return reinterpret_cast<const TypedColumn<T>*>(column);
+    } else {
+      PERFETTO_FATAL("Unsafe to convert Column to TypedColumn.");
+    }
+  }
+
  private:
   static SqlValue ToValue(double value) { return SqlValue::Double(value); }
   static SqlValue ToValue(uint32_t value) { return SqlValue::Long(value); }
