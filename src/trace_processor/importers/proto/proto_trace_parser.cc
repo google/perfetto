@@ -300,6 +300,9 @@ void ProtoTraceParser::ParseProfilePacket(
     if (entry.rejected_concurrent())
       context_->storage->IncrementIndexedStats(
           stats::heapprofd_rejected_concurrent, pid);
+    if (entry.hit_guardrail())
+      context_->storage->IncrementIndexedStats(stats::heapprofd_hit_guardrail,
+                                               pid);
 
     for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
       protos::pbzero::ProfilePacket::HeapSample::Decoder sample(*sample_it);
