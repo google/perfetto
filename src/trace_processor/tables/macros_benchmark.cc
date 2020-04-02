@@ -41,6 +41,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CHILD_TABLE);
 
+RootTestTable::~RootTestTable() = default;
+ChildTestTable::~ChildTestTable() = default;
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
