@@ -125,6 +125,17 @@ TEST(ProcUtilsTest, FindProfilablePids) {
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
 }
 
+TEST(ProcUtilsTest, AnonThreshold) {
+  std::string status = "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB";
+  EXPECT_FALSE(IsUnderAnonRssAndSwapThreshold(123, 20000, status));
+  EXPECT_TRUE(IsUnderAnonRssAndSwapThreshold(123, 20001, status));
+}
+
+TEST(ProcUtilsTest, AnonThresholdInvalidInput) {
+  EXPECT_FALSE(IsUnderAnonRssAndSwapThreshold(123, 20000, ""));
+  EXPECT_FALSE(IsUnderAnonRssAndSwapThreshold(123, 20000, "RssAnon: 10000 kB"));
+  EXPECT_FALSE(IsUnderAnonRssAndSwapThreshold(123, 20000, "VmSwap: 10000 kB"));
+}
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
