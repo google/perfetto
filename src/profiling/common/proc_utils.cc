@@ -40,6 +40,21 @@ bool GetProcFile(pid_t pid, const char* file, char* filename_buf, size_t size) {
   return true;
 }
 
+base::Optional<uint32_t> ParseProcStatusSize(const std::string& status,
+                                             const std::string& key) {
+  auto entry_idx = status.find(key);
+  if (entry_idx == std::string::npos)
+    return {};
+  entry_idx = status.find_first_not_of(" \t", entry_idx + key.size());
+  if (entry_idx == std::string::npos)
+    return {};
+  int32_t val = atoi(status.c_str() + entry_idx);
+  if (val < 0) {
+    PERFETTO_ELOG("Unexpected value reading %s", key.c_str());
+    return {};
+  }
+  return static_cast<uint32_t>(val);
+}
 }  // namespace
 
 base::Optional<std::vector<std::string>> NormalizeCmdlines(
@@ -136,6 +151,38 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
         pids->emplace(static_cast<pid_t>(pid));
     }
   });
+}
+
+void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
+  for (auto it = pids->begin(); it != pids->end();) {
+    std::string path = "/proc/" + std::to_string(*it) + "/status";
+    std::string status;
+    bool read_proc = base::ReadFile(path, &status);
+    if (!read_proc) {
+      PERFETTO_ELOG("Failed to read %s", path.c_str());
+    }
+    if (read_proc && IsUnderAnonRssAndSwapThreshold(*it, min_size_kb, status)) {
+      it = pids->erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+bool IsUnderAnonRssAndSwapThreshold(pid_t pid,
+                                    uint32_t min_size_kb,
+                                    const std::string& status) {
+  auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
+  auto swap = ParseProcStatusSize(status, "VmSwap:");
+  if (anon_rss.has_value() && swap.has_value()) {
+    uint32_t anon_kb = anon_rss.value() + swap.value();
+    if (anon_kb < min_size_kb) {
+      PERFETTO_LOG("Removing pid %d from profiled set (anon: %d kB)", pid,
+                   anon_kb);
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace profiling
