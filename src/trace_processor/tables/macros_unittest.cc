@@ -50,6 +50,11 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
   C(StringPool::Id, end_state)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_CPU_SLICE_TABLE_DEF);
 
+TestEventTable::~TestEventTable() = default;
+TestCounterTable::~TestCounterTable() = default;
+TestSliceTable::~TestSliceTable() = default;
+TestCpuSliceTable::~TestCpuSliceTable() = default;
+
 class TableMacrosUnittest : public ::testing::Test {
  protected:
   StringPool pool_;

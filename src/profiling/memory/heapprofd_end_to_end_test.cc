@@ -690,14 +690,14 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
       char buf[1];
       if (!signalled && read(signal_pipe_rd, buf, sizeof(buf)) == 1) {
         signalled = true;
-        PERFETTO_EINTR(close(signal_pipe_rd));
+        close(signal_pipe_rd);
 
         // make sure the client has noticed that the session has stopped
         AllocateAndFree(bytes);
 
         bytes = kSecondIterationBytes;
         PERFETTO_CHECK(PERFETTO_EINTR(write(ack_pipe_wr, "1", 1)) == 1);
-        PERFETTO_EINTR(close(ack_pipe_wr));
+        close(ack_pipe_wr);
       }
       usleep(10 * kMsToUs);
     }
@@ -811,7 +811,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   child.args.preserve_fds.push_back(start_pipe_wr);
   child.args.entrypoint_for_testing = [start_pipe_wr] {
     PERFETTO_CHECK(PERFETTO_EINTR(write(start_pipe_wr, "1", 1)) == 1);
-    PERFETTO_CHECK(PERFETTO_EINTR(close(start_pipe_wr)) == 0);
+    PERFETTO_CHECK(close(start_pipe_wr) == 0 || errno == EINTR);
 
     // The subprocess harness will take care of closing
     for (int i = 0; i < 200; i++) {
