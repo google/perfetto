@@ -204,6 +204,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     InterningOutputTracker intern_state;
     bool shutting_down = false;
     bool started = false;
+    bool hit_guardrail = false;
+    bool was_stopped = false;
     uint32_t stop_timeout_ms;
   };
 
@@ -220,6 +222,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void Restart();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
+  void CheckDataSourceMemory();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
   bool DumpProcessesInDataSource(DataSourceInstanceID id);
@@ -244,6 +247,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // Specific to mode_ == kChild
   void AdoptTargetProcessSocket();
 
+  void ShutdownDataSource(DataSource* ds);
   bool MaybeFinishDataSource(DataSource* ds);
 
   // Class state:
