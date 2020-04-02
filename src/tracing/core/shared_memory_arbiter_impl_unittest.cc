@@ -412,6 +412,8 @@ TEST_P(SharedMemoryArbiterImplTest, AbortStartupTracingForReservation) {
   SharedMemoryABI* shmem_abi = arbiter_->shmem_abi_for_testing();
   std::unique_ptr<TraceWriter> writer =
       arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId1);
+  std::unique_ptr<TraceWriter> writer2 =
+      arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId1);
 
   // Write two packet while unbound and flush the chunk after each packet. The
   // writer will return the chunk to the arbiter and grab a new chunk for the
@@ -429,6 +431,10 @@ TEST_P(SharedMemoryArbiterImplTest, AbortStartupTracingForReservation) {
   // up to this point to an invalid target buffer (ID 0). They will remain
   // buffered until bound to an endpoint.
   arbiter_->AbortStartupTracingForReservation(kTargetBufferReservationId1);
+
+  // Destroy a writer that was created before the abort. This should not cause
+  // crashes.
+  writer2.reset();
 
   // Bind to producer endpoint. The trace writer should not be registered as its
   // target buffer is invalid. Since no startup sessions are active anymore, the
@@ -503,7 +509,7 @@ TEST_P(SharedMemoryArbiterImplTest, AbortStartupTracingForReservation) {
 
   // Create another startup writer for another target buffer, which puts the
   // arbiter back into unbound state.
-  std::unique_ptr<TraceWriter> writer2 =
+  std::unique_ptr<TraceWriter> writer3 =
       arbiter_->CreateStartupTraceWriter(kTargetBufferReservationId2);
   EXPECT_FALSE(IsArbiterFullyBound());
 
@@ -515,11 +521,11 @@ TEST_P(SharedMemoryArbiterImplTest, AbortStartupTracingForReservation) {
   }
   writer->Flush();
   {
-    auto packet = writer2->NewTracePacket();
+    auto packet = writer3->NewTracePacket();
     packet->set_for_testing()->set_str("bar");
   }
   flush_completed = false;
-  writer2->Flush([&flush_completed] { flush_completed = true; });
+  writer3->Flush([&flush_completed] { flush_completed = true; });
 
   // Destroy the first trace writer, which should cause the arbiter to post a
   // task to unregister it.
