@@ -90,6 +90,9 @@ void JavaHprofProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
   FindPidsForCmdlines(normalized_cmdlines.value(), &ds.pids);
+  if (config.min_anonymous_memory_kb() > 0)
+    RemoveUnderAnonThreshold(config.min_anonymous_memory_kb(), &ds.pids);
+
   ds.config = std::move(config);
   data_sources_.emplace(id, std::move(ds));
 }
