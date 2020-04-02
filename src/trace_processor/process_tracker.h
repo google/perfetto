@@ -52,6 +52,9 @@ class ProcessTracker {
                            uint32_t tid,
                            StringId thread_name_id);
 
+  // Returns whether a thread is considered alive by the process tracker.
+  bool IsThreadAlive(UniqueTid utid);
+
   // Called when sched_process_exit is observed. This forces the tracker to
   // end the thread lifetime for the utid associated with the given tid.
   void EndThread(int64_t timestamp, uint32_t tid);
@@ -136,9 +139,6 @@ class ProcessTracker {
   // Returns base::nullopt if such a thread doesn't exist.
   base::Optional<uint32_t> GetThreadOrNull(uint32_t tid,
                                            base::Optional<uint32_t> pid);
-
-  // Returns whether a thread is considered alive by the process tracker.
-  bool IsThreadAlive(UniqueTid utid);
 
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any
