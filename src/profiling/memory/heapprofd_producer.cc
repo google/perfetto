@@ -405,6 +405,9 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
   if (!data_source->normalized_cmdlines.empty())
     FindPidsForCmdlines(data_source->normalized_cmdlines, &pids);
 
+  if (heapprofd_config.min_anonymous_memory_kb() > 0)
+    RemoveUnderAnonThreshold(heapprofd_config.min_anonymous_memory_kb(), &pids);
+
   for (auto pid_it = pids.cbegin(); pid_it != pids.cend();) {
     pid_t pid = *pid_it;
     if (IsPidProfiled(pid)) {
