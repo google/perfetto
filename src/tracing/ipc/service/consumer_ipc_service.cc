@@ -29,6 +29,7 @@
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 
 namespace perfetto {
@@ -198,19 +199,6 @@ void ConsumerIPCService::QueryServiceState(
   remote_consumer->service_endpoint->QueryServiceState(callback);
 }
 
-// Called by the service in response to a service_endpoint->Flush() request.
-void ConsumerIPCService::OnFlushCallback(
-    bool success,
-    PendingFlushResponses::iterator pending_response_it) {
-  DeferredFlushResponse response(std::move(*pending_response_it));
-  pending_flush_responses_.erase(pending_response_it);
-  if (success) {
-    response.Resolve(ipc::AsyncResult<protos::gen::FlushResponse>::Create());
-  } else {
-    response.Reject();
-  }
-}
-
 // Called by the service in response to service_endpoint->QueryServiceState().
 void ConsumerIPCService::OnQueryServiceCallback(
     bool success,
@@ -226,6 +214,45 @@ void ConsumerIPCService::OnQueryServiceCallback(
   } else {
     response.Reject();
   }
+}
+
+// Called by the service in response to a service_endpoint->Flush() request.
+void ConsumerIPCService::OnFlushCallback(
+    bool success,
+    PendingFlushResponses::iterator pending_response_it) {
+  DeferredFlushResponse response(std::move(*pending_response_it));
+  pending_flush_responses_.erase(pending_response_it);
+  if (success) {
+    response.Resolve(ipc::AsyncResult<protos::gen::FlushResponse>::Create());
+  } else {
+    response.Reject();
+  }
+}
+
+void ConsumerIPCService::QueryCapabilities(
+    const protos::gen::QueryCapabilitiesRequest&,
+    DeferredQueryCapabilitiesResponse resp) {
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+  auto it = pending_query_capabilities_responses_.insert(
+      pending_query_capabilities_responses_.end(), std::move(resp));
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto callback = [weak_this, it](const TracingServiceCapabilities& caps) {
+    if (weak_this)
+      weak_this->OnQueryCapabilitiesCallback(caps, std::move(it));
+  };
+  remote_consumer->service_endpoint->QueryCapabilities(callback);
+}
+
+// Called by the service in response to service_endpoint->QueryCapabilities().
+void ConsumerIPCService::OnQueryCapabilitiesCallback(
+    const TracingServiceCapabilities& caps,
+    PendingQueryCapabilitiesResponses::iterator pending_response_it) {
+  DeferredQueryCapabilitiesResponse response(std::move(*pending_response_it));
+  pending_query_capabilities_responses_.erase(pending_response_it);
+  auto resp =
+      ipc::AsyncResult<protos::gen::QueryCapabilitiesResponse>::Create();
+  *resp->mutable_capabilities() = caps;
+  response.Resolve(std::move(resp));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
