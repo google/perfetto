@@ -21,4 +21,6 @@ perfetto_host_executable("ipc_plugin") {
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]
+  configs = standalone_executable_configs
+  configs += [ "//gn:protobuf_gen_config" ]
 }
