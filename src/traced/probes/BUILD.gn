@@ -60,6 +60,7 @@ source_set("probes_src") {
     "power",
     "ps",
     "sys_stats",
+    "system_info",
   ]
   sources = [
     "probes_producer.cc",
@@ -92,5 +93,6 @@ perfetto_unittest_source_set("unittests") {
     "packages_list:unittests",
     "ps:unittests",
     "sys_stats:unittests",
+    "system_info:unittests",
   ]
 }
