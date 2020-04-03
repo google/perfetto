@@ -296,6 +296,7 @@ filegroup(
         "include/perfetto/ext/base/thread_annotations.h",
         "include/perfetto/ext/base/thread_checker.h",
         "include/perfetto/ext/base/thread_task_runner.h",
+        "include/perfetto/ext/base/thread_utils.h",
         "include/perfetto/ext/base/unix_socket.h",
         "include/perfetto/ext/base/unix_task_runner.h",
         "include/perfetto/ext/base/utils.h",
