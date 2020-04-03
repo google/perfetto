@@ -490,7 +490,6 @@ void CppObjGenerator::GenEnum(const EnumDescriptor* enum_desc,
   // enum MyEnum { FOO=1, BAR=2 }
   // Hence this |prefix| logic.
   std::string prefix = enum_desc->containing_type() ? full_name + "_" : "";
-
   p->Print("enum $f$ : int {\n", "f", full_name);
   for (int e = 0; e < enum_desc->value_count(); e++) {
     const EnumValueDescriptor* value = enum_desc->value(e);
@@ -502,12 +501,28 @@ void CppObjGenerator::GenEnum(const EnumDescriptor* enum_desc,
 
 void CppObjGenerator::GenEnumAliases(const EnumDescriptor* enum_desc,
                                      Printer* p) const {
+  int min_value = std::numeric_limits<int>::max();
+  int max_value = std::numeric_limits<int>::min();
+  std::string min_name;
+  std::string max_name;
   std::string full_name = GetFullName(enum_desc);
   for (int e = 0; e < enum_desc->value_count(); e++) {
     const EnumValueDescriptor* value = enum_desc->value(e);
     p->Print("static constexpr auto $n$ = $f$_$n$;\n", "f", full_name, "n",
              value->name());
+    if (value->number() < min_value) {
+      min_value = value->number();
+      min_name = full_name + "_" + value->name();
+    }
+    if (value->number() > max_value) {
+      max_value = value->number();
+      max_name = full_name + "_" + value->name();
+    }
   }
+  p->Print("static constexpr auto $n$_MIN = $m$;\n", "n", enum_desc->name(),
+           "m", min_name);
+  p->Print("static constexpr auto $n$_MAX = $m$;\n", "n", enum_desc->name(),
+           "m", max_name);
 }
 
 void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
