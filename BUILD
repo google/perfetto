@@ -153,6 +153,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
+        ":protos_perfetto_trace_system_info_zero",
         ":protos_perfetto_trace_track_event_zero",
     ],
 )
@@ -182,6 +183,7 @@ perfetto_cc_library(
         ":src_traced_probes_probes_src",
         ":src_traced_probes_ps_ps",
         ":src_traced_probes_sys_stats_sys_stats",
+        ":src_traced_probes_system_info_system_info",
         ":src_traced_service_service",
         ":src_tracing_common",
         ":src_tracing_consumer_api_deprecated_consumer_api_deprecated",
@@ -245,6 +247,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
+        ":protos_perfetto_trace_system_info_zero",
         ":protos_perfetto_trace_track_event_zero",
     ],
     linkstatic = True,
@@ -1147,6 +1150,15 @@ filegroup(
     srcs = [
         "src/traced/probes/sys_stats/sys_stats_data_source.cc",
         "src/traced/probes/sys_stats/sys_stats_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/system_info:system_info
+filegroup(
+    name = "src_traced_probes_system_info_system_info",
+    srcs = [
+        "src/traced/probes/system_info/system_info_data_source.cc",
+        "src/traced/probes/system_info/system_info_data_source.h",
     ],
 )
 
@@ -2290,6 +2302,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_profiling_protos",
         ":protos_perfetto_trace_ps_protos",
         ":protos_perfetto_trace_sys_stats_protos",
+        ":protos_perfetto_trace_system_info_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
 )
@@ -2482,6 +2495,33 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/system_info:lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_trace_system_info_lite",
+    deps = [
+        ":protos_perfetto_trace_system_info_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/system_info:zero
+perfetto_proto_library(
+    name = "protos_perfetto_trace_system_info_protos",
+    srcs = [
+        "protos/perfetto/trace/system_info/cpu_info.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/perfetto/trace/system_info:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_system_info_zero",
+    deps = [
+        ":protos_perfetto_trace_system_info_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/track_event:lite
 perfetto_cc_proto_library(
     name = "protos_perfetto_trace_track_event_lite",
@@ -2643,6 +2683,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
+        ":protos_perfetto_trace_system_info_zero",
         ":protos_perfetto_trace_track_event_zero",
     ],
     linkstatic = True,
@@ -2721,6 +2762,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
+        ":protos_perfetto_trace_system_info_zero",
         ":protos_perfetto_trace_track_event_zero",
         ":src_perfetto_cmd_protos",
     ] + PERFETTO_CONFIG.deps.zlib,
@@ -2787,6 +2829,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
                ":protos_perfetto_trace_sys_stats_zero",
+               ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
@@ -2865,6 +2908,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
                ":protos_perfetto_trace_sys_stats_zero",
+               ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
@@ -2954,6 +2998,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_profiling_zero",
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
+        ":protos_perfetto_trace_system_info_zero",
         ":protos_perfetto_trace_track_event_zero",
         ":protos_third_party_pprof_zero",
     ] + PERFETTO_CONFIG.deps.zlib,
@@ -3028,6 +3073,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
                ":protos_perfetto_trace_sys_stats_zero",
+               ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_third_party_pprof_zero",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
