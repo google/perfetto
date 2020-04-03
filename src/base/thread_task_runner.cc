@@ -25,6 +25,7 @@
 #include <thread>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
@@ -82,12 +83,7 @@ ThreadTaskRunner::ThreadTaskRunner(const std::string& name) : name_(name) {
 void ThreadTaskRunner::RunTaskThread(
     std::function<void(UnixTaskRunner*)> initializer) {
   if (!name_.empty()) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
-    pthread_setname_np(name_.c_str());
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    prctl(PR_SET_NAME, name_.c_str());
-#endif
+    base::MaybeSetThreadName(name_);
   }
 
   UnixTaskRunner task_runner;
