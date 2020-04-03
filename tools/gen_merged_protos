@@ -93,6 +93,7 @@ TRACE_PROTOS = (
     'protos/perfetto/trace/ps/process_tree.proto',
     'protos/perfetto/trace/sys_stats/sys_stats.proto',
     'protos/perfetto/trace/system_info.proto',
+    'protos/perfetto/trace/system_info/cpu_info.proto',
     'protos/perfetto/trace/trace.proto',
     'protos/perfetto/trace/trace_packet.proto',
     'protos/perfetto/trace/trace_packet_defaults.proto',
