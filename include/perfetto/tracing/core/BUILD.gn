@@ -23,6 +23,7 @@ source_set("core") {
     "data_source_config.h",
     "data_source_descriptor.h",
     "trace_config.h",
+    "tracing_service_capabilities.h",
     "tracing_service_state.h",
   ]
 }
