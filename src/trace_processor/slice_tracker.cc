@@ -60,6 +60,19 @@ void SliceTracker::BeginGpu(tables::GpuSliceTable::Row row,
   });
 }
 
+void SliceTracker::BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
+                                   SetArgsCallback args_callback) {
+  // Ensure that the duration is pending for this row.
+  // TODO(lalitm): change this to eventually use null instead of -1.
+  row.dur = kPendingDuration;
+
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
+    return context_->storage->mutable_graphics_frame_slice_table()
+        ->Insert(row)
+        .id;
+  });
+}
+
 base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
                                               TrackId track_id,
                                               StringId category,
@@ -83,6 +96,18 @@ void SliceTracker::ScopedGpu(const tables::GpuSliceTable::Row& row,
   });
 }
 
+void SliceTracker::ScopedFrameEvent(
+    const tables::GraphicsFrameSliceTable::Row& row,
+    SetArgsCallback args_callback) {
+  PERFETTO_DCHECK(row.dur >= 0);
+
+  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
+    return context_->storage->mutable_graphics_frame_slice_table()
+        ->Insert(row)
+        .id;
+  });
+}
+
 base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
                                            TrackId track_id,
                                            StringId category,
@@ -100,6 +125,15 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
 base::Optional<SliceId> SliceTracker::EndGpu(int64_t ts,
                                              TrackId t_id,
                                              SetArgsCallback args_callback) {
+  return CompleteSlice(ts, t_id, args_callback, [](const SlicesStack& stack) {
+    return static_cast<uint32_t>(stack.size() - 1);
+  });
+}
+
+base::Optional<SliceId> SliceTracker::EndFrameEvent(
+    int64_t ts,
+    TrackId t_id,
+    SetArgsCallback args_callback) {
   return CompleteSlice(ts, t_id, args_callback, [](const SlicesStack& stack) {
     return static_cast<uint32_t>(stack.size() - 1);
   });
