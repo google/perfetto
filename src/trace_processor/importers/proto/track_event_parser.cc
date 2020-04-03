@@ -147,9 +147,13 @@ class TrackEventParser::EventImporter {
       return util::OkStatus();
     }
 
+    // If we have legacy thread time / instruction count fields, also parse them
+    // into the counters tables.
+    ParseLegacyThreadTimeAndInstructionsAsCounters();
+
     // Parse extra counter values before parsing the actual event. This way, we
     // can update the slice's thread time / instruction count fields based on
-    // these counter values.
+    // these counter values and also parse them as slice attributes / arguments.
     ParseExtraCounterValues();
 
     // TODO(eseckler): Replace phase with type and remove handling of
@@ -455,6 +459,42 @@ class TrackEventParser::EventImporter {
 
     context_->event_tracker->PushCounter(ts_, event_data_->counter_value,
                                          track_id_);
+  }
+
+  void ParseLegacyThreadTimeAndInstructionsAsCounters() {
+    if (!utid_)
+      return;
+    // When these fields are set, we don't expect TrackDescriptor-based counters
+    // for thread time or instruction count for this thread in the trace, so we
+    // intern separate counter tracks based on name + utid.
+    if (event_data_->thread_timestamp) {
+      TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
+          parser_->counter_name_thread_time_id_, *utid_);
+      context_->event_tracker->PushCounter(ts_, event_data_->thread_timestamp,
+                                           track_id);
+      if (legacy_event_.duration_us() &&
+          legacy_event_.has_thread_duration_us()) {
+        context_->event_tracker->PushCounter(
+            ts_ + (legacy_event_.duration_us() * 1000),
+            event_data_->thread_timestamp +
+                (legacy_event_.thread_duration_us() * 1000),
+            track_id);
+      }
+    }
+    if (event_data_->thread_instruction_count) {
+      TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
+          parser_->counter_name_thread_instruction_count_id_, *utid_);
+      context_->event_tracker->PushCounter(
+          ts_, event_data_->thread_instruction_count, track_id);
+      if (legacy_event_.duration_us() &&
+          legacy_event_.has_thread_instruction_delta()) {
+        context_->event_tracker->PushCounter(
+            ts_ + (legacy_event_.duration_us() * 1000),
+            event_data_->thread_instruction_count +
+                legacy_event_.thread_instruction_delta(),
+            track_id);
+      }
+    }
   }
 
   void ParseExtraCounterValues() {
