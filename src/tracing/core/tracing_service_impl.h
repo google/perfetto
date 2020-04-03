@@ -192,6 +192,7 @@ class TracingServiceImpl : public TracingService {
     void GetTraceStats() override;
     void ObserveEvents(uint32_t enabled_event_types) override;
     void QueryServiceState(QueryServiceStateCallback) override;
+    void QueryCapabilities(QueryCapabilitiesCallback) override;
 
     // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,

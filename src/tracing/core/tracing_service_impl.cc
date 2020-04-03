@@ -54,6 +54,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/static_buffer.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
@@ -2783,6 +2784,19 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
         static_cast<int>(registered_data_source.producer_id));
   }
   callback(/*success=*/true, svc_state);
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::QueryCapabilities(
+    QueryCapabilitiesCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingServiceCapabilities caps;
+  caps.set_has_query_capabilities(true);
+  caps.add_observable_events(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+  caps.add_observable_events(ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
+  static_assert(ObservableEvents::Type_MAX ==
+                    ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED,
+                "");
+  callback(caps);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
