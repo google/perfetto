@@ -97,12 +97,20 @@ class GraphicsEventParser {
   const StringId layer_name_key_id_;
   std::array<StringId, 14> event_type_name_ids_;
   int64_t previous_timestamp_ = 0;
-  char present_frame_[4096];
-  char present_frame_layer_[4096];
+  char present_frame_buffer_[4096];
+  char present_frame_layer_buffer_[4096];
+  char present_frame_numbers_buffer_[4096];
   StringId present_event_name_id_;
   base::StringWriter present_frame_name_;
   base::StringWriter present_frame_layer_name_;
+  base::StringWriter present_frame_numbers_;
   TrackId present_track_id_;
+  // Row indices of frame stats table. Used to populate the slice_id after
+  // inserting the rows.
+  std::vector<uint32_t> graphics_frame_stats_idx_;
+  // Map of buffer ID -> (Map of GraphicsFrameEvent -> ts of that event)
+  std::unordered_map<uint32_t, std::unordered_map<uint64_t, int64_t>>
+      graphics_frame_stats_map_;
   // For VulkanMemoryEvent
   std::unordered_map<VulkanMemoryEvent::AllocationScope,
                      int64_t /*counter_value*/,
