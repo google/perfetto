@@ -18,6 +18,7 @@ syntax = "proto2";
 
 import "protos/perfetto/common/observable_events.proto";
 import "protos/perfetto/common/tracing_service_state.proto";
+import "protos/perfetto/common/tracing_service_capabilities.proto";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 
@@ -106,6 +107,11 @@ service ConsumerPort {
   // Allows to obtain the list of data sources connected and their descriptors.
   rpc QueryServiceState(QueryServiceStateRequest)
       returns (stream QueryServiceStateResponse) {}
+
+  // Obtains a list of features supported by the service. This is to deal with
+  // backward/forward compatibility and feature detection.
+  rpc QueryCapabilities(QueryCapabilitiesRequest)
+      returns (QueryCapabilitiesResponse) {}
 }
 
 // Arguments for rpc EnableTracing().
@@ -220,9 +226,16 @@ message ObserveEventsResponse {
   optional ObservableEvents events = 1;
 }
 
-// Arguments for rpc QueryServiceState
+// Arguments for rpc QueryServiceState.
 message QueryServiceStateRequest {}
 
 message QueryServiceStateResponse {
   optional TracingServiceState service_state = 1;
+}
+
+// Arguments for rpc QueryCapabilities.
+message QueryCapabilitiesRequest {}
+
+message QueryCapabilitiesResponse {
+  optional TracingServiceCapabilities capabilities = 1;
 }

@@ -458,6 +458,7 @@ filegroup(
         "include/perfetto/tracing/core/data_source_config.h",
         "include/perfetto/tracing/core/data_source_descriptor.h",
         "include/perfetto/tracing/core/trace_config.h",
+        "include/perfetto/tracing/core/tracing_service_capabilities.h",
         "include/perfetto/tracing/core/tracing_service_state.h",
     ],
 )
@@ -1402,6 +1403,7 @@ perfetto_proto_library(
         "protos/perfetto/common/observable_events.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/trace_stats.proto",
+        "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
         "protos/perfetto/common/track_event_descriptor.proto",
     ],
