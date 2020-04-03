@@ -13,11 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, track.name as track_name, dur, gpu_slice.name as slice_name,
-    frame_id, key, string_value as layer_name
+select ts, gpu_track.name as track_name, dur, frame_slice.name as slice_name,
+    frame_numbers, layer_names
 from gpu_track
-left join track using (id)
-left join gpu_slice on gpu_track.id=gpu_slice.track_id
-left join args on gpu_slice.arg_set_id=args.arg_set_id and args.key='layer_name'
+left join frame_slice on gpu_track.id=frame_slice.track_id
 where scope='graphics_frame_event'
 order by ts
