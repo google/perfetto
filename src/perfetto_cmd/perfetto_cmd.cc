@@ -38,6 +38,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/traced/traced.h"
@@ -182,7 +183,7 @@ Detach mode. DISCOURAGED, read https://docs.perfetto.dev/#/detached-mode :
   --detach=key          : Detach from the tracing session with the given key.
   --attach=key [--stop] : Re-attach to the session (optionally stop tracing once reattached).
   --is_detached=key     : Check if the session can be re-attached (0:Yes, 2:No, 1:Error).
-)",
+)", /* this comment fixes syntax highlighting in some editors */
                 argv0);
   return 1;
 }
@@ -625,6 +626,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
   args.max_upload_bytes_override =
       trace_config_->guardrail_overrides().max_upload_per_day_bytes();
 #endif
+
+  if (!args.unique_session_name.empty())
+    base::MaybeSetThreadName("p-" + args.unique_session_name);
 
   if (args.is_dropbox && !args.ignore_guardrails &&
       (trace_config_->duration_ms() == 0 &&
