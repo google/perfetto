@@ -98,11 +98,8 @@ void ProbesProducer::OnConnect() {
   for (const FtraceDataSource::Descriptor* desc : kAllDataSources) {
     DataSourceDescriptor proto_desc;
     proto_desc.set_name(desc->name);
-
-    // TODO(primiano): remove in next CL.
-    if (desc == &MetatraceDataSource::descriptor)
-      proto_desc.set_will_notify_on_stop(true);
-
+    proto_desc.set_will_notify_on_start(true);
+    proto_desc.set_will_notify_on_stop(true);
     using Flags = ProbesDataSource::Descriptor::Flags;
     if (desc->flags & Flags::kHandlesIncrementalState)
       proto_desc.set_handles_incremental_state_clear(true);
@@ -195,6 +192,7 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
   }
   data_source->started = true;
   data_source->Start();
+  endpoint_->NotifyDataSourceStarted(instance_id);
 }
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
@@ -311,10 +309,10 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
 
   // MetatraceDataSource special case: re-flush and ack the stop (to record the
   // flushes of other data sources).
-  if (data_source->descriptor == &MetatraceDataSource::descriptor) {
+  if (data_source->descriptor == &MetatraceDataSource::descriptor)
     data_source->Flush(FlushRequestID{0}, [] {});
-    endpoint_->NotifyDataSourceStopped(id);
-  }
+
+  endpoint_->NotifyDataSourceStopped(id);
 
   TracingSessionID session_id = data_source->tracing_session_id;
   auto range = session_data_sources_.equal_range(session_id);
