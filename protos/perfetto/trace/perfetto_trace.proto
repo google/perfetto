@@ -3652,6 +3652,28 @@ message SystemInfo {
 
 // End of protos/perfetto/trace/system_info.proto
 
+// Begin of protos/perfetto/trace/system_info/cpu_info.proto
+
+// Information about CPUs from procfs and sysfs.
+message CpuInfo {
+  // Information about a single CPU.
+  message Cpu {
+    // Value of "Processor" field from /proc/cpuinfo for this CPU.
+    // Example: "AArch64 Processor rev 12 (aarch64)"
+    optional string processor = 1;
+
+    // Frequencies from
+    // /sys/devices/system/cpu/cpuX/cpufreq/scaling_available_frequencies
+    // where X is the index of this CPU.
+    repeated uint32 frequencies = 2;
+  }
+
+  // Describes available CPUs, one entry per CPU.
+  repeated Cpu cpus = 1;
+}
+
+// End of protos/perfetto/trace/system_info/cpu_info.proto
+
 // Begin of protos/perfetto/trace/trace.proto
 
 message Trace {
@@ -3672,7 +3694,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 67.
+// Next id: 68.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3724,6 +3746,7 @@ message TracePacket {
     GpuLog gpu_log = 63;
     VulkanApiEvent vulkan_api_event = 65;
     PerfSample perf_sample = 66;
+    CpuInfo cpu_info = 67;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
