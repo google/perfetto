@@ -46,6 +46,9 @@ class SliceTracker {
   void BeginGpu(tables::GpuSliceTable::Row row,
                 SetArgsCallback args_callback = SetArgsCallback());
 
+  void BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
+                       SetArgsCallback args_callback = SetArgsCallback());
+
   // virtual for testing
   virtual base::Optional<uint32_t> Scoped(
       int64_t timestamp,
@@ -58,6 +61,9 @@ class SliceTracker {
   void ScopedGpu(const tables::GpuSliceTable::Row& row,
                  SetArgsCallback args_callback = SetArgsCallback());
 
+  void ScopedFrameEvent(const tables::GraphicsFrameSliceTable::Row& row,
+                        SetArgsCallback args_callback = SetArgsCallback());
+
   // virtual for testing
   virtual base::Optional<uint32_t> End(
       int64_t timestamp,
@@ -69,6 +75,11 @@ class SliceTracker {
   // TODO(lalitm): eventually this method should become End and End should
   // be renamed EndChrome.
   base::Optional<SliceId> EndGpu(
+      int64_t ts,
+      TrackId track_id,
+      SetArgsCallback args_callback = SetArgsCallback());
+
+  base::Optional<SliceId> EndFrameEvent(
       int64_t ts,
       TrackId track_id,
       SetArgsCallback args_callback = SetArgsCallback());
