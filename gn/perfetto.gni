@@ -251,6 +251,10 @@ declare_args() {
 
   # Skip buildtools dependency checks (needed for ChromeOS).
   skip_buildtools_check = false
+
+  # Used by CrOS system builds. Uses the system version of protobuf
+  # from /usr/include instead of the hermetic one.
+  perfetto_use_system_protobuf = false
 }
 
 # +---------------------------------------------------------------------------+
