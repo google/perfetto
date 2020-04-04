@@ -23,7 +23,10 @@ import("perfetto.gni")
 template("perfetto_host_executable") {
   if (current_toolchain == host_toolchain) {
     executable(target_name) {
-      forward_variables_from(invoker, "*")
+      if (defined(invoker.configs)) {
+        configs += invoker.configs
+      }
+      forward_variables_from(invoker, "*", [ "configs" ])
     }
   } else {
     not_needed(invoker, "*", [ "testonly" ])

@@ -23,8 +23,7 @@ perfetto_host_executable("protozero_plugin") {
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]
-  configs = standalone_executable_configs
-  configs += [ "//gn:protobuf_gen_config" ]
+  configs = [ "//gn:protobuf_gen_config" ]
 }
 
 # The plugin that generates standalone C++ objects from protos (xxx.gen.h).
@@ -37,7 +36,5 @@ perfetto_host_executable("cppgen_plugin") {
     "../../../gn:protoc_lib",
     "../../../src/base",
   ]
-
-  configs = standalone_executable_configs
-  configs += [ "//gn:protobuf_gen_config" ]
+  configs = [ "//gn:protobuf_gen_config" ]
 }
