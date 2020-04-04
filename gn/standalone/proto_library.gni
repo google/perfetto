@@ -186,8 +186,8 @@ template("proto_library") {
       inputs = [ protoc_path ]
       deps = [ protoc_label ]
     } else {
-      inputs = [ ]
-      deps = [ ]
+      inputs = []
+      deps = []
     }
 
     # TODO(hjd): Avoid adding to deps here this.
