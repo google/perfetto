@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/parse_smaps.h"
+#include "perfetto/profiling/parse_smaps.h"
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/base/test/utils.h"

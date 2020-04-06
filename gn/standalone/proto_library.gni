@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../perfetto.gni")
+
 template("proto_library") {
   assert(defined(invoker.sources))
   proto_sources = invoker.sources
@@ -126,14 +128,20 @@ template("proto_library") {
     outputs = get_path_info(protogens, "abspath")
 
     protoc_script = "//gn/standalone/protoc.py"
-    protoc_label = "//gn:protoc($host_toolchain)"
-    protoc_path = get_label_info(protoc_label, "root_out_dir") + "/protoc"
+
+    if (perfetto_use_system_protobuf) {
+      protoc_rebased_path = "protoc"  # from PATH
+    } else {
+      protoc_label = "//gn:protoc($host_toolchain)"
+      protoc_path = get_label_info(protoc_label, "root_out_dir") + "/protoc"
+      protoc_rebased_path = "./" + rebase_path(protoc_path, root_build_dir)
+    }
     args = [
       "./" + rebase_path(protoc_script, root_build_dir),
 
       # Path should be rebased because |root_build_dir| for current toolchain
       # may be different from |root_out_dir| of protoc built on host toolchain.
-      "./" + rebase_path(protoc_path, root_build_dir),
+      protoc_rebased_path,
       "--proto_path",
       rebase_path(proto_in_dir, root_build_dir),
     ]
@@ -174,9 +182,13 @@ template("proto_library") {
 
     args += rebase_path(proto_sources, root_build_dir)
 
-    inputs = [ protoc_path ]
-
-    deps = [ protoc_label ]
+    if (!perfetto_use_system_protobuf) {
+      inputs = [ protoc_path ]
+      deps = [ protoc_label ]
+    } else {
+      inputs = []
+      deps = []
+    }
 
     # TODO(hjd): Avoid adding to deps here this.
     # When we generate BUILD files we need find the transitive proto,
@@ -222,7 +234,7 @@ template("proto_library") {
       }
 
       public_configs += [
-        "//buildtools:protobuf_gen_config",
+        "//gn:protobuf_gen_config",
         ":$config_name",
       ]
 

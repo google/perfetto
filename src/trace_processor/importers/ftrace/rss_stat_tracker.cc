@@ -93,6 +93,14 @@ base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
     return base::nullopt;
   }
 
+  // Verify that the utid in the map is still alive. This can happen if an mm
+  // struct we saw in the past is about to be reused after thread but we don't
+  // know the new process that struct will be associated with.
+  if (!context_->process_tracker->IsThreadAlive(it->second)) {
+    mm_id_to_utid_.erase(it);
+    return base::nullopt;
+  }
+
   // This case happens when a process is changing the VM of another process and
   // we know that the utid corresponding to the target process. Just return that
   // utid.

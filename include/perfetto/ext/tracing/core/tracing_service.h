@@ -210,6 +210,12 @@ class ConsumerEndpoint {
   using QueryServiceStateCallback =
       std::function<void(bool success, const TracingServiceState&)>;
   virtual void QueryServiceState(QueryServiceStateCallback) = 0;
+
+  // Used for feature detection. Makes sense only when the consumer and the
+  // service talk over IPC and can be from different versions.
+  using QueryCapabilitiesCallback =
+      std::function<void(const TracingServiceCapabilities&)>;
+  virtual void QueryCapabilities(QueryCapabilitiesCallback) = 0;
 };  // class ConsumerEndpoint.
 
 // The public API of the tracing Service business logic.

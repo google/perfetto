@@ -375,7 +375,8 @@ class DataSource : public DataSourceBase {
   // tracing is enabled and the data source is selected.
   // This must be called after Tracing::Initialize().
   // Can return false to signal failure if attemping to register more than
-  // kMaxDataSources (32) data sources types.
+  // kMaxDataSources (32) data sources types or if tracing hasn't been
+  // initialized.
   static bool Register(const DataSourceDescriptor& descriptor) {
     // Silences -Wunused-variable warning in case the trace method is not used
     // by the translation unit that declares the data source.
@@ -386,6 +387,8 @@ class DataSource : public DataSourceBase {
       return std::unique_ptr<DataSourceBase>(new DataSourceType());
     };
     auto* tracing_impl = internal::TracingMuxer::Get();
+    if (!tracing_impl)
+      return false;
     return tracing_impl->RegisterDataSource(descriptor, factory,
                                             &static_state_);
   }
