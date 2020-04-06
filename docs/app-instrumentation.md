@@ -372,6 +372,14 @@ class CustomDataSource : public perfetto::DataSource<CustomDataSource> {
   // Data sources can also have per-instance state.
   int my_custom_state = 0;
 };
+
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
+```
+
+The data source's static data should be defined in one source file like this:
+
+```C++
+PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 ```
 
 Custom data sources need to be registered with Perfetto:
