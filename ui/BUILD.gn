@@ -217,6 +217,7 @@ node_bin("protos_to_js") {
     "../protos/perfetto/config/perfetto_config.proto",
     "../protos/perfetto/ipc/consumer_port.proto",
     "../protos/perfetto/ipc/wire_protocol.proto",
+    "../protos/perfetto/metrics/metrics.proto",
   ]
   outputs = [ "$ui_gen_dir/protos.js" ]
   node_cmd = "pbjs"
