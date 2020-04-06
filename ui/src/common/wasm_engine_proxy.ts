@@ -109,6 +109,11 @@ export class WasmEngineProxy extends Engine {
     return this.queueRequest('trace_processor_raw_query', rawQueryArgs);
   }
 
+  rawComputeMetric(rawComputeMetric: Uint8Array): Promise<Uint8Array> {
+    return this.queueRequest(
+        'trace_processor_compute_metric', rawComputeMetric);
+  }
+
   // Enqueues a request to the worker queue via postMessage(). The returned
   // promised will be resolved once the worker replies to the postMessage()
   // with the paylad of the response, a proto-encoded object which wraps the
