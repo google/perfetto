@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RawQueryArgs, RawQueryResult} from './protos';
+import {
+  ComputeMetricArgs,
+  ComputeMetricResult,
+  RawQueryArgs,
+  RawQueryResult
+} from './protos';
 import {TimeSpan} from './time';
 
 export interface LoadingTracker {
@@ -64,6 +69,12 @@ export abstract class Engine {
    */
   abstract rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array>;
 
+  /*
+   * Performs computation of metrics and returns a proto-encoded TraceMetrics
+   * object.
+   */
+  abstract rawComputeMetric(computeMetricArgs: Uint8Array): Promise<Uint8Array>;
+
   /**
    * Shorthand for sending a SQL query to the engine.
    * Deals with {,un}marshalling of request/response args.
@@ -84,6 +95,18 @@ export abstract class Engine {
     } finally {
       this.loadingTracker.endLoading();
     }
+  }
+
+  /**
+   * Shorthand for sending a compute metrics request to the engine.
+   * Deals with {,un}marshalling of request/response args.
+   */
+  async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
+    const args = new ComputeMetricArgs();
+    args.metricNames = metrics;
+    const argsEncoded = ComputeMetricArgs.encode(args).finish();
+    const respEncoded = await this.rawComputeMetric(argsEncoded);
+    return ComputeMetricResult.decode(respEncoded);
   }
 
   async queryOneRow(query: string): Promise<number[]> {

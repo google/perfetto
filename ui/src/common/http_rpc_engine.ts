@@ -60,6 +60,10 @@ export class HttpRpcEngine extends Engine {
     return this.enqueueRequest('raw_query', rawQueryArgs);
   }
 
+  rawComputeMetric(rawComputeMetricArgs: Uint8Array): Promise<Uint8Array> {
+    return this.enqueueRequest('compute_metric', rawComputeMetricArgs);
+  }
+
   enqueueRequest(methodName: string, data?: Uint8Array): Promise<Uint8Array> {
     const resp = defer<Uint8Array>();
     this.requestQueue.push({methodName, reqData: data, resp});
