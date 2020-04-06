@@ -46,10 +46,12 @@ import TraceConfig = protos.perfetto.protos.TraceConfig;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 
 // Trace Processor protos.
-import IRawQueryArgs = protos.perfetto.trace_processor.protos.IRawQueryArgs;
-import RawQueryArgs = protos.perfetto.trace_processor.protos.RawQueryArgs;
-import RawQueryResult = protos.perfetto.trace_processor.protos.RawQueryResult;
-import StatusResult = protos.perfetto.trace_processor.protos.StatusResult;
+import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
+import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
+import RawQueryResult = protos.perfetto.protos.RawQueryResult;
+import StatusResult = protos.perfetto.protos.StatusResult;
+import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
+import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
 
 // TODO(hjd): Maybe these should go in their own file.
 export interface Row { [key: string]: number|string; }
@@ -210,6 +212,8 @@ export {
   BufferConfig,
   ChromeConfig,
   ConsumerPort,
+  ComputeMetricArgs,
+  ComputeMetricResult,
   DataSourceConfig,
   FtraceConfig,
   HeapprofdConfig,
