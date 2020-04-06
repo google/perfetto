@@ -4852,6 +4852,7 @@ genrule {
     "protos/perfetto/trace/profiling/heap_graph.proto",
     "protos/perfetto/trace/profiling/profile_common.proto",
     "protos/perfetto/trace/profiling/profile_packet.proto",
+    "protos/perfetto/trace/profiling/smaps.proto",
   ],
   tools: [
     "aprotoc",
@@ -4862,6 +4863,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.gen.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.gen.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_packet.gen.cc",
+    "external/perfetto/protos/perfetto/trace/profiling/smaps.gen.cc",
   ],
 }
 
@@ -4872,6 +4874,7 @@ genrule {
     "protos/perfetto/trace/profiling/heap_graph.proto",
     "protos/perfetto/trace/profiling/profile_common.proto",
     "protos/perfetto/trace/profiling/profile_packet.proto",
+    "protos/perfetto/trace/profiling/smaps.proto",
   ],
   tools: [
     "aprotoc",
@@ -4882,6 +4885,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.gen.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.gen.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_packet.gen.h",
+    "external/perfetto/protos/perfetto/trace/profiling/smaps.gen.h",
   ],
   export_include_dirs: [
     ".",
@@ -4896,6 +4900,7 @@ genrule {
     "protos/perfetto/trace/profiling/heap_graph.proto",
     "protos/perfetto/trace/profiling/profile_common.proto",
     "protos/perfetto/trace/profiling/profile_packet.proto",
+    "protos/perfetto/trace/profiling/smaps.proto",
   ],
   tools: [
     "aprotoc",
@@ -4905,6 +4910,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pb.cc",
+    "external/perfetto/protos/perfetto/trace/profiling/smaps.pb.cc",
   ],
 }
 
@@ -4915,6 +4921,7 @@ genrule {
     "protos/perfetto/trace/profiling/heap_graph.proto",
     "protos/perfetto/trace/profiling/profile_common.proto",
     "protos/perfetto/trace/profiling/profile_packet.proto",
+    "protos/perfetto/trace/profiling/smaps.proto",
   ],
   tools: [
     "aprotoc",
@@ -4924,6 +4931,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pb.h",
+    "external/perfetto/protos/perfetto/trace/profiling/smaps.pb.h",
   ],
   export_include_dirs: [
     ".",
@@ -4938,6 +4946,7 @@ genrule {
     "protos/perfetto/trace/profiling/heap_graph.proto",
     "protos/perfetto/trace/profiling/profile_common.proto",
     "protos/perfetto/trace/profiling/profile_packet.proto",
+    "protos/perfetto/trace/profiling/smaps.proto",
   ],
   tools: [
     "aprotoc",
@@ -4948,6 +4957,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/profiling/smaps.pbzero.cc",
   ],
 }
 
@@ -4958,6 +4968,7 @@ genrule {
     "protos/perfetto/trace/profiling/heap_graph.proto",
     "protos/perfetto/trace/profiling/profile_common.proto",
     "protos/perfetto/trace/profiling/profile_packet.proto",
+    "protos/perfetto/trace/profiling/smaps.proto",
   ],
   tools: [
     "aprotoc",
@@ -4968,6 +4979,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.h",
     "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/profiling/smaps.pbzero.h",
   ],
   export_include_dirs: [
     ".",
