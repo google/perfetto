@@ -3482,6 +3482,22 @@ message PerfSample {
 
 // End of protos/perfetto/trace/profiling/profile_packet.proto
 
+// Begin of protos/perfetto/trace/profiling/smaps.proto
+
+message SmapsEntry {
+  optional string path = 1;
+  optional uint64 size_kb = 2;
+  optional uint64 private_dirty_kb = 3;
+  optional uint64 swap_kb = 4;
+};
+
+message SmapsPacket {
+  optional uint32 pid = 1;
+  repeated SmapsEntry entries = 2;
+};
+
+// End of protos/perfetto/trace/profiling/smaps.proto
+
 // Begin of protos/perfetto/trace/ps/process_stats.proto
 
 // Per-process periodically sampled stats. These samples are wrapped in a
@@ -3694,7 +3710,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 68.
+// Next id: 69.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3747,6 +3763,7 @@ message TracePacket {
     VulkanApiEvent vulkan_api_event = 65;
     PerfSample perf_sample = 66;
     CpuInfo cpu_info = 67;
+    SmapsPacket smaps_packet = 68;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -5972,6 +5989,14 @@ message JavaHprofConfig {
 
   // Do not profile processes whose anon RSS + swap < given value.
   optional uint32 min_anonymous_memory_kb = 4;
+
+  // Include the process' /proc/self/smaps.
+  // This only shows maps that:
+  // * start with /system
+  // * start with /vendor
+  // * start with /data/app
+  // * contain "extracted in memory from Y", where Y matches any of the above
+  optional bool dump_smaps = 5;
 }
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto

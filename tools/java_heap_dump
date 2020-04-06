@@ -95,6 +95,10 @@ def main(argv):
       action="store_true",
       help="Do not get version information about APKs.")
   parser.add_argument(
+      "--dump-smaps",
+      action="store_true",
+      help="Get information about /proc/$PID/smaps of target.")
+  parser.add_argument(
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
@@ -118,6 +122,8 @@ def main(argv):
   if args.name:
     for name in args.name.split(','):
       target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
+  if args.dump_smaps:
+    target_cfg += '{}dump_smaps: true\n'.format(CFG_IDENT)
 
   if fail:
     parser.print_help()
