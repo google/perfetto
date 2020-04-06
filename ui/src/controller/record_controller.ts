@@ -256,7 +256,7 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
 
   let javaHprof: JavaHprofConfig|undefined = undefined;
   if (uiCfg.javaHeapDump) {
-    const cfg = new HeapprofdConfig();
+    const cfg = new JavaHprofConfig();
     for (const value of uiCfg.jpProcesses.split('\n')) {
       if (value === '') {
         // Ignore empty lines

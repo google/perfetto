@@ -350,4 +350,29 @@ void ConsumerIPCClientImpl::QueryServiceState(
   consumer_port_.QueryServiceState(req, std::move(async_response));
 }
 
+void ConsumerIPCClientImpl::QueryCapabilities(
+    QueryCapabilitiesCallback callback) {
+  if (!connected_) {
+    PERFETTO_DLOG(
+        "Cannot QueryCapabilities(), not connected to tracing service");
+    return;
+  }
+
+  protos::gen::QueryCapabilitiesRequest req;
+  ipc::Deferred<protos::gen::QueryCapabilitiesResponse> async_response;
+  async_response.Bind(
+      [callback](
+          ipc::AsyncResult<protos::gen::QueryCapabilitiesResponse> response) {
+        if (!response) {
+          // If the IPC fails, we are talking to an older version of the service
+          // that didn't support QueryCapabilities at all. In this case return
+          // an empty capabilities message.
+          callback(TracingServiceCapabilities());
+        } else {
+          callback(response->capabilities());
+        }
+      });
+  consumer_port_.QueryCapabilities(req, std::move(async_response));
+}
+
 }  // namespace perfetto

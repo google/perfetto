@@ -147,14 +147,17 @@ void InterningOutputTracker::WriteCallstack(GlobalCallstackTrie::Node* node,
   if (inserted) {
     // There need to be two separate loops over built_callstack because
     // protozero cannot interleave different messages.
-    auto built_callstack = trie->BuildCallstack(node);
+    auto built_callstack = trie->BuildInverseCallstack(node);
     for (const Interned<Frame>& frame : built_callstack)
       WriteFrame(frame, out);
 
     protos::pbzero::Callstack* callstack = out->add_callstacks();
     callstack->set_iid(node->id());
-    for (const Interned<Frame>& frame : built_callstack)
+    for (auto frame_it = built_callstack.crbegin();
+         frame_it != built_callstack.crend(); ++frame_it) {
+      const Interned<Frame>& frame = *frame_it;
       callstack->add_frame_ids(frame.id());
+    }
   }
 }
 

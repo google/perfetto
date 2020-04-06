@@ -54,6 +54,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/static_buffer.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
@@ -935,6 +936,10 @@ void TracingServiceImpl::StartDataSourceInstance(
         *producer, *instance);
   }
   producer->StartDataSource(instance->instance_id, instance->config);
+
+  // If all data sources are started, notify the consumer.
+  if (instance->state == DataSourceInstance::STARTED)
+    MaybeNotifyAllDataSourcesStarted(tracing_session);
 }
 
 // DisableTracing just stops the data sources but doesn't free up any buffer.
@@ -1045,7 +1050,34 @@ void TracingServiceImpl::NotifyDataSourceStarted(
       tracing_session.consumer_maybe_null->OnDataSourceInstanceStateChange(
           *producer, *instance);
     }
+
+    // If all data sources are started, notify the consumer.
+    MaybeNotifyAllDataSourcesStarted(&tracing_session);
   }  // for (tracing_session)
+}
+
+void TracingServiceImpl::MaybeNotifyAllDataSourcesStarted(
+    TracingSession* tracing_session) {
+  if (!tracing_session->consumer_maybe_null)
+    return;
+
+  if (!tracing_session->AllDataSourceInstancesStarted())
+    return;
+
+  // In some rare cases, we can get in this state more than once. Consider the
+  // following scenario: 3 data sources are registered -> trace starts ->
+  // all 3 data sources ack -> OnAllDataSourcesStarted() is called.
+  // Imagine now that a 4th data source registers while the trace is ongoing.
+  // This would hit the AllDataSourceInstancesStarted() condition again.
+  // In this case, however, we don't want to re-notify the consumer again.
+  // That would be unexpected (even if, perhaps, technically correct) and
+  // trigger bugs in the consumer.
+  if (tracing_session->did_notify_all_data_source_started)
+    return;
+
+  PERFETTO_DLOG("All data sources started");
+  tracing_session->did_notify_all_data_source_started = true;
+  tracing_session->consumer_maybe_null->OnAllDataSourcesStarted();
 }
 
 void TracingServiceImpl::NotifyDataSourceStopped(
@@ -1938,6 +1970,7 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
   PERFETTO_DCHECK(producer);
   for (auto& kv : tracing_sessions_) {
     auto& ds_instances = kv.second.data_source_instances;
+    bool removed = false;
     for (auto it = ds_instances.begin(); it != ds_instances.end();) {
       if (it->first == producer_id && it->second.data_source_name == name) {
         DataSourceInstanceID ds_inst_id = it->second.instance_id;
@@ -1951,11 +1984,14 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
             NotifyDataSourceStopped(producer_id, ds_inst_id);
         }
         it = ds_instances.erase(it);
+        removed = true;
       } else {
         ++it;
       }
     }  // for (data_source_instances)
-  }    // for (tracing_session)
+    if (removed)
+      MaybeNotifyAllDataSourcesStarted(&kv.second);
+  }  // for (tracing_session)
 
   for (auto it = data_sources_.begin(); it != data_sources_.end(); ++it) {
     if (it->second.producer_id == producer_id &&
@@ -2655,6 +2691,11 @@ void TracingServiceImpl::ConsumerEndpointImpl::ObserveEvents(
       OnDataSourceInstanceStateChange(*producer, kv.second);
     }
   }
+
+  if (observable_events_mask_ &
+      ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED) {
+    service_->MaybeNotifyAllDataSourcesStarted(session);
+  }
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::OnDataSourceInstanceStateChange(
@@ -2680,6 +2721,15 @@ void TracingServiceImpl::ConsumerEndpointImpl::OnDataSourceInstanceStateChange(
   } else {
     change->set_state(ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STOPPED);
   }
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::OnAllDataSourcesStarted() {
+  if (!(observable_events_mask_ &
+        ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED)) {
+    return;
+  }
+  auto* observable_events = AddObservableEvents();
+  observable_events->set_all_data_sources_started(true);
 }
 
 base::WeakPtr<TracingServiceImpl::ConsumerEndpointImpl>
@@ -2736,6 +2786,19 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   callback(/*success=*/true, svc_state);
 }
 
+void TracingServiceImpl::ConsumerEndpointImpl::QueryCapabilities(
+    QueryCapabilitiesCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  TracingServiceCapabilities caps;
+  caps.set_has_query_capabilities(true);
+  caps.add_observable_events(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+  caps.add_observable_events(ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
+  static_assert(ObservableEvents::Type_MAX ==
+                    ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED,
+                "");
+  callback(caps);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // TracingServiceImpl::ProducerEndpointImpl implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -2785,7 +2848,6 @@ void TracingServiceImpl::ProducerEndpointImpl::RegisterTraceWriter(
     uint32_t writer_id,
     uint32_t target_buffer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_DCHECK(!buffer_id_for_writer(static_cast<WriterID>(writer_id)));
   writers_[static_cast<WriterID>(writer_id)] =
       static_cast<BufferID>(target_buffer);
 }
@@ -2793,7 +2855,6 @@ void TracingServiceImpl::ProducerEndpointImpl::RegisterTraceWriter(
 void TracingServiceImpl::ProducerEndpointImpl::UnregisterTraceWriter(
     uint32_t writer_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_DCHECK(buffer_id_for_writer(static_cast<WriterID>(writer_id)));
   writers_.erase(static_cast<WriterID>(writer_id));
 }
 

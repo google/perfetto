@@ -40,10 +40,12 @@ import "protos/perfetto/trace/power/power_rails.proto";
 import "protos/perfetto/trace/profiling/heap_graph.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
 import "protos/perfetto/trace/profiling/profile_packet.proto";
+import "protos/perfetto/trace/profiling/smaps.proto";
 import "protos/perfetto/trace/ps/process_stats.proto";
 import "protos/perfetto/trace/ps/process_tree.proto";
 import "protos/perfetto/trace/sys_stats/sys_stats.proto";
 import "protos/perfetto/trace/system_info.proto";
+import "protos/perfetto/trace/system_info/cpu_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
@@ -58,7 +60,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 67.
+// Next id: 69.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -110,6 +112,8 @@ message TracePacket {
     GpuLog gpu_log = 63;
     VulkanApiEvent vulkan_api_event = 65;
     PerfSample perf_sample = 66;
+    CpuInfo cpu_info = 67;
+    SmapsPacket smaps_packet = 68;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
