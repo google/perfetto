@@ -197,3 +197,49 @@ packet {
     extra_counter_values: 1024     # Absolute: 2020.
   }
 }
+
+# Sequence 3 defaults to track for "t4" and uses legacy thread time and
+# instruction count.
+packet {
+  trusted_packet_sequence_id: 3
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 4
+    parent_uuid: 3
+    thread {
+      pid: 5
+      tid: 4
+      thread_name: "t4"
+    }
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 4
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 3
+  timestamp: 4000
+  track_event {
+    categories: "cat"
+    name: "event1_on_t3"
+    type: 1                        # TYPE_SLICE_BEGIN.
+    thread_time_absolute_us: 10
+    thread_instruction_count_absolute: 20
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 3
+  timestamp: 4100
+  track_event {
+    categories: "cat"
+    name: "event1_on_t3"
+    type: 2                        # TYPE_SLICE_END.
+    thread_time_absolute_us: 15
+    thread_instruction_count_absolute: 25
+  }
+}

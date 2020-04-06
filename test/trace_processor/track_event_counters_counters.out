@@ -7,3 +7,7 @@
 "MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",2,3100,2048.000000
 "thread_time","[NULL]","t1","p1","ns",1,4000,2020000.000000
 "MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",2,4000,1024.000000
+"thread_time","[NULL]","t4","p1","[NULL]","[NULL]",4000,10000.000000
+"thread_instruction_count","[NULL]","t4","p1","[NULL]","[NULL]",4000,20.000000
+"thread_time","[NULL]","t4","p1","[NULL]","[NULL]",4100,15000.000000
+"thread_instruction_count","[NULL]","t4","p1","[NULL]","[NULL]",4100,25.000000
