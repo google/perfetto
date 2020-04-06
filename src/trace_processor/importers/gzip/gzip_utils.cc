@@ -47,7 +47,7 @@ GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
   inflateInit2(z_stream_.get(), 32 + 15);
 }
 #else
-GzipDecompressor::GzipDecompressor() = default
+GzipDecompressor::GzipDecompressor() = default;
 #endif
 
 GzipDecompressor::~GzipDecompressor() {
