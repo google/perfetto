@@ -18,8 +18,8 @@
 // which should not depend on any Perfetto compilation units other than the
 // client API.
 
-#ifndef SRC_PROFILING_MEMORY_PARSE_SMAPS_H_
-#define SRC_PROFILING_MEMORY_PARSE_SMAPS_H_
+#ifndef INCLUDE_PERFETTO_PROFILING_PARSE_SMAPS_H_
+#define INCLUDE_PERFETTO_PROFILING_PARSE_SMAPS_H_
 
 #include <string>
 
@@ -72,7 +72,9 @@ static bool ParseSmaps(FILE* f, T callback) {
   }
 }
 
-static const char* FindNthToken(const char* line, size_t n, size_t size) {
+static inline const char* FindNthToken(const char* line,
+                                       size_t n,
+                                       size_t size) {
   size_t tokens = 0;
   bool parsing_token = false;
   for (size_t i = 0; i < size; ++i) {
@@ -121,4 +123,4 @@ static bool ParseSmapsLine(char* line,
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_MEMORY_PARSE_SMAPS_H_
+#endif  // INCLUDE_PERFETTO_PROFILING_PARSE_SMAPS_H_
