@@ -20,6 +20,7 @@ SELECT
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
     OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   SUBSTR(name, 9) AS heap_name,
+  track_id,
   value
 FROM counter JOIN counter_track
   ON counter.track_id = counter_track.id
@@ -34,14 +35,33 @@ SELECT
 FROM ion_timeline
 GROUP BY 1;
 
-CREATE VIEW IF NOT EXISTS ion_alloc_stats AS
+CREATE VIEW IF NOT EXISTS ion_raw_allocs AS
 SELECT
   SUBSTR(name, 16) AS heap_name,
-  SUM(value) AS total_alloc_size_bytes
-FROM counter JOIN thread_counter_track
-  ON counter.track_id = thread_counter_track.id
+  ts,
+  value AS instant_value,
+  SUM(value) OVER win AS value
+FROM counter c JOIN thread_counter_track t ON c.track_id = t.id
 WHERE name LIKE 'mem.ion_change.%' AND value > 0
+WINDOW win AS (
+  PARTITION BY SUBSTR(name, 16) ORDER BY ts
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+);
+
+CREATE VIEW IF NOT EXISTS ion_alloc_stats AS
+SELECT
+  heap_name,
+  SUM(instant_value) AS total_alloc_size_bytes
+FROM ion_raw_allocs
 GROUP BY 1;
+
+CREATE VIEW IF NOT EXISTS android_ion_annotations AS
+SELECT
+  'counter' AS track_type,
+  printf('ION allocations (heap: %s)', heap_name) AS track_name,
+  ts,
+  value
+FROM ion_raw_allocs;
 
 CREATE VIEW IF NOT EXISTS android_ion_output AS
 SELECT AndroidIonMetric(
