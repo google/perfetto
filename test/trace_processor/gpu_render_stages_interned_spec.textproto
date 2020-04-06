@@ -1,0 +1,126 @@
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    graphics_contexts {
+      iid: 0
+      pid: 42
+      api: VULKAN
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    gpu_specifications {
+      iid: 1
+      name: "vertex"
+      description: "vertex queue"
+      category: GRAPHICS
+    }
+    gpu_specifications {
+      iid: 2
+      name: "fragment"
+      description: "fragment queue"
+      category: GRAPHICS
+    }
+  }
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    gpu_specifications {
+      iid: 3
+      name: "binning"
+      description: "binning graphics"
+      category: GRAPHICS
+    }
+    gpu_specifications {
+      iid: 4
+      name: "render"
+      description: "render graphics"
+      category: GRAPHICS
+    }
+  }
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 300
+  interned_data {
+    gpu_specifications {
+      iid: 1
+      name: "queue2"
+      description: "queue2 description"
+      category: COMPUTE
+    }
+    gpu_specifications {
+      iid: 2
+      name: "render"
+      description: "render graphics"
+      category: GRAPHICS
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 3
+    context: 0
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 10
+    hw_queue_iid: 2
+    stage_iid: 4
+    context: 0
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 300
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 10
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 0
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+
+# Test packet with invalid hw_queue_iid is ignore.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 300
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 10
+    hw_queue_iid: 3
+    stage_iid: 2
+    context: 0
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
