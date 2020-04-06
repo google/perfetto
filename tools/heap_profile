@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 import urllib
+import uuid
 
 TRACE_TO_TEXT_SHAS = {
     'linux': '8e7b02e8ce710f8c8f9c7c7d5aa00cc724a7c059',
@@ -43,6 +44,7 @@ NOOUT = {
     'stderr': NULL,
 }
 
+UUID = str(uuid.uuid4())
 
 def check_hash(file_name, sha_value):
   with open(file_name, 'rb') as fd:
@@ -111,9 +113,11 @@ CONTINUOUS_DUMP = """
       }}
 """
 
+PROFILE_DEVICE_PATH = '/data/misc/perfetto-traces/profile-' + UUID
+PROFILE_LOCAL_PATH = '/tmp/profile-' + UUID
+
 PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
-                'perfetto --txt -c - -o '
-                '/data/misc/perfetto-traces/profile-{user} -d')
+                'perfetto --txt -c - -o ' + PROFILE_DEVICE_PATH + ' -d')
 IS_INTERRUPTED = False
 
 
@@ -332,7 +336,6 @@ def main(argv):
       atexit.register(subprocess.check_call,
                       ['adb', 'shell', 'setprop persist.heapprofd.enable 0'])
 
-  user = subprocess.check_output(['adb', 'shell', 'whoami']).strip()
 
   if args.simpleperf:
     subprocess.check_call([
@@ -344,7 +347,7 @@ def main(argv):
 
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out',
-       PERFETTO_CMD.format(cfg=cfg, user=user)]).strip()
+       PERFETTO_CMD.format(cfg=cfg)]).strip()
   try:
     int(perfetto_pid.strip())
   except ValueError:
@@ -383,13 +386,13 @@ def main(argv):
     time.sleep(1)
 
   subprocess.check_call([
-      'adb', 'pull', '/data/misc/perfetto-traces/profile-{}'.format(user),
-      '/tmp/profile'
-  ],
-                        stdout=NULL)
+      'adb', 'pull', PROFILE_DEVICE_PATH, PROFILE_LOCAL_PATH
+  ], stdout=NULL)
+  subprocess.check_call(
+          ['adb', 'shell', 'rm', PROFILE_DEVICE_PATH], stdout=NULL)
 
   trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile', '/tmp/profile'],
+      [trace_to_text_binary, 'profile', PROFILE_LOCAL_PATH],
       env=os.environ)
   profile_path = None
   for word in trace_to_text_output.split():
@@ -413,7 +416,7 @@ def main(argv):
   if os.path.lexists(symlink_path):
     os.unlink(symlink_path)
   os.symlink(profile_path, symlink_path)
-  shutil.copyfile('/tmp/profile', os.path.join(profile_path, 'raw-trace'))
+  shutil.move(PROFILE_LOCAL_PATH, os.path.join(profile_path, 'raw-trace'))
 
   binary_path = os.getenv('PERFETTO_BINARY_PATH')
   if binary_path is not None:

@@ -393,7 +393,7 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
   std::shared_ptr<Client> client;
   if (!ForceForkPrivateDaemon())
     client = CreateClientForCentralDaemon(unhooked_allocator);
-  if (!client) 
+  if (!client)
     client = CreateClientAndPrivateDaemon(unhooked_allocator);
 
   if (!client) {

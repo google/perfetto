@@ -17,6 +17,7 @@
 #ifndef SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
 #define SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <memory>
@@ -191,11 +192,12 @@ class TracingServiceImpl : public TracingService {
     void GetTraceStats() override;
     void ObserveEvents(uint32_t enabled_event_types) override;
     void QueryServiceState(QueryServiceStateCallback) override;
+    void QueryCapabilities(QueryCapabilitiesCallback) override;
 
-    // If |observe_data_source_instances == true|, will queue a task to notify
-    // the consumer about the state change.
+    // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
                                          const DataSourceInstance&);
+    void OnAllDataSourcesStarted();
 
    private:
     friend class TracingServiceImpl;
@@ -403,12 +405,20 @@ class TracingServiceImpl : public TracingService {
       return nullptr;
     }
 
+    bool AllDataSourceInstancesStarted() {
+      return std::all_of(
+          data_source_instances.begin(), data_source_instances.end(),
+          [](decltype(data_source_instances)::const_reference x) {
+            return x.second.state == DataSourceInstance::STARTED;
+          });
+    }
+
     bool AllDataSourceInstancesStopped() {
-      for (const auto& inst_kv : data_source_instances) {
-        if (inst_kv.second.state != DataSourceInstance::STOPPED)
-          return false;
-      }
-      return true;
+      return std::all_of(
+          data_source_instances.begin(), data_source_instances.end(),
+          [](decltype(data_source_instances)::const_reference x) {
+            return x.second.state == DataSourceInstance::STOPPED;
+          });
     }
 
     const TracingSessionID id;
@@ -478,6 +488,9 @@ class TracingServiceImpl : public TracingService {
     // Packets that failed validation of the TrustedPacket.
     uint64_t invalid_packets = 0;
 
+    // Set to true on the first call to OnAllDataSourcesStarted().
+    bool did_notify_all_data_source_started = false;
+
     // Initial clock snapshot, captured at trace start time (when state goes
     // to TracingSession::STARTED). Emitted into the trace when the consumer
     // first begins reading the trace.
@@ -536,6 +549,7 @@ class TracingServiceImpl : public TracingService {
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
+  void MaybeNotifyAllDataSourcesStarted(TracingSession*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);

@@ -21,6 +21,7 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <deque>
 #include <limits>

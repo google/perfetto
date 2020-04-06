@@ -124,11 +124,12 @@ GraphicsEventParser::GraphicsEventParser(TraceProcessorContext* context)
            context->storage->InternString("Detach") /* DETACH */,
            context->storage->InternString("Attach") /* ATTACH */,
            context->storage->InternString("Cancel") /* CANCEL */}},
-      present_frame_name_(
-          base::StringWriter(present_frame_, sizeof(present_frame_))),
-      present_frame_layer_name_(
-          base::StringWriter(present_frame_layer_,
-                             sizeof(present_frame_layer_))),
+      present_frame_name_(present_frame_buffer_,
+                          base::ArraySize(present_frame_buffer_)),
+      present_frame_layer_name_(present_frame_layer_buffer_,
+                                base::ArraySize(present_frame_layer_buffer_)),
+      present_frame_numbers_(present_frame_numbers_buffer_,
+                             base::ArraySize(present_frame_numbers_buffer_)),
       gpu_log_track_name_id_(context_->storage->InternString("GPU Log")),
       gpu_log_scope_id_(context_->storage->InternString("gpu_log")),
       tag_id_(context_->storage->InternString("tag")),
@@ -418,6 +419,7 @@ void GraphicsEventParser::ParseGpuRenderStageEvent(int64_t ts,
 
 void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
                                                   ConstBytes blob) {
+  using GraphicsFrameEvent = protos::pbzero::GraphicsFrameEvent;
   protos::pbzero::GraphicsFrameEvent_Decoder frame_event(blob.data, blob.size);
   if (!frame_event.has_buffer_event()) {
     return;
@@ -439,6 +441,7 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
     const auto type = static_cast<size_t>(event.type());
     if (type < event_type_name_ids_.size()) {
       event_name_id = event_type_name_ids_[type];
+      graphics_frame_stats_map_[event.buffer_id()][type] = timestamp;
     } else {
       context_->storage->IncrementStats(
           stats::graphics_frame_event_parser_errors);
@@ -480,22 +483,42 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
   {
-    auto scoped_callback =
-        [this, layer_name_id](ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));
-        };
+    char frame_number_buffer[256];
+    base::StringWriter frame_numbers(frame_number_buffer,
+                                     base::ArraySize(frame_number_buffer));
+    frame_numbers.AppendUnsignedInt(frame_number);
 
-    tables::GpuSliceTable::Row row;
+    tables::GraphicsFrameSliceTable::Row row;
     row.ts = timestamp;
     row.track_id = track_id;
     row.name = event_name_id;
     row.dur = duration;
-    row.frame_id = frame_number;
-    context_->slice_tracker->ScopedGpu(row, scoped_callback);
+    row.frame_numbers =
+        context_->storage->InternString(frame_numbers.GetStringView());
+    row.layer_names = layer_name_id;
+    context_->slice_tracker->ScopedFrameEvent(row);
   }
 
   /* Displayed Frame track */
-  if (event.type() == protos::pbzero::GraphicsFrameEvent::PRESENT_FENCE) {
+  if (event.type() == GraphicsFrameEvent::PRESENT_FENCE) {
+    // Insert the frame stats for the buffer that was presented
+    auto acquire_ts =
+        graphics_frame_stats_map_[event.buffer_id()]
+                                 [GraphicsFrameEvent::ACQUIRE_FENCE];
+    auto queue_ts =
+        graphics_frame_stats_map_[event.buffer_id()][GraphicsFrameEvent::QUEUE];
+    auto latch_ts =
+        graphics_frame_stats_map_[event.buffer_id()][GraphicsFrameEvent::LATCH];
+    tables::GraphicsFrameStatsTable::Row stats_row;
+    // AcquireFence can signal before Queue sometimes, so have 0 as a bound.
+    stats_row.queue_to_acquire_time =
+        std::max(acquire_ts - queue_ts, static_cast<int64_t>(0));
+    stats_row.acquire_to_latch_time = latch_ts - acquire_ts;
+    stats_row.latch_to_present_time = timestamp - latch_ts;
+    auto stats_row_id =
+        context_->storage->mutable_graphics_frame_stats_table()->Insert(
+            stats_row);
+
     if (previous_timestamp_ == 0) {
       const StringId present_track_name_id =
           context_->storage->InternString("Displayed Frame");
@@ -517,51 +540,75 @@ void GraphicsEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
       present_frame_name_.AppendLiteral(", ");
       present_frame_name_.AppendUnsignedInt(buffer_id);
 
-      // Layer name is added as args while finishing the slice
+      // Append Layer names
       present_frame_layer_name_.AppendLiteral(", ");
       present_frame_layer_name_.AppendString(event.layer_name());
+
+      // Append Frame numbers
+      present_frame_numbers_.AppendLiteral(", ");
+      present_frame_numbers_.AppendUnsignedInt(frame_number);
+
+      // Add the current stats row to the list of stats that go with this frame
+      graphics_frame_stats_idx_.push_back(stats_row_id.row);
     } else {
 
       if (previous_timestamp_ != 0) {
         StringId present_frame_layer_name_id = context_->storage->InternString(
             present_frame_layer_name_.GetStringView());
-        auto args_callback = [this, present_frame_layer_name_id](
-                                 ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(layer_name_key_id_,
-                           Variadic::String(present_frame_layer_name_id));
-        };
         // End the current slice that's being tracked.
-        const auto opt_slice_id = context_->slice_tracker->EndGpu(
-            timestamp, present_track_id_, args_callback);
+        const auto opt_slice_id = context_->slice_tracker->EndFrameEvent(
+            timestamp, present_track_id_);
 
         if (opt_slice_id) {
           // The slice could have had additional buffers in it, so we need to
-          // update the name.
-          auto* slice_table = context_->storage->mutable_slice_table();
+          // update the table.
+          auto* graphics_frame_slice_table =
+              context_->storage->mutable_graphics_frame_slice_table();
 
-          uint32_t row_idx = *slice_table->id().IndexOf(*opt_slice_id);
+          uint32_t row_idx =
+              *graphics_frame_slice_table->id().IndexOf(*opt_slice_id);
           StringId frame_name_id = context_->storage->InternString(
               present_frame_name_.GetStringView());
-          slice_table->mutable_name()->Set(row_idx, frame_name_id);
-        }
+          graphics_frame_slice_table->mutable_name()->Set(row_idx,
+                                                          frame_name_id);
 
+          StringId present_frame_numbers_id = context_->storage->InternString(
+              present_frame_numbers_.GetStringView());
+          graphics_frame_slice_table->mutable_frame_numbers()->Set(
+              row_idx, present_frame_numbers_id);
+          graphics_frame_slice_table->mutable_layer_names()->Set(
+              row_idx, present_frame_layer_name_id);
+
+          // Set the slice_id for the frame_stats rows under this displayed
+          // frame
+          auto* slice_table = context_->storage->mutable_slice_table();
+          uint32_t slice_idx = *slice_table->id().IndexOf(*opt_slice_id);
+          for (uint32_t i = 0; i < graphics_frame_stats_idx_.size(); i++) {
+            context_->storage->mutable_graphics_frame_stats_table()
+                ->mutable_slice_id()
+                ->Set(graphics_frame_stats_idx_[i], slice_idx);
+          }
+        }
         present_frame_layer_name_.reset();
         present_frame_name_.reset();
+        present_frame_numbers_.reset();
+        graphics_frame_stats_idx_.clear();
       }
 
       // Start a new slice
       present_frame_name_.AppendUnsignedInt(buffer_id);
       previous_timestamp_ = timestamp;
       present_frame_layer_name_.AppendString(event.layer_name());
+      present_frame_numbers_.AppendUnsignedInt(frame_number);
       present_event_name_id_ =
           context_->storage->InternString(present_frame_name_.GetStringView());
+      graphics_frame_stats_idx_.push_back(stats_row_id.row);
 
-      tables::GpuSliceTable::Row row;
+      tables::GraphicsFrameSliceTable::Row row;
       row.ts = timestamp;
       row.track_id = present_track_id_;
       row.name = present_event_name_id_;
-      row.frame_id = frame_number;
-      context_->slice_tracker->BeginGpu(row);
+      context_->slice_tracker->BeginFrameEvent(row);
     }
   }
 }
