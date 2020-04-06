@@ -32,7 +32,8 @@ export abstract class TrackController<Config = {},
   readonly engine: Engine;
   private data?: TrackData;
   private requestingData = false;
-  private queuedRequest = false;
+  private extendedDataRequest = false;
+  private doNotExtend = false;
 
   constructor(args: TrackControllerArgs) {
     super('main');
@@ -103,39 +104,58 @@ export abstract class TrackController<Config = {},
         globals.state.frontendLocalState.visibleState.resolution;
   }
 
+  shouldExtendDataRange(): boolean {
+    if (!this.data || this.doNotExtend) return false;
+    return this.data.length < 3000 &&
+        !(this.data.start <= globals.state.traceTime.startSec &&
+          this.data.end >= globals.state.traceTime.endSec);
+  }
+
   run() {
     const visibleState = globals.state.frontendLocalState.visibleState;
-    if (visibleState === undefined || visibleState.resolution === undefined ||
-        visibleState.resolution === Infinity) {
+    if (visibleState === undefined || visibleState.resolution === Infinity ||
+        this.requestingData ||
+        !globals.state.visibleTracks.includes(this.trackId)) {
       return;
     }
+    const newRequest = this.shouldRequestData(visibleState);
+    const extendDataRange = this.shouldExtendDataRange();
+    if (!newRequest && !extendDataRange) return;
+    if (newRequest) this.doNotExtend = false;
+
+    this.requestingData = true;
     const dur = visibleState.endSec - visibleState.startSec;
-    if (globals.state.visibleTracks.includes(this.trackId) &&
-        this.shouldRequestData(visibleState)) {
-      if (this.requestingData) {
-        this.queuedRequest = true;
-      } else {
-        this.requestingData = true;
-        this.onBoundsChange(
-                visibleState.startSec - dur,
-                visibleState.endSec + dur,
-                visibleState.resolution)
-            .then(data => {
-              this.publish(data);
-            })
-            .catch(error => {
-              console.error(error);
-            })
-            .finally(() => {
-              this.requestingData = false;
-              if (this.queuedRequest) {
-                this.queuedRequest = false;
-                this.run();
-              }
-            });
-      }
+    let start = visibleState.startSec - dur;
+    let end = visibleState.endSec + dur;
+    // If there is no new request then we must need to extend the range.
+    if (!newRequest && extendDataRange && this.data) {
+      this.extendedDataRequest = true;
+      const dataDur = this.data.end - this.data.start;
+      start = this.data.start - dataDur / 2;
+      end = this.data.end + dataDur / 2;
     }
-  }
+    const startTime = Math.max(globals.state.traceTime.startSec, start);
+    const endTime = Math.min(globals.state.traceTime.endSec, end);
+    this.onBoundsChange(startTime, endTime, visibleState.resolution)
+        .then(data => {
+          if (this.extendedDataRequest && data.length === LIMIT) {
+            // In the situation where extending the data range causes us to hit
+            // the data limit we stop trying to extend the data range until
+            // we have a new data request.
+            this.doNotExtend = true;
+            return;
+          }
+          this.publish(data);
+        })
+        .catch(error => {
+          console.error(error);
+        })
+        .finally(() => {
+          this.requestingData = false;
+          this.extendedDataRequest = false;
+          this.run();
+        });
+    }
 }
 
 export interface TrackControllerArgs {

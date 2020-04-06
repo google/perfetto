@@ -213,6 +213,7 @@ node_bin("protos_to_js") {
     inputs += [ "../protos/perfetto/trace_processor/$proto.proto" ]
   }
   inputs += [
+    "../protos/perfetto/common/tracing_service_capabilities.proto",
     "../protos/perfetto/config/perfetto_config.proto",
     "../protos/perfetto/ipc/consumer_port.proto",
     "../protos/perfetto/ipc/wire_protocol.proto",

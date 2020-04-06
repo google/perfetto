@@ -793,12 +793,22 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   StringId unknown_cat = storage_->InternString("unknown(1)");
 
   constexpr TrackId track{0u};
+  constexpr TrackId thread_time_track{1u};
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
+  EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1028000, testing::DoubleEq(2015000),
+                                   thread_time_track));
   EXPECT_CALL(*slice_,
               Scoped(1005000, track, kNullStringId, kNullStringId, 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
+  EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
+                                   thread_time_track));
   EXPECT_CALL(*slice_, Begin(1010000, track, unknown_cat, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
+  EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
+                                   thread_time_track));
   EXPECT_CALL(*slice_, End(1020000, track, unknown_cat, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
@@ -876,12 +886,20 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   StringId unknown_cat2 = storage_->InternString("unknown(2)");
 
   constexpr TrackId track{0u};
+  constexpr TrackId thread_time_track{1u};
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
+  EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
+                                   thread_time_track));
   EXPECT_CALL(*slice_, Begin(1010000, track, unknown_cat1, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(0u)));
+  EXPECT_CALL(*event_, PushCounter(1015000, testing::DoubleEq(2007000),
+                                   thread_time_track));
   EXPECT_CALL(*slice_,
               Scoped(1015000, track, unknown_cat2, kNullStringId, 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(1u)));
+  EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
+                                   thread_time_track));
   EXPECT_CALL(*slice_, End(1020000, track, unknown_cat1, kNullStringId, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(0u)));
 
@@ -1009,7 +1027,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   storage_->mutable_thread_table()->Insert(row);
 
   constexpr TrackId thread_1_track{0u};
-  constexpr TrackId process_2_track{1u};
+  constexpr TrackId thread_time_track{1u};
+  constexpr TrackId thread_instruction_count_track{2u};
+  constexpr TrackId process_2_track{3u};
 
   StringId cat_2_3 = storage_->InternString("cat2,cat3");
   StringId ev_2 = storage_->InternString("ev2");
@@ -1019,18 +1039,38 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   MockBoundInserter inserter;
+  EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1028000, testing::DoubleEq(2015000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(3010),
+                                   thread_instruction_count_track));
+  EXPECT_CALL(*event_, PushCounter(1028000, testing::DoubleEq(3060),
+                                   thread_instruction_count_track));
   EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, cat_2_3, ev_2, 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(9999u), _));
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::Boolean(true), _));
   EXPECT_CALL(inserter, AddArg(_, _, _, _));
 
+  EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(3020),
+                                   thread_instruction_count_track));
   EXPECT_CALL(*slice_, Begin(1010000, thread_1_track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
+  EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(3040),
+                                   thread_instruction_count_track));
   EXPECT_CALL(*slice_, End(1020000, thread_1_track, cat_1, ev_1, _))
       .WillOnce(DoAll(InvokeArgument<4>(&inserter), Return(1u)));
 
+  EXPECT_CALL(*event_, PushCounter(1040000, testing::DoubleEq(2030000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1040000, testing::DoubleEq(3100),
+                                   thread_instruction_count_track));
   EXPECT_CALL(*slice_, Scoped(1040000, thread_1_track, cat_1, ev_1, 0, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(2u)));
 
@@ -1169,23 +1209,35 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   StringId cat_2 = storage_->InternString("cat2");
   StringId ev_2 = storage_->InternString("ev2");
 
+  TrackId thread_time_track{2u};
+  TrackId thread_instruction_count_track{3u};
+
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
+  EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(3020),
+                                   thread_instruction_count_track));
   EXPECT_CALL(*slice_, Begin(1010000, TrackId{1}, cat_1, ev_1, _))
       .WillOnce(Return(0u));
   EXPECT_CALL(*slice_, Scoped(1015000, TrackId{1}, cat_1, ev_2, 0, _));
-  EXPECT_CALL(*slice_, Scoped(1018000, TrackId{2}, cat_2, ev_2, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1018000, TrackId{4}, cat_2, ev_2, 0, _));
+  EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
+                                   thread_time_track));
+  EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(3040),
+                                   thread_instruction_count_track));
   EXPECT_CALL(*slice_, End(1020000, TrackId{1}, cat_1, ev_1, _))
       .WillOnce(Return(0u));
-  EXPECT_CALL(*slice_, Scoped(1030000, TrackId{3}, cat_2, ev_2, 0, _));
+  EXPECT_CALL(*slice_, Scoped(1030000, TrackId{5}, cat_2, ev_2, 0, _));
 
   context_.sorter->ExtractEventsForced();
 
-  // First track is for the thread; others are the async event tracks.
-  EXPECT_EQ(storage_->track_table().row_count(), 4u);
+  // First track is for the thread; second first async, third and fourth for
+  // thread time and instruction count, others are the async event tracks.
+  EXPECT_EQ(storage_->track_table().row_count(), 6u);
   EXPECT_EQ(storage_->track_table().name()[1], ev_1);
-  EXPECT_EQ(storage_->track_table().name()[2], ev_2);
-  EXPECT_EQ(storage_->track_table().name()[3], ev_2);
+  EXPECT_EQ(storage_->track_table().name()[4], ev_2);
+  EXPECT_EQ(storage_->track_table().name()[5], ev_2);
 
   EXPECT_EQ(storage_->process_track_table().row_count(), 3u);
   EXPECT_EQ(storage_->process_track_table().upid()[0], 1u);
@@ -1344,9 +1396,13 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_CALL(*slice_, Begin(1010000, TrackId{1}, cat_1, ev_1, _))
       .WillOnce(Return(0u));
 
+  EXPECT_CALL(*event_,
+              PushCounter(1015000, testing::DoubleEq(2007000), TrackId{4}));
   EXPECT_CALL(*slice_, Scoped(1015000, TrackId{0}, cat_2, ev_2, 0, _))
       .WillOnce(Return(1u));
 
+  EXPECT_CALL(*event_,
+              PushCounter(1016000, testing::DoubleEq(2008000), TrackId{5}));
   EXPECT_CALL(*slice_, Scoped(1016000, TrackId{3}, cat_3, ev_3, 0, _))
       .WillOnce(Return(2u));
 
@@ -1357,8 +1413,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   context_.sorter->ExtractEventsForced();
 
   // First track is "Thread track 1"; second is "Async track 1", third is global
-  // default track (parent of async track), fourth is "Thread track 2".
-  EXPECT_EQ(storage_->track_table().row_count(), 4u);
+  // default track (parent of async track), fourth is "Thread track 2", fifth &
+  // sixth are thread time tracks for thread 1 and 2.
+  EXPECT_EQ(storage_->track_table().row_count(), 6u);
   EXPECT_EQ(storage_->track_table().name().GetString(0), "Thread track 1");
   EXPECT_EQ(storage_->track_table().name().GetString(1), "Async track 1");
   EXPECT_EQ(storage_->track_table().name().GetString(2), "Default Track");
@@ -1504,14 +1561,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
-    thread_desc->set_reference_thread_time_us(2000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1524,7 +1579,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     packet->set_previous_packet_dropped(true);  // Data loss occurred.
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);
-    event->set_thread_time_delta_us(5);
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1536,7 +1590,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);
-    event->set_thread_time_delta_us(5);
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1549,7 +1602,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     packet->set_incremental_state_cleared(true);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);
-    event->set_thread_time_delta_us(5);
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1562,14 +1614,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(2000);
-    thread_desc->set_reference_thread_time_us(3000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 2010.
-    event->set_thread_time_delta_us(5);  // absolute: 3005.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1578,8 +1628,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -1606,14 +1655,12 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
-    thread_desc->set_reference_thread_time_us(2000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1635,14 +1682,12 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(17);
     thread_desc->set_reference_timestamp_us(995);
-    thread_desc->set_reference_thread_time_us(3000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(2);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1005.
-    event->set_thread_time_delta_us(5);  // absolute: 3005.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1661,7 +1706,6 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1020.
-    event->set_thread_time_delta_us(5);  // absolute: 2010.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1672,7 +1716,6 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     packet->set_trusted_packet_sequence_id(2);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1015.
-    event->set_thread_time_delta_us(5);  // absolute: 3015.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1723,14 +1766,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
-    thread_desc->set_reference_thread_time_us(2000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
     event->add_category_iids(1);
     auto* annotation1 = event->add_debug_annotations();
     annotation1->set_name_iid(1);
@@ -1783,7 +1824,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1020.
-    event->set_thread_time_delta_us(5);  // absolute: 2010.
     event->add_category_iids(1);
     auto* annotation3 = event->add_debug_annotations();
     annotation3->set_name_iid(3);
@@ -1837,8 +1877,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -1928,14 +1967,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
-    thread_desc->set_reference_thread_time_us(2000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
     event->add_category_iids(1);
     auto* task_execution = event->set_task_execution();
     task_execution->set_posted_from_iid(1);
@@ -1996,14 +2033,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
     thread_desc->set_reference_timestamp_us(1000);
-    thread_desc->set_reference_thread_time_us(2000);
   }
   {
     auto* packet = trace_.add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
     event->set_timestamp_delta_us(10);   // absolute: 1010.
-    event->set_thread_time_delta_us(5);  // absolute: 2005.
     event->add_category_iids(1);
 
     auto* log_message = event->set_log_message();
@@ -2118,6 +2153,10 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*event_,
+              PushCounter(1010000, testing::DoubleEq(2005000), TrackId{1}));
+  EXPECT_CALL(*event_,
+              PushCounter(1033000, testing::DoubleEq(2020000), TrackId{1}));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;

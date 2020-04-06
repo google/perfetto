@@ -116,6 +116,7 @@ namespace stats {
   F(heap_graph_malformed_packet,              kIndexed, kError,    kTrace),    \
   F(heap_graph_missing_packet,                kIndexed, kError,    kTrace),    \
   F(heapprofd_buffer_corrupted,               kIndexed, kError,    kTrace),    \
+  F(heapprofd_hit_guardrail,                  kIndexed, kError,    kTrace),    \
   F(heapprofd_buffer_overran,                 kIndexed, kDataLoss, kTrace),    \
   F(heapprofd_client_disconnected,            kIndexed, kInfo,     kTrace),    \
   F(heapprofd_malformed_packet,               kIndexed, kError,    kTrace),    \

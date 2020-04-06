@@ -3360,6 +3360,10 @@ message ProfilePacket {
     // MEMORY CORRUPTION.
     optional bool buffer_corrupted = 8;
 
+    // If disconnected, this disconnect was caused by heapprofd exceeding
+    // guardrails during this profiling session.
+    optional bool hit_guardrail = 10;
+
     // Timestamp of the state of the target process that this dump represents.
     // This can be different to the timestamp of the TracePackets for various
     // reasons:
@@ -3475,7 +3479,24 @@ message PerfSample {
     SampleSkipReason sample_skipped_reason = 18;
   };
 }
+
 // End of protos/perfetto/trace/profiling/profile_packet.proto
+
+// Begin of protos/perfetto/trace/profiling/smaps.proto
+
+message SmapsEntry {
+  optional string path = 1;
+  optional uint64 size_kb = 2;
+  optional uint64 private_dirty_kb = 3;
+  optional uint64 swap_kb = 4;
+};
+
+message SmapsPacket {
+  optional uint32 pid = 1;
+  repeated SmapsEntry entries = 2;
+};
+
+// End of protos/perfetto/trace/profiling/smaps.proto
 
 // Begin of protos/perfetto/trace/ps/process_stats.proto
 
@@ -3647,6 +3668,28 @@ message SystemInfo {
 
 // End of protos/perfetto/trace/system_info.proto
 
+// Begin of protos/perfetto/trace/system_info/cpu_info.proto
+
+// Information about CPUs from procfs and sysfs.
+message CpuInfo {
+  // Information about a single CPU.
+  message Cpu {
+    // Value of "Processor" field from /proc/cpuinfo for this CPU.
+    // Example: "AArch64 Processor rev 12 (aarch64)"
+    optional string processor = 1;
+
+    // Frequencies from
+    // /sys/devices/system/cpu/cpuX/cpufreq/scaling_available_frequencies
+    // where X is the index of this CPU.
+    repeated uint32 frequencies = 2;
+  }
+
+  // Describes available CPUs, one entry per CPU.
+  repeated Cpu cpus = 1;
+}
+
+// End of protos/perfetto/trace/system_info/cpu_info.proto
+
 // Begin of protos/perfetto/trace/trace.proto
 
 message Trace {
@@ -3667,7 +3710,7 @@ message Trace {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 67.
+// Next id: 69.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -3719,6 +3762,8 @@ message TracePacket {
     GpuLog gpu_log = 63;
     VulkanApiEvent vulkan_api_event = 65;
     PerfSample perf_sample = 66;
+    CpuInfo cpu_info = 67;
+    SmapsPacket smaps_packet = 68;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -5811,6 +5856,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
+// Next id: 17
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -5849,6 +5895,12 @@ message HeapprofdConfig {
   // heapprofd will likely be overloaded by the amount of data for low
   // sampling intervals.
   optional bool all = 5;
+
+  // Do not profile processes whose anon RSS + swap < given value.
+  optional uint32 min_anonymous_memory_kb = 15;
+
+  // Stop profile if heapprofd memory usage goes beyond the given value.
+  optional uint32 max_heapprofd_memory_kb = 16;
 
   // Do not emit function names for mappings starting with this prefix.
   // E.g. /system to not emit symbols for any system libraries.
@@ -5934,6 +5986,17 @@ message JavaHprofConfig {
 
   // Dump at a predefined interval.
   optional ContinuousDumpConfig continuous_dump_config = 3;
+
+  // Do not profile processes whose anon RSS + swap < given value.
+  optional uint32 min_anonymous_memory_kb = 4;
+
+  // Include the process' /proc/self/smaps.
+  // This only shows maps that:
+  // * start with /system
+  // * start with /vendor
+  // * start with /data/app
+  // * contain "extracted in memory from Y", where Y matches any of the above
+  optional bool dump_smaps = 5;
 }
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
