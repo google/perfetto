@@ -158,9 +158,12 @@ export class HeapProfileDetailsPanel extends
   }
 
   private nodeRendering(): NodeRendering {
+    if (this.profileType === undefined) {
+      return {};
+    }
     const viewingOption =
         globals.state.currentHeapProfileFlamegraph!.viewingOption;
-    switch (this.profileType!) {
+    switch (this.profileType) {
       case ProfileType.NATIVE_HEAP_PROFILE:
         return RENDER_SELF_AND_TOTAL;
       case ProfileType.JAVA_HEAP_GRAPH:
