@@ -22,12 +22,15 @@ import {Controller} from './controller';
 import {ControllerFactory} from './controller';
 import {globals} from './globals';
 
+interface TrackConfig {}
+
+type TrackConfigWithNamespace = TrackConfig&{namespace: string};
+
 
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
-export abstract class TrackController<Config = {},
-                                      Data extends TrackData = TrackData>
-    extends Controller<'main'> {
+export abstract class TrackController<
+    Config, Data extends TrackData = TrackData> extends Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
   private data?: TrackData;
@@ -53,6 +56,18 @@ export abstract class TrackController<Config = {},
 
   get config(): Config {
     return this.trackState.config as Config;
+  }
+
+  configHasNamespace(config: TrackConfig): config is TrackConfigWithNamespace {
+    return 'namespace' in config;
+  }
+
+  namespaceTable(tableName: string): string {
+    if (this.configHasNamespace(this.config)) {
+      return this.config.namespace + '_' + tableName;
+    } else {
+      return tableName;
+    }
   }
 
   publish(data: Data): void {

@@ -297,6 +297,13 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
                      buf.size());
   }
 
+  if (req.uri == "/compute_metric") {
+    std::vector<uint8_t> res = trace_processor_rpc_.ComputeMetric(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    return HttpReply(client->sock.get(), "200 OK", headers, res.data(),
+                     res.size());
+  }
+
   return HttpReply(client->sock.get(), "404 Not Found", headers);
 }
 
