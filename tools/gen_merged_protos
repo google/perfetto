@@ -89,6 +89,7 @@ TRACE_PROTOS = (
     'protos/perfetto/trace/profiling/heap_graph.proto',
     'protos/perfetto/trace/profiling/profile_common.proto',
     'protos/perfetto/trace/profiling/profile_packet.proto',
+    'protos/perfetto/trace/profiling/smaps.proto',
     'protos/perfetto/trace/ps/process_stats.proto',
     'protos/perfetto/trace/ps/process_tree.proto',
     'protos/perfetto/trace/sys_stats/sys_stats.proto',

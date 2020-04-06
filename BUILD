@@ -2426,6 +2426,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
+        "protos/perfetto/trace/profiling/smaps.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
