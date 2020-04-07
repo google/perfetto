@@ -412,5 +412,6 @@ message FtraceEvent {
     ZeroFtraceEvent zero = 331;
     GpuFrequencyFtraceEvent gpu_frequency = 332;
     SdeTracingMarkWriteFtraceEvent sde_tracing_mark_write = 333;
+    MarkVictimFtraceEvent mark_victim = 334;
   }
 }
