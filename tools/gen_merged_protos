@@ -75,6 +75,7 @@ TRACE_PROTOS = (
     'protos/perfetto/trace/ftrace/kmem.proto',
     'protos/perfetto/trace/ftrace/lowmemorykiller.proto',
     'protos/perfetto/trace/ftrace/mm_event.proto',
+    'protos/perfetto/trace/ftrace/oom.proto',
     'protos/perfetto/trace/ftrace/power.proto',
     'protos/perfetto/trace/ftrace/raw_syscalls.proto',
     'protos/perfetto/trace/ftrace/sched.proto',

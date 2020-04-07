@@ -5472,6 +5472,16 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        326,
        kUnsetSize},
+      {"mark_victim",
+       "oom",
+       {
+           {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
+            "pid", 1, ProtoSchemaType::kInt32,
+            TranslationStrategy::kInvalidTranslationStrategy},
+       },
+       kUnsetFtraceId,
+       334,
+       kUnsetSize},
       {"cpu_frequency",
        "power",
        {
