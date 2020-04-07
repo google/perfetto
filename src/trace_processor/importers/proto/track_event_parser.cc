@@ -286,8 +286,9 @@ class TrackEventParser::EventImporter {
       base::Optional<TrackId> opt_track_id =
           track_tracker->GetDescriptorTrack(track_uuid_);
       if (!opt_track_id) {
-        return util::ErrStatus("TrackEvent with unknown track_uuid %" PRIu64,
-                               track_uuid_);
+        track_tracker->ReserveDescriptorChildTrack(track_uuid_,
+                                                   /*parent_uuid=*/0);
+        opt_track_id = track_tracker->GetDescriptorTrack(track_uuid_);
       }
       track_id_ = *opt_track_id;
 
@@ -309,6 +310,22 @@ class TrackEventParser::EventImporter {
             UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
             if (storage_->thread_table().upid()[utid_candidate] == upid_)
               legacy_passthrough_utid_ = utid_candidate;
+          }
+        } else {
+          auto* tracks = context_->storage->mutable_track_table();
+          auto track_index = tracks->id().IndexOf(track_id_);
+          if (track_index) {
+            const StringPool::Id& id = tracks->name()[*track_index];
+            if (id.is_null())
+              tracks->mutable_name()->Set(*track_index, name_id_);
+          }
+
+          if (sequence_state_->state()->pid_and_tid_valid()) {
+            uint32_t pid =
+                static_cast<uint32_t>(sequence_state_->state()->pid());
+            uint32_t tid =
+                static_cast<uint32_t>(sequence_state_->state()->tid());
+            legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
           }
         }
       }
