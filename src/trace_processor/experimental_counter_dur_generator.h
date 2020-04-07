@@ -27,7 +27,7 @@ namespace trace_processor {
 class ExperimentalCounterDurGenerator
     : public DbSqliteTable::DynamicTableGenerator {
  public:
-  ExperimentalCounterDurGenerator(const tables::CounterTable& table);
+  explicit ExperimentalCounterDurGenerator(const tables::CounterTable& table);
   virtual ~ExperimentalCounterDurGenerator() override;
 
   Table::Schema CreateSchema() override;
