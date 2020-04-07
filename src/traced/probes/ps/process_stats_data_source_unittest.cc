@@ -31,6 +31,7 @@
 
 using ::perfetto::protos::gen::ProcessStatsConfig;
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Invoke;
 using ::testing::Mock;
@@ -50,6 +51,7 @@ class TestProcessStatsDataSource : public ProcessStatsDataSource {
 
   MOCK_METHOD0(OpenProcDir, base::ScopedDir());
   MOCK_METHOD2(ReadProcPidFile, std::string(int32_t pid, const std::string&));
+  MOCK_METHOD1(OpenProcTaskDir, base::ScopedDir(int32_t pid));
 };
 
 class ProcessStatsDataSourceTest : public ::testing::Test {
@@ -452,6 +454,117 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
 
   // Cleanup |fake_proc|. TempDir checks that the directory is empty.
   rmdir(path);
+}
+
+TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
+  DataSourceConfig ds_config;
+  ProcessStatsConfig config;
+  // Do 2 ticks before cache clear.
+  config.set_proc_stats_poll_ms(100);
+  config.set_proc_stats_cache_ttl_ms(200);
+  config.add_quirks(ProcessStatsConfig::DISABLE_ON_DEMAND);
+  config.set_record_thread_time_in_state(true);
+  ds_config.set_process_stats_config_raw(config.SerializeAsString());
+  auto data_source = GetProcessStatsDataSource(ds_config);
+
+  std::vector<std::string> dirs_to_delete;
+  auto make_proc_path = [&dirs_to_delete](base::TempDir& temp_dir, int pid) {
+    char path[256];
+    sprintf(path, "%s/%d", temp_dir.path().c_str(), pid);
+    dirs_to_delete.push_back(path);
+    mkdir(path, 0755);
+  };
+  // Populate a fake /proc/ directory.
+  auto fake_proc = base::TempDir::Create();
+  const int kPid = 1;
+  make_proc_path(fake_proc, kPid);
+
+  // Populate a fake /proc/1/task directory.
+  auto fake_proc_task = base::TempDir::Create();
+  const int kTids[] = {1, 2};
+  for (int tid : kTids)
+    make_proc_path(fake_proc_task, tid);
+
+  auto checkpoint = task_runner_.CreateCheckpoint("all_done");
+
+  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly(Invoke([&fake_proc] {
+    return base::ScopedDir(opendir(fake_proc.path().c_str()));
+  }));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "status"))
+      .WillRepeatedly(
+          Return("Name:	pid_10\nVmSize:	 100 kB\nVmRSS:\t100  kB\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "oom_score_adj"))
+      .WillRepeatedly(Return("900"));
+  EXPECT_CALL(*data_source, OpenProcTaskDir(kPid))
+      .WillRepeatedly(Invoke([&fake_proc_task](int32_t) {
+        return base::ScopedDir(opendir(fake_proc_task.path().c_str()));
+      }));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kTids[0], "time_in_state"))
+      .Times(3)
+      .WillRepeatedly(Return("cpu0\n1000 1\n2000 1\ncpu1\n5000 5\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kTids[1], "time_in_state"))
+      .WillOnce(Return("cpu0\n1000 10\n2000 0\ncpu1\n5000 50\n6000 60\n"))
+      .WillOnce(
+          Return("cpu0\n1000 20\n2000 0\n3000 30\ncpu1\n5000 100\n6000 60\n"))
+      .WillOnce(Invoke([&checkpoint](int32_t, const std::string&) {
+        // Call checkpoint here to stop after the third tick.
+        checkpoint();
+        return "cpu0\n1000 200\n2000 0\n3000 30\ncpu1\n5000 100\n6000 60\n";
+      }));
+
+  data_source->Start();
+  task_runner_.RunUntilCheckpoint("all_done");
+  data_source->Flush(1 /* FlushRequestId */, []() {});
+
+  std::vector<protos::gen::ProcessStats::Process> processes;
+  for (const auto& packet : writer_raw_->GetAllTracePackets())
+    for (const auto& process : packet.process_stats().processes())
+      processes.push_back(process);
+
+  EXPECT_EQ(processes.size(), 3u);
+
+  auto compare_tid = [](protos::gen::ProcessStats_Thread& l,
+                        protos::gen::ProcessStats_Thread& r) {
+    return l.tid() < r.tid();
+  };
+
+  // First pull has all threads.
+  auto threads = processes[0].threads();
+  EXPECT_EQ(threads.size(), 2u);
+  std::sort(threads.begin(), threads.end(), compare_tid);
+  auto thread = threads[0];
+  EXPECT_EQ(thread.tid(), 1);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 2000u, 5001u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(1, 1, 5));
+  thread = threads[1];
+  EXPECT_EQ(thread.tid(), 2);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 5001u, 6001u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(10, 50, 60));
+
+  // Second pull has only one thread with delta.
+  threads = processes[1].threads();
+  EXPECT_EQ(threads.size(), 1u);
+  thread = threads[0];
+  EXPECT_EQ(thread.tid(), 2);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 3000u, 5001u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(20, 30, 100));
+
+  // Third pull has all thread because cache was cleared.
+  threads = processes[2].threads();
+  EXPECT_EQ(threads.size(), 2u);
+  std::sort(threads.begin(), threads.end(), compare_tid);
+  thread = threads[0];
+  EXPECT_EQ(thread.tid(), 1);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 2000u, 5001u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(1, 1, 5));
+  thread = threads[1];
+  EXPECT_EQ(thread.tid(), 2);
+  EXPECT_THAT(thread.cpu_freq_indices(),
+              ElementsAre(1000u, 3000u, 5001u, 6001u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(200, 30, 100, 60));
+
+  for (const std::string& path : dirs_to_delete)
+    rmdir(path.c_str());
 }
 
 }  // namespace
