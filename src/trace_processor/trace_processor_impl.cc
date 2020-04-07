@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/additional_modules.h"
+#include "src/trace_processor/describe_slice_generator.h"
 #include "src/trace_processor/experimental_counter_dur_generator.h"
 #include "src/trace_processor/experimental_flamegraph_generator.h"
 #include "src/trace_processor/export_json.h"
@@ -497,6 +498,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new ExperimentalFlamegraphGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalCounterDurGenerator>(
       new ExperimentalCounterDurGenerator(storage->counter_table())));
+  RegisterDynamicTable(std::unique_ptr<DescribeSliceGenerator>(
+      new DescribeSliceGenerator(&context_)));
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());
