@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
-#define SRC_TRACE_PROCESSOR_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_DESCRIBE_SLICE_GENERATOR_H_
+#define SRC_TRACE_PROCESSOR_DESCRIBE_SLICE_GENERATOR_H_
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
@@ -26,18 +26,17 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-class ExperimentalFlamegraphGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+// Dynamic table for implementing the describe_slice table.
+// See /docs/analysis.md for details about the functionality and usage of this
+// table.
+class DescribeSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
  public:
   struct InputValues {
-    int64_t ts;
-    UniquePid upid;
-    std::string profile_type;
-    std::string focus_str;
+    uint32_t slice_id_value;
   };
 
-  explicit ExperimentalFlamegraphGenerator(TraceProcessorContext* context);
-  virtual ~ExperimentalFlamegraphGenerator() override;
+  explicit DescribeSliceGenerator(TraceProcessorContext* context);
+  ~DescribeSliceGenerator() override;
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
@@ -53,4 +52,4 @@ class ExperimentalFlamegraphGenerator
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_DESCRIBE_SLICE_GENERATOR_H_

@@ -420,6 +420,10 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       // If we have a static table, just set the upstream table to be the static
       // table.
       upstream_table_ = db_sqlite_table_->static_table_;
+
+      // Tries to create a sorted cached table which can be used to speed up
+      // filters below.
+      TryCacheCreateSortedTable(qc, history);
       break;
     case TableComputation::kDynamic:
       // If we have a dynamically created table, regenerate the table based on
@@ -431,10 +435,6 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
         return SQLITE_CONSTRAINT;
       break;
   }
-
-  // Tries to create a sorted cached table which can be used to speed up
-  // filters below.
-  TryCacheCreateSortedTable(qc, history);
 
   // Attempt to filter into a RowMap first - we'll figure out whether to apply
   // this to the table or we should use the RowMap directly. Also, if we are
