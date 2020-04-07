@@ -295,6 +295,8 @@ source_set("export_json") {
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
+      "describe_slice_generator.cc",
+      "describe_slice_generator.h",
       "experimental_counter_dur_generator.cc",
       "experimental_counter_dur_generator.h",
       "experimental_flamegraph_generator.cc",
@@ -320,6 +322,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../protos/perfetto/metrics/android:zero",
       "../../protos/perfetto/trace/ftrace:zero",
       "../base",
+      "analysis",
       "db:lib",
       "metrics:lib",
       "sqlite",
