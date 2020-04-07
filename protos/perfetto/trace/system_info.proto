@@ -28,4 +28,7 @@ message Utsname {
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
+
+  // Ticks per second - sysconf(_SC_CLK_TCK).
+  optional int64 hz = 3;
 }
