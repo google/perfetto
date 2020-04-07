@@ -2505,6 +2505,7 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   } else {
     PERFETTO_ELOG("Unable to read ro.build.fingerprint");
   }
+  info->set_hz(sysconf(_SC_CLK_TCK));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
