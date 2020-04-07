@@ -671,6 +671,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/analysis:analysis
+filegroup(
+    name = "src_trace_processor_analysis_analysis",
+    srcs = [
+        "src/trace_processor/analysis/describe_slice.cc",
+        "src/trace_processor/analysis/describe_slice.h",
+    ],
+)
+
 # GN target: //src/trace_processor/containers:containers
 filegroup(
     name = "src_trace_processor_containers_containers",
@@ -856,6 +865,8 @@ filegroup(
 filegroup(
     name = "src_trace_processor_lib",
     srcs = [
+        "src/trace_processor/describe_slice_generator.cc",
+        "src/trace_processor/describe_slice_generator.h",
         "src/trace_processor/experimental_counter_dur_generator.cc",
         "src/trace_processor/experimental_counter_dur_generator.h",
         "src/trace_processor/experimental_flamegraph_generator.cc",
@@ -2782,6 +2793,7 @@ perfetto_cc_library(
     srcs = [
         ":src_base_base",
         ":src_protozero_protozero",
+        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
@@ -2868,6 +2880,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_protozero",
+        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
@@ -3032,6 +3045,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_protozero",
+        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
