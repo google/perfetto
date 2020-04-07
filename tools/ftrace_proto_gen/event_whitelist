@@ -328,3 +328,4 @@ raw_syscalls/sys_exit
 systrace/0
 power/gpu_frequency
 sde/tracing_mark_write
+oom/mark_victim
