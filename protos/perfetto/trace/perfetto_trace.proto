@@ -3521,6 +3521,20 @@ message SmapsPacket {
 // and sometimes processes may be missing . This is because counters are
 // cached to reduce emission of counters which do not change.
 message ProcessStats {
+  // Per-thread periodically sampled stats.
+  // Note: not all of these stats will be present in every message. See the note
+  // for ProcessStats.
+  message Thread {
+    optional int32 tid = 1;
+
+    // Pairs of frequency (represented as an index to CpuInfo frequencies) and
+    // time at that frequency (represented as a number of ticks, see SystemInfo
+    // for the HZ (ticks / second) value to convert this to time).
+    // Read from /proc/tid/time_in_state.
+    repeated uint32 cpu_freq_indices = 2;
+    repeated uint64 cpu_freq_ticks = 3;
+  }
+
   message Process {
     optional int32 pid = 1;
 
@@ -3537,6 +3551,8 @@ message ProcessStats {
     // the trace processor.
 
     optional int64 oom_score_adj = 10;
+
+    repeated Thread threads = 11;
   }
   repeated Process processes = 1;
 
@@ -3678,6 +3694,9 @@ message Utsname {
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
+
+  // Ticks per second - sysconf(_SC_CLK_TCK).
+  optional int64 hz = 3;
 }
 
 // End of protos/perfetto/trace/system_info.proto
@@ -5430,6 +5449,13 @@ message ProcessStatsConfig {
   // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
   // multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
+
+  // Whether to record /proc/tid/time_in_state.
+  optional bool record_thread_time_in_state = 7;
+
+  // Size of the cache for thread time_in_state cpu freq values.
+  // If not specificed, the default is used.
+  optional uint32 thread_time_in_state_cache_size = 8;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
