@@ -52,8 +52,8 @@ class CircularQueue {
    public:
     using difference_type = ptrdiff_t;
     using value_type = T;
-    using pointer = const T*;
-    using reference = const T&;
+    using pointer = T*;
+    using reference = T&;
     using iterator_category = std::random_access_iterator_tag;
 
     Iterator(CircularQueue* queue, uint64_t pos, uint32_t generation)
