@@ -2295,7 +2295,7 @@ message FtraceEvent {
     BinderTransactionAllocBufFtraceEvent binder_transaction_alloc_buf = 323;
     SignalDeliverFtraceEvent signal_deliver = 324;
     SignalGenerateFtraceEvent signal_generate = 325;
-    // removed field with id 326
+    OomScoreAdjUpdateFtraceEvent oom_score_adj_update = 326;
     GenericFtraceEvent generic = 327;
     MmEventRecordFtraceEvent mm_event_record = 328;
     SysEnterFtraceEvent sys_enter = 329;
@@ -2303,6 +2303,7 @@ message FtraceEvent {
     ZeroFtraceEvent zero = 331;
     GpuFrequencyFtraceEvent gpu_frequency = 332;
     // removed field with id 333
+    MarkVictimFtraceEvent mark_victim = 334;
   }
 }
 
@@ -2686,6 +2687,19 @@ message MmEventRecordFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/mm_event.proto
+
+// Begin of protos/perfetto/trace/ftrace/oom.proto
+
+message OomScoreAdjUpdateFtraceEvent {
+  optional string comm = 1;
+  optional int32 oom_score_adj = 2;
+  optional int32 pid = 3;
+}
+message MarkVictimFtraceEvent {
+  optional int32 pid = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/oom.proto
 
 // Begin of protos/perfetto/trace/ftrace/power.proto
 
