@@ -908,6 +908,12 @@ class JsonExporter {
                                       : exported_pid);
             event["id2"]["local"] = PrintUint64(track_id.value);
           } else {
+            if (legacy_utid) {
+              auto pid_and_tid = UtidToPidAndTid(*legacy_utid);
+              event["pid"] = Json::Int(pid_and_tid.first);
+              event["tid"] = Json::Int(pid_and_tid.second);
+            }
+
             // Some legacy importers don't understand "id2" fields, so we use
             // the "usually" global "id" field instead. This works as long as
             // the event phase is not in {'N', 'D', 'O', '(', ')'}, see
