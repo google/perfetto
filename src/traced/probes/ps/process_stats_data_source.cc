@@ -86,12 +86,6 @@ inline uint32_t ToU32(const char* str) {
   return static_cast<uint32_t>(strtol(str, nullptr, 10));
 }
 
-uint32_t CpuAndFrequencyToIndex(uint32_t cpu, uint32_t frequency) {
-  // TODO(b/153092449): Extract code to compute the index based on CpuInfo and
-  // share it with system_info data source.
-  return frequency + cpu;
-}
-
 }  // namespace
 
 // static
@@ -104,10 +98,12 @@ ProcessStatsDataSource::ProcessStatsDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
-    const DataSourceConfig& ds_config)
+    const DataSourceConfig& ds_config,
+    std::unique_ptr<CpuFreqInfo> cpu_freq_info)
     : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       writer_(std::move(writer)),
+      cpu_freq_info_(std::move(cpu_freq_info)),
       weak_factory_(this) {
   using protos::pbzero::ProcessStatsConfig;
   ProcessStatsConfig::Decoder cfg(ds_config.process_stats_config_raw());
@@ -600,7 +596,7 @@ void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
     if (!key_value.Next())
       continue;
     uint32_t freq = ToU32(key_value.cur_token());
-    uint32_t freq_index = CpuAndFrequencyToIndex(last_cpu, freq);
+    uint32_t freq_index = cpu_freq_info_->GetCpuFreqIndex(last_cpu, freq);
     TidCpuFreqIndex key = {tid, freq_index};
     if (!key_value.Next())
       continue;

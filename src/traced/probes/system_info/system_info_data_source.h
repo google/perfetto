@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
@@ -28,7 +29,9 @@ class SystemInfoDataSource : public ProbesDataSource {
  public:
   static const ProbesDataSource::Descriptor descriptor;
 
-  SystemInfoDataSource(TracingSessionID, std::unique_ptr<TraceWriter> writer);
+  SystemInfoDataSource(TracingSessionID,
+                       std::unique_ptr<TraceWriter> writer,
+                       std::unique_ptr<CpuFreqInfo> cpu_freq_info);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -39,6 +42,7 @@ class SystemInfoDataSource : public ProbesDataSource {
 
  private:
   std::unique_ptr<TraceWriter> writer_;
+  std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 };
 
 }  // namespace perfetto
