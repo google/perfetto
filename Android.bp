@@ -6539,6 +6539,7 @@ filegroup {
     "src/trace_processor/importers/json/json_tracker.cc",
     "src/trace_processor/importers/proto/android_probes_module.cc",
     "src/trace_processor/importers/proto/android_probes_parser.cc",
+    "src/trace_processor/importers/proto/android_probes_tracker.cc",
     "src/trace_processor/importers/proto/graphics_event_module.cc",
     "src/trace_processor/importers/proto/graphics_event_parser.cc",
     "src/trace_processor/importers/proto/heap_graph_module.cc",

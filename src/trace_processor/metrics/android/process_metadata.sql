@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('android/android_package_list.sql');
-
 DROP TABLE IF EXISTS uid_package_count;
 
 CREATE TABLE uid_package_count AS
