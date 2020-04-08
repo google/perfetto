@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_view.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/importers/proto/heap_graph_walker.h"
@@ -103,7 +104,8 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
                                StringPool::Id deobfuscated_name);
   StringPool::Id MaybeDeobfuscate(StringPool::Id);
 
-  const std::vector<int64_t>* RowsForType(StringPool::Id type_name) const {
+  const std::vector<tables::HeapGraphClassTable::Id>* RowsForType(
+      StringPool::Id type_name) const {
     auto it = class_to_rows_.find(type_name);
     if (it == class_to_rows_.end())
       return nullptr;
@@ -152,7 +154,8 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   std::map<uint32_t, SequenceState> sequence_state_;
   std::map<std::pair<UniquePid, int64_t /* ts */>, HeapGraphWalker> walkers_;
 
-  std::map<StringPool::Id, std::vector<int64_t>> class_to_rows_;
+  std::map<StringPool::Id, std::vector<tables::HeapGraphClassTable::Id>>
+      class_to_rows_;
   std::map<StringPool::Id, std::vector<int64_t>> field_to_rows_;
 
   std::map<StringPool::Id, StringPool::Id> deobfuscation_mapping_;
