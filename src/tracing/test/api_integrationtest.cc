@@ -1597,6 +1597,9 @@ TEST_F(PerfettoApiTest, TrackEventDebugAnnotations) {
   auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
+  enum MyEnum { ENUM_FOO, ENUM_BAR };
+  enum MySignedEnum { SIGNED_ENUM_FOO = -1, SIGNED_ENUM_BAR };
+
   TRACE_EVENT_BEGIN("test", "E", "bool_arg", false);
   TRACE_EVENT_BEGIN("test", "E", "int_arg", -123);
   TRACE_EVENT_BEGIN("test", "E", "uint_arg", 456u);
@@ -1606,18 +1609,24 @@ TEST_F(PerfettoApiTest, TrackEventDebugAnnotations) {
                     std::string("tracing"));
   TRACE_EVENT_BEGIN("test", "E", "ptr_arg",
                     reinterpret_cast<void*>(0xbaadf00d));
+  TRACE_EVENT_BEGIN("test", "E", "size_t_arg", size_t{42});
+  TRACE_EVENT_BEGIN("test", "E", "ptrdiff_t_arg", ptrdiff_t{-7});
+  TRACE_EVENT_BEGIN("test", "E", "enum_arg", ENUM_BAR);
+  TRACE_EVENT_BEGIN("test", "E", "signed_enum_arg", SIGNED_ENUM_FOO);
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
   EXPECT_THAT(
       slices,
-      ElementsAre("B:test.E(bool_arg=(bool)0)", "B:test.E(int_arg=(int)-123)",
-                  "B:test.E(uint_arg=(uint)456)",
-                  "B:test.E(float_arg=(double)3.14159)",
-                  "B:test.E(double_arg=(double)6.22)",
-                  "B:test.E(str_arg=(string)hello,str_arg2=(string)tracing)",
-                  "B:test.E(ptr_arg=(pointer)baadf00d)"));
+      ElementsAre(
+          "B:test.E(bool_arg=(bool)0)", "B:test.E(int_arg=(int)-123)",
+          "B:test.E(uint_arg=(uint)456)", "B:test.E(float_arg=(double)3.14159)",
+          "B:test.E(double_arg=(double)6.22)",
+          "B:test.E(str_arg=(string)hello,str_arg2=(string)tracing)",
+          "B:test.E(ptr_arg=(pointer)baadf00d)",
+          "B:test.E(size_t_arg=(uint)42)", "B:test.E(ptrdiff_t_arg=(int)-7)",
+          "B:test.E(enum_arg=(uint)1)", "B:test.E(signed_enum_arg=(int)-1)"));
 }
 
 TEST_F(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
