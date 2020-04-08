@@ -123,7 +123,7 @@
   } while (false)
 
 #define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
-  struct {                                                                    \
+  struct PERFETTO_UID(ScopedEvent) {                                          \
     struct EventFinalizer {                                                   \
       /* The parameter is an implementation detail. It allows the          */ \
       /* anonymous struct to use aggregate initialization to invoke the    */ \
