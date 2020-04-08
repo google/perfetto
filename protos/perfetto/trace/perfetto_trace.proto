@@ -1024,10 +1024,9 @@ message TraceConfig {
   message BuiltinDataSource {
     // Disable emitting clock timestamps into the trace.
     optional bool disable_clock_snapshotting = 1;
-
     optional bool disable_trace_config = 2;
-
     optional bool disable_system_info = 3;
+    optional bool disable_service_events = 4;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -5667,6 +5666,25 @@ message PerfettoMetatrace {
 
 // End of protos/perfetto/trace/perfetto/perfetto_metatrace.proto
 
+// Begin of protos/perfetto/trace/perfetto/tracing_service_event.proto
+
+// Events emitted by the tracing service when data source states change.
+message TracingServiceEvent {
+  oneof event_type {
+    // When this is set to true, reports the point in time (the TracePacket's
+    // timestamp) when all data sources did see the start event and ACKed it.
+    // This identifies the point in time when it's safe to assume tha all data
+    // sources have been recording events.
+    // Note: like any other event in the trace, the byte offset at which this
+    // packet shows up in the trace is arbitrary and doesn't reflect causal
+    // ordering (i.e. it's okay to use this event to reason about the timestamps
+    // of othe packets, NOT their relative order w.r.t. this packet).
+    bool all_data_sources_started = 1;
+  }
+}
+
+// End of protos/perfetto/trace/perfetto/tracing_service_event.proto
+
 // Begin of protos/perfetto/trace/power/battery_counters.proto
 
 message BatteryCounters {
@@ -6631,7 +6649,7 @@ message Trigger {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 69.
+// Next id: 70.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -6685,6 +6703,7 @@ message TracePacket {
     PerfSample perf_sample = 66;
     CpuInfo cpu_info = 67;
     SmapsPacket smaps_packet = 68;
+    TracingServiceEvent service_event = 69;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

@@ -60,6 +60,8 @@ namespace {
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
+constexpr size_t kBuiltinPackets = 8;
+
 std::string RandomTraceFileName() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   constexpr char kSysTmpPath[] = "/data/misc/perfetto-traces";
@@ -789,11 +791,6 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   // time.
   trigger->set_stop_delay_ms(500);
 
-  // We have 6 normal preamble packets (start clock, trace config, clock,
-  // system info, sync marker, stats) and then since this is a trace with a
-  // trigger config we have an additional ReceivedTriggers packet.
-  constexpr size_t kPreamblePackets = 7;
-
   // We have to construct all the processes we want to fork before we start the
   // service with |StartServiceIfRequired()|. this is because it is unsafe
   // (could deadlock) to fork after we've spawned some threads which might
@@ -837,7 +834,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_EQ(static_cast<int>(kPreamblePackets + kMessageCount),
+  EXPECT_EQ(static_cast<int>(kBuiltinPackets + kMessageCount),
             trace.packet_size());
   for (const auto& packet : trace.packet()) {
     if (packet.has_trace_config()) {
@@ -880,11 +877,6 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   trigger = trigger_cfg->add_triggers();
   trigger->set_name("trigger_name_3");
   trigger->set_stop_delay_ms(60000);
-
-  // We have 6 normal preamble packets (start clock, trace config, clock,
-  // system info, sync marker, stats) and then since this is a trace with a
-  // trigger config we have an additional ReceivedTriggers packet.
-  constexpr size_t kPreamblePackets = 8;
 
   // We have to construct all the processes we want to fork before we start the
   // service with |StartServiceIfRequired()|. this is because it is unsafe
@@ -930,7 +922,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
   base::ReadFile(path, &trace_str);
   protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
-  EXPECT_EQ(static_cast<int>(kPreamblePackets + kMessageCount),
+  EXPECT_EQ(static_cast<int>(kBuiltinPackets + 1 + kMessageCount),
             trace.packet_size());
   bool seen_first_trigger = false;
   for (const auto& packet : trace.packet()) {
