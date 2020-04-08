@@ -43,7 +43,7 @@ function getSummarizedSliceText(breakdownMap: StatePercent) {
   const sorted =
       new Map([...breakdownMap.entries()].sort((a, b) => b[1] - a[1]));
   for (const [state, value] of sorted.entries()) {
-    result += `${state}: ${value * 100}%, `;
+    result += `${state}: ${Math.round(value * 100)}%, `;
   }
   return result.slice(0, result.length - 2) + ')';
 }
