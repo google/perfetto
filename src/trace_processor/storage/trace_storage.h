@@ -625,18 +625,22 @@ class TraceStorage {
       case Variadic::Type::kUint:
         v.uint_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
         break;
-      case Variadic::Type::kString:
-        v.string_value = arg_table_.string_value()[row];
+      case Variadic::Type::kString: {
+        auto opt_value = arg_table_.string_value()[row];
+        v.string_value = opt_value ? *opt_value : kNullStringId;
         break;
+      }
       case Variadic::Type::kPointer:
         v.pointer_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
         break;
       case Variadic::Type::kReal:
         v.real_value = *arg_table_.real_value()[row];
         break;
-      case Variadic::Type::kJson:
-        v.json_value = arg_table_.string_value()[row];
+      case Variadic::Type::kJson: {
+        auto opt_value = arg_table_.string_value()[row];
+        v.json_value = opt_value ? *opt_value : kNullStringId;
         break;
+      }
     }
     return v;
   }

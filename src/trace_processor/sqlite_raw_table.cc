@@ -445,13 +445,12 @@ bool ArgsSerializer::ParseGfpFlags(Variadic value) {
   if (!opt_name_idx || !opt_release_idx)
     return false;
 
-  StringId name = metadata_table.str_value()[*opt_name_idx];
-  base::StringView system_name = storage_->GetString(name);
+  const auto& str_value = metadata_table.str_value();
+  base::StringView system_name = str_value.GetString(*opt_name_idx);
   if (system_name != "Linux")
     return false;
 
-  StringId release = metadata_table.str_value()[*opt_release_idx];
-  base::StringView system_release = storage_->GetString(release);
+  base::StringView system_release = str_value.GetString(*opt_release_idx);
   auto version = ParseKernelReleaseVersion(system_release);
 
   WriteGfpFlag(value.uint_value, version, writer_);
