@@ -344,14 +344,12 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   ASSERT_EQ(args.key()[3], context_.storage->InternString("clone_flags"));
   ASSERT_EQ(args.key()[4], context_.storage->InternString("ip"));
   ASSERT_EQ(args.key()[5], context_.storage->InternString("buf"));
-  ASSERT_STREQ(context_.storage->GetString(args.string_value()[0]).c_str(),
-               task_newtask);
+  ASSERT_STREQ(args.string_value().GetString(0).c_str(), task_newtask);
   ASSERT_EQ(args.int_value()[1], 123);
   ASSERT_EQ(args.int_value()[2], 15);
   ASSERT_EQ(args.int_value()[3], 12);
   ASSERT_EQ(args.int_value()[4], 20);
-  ASSERT_STREQ(context_.storage->GetString(args.string_value()[5]).c_str(),
-               buf_value);
+  ASSERT_STREQ(args.string_value().GetString(5).c_str(), buf_value);
 
   // TODO(taylori): Add test ftrace event with all field types
   // and test here.
@@ -2403,14 +2401,8 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
 
   Tokenize();
 
-  StringId name_1 = storage_->InternString(kName);
-  StringId tag_1 = storage_->InternString(kTag1);
-  StringId tag_2 = storage_->InternString(kTag2);
-
-  StringId benchmark_id = *storage_->string_pool().GetId(
-      metadata::kNames[metadata::benchmark_name]);
-  StringId tags_id = *storage_->string_pool().GetId(
-      metadata::kNames[metadata::benchmark_story_tags]);
+  base::StringView benchmark = metadata::kNames[metadata::benchmark_name];
+  base::StringView tags = metadata::kNames[metadata::benchmark_story_tags];
 
   context_.sorter->ExtractEventsForced();
 
@@ -2418,14 +2410,15 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   const auto& meta_values = storage_->metadata_table().str_value();
   EXPECT_EQ(storage_->metadata_table().row_count(), 3u);
 
-  std::vector<std::pair<StringId, StringId>> meta_entries;
+  std::vector<std::pair<base::StringView, base::StringView>> meta_entries;
   for (uint32_t i = 0; i < storage_->metadata_table().row_count(); i++) {
-    meta_entries.emplace_back(std::make_pair(meta_keys[i], meta_values[i]));
+    meta_entries.emplace_back(
+        std::make_pair(meta_keys.GetString(i), meta_values.GetString(i)));
   }
   EXPECT_THAT(meta_entries,
-              UnorderedElementsAreArray({std::make_pair(benchmark_id, name_1),
-                                         std::make_pair(tags_id, tag_1),
-                                         std::make_pair(tags_id, tag_2)}));
+              UnorderedElementsAreArray({std::make_pair(benchmark, kName),
+                                         std::make_pair(tags, kTag1),
+                                         std::make_pair(tags, kTag2)}));
 }
 
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
