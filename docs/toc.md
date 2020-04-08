@@ -12,8 +12,9 @@
   * [Running in detached mode](detached-mode.md)
   * [Native Heap Profiling](heapprofd.md)
   * [Java Heap Profiling](java-hprof.md)
-* Trace analysis
+* Offline trace processing
   * [Trace processor](trace-processor.md)
+  * [Trace analysis](analysis.md)
   * [Trace-based metrics](metrics.md)
   * [Trace conversion](traceconv.md)
   * [Clock synchronization](clock-sync.md)
