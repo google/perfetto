@@ -37,6 +37,7 @@
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -1387,12 +1388,13 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceStart("data_source");
 
   // The preamble packets are:
-  // Trace start clocksnapshot
+  // Trace start clock snapshot
   // Config
   // SystemInfo
-  // Trace read clocksnapshot
+  // Trace read clock snapshot
   // Trace synchronisation
-  static const int kNumPreamblePackets = 5;
+  // All data source started (TracingServiceEvent)
+  static const int kNumPreamblePackets = 6;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -2940,6 +2942,14 @@ TEST_F(TracingServiceImplTest, ObserveAllDataSourceStarted) {
     task_runner.RunUntilIdle();
     Mock::VerifyAndClearExpectations(consumer.get());
 
+    EXPECT_THAT(
+        consumer->ReadBuffers(),
+        Contains(Property(
+            &protos::gen::TracePacket::service_event,
+            Property(
+                &protos::gen::TracingServiceEvent::all_data_sources_started,
+                Eq(false)))));
+
     DataSourceInstanceID id2 = producer->GetDataSourceInstanceId("ds2");
     producer->endpoint()->NotifyDataSourceStarted(id2);
 
@@ -2953,10 +2963,19 @@ TEST_F(TracingServiceImplTest, ObserveAllDataSourceStarted) {
     consumer->DisableTracing();
     producer->WaitForDataSourceStop("ds1");
     producer->WaitForDataSourceStop("ds2");
-    consumer->FreeBuffers();
     consumer->WaitForTracingDisabled();
 
+    EXPECT_THAT(
+        consumer->ReadBuffers(),
+        Contains(Property(
+            &protos::gen::TracePacket::service_event,
+            Property(
+                &protos::gen::TracingServiceEvent::all_data_sources_started,
+                Eq(true)))));
+    consumer->FreeBuffers();
+
     task_runner.RunUntilIdle();
+
     Mock::VerifyAndClearExpectations(consumer.get());
     Mock::VerifyAndClearExpectations(producer.get());
   }
