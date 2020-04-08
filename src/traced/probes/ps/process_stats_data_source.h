@@ -30,6 +30,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
@@ -54,7 +55,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
-                         const DataSourceConfig&);
+                         const DataSourceConfig&,
+                         std::unique_ptr<CpuFreqInfo> cpu_freq_info);
   ~ProcessStatsDataSource() override;
 
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
@@ -160,6 +162,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
       std::tuple</* tid */ int32_t, /* cpu_freq_index */ uint32_t>;
   std::map<TidCpuFreqIndex, uint64_t> thread_time_in_state_cache_;
   uint32_t thread_time_in_state_cache_size_;
+
+  std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 
   // If true, the next trace packet will have the |incremental_state_cleared|
   // flag set. Set when handling a ClearIncrementalState call.
