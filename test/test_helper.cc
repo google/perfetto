@@ -64,7 +64,7 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
         packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
     if (packet.has_clock_snapshot() || packet.has_trace_config() ||
         packet.has_trace_stats() || !packet.synchronization_marker().empty() ||
-        packet.has_system_info()) {
+        packet.has_system_info() || packet.has_service_event()) {
       continue;
     }
     PERFETTO_CHECK(packet.has_trusted_uid());
