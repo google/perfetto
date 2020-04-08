@@ -23,6 +23,17 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+#define PERFETTO_TP_PACKAGES_LIST_DEF(NAME, PARENT, C) \
+  NAME(PackageListTable, "package_list")               \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
+  C(StringPool::Id, package_name)                      \
+  C(int64_t, uid)                                      \
+  C(int32_t, debuggable)                               \
+  C(int32_t, profileable_from_shell)                   \
+  C(int64_t, version_code)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_PACKAGES_LIST_DEF);
+
 #define PERFETTO_TP_STACK_PROFILE_MAPPING_DEF(NAME, PARENT, C) \
   NAME(StackProfileMappingTable, "stack_profile_mapping")      \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                            \
