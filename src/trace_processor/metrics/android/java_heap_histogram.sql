@@ -21,12 +21,12 @@ WITH
 -- Base histogram table
 heap_obj_histograms AS (
   SELECT
-    upid,
-    graph_sample_ts,
-    IFNULL(deobfuscated_type_name, type_name) AS type_name,
+    o.upid,
+    o.graph_sample_ts,
+    IFNULL(c.deobfuscated_name, c.name) AS type_name,
     COUNT(1) obj_count,
-    SUM(CASE reachable WHEN TRUE THEN 1 ELSE 0 END) reachable_obj_count
-  FROM heap_graph_object
+    SUM(CASE o.reachable WHEN TRUE THEN 1 ELSE 0 END) reachable_obj_count
+  FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id
   GROUP BY 1, 2, 3
 ),
 -- Group by to build the repeated field by upid, ts

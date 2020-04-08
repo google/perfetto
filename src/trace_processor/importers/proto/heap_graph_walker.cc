@@ -59,7 +59,9 @@ bool IsUniqueOwner(const std::map<int64_t, int64_t>& component_to_node,
 
 HeapGraphWalker::Delegate::~Delegate() = default;
 
-void HeapGraphWalker::AddNode(int64_t row, uint64_t size, uint32_t class_name) {
+void HeapGraphWalker::AddNode(int64_t row,
+                              uint64_t size,
+                              ClassNameId class_name) {
   if (static_cast<size_t>(row) >= nodes_.size())
     nodes_.resize(static_cast<size_t>(row) + 1);
   Node& node = GetNode(row);

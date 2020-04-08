@@ -187,31 +187,60 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
 
 void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+
+  std::map<uint64_t, tables::HeapGraphClassTable::Id> type_id_to_db;
+  for (const auto& p : sequence_state.interned_types) {
+    uint64_t id = p.first;
+    const InternedType& interned_type = p.second;
+    base::Optional<StringPool::Id> location_name;
+    if (interned_type.location_id) {
+      auto it = sequence_state.interned_location_names.find(
+          *interned_type.location_id);
+      if (it == sequence_state.interned_location_names.end()) {
+        context_->storage->IncrementIndexedStats(
+            stats::heap_graph_invalid_string_id,
+            static_cast<int>(sequence_state.current_upid));
+
+      } else {
+        location_name = it->second;
+      }
+    }
+    auto id_and_row =
+        context_->storage->mutable_heap_graph_class_table()->Insert(
+            {interned_type.name, base::nullopt, location_name});
+
+    type_id_to_db[id] = id_and_row.id;
+    base::StringView normalized_type =
+        NormalizeTypeName(context_->storage->GetString(interned_type.name));
+    class_to_rows_[context_->storage->InternString(normalized_type)]
+        .emplace_back(id_and_row.id);
+  }
+
   for (const SourceObject& obj : sequence_state.current_objects) {
-    auto it = sequence_state.interned_types.find(obj.type_id);
-    if (it == sequence_state.interned_types.end()) {
+    auto type_it = type_id_to_db.find(obj.type_id);
+    if (type_it == type_id_to_db.end()) {
       context_->storage->IncrementIndexedStats(
-          stats::heap_graph_invalid_string_id,
+          stats::heap_graph_malformed_packet,
           static_cast<int>(sequence_state.current_upid));
       continue;
     }
-    const InternedType& interned_type = it->second;
-    StringPool::Id type_name = interned_type.name;
-    context_->storage->mutable_heap_graph_object_table()->Insert(
-        {sequence_state.current_upid, sequence_state.current_ts,
-         static_cast<int64_t>(obj.object_id),
-         static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
-         /*unique_retained_size=*/-1, /*reference_set_id=*/base::nullopt,
-         /*reachable=*/0, /*type_name=*/type_name,
-         /*deobfuscated_type_name=*/base::nullopt,
-         /*root_type=*/base::nullopt});
-    int64_t row = context_->storage->heap_graph_object_table().row_count() - 1;
+    tables::HeapGraphClassTable::Id db_id = type_it->second;
+    auto id_and_row =
+        context_->storage->mutable_heap_graph_object_table()->Insert(
+            {sequence_state.current_upid, sequence_state.current_ts,
+             static_cast<int64_t>(obj.object_id),
+             static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
+             /*unique_retained_size=*/-1, /*reference_set_id=*/base::nullopt,
+             /*reachable=*/0, db_id,
+             /*root_type=*/base::nullopt});
+    int64_t row = id_and_row.row;
     sequence_state.object_id_to_row.emplace(obj.object_id, row);
-    base::StringView normalized_type =
-        NormalizeTypeName(context_->storage->GetString(type_name));
-    class_to_rows_[context_->storage->InternString(normalized_type)]
-        .emplace_back(row);
-    sequence_state.walker.AddNode(row, obj.self_size, type_name.raw_id());
+    int64_t type_row =
+        *context_->storage->heap_graph_class_table().id().IndexOf(db_id);
+    // Still using raw rows for the HeapGraphWalker to not tie it to the
+    // data base and make it useable independently.
+    // We will eventually want to use that client-side for summarization.
+    sequence_state.walker.AddNode(row, obj.self_size, type_row);
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
@@ -323,12 +352,21 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
       parent_id = node_to_id[node.parent_id];
     const uint32_t depth = node.depth;
 
+    base::Optional<StringPool::Id> name =
+        context_->storage->heap_graph_class_table()
+            .deobfuscated_name()[static_cast<uint32_t>(node.class_name)];
+    if (!name) {
+      name = context_->storage->heap_graph_class_table()
+                 .name()[static_cast<uint32_t>(node.class_name)];
+    }
+    PERFETTO_CHECK(name);
+
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
     alloc_row.ts = current_ts;
     alloc_row.upid = current_upid;
     alloc_row.profile_type = profile_type;
     alloc_row.depth = depth;
-    alloc_row.name = MaybeDeobfuscate(StringId::Raw(node.class_name));
+    alloc_row.name = *name;
     alloc_row.map_name = java_mapping;
     alloc_row.count = static_cast<int64_t>(node.count);
     alloc_row.cumulative_count =

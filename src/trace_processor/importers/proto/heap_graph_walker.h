@@ -97,7 +97,7 @@ namespace trace_processor {
 
 class HeapGraphWalker {
  public:
-  using ClassNameId = uint32_t;
+  using ClassNameId = int64_t;
 
   struct PathFromRoot {
     static constexpr size_t kRoot = 0;
@@ -149,7 +149,7 @@ class HeapGraphWalker {
     uint64_t lowlink = 0;
     int64_t component = -1;
 
-    uint32_t class_name = 0;
+    ClassNameId class_name = 0;
     int32_t distance_to_root = -1;
 
     bool on_stack = false;
