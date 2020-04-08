@@ -14,32 +14,38 @@
 
 import("../../../../gn/test.gni")
 
-source_set("system_info") {
-  public_deps = [ "../../../tracing/core" ]
+source_set("common") {
   deps = [
-    "..:data_source",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/traced",
-    "../../../../protos/perfetto/trace:zero",
-    "../../../../protos/perfetto/trace/system_info:zero",
     "../../../base",
-    "../common",
   ]
   sources = [
-    "system_info_data_source.cc",
-    "system_info_data_source.h",
+    "cpu_freq_info.cc",
+    "cpu_freq_info.h",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":system_info",
+    ":common",
+    ":test_support",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/system_info:cpp",
     "../../../../src/tracing/test:test_support",
-    "../common:test_support",
   ]
-  sources = [ "system_info_data_source_unittest.cc" ]
+  sources = [ "cpu_freq_info_unittest.cc" ]
+}
+
+perfetto_unittest_source_set("test_support") {
+  testonly = true
+  deps = [
+    ":common",
+    "../../../../gn:default_deps",
+    "../../../base",
+  ]
+  sources = [
+    "cpu_freq_info_for_testing.cc",
+    "cpu_freq_info_for_testing.h",
+  ]
 }

@@ -22,6 +22,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -46,8 +47,13 @@ class TestProcessStatsDataSource : public ProcessStatsDataSource {
   TestProcessStatsDataSource(base::TaskRunner* task_runner,
                              TracingSessionID id,
                              std::unique_ptr<TraceWriter> writer,
-                             const DataSourceConfig& config)
-      : ProcessStatsDataSource(task_runner, id, std::move(writer), config) {}
+                             const DataSourceConfig& config,
+                             std::unique_ptr<CpuFreqInfo> cpu_freq_info)
+      : ProcessStatsDataSource(task_runner,
+                               id,
+                               std::move(writer),
+                               config,
+                               std::move(cpu_freq_info)) {}
 
   MOCK_METHOD0(OpenProcDir, base::ScopedDir());
   MOCK_METHOD2(ReadProcPidFile, std::string(int32_t pid, const std::string&));
@@ -64,12 +70,14 @@ class ProcessStatsDataSourceTest : public ::testing::Test {
         std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
     writer_raw_ = writer.get();
     return std::unique_ptr<TestProcessStatsDataSource>(
-        new TestProcessStatsDataSource(&task_runner_, 0, std::move(writer),
-                                       cfg));
+        new TestProcessStatsDataSource(
+            &task_runner_, 0, std::move(writer), cfg,
+            cpu_freq_info_for_testing.GetInstance()));
   }
 
   base::TestTaskRunner task_runner_;
   TraceWriterForTesting* writer_raw_;
+  CpuFreqInfoForTesting cpu_freq_info_for_testing;
 };
 
 TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
@@ -501,15 +509,17 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
       }));
   EXPECT_CALL(*data_source, ReadProcPidFile(kTids[0], "time_in_state"))
       .Times(3)
-      .WillRepeatedly(Return("cpu0\n1000 1\n2000 1\ncpu1\n5000 5\n"));
+      .WillRepeatedly(Return("cpu0\n300000 1\n748800 1\ncpu1\n300000 5\n"));
   EXPECT_CALL(*data_source, ReadProcPidFile(kTids[1], "time_in_state"))
-      .WillOnce(Return("cpu0\n1000 10\n2000 0\ncpu1\n5000 50\n6000 60\n"))
       .WillOnce(
-          Return("cpu0\n1000 20\n2000 0\n3000 30\ncpu1\n5000 100\n6000 60\n"))
+          Return("cpu0\n300000 10\n748800 0\ncpu1\n300000 50\n652800 60\n"))
+      .WillOnce(Return("cpu0\n300000 20\n748800 0\n1324800 30\ncpu1\n300000 "
+                       "100\n652800 60\n"))
       .WillOnce(Invoke([&checkpoint](int32_t, const std::string&) {
         // Call checkpoint here to stop after the third tick.
         checkpoint();
-        return "cpu0\n1000 200\n2000 0\n3000 30\ncpu1\n5000 100\n6000 60\n";
+        return "cpu0\n300000 200\n748800 0\n1324800 30\ncpu1\n300000 "
+               "100\n652800 60\n";
       }));
 
   data_source->Start();
@@ -534,11 +544,11 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   std::sort(threads.begin(), threads.end(), compare_tid);
   auto thread = threads[0];
   EXPECT_EQ(thread.tid(), 1);
-  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 2000u, 5001u));
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 3u, 10u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(1, 1, 5));
   thread = threads[1];
   EXPECT_EQ(thread.tid(), 2);
-  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 5001u, 6001u));
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 10u, 11u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(10, 50, 60));
 
   // Second pull has only one thread with delta.
@@ -546,7 +556,7 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_EQ(threads.size(), 1u);
   thread = threads[0];
   EXPECT_EQ(thread.tid(), 2);
-  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 3000u, 5001u));
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 6u, 10u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(20, 30, 100));
 
   // Third pull has all thread because cache was cleared.
@@ -555,12 +565,11 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   std::sort(threads.begin(), threads.end(), compare_tid);
   thread = threads[0];
   EXPECT_EQ(thread.tid(), 1);
-  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1000u, 2000u, 5001u));
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 3u, 10u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(1, 1, 5));
   thread = threads[1];
   EXPECT_EQ(thread.tid(), 2);
-  EXPECT_THAT(thread.cpu_freq_indices(),
-              ElementsAre(1000u, 3000u, 5001u, 6001u));
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 6u, 10u, 11u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(200, 30, 100, 60));
 
   for (const std::string& path : dirs_to_delete)
