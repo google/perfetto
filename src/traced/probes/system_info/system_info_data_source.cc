@@ -36,16 +36,6 @@ const char kDefaultProcessor[] = "Processor";
 // of lines describes a CPU.
 const char kProcessor[] = "processor";
 
-void FillCpuFrequencies(protos::pbzero::CpuInfo_Cpu* cpu,
-                        const std::string& sys_cpu_frequencies) {
-  base::StringSplitter frequencies(sys_cpu_frequencies, ' ');
-  while (frequencies.Next()) {
-    auto frequency = base::StringToUInt32(frequencies.cur_token());
-    if (frequency.has_value())
-      cpu->add_frequencies(frequency.value());
-  }
-}
-
 }  // namespace
 
 // static
@@ -54,9 +44,13 @@ const ProbesDataSource::Descriptor SystemInfoDataSource::descriptor = {
     /* flags */ Descriptor::kFlagsNone,
 };
 
-SystemInfoDataSource::SystemInfoDataSource(TracingSessionID session_id,
-                                           std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {}
+SystemInfoDataSource::SystemInfoDataSource(
+    TracingSessionID session_id,
+    std::unique_ptr<TraceWriter> writer,
+    std::unique_ptr<CpuFreqInfo> cpu_freq_info)
+    : ProbesDataSource(session_id, &descriptor),
+      writer_(std::move(writer)),
+      cpu_freq_info_(std::move(cpu_freq_info)) {}
 
 void SystemInfoDataSource::Start() {
   auto packet = writer_->NewTracePacket();
@@ -71,7 +65,7 @@ void SystemInfoDataSource::Start() {
   std::string::iterator line_end = proc_cpu_info.end();
   std::string default_processor = "unknown";
   std::string cpu_index = "";
-  int next_cpu_index = 0;
+  uint32_t next_cpu_index = 0;
   while (line_start != proc_cpu_info.end()) {
     line_end = find(line_start, proc_cpu_info.end(), '\n');
     if (line_end == proc_cpu_info.end())
@@ -82,10 +76,10 @@ void SystemInfoDataSource::Start() {
       PERFETTO_DCHECK(cpu_index == std::to_string(next_cpu_index));
       auto* cpu = cpu_info->add_cpus();
       cpu->set_processor(default_processor);
-      std::string sys_cpu_frequencies =
-          ReadFile("/sys/devices/system/cpu/cpu" + cpu_index +
-                   "/cpufreq/scaling_available_frequencies");
-      FillCpuFrequencies(cpu, sys_cpu_frequencies);
+      auto freqs_range = cpu_freq_info_->GetFreqs(next_cpu_index);
+      for (auto it = freqs_range.first; it != freqs_range.second; it++) {
+        cpu->add_frequencies(*it);
+      }
       cpu_index = "";
       next_cpu_index++;
       continue;

@@ -15,6 +15,7 @@
  */
 
 #include "src/traced/probes/system_info/system_info_data_source.h"
+#include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -105,16 +106,14 @@ Hardware	: Qualcomm Technologies, Inc SDM670
 
 )";
 
-const char kMockCpuFrequenciesAndroidLittleCore[] = R"(
-300000 576000 748800 998400 1209600 1324800 1516800 1612800 1708800 )";
-
-const char kMockCpuFrequenciesAndroidBigCore[] = R"(
-300000 652800 825600 979200 1132800 1363200 1536000 1747200 1843200 1996800 )";
-
 class TestSystemInfoDataSource : public SystemInfoDataSource {
  public:
-  TestSystemInfoDataSource(std::unique_ptr<TraceWriter> writer)
-      : SystemInfoDataSource(/* session_id */ 0, std::move(writer)) {}
+  TestSystemInfoDataSource(std::unique_ptr<TraceWriter> writer,
+                           std::unique_ptr<CpuFreqInfo> cpu_freq_info)
+      : SystemInfoDataSource(
+            /* session_id */ 0,
+            std::move(writer),
+            std::move(cpu_freq_info)) {}
 
   MOCK_METHOD1(ReadFile, std::string(std::string));
 };
@@ -125,50 +124,36 @@ class SystemInfoDataSourceTest : public ::testing::Test {
     auto writer =
         std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
     writer_raw_ = writer.get();
-    auto instance = std::unique_ptr<TestSystemInfoDataSource>(
-        new TestSystemInfoDataSource(std::move(writer)));
+    auto instance =
+        std::unique_ptr<TestSystemInfoDataSource>(new TestSystemInfoDataSource(
+            std::move(writer), cpu_freq_info_for_testing.GetInstance()));
     return instance;
   }
 
   TraceWriterForTesting* writer_raw_ = nullptr;
+  CpuFreqInfoForTesting cpu_freq_info_for_testing;
 };
 
 TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   auto data_source = GetSystemInfoDataSource();
   EXPECT_CALL(*data_source, ReadFile("/proc/cpuinfo"))
       .WillOnce(Return(kMockCpuInfoAndroid));
-  auto cpu_freq_path = [](uint32_t cpu) {
-    return "/sys/devices/system/cpu/cpu" + std::to_string(cpu) +
-           "/cpufreq/scaling_available_frequencies";
-  };
-  EXPECT_CALL(*data_source, ReadFile(AnyOf(cpu_freq_path(0), cpu_freq_path(1),
-                                           cpu_freq_path(2), cpu_freq_path(3),
-                                           cpu_freq_path(4), cpu_freq_path(5))))
-      .Times(6)
-      .WillRepeatedly(Return(kMockCpuFrequenciesAndroidLittleCore));
-  EXPECT_CALL(*data_source, ReadFile(AnyOf(cpu_freq_path(6), cpu_freq_path(7))))
-      .Times(2)
-      .WillRepeatedly(Return(kMockCpuFrequenciesAndroidBigCore));
   data_source->Start();
 
   protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
   ASSERT_TRUE(packet.has_cpu_info());
   auto cpu_info = packet.cpu_info();
   ASSERT_EQ(cpu_info.cpus_size(), 8);
-  for (size_t i = 0; i < 6; i++) {
-    auto cpu = cpu_info.cpus()[i];
-    ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
-    ASSERT_THAT(cpu.frequencies(),
-                ElementsAre(300000, 576000, 748800, 998400, 1209600, 1324800,
-                            1516800, 1612800, 1708800));
-  }
-  for (size_t i = 6; i < 8; i++) {
-    auto cpu = cpu_info.cpus()[i];
-    ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
-    ASSERT_THAT(cpu.frequencies(),
-                ElementsAre(300000, 652800, 825600, 979200, 1132800, 1363200,
-                            1536000, 1747200, 1843200, 1996800));
-  }
+  auto cpu = cpu_info.cpus()[0];
+  ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
+  ASSERT_THAT(cpu.frequencies(),
+              ElementsAre(300000, 576000, 748800, 998400, 1209600, 1324800,
+                          1516800, 1612800, 1708800));
+  cpu = cpu_info.cpus()[1];
+  ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
+  ASSERT_THAT(cpu.frequencies(),
+              ElementsAre(300000, 652800, 825600, 979200, 1132800, 1363200,
+                          1536000, 1747200, 1843200, 1996800));
 }
 
 }  // namespace
