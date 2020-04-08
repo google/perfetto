@@ -53,6 +53,7 @@ ExperimentalFlamegraphNodesTable::~ExperimentalFlamegraphNodesTable() = default;
 HeapGraphObjectTable::~HeapGraphObjectTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
+PackageListTable::~PackageListTable() = default;
 
 // slice_tables.h
 SliceTable::~SliceTable() = default;

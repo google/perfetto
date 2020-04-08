@@ -226,6 +226,8 @@ source_set("storage_full") {
     "importers/proto/android_probes_module.h",
     "importers/proto/android_probes_parser.cc",
     "importers/proto/android_probes_parser.h",
+    "importers/proto/android_probes_tracker.cc",
+    "importers/proto/android_probes_tracker.h",
     "importers/proto/graphics_event_module.cc",
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.cc",
