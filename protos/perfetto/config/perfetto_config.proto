@@ -1024,10 +1024,9 @@ message TraceConfig {
   message BuiltinDataSource {
     // Disable emitting clock timestamps into the trace.
     optional bool disable_clock_snapshotting = 1;
-
     optional bool disable_trace_config = 2;
-
     optional bool disable_system_info = 3;
+    optional bool disable_service_events = 4;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 

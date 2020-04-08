@@ -4590,6 +4590,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_perfetto_cpp_gen",
   srcs: [
     "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+    "protos/perfetto/trace/perfetto/tracing_service_event.proto",
   ],
   tools: [
     "aprotoc",
@@ -4598,6 +4599,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.gen.cc",
+    "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.gen.cc",
   ],
 }
 
@@ -4606,6 +4608,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_perfetto_cpp_gen_headers",
   srcs: [
     "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+    "protos/perfetto/trace/perfetto/tracing_service_event.proto",
   ],
   tools: [
     "aprotoc",
@@ -4614,6 +4617,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.gen.h",
+    "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.gen.h",
   ],
   export_include_dirs: [
     ".",
@@ -4626,6 +4630,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_perfetto_lite_gen",
   srcs: [
     "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+    "protos/perfetto/trace/perfetto/tracing_service_event.proto",
   ],
   tools: [
     "aprotoc",
@@ -4633,6 +4638,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.cc",
+    "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pb.cc",
   ],
 }
 
@@ -4641,6 +4647,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_perfetto_lite_gen_headers",
   srcs: [
     "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+    "protos/perfetto/trace/perfetto/tracing_service_event.proto",
   ],
   tools: [
     "aprotoc",
@@ -4648,6 +4655,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.h",
+    "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pb.h",
   ],
   export_include_dirs: [
     ".",
@@ -4660,6 +4668,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_perfetto_zero_gen",
   srcs: [
     "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+    "protos/perfetto/trace/perfetto/tracing_service_event.proto",
   ],
   tools: [
     "aprotoc",
@@ -4668,6 +4677,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pbzero.cc",
   ],
 }
 
@@ -4676,6 +4686,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
   srcs: [
     "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+    "protos/perfetto/trace/perfetto/tracing_service_event.proto",
   ],
   tools: [
     "aprotoc",
@@ -4684,6 +4695,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h",
   ],
   export_include_dirs: [
     ".",
