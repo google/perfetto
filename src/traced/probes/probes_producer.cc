@@ -34,6 +34,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
+#include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/metatrace/metatrace_data_source.h"
@@ -254,8 +255,8 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateProcessStatsDataSource(
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<ProcessStatsDataSource>(new ProcessStatsDataSource(
-      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
-      config));
+      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id), config,
+      std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo())));
 }
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateAndroidPowerDataSource(
@@ -306,7 +307,8 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateSystemInfoDataSource(
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<ProbesDataSource>(new SystemInfoDataSource(
-      session_id, endpoint_->CreateTraceWriter(buffer_id)));
+      session_id, endpoint_->CreateTraceWriter(buffer_id),
+      std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo())));
 }
 
 void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
