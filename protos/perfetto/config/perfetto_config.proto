@@ -1019,13 +1019,19 @@ message TraceConfig {
   }
   repeated DataSource data_sources = 2;
 
-  // Config for builtin trace packets emitted by perfetto like trace stats,
-  // system info, etc.
+  // Config for disabling builtin data sources in the tracing service.
   message BuiltinDataSource {
     // Disable emitting clock timestamps into the trace.
     optional bool disable_clock_snapshotting = 1;
+
+    // Disable echoing the original trace config in the trace.
     optional bool disable_trace_config = 2;
+
+    // Disable emitting system info (build fingerprint, cpuinfo, etc).
     optional bool disable_system_info = 3;
+
+    // Disable emitting events for data-source state changes (e.g. the marker
+    // for all data sources having ACKed the start of the trace).
     optional bool disable_service_events = 4;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
