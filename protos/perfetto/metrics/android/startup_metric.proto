@@ -80,7 +80,14 @@ message AndroidStartupMetric {
     reserved 13, 14, 15;
   }
 
-  // Next id: 7
+  // Metrics about startup which were developed by looking at experiments using
+  // high-speed cameras (HSC).
+  message HscMetrics {
+    // The duration of the full "startup" as defined by HSC tests.
+    optional Slice full_startup = 1;
+  }
+
+  // Next id: 8
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -104,6 +111,8 @@ message AndroidStartupMetric {
 
     // Details about the process (uid, version, etc)
     optional AndroidProcessMetadata process = 7;
+
+    optional HscMetrics hsc = 8;
   }
 
   repeated Startup startup = 1;
