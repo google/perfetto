@@ -22,9 +22,9 @@ WITH distinct_unmapped_type_names AS (
   FROM (
     SELECT
       upid,
-      RTRIM(REPLACE(type_name, 'java.lang.Class<', ''), '[]>') AS type_name
-    FROM heap_graph_object
-    WHERE deobfuscated_type_name IS NULL
+      RTRIM(REPLACE(c.name, 'java.lang.Class<', ''), '[]>') AS type_name
+    FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE c.deobfuscated_name IS NULL
   )
   WHERE type_name NOT IN ('byte', 'char', 'short', 'int', 'long', 'boolean', 'float', 'double')
   AND type_name NOT LIKE '$Proxy%'
@@ -43,9 +43,10 @@ FROM distinct_unmapped_type_names GROUP BY 1;
 
 CREATE TABLE IF NOT EXISTS fields_per_upid AS
 WITH distinct_unmapped_field_names AS (
-  SELECT DISTINCT upid, field_type_name, field_name
-  FROM heap_graph_object JOIN heap_graph_reference USING (reference_set_id)
-  WHERE deobfuscated_type_name IS NULL
+  SELECT DISTINCT o.upid, field_type_name, field_name
+    FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id
+           JOIN heap_graph_reference USING (reference_set_id)
+  WHERE c.deobfuscated_name IS NULL
   AND field_name NOT LIKE '$Proxy%'
   AND field_name NOT LIKE 'java.%'
   AND field_name NOT LIKE 'javax.%'
