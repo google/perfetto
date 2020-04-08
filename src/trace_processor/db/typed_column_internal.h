@@ -79,8 +79,8 @@ struct Serializer<StringPool::Id> {
     return value ? Serialize(*value) : StringPool::Id::Null();
   }
   static base::Optional<serialized_type> Deserialize(
-      base::Optional<StringPool::Id>) {
-    PERFETTO_FATAL("Should never be storing optional StringPool ids");
+      base::Optional<StringPool::Id> value) {
+    return value;
   }
 };
 
@@ -95,6 +95,12 @@ struct TypeHandler {
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = false;
+
+  template <typename SerializedType>
+  static SerializedType Get(const SparseVector<SerializedType>& sv,
+                            uint32_t idx) {
+    return sv.GetNonNull(idx);
+  }
 
   static bool Equals(T a, T b) {
     // We need to use equal_to here as it could be T == double and because we
@@ -113,6 +119,13 @@ struct TypeHandler<base::Optional<T>> {
 
   static constexpr bool is_optional = true;
   static constexpr bool is_string = false;
+
+  template <typename SerializedType>
+  static base::Optional<SerializedType> Get(
+      const SparseVector<SerializedType>& sv,
+      uint32_t idx) {
+    return sv.Get(idx);
+  }
 
   static bool Equals(base::Optional<T> a, base::Optional<T> b) {
     // We need to use equal_to here as it could be T == double and because we
@@ -137,6 +150,11 @@ struct TypeHandler<StringPool::Id> {
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
 
+  static StringPool::Id Get(const SparseVector<StringPool::Id>& sv,
+                            uint32_t idx) {
+    return sv.GetNonNull(idx);
+  }
+
   static bool Equals(StringPool::Id a, StringPool::Id b) { return a == b; }
 };
 
@@ -146,13 +164,20 @@ struct TypeHandler<base::Optional<StringPool::Id>> {
   // get_type removes the base::Optional since we convert base::nullopt ->
   // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
-  using get_type = StringPool::Id;
+  using get_type = base::Optional<StringPool::Id>;
   using sql_value_type = NullTermStringView;
 
   // is_optional is false again because we always unwrap
   // base::Optional<StringPool::Id> into StringPool::Id.
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
+
+  static base::Optional<StringPool::Id> Get(
+      const SparseVector<StringPool::Id>& sv,
+      uint32_t idx) {
+    StringPool::Id id = sv.GetNonNull(idx);
+    return id.is_null() ? base::nullopt : base::make_optional(id);
+  }
 
   static bool Equals(base::Optional<StringPool::Id> a,
                      base::Optional<StringPool::Id> b) {
