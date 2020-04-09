@@ -31,4 +31,8 @@ message TracingServiceCapabilities {
 
   // The set of known events that can be passed to ConsumerPort.ObserveEvents().
   repeated ObservableEvents.Type observable_events = 2;
+
+  // Whether the service supports TraceConfig.output_path (for asking traced to
+  // create the output file instead of passing a file descriptor).
+  optional bool has_trace_config_output_path = 3;
 }
