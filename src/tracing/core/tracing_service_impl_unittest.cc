@@ -1438,6 +1438,58 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   }
 }
 
+TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
+  auto tmp_file = base::TempFile::Create();
+  // Deletes the file (the service would refuse to overwrite an existing file)
+  // without telling it to the underlying TempFile, so that its dtor will
+  // unlink the file created by the service.
+  unlink(tmp_file.path().c_str());
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  trace_config.set_write_into_file(true);
+  trace_config.set_output_path(tmp_file.path());
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  // Verify the contents of the file.
+  std::string trace_raw;
+  ASSERT_TRUE(base::ReadFile(tmp_file.path(), &trace_raw));
+  protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_raw));
+  // ASSERT_EQ(trace.packet_size(), 33);
+  EXPECT_THAT(trace.packet(),
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload")))));
+}
+
 // Test the logic that allows the trace config to set the shm total size and
 // page size from the trace config. Also check that, if the config doesn't
 // specify a value we fall back on the hint provided by the producer.
