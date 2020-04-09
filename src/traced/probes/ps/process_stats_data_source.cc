@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "protos/perfetto/config/process_stats/process_stats_config.pbzero.h"
@@ -47,6 +48,10 @@
 namespace perfetto {
 
 namespace {
+
+// Default upper bound on the number of thread cpu frequency keys, used if none
+// was provided in the config. The cache is trimmed if it exceeds this size.
+const size_t kThreadTimeInStateCacheSize = 10000;
 
 inline int32_t ParseIntValue(const char* str) {
   int32_t ret = 0;
@@ -93,15 +98,22 @@ ProcessStatsDataSource::ProcessStatsDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer,
-    const DataSourceConfig& ds_config)
+    const DataSourceConfig& ds_config,
+    std::unique_ptr<CpuFreqInfo> cpu_freq_info)
     : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       writer_(std::move(writer)),
+      cpu_freq_info_(std::move(cpu_freq_info)),
       weak_factory_(this) {
   using protos::pbzero::ProcessStatsConfig;
   ProcessStatsConfig::Decoder cfg(ds_config.process_stats_config_raw());
   record_thread_names_ = cfg.record_thread_names();
   dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
+  record_thread_time_in_state_ = cfg.record_thread_time_in_state();
+  thread_time_in_state_cache_size_ = cfg.thread_time_in_state_cache_size();
+  if (thread_time_in_state_cache_size_ == 0)
+    thread_time_in_state_cache_size_ = kThreadTimeInStateCacheSize;
+
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
     if (*quirk == ProcessStatsConfig::DISABLE_ON_DEMAND)
@@ -285,6 +297,12 @@ std::string ProcessStatsDataSource::ReadProcPidFile(int32_t pid,
   return contents;
 }
 
+base::ScopedDir ProcessStatsDataSource::OpenProcTaskDir(int32_t pid) {
+  char task_path[255];
+  sprintf(task_path, "/proc/%d/task", pid);
+  return base::ScopedDir(opendir(task_path));
+}
+
 std::string ProcessStatsDataSource::ReadProcStatusEntry(const std::string& buf,
                                                         const char* key) {
   auto begin = buf.find(key);
@@ -371,6 +389,7 @@ void ProcessStatsDataSource::Tick(
   if (++thiz.cache_ticks_ == thiz.process_stats_cache_ttl_ticks_) {
     thiz.cache_ticks_ = 0;
     thiz.process_stats_cache_.clear();
+    thiz.thread_time_in_state_cache_.clear();
   }
 }
 
@@ -416,6 +435,13 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
       }
     }
 
+    if (record_thread_time_in_state_) {
+      if (auto task_dir = OpenProcTaskDir(pid)) {
+        while (int32_t tid = ReadNextNumericDir(*task_dir))
+          WriteThreadStats(pid, tid);
+      }
+    }
+
     pids.insert(pid);
   }
   FinalizeCurPacket();
@@ -423,6 +449,15 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
   // Ensure that we write once long-term process info (e.g., name) for new pids
   // that we haven't seen before.
   WriteProcessTree(pids);
+
+  // Ensure the cache stays within bounds by erasing some entries.
+  while (thread_time_in_state_cache_.size() >
+         thread_time_in_state_cache_size_) {
+    auto random = thread_time_in_state_cache_.begin();
+    std::advance(random, rand() % static_cast<int32_t>(
+                                      thread_time_in_state_cache_.size()));
+    thread_time_in_state_cache_.erase(random);
+  }
 }
 
 // Returns true if the stats for the given |pid| have been written, false it
@@ -536,6 +571,54 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
   return proc_status_has_mem_counters;
 }
 
+void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
+  // Reads /proc/tid/time_in_state, which looks like:
+  // cpu0
+  // 100 0
+  // 200 5
+  // ...
+  // cpu6
+  // 200 0
+  // 300 70
+  // ...
+  // Pairs of CPU frequency and the number of ticks at that frequency.
+  std::string time_in_state = ReadProcPidFile(tid, "time_in_state");
+  protos::pbzero::ProcessStats_Thread* thread = nullptr;
+  base::StringSplitter entries(std::move(time_in_state), '\n');
+  uint32_t last_cpu = 0;
+  while (entries.Next()) {
+    std::string line(entries.cur_token());
+    if (base::StartsWith(line, "cpu")) {
+      last_cpu = base::StringToUInt32(line.substr(3)).value();
+      continue;
+    }
+    base::StringSplitter key_value(&entries, ' ');
+    if (!key_value.Next())
+      continue;
+    uint32_t freq = ToU32(key_value.cur_token());
+    uint32_t freq_index = cpu_freq_info_->GetCpuFreqIndex(last_cpu, freq);
+    TidCpuFreqIndex key = {tid, freq_index};
+    if (!key_value.Next())
+      continue;
+    auto maybe_ticks = base::CStringToUInt64(key_value.cur_token());
+    if (!maybe_ticks.has_value())
+      continue;
+    uint64_t ticks = maybe_ticks.value();
+    if (ticks == 0)
+      continue;
+    auto& cached_ticks = thread_time_in_state_cache_[key];
+    if (ticks != cached_ticks) {
+      if (thread == nullptr) {
+        thread = GetOrCreateStatsProcess(pid)->add_threads();
+        thread->set_tid(tid);
+      }
+      thread->add_cpu_freq_indices(freq_index);
+      thread->add_cpu_freq_ticks(ticks);
+      cached_ticks = ticks;
+    }
+  }
+}
+
 uint64_t ProcessStatsDataSource::CacheProcFsScanStartTimestamp() {
   if (!cur_procfs_scan_start_timestamp_)
     cur_procfs_scan_start_timestamp_ =
@@ -550,6 +633,7 @@ void ProcessStatsDataSource::ClearIncrementalState() {
 
   cache_ticks_ = 0;
   process_stats_cache_.clear();
+  thread_time_in_state_cache_.clear();
 
   // Set the relevant flag in the next packet.
   did_clear_incremental_state_ = true;

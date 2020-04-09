@@ -11,64 +11,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Begin of protos/perfetto/common/android_log_constants.proto
-
-// Values from NDK's android/log.h.
-enum AndroidLogId {
-  LID_DEFAULT = 0;  // MAIN.
-  LID_RADIO = 1;
-  LID_EVENTS = 2;
-  LID_SYSTEM = 3;
-  LID_CRASH = 4;
-  LID_STATS = 5;
-  LID_SECURITY = 6;
-  LID_KERNEL = 7;
-}
-
-enum AndroidLogPriority {
-  PRIO_UNSPECIFIED = 0;
-  PRIO_UNUSED = 1;  // _DEFAULT, but should never be seen in logs.
-  PRIO_VERBOSE = 2;
-  PRIO_DEBUG = 3;
-  PRIO_INFO = 4;
-  PRIO_WARN = 5;
-  PRIO_ERROR = 6;
-  PRIO_FATAL = 7;
-}
-
-// End of protos/perfetto/common/android_log_constants.proto
-
-// Begin of protos/perfetto/common/data_source_descriptor.proto
-
-// This message is sent from Producer(s) to the tracing Service when registering
-// to advertise their capabilities. It describes the structure of tracing
-// protos that will be produced by the data source and the supported filters.
-message DataSourceDescriptor {
-  optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
-
-  // When true the data source is expected to ack the stop request through the
-  // NotifyDataSourceStopped() IPC. This field has been introduced after
-  // Android P in Jul 2018 and is not supported on older versions.
-  optional bool will_notify_on_stop = 2;
-
-  // When true the data source is expected to ack the start request through the
-  // NotifyDataSourceStarted() IPC. This field has been introduced after
-  // Android P in March 2019 and is not supported on older versions.
-  optional bool will_notify_on_start = 3;
-
-  // If true, opt into receiving the ClearIncrementalState() IPC. This should be
-  // set if the data source writes packets that refer to previous trace
-  // contents, and knows how to stop referring to the already-emitted data.
-  optional bool handles_incremental_state_clear = 4;
-
-  // Optional specification about available GPU counters.
-  optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
-
-  optional TrackEventDescriptor track_event_descriptor = 6 [lazy = true];
-}
-
-// End of protos/perfetto/common/data_source_descriptor.proto
-
 // Begin of protos/perfetto/common/gpu_counter_descriptor.proto
 
 // Description of GPU counters.
@@ -178,334 +120,6 @@ message GpuCounterDescriptor {
 
 // End of protos/perfetto/common/gpu_counter_descriptor.proto
 
-// Begin of protos/perfetto/common/sys_stats_counters.proto
-
-// When editing entries here remember also to update "sys_stats_counters.h" with
-// the corresponding string definitions for the actual /proc files parser.
-
-// Counter definitions for Linux's /proc/meminfo.
-enum MeminfoCounters {
-  MEMINFO_UNSPECIFIED = 0;
-  MEMINFO_MEM_TOTAL = 1;
-  MEMINFO_MEM_FREE = 2;
-  MEMINFO_MEM_AVAILABLE = 3;
-  MEMINFO_BUFFERS = 4;
-  MEMINFO_CACHED = 5;
-  MEMINFO_SWAP_CACHED = 6;
-  MEMINFO_ACTIVE = 7;
-  MEMINFO_INACTIVE = 8;
-  MEMINFO_ACTIVE_ANON = 9;
-  MEMINFO_INACTIVE_ANON = 10;
-  MEMINFO_ACTIVE_FILE = 11;
-  MEMINFO_INACTIVE_FILE = 12;
-  MEMINFO_UNEVICTABLE = 13;
-  MEMINFO_MLOCKED = 14;
-  MEMINFO_SWAP_TOTAL = 15;
-  MEMINFO_SWAP_FREE = 16;
-  MEMINFO_DIRTY = 17;
-  MEMINFO_WRITEBACK = 18;
-  MEMINFO_ANON_PAGES = 19;
-  MEMINFO_MAPPED = 20;
-  MEMINFO_SHMEM = 21;
-  MEMINFO_SLAB = 22;
-  MEMINFO_SLAB_RECLAIMABLE = 23;
-  MEMINFO_SLAB_UNRECLAIMABLE = 24;
-  MEMINFO_KERNEL_STACK = 25;
-  MEMINFO_PAGE_TABLES = 26;
-  MEMINFO_COMMIT_LIMIT = 27;
-  MEMINFO_COMMITED_AS = 28;
-  MEMINFO_VMALLOC_TOTAL = 29;
-  MEMINFO_VMALLOC_USED = 30;
-  MEMINFO_VMALLOC_CHUNK = 31;
-  MEMINFO_CMA_TOTAL = 32;
-  MEMINFO_CMA_FREE = 33;
-}
-
-// Counter definitions for Linux's /proc/vmstat.
-enum VmstatCounters {
-  VMSTAT_UNSPECIFIED = 0;
-  VMSTAT_NR_FREE_PAGES = 1;
-  VMSTAT_NR_ALLOC_BATCH = 2;
-  VMSTAT_NR_INACTIVE_ANON = 3;
-  VMSTAT_NR_ACTIVE_ANON = 4;
-  VMSTAT_NR_INACTIVE_FILE = 5;
-  VMSTAT_NR_ACTIVE_FILE = 6;
-  VMSTAT_NR_UNEVICTABLE = 7;
-  VMSTAT_NR_MLOCK = 8;
-  VMSTAT_NR_ANON_PAGES = 9;
-  VMSTAT_NR_MAPPED = 10;
-  VMSTAT_NR_FILE_PAGES = 11;
-  VMSTAT_NR_DIRTY = 12;
-  VMSTAT_NR_WRITEBACK = 13;
-  VMSTAT_NR_SLAB_RECLAIMABLE = 14;
-  VMSTAT_NR_SLAB_UNRECLAIMABLE = 15;
-  VMSTAT_NR_PAGE_TABLE_PAGES = 16;
-  VMSTAT_NR_KERNEL_STACK = 17;
-  VMSTAT_NR_OVERHEAD = 18;
-  VMSTAT_NR_UNSTABLE = 19;
-  VMSTAT_NR_BOUNCE = 20;
-  VMSTAT_NR_VMSCAN_WRITE = 21;
-  VMSTAT_NR_VMSCAN_IMMEDIATE_RECLAIM = 22;
-  VMSTAT_NR_WRITEBACK_TEMP = 23;
-  VMSTAT_NR_ISOLATED_ANON = 24;
-  VMSTAT_NR_ISOLATED_FILE = 25;
-  VMSTAT_NR_SHMEM = 26;
-  VMSTAT_NR_DIRTIED = 27;
-  VMSTAT_NR_WRITTEN = 28;
-  VMSTAT_NR_PAGES_SCANNED = 29;
-  VMSTAT_WORKINGSET_REFAULT = 30;
-  VMSTAT_WORKINGSET_ACTIVATE = 31;
-  VMSTAT_WORKINGSET_NODERECLAIM = 32;
-  VMSTAT_NR_ANON_TRANSPARENT_HUGEPAGES = 33;
-  VMSTAT_NR_FREE_CMA = 34;
-  VMSTAT_NR_SWAPCACHE = 35;
-  VMSTAT_NR_DIRTY_THRESHOLD = 36;
-  VMSTAT_NR_DIRTY_BACKGROUND_THRESHOLD = 37;
-  VMSTAT_PGPGIN = 38;
-  VMSTAT_PGPGOUT = 39;
-  VMSTAT_PGPGOUTCLEAN = 40;
-  VMSTAT_PSWPIN = 41;
-  VMSTAT_PSWPOUT = 42;
-  VMSTAT_PGALLOC_DMA = 43;
-  VMSTAT_PGALLOC_NORMAL = 44;
-  VMSTAT_PGALLOC_MOVABLE = 45;
-  VMSTAT_PGFREE = 46;
-  VMSTAT_PGACTIVATE = 47;
-  VMSTAT_PGDEACTIVATE = 48;
-  VMSTAT_PGFAULT = 49;
-  VMSTAT_PGMAJFAULT = 50;
-  VMSTAT_PGREFILL_DMA = 51;
-  VMSTAT_PGREFILL_NORMAL = 52;
-  VMSTAT_PGREFILL_MOVABLE = 53;
-  VMSTAT_PGSTEAL_KSWAPD_DMA = 54;
-  VMSTAT_PGSTEAL_KSWAPD_NORMAL = 55;
-  VMSTAT_PGSTEAL_KSWAPD_MOVABLE = 56;
-  VMSTAT_PGSTEAL_DIRECT_DMA = 57;
-  VMSTAT_PGSTEAL_DIRECT_NORMAL = 58;
-  VMSTAT_PGSTEAL_DIRECT_MOVABLE = 59;
-  VMSTAT_PGSCAN_KSWAPD_DMA = 60;
-  VMSTAT_PGSCAN_KSWAPD_NORMAL = 61;
-  VMSTAT_PGSCAN_KSWAPD_MOVABLE = 62;
-  VMSTAT_PGSCAN_DIRECT_DMA = 63;
-  VMSTAT_PGSCAN_DIRECT_NORMAL = 64;
-  VMSTAT_PGSCAN_DIRECT_MOVABLE = 65;
-  VMSTAT_PGSCAN_DIRECT_THROTTLE = 66;
-  VMSTAT_PGINODESTEAL = 67;
-  VMSTAT_SLABS_SCANNED = 68;
-  VMSTAT_KSWAPD_INODESTEAL = 69;
-  VMSTAT_KSWAPD_LOW_WMARK_HIT_QUICKLY = 70;
-  VMSTAT_KSWAPD_HIGH_WMARK_HIT_QUICKLY = 71;
-  VMSTAT_PAGEOUTRUN = 72;
-  VMSTAT_ALLOCSTALL = 73;
-  VMSTAT_PGROTATED = 74;
-  VMSTAT_DROP_PAGECACHE = 75;
-  VMSTAT_DROP_SLAB = 76;
-  VMSTAT_PGMIGRATE_SUCCESS = 77;
-  VMSTAT_PGMIGRATE_FAIL = 78;
-  VMSTAT_COMPACT_MIGRATE_SCANNED = 79;
-  VMSTAT_COMPACT_FREE_SCANNED = 80;
-  VMSTAT_COMPACT_ISOLATED = 81;
-  VMSTAT_COMPACT_STALL = 82;
-  VMSTAT_COMPACT_FAIL = 83;
-  VMSTAT_COMPACT_SUCCESS = 84;
-  VMSTAT_COMPACT_DAEMON_WAKE = 85;
-  VMSTAT_UNEVICTABLE_PGS_CULLED = 86;
-  VMSTAT_UNEVICTABLE_PGS_SCANNED = 87;
-  VMSTAT_UNEVICTABLE_PGS_RESCUED = 88;
-  VMSTAT_UNEVICTABLE_PGS_MLOCKED = 89;
-  VMSTAT_UNEVICTABLE_PGS_MUNLOCKED = 90;
-  VMSTAT_UNEVICTABLE_PGS_CLEARED = 91;
-  VMSTAT_UNEVICTABLE_PGS_STRANDED = 92;
-  VMSTAT_NR_ZSPAGES = 93;
-  VMSTAT_NR_ION_HEAP = 94;
-  VMSTAT_NR_GPU_HEAP = 95;
-}
-// End of protos/perfetto/common/sys_stats_counters.proto
-
-// Begin of protos/perfetto/common/trace_stats.proto
-
-// Statistics for the internals of the tracing service.
-//
-// Next id: 11.
-message TraceStats {
-  // From TraceBuffer::Stats.
-  //
-  // Next id: 20.
-  message BufferStats {
-    // Size of the circular buffer in bytes.
-    optional uint64 buffer_size = 12;
-
-    // Num. bytes written into the circular buffer, including chunk headers.
-    optional uint64 bytes_written = 1;
-
-    // Num. bytes overwritten before they have been read (i.e. loss of data).
-    optional uint64 bytes_overwritten = 13;
-
-    // Total size of chunks that were fully read from the circular buffer by the
-    // consumer. This may not be equal to |bytes_written| either in the middle
-    // of tracing, or if |chunks_overwritten| is non-zero. Note that this is the
-    // size of the chunks read from the buffer, including chunk headers, which
-    // will be different from the total size of packets returned to the
-    // consumer.
-    //
-    // The current utilization of the trace buffer (mid-tracing) can be obtained
-    // by subtracting |bytes_read| and |bytes_overwritten| from |bytes_written|,
-    // adding the difference of |padding_bytes_written| and
-    // |padding_bytes_cleared|, and comparing this sum to the |buffer_size|.
-    // Note that this represents the total size of buffered data in the buffer,
-    // yet this data may be spread non-contiguously through the buffer and may
-    // be overridden before the utilization reaches 100%.
-    optional uint64 bytes_read = 14;
-
-    // Num. bytes that were allocated as padding between chunks in the circular
-    // buffer.
-    optional uint64 padding_bytes_written = 15;
-
-    // Num. of padding bytes that were removed from the circular buffer when
-    // they were overwritten.
-    //
-    // The difference between |padding_bytes_written| and
-    // |padding_bytes_cleared| denotes the total size of padding currently
-    // present in the buffer.
-    optional uint64 padding_bytes_cleared = 16;
-
-    // Num. chunks (!= packets) written into the buffer.
-    optional uint64 chunks_written = 2;
-
-    // Num. chunks (!= packets) rewritten into the buffer. This means we rewrote
-    // the same chunk with additional packets appended to the end.
-    optional uint64 chunks_rewritten = 10;
-
-    // Num. chunks overwritten before they have been read (i.e. loss of data).
-    optional uint64 chunks_overwritten = 3;
-
-    // Num. chunks discarded (i.e. loss of data). Can be > 0 only when a buffer
-    // is configured with FillPolicy == DISCARD.
-    optional uint64 chunks_discarded = 18;
-
-    // Num. chunks (!= packets) that were fully read from the circular buffer by
-    // the consumer. This may not be equal to |chunks_written| either in the
-    // middle of tracing, or if |chunks_overwritten| is non-zero.
-    optional uint64 chunks_read = 17;
-
-    // Num. chunks that were committed out of order.
-    optional uint64 chunks_committed_out_of_order = 11;
-
-    // Num. times the ring buffer wrapped around.
-    optional uint64 write_wrap_count = 4;
-
-    // Num. out-of-band (OOB) patches that succeeded.
-    optional uint64 patches_succeeded = 5;
-
-    // Num. OOB patches that failed (e.g., the chunk to patch was gone).
-    optional uint64 patches_failed = 6;
-
-    // Num. readaheads (for large multi-chunk packet reads) that ended up in a
-    // successful packet read.
-    optional uint64 readaheads_succeeded = 7;
-
-    // Num. readaheads aborted because of missing chunks in the sequence stream.
-    // Note that a small number > 0 is totally expected: occasionally, when
-    // issuing a read, the very last packet in a sequence might be incomplete
-    // (because the producer is still writing it while we read). The read will
-    // stop at that point, for that sequence, increasing this counter.
-    optional uint64 readaheads_failed = 8;
-
-    // Num. of violations of the SharedMemoryABI found while writing or reading
-    // the buffer. This is an indication of either a bug in the producer(s) or
-    // malicious producer(s).
-    optional uint64 abi_violations = 9;
-
-    // The fields below have been introduced in Android R.
-
-    // Num. of times the service detected packet loss on a trace writer
-    // sequence. This is usually caused by exhaustion of available chunks in the
-    // writer process's SMB. Note that this relies on the client's TraceWriter
-    // indicating this loss to the service -- packets lost for other reasons are
-    // not reflected in this stat.
-    optional uint64 trace_writer_packet_loss = 19;
-  }
-
-  // Stats for the TraceBuffer(s) of the current trace session.
-  repeated BufferStats buffer_stats = 1;
-
-  // Num. producers connected (whether they are involved in the current tracing
-  // session or not).
-  optional uint32 producers_connected = 2;
-
-  // Num. producers ever seen for all trace sessions since startup (it's a good
-  // proxy for inferring num. producers crashed / killed).
-  optional uint64 producers_seen = 3;
-
-  // Num. data sources registered for all trace sessions.
-  optional uint32 data_sources_registered = 4;
-
-  // Num. data sources ever seen for all trace sessions since startup.
-  optional uint64 data_sources_seen = 5;
-
-  // Num. concurrently active tracing sessions.
-  optional uint32 tracing_sessions = 6;
-
-  // Num. buffers for all tracing session (not just the current one). This will
-  // be >= buffer_stats.size(), because the latter is only about the current
-  // session.
-  optional uint32 total_buffers = 7;
-
-  // The fields below have been introduced in Android Q.
-
-  // Num. chunks that were discarded by the service before attempting to commit
-  // them to a buffer, e.g. because the producer specified an invalid buffer ID.
-  optional uint64 chunks_discarded = 8;
-
-  // Num. patches that were discarded by the service before attempting to apply
-  // them to a buffer, e.g. because the producer specified an invalid buffer ID.
-  optional uint64 patches_discarded = 9;
-
-  // Packets that failed validation of the TrustedPacket. If this is > 0, there
-  // is a bug in the producer.
-  optional uint64 invalid_packets = 10;
-}
-
-// End of protos/perfetto/common/trace_stats.proto
-
-// Begin of protos/perfetto/common/tracing_service_state.proto
-
-// Reports the state of the tracing service. Used to gather details about the
-// data sources connected.
-// See ConsumerPort::QueryServiceState().
-message TracingServiceState {
-  // Describes a producer process.
-  message Producer {
-    optional int32 id = 1;     // Unique ID of the producer (monotonic counter).
-    optional string name = 2;  // Typically matches the process name.
-    optional int32 uid = 3;    // Unix uid of the remote process.
-  }
-
-  // Describes a data source registered by a producer. Data sources are listed
-  // regardless of the fact that they are being used or not.
-  message DataSource {
-    // Descriptor passed by the data source when calling RegisterDataSource().
-    optional DataSourceDescriptor ds_descriptor = 1;
-
-    // ID of the producer, as per Producer.id.
-    optional int32 producer_id = 2;
-  }
-
-  // Lists all the producers connected.
-  repeated Producer producers = 1;
-
-  // Lists the data sources available.
-  repeated DataSource data_sources = 2;
-
-  // Total number of tracing sessions.
-  optional int32 num_sessions = 3;
-
-  // Number of tracing sessions in the started state. Always <= num_sessions.
-  optional int32 num_sessions_started = 4;
-}
-
-// End of protos/perfetto/common/tracing_service_state.proto
-
 // Begin of protos/perfetto/common/track_event_descriptor.proto
 
 message TrackEventCategory {
@@ -519,6 +133,64 @@ message TrackEventDescriptor {
 }
 
 // End of protos/perfetto/common/track_event_descriptor.proto
+
+// Begin of protos/perfetto/common/data_source_descriptor.proto
+
+// This message is sent from Producer(s) to the tracing Service when registering
+// to advertise their capabilities. It describes the structure of tracing
+// protos that will be produced by the data source and the supported filters.
+message DataSourceDescriptor {
+  optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
+
+  // When true the data source is expected to ack the stop request through the
+  // NotifyDataSourceStopped() IPC. This field has been introduced after
+  // Android P in Jul 2018 and is not supported on older versions.
+  optional bool will_notify_on_stop = 2;
+
+  // When true the data source is expected to ack the start request through the
+  // NotifyDataSourceStarted() IPC. This field has been introduced after
+  // Android P in March 2019 and is not supported on older versions.
+  optional bool will_notify_on_start = 3;
+
+  // If true, opt into receiving the ClearIncrementalState() IPC. This should be
+  // set if the data source writes packets that refer to previous trace
+  // contents, and knows how to stop referring to the already-emitted data.
+  optional bool handles_incremental_state_clear = 4;
+
+  // Optional specification about available GPU counters.
+  optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
+
+  optional TrackEventDescriptor track_event_descriptor = 6 [lazy = true];
+}
+
+// End of protos/perfetto/common/data_source_descriptor.proto
+
+// Begin of protos/perfetto/common/android_log_constants.proto
+
+// Values from NDK's android/log.h.
+enum AndroidLogId {
+  LID_DEFAULT = 0;  // MAIN.
+  LID_RADIO = 1;
+  LID_EVENTS = 2;
+  LID_SYSTEM = 3;
+  LID_CRASH = 4;
+  LID_STATS = 5;
+  LID_SECURITY = 6;
+  LID_KERNEL = 7;
+}
+
+enum AndroidLogPriority {
+  PRIO_UNSPECIFIED = 0;
+  PRIO_UNUSED = 1;  // _DEFAULT, but should never be seen in logs.
+  PRIO_VERBOSE = 2;
+  PRIO_DEBUG = 3;
+  PRIO_INFO = 4;
+  PRIO_WARN = 5;
+  PRIO_ERROR = 6;
+  PRIO_FATAL = 7;
+}
+
+// End of protos/perfetto/common/android_log_constants.proto
 
 // Begin of protos/perfetto/config/android/android_log_config.proto
 
@@ -537,6 +209,18 @@ message AndroidLogConfig {
 
 // End of protos/perfetto/config/android/android_log_config.proto
 
+// Begin of protos/perfetto/config/android/packages_list_config.proto
+
+// Data source that lists details (such as version code) about packages on an
+// Android device.
+message PackagesListConfig {
+  // If not empty, emit info about only the following list of package names
+  // (exact match, no regex). Otherwise, emit info about all packages.
+  repeated string package_name_filter = 1;
+}
+
+// End of protos/perfetto/config/android/packages_list_config.proto
+
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
 message ChromeConfig {
@@ -548,101 +232,6 @@ message ChromeConfig {
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
-
-// Begin of protos/perfetto/config/data_source_config.proto
-
-// The configuration that is passed to each data source when starting tracing.
-message DataSourceConfig {
-  // Data source unique name, e.g., "linux.ftrace". This must match
-  // the name passed by the data source when it registers (see
-  // RegisterDataSource()).
-  optional string name = 1;
-
-  // The index of the logging buffer where TracePacket(s) will be stored.
-  // This field doesn't make a major difference for the Producer(s). The final
-  // logging buffers, in fact, are completely owned by the Service. We just ask
-  // the Producer to copy this number into the chunk headers it emits, so that
-  // the Service can quickly identify the buffer where to move the chunks into
-  // without expensive lookups on its fastpath.
-  optional uint32 target_buffer = 2;
-
-  // Set by the service to indicate the duration of the trace.
-  // DO NOT SET in consumer as this will be overridden by the service.
-  optional uint32 trace_duration_ms = 3;
-
-  // Set by the service to indicate how long it waits after StopDataSource.
-  // DO NOT SET in consumer as this will be overridden by the service.
-  optional uint32 stop_timeout_ms = 7;
-
-  // Set by the service to indicate whether this tracing session has extra
-  // guardrails.
-  // DO NOT SET in consumer as this will be overridden by the service.
-  optional bool enable_extra_guardrails = 6;
-
-  // Set by the service to indicate which tracing session the data source
-  // belongs to. The intended use case for this is checking if two data sources,
-  // one of which produces metadata for the other one, belong to the same trace
-  // session and hence should be linked together.
-  // This field was introduced in Aug 2018 after Android P.
-  optional uint64 tracing_session_id = 4;
-
-  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
-
-  // All data source config fields must be marked as [lazy=true]. This prevents
-  // the proto-to-cpp generator from recursing into those when generating the
-  // cpp classes and polluting tracing/core with data-source-specific classes.
-  // Instead they are treated as opaque strings containing raw proto bytes.
-
-  // Data source name: linux.ftrace
-  optional FtraceConfig ftrace_config = 100 [lazy = true];
-  // Data source name: linux.inode_file_map
-  optional InodeFileConfig inode_file_config = 102 [lazy = true];
-  // Data source name: linux.process_stats
-  optional ProcessStatsConfig process_stats_config = 103 [lazy = true];
-  // Data source name: linux.sys_stats
-  optional SysStatsConfig sys_stats_config = 104 [lazy = true];
-  // Data source name: android.heapprofd
-  optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
-  // Data source name: android.java_hprof
-  optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
-  // Data source name: android.power
-  optional AndroidPowerConfig android_power_config = 106 [lazy = true];
-  // Data source name: android.log
-  optional AndroidLogConfig android_log_config = 107 [lazy = true];
-  // TODO(fmayer): Add data source name for this.
-  optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
-  // Data source name: android.packages_list
-  optional PackagesListConfig packages_list_config = 109 [lazy = true];
-  // Data source name: linux.perf
-  optional PerfEventConfig perf_event_config = 111 [lazy = true];
-  // Data source name: vulkan.memory_tracker
-  optional VulkanMemoryConfig vulkan_memory_config = 112 [lazy = true];
-  // Data source name: track_event
-  optional TrackEventConfig track_event_config = 113 [lazy = true];
-
-  // Chrome is special as it doesn't use the perfetto IPC layer. We want to
-  // avoid proto serialization and de-serialization there because that would
-  // just add extra hops on top of the Mojo ser/des. Instead we auto-generate a
-  // C++ class for it so it can pass around plain C++ objets.
-  optional ChromeConfig chrome_config = 101;
-
-  // This is a fallback mechanism to send a free-form text config to the
-  // producer. In theory this should never be needed. All the code that
-  // is part of the platform (i.e. traced service) is supposed to *not* truncate
-  // the trace config proto and propagate unknown fields. However, if anything
-  // in the pipeline (client or backend) ends up breaking this forward compat
-  // plan, this field will become the escape hatch to allow future data sources
-  // to get some meaningful configuration.
-  optional string legacy_config = 1000;
-
-  // This field is only used for testing.
-  optional TestConfig for_testing = 1001;
-
-  reserved 268435455;  // Was |for_testing|. Caused more problems then found.
-}
-
-// End of protos/perfetto/config/data_source_config.proto
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
@@ -666,6 +255,37 @@ message FtraceConfig {
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
+
+// Begin of protos/perfetto/config/gpu/gpu_counter_config.proto
+
+message GpuCounterConfig {
+  // Desired sampling interval for counters.
+  optional uint64 counter_period_ns = 1;
+
+  // List of counters to be sampled. Counter IDs correspond to the ones
+  // described in GpuCounterSpec in the data source descriptor.
+  repeated uint32 counter_ids = 2;
+
+  // Sample counters by instrumenting command buffers.
+  optional bool instrumented_sampling = 3;
+
+  // Fix gpu clock rate during trace session.
+  optional bool fix_gpu_clock = 4;
+}
+
+// End of protos/perfetto/config/gpu/gpu_counter_config.proto
+
+// Begin of protos/perfetto/config/gpu/vulkan_memory_config.proto
+
+message VulkanMemoryConfig {
+  // Tracking driver memory usage events
+  optional bool track_driver_memory_usage = 1;
+
+  // Tracking device memory usage events
+  optional bool track_device_memory_usage = 2;
+}
+
+// End of protos/perfetto/config/gpu/vulkan_memory_config.proto
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
@@ -757,442 +377,16 @@ message ProcessStatsConfig {
   // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
   // multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
+
+  // Whether to record /proc/tid/time_in_state.
+  optional bool record_thread_time_in_state = 7;
+
+  // Size of the cache for thread time_in_state cpu freq values.
+  // If not specificed, the default is used.
+  optional uint32 thread_time_in_state_cache_size = 8;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
-
-// Begin of protos/perfetto/config/sys_stats/sys_stats_config.proto
-
-// This file defines the configuration for the Linux /proc poller data source,
-// which injects counters in the trace.
-// Counters that are needed in the trace must be explicitly listed in the
-// *_counters fields. This is to avoid spamming the trace with all counters
-// at all times.
-// The sampling rate is configurable. All polling rates (*_period_ms) need
-// to be integer multiples of each other.
-// OK:     [10ms, 10ms, 10ms],  [10ms, 20ms, 10ms],  [10ms, 20ms, 60ms]
-// Not OK: [10ms, 10ms, 11ms],  [10ms, 15ms, 20ms]
-message SysStatsConfig {
-  // Polls /proc/meminfo every X ms, if non-zero.
-  // This is required to be > 10ms to avoid excessive CPU usage.
-  // Cost: 0.3 ms [read] + 0.07 ms [parse + trace injection]
-  optional uint32 meminfo_period_ms = 1;
-
-  // If empty all known counters are reported. Otherwise, only the counters
-  // specified below are reported.
-  repeated MeminfoCounters meminfo_counters = 2;
-
-  // Polls /proc/vmstat every X ms, if non-zero.
-  // This is required to be > 10ms to avoid excessive CPU usage.
-  // Cost: 0.2 ms [read] + 0.3 ms [parse + trace injection]
-  optional uint32 vmstat_period_ms = 3;
-  repeated VmstatCounters vmstat_counters = 4;
-
-  // Pols /proc/stat every X ms, if non-zero.
-  // This is required to be > 10ms to avoid excessive CPU usage.
-  // Cost: 4.1 ms [read] + 1.9 ms [parse + trace injection]
-  optional uint32 stat_period_ms = 5;
-  enum StatCounters {
-    STAT_UNSPECIFIED = 0;
-    STAT_CPU_TIMES = 1;
-    STAT_IRQ_COUNTS = 2;
-    STAT_SOFTIRQ_COUNTS = 3;
-    STAT_FORK_COUNT = 4;
-  }
-  repeated StatCounters stat_counters = 6;
-}
-
-// End of protos/perfetto/config/sys_stats/sys_stats_config.proto
-
-// Begin of protos/perfetto/config/test_config.proto
-
-// The configuration for a fake producer used in tests.
-message TestConfig {
-  message DummyFields {
-    optional uint32 field_uint32 = 1;
-    optional int32 field_int32 = 2;
-    optional uint64 field_uint64 = 3;
-    optional int64 field_int64 = 4;
-    optional fixed64 field_fixed64 = 5;
-    optional sfixed64 field_sfixed64 = 6;
-    optional fixed32 field_fixed32 = 7;
-    optional sfixed32 field_sfixed32 = 8;
-    optional double field_double = 9;
-    optional float field_float = 10;
-    optional sint64 field_sint64 = 11;
-    optional sint32 field_sint32 = 12;
-    optional string field_string = 13;
-    optional bytes field_bytes = 14;
-  }
-
-  // The number of messages the fake producer should send.
-  optional uint32 message_count = 1;
-
-  // The maximum number of messages which should be sent each second.
-  // The actual obserced speed may be lower if the producer is unable to
-  // work fast enough.
-  // If this is zero or unset, the producer will send as fast as possible.
-  optional uint32 max_messages_per_second = 2;
-
-  // The seed value for a simple multiplicative congruential pseudo-random
-  // number sequence.
-  optional uint32 seed = 3;
-
-  // The size of each message in bytes. Should be greater than or equal 5 to
-  // account for the number of bytes needed to encode the random number and a
-  // null byte for the string.
-  optional uint32 message_size = 4;
-
-  // Whether the producer should send a event batch when the data source is
-  // is initially registered.
-  optional bool send_batch_on_register = 5;
-
-  optional DummyFields dummy_fields = 6;
-}
-
-// End of protos/perfetto/config/test_config.proto
-
-// Begin of protos/perfetto/config/trace_config.proto
-
-// The overall config that is used when starting a new tracing session through
-// ProducerPort::StartTracing().
-// It contains the general config for the logging buffer(s) and the configs for
-// all the data source being enabled.
-//
-// Next id: 29.
-message TraceConfig {
-  message BufferConfig {
-    optional uint32 size_kb = 1;
-
-    reserved 2;  // |page_size|, now deprecated.
-    reserved 3;  // |optimize_for|, now deprecated.
-
-    enum FillPolicy {
-      UNSPECIFIED = 0;
-
-      // Default behavior. The buffer operates as a conventional ring buffer.
-      // If the writer is faster than the reader (or if the reader reads only
-      // after tracing is stopped) newly written packets will overwrite old
-      // packets.
-      RING_BUFFER = 1;
-
-      // Behaves like RING_BUFFER as long as there is space in the buffer or
-      // the reader catches up with the writer. As soon as the writer hits
-      // an unread chunk, it stops accepting new data in the buffer.
-      DISCARD = 2;
-    }
-    optional FillPolicy fill_policy = 4;
-  }
-  repeated BufferConfig buffers = 1;
-
-  message DataSource {
-    // Filters and data-source specific config. It contains also the unique name
-    // of the data source, the one passed in the  DataSourceDescriptor when they
-    // register on the service.
-    optional protos.DataSourceConfig config = 1;
-
-    // Optional. If multiple producers (~processes) expose the same data source
-    // and either |producer_name_filter| or |producer_name_regex_filter| is set,
-    // the data source is enabled only for producers whose names match any of
-    // the filters.
-    // |producer_name_filter| has to be an exact match, while
-    // |producer_name_regex_filter| is a regular expression.
-    // This allows to enable a data source only for specific processes.
-    // The "repeated" fields have OR semantics: specifying a filter ["foo",
-    // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
-    repeated string producer_name_filter = 2;
-    repeated string producer_name_regex_filter = 3;
-  }
-  repeated DataSource data_sources = 2;
-
-  // Config for builtin trace packets emitted by perfetto like trace stats,
-  // system info, etc.
-  message BuiltinDataSource {
-    // Disable emitting clock timestamps into the trace.
-    optional bool disable_clock_snapshotting = 1;
-
-    optional bool disable_trace_config = 2;
-
-    optional bool disable_system_info = 3;
-  }
-  optional BuiltinDataSource builtin_data_sources = 20;
-
-  // If specified, the trace will be stopped |duration_ms| after starting.
-  // This does *not* count the time the system is suspended, so we will run
-  // for duration_ms of system activity, not wall time.
-  //
-  // However in case of traces with triggers, see
-  // TriggerConfig.trigger_timeout_ms instead.
-  optional uint32 duration_ms = 3;
-
-  // This is set when --dropbox is passed to the Perfetto command line client
-  // and enables guardrails that limit resource usage for traces requested
-  // by statsd.
-  optional bool enable_extra_guardrails = 4;
-
-  enum LockdownModeOperation {
-    LOCKDOWN_UNCHANGED = 0;
-    LOCKDOWN_CLEAR = 1;
-    LOCKDOWN_SET = 2;
-  }
-  // Reject producers that are not running under the same UID as the tracing
-  // service.
-  optional LockdownModeOperation lockdown_mode = 5;
-
-  message ProducerConfig {
-    // Identifies the producer for which this config is for.
-    optional string producer_name = 1;
-
-    // Specifies the preferred size of the shared memory buffer. If the size is
-    // larger than the max size, the max will be used. If it is smaller than
-    // the page size or doesn't fit pages evenly into it, it will fall back to
-    // the size specified by the producer or finally the default shared memory
-    // size.
-    optional uint32 shm_size_kb = 2;
-
-    // Specifies the preferred size of each page in the shared memory buffer.
-    // Must be an integer multiple of 4K.
-    optional uint32 page_size_kb = 3;
-  }
-
-  repeated ProducerConfig producers = 6;
-
-  // Contains statsd-specific metadata about an alert associated with the trace.
-  message StatsdMetadata {
-    // The identifier of the alert which triggered this trace.
-    optional int64 triggering_alert_id = 1;
-    // The uid which registered the triggering configuration with statsd.
-    optional int32 triggering_config_uid = 2;
-    // The identifier of the config which triggered the alert.
-    optional int64 triggering_config_id = 3;
-    // The identifier of the subscription which triggered this trace.
-    optional int64 triggering_subscription_id = 4;
-  }
-
-  // Statsd-specific metadata.
-  optional StatsdMetadata statsd_metadata = 7;
-
-  // When true, the EnableTracing() request must also provide a file descriptor.
-  // The service will then periodically read packets out of the trace buffer and
-  // store it into the passed file.
-  optional bool write_into_file = 8;
-
-  // Optional. If non-zero tunes the write period. A min value of 100ms is
-  // enforced (i.e. smaller values are ignored).
-  optional uint32 file_write_period_ms = 9;
-
-  // Optional. When non zero the periodic write stops once at most X bytes
-  // have been written into the file. Tracing is disabled when this limit is
-  // reached, even if |duration_ms| has not been reached yet.
-  optional uint64 max_file_size_bytes = 10;
-
-  // Contains flags which override the default values of the guardrails inside
-  // Perfetto. These values are only affect userdebug builds.
-  message GuardrailOverrides {
-    // Override the default limit (in bytes) for uploading data to server within
-    // a 24 hour period.
-    optional uint64 max_upload_per_day_bytes = 1;
-  }
-
-  optional GuardrailOverrides guardrail_overrides = 11;
-
-  // When true, data sources are not started until an explicit call to
-  // StartTracing() on the consumer port. This is to support early
-  // initialization and fast trace triggering. This can be used only when the
-  // Consumer explicitly triggers the StartTracing() method.
-  // This should not be used in a remote trace config via statsd, doing so will
-  // result in a hung trace session.
-  optional bool deferred_start = 12;
-
-  // When set, it periodically issues a Flush() to all data source, forcing them
-  // to commit their data into the tracing service. This can be used for
-  // quasi-real-time streaming mode and to guarantee some partial ordering of
-  // events in the trace in windows of X ms.
-  optional uint32 flush_period_ms = 13;
-
-  // Wait for this long for producers to acknowledge flush requests.
-  // Default 5s.
-  optional uint32 flush_timeout_ms = 14;
-
-  // Wait for this long for producers to acknowledge stop requests.
-  // Default 5s.
-  optional uint32 data_source_stop_timeout_ms = 23;
-
-  reserved 15;  // |disable_clock_snapshotting| moved.
-
-  // Android-only. If set, sends an intent to the Traceur system app when the
-  // trace ends to notify it about the trace readiness.
-  optional bool notify_traceur = 16;
-
-  // Triggers allow producers to start or stop the tracing session when an event
-  // occurs.
-  //
-  // For example if we are tracing probabilistically, most traces will be
-  // uninteresting. Triggers allow us to keep only the interesting ones such as
-  // those traces during which the device temperature reached a certain
-  // threshold. In this case the producer can activate a trigger to keep
-  // (STOP_TRACING) the trace, otherwise it can also begin a trace
-  // (START_TRACING) because it knows something is about to happen.
-  message TriggerConfig {
-    enum TriggerMode {
-      UNSPECIFIED = 0;
-
-      // When this mode is chosen, data sources are not started until one of the
-      // |triggers| are received. This supports early initialization and fast
-      // starting of the tracing system. On triggering, the session will then
-      // record for |stop_delay_ms|. However if no trigger is seen
-      // after |trigger_timeout_ms| the session will be stopped and no data will
-      // be returned.
-      START_TRACING = 1;
-
-      // When this mode is chosen, the session will be started via the normal
-      // EnableTracing() & StartTracing(). If no trigger is ever seen
-      // the session will be stopped after |trigger_timeout_ms| and no data will
-      // be returned. However if triggered the trace will stop after
-      // |stop_delay_ms| and any data in the buffer will be returned to the
-      // consumer.
-      STOP_TRACING = 2;
-    }
-    optional TriggerMode trigger_mode = 1;
-
-    message Trigger {
-      // The producer must specify this name to activate the trigger.
-      optional string name = 1;
-
-      // The a std::regex that will match the producer that can activate this
-      // trigger. This is optional. If unset any producers can activate this
-      // trigger.
-      optional string producer_name_regex = 2;
-
-      // After a trigger is received either in START_TRACING or STOP_TRACING
-      // mode then the trace will end |stop_delay_ms| after triggering.
-      optional uint32 stop_delay_ms = 3;
-    }
-    // A list of triggers which are related to this configuration. If ANY
-    // trigger is seen then an action will be performed based on |trigger_mode|.
-    repeated Trigger triggers = 2;
-
-    // Required and must be positive if a TriggerConfig is specified. This is
-    // how long this TraceConfig should wait for a trigger to arrive. After this
-    // period of time if no trigger is seen the TracingSession will be cleaned
-    // up.
-    optional uint32 trigger_timeout_ms = 3;
-  }
-  optional TriggerConfig trigger_config = 17;
-
-  // When this is non-empty the perfetto command line tool will ignore the rest
-  // of this TraceConfig and instead connect to the perfetto service as a
-  // producer and send these triggers, potentially stopping or starting traces
-  // that were previous configured to use a TriggerConfig.
-  repeated string activate_triggers = 18;
-
-  // Configuration for trace contents that reference earlier trace data. For
-  // example, a data source might intern strings, and emit packets containing
-  // {interned id : string} pairs. Future packets from that data source can then
-  // use the interned ids instead of duplicating the raw string contents. The
-  // trace parser will then need to use that interning table to fully interpret
-  // the rest of the trace.
-  message IncrementalStateConfig {
-    // If nonzero, notify eligible data sources to clear their incremental state
-    // periodically, with the given period. The notification is sent only to
-    // data sources that have |handles_incremental_state_clear| set in their
-    // DataSourceDescriptor. The notification requests that the data source
-    // stops referring to past trace contents. This is particularly useful when
-    // tracing in ring buffer mode, where it is not exceptional to overwrite old
-    // trace data.
-    //
-    // Warning: this time-based global clearing is likely to be removed in the
-    // future, to be replaced with a smarter way of sending the notifications
-    // only when necessary.
-    optional uint32 clear_period_ms = 1;
-  }
-  optional IncrementalStateConfig incremental_state_config = 21;
-
-  // Additional guardrail used by the Perfetto command line client.
-  // On user builds when --dropbox is set perfetto will refuse to trace unless
-  // this is also set.
-  // Added in Q.
-  optional bool allow_user_build_tracing = 19;
-
-  // If set the tracing service will ensure there is at most one tracing session
-  // with this key.
-  optional string unique_session_name = 22;
-
-  // Compress trace with the given method. Best effort.
-  enum CompressionType {
-    COMPRESSION_TYPE_UNSPECIFIED = 0;
-    COMPRESSION_TYPE_DEFLATE = 1;
-  }
-  optional CompressionType compression_type = 24;
-
-  // Android-only. Debug builds only. Not for general use. If set, saves a
-  // Dropbox trace into an incident. This field is read by perfetto_cmd, rather
-  // than the tracing service. All fields are mandatory.
-  message IncidentReportConfig {
-    optional string destination_package = 1;
-    optional string destination_class = 2;
-    // Level of filtering in the requested incident. See |Destination| in
-    // frameworks/base/core/proto/android/privacy.proto.
-    optional int32 privacy_level = 3;
-    // If true, do not write the trace into dropbox (i.e. incident only).
-    // Otherwise, write to both dropbox and incident.
-    optional bool skip_dropbox = 4;
-  }
-  optional IncidentReportConfig incident_report_config = 25;
-
-  // DEPRECATED. Was trace_uuid, use trace_uuid_msb and trace_uuid_lsb instead.
-  reserved 26;
-  // An identifier clients can use to tie this trace to other logging.
-  // Alternative encoding of trace_uuid as two int64s.
-  optional int64 trace_uuid_msb = 27;
-  optional int64 trace_uuid_lsb = 28;
-}
-
-// End of protos/perfetto/config/trace_config.proto
-
-// Begin of protos/perfetto/config/track_event/track_event_config.proto
-
-message TrackEventConfig {
-  // The following fields define the set of enabled trace categories. Each list
-  // item is a glob.
-  //
-  // To determine if category is enabled, it is checked against the filters in
-  // the following order:
-  //
-  //   1. Exact matches in enabled categories.
-  //   2. Exact matches in enabled tags.
-  //   3. Exact matches in disabled categories.
-  //   4. Exact matches in disabled tags.
-  //   5. Pattern matches in enabled categories.
-  //   6. Pattern matches in enabled tags.
-  //   7. Pattern matches in disabled categories.
-  //   8. Pattern matches in disabled tags.
-  //
-  // If none of the steps produced a match, the category is enabled by default.
-  //
-  // Examples:
-  //
-  //  - To enable all non-slow/debug categories:
-  //
-  //       No configuration needed, happens by default.
-  //
-  //  - To enable a specific category:
-  //
-  //       disabled_categories = ["*"]
-  //       enabled_categories = ["my_category"]
-  //
-  //  - To enable only categories with a specific tag:
-  //
-  //       disabled_tags = ["*"]
-  //       enabled_tags = ["my_tag"]
-  //
-  repeated string disabled_categories = 1;  // Default: []
-  repeated string enabled_categories = 2;   // Default: []
-  repeated string disabled_tags = 3;  // Default: [“slow”, “debug”]
-  repeated string enabled_tags = 4;   // Default: []
-}
-
-// End of protos/perfetto/config/track_event/track_event_config.proto
 
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
@@ -1398,45 +592,689 @@ message PerfEventConfig {
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
 
-// Begin of protos/perfetto/config/gpu/gpu_counter_config.proto
+// Begin of protos/perfetto/common/sys_stats_counters.proto
 
-message GpuCounterConfig {
-  // Desired sampling interval for counters.
-  optional uint64 counter_period_ns = 1;
+// When editing entries here remember also to update "sys_stats_counters.h" with
+// the corresponding string definitions for the actual /proc files parser.
 
-  // List of counters to be sampled. Counter IDs correspond to the ones
-  // described in GpuCounterSpec in the data source descriptor.
-  repeated uint32 counter_ids = 2;
-
-  // Sample counters by instrumenting command buffers.
-  optional bool instrumented_sampling = 3;
-
-  // Fix gpu clock rate during trace session.
-  optional bool fix_gpu_clock = 4;
+// Counter definitions for Linux's /proc/meminfo.
+enum MeminfoCounters {
+  MEMINFO_UNSPECIFIED = 0;
+  MEMINFO_MEM_TOTAL = 1;
+  MEMINFO_MEM_FREE = 2;
+  MEMINFO_MEM_AVAILABLE = 3;
+  MEMINFO_BUFFERS = 4;
+  MEMINFO_CACHED = 5;
+  MEMINFO_SWAP_CACHED = 6;
+  MEMINFO_ACTIVE = 7;
+  MEMINFO_INACTIVE = 8;
+  MEMINFO_ACTIVE_ANON = 9;
+  MEMINFO_INACTIVE_ANON = 10;
+  MEMINFO_ACTIVE_FILE = 11;
+  MEMINFO_INACTIVE_FILE = 12;
+  MEMINFO_UNEVICTABLE = 13;
+  MEMINFO_MLOCKED = 14;
+  MEMINFO_SWAP_TOTAL = 15;
+  MEMINFO_SWAP_FREE = 16;
+  MEMINFO_DIRTY = 17;
+  MEMINFO_WRITEBACK = 18;
+  MEMINFO_ANON_PAGES = 19;
+  MEMINFO_MAPPED = 20;
+  MEMINFO_SHMEM = 21;
+  MEMINFO_SLAB = 22;
+  MEMINFO_SLAB_RECLAIMABLE = 23;
+  MEMINFO_SLAB_UNRECLAIMABLE = 24;
+  MEMINFO_KERNEL_STACK = 25;
+  MEMINFO_PAGE_TABLES = 26;
+  MEMINFO_COMMIT_LIMIT = 27;
+  MEMINFO_COMMITED_AS = 28;
+  MEMINFO_VMALLOC_TOTAL = 29;
+  MEMINFO_VMALLOC_USED = 30;
+  MEMINFO_VMALLOC_CHUNK = 31;
+  MEMINFO_CMA_TOTAL = 32;
+  MEMINFO_CMA_FREE = 33;
 }
 
-// End of protos/perfetto/config/gpu/gpu_counter_config.proto
+// Counter definitions for Linux's /proc/vmstat.
+enum VmstatCounters {
+  VMSTAT_UNSPECIFIED = 0;
+  VMSTAT_NR_FREE_PAGES = 1;
+  VMSTAT_NR_ALLOC_BATCH = 2;
+  VMSTAT_NR_INACTIVE_ANON = 3;
+  VMSTAT_NR_ACTIVE_ANON = 4;
+  VMSTAT_NR_INACTIVE_FILE = 5;
+  VMSTAT_NR_ACTIVE_FILE = 6;
+  VMSTAT_NR_UNEVICTABLE = 7;
+  VMSTAT_NR_MLOCK = 8;
+  VMSTAT_NR_ANON_PAGES = 9;
+  VMSTAT_NR_MAPPED = 10;
+  VMSTAT_NR_FILE_PAGES = 11;
+  VMSTAT_NR_DIRTY = 12;
+  VMSTAT_NR_WRITEBACK = 13;
+  VMSTAT_NR_SLAB_RECLAIMABLE = 14;
+  VMSTAT_NR_SLAB_UNRECLAIMABLE = 15;
+  VMSTAT_NR_PAGE_TABLE_PAGES = 16;
+  VMSTAT_NR_KERNEL_STACK = 17;
+  VMSTAT_NR_OVERHEAD = 18;
+  VMSTAT_NR_UNSTABLE = 19;
+  VMSTAT_NR_BOUNCE = 20;
+  VMSTAT_NR_VMSCAN_WRITE = 21;
+  VMSTAT_NR_VMSCAN_IMMEDIATE_RECLAIM = 22;
+  VMSTAT_NR_WRITEBACK_TEMP = 23;
+  VMSTAT_NR_ISOLATED_ANON = 24;
+  VMSTAT_NR_ISOLATED_FILE = 25;
+  VMSTAT_NR_SHMEM = 26;
+  VMSTAT_NR_DIRTIED = 27;
+  VMSTAT_NR_WRITTEN = 28;
+  VMSTAT_NR_PAGES_SCANNED = 29;
+  VMSTAT_WORKINGSET_REFAULT = 30;
+  VMSTAT_WORKINGSET_ACTIVATE = 31;
+  VMSTAT_WORKINGSET_NODERECLAIM = 32;
+  VMSTAT_NR_ANON_TRANSPARENT_HUGEPAGES = 33;
+  VMSTAT_NR_FREE_CMA = 34;
+  VMSTAT_NR_SWAPCACHE = 35;
+  VMSTAT_NR_DIRTY_THRESHOLD = 36;
+  VMSTAT_NR_DIRTY_BACKGROUND_THRESHOLD = 37;
+  VMSTAT_PGPGIN = 38;
+  VMSTAT_PGPGOUT = 39;
+  VMSTAT_PGPGOUTCLEAN = 40;
+  VMSTAT_PSWPIN = 41;
+  VMSTAT_PSWPOUT = 42;
+  VMSTAT_PGALLOC_DMA = 43;
+  VMSTAT_PGALLOC_NORMAL = 44;
+  VMSTAT_PGALLOC_MOVABLE = 45;
+  VMSTAT_PGFREE = 46;
+  VMSTAT_PGACTIVATE = 47;
+  VMSTAT_PGDEACTIVATE = 48;
+  VMSTAT_PGFAULT = 49;
+  VMSTAT_PGMAJFAULT = 50;
+  VMSTAT_PGREFILL_DMA = 51;
+  VMSTAT_PGREFILL_NORMAL = 52;
+  VMSTAT_PGREFILL_MOVABLE = 53;
+  VMSTAT_PGSTEAL_KSWAPD_DMA = 54;
+  VMSTAT_PGSTEAL_KSWAPD_NORMAL = 55;
+  VMSTAT_PGSTEAL_KSWAPD_MOVABLE = 56;
+  VMSTAT_PGSTEAL_DIRECT_DMA = 57;
+  VMSTAT_PGSTEAL_DIRECT_NORMAL = 58;
+  VMSTAT_PGSTEAL_DIRECT_MOVABLE = 59;
+  VMSTAT_PGSCAN_KSWAPD_DMA = 60;
+  VMSTAT_PGSCAN_KSWAPD_NORMAL = 61;
+  VMSTAT_PGSCAN_KSWAPD_MOVABLE = 62;
+  VMSTAT_PGSCAN_DIRECT_DMA = 63;
+  VMSTAT_PGSCAN_DIRECT_NORMAL = 64;
+  VMSTAT_PGSCAN_DIRECT_MOVABLE = 65;
+  VMSTAT_PGSCAN_DIRECT_THROTTLE = 66;
+  VMSTAT_PGINODESTEAL = 67;
+  VMSTAT_SLABS_SCANNED = 68;
+  VMSTAT_KSWAPD_INODESTEAL = 69;
+  VMSTAT_KSWAPD_LOW_WMARK_HIT_QUICKLY = 70;
+  VMSTAT_KSWAPD_HIGH_WMARK_HIT_QUICKLY = 71;
+  VMSTAT_PAGEOUTRUN = 72;
+  VMSTAT_ALLOCSTALL = 73;
+  VMSTAT_PGROTATED = 74;
+  VMSTAT_DROP_PAGECACHE = 75;
+  VMSTAT_DROP_SLAB = 76;
+  VMSTAT_PGMIGRATE_SUCCESS = 77;
+  VMSTAT_PGMIGRATE_FAIL = 78;
+  VMSTAT_COMPACT_MIGRATE_SCANNED = 79;
+  VMSTAT_COMPACT_FREE_SCANNED = 80;
+  VMSTAT_COMPACT_ISOLATED = 81;
+  VMSTAT_COMPACT_STALL = 82;
+  VMSTAT_COMPACT_FAIL = 83;
+  VMSTAT_COMPACT_SUCCESS = 84;
+  VMSTAT_COMPACT_DAEMON_WAKE = 85;
+  VMSTAT_UNEVICTABLE_PGS_CULLED = 86;
+  VMSTAT_UNEVICTABLE_PGS_SCANNED = 87;
+  VMSTAT_UNEVICTABLE_PGS_RESCUED = 88;
+  VMSTAT_UNEVICTABLE_PGS_MLOCKED = 89;
+  VMSTAT_UNEVICTABLE_PGS_MUNLOCKED = 90;
+  VMSTAT_UNEVICTABLE_PGS_CLEARED = 91;
+  VMSTAT_UNEVICTABLE_PGS_STRANDED = 92;
+  VMSTAT_NR_ZSPAGES = 93;
+  VMSTAT_NR_ION_HEAP = 94;
+  VMSTAT_NR_GPU_HEAP = 95;
+}
+// End of protos/perfetto/common/sys_stats_counters.proto
 
-// Begin of protos/perfetto/config/gpu/vulkan_memory_config.proto
+// Begin of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-message VulkanMemoryConfig {
-  // Tracking driver memory usage events
-  optional bool track_driver_memory_usage = 1;
+// This file defines the configuration for the Linux /proc poller data source,
+// which injects counters in the trace.
+// Counters that are needed in the trace must be explicitly listed in the
+// *_counters fields. This is to avoid spamming the trace with all counters
+// at all times.
+// The sampling rate is configurable. All polling rates (*_period_ms) need
+// to be integer multiples of each other.
+// OK:     [10ms, 10ms, 10ms],  [10ms, 20ms, 10ms],  [10ms, 20ms, 60ms]
+// Not OK: [10ms, 10ms, 11ms],  [10ms, 15ms, 20ms]
+message SysStatsConfig {
+  // Polls /proc/meminfo every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: 0.3 ms [read] + 0.07 ms [parse + trace injection]
+  optional uint32 meminfo_period_ms = 1;
 
-  // Tracking device memory usage events
-  optional bool track_device_memory_usage = 2;
+  // If empty all known counters are reported. Otherwise, only the counters
+  // specified below are reported.
+  repeated MeminfoCounters meminfo_counters = 2;
+
+  // Polls /proc/vmstat every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: 0.2 ms [read] + 0.3 ms [parse + trace injection]
+  optional uint32 vmstat_period_ms = 3;
+  repeated VmstatCounters vmstat_counters = 4;
+
+  // Pols /proc/stat every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // Cost: 4.1 ms [read] + 1.9 ms [parse + trace injection]
+  optional uint32 stat_period_ms = 5;
+  enum StatCounters {
+    STAT_UNSPECIFIED = 0;
+    STAT_CPU_TIMES = 1;
+    STAT_IRQ_COUNTS = 2;
+    STAT_SOFTIRQ_COUNTS = 3;
+    STAT_FORK_COUNT = 4;
+  }
+  repeated StatCounters stat_counters = 6;
 }
 
-// End of protos/perfetto/config/gpu/vulkan_memory_config.proto
+// End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-// Begin of protos/perfetto/config/android/packages_list_config.proto
+// Begin of protos/perfetto/config/test_config.proto
 
-// Data source that lists details (such as version code) about packages on an
-// Android device.
-message PackagesListConfig {
-  // If not empty, emit info about only the following list of package names
-  // (exact match, no regex). Otherwise, emit info about all packages.
-  repeated string package_name_filter = 1;
+// The configuration for a fake producer used in tests.
+message TestConfig {
+  message DummyFields {
+    optional uint32 field_uint32 = 1;
+    optional int32 field_int32 = 2;
+    optional uint64 field_uint64 = 3;
+    optional int64 field_int64 = 4;
+    optional fixed64 field_fixed64 = 5;
+    optional sfixed64 field_sfixed64 = 6;
+    optional fixed32 field_fixed32 = 7;
+    optional sfixed32 field_sfixed32 = 8;
+    optional double field_double = 9;
+    optional float field_float = 10;
+    optional sint64 field_sint64 = 11;
+    optional sint32 field_sint32 = 12;
+    optional string field_string = 13;
+    optional bytes field_bytes = 14;
+  }
+
+  // The number of messages the fake producer should send.
+  optional uint32 message_count = 1;
+
+  // The maximum number of messages which should be sent each second.
+  // The actual obserced speed may be lower if the producer is unable to
+  // work fast enough.
+  // If this is zero or unset, the producer will send as fast as possible.
+  optional uint32 max_messages_per_second = 2;
+
+  // The seed value for a simple multiplicative congruential pseudo-random
+  // number sequence.
+  optional uint32 seed = 3;
+
+  // The size of each message in bytes. Should be greater than or equal 5 to
+  // account for the number of bytes needed to encode the random number and a
+  // null byte for the string.
+  optional uint32 message_size = 4;
+
+  // Whether the producer should send a event batch when the data source is
+  // is initially registered.
+  optional bool send_batch_on_register = 5;
+
+  optional DummyFields dummy_fields = 6;
 }
 
-// End of protos/perfetto/config/android/packages_list_config.proto
+// End of protos/perfetto/config/test_config.proto
+
+// Begin of protos/perfetto/config/track_event/track_event_config.proto
+
+message TrackEventConfig {
+  // The following fields define the set of enabled trace categories. Each list
+  // item is a glob.
+  //
+  // To determine if category is enabled, it is checked against the filters in
+  // the following order:
+  //
+  //   1. Exact matches in enabled categories.
+  //   2. Exact matches in enabled tags.
+  //   3. Exact matches in disabled categories.
+  //   4. Exact matches in disabled tags.
+  //   5. Pattern matches in enabled categories.
+  //   6. Pattern matches in enabled tags.
+  //   7. Pattern matches in disabled categories.
+  //   8. Pattern matches in disabled tags.
+  //
+  // If none of the steps produced a match, the category is enabled by default.
+  //
+  // Examples:
+  //
+  //  - To enable all non-slow/debug categories:
+  //
+  //       No configuration needed, happens by default.
+  //
+  //  - To enable a specific category:
+  //
+  //       disabled_categories = ["*"]
+  //       enabled_categories = ["my_category"]
+  //
+  //  - To enable only categories with a specific tag:
+  //
+  //       disabled_tags = ["*"]
+  //       enabled_tags = ["my_tag"]
+  //
+  repeated string disabled_categories = 1;  // Default: []
+  repeated string enabled_categories = 2;   // Default: []
+  repeated string disabled_tags = 3;  // Default: [“slow”, “debug”]
+  repeated string enabled_tags = 4;   // Default: []
+}
+
+// End of protos/perfetto/config/track_event/track_event_config.proto
+
+// Begin of protos/perfetto/config/data_source_config.proto
+
+// The configuration that is passed to each data source when starting tracing.
+message DataSourceConfig {
+  // Data source unique name, e.g., "linux.ftrace". This must match
+  // the name passed by the data source when it registers (see
+  // RegisterDataSource()).
+  optional string name = 1;
+
+  // The index of the logging buffer where TracePacket(s) will be stored.
+  // This field doesn't make a major difference for the Producer(s). The final
+  // logging buffers, in fact, are completely owned by the Service. We just ask
+  // the Producer to copy this number into the chunk headers it emits, so that
+  // the Service can quickly identify the buffer where to move the chunks into
+  // without expensive lookups on its fastpath.
+  optional uint32 target_buffer = 2;
+
+  // Set by the service to indicate the duration of the trace.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional uint32 trace_duration_ms = 3;
+
+  // Set by the service to indicate how long it waits after StopDataSource.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional uint32 stop_timeout_ms = 7;
+
+  // Set by the service to indicate whether this tracing session has extra
+  // guardrails.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool enable_extra_guardrails = 6;
+
+  // Set by the service to indicate which tracing session the data source
+  // belongs to. The intended use case for this is checking if two data sources,
+  // one of which produces metadata for the other one, belong to the same trace
+  // session and hence should be linked together.
+  // This field was introduced in Aug 2018 after Android P.
+  optional uint64 tracing_session_id = 4;
+
+  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
+  // data-sources and needs to be processed by the traced daemon.
+
+  // All data source config fields must be marked as [lazy=true]. This prevents
+  // the proto-to-cpp generator from recursing into those when generating the
+  // cpp classes and polluting tracing/core with data-source-specific classes.
+  // Instead they are treated as opaque strings containing raw proto bytes.
+
+  // Data source name: linux.ftrace
+  optional FtraceConfig ftrace_config = 100 [lazy = true];
+  // Data source name: linux.inode_file_map
+  optional InodeFileConfig inode_file_config = 102 [lazy = true];
+  // Data source name: linux.process_stats
+  optional ProcessStatsConfig process_stats_config = 103 [lazy = true];
+  // Data source name: linux.sys_stats
+  optional SysStatsConfig sys_stats_config = 104 [lazy = true];
+  // Data source name: android.heapprofd
+  optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
+  // Data source name: android.java_hprof
+  optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
+  // Data source name: android.power
+  optional AndroidPowerConfig android_power_config = 106 [lazy = true];
+  // Data source name: android.log
+  optional AndroidLogConfig android_log_config = 107 [lazy = true];
+  // TODO(fmayer): Add data source name for this.
+  optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  // Data source name: android.packages_list
+  optional PackagesListConfig packages_list_config = 109 [lazy = true];
+  // Data source name: linux.perf
+  optional PerfEventConfig perf_event_config = 111 [lazy = true];
+  // Data source name: vulkan.memory_tracker
+  optional VulkanMemoryConfig vulkan_memory_config = 112 [lazy = true];
+  // Data source name: track_event
+  optional TrackEventConfig track_event_config = 113 [lazy = true];
+
+  // Chrome is special as it doesn't use the perfetto IPC layer. We want to
+  // avoid proto serialization and de-serialization there because that would
+  // just add extra hops on top of the Mojo ser/des. Instead we auto-generate a
+  // C++ class for it so it can pass around plain C++ objets.
+  optional ChromeConfig chrome_config = 101;
+
+  // This is a fallback mechanism to send a free-form text config to the
+  // producer. In theory this should never be needed. All the code that
+  // is part of the platform (i.e. traced service) is supposed to *not* truncate
+  // the trace config proto and propagate unknown fields. However, if anything
+  // in the pipeline (client or backend) ends up breaking this forward compat
+  // plan, this field will become the escape hatch to allow future data sources
+  // to get some meaningful configuration.
+  optional string legacy_config = 1000;
+
+  // This field is only used for testing.
+  optional TestConfig for_testing = 1001;
+
+  reserved 268435455;  // Was |for_testing|. Caused more problems then found.
+}
+
+// End of protos/perfetto/config/data_source_config.proto
+
+// Begin of protos/perfetto/config/trace_config.proto
+
+// The overall config that is used when starting a new tracing session through
+// ProducerPort::StartTracing().
+// It contains the general config for the logging buffer(s) and the configs for
+// all the data source being enabled.
+//
+// Next id: 30.
+message TraceConfig {
+  message BufferConfig {
+    optional uint32 size_kb = 1;
+
+    reserved 2;  // |page_size|, now deprecated.
+    reserved 3;  // |optimize_for|, now deprecated.
+
+    enum FillPolicy {
+      UNSPECIFIED = 0;
+
+      // Default behavior. The buffer operates as a conventional ring buffer.
+      // If the writer is faster than the reader (or if the reader reads only
+      // after tracing is stopped) newly written packets will overwrite old
+      // packets.
+      RING_BUFFER = 1;
+
+      // Behaves like RING_BUFFER as long as there is space in the buffer or
+      // the reader catches up with the writer. As soon as the writer hits
+      // an unread chunk, it stops accepting new data in the buffer.
+      DISCARD = 2;
+    }
+    optional FillPolicy fill_policy = 4;
+  }
+  repeated BufferConfig buffers = 1;
+
+  message DataSource {
+    // Filters and data-source specific config. It contains also the unique name
+    // of the data source, the one passed in the  DataSourceDescriptor when they
+    // register on the service.
+    optional protos.DataSourceConfig config = 1;
+
+    // Optional. If multiple producers (~processes) expose the same data source
+    // and either |producer_name_filter| or |producer_name_regex_filter| is set,
+    // the data source is enabled only for producers whose names match any of
+    // the filters.
+    // |producer_name_filter| has to be an exact match, while
+    // |producer_name_regex_filter| is a regular expression.
+    // This allows to enable a data source only for specific processes.
+    // The "repeated" fields have OR semantics: specifying a filter ["foo",
+    // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
+    repeated string producer_name_filter = 2;
+    repeated string producer_name_regex_filter = 3;
+  }
+  repeated DataSource data_sources = 2;
+
+  // Config for disabling builtin data sources in the tracing service.
+  message BuiltinDataSource {
+    // Disable emitting clock timestamps into the trace.
+    optional bool disable_clock_snapshotting = 1;
+
+    // Disable echoing the original trace config in the trace.
+    optional bool disable_trace_config = 2;
+
+    // Disable emitting system info (build fingerprint, cpuinfo, etc).
+    optional bool disable_system_info = 3;
+
+    // Disable emitting events for data-source state changes (e.g. the marker
+    // for all data sources having ACKed the start of the trace).
+    optional bool disable_service_events = 4;
+  }
+  optional BuiltinDataSource builtin_data_sources = 20;
+
+  // If specified, the trace will be stopped |duration_ms| after starting.
+  // This does *not* count the time the system is suspended, so we will run
+  // for duration_ms of system activity, not wall time.
+  //
+  // However in case of traces with triggers, see
+  // TriggerConfig.trigger_timeout_ms instead.
+  optional uint32 duration_ms = 3;
+
+  // This is set when --dropbox is passed to the Perfetto command line client
+  // and enables guardrails that limit resource usage for traces requested
+  // by statsd.
+  optional bool enable_extra_guardrails = 4;
+
+  enum LockdownModeOperation {
+    LOCKDOWN_UNCHANGED = 0;
+    LOCKDOWN_CLEAR = 1;
+    LOCKDOWN_SET = 2;
+  }
+  // Reject producers that are not running under the same UID as the tracing
+  // service.
+  optional LockdownModeOperation lockdown_mode = 5;
+
+  message ProducerConfig {
+    // Identifies the producer for which this config is for.
+    optional string producer_name = 1;
+
+    // Specifies the preferred size of the shared memory buffer. If the size is
+    // larger than the max size, the max will be used. If it is smaller than
+    // the page size or doesn't fit pages evenly into it, it will fall back to
+    // the size specified by the producer or finally the default shared memory
+    // size.
+    optional uint32 shm_size_kb = 2;
+
+    // Specifies the preferred size of each page in the shared memory buffer.
+    // Must be an integer multiple of 4K.
+    optional uint32 page_size_kb = 3;
+  }
+
+  repeated ProducerConfig producers = 6;
+
+  // Contains statsd-specific metadata about an alert associated with the trace.
+  message StatsdMetadata {
+    // The identifier of the alert which triggered this trace.
+    optional int64 triggering_alert_id = 1;
+    // The uid which registered the triggering configuration with statsd.
+    optional int32 triggering_config_uid = 2;
+    // The identifier of the config which triggered the alert.
+    optional int64 triggering_config_id = 3;
+    // The identifier of the subscription which triggered this trace.
+    optional int64 triggering_subscription_id = 4;
+  }
+
+  // Statsd-specific metadata.
+  optional StatsdMetadata statsd_metadata = 7;
+
+  // When true && |output_path| is empty, the EnableTracing() request must
+  // provide a file descriptor. The service will then periodically read packets
+  // out of the trace buffer and store it into the passed file.
+  // If |output_path| is not empty no fd should be passed, the service
+  // will create a new file and write into that (see comment below).
+  optional bool write_into_file = 8;
+
+  // This must point to a non-existing file. If the file exists the service
+  // will NOT overwrite and will fail instead as a security precaution.
+  // On Android, when this is used with the system traced, the path must be
+  // within /data/misc/perfetto-traces/ or the trace will fail.
+  // This option has been introduced in Android R. Before R write_into_file
+  // can be used only with the "pass a file descriptor over IPC" mode.
+  optional string output_path = 29;
+
+  // Optional. If non-zero tunes the write period. A min value of 100ms is
+  // enforced (i.e. smaller values are ignored).
+  optional uint32 file_write_period_ms = 9;
+
+  // Optional. When non zero the periodic write stops once at most X bytes
+  // have been written into the file. Tracing is disabled when this limit is
+  // reached, even if |duration_ms| has not been reached yet.
+  optional uint64 max_file_size_bytes = 10;
+
+  // Contains flags which override the default values of the guardrails inside
+  // Perfetto. These values are only affect userdebug builds.
+  message GuardrailOverrides {
+    // Override the default limit (in bytes) for uploading data to server within
+    // a 24 hour period.
+    optional uint64 max_upload_per_day_bytes = 1;
+  }
+
+  optional GuardrailOverrides guardrail_overrides = 11;
+
+  // When true, data sources are not started until an explicit call to
+  // StartTracing() on the consumer port. This is to support early
+  // initialization and fast trace triggering. This can be used only when the
+  // Consumer explicitly triggers the StartTracing() method.
+  // This should not be used in a remote trace config via statsd, doing so will
+  // result in a hung trace session.
+  optional bool deferred_start = 12;
+
+  // When set, it periodically issues a Flush() to all data source, forcing them
+  // to commit their data into the tracing service. This can be used for
+  // quasi-real-time streaming mode and to guarantee some partial ordering of
+  // events in the trace in windows of X ms.
+  optional uint32 flush_period_ms = 13;
+
+  // Wait for this long for producers to acknowledge flush requests.
+  // Default 5s.
+  optional uint32 flush_timeout_ms = 14;
+
+  // Wait for this long for producers to acknowledge stop requests.
+  // Default 5s.
+  optional uint32 data_source_stop_timeout_ms = 23;
+
+  reserved 15;  // |disable_clock_snapshotting| moved.
+
+  // Android-only. If set, sends an intent to the Traceur system app when the
+  // trace ends to notify it about the trace readiness.
+  optional bool notify_traceur = 16;
+
+  // Triggers allow producers to start or stop the tracing session when an event
+  // occurs.
+  //
+  // For example if we are tracing probabilistically, most traces will be
+  // uninteresting. Triggers allow us to keep only the interesting ones such as
+  // those traces during which the device temperature reached a certain
+  // threshold. In this case the producer can activate a trigger to keep
+  // (STOP_TRACING) the trace, otherwise it can also begin a trace
+  // (START_TRACING) because it knows something is about to happen.
+  message TriggerConfig {
+    enum TriggerMode {
+      UNSPECIFIED = 0;
+
+      // When this mode is chosen, data sources are not started until one of the
+      // |triggers| are received. This supports early initialization and fast
+      // starting of the tracing system. On triggering, the session will then
+      // record for |stop_delay_ms|. However if no trigger is seen
+      // after |trigger_timeout_ms| the session will be stopped and no data will
+      // be returned.
+      START_TRACING = 1;
+
+      // When this mode is chosen, the session will be started via the normal
+      // EnableTracing() & StartTracing(). If no trigger is ever seen
+      // the session will be stopped after |trigger_timeout_ms| and no data will
+      // be returned. However if triggered the trace will stop after
+      // |stop_delay_ms| and any data in the buffer will be returned to the
+      // consumer.
+      STOP_TRACING = 2;
+    }
+    optional TriggerMode trigger_mode = 1;
+
+    message Trigger {
+      // The producer must specify this name to activate the trigger.
+      optional string name = 1;
+
+      // The a std::regex that will match the producer that can activate this
+      // trigger. This is optional. If unset any producers can activate this
+      // trigger.
+      optional string producer_name_regex = 2;
+
+      // After a trigger is received either in START_TRACING or STOP_TRACING
+      // mode then the trace will end |stop_delay_ms| after triggering.
+      optional uint32 stop_delay_ms = 3;
+    }
+    // A list of triggers which are related to this configuration. If ANY
+    // trigger is seen then an action will be performed based on |trigger_mode|.
+    repeated Trigger triggers = 2;
+
+    // Required and must be positive if a TriggerConfig is specified. This is
+    // how long this TraceConfig should wait for a trigger to arrive. After this
+    // period of time if no trigger is seen the TracingSession will be cleaned
+    // up.
+    optional uint32 trigger_timeout_ms = 3;
+  }
+  optional TriggerConfig trigger_config = 17;
+
+  // When this is non-empty the perfetto command line tool will ignore the rest
+  // of this TraceConfig and instead connect to the perfetto service as a
+  // producer and send these triggers, potentially stopping or starting traces
+  // that were previous configured to use a TriggerConfig.
+  repeated string activate_triggers = 18;
+
+  // Configuration for trace contents that reference earlier trace data. For
+  // example, a data source might intern strings, and emit packets containing
+  // {interned id : string} pairs. Future packets from that data source can then
+  // use the interned ids instead of duplicating the raw string contents. The
+  // trace parser will then need to use that interning table to fully interpret
+  // the rest of the trace.
+  message IncrementalStateConfig {
+    // If nonzero, notify eligible data sources to clear their incremental state
+    // periodically, with the given period. The notification is sent only to
+    // data sources that have |handles_incremental_state_clear| set in their
+    // DataSourceDescriptor. The notification requests that the data source
+    // stops referring to past trace contents. This is particularly useful when
+    // tracing in ring buffer mode, where it is not exceptional to overwrite old
+    // trace data.
+    //
+    // Warning: this time-based global clearing is likely to be removed in the
+    // future, to be replaced with a smarter way of sending the notifications
+    // only when necessary.
+    optional uint32 clear_period_ms = 1;
+  }
+  optional IncrementalStateConfig incremental_state_config = 21;
+
+  // Additional guardrail used by the Perfetto command line client.
+  // On user builds when --dropbox is set perfetto will refuse to trace unless
+  // this is also set.
+  // Added in Q.
+  optional bool allow_user_build_tracing = 19;
+
+  // If set the tracing service will ensure there is at most one tracing session
+  // with this key.
+  optional string unique_session_name = 22;
+
+  // Compress trace with the given method. Best effort.
+  enum CompressionType {
+    COMPRESSION_TYPE_UNSPECIFIED = 0;
+    COMPRESSION_TYPE_DEFLATE = 1;
+  }
+  optional CompressionType compression_type = 24;
+
+  // Android-only. Debug builds only. Not for general use. If set, saves a
+  // Dropbox trace into an incident. This field is read by perfetto_cmd, rather
+  // than the tracing service. All fields are mandatory.
+  message IncidentReportConfig {
+    optional string destination_package = 1;
+    optional string destination_class = 2;
+    // Level of filtering in the requested incident. See |Destination| in
+    // frameworks/base/core/proto/android/privacy.proto.
+    optional int32 privacy_level = 3;
+    // If true, do not write the trace into dropbox (i.e. incident only).
+    // Otherwise, write to both dropbox and incident.
+    optional bool skip_dropbox = 4;
+  }
+  optional IncidentReportConfig incident_report_config = 25;
+
+  // DEPRECATED. Was trace_uuid, use trace_uuid_msb and trace_uuid_lsb instead.
+  reserved 26;
+  // An identifier clients can use to tie this trace to other logging.
+  // Alternative encoding of trace_uuid as two int64s.
+  optional int64 trace_uuid_msb = 27;
+  optional int64 trace_uuid_lsb = 28;
+}
+
+// End of protos/perfetto/config/trace_config.proto

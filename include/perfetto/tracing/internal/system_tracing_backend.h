@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/tracing_backend.h"
 
 namespace perfetto {
@@ -34,7 +35,7 @@ class Producer;
 // together with system traces, useful to correlate on the timeline system
 // events (e.g. scheduling slices from the kernel) with in-app events.
 namespace internal {
-class SystemTracingBackend : public TracingBackend {
+class PERFETTO_EXPORT SystemTracingBackend : public TracingBackend {
  public:
   static TracingBackend* GetInstance();
 

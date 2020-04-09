@@ -220,6 +220,15 @@ SELECT
   ) as startup
 FROM launches;
 
+CREATE VIEW android_startup_annotations AS
+SELECT
+  'slice' as track_type,
+  'Android App Startups' as track_name,
+  l.ts as ts,
+  l.dur as dur,
+  l.package as slice_name
+FROM launches l;
+
 CREATE VIEW android_startup_output AS
 SELECT
   AndroidStartupMetric(

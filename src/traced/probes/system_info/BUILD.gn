@@ -23,6 +23,7 @@ source_set("system_info") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../base",
+    "../common",
   ]
   sources = [
     "system_info_data_source.cc",
@@ -38,6 +39,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/trace/system_info:cpp",
     "../../../../src/tracing/test:test_support",
+    "../common:test_support",
   ]
   sources = [ "system_info_data_source_unittest.cc" ]
 }

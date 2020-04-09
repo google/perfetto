@@ -37,6 +37,7 @@
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -1387,12 +1388,13 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   producer->WaitForDataSourceStart("data_source");
 
   // The preamble packets are:
-  // Trace start clocksnapshot
+  // Trace start clock snapshot
   // Config
   // SystemInfo
-  // Trace read clocksnapshot
+  // Trace read clock snapshot
   // Trace synchronisation
-  static const int kNumPreamblePackets = 5;
+  // All data source started (TracingServiceEvent)
+  static const int kNumPreamblePackets = 6;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -1434,6 +1436,58 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
         trace.packet()[kNumPreamblePackets + i];
     ASSERT_EQ(kPayload + std::to_string(i++), tp.for_testing().str());
   }
+}
+
+TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
+  auto tmp_file = base::TempFile::Create();
+  // Deletes the file (the service would refuse to overwrite an existing file)
+  // without telling it to the underlying TempFile, so that its dtor will
+  // unlink the file created by the service.
+  unlink(tmp_file.path().c_str());
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  trace_config.set_write_into_file(true);
+  trace_config.set_output_path(tmp_file.path());
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  // Verify the contents of the file.
+  std::string trace_raw;
+  ASSERT_TRUE(base::ReadFile(tmp_file.path(), &trace_raw));
+  protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_raw));
+  // ASSERT_EQ(trace.packet_size(), 33);
+  EXPECT_THAT(trace.packet(),
+              Contains(Property(
+                  &protos::gen::TracePacket::for_testing,
+                  Property(&protos::gen::TestEvent::str, Eq("payload")))));
 }
 
 // Test the logic that allows the trace config to set the shm total size and
@@ -2940,6 +2994,14 @@ TEST_F(TracingServiceImplTest, ObserveAllDataSourceStarted) {
     task_runner.RunUntilIdle();
     Mock::VerifyAndClearExpectations(consumer.get());
 
+    EXPECT_THAT(
+        consumer->ReadBuffers(),
+        Contains(Property(
+            &protos::gen::TracePacket::service_event,
+            Property(
+                &protos::gen::TracingServiceEvent::all_data_sources_started,
+                Eq(false)))));
+
     DataSourceInstanceID id2 = producer->GetDataSourceInstanceId("ds2");
     producer->endpoint()->NotifyDataSourceStarted(id2);
 
@@ -2953,10 +3015,19 @@ TEST_F(TracingServiceImplTest, ObserveAllDataSourceStarted) {
     consumer->DisableTracing();
     producer->WaitForDataSourceStop("ds1");
     producer->WaitForDataSourceStop("ds2");
-    consumer->FreeBuffers();
     consumer->WaitForTracingDisabled();
 
+    EXPECT_THAT(
+        consumer->ReadBuffers(),
+        Contains(Property(
+            &protos::gen::TracePacket::service_event,
+            Property(
+                &protos::gen::TracingServiceEvent::all_data_sources_started,
+                Eq(true)))));
+    consumer->FreeBuffers();
+
     task_runner.RunUntilIdle();
+
     Mock::VerifyAndClearExpectations(consumer.get());
     Mock::VerifyAndClearExpectations(producer.get());
   }

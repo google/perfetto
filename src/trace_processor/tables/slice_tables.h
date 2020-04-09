@@ -97,6 +97,16 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GRAPHICS_FRAME_SLICES_DEF);
   C(int64_t, latch_to_present_time)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GRAPHICS_FRAME_STATS_DEF);
+
+#define PERFETTO_TP_DESCRIBE_SLICE_TABLE(NAME, PARENT, C) \
+  NAME(DescribeSliceTable, "describe_slice")              \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                       \
+  C(uint32_t, slice_id, Column::Flag::kHidden)            \
+  C(StringPool::Id, description)                          \
+  C(StringPool::Id, doc_link)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_DESCRIBE_SLICE_TABLE);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

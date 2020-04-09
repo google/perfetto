@@ -29,6 +29,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class ArgsTracker;
+class AndroidProbesTracker;
 class ChunkedTraceReader;
 class ClockTracker;
 class EventTracker;
@@ -79,11 +80,12 @@ class TraceProcessorContext {
   // type is only available in storage_full target. To access these fields use
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
-  std::unique_ptr<Destructible> syscall_tracker;     // SyscallTracker
-  std::unique_ptr<Destructible> sched_tracker;       // SchedEventTracker
-  std::unique_ptr<Destructible> systrace_parser;     // SystraceParser
-  std::unique_ptr<Destructible> heap_graph_tracker;  // HeapGraphTracker
-  std::unique_ptr<Destructible> json_tracker;        // JsonTracker
+  std::unique_ptr<Destructible> android_probes_tracker;  // AndroidProbesTracker
+  std::unique_ptr<Destructible> syscall_tracker;         // SyscallTracker
+  std::unique_ptr<Destructible> sched_tracker;           // SchedEventTracker
+  std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
+  std::unique_ptr<Destructible> heap_graph_tracker;      // HeapGraphTracker
+  std::unique_ptr<Destructible> json_tracker;            // JsonTracker
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they

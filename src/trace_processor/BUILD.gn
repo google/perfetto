@@ -226,6 +226,8 @@ source_set("storage_full") {
     "importers/proto/android_probes_module.h",
     "importers/proto/android_probes_parser.cc",
     "importers/proto/android_probes_parser.h",
+    "importers/proto/android_probes_tracker.cc",
+    "importers/proto/android_probes_tracker.h",
     "importers/proto/graphics_event_module.cc",
     "importers/proto/graphics_event_module.h",
     "importers/proto/graphics_event_parser.cc",
@@ -295,6 +297,8 @@ source_set("export_json") {
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
+      "describe_slice_generator.cc",
+      "describe_slice_generator.h",
       "experimental_counter_dur_generator.cc",
       "experimental_counter_dur_generator.h",
       "experimental_flamegraph_generator.cc",
@@ -320,6 +324,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../protos/perfetto/metrics/android:zero",
       "../../protos/perfetto/trace/ftrace:zero",
       "../base",
+      "analysis",
       "db:lib",
       "metrics:lib",
       "sqlite",
