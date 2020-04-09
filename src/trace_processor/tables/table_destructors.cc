@@ -55,7 +55,7 @@ HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
-SmapsTable::~SmapsTable() = default;
+ProfilerSmapsTable::~ProfilerSmapsTable() = default;
 
 // slice_tables.h
 SliceTable::~SliceTable() = default;
