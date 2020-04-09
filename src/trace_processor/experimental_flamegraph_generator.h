@@ -36,7 +36,7 @@ class ExperimentalFlamegraphGenerator
     std::string focus_str;
   };
 
-  ExperimentalFlamegraphGenerator(TraceProcessorContext* context);
+  explicit ExperimentalFlamegraphGenerator(TraceProcessorContext* context);
   virtual ~ExperimentalFlamegraphGenerator() override;
 
   Table::Schema CreateSchema() override;
@@ -47,7 +47,7 @@ class ExperimentalFlamegraphGenerator
                                       const std::vector<Order>& ob) override;
 
  private:
-  TraceProcessorContext* context_;
+  TraceProcessorContext* context_ = nullptr;
 };
 
 }  // namespace trace_processor

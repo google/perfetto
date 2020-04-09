@@ -61,8 +61,8 @@
       kConstExprCategoryRegistry(kCategoryCount,                              \
                                  &kCategories[0],                             \
                                  &g_category_state_storage[0]);               \
-  extern const ::perfetto::internal::TrackEventCategoryRegistry               \
-      kCategoryRegistry;                                                      \
+  PERFETTO_COMPONENT_EXPORT extern const ::perfetto::internal::               \
+      TrackEventCategoryRegistry kCategoryRegistry;                           \
   static_assert(kConstExprCategoryRegistry.ValidateCategories(),              \
                 "Invalid category names found");                              \
   }  // namespace internal
@@ -71,16 +71,18 @@
 #define PERFETTO_INTERNAL_CATEGORY_STORAGE()                     \
   namespace internal {                                           \
   std::atomic<uint8_t> g_category_state_storage[kCategoryCount]; \
-  constexpr ::perfetto::internal::TrackEventCategoryRegistry     \
-      kCategoryRegistry(kCategoryCount,                          \
-                        &kCategories[0],                         \
-                        &g_category_state_storage[0]);           \
+  PERFETTO_COMPONENT_EXPORT constexpr ::perfetto::internal::     \
+      TrackEventCategoryRegistry kCategoryRegistry(              \
+          kCategoryCount,                                        \
+          &kCategories[0],                                       \
+          &g_category_state_storage[0]);                         \
   }  // namespace internal
 
 // Defines the TrackEvent data source for the current track event namespace.
-#define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE()              \
-  struct TrackEvent : public ::perfetto::internal::TrackEventDataSource< \
-                          TrackEvent, &internal::kCategoryRegistry> {}
+#define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE() \
+  struct PERFETTO_COMPONENT_EXPORT TrackEvent               \
+      : public ::perfetto::internal::TrackEventDataSource<  \
+            TrackEvent, &internal::kCategoryRegistry> {}
 
 // At compile time, turns a category name represented by a static string into an
 // index into the current category registry. A build error will be generated if
@@ -121,7 +123,7 @@
   } while (false)
 
 #define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
-  struct {                                                                    \
+  struct PERFETTO_UID(ScopedEvent) {                                          \
     struct EventFinalizer {                                                   \
       /* The parameter is an implementation detail. It allows the          */ \
       /* anonymous struct to use aggregate initialization to invoke the    */ \

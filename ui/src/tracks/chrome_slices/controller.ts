@@ -37,7 +37,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
           `create virtual table ${this.tableName('window')} using window;`);
 
       await this.query(`create view ${this.tableName('small')} as
-        select ts, dur, depth, name, slice_id from slice
+        select ts, dur, depth, name, id as slice_id
+        from ${this.namespaceTable('slice')}
         where track_id = ${this.config.trackId}
         and dur < ${minNs}
         order by ts;`);
@@ -61,14 +62,16 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
     await this.query(`drop view if exists ${this.tableName('summary')}`);
 
     await this.query(`create view ${this.tableName('small')} as
-      select ts, dur, depth, name, slice_id from slice
+      select ts, dur, depth, name, id as slice_id
+      from ${this.namespaceTable('slice')}
       where track_id = ${this.config.trackId}
       and dur < ${minNs}
       order by ts`);
 
     await this.query(`create view ${this.tableName('big')} as
-      select ts, dur, depth, name, slice_id, 1.0 as percent,
-      -1 as grouping from slice
+      select ts, dur, depth, name, id as slice_id, 1.0 as percent,
+      -1 as grouping
+      from ${this.namespaceTable('slice')}
       where track_id = ${this.config.trackId}
       and ts >= ${startNs} - dur
       and ts <= ${endNs}

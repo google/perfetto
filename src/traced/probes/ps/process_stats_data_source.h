@@ -18,6 +18,7 @@
 #define SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 
 #include <limits>
+#include <map>
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -29,6 +30,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
@@ -53,7 +55,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
-                         const DataSourceConfig&);
+                         const DataSourceConfig&,
+                         std::unique_ptr<CpuFreqInfo> cpu_freq_info);
   ~ProcessStatsDataSource() override;
 
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
@@ -71,6 +74,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // Virtual for testing.
   virtual base::ScopedDir OpenProcDir();
   virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
+  virtual base::ScopedDir OpenProcTaskDir(int32_t pid);
 
  private:
   struct CachedProcessStats {
@@ -105,6 +109,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
+  void WriteThreadStats(int32_t pid, int32_t tid);
 
   // Scans /proc/pid/status and writes the ProcessTree packet for input pids.
   void WriteProcessTree(const base::FlatSet<int32_t>&);
@@ -134,6 +139,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool record_thread_names_ = false;
   bool enable_on_demand_dumps_ = true;
   bool dump_all_procs_on_start_ = false;
+  bool record_thread_time_in_state_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
@@ -151,6 +157,13 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // |poll_period_ms_| ms.
   uint32_t process_stats_cache_ttl_ticks_ = 0;
   std::unordered_map<int32_t, CachedProcessStats> process_stats_cache_;
+
+  using TidCpuFreqIndex =
+      std::tuple</* tid */ int32_t, /* cpu_freq_index */ uint32_t>;
+  std::map<TidCpuFreqIndex, uint64_t> thread_time_in_state_cache_;
+  uint32_t thread_time_in_state_cache_size_;
+
+  std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 
   // If true, the next trace packet will have the |incremental_state_cleared|
   // flag set. Set when handling a ClearIncrementalState call.

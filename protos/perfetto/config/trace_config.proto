@@ -25,7 +25,7 @@ package perfetto.protos;
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 29.
+// Next id: 30.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -71,15 +71,20 @@ message TraceConfig {
   }
   repeated DataSource data_sources = 2;
 
-  // Config for builtin trace packets emitted by perfetto like trace stats,
-  // system info, etc.
+  // Config for disabling builtin data sources in the tracing service.
   message BuiltinDataSource {
     // Disable emitting clock timestamps into the trace.
     optional bool disable_clock_snapshotting = 1;
 
+    // Disable echoing the original trace config in the trace.
     optional bool disable_trace_config = 2;
 
+    // Disable emitting system info (build fingerprint, cpuinfo, etc).
     optional bool disable_system_info = 3;
+
+    // Disable emitting events for data-source state changes (e.g. the marker
+    // for all data sources having ACKed the start of the trace).
+    optional bool disable_service_events = 4;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -138,10 +143,20 @@ message TraceConfig {
   // Statsd-specific metadata.
   optional StatsdMetadata statsd_metadata = 7;
 
-  // When true, the EnableTracing() request must also provide a file descriptor.
-  // The service will then periodically read packets out of the trace buffer and
-  // store it into the passed file.
+  // When true && |output_path| is empty, the EnableTracing() request must
+  // provide a file descriptor. The service will then periodically read packets
+  // out of the trace buffer and store it into the passed file.
+  // If |output_path| is not empty no fd should be passed, the service
+  // will create a new file and write into that (see comment below).
   optional bool write_into_file = 8;
+
+  // This must point to a non-existing file. If the file exists the service
+  // will NOT overwrite and will fail instead as a security precaution.
+  // On Android, when this is used with the system traced, the path must be
+  // within /data/misc/perfetto-traces/ or the trace will fail.
+  // This option has been introduced in Android R. Before R write_into_file
+  // can be used only with the "pass a file descriptor over IPC" mode.
+  optional string output_path = 29;
 
   // Optional. If non-zero tunes the write period. A min value of 100ms is
   // enforced (i.e. smaller values are ignored).

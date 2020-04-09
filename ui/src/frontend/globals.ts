@@ -26,6 +26,7 @@ type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
 type AggregateDataStore = Map<string, AggregateData>;
+type Description = Map<string, string>;
 type Args = Map<string, string>;
 export interface SliceDetails {
   ts?: number;
@@ -41,6 +42,7 @@ export interface SliceDetails {
   category?: string;
   name?: string;
   args?: Args;
+  description?: Description;
 }
 
 export interface CounterDetails {

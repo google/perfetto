@@ -508,6 +508,13 @@ class TraceStorage {
     return &heap_profile_allocation_table_;
   }
 
+  const tables::PackageListTable& package_list_table() const {
+    return package_list_table_;
+  }
+  tables::PackageListTable* mutable_package_list_table() {
+    return &package_list_table_;
+  }
+
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return cpu_profile_stack_sample_table_;
@@ -526,6 +533,13 @@ class TraceStorage {
 
   tables::HeapGraphObjectTable* mutable_heap_graph_object_table() {
     return &heap_graph_object_table_;
+  }
+  const tables::HeapGraphClassTable& heap_graph_class_table() const {
+    return heap_graph_class_table_;
+  }
+
+  tables::HeapGraphClassTable* mutable_heap_graph_class_table() {
+    return &heap_graph_class_table_;
   }
 
   const tables::HeapGraphReferenceTable& heap_graph_reference_table() const {
@@ -625,18 +639,22 @@ class TraceStorage {
       case Variadic::Type::kUint:
         v.uint_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
         break;
-      case Variadic::Type::kString:
-        v.string_value = arg_table_.string_value()[row];
+      case Variadic::Type::kString: {
+        auto opt_value = arg_table_.string_value()[row];
+        v.string_value = opt_value ? *opt_value : kNullStringId;
         break;
+      }
       case Variadic::Type::kPointer:
         v.pointer_value = static_cast<uint64_t>(*arg_table_.int_value()[row]);
         break;
       case Variadic::Type::kReal:
         v.real_value = *arg_table_.real_value()[row];
         break;
-      case Variadic::Type::kJson:
-        v.json_value = arg_table_.string_value()[row];
+      case Variadic::Type::kJson: {
+        auto opt_value = arg_table_.string_value()[row];
+        v.json_value = opt_value ? *opt_value : kNullStringId;
         break;
+      }
     }
     return v;
   }
@@ -756,10 +774,12 @@ class TraceStorage {
       &string_pool_, nullptr};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, nullptr};
+  tables::PackageListTable package_list_table_{&string_pool_, nullptr};
 
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_, nullptr};
   tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_, nullptr};
+  tables::HeapGraphClassTable heap_graph_class_table_{&string_pool_, nullptr};
   tables::HeapGraphReferenceTable heap_graph_reference_table_{&string_pool_,
                                                               nullptr};
 

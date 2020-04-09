@@ -35,6 +35,7 @@ import "protos/perfetto/trace/gpu/vulkan_memory_event.proto";
 import "protos/perfetto/trace/gpu/vulkan_api_event.proto";
 import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
+import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
 import "protos/perfetto/trace/power/power_rails.proto";
 import "protos/perfetto/trace/profiling/heap_graph.proto";
@@ -60,7 +61,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 69.
+// Next id: 70.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -114,6 +115,7 @@ message TracePacket {
     PerfSample perf_sample = 66;
     CpuInfo cpu_info = 67;
     SmapsPacket smaps_packet = 68;
+    TracingServiceEvent service_event = 69;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

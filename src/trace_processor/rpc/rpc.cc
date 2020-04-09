@@ -21,6 +21,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "protos/perfetto/metrics/metrics.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
@@ -220,6 +221,31 @@ std::string Rpc::GetCurrentTraceName() {
 void Rpc::RestoreInitialTables() {
   if (trace_processor_)
     trace_processor_->RestoreInitialTables();
+}
+
+std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
+  protozero::HeapBuffered<protos::pbzero::ComputeMetricResult> result;
+  if (!trace_processor_) {
+    result->set_error("Null trace processor instance");
+    return result.SerializeAsArray();
+  }
+
+  protos::pbzero::ComputeMetricArgs::Decoder args(data, len);
+  std::vector<std::string> metric_names;
+  for (auto it = args.metric_names(); it; ++it) {
+    metric_names.emplace_back(it->as_std_string());
+  }
+
+  std::vector<uint8_t> metrics_proto;
+  util::Status status =
+      trace_processor_->ComputeMetric(metric_names, &metrics_proto);
+  if (status.ok()) {
+    auto* metrics = result->set_metrics();
+    metrics->AppendRawProtoBytes(metrics_proto.data(), metrics_proto.size());
+  } else {
+    result->set_error(status.message());
+  }
+  return result.SerializeAsArray();
 }
 
 }  // namespace trace_processor

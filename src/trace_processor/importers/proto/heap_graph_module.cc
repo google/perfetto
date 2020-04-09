@@ -229,7 +229,7 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
       PERFETTO_DLOG("Class string %s not found",
                     cls.obfuscated_name().ToStdString().c_str());
     } else {
-      const std::vector<int64_t>* cls_objects =
+      const std::vector<tables::HeapGraphClassTable::Id>* cls_objects =
           heap_graph_tracker->RowsForType(*obfuscated_class_name_id);
 
       if (cls_objects) {
@@ -237,14 +237,18 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
             *obfuscated_class_name_id,
             context_->storage->InternString(
                 base::StringView(cls.deobfuscated_name())));
-        for (int64_t row : *cls_objects) {
+
+        for (tables::HeapGraphClassTable::Id id : *cls_objects) {
+          uint32_t row =
+              *context_->storage->heap_graph_class_table().id().IndexOf(id);
           const StringPool::Id obfuscated_type_name =
-              context_->storage->mutable_heap_graph_object_table()
-                  ->type_name()[static_cast<uint32_t>(row)];
-          context_->storage->mutable_heap_graph_object_table()
-              ->mutable_deobfuscated_type_name()
-              ->Set(static_cast<uint32_t>(row),
-                    heap_graph_tracker->MaybeDeobfuscate(obfuscated_type_name));
+              context_->storage->heap_graph_class_table().name()[row];
+          StringPool::Id deobfuscated_type_name =
+              heap_graph_tracker->MaybeDeobfuscate(obfuscated_type_name);
+          PERFETTO_CHECK(!deobfuscated_type_name.is_null());
+          context_->storage->mutable_heap_graph_class_table()
+              ->mutable_deobfuscated_name()
+              ->Set(row, deobfuscated_type_name);
         }
       } else {
         PERFETTO_DLOG("Class %s not found",

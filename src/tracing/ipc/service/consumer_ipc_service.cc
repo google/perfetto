@@ -72,7 +72,7 @@ void ConsumerIPCService::EnableTracing(
   }
   const TraceConfig& trace_config = req.trace_config();
   base::ScopedFile fd;
-  if (trace_config.write_into_file())
+  if (trace_config.write_into_file() && trace_config.output_path().empty())
     fd = ipc::Service::TakeReceivedFD();
   remote_consumer->service_endpoint->EnableTracing(trace_config, std::move(fd));
   remote_consumer->enable_tracing_response = std::move(resp);

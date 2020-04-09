@@ -172,6 +172,7 @@ perfetto_cc_library(
         ":src_perfetto_cmd_perfetto_atoms",
         ":src_protozero_protozero",
         ":src_traced_probes_android_log_android_log",
+        ":src_traced_probes_common_common",
         ":src_traced_probes_data_source",
         ":src_traced_probes_filesystem_filesystem",
         ":src_traced_probes_ftrace_format_parser",
@@ -671,6 +672,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/analysis:analysis
+filegroup(
+    name = "src_trace_processor_analysis_analysis",
+    srcs = [
+        "src/trace_processor/analysis/describe_slice.cc",
+        "src/trace_processor/analysis/describe_slice.h",
+    ],
+)
+
 # GN target: //src/trace_processor/containers:containers
 filegroup(
     name = "src_trace_processor_containers_containers",
@@ -856,6 +866,8 @@ filegroup(
 filegroup(
     name = "src_trace_processor_lib",
     srcs = [
+        "src/trace_processor/describe_slice_generator.cc",
+        "src/trace_processor/describe_slice_generator.h",
         "src/trace_processor/experimental_counter_dur_generator.cc",
         "src/trace_processor/experimental_counter_dur_generator.h",
         "src/trace_processor/experimental_flamegraph_generator.cc",
@@ -912,6 +924,8 @@ filegroup(
         "src/trace_processor/importers/proto/android_probes_module.h",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
         "src/trace_processor/importers/proto/android_probes_parser.h",
+        "src/trace_processor/importers/proto/android_probes_tracker.cc",
+        "src/trace_processor/importers/proto/android_probes_tracker.h",
         "src/trace_processor/importers/proto/graphics_event_module.cc",
         "src/trace_processor/importers/proto/graphics_event_module.h",
         "src/trace_processor/importers/proto/graphics_event_parser.cc",
@@ -1041,6 +1055,15 @@ filegroup(
     srcs = [
         "src/traced/probes/android_log/android_log_data_source.cc",
         "src/traced/probes/android_log/android_log_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/common:common
+filegroup(
+    name = "src_traced_probes_common_common",
+    srcs = [
+        "src/traced/probes/common/cpu_freq_info.cc",
+        "src/traced/probes/common/cpu_freq_info.h",
     ],
 )
 
@@ -2331,6 +2354,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_perfetto_protos",
     srcs = [
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
+        "protos/perfetto/trace/perfetto/tracing_service_event.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -2400,6 +2424,10 @@ perfetto_proto_library(
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_protos",
     ],
 )
 
@@ -2778,6 +2806,7 @@ perfetto_cc_library(
     srcs = [
         ":src_base_base",
         ":src_protozero_protozero",
+        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
@@ -2864,6 +2893,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_protozero",
+        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
@@ -3028,6 +3058,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_protozero",
+        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
