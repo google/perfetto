@@ -36,12 +36,20 @@
 #include <sys/system_properties.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#define PERFETTO_HAS_CHMOD
+#include <sys/stat.h>
+#endif
+
 #include <algorithm>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -203,6 +211,27 @@ bool NameMatchesFilter(const std::string& name,
                          name, std::regex(regex, std::regex::extended));
                    }) != name_regex_filter.end();
   return filter_matches || filter_regex_matches;
+}
+
+// Used when write_into_file == true and output_path is not empty.
+base::ScopedFile CreateTraceFile(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  static const char kBase[] = "/data/misc/perfetto-traces/";
+  if (!base::StartsWith(path, kBase) || path.rfind('/') != strlen(kBase) - 1) {
+    PERFETTO_ELOG("Invalid output_path %s. On Android it must be within %s.",
+                  path.c_str(), kBase);
+    return base::ScopedFile();
+  }
+#endif
+  // O_CREAT | O_EXCL will fail if the file exists already.
+  auto fd = base::OpenFile(path, O_RDWR | O_CREAT | O_EXCL, 0600);
+  if (!fd)
+    PERFETTO_PLOG("Failed to create %s", path.c_str());
+#if defined(PERFETTO_HAS_CHMOD)
+  // Passing 0644 directly above won't work because of umask.
+  PERFETTO_CHECK(fchmod(*fd, 0644) == 0);
+#endif
+  return fd;
 }
 
 }  // namespace
@@ -584,11 +613,19 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
            .first->second;
 
   if (cfg.write_into_file()) {
-    if (!fd) {
+    if (!fd ^ !cfg.output_path().empty()) {
       PERFETTO_ELOG(
-          "The TraceConfig had write_into_file==true but no fd was passed");
+          "When write_into_file==true either a FD needs to be passed or "
+          "output_path must be populated (but not both)");
       tracing_sessions_.erase(tsid);
       return false;
+    }
+    if (!cfg.output_path().empty()) {
+      fd = CreateTraceFile(cfg.output_path());
+      if (!fd) {
+        tracing_sessions_.erase(tsid);
+        return false;
+      }
     }
     tracing_session->write_into_file = std::move(fd);
     uint32_t write_period_ms = cfg.file_write_period_ms();
@@ -2813,6 +2850,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryCapabilities(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingServiceCapabilities caps;
   caps.set_has_query_capabilities(true);
+  caps.set_has_trace_config_output_path(true);
   caps.add_observable_events(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
   caps.add_observable_events(ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
   static_assert(ObservableEvents::Type_MAX ==
