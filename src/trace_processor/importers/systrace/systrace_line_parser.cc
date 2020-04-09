@@ -20,12 +20,12 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/event_tracker.h"
-#include "src/trace_processor/ftrace_utils.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/types/task_state.h"
 
 #include <inttypes.h>
 #include <cctype>
