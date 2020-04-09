@@ -510,6 +510,23 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
+  if (!trace_config_->output_path().empty()) {
+    if (!trace_out_path_.empty() || !dropbox_tag_.empty()) {
+      PERFETTO_ELOG(
+          "Can't pass --out or --dropbox if output_path is set in the "
+          "trace config");
+      return 1;
+    }
+    if (access(trace_config_->output_path().c_str(), F_OK) == 0) {
+      PERFETTO_ELOG(
+          "The output_path must not exist, the service cannot overwrite "
+          "existing files for security reasons. Remove %s or use a different "
+          "path.",
+          trace_config_->output_path().c_str());
+      return 1;
+    }
+  }
+
   // |activate_triggers| in the trace config is shorthand for trigger_perfetto.
   // In this case we don't intend to send any trace config to the service,
   // rather use that as a signal to the cmdline client to connect as a producer
@@ -528,7 +545,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
       PERFETTO_ELOG("Can't pass an --out file (or --dropbox) with this option");
       return 1;
     }
-  } else if (!triggers_to_activate.empty()) {
+  } else if (!triggers_to_activate.empty() ||
+             (trace_config_->write_into_file() &&
+              !trace_config_->output_path().empty())) {
     open_out_file = false;
   } else if (trace_out_path_.empty() && dropbox_tag_.empty()) {
     PERFETTO_ELOG("Either --out or --dropbox is required");
@@ -695,7 +714,7 @@ void PerfettoCmd::OnConnect() {
   trace_config_->set_enable_extra_guardrails(!dropbox_tag_.empty());
 
   base::ScopedFile optional_fd;
-  if (trace_config_->write_into_file())
+  if (trace_config_->write_into_file() && trace_config_->output_path().empty())
     optional_fd.reset(dup(fileno(*trace_out_stream_)));
 
   consumer_endpoint_->EnableTracing(*trace_config_, std::move(optional_fd));
