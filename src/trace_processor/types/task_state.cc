@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/ftrace_utils.h"
+#include "src/trace_processor/types/task_state.h"
 
 #include <stdint.h>
 #include <algorithm>

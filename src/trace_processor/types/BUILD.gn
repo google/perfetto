@@ -16,6 +16,8 @@ source_set("types") {
   sources = [
     "gfp_flags.cc",
     "gfp_flags.h",
+    "task_state.cc",
+    "task_state.h",
     "variadic.cc",
     "variadic.h",
   ]
@@ -23,5 +25,15 @@ source_set("types") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../containers",
+  ]
+}
+
+source_set("unittests") {
+  testonly = true
+  sources = [ "task_state_unittests.cc" ]
+  deps = [
+    ":types",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
   ]
 }
