@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_IN_PROCESS_TRACING_BACKEND_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_IN_PROCESS_TRACING_BACKEND_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/tracing_backend.h"
 
 namespace perfetto {
@@ -34,7 +35,7 @@ namespace internal {
 // instance in-process. Instantiated when the embedder calls
 // Tracing::Initialize(kInProcessBackend). Solves most in-app-only tracing
 // use-cases.
-class InProcessTracingBackend : public TracingBackend {
+class PERFETTO_EXPORT InProcessTracingBackend : public TracingBackend {
  public:
   static TracingBackend* GetInstance();
 

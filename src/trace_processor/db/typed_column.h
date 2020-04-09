@@ -70,20 +70,9 @@ struct TypedColumn : public Column {
   // Used by the macro code when actually constructing the SparseVectors.
   using serialized_type = typename Serializer::serialized_type;
 
-  // Returns the data in the column at index |row|.
-  // Function chosen when TH::is_optional == true.
-  template <bool is_optional = TH::is_optional>
-  typename std::enable_if<is_optional, get_type>::type operator[](
-      uint32_t row) const {
-    return Serializer::Deserialize(sparse_vector().Get(row_map().Get(row)));
-  }
-
-  // Function chosen when TH::is_optional == false.
-  template <bool is_optional = TH::is_optional>
-  typename std::enable_if<!is_optional, get_type>::type operator[](
-      uint32_t row) const {
+  get_type operator[](uint32_t row) const {
     return Serializer::Deserialize(
-        sparse_vector().GetNonNull(row_map().Get(row)));
+        TH::Get(sparse_vector(), row_map().Get(row)));
   }
 
   // Special function only for string types to allow retrieving the string
@@ -91,7 +80,7 @@ struct TypedColumn : public Column {
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetString(
       uint32_t row) const {
-    return string_pool().Get((*this)[row]);
+    return string_pool().Get(sparse_vector().GetNonNull(row_map().Get(row)));
   }
 
   // Sets the data in the column at index |row|.

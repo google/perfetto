@@ -84,6 +84,12 @@ struct PERFETTO_EXPORT Track {
   explicit operator bool() const { return uuid; }
   void Serialize(protos::pbzero::TrackDescriptor*) const;
 
+  // Construct a global track with identifier |id|.
+  //
+  // Beware: the globally unique |id| should be chosen carefully to avoid
+  // accidental clashes with track identifiers emitted by other producers.
+  static Track Global(uint64_t id) { return Track(id, Track()); }
+
  protected:
   static Track MakeThreadTrack(base::PlatformThreadId tid_) {
     return Track(static_cast<uint64_t>(tid_), MakeProcessTrack());

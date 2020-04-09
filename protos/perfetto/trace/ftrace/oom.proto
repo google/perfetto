@@ -10,3 +10,6 @@ message OomScoreAdjUpdateFtraceEvent {
   optional int32 oom_score_adj = 2;
   optional int32 pid = 3;
 }
+message MarkVictimFtraceEvent {
+  optional int32 pid = 1;
+}

@@ -596,7 +596,7 @@ bool HasPath(const HeapGraphWalker::PathFromRoot& path,
 }
 
 bool HasPath(const HeapGraphWalker::PathFromRoot& path,
-             std::vector<uint32_t> class_names) {
+             std::vector<HeapGraphWalker::ClassNameId> class_names) {
   return HasPath(path, path.nodes[HeapGraphWalker::PathFromRoot::kRoot],
                  std::move(class_names));
 }

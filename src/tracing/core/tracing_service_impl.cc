@@ -36,12 +36,20 @@
 #include <sys/system_properties.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#define PERFETTO_HAS_CHMOD
+#include <sys/stat.h>
+#endif
+
 #include <algorithm>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -63,6 +71,7 @@
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
@@ -202,6 +211,27 @@ bool NameMatchesFilter(const std::string& name,
                          name, std::regex(regex, std::regex::extended));
                    }) != name_regex_filter.end();
   return filter_matches || filter_regex_matches;
+}
+
+// Used when write_into_file == true and output_path is not empty.
+base::ScopedFile CreateTraceFile(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  static const char kBase[] = "/data/misc/perfetto-traces/";
+  if (!base::StartsWith(path, kBase) || path.rfind('/') != strlen(kBase) - 1) {
+    PERFETTO_ELOG("Invalid output_path %s. On Android it must be within %s.",
+                  path.c_str(), kBase);
+    return base::ScopedFile();
+  }
+#endif
+  // O_CREAT | O_EXCL will fail if the file exists already.
+  auto fd = base::OpenFile(path, O_RDWR | O_CREAT | O_EXCL, 0600);
+  if (!fd)
+    PERFETTO_PLOG("Failed to create %s", path.c_str());
+#if defined(PERFETTO_HAS_CHMOD)
+  // Passing 0644 directly above won't work because of umask.
+  PERFETTO_CHECK(fchmod(*fd, 0644) == 0);
+#endif
+  return fd;
 }
 
 }  // namespace
@@ -583,11 +613,19 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
            .first->second;
 
   if (cfg.write_into_file()) {
-    if (!fd) {
+    if (!fd ^ !cfg.output_path().empty()) {
       PERFETTO_ELOG(
-          "The TraceConfig had write_into_file==true but no fd was passed");
+          "When write_into_file==true either a FD needs to be passed or "
+          "output_path must be populated (but not both)");
       tracing_sessions_.erase(tsid);
       return false;
+    }
+    if (!cfg.output_path().empty()) {
+      fd = CreateTraceFile(cfg.output_path());
+      if (!fd) {
+        tracing_sessions_.erase(tsid);
+        return false;
+      }
     }
     tracing_session->write_into_file = std::move(fd);
     uint32_t write_period_ms = cfg.file_write_period_ms();
@@ -1077,6 +1115,7 @@ void TracingServiceImpl::MaybeNotifyAllDataSourcesStarted(
 
   PERFETTO_DLOG("All data sources started");
   tracing_session->did_notify_all_data_source_started = true;
+  tracing_session->time_all_data_source_started = base::GetBootTimeNs();
   tracing_session->consumer_maybe_null->OnAllDataSourcesStarted();
 }
 
@@ -1660,6 +1699,8 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   }
   if (!tracing_session->config.builtin_data_sources().disable_system_info())
     MaybeEmitSystemInfo(tracing_session, &packets);
+  if (!tracing_session->config.builtin_data_sources().disable_service_events())
+    MaybeEmitServiceEvents(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   size_t total_slices = 0;   // SUM(#slices in |packets|).
@@ -2505,10 +2546,26 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   } else {
     PERFETTO_ELOG("Unable to read ro.build.fingerprint");
   }
+  info->set_hz(sysconf(_SC_CLK_TCK));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
+void TracingServiceImpl::MaybeEmitServiceEvents(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  int64_t all_start_ns = tracing_session->time_all_data_source_started.count();
+  if (!tracing_session->did_emit_all_data_source_started && all_start_ns > 0) {
+    tracing_session->did_emit_all_data_source_started = true;
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    packet->set_timestamp(static_cast<uint64_t>(all_start_ns));
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+    packet->set_service_event()->set_all_data_sources_started(true);
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
 }
 
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
@@ -2692,6 +2749,8 @@ void TracingServiceImpl::ConsumerEndpointImpl::ObserveEvents(
     }
   }
 
+  // If the ObserveEvents() call happens after data sources have acked already
+  // notify immediately.
   if (observable_events_mask_ &
       ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED) {
     service_->MaybeNotifyAllDataSourcesStarted(session);
@@ -2791,6 +2850,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryCapabilities(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingServiceCapabilities caps;
   caps.set_has_query_capabilities(true);
+  caps.set_has_trace_config_output_path(true);
   caps.add_observable_events(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
   caps.add_observable_events(ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
   static_assert(ObservableEvents::Type_MAX ==

@@ -198,6 +198,9 @@ struct TimestampedTracePiece {
     return *this;
   }
 
+  TimestampedTracePiece(const TimestampedTracePiece&) = delete;
+  TimestampedTracePiece& operator=(const TimestampedTracePiece&) = delete;
+
   ~TimestampedTracePiece() {
     switch (type) {
       case Type::kInvalid:

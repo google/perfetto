@@ -215,9 +215,9 @@ void ArgsSerializer::SerializeArgs() {
   } else if (event_name_ == "clk_set_rate") {
     using CSR = protos::pbzero::ClkSetRateFtraceEvent;
     writer_->AppendLiteral(" ");
-    WriteArgForField(CSR::kNameFieldNumber);
+    WriteValueForField(CSR::kNameFieldNumber);
     writer_->AppendLiteral(" ");
-    WriteArgForField(CSR::kRateFieldNumber);
+    WriteValueForField(CSR::kRateFieldNumber);
     return;
   } else if (event_name_ == "clock_enable") {
     using CE = protos::pbzero::ClockEnableFtraceEvent;
@@ -234,10 +234,17 @@ void ArgsSerializer::SerializeArgs() {
   } else if (event_name_ == "binder_transaction") {
     using BT = protos::pbzero::BinderTransactionFtraceEvent;
     writer_->AppendString(" transaction=");
-    WriteValueForField(BT::kDebugIdFieldNumber);
+    WriteValueForField(BT::kDebugIdFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+      writer_->AppendUnsignedInt(static_cast<uint32_t>(value.int_value));
+    });
 
     writer_->AppendString(" dest_node=");
-    WriteValueForField(BT::kTargetNodeFieldNumber);
+    WriteValueForField(
+        BT::kTargetNodeFieldNumber, [this](const Variadic& value) {
+          PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+          writer_->AppendUnsignedInt(static_cast<uint32_t>(value.int_value));
+        });
 
     writer_->AppendString(" dest_proc=");
     WriteValueForField(BT::kToProcFieldNumber);
@@ -263,14 +270,21 @@ void ArgsSerializer::SerializeArgs() {
   } else if (event_name_ == "binder_transaction_alloc_buf") {
     using BTAB = protos::pbzero::BinderTransactionAllocBufFtraceEvent;
     writer_->AppendString(" transaction=");
-    WriteValueForField(BTAB::kDebugIdFieldNumber);
+    WriteValueForField(
+        BTAB::kDebugIdFieldNumber, [this](const Variadic& value) {
+          PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+          writer_->AppendUnsignedInt(static_cast<uint32_t>(value.int_value));
+        });
     WriteArgForField(BTAB::kDataSizeFieldNumber);
     WriteArgForField(BTAB::kOffsetsSizeFieldNumber);
     return;
   } else if (event_name_ == "binder_transaction_received") {
     using BTR = protos::pbzero::BinderTransactionReceivedFtraceEvent;
     writer_->AppendString(" transaction=");
-    WriteValueForField(BTR::kDebugIdFieldNumber);
+    WriteValueForField(BTR::kDebugIdFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+      writer_->AppendUnsignedInt(static_cast<uint32_t>(value.int_value));
+    });
     return;
   } else if (event_name_ == "mm_filemap_add_to_page_cache") {
     using MFA = protos::pbzero::MmFilemapAddToPageCacheFtraceEvent;
@@ -431,13 +445,12 @@ bool ArgsSerializer::ParseGfpFlags(Variadic value) {
   if (!opt_name_idx || !opt_release_idx)
     return false;
 
-  StringId name = metadata_table.str_value()[*opt_name_idx];
-  base::StringView system_name = storage_->GetString(name);
+  const auto& str_value = metadata_table.str_value();
+  base::StringView system_name = str_value.GetString(*opt_name_idx);
   if (system_name != "Linux")
     return false;
 
-  StringId release = metadata_table.str_value()[*opt_release_idx];
-  base::StringView system_release = storage_->GetString(release);
+  base::StringView system_release = str_value.GetString(*opt_release_idx);
   auto version = ParseKernelReleaseVersion(system_release);
 
   WriteGfpFlag(value.uint_value, version, writer_);
