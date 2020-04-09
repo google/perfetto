@@ -647,7 +647,7 @@ void ProtoTraceParser::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
 
   for (auto it = sp.entries(); it; ++it) {
     protos::pbzero::SmapsEntry::Decoder e(*it);
-    context_->storage->mutable_smaps_table()->Insert(
+    context_->storage->mutable_profiler_smaps_table()->Insert(
         {upid, ts, context_->storage->InternString(e.path()),
          static_cast<int64_t>(e.size_kb()),
          static_cast<int64_t>(e.private_dirty_kb()),
