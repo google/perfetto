@@ -839,6 +839,8 @@ filegroup(
     srcs = [
         "src/trace_processor/types/gfp_flags.cc",
         "src/trace_processor/types/gfp_flags.h",
+        "src/trace_processor/types/task_state.cc",
+        "src/trace_processor/types/task_state.h",
         "src/trace_processor/types/variadic.cc",
         "src/trace_processor/types/variadic.h",
     ],
@@ -891,7 +893,6 @@ filegroup(
     srcs = [
         "src/trace_processor/additional_modules.cc",
         "src/trace_processor/additional_modules.h",
-        "src/trace_processor/ftrace_utils.cc",
         "src/trace_processor/importers/ftrace/binder_tracker.cc",
         "src/trace_processor/importers/ftrace/binder_tracker.h",
         "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
@@ -976,7 +977,6 @@ filegroup(
         "src/trace_processor/event_tracker.h",
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
-        "src/trace_processor/ftrace_utils.h",
         "src/trace_processor/global_args_tracker.cc",
         "src/trace_processor/global_args_tracker.h",
         "src/trace_processor/heap_profile_tracker.cc",

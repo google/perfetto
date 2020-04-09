@@ -91,7 +91,6 @@ source_set("storage_minimal") {
     "event_tracker.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
-    "ftrace_utils.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
     "heap_profile_tracker.cc",
@@ -193,7 +192,6 @@ source_set("storage_full") {
   sources = [
     "additional_modules.cc",
     "additional_modules.h",
-    "ftrace_utils.cc",
     "importers/ftrace/binder_tracker.cc",
     "importers/ftrace/binder_tracker.h",
     "importers/ftrace/ftrace_descriptors.cc",
@@ -371,7 +369,6 @@ perfetto_unittest_source_set("unittests") {
     "clock_tracker_unittest.cc",
     "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
-    "ftrace_utils_unittest.cc",
     "heap_profile_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
@@ -410,6 +407,7 @@ perfetto_unittest_source_set("unittests") {
     "db:unittests",
     "storage",
     "tables:unittests",
+    "types:unittests",
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
