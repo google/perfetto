@@ -57,6 +57,7 @@
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "protos/perfetto/trace/profiling/smaps.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
@@ -156,6 +157,10 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_service_event()) {
     ParseServiceEvent(ts, packet.service_event());
+  }
+
+  if (packet.has_smaps_packet()) {
+    ParseSmapsPacket(ts, packet.smaps_packet());
   }
 }
 
@@ -633,6 +638,20 @@ void ProtoTraceParser::ParseServiceEvent(int64_t ts, ConstBytes blob) {
   if (tse.all_data_sources_started()) {
     context_->metadata_tracker->SetMetadata(
         metadata::all_data_source_started_ns, Variadic::Integer(ts));
+  }
+}
+
+void ProtoTraceParser::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SmapsPacket::Decoder sp(blob.data, blob.size);
+  auto upid = context_->process_tracker->GetOrCreateProcess(sp.pid());
+
+  for (auto it = sp.entries(); it; ++it) {
+    protos::pbzero::SmapsEntry::Decoder e(*it);
+    context_->storage->mutable_smaps_table()->Insert(
+        {upid, ts, context_->storage->InternString(e.path()),
+         static_cast<int64_t>(e.size_kb()),
+         static_cast<int64_t>(e.private_dirty_kb()),
+         static_cast<int64_t>(e.swap_kb())});
   }
 }
 
