@@ -74,6 +74,7 @@ class ProtoTraceParser : public TraceParser {
   void ParseModuleSymbols(ConstBytes);
   void ParseTrigger(int64_t ts, ConstBytes);
   void ParseServiceEvent(int64_t ts, ConstBytes);
+  void ParseSmapsPacket(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* context_;
