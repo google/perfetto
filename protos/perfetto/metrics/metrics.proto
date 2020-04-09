@@ -51,6 +51,7 @@ message TraceMetadata {
   optional string android_build_fingerprint = 4;
   optional int64 statsd_triggering_subscription_id = 5;
   optional int64 trace_size_bytes = 6;
+  repeated string trace_trigger = 7;
 }
 
 // Root message for all Perfetto-based metrics.
