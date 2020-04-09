@@ -27,7 +27,7 @@ namespace trace_processor {
 
 namespace {
 
-ExperimentalFlamegraphGenerator::InputValues GetInputValues(
+ExperimentalFlamegraphGenerator::InputValues GetFlamegraphInputValues(
     const std::vector<Constraint>& cs) {
   using T = tables::ExperimentalFlamegraphNodesTable;
 
@@ -251,7 +251,7 @@ std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&) {
   // Get the input column values and compute the flamegraph using them.
-  auto values = GetInputValues(cs);
+  auto values = GetFlamegraphInputValues(cs);
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> table;
   if (values.profile_type == "graph") {

@@ -24,6 +24,20 @@ package perfetto.protos;
 // and sometimes processes may be missing . This is because counters are
 // cached to reduce emission of counters which do not change.
 message ProcessStats {
+  // Per-thread periodically sampled stats.
+  // Note: not all of these stats will be present in every message. See the note
+  // for ProcessStats.
+  message Thread {
+    optional int32 tid = 1;
+
+    // Pairs of frequency (represented as an index to CpuInfo frequencies) and
+    // time at that frequency (represented as a number of ticks, see SystemInfo
+    // for the HZ (ticks / second) value to convert this to time).
+    // Read from /proc/tid/time_in_state.
+    repeated uint32 cpu_freq_indices = 2;
+    repeated uint64 cpu_freq_ticks = 3;
+  }
+
   message Process {
     optional int32 pid = 1;
 
@@ -40,6 +54,8 @@ message ProcessStats {
     // the trace processor.
 
     optional int64 oom_score_adj = 10;
+
+    repeated Thread threads = 11;
   }
   repeated Process processes = 1;
 

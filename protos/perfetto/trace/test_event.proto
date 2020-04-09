@@ -20,7 +20,7 @@ package perfetto.protos;
 
 // Event used by testing code.
 message TestEvent {
-  // Arbitary string used in tests.
+  // Arbitrary string used in tests.
   optional string str = 1;
 
   // The current value of the random number sequence used in tests.

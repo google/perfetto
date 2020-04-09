@@ -38,7 +38,6 @@ namespace metadata {
   F(benchmark_story_run_index,         KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_story_run_time_us,       KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_story_tags,              KeyType::kMulti,   Variadic::kString), \
-  F(android_packages_list,             KeyType::kMulti,   Variadic::kInt),    \
   F(statsd_triggering_subscription_id, KeyType::kSingle,  Variadic::kInt),    \
   F(trace_uuid,                        KeyType::kSingle,  Variadic::kString), \
   F(system_name,                       KeyType::kSingle,  Variadic::kString), \
@@ -46,7 +45,8 @@ namespace metadata {
   F(system_release,                    KeyType::kSingle,  Variadic::kString), \
   F(system_machine,                    KeyType::kSingle,  Variadic::kString), \
   F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString), \
-  F(trace_size_bytes,                  KeyType::kSingle,  Variadic::kInt)
+  F(trace_size_bytes,                  KeyType::kSingle,  Variadic::kInt), \
+  F(all_data_source_started_ns,        KeyType::kSingle,  Variadic::kInt)
 // clang-format on
 
 // Compile time list of metadata items.

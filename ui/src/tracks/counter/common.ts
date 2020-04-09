@@ -31,6 +31,7 @@ export interface Config {
   minimumValue?: number;
   startTs?: number;
   endTs?: number;
+  namespace: string;
   trackId: number;
   scale?: 'DEFAULT'|'RELATIVE';
 }

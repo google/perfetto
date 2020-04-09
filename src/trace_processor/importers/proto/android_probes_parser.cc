@@ -38,6 +38,8 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
 
+#include "src/trace_processor/importers/proto/android_probes_tracker.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -221,26 +223,19 @@ void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
   context_->storage->SetStats(stats::packages_list_has_parse_errors,
                               pkg_list.parse_error());
 
-  // Insert the package info into arg sets (one set per package), with the arg
-  // set ids collected in the Metadata table, under
-  // metadata::android_packages_list key type.
+  AndroidProbesTracker* tracker = AndroidProbesTracker::GetOrCreate(context_);
   for (auto it = pkg_list.packages(); it; ++it) {
-    // Insert a placeholder metadata entry, which will be overwritten by the
-    // arg_set_id when the arg tracker is flushed.
-    auto id = context_->metadata_tracker->AppendMetadata(
-        metadata::android_packages_list, Variadic::Integer(0));
-    auto add_arg = [this, id](base::StringView name, Variadic value) {
-      StringId key_id = context_->storage->InternString(name);
-      context_->args_tracker->AddArgsTo(id).AddArg(key_id, value);
-    };
     protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
-    add_arg("name",
-            Variadic::String(context_->storage->InternString(pkg.name())));
-    add_arg("uid", Variadic::UnsignedInteger(pkg.uid()));
-    add_arg("debuggable", Variadic::Boolean(pkg.debuggable()));
-    add_arg("profileable_from_shell",
-            Variadic::Boolean(pkg.profileable_from_shell()));
-    add_arg("version_code", Variadic::Integer(pkg.version_code()));
+    std::string pkg_name = pkg.name().ToStdString();
+    if (!tracker->ShouldInsertPackage(pkg_name)) {
+      continue;
+    }
+    context_->storage->mutable_package_list_table()->Insert(
+        {context_->storage->InternString(pkg.name()),
+         static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
+         pkg.profileable_from_shell(),
+         static_cast<int64_t>(pkg.version_code())});
+    tracker->InsertedPackage(std::move(pkg_name));
   }
 }
 

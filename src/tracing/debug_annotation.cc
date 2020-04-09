@@ -25,41 +25,6 @@ DebugAnnotation::~DebugAnnotation() = default;
 namespace internal {
 
 void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          bool value) {
-  annotation->set_bool_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          uint64_t value) {
-  annotation->set_uint_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          unsigned value) {
-  annotation->set_uint_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          int64_t value) {
-  annotation->set_int_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          int value) {
-  annotation->set_int_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          double value) {
-  annotation->set_double_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          float value) {
-  annotation->set_double_value(static_cast<double>(value));
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
                           const char* value) {
   annotation->set_string_value(value);
 }

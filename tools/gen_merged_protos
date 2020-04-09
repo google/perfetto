@@ -21,113 +21,18 @@ import re
 import sys
 from codecs import open
 
-COMMON_PROTOS = (
-    'protos/perfetto/common/android_log_constants.proto',
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+CONFIG_PROTO_ROOTS = [
     'protos/perfetto/common/data_source_descriptor.proto',
-    'protos/perfetto/common/gpu_counter_descriptor.proto',
-    'protos/perfetto/common/sys_stats_counters.proto',
-    'protos/perfetto/common/trace_stats.proto',
-    'protos/perfetto/common/tracing_service_state.proto',
-    'protos/perfetto/common/track_event_descriptor.proto',
-)
-
-CONFIG_PROTOS = (
-    'protos/perfetto/config/android/android_log_config.proto',
-    'protos/perfetto/config/chrome/chrome_config.proto',
-    'protos/perfetto/config/data_source_config.proto',
-    'protos/perfetto/config/ftrace/ftrace_config.proto',
-    'protos/perfetto/config/inode_file/inode_file_config.proto',
-    'protos/perfetto/config/power/android_power_config.proto',
-    'protos/perfetto/config/process_stats/process_stats_config.proto',
-    'protos/perfetto/config/sys_stats/sys_stats_config.proto',
-    'protos/perfetto/config/test_config.proto',
-    'protos/perfetto/config/trace_config.proto',
-    'protos/perfetto/config/track_event/track_event_config.proto',
-    'protos/perfetto/config/profiling/heapprofd_config.proto',
-    'protos/perfetto/config/profiling/java_hprof_config.proto',
-    'protos/perfetto/config/profiling/perf_event_config.proto',
-    'protos/perfetto/config/gpu/gpu_counter_config.proto',
-    'protos/perfetto/config/gpu/vulkan_memory_config.proto',
-    'protos/perfetto/config/android/packages_list_config.proto',
-)
-
+    'protos/perfetto/config/trace_config.proto'
+]
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
-TRACE_PROTOS = (
-    'protos/perfetto/trace/android/android_log.proto',
-    'protos/perfetto/trace/android/graphics_frame_event.proto',
-    'protos/perfetto/trace/android/packages_list.proto',
-    'protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto',
-    "protos/perfetto/trace/chrome/chrome_metadata.proto",
-    'protos/perfetto/trace/clock_snapshot.proto',
-    'protos/perfetto/trace/filesystem/inode_file_map.proto',
-    'protos/perfetto/trace/ftrace/binder.proto',
-    'protos/perfetto/trace/ftrace/block.proto',
-    'protos/perfetto/trace/ftrace/clk.proto',
-    'protos/perfetto/trace/ftrace/ext4.proto',
-    'protos/perfetto/trace/ftrace/f2fs.proto',
-    'protos/perfetto/trace/ftrace/filemap.proto',
-    'protos/perfetto/trace/ftrace/ftrace.proto',
-    'protos/perfetto/trace/ftrace/ftrace_event.proto',
-    'protos/perfetto/trace/ftrace/ftrace_event_bundle.proto',
-    'protos/perfetto/trace/ftrace/ftrace_stats.proto',
-    'protos/perfetto/trace/ftrace/generic.proto',
-    'protos/perfetto/trace/ftrace/kmem.proto',
-    'protos/perfetto/trace/ftrace/lowmemorykiller.proto',
-    'protos/perfetto/trace/ftrace/mm_event.proto',
-    'protos/perfetto/trace/ftrace/power.proto',
-    'protos/perfetto/trace/ftrace/raw_syscalls.proto',
-    'protos/perfetto/trace/ftrace/sched.proto',
-    'protos/perfetto/trace/ftrace/signal.proto',
-    'protos/perfetto/trace/ftrace/systrace.proto',
-    'protos/perfetto/trace/ftrace/task.proto',
-    'protos/perfetto/trace/ftrace/vmscan.proto',
-    'protos/perfetto/trace/interned_data/interned_data.proto',
-    'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
-    'protos/perfetto/trace/power/battery_counters.proto',
-    'protos/perfetto/trace/power/power_rails.proto',
-    'protos/perfetto/trace/profiling/heap_graph.proto',
-    'protos/perfetto/trace/profiling/profile_common.proto',
-    'protos/perfetto/trace/profiling/profile_packet.proto',
-    'protos/perfetto/trace/profiling/smaps.proto',
-    'protos/perfetto/trace/ps/process_stats.proto',
-    'protos/perfetto/trace/ps/process_tree.proto',
-    'protos/perfetto/trace/sys_stats/sys_stats.proto',
-    'protos/perfetto/trace/system_info.proto',
-    'protos/perfetto/trace/system_info/cpu_info.proto',
-    'protos/perfetto/trace/trace.proto',
-    'protos/perfetto/trace/trace_packet.proto',
-    'protos/perfetto/trace/trace_packet_defaults.proto',
-    'protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto',
-    'protos/perfetto/trace/track_event/chrome_histogram_sample.proto',
-    'protos/perfetto/trace/track_event/chrome_keyed_service.proto',
-    'protos/perfetto/trace/track_event/chrome_legacy_ipc.proto',
-    'protos/perfetto/trace/track_event/chrome_latency_info.proto',
-    'protos/perfetto/trace/track_event/chrome_process_descriptor.proto',
-    'protos/perfetto/trace/track_event/chrome_thread_descriptor.proto',
-    'protos/perfetto/trace/track_event/chrome_user_event.proto',
-    'protos/perfetto/trace/track_event/counter_descriptor.proto',
-    'protos/perfetto/trace/track_event/debug_annotation.proto',
-    'protos/perfetto/trace/track_event/log_message.proto',
-    'protos/perfetto/trace/track_event/process_descriptor.proto',
-    'protos/perfetto/trace/track_event/source_location.proto',
-    'protos/perfetto/trace/track_event/task_execution.proto',
-    'protos/perfetto/trace/track_event/thread_descriptor.proto',
-    'protos/perfetto/trace/track_event/track_descriptor.proto',
-    'protos/perfetto/trace/track_event/track_event.proto',
-    'protos/perfetto/trace/trigger.proto',
-    'protos/perfetto/trace/gpu/gpu_counter_event.proto',
-    'protos/perfetto/trace/gpu/gpu_log.proto',
-    'protos/perfetto/trace/gpu/gpu_render_stage_event.proto',
-    'protos/perfetto/trace/gpu/vulkan_api_event.proto',
-)
-
+TRACE_PROTO_ROOTS = CONFIG_PROTO_ROOTS + ['protos/perfetto/trace/trace.proto']
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'
 
-METRICS_PROTOS = (
-    'protos/perfetto/metrics/metrics.proto',
-)
-
+METRICS_PROTOS_ROOTS = ['protos/perfetto/metrics/metrics.proto']
 MERGED_METRICS_PROTO = 'protos/perfetto/metrics/perfetto_merged_metrics.proto'
 
 REPLACEMENT_HEADER = '''
@@ -146,9 +51,24 @@ package perfetto.protos;
 '''
 
 
-def merge_protos_content(proto_paths, follow_imports, added_files, add_header):
+def get_transitive_imports(rel_path, visited):
+  if rel_path in visited:
+    return []
+  visited.add(rel_path)
+  with open(os.path.join(PROJECT_ROOT, rel_path), 'r', encoding='utf-8') as f:
+    content = f.read()
+  imports = re.findall(r'^import "(.*)";\n', content, flags=re.MULTILINE)
+  res = []
+  for child in sorted(imports):
+    res += get_transitive_imports(child, visited)
+  res += [rel_path]
+  return res
+
+
+def merge_protos_content(proto_paths):
   root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-  merged_content = ''
+  merged_content = REPLACEMENT_HEADER.lstrip() % __file__
+  added_files = set()
   for proto in proto_paths:
     if proto in added_files:
       continue
@@ -162,13 +82,6 @@ def merge_protos_content(proto_paths, follow_imports, added_files, add_header):
     header = re.match(r'\/(\*|\/)(?:.|\s)*?package .*;\n', content)
     header = header.group(0)
     content = content[len(header):]
-    if merged_content == '' and add_header:
-      merged_content += REPLACEMENT_HEADER.lstrip() % __file__
-
-    if follow_imports:
-      matches = re.findall(r'^import "(.*)";\n\n?', content, flags=re.MULTILINE)
-      merged_content += merge_protos_content(
-          matches, follow_imports, added_files, add_header=False)
 
     content = re.sub(r'^import.*?\n\n?', '', content, flags=re.MULTILINE)
     merged_content += '\n// Begin of %s\n' % proto
@@ -202,12 +115,14 @@ def merge_protos_content(proto_paths, follow_imports, added_files, add_header):
   return merged_content
 
 
-def merge_protos(proto_paths, output_path, follow_imports):
+def merge_protos(root_paths, output_path):
   root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-  merged_content = merge_protos_content(
-      proto_paths, follow_imports, added_files=set(), add_header=True)
-  out_path = os.path.join(root_dir, output_path)
+  all_protos = []
+  for root_path in root_paths:
+    all_protos += get_transitive_imports(root_path, visited=set())
+  merged_content = merge_protos_content(all_protos)
 
+  out_path = os.path.join(root_dir, output_path)
   prev_content = None
   if os.path.exists(out_path):
     with open(out_path, 'r', encoding='utf-8') as fprev:
@@ -226,11 +141,9 @@ def merge_protos(proto_paths, output_path, follow_imports):
 
 
 def main():
-  result = merge_protos(COMMON_PROTOS + CONFIG_PROTOS, MERGED_CONFIG_PROTO,
-                        False)
-  result &= merge_protos(COMMON_PROTOS + TRACE_PROTOS + CONFIG_PROTOS,
-                         MERGED_TRACE_PROTO, False)
-  result &= merge_protos(METRICS_PROTOS, MERGED_METRICS_PROTO, True)
+  result = merge_protos(CONFIG_PROTO_ROOTS, MERGED_CONFIG_PROTO)
+  result &= merge_protos(TRACE_PROTO_ROOTS, MERGED_TRACE_PROTO)
+  result &= merge_protos(METRICS_PROTOS_ROOTS, MERGED_METRICS_PROTO)
   return 0 if result else 1
 
 

@@ -23,6 +23,17 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+#define PERFETTO_TP_PACKAGES_LIST_DEF(NAME, PARENT, C) \
+  NAME(PackageListTable, "package_list")               \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
+  C(StringPool::Id, package_name)                      \
+  C(int64_t, uid)                                      \
+  C(int32_t, debuggable)                               \
+  C(int32_t, profileable_from_shell)                   \
+  C(int64_t, version_code)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_PACKAGES_LIST_DEF);
+
 #define PERFETTO_TP_STACK_PROFILE_MAPPING_DEF(NAME, PARENT, C) \
   NAME(StackProfileMappingTable, "stack_profile_mapping")      \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                            \
@@ -107,19 +118,27 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 
-#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)  \
-  NAME(HeapGraphObjectTable, "heap_graph_object")           \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                         \
-  C(uint32_t, upid)                                         \
-  C(int64_t, graph_sample_ts)                               \
-  C(int64_t, object_id)                                     \
-  C(int64_t, self_size)                                     \
-  C(int64_t, retained_size)                                 \
-  C(int64_t, unique_retained_size)                          \
-  C(base::Optional<uint32_t>, reference_set_id)             \
-  C(int32_t, reachable)                                     \
-  C(StringPool::Id, type_name)                              \
-  C(base::Optional<StringPool::Id>, deobfuscated_type_name) \
+#define PERFETTO_TP_HEAP_GRAPH_CLASS_DEF(NAME, PARENT, C) \
+  NAME(HeapGraphClassTable, "heap_graph_class")           \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                       \
+  C(StringPool::Id, name)                                 \
+  C(base::Optional<StringPool::Id>, deobfuscated_name)    \
+  C(base::Optional<StringPool::Id>, location)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
+
+#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C) \
+  NAME(HeapGraphObjectTable, "heap_graph_object")          \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
+  C(uint32_t, upid)                                        \
+  C(int64_t, graph_sample_ts)                              \
+  C(int64_t, object_id)                                    \
+  C(int64_t, self_size)                                    \
+  C(int64_t, retained_size)                                \
+  C(int64_t, unique_retained_size)                         \
+  C(base::Optional<uint32_t>, reference_set_id)            \
+  C(int32_t, reachable)                                    \
+  C(HeapGraphClassTable::Id, type_id)                      \
   C(base::Optional<StringPool::Id>, root_type)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
