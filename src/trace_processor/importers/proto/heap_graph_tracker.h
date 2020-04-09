@@ -38,6 +38,8 @@ struct NormalizedType {
   bool is_static_class;
   size_t number_of_arrays;
 };
+
+base::Optional<std::string> PackageFromLocation(base::StringView location);
 base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type);
 size_t NumberOfArrays(base::StringView type);
 NormalizedType GetNormalizedType(base::StringView type);
@@ -100,13 +102,16 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
                    int64_t unique_retained) override;
   void NotifyEndOfFile();
 
-  void AddDeobfuscationMapping(StringPool::Id obfuscated_name,
+  void AddDeobfuscationMapping(base::Optional<StringPool::Id> package_name,
+                               StringPool::Id obfuscated_name,
                                StringPool::Id deobfuscated_name);
-  StringPool::Id MaybeDeobfuscate(StringPool::Id);
+  StringPool::Id MaybeDeobfuscate(base::Optional<StringPool::Id> package_name,
+                                  StringPool::Id);
 
   const std::vector<tables::HeapGraphClassTable::Id>* RowsForType(
+      base::Optional<StringPool::Id> package_name,
       StringPool::Id type_name) const {
-    auto it = class_to_rows_.find(type_name);
+    auto it = class_to_rows_.find(std::make_pair(package_name, type_name));
     if (it == class_to_rows_.end())
       return nullptr;
     return &it->second;
@@ -122,6 +127,9 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildFlamegraph(
       const int64_t current_ts,
       const UniquePid current_upid);
+
+  // public for testing.
+  base::Optional<std::string> PackageFromLocation(base::StringView location);
 
  private:
   struct InternedField {
@@ -154,11 +162,14 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   std::map<uint32_t, SequenceState> sequence_state_;
   std::map<std::pair<UniquePid, int64_t /* ts */>, HeapGraphWalker> walkers_;
 
-  std::map<StringPool::Id, std::vector<tables::HeapGraphClassTable::Id>>
+  std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
+           std::vector<tables::HeapGraphClassTable::Id>>
       class_to_rows_;
   std::map<StringPool::Id, std::vector<int64_t>> field_to_rows_;
 
-  std::map<StringPool::Id, StringPool::Id> deobfuscation_mapping_;
+  std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
+           StringPool::Id>
+      deobfuscation_mapping_;
 };
 
 }  // namespace trace_processor
