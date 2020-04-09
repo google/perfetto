@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_FTRACE_UTILS_H_
-#define SRC_TRACE_PROCESSOR_FTRACE_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_TASK_STATE_H_
+#define SRC_TRACE_PROCESSOR_TYPES_TASK_STATE_H_
 
 #include <stddef.h>
 #include <array>
@@ -98,4 +98,4 @@ class TaskState {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_FTRACE_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_TASK_STATE_H_
