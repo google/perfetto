@@ -17,7 +17,7 @@
 #include "src/trace_processor/heap_profile_tracker.h"
 
 #include "src/trace_processor/stack_profile_tracker.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

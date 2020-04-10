@@ -25,8 +25,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"

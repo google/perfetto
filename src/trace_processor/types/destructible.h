@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DESTRUCTIBLE_H_
-#define SRC_TRACE_PROCESSOR_DESTRUCTIBLE_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_DESTRUCTIBLE_H_
+#define SRC_TRACE_PROCESSOR_TYPES_DESTRUCTIBLE_H_
 
 namespace perfetto {
 namespace trace_processor {
@@ -33,4 +33,4 @@ class Destructible {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DESTRUCTIBLE_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_DESTRUCTIBLE_H_

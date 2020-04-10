@@ -24,7 +24,7 @@
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/syscall_tracker.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
