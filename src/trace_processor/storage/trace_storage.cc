@@ -34,20 +34,20 @@ void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& ts_col,
   if (ts_col.row_map().empty())
     return;
 
-  SqlValue col_min = *ts_col.Min();
-  SqlValue col_max = *ts_col.Max();
-  int64_t last_dur = 0;
+  int64_t col_min = ts_col.Min()->AsLong();
+  int64_t col_max = ts_col.Max()->AsLong();
+
   if (dur_col) {
     PERFETTO_CHECK(ts_col.IsSorted());
     PERFETTO_CHECK(dur_col->row_map().size() == ts_col.row_map().size());
-    last_dur = dur_col->Get(ts_col.row_map().size() - 1).long_value;
+    for (uint32_t i = 0; i < dur_col->row_map().size(); i++) {
+      col_max =
+          std::max(ts_col.Get(i).AsLong() + dur_col->Get(i).AsLong(), col_max);
+    }
   }
 
-  PERFETTO_DCHECK(col_min.type == SqlValue::Type::kLong);
-  PERFETTO_DCHECK(col_max.type == SqlValue::Type::kLong);
-
-  *min_value = std::min(*min_value, col_min.long_value);
-  *max_value = std::max(*max_value, col_max.long_value + last_dur);
+  *min_value = std::min(*min_value, col_min);
+  *max_value = std::max(*max_value, col_max);
 }
 
 std::vector<NullTermStringView> CreateRefTypeStringMap() {
