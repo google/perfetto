@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/experimental_counter_dur_generator.h"
+#include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
 
 #include "test/gtest_and_gmock.h"
 
