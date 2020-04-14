@@ -18,11 +18,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
-#include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/metadata_tracker.h"
-#include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

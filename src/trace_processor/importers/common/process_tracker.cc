@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 
 #include <utility>
@@ -25,8 +25,7 @@ namespace perfetto {
 namespace trace_processor {
 
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
-    : context_(context) {
-}
+    : context_(context) {}
 
 ProcessTracker::~ProcessTracker() = default;
 

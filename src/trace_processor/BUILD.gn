@@ -78,8 +78,6 @@ source_set("descriptors") {
 
 source_set("storage_minimal") {
   sources = [
-    "args_tracker.cc",
-    "args_tracker.h",
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
@@ -89,10 +87,16 @@ source_set("storage_minimal") {
     "event_tracker.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
-    "global_args_tracker.cc",
-    "global_args_tracker.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
+    "importers/common/args_tracker.cc",
+    "importers/common/args_tracker.h",
+    "importers/common/global_args_tracker.cc",
+    "importers/common/global_args_tracker.h",
+    "importers/common/process_tracker.cc",
+    "importers/common/process_tracker.h",
+    "importers/common/track_tracker.cc",
+    "importers/common/track_tracker.h",
     "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
     "importers/fuchsia/fuchsia_record.h",
@@ -129,8 +133,6 @@ source_set("storage_minimal") {
     "metadata_tracker.h",
     "perf_sample_tracker.cc",
     "perf_sample_tracker.h",
-    "process_tracker.cc",
-    "process_tracker.h",
     "slice_tracker.cc",
     "slice_tracker.h",
     "stack_profile_tracker.cc",
@@ -146,8 +148,6 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
-    "track_tracker.cc",
-    "track_tracker.h",
     "virtual_destructors.cc",
   ]
   deps = [
@@ -177,9 +177,13 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/track_event:zero",
   ]
+
+  # json_utils optionally depends on jsoncpp.
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
   }
+
+  # gzip_utils optionally depends on zlib.
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
   }
@@ -368,13 +372,13 @@ perfetto_unittest_source_set("unittests") {
     "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
     "heap_profile_tracker_unittest.cc",
+    "importers/common/process_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
     "importers/proto/heap_graph_tracker_unittest.cc",
     "importers/proto/heap_graph_walker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
-    "process_tracker_unittest.cc",
     "protozero_to_text_unittests.cc",
     "slice_tracker_unittest.cc",
     "syscall_tracker_unittest.cc",

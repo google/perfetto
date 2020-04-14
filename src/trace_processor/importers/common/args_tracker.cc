@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 
 #include <algorithm>
 
