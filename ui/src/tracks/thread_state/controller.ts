@@ -135,7 +135,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         summary.ends[outIndex] = fromNs(start + dur);
         summary.state[outIndex] =
             internString(numStates === 1 ? state : 'Various states');
-        summary.cpu[outIndex] = +cols[2].doubleValues![row];
+        summary.cpu[outIndex] = +cols[2].longValues![row];
         outIndex++;
       }
     }
