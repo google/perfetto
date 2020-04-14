@@ -16,6 +16,8 @@
 
 #include "perfetto/ext/base/subprocess.h"
 
+#if PERFETTO_HAS_SUBPROCESS()
+
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
@@ -427,3 +429,5 @@ std::string Subprocess::Args::GetCmdString() const {
 
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_HAS_SUBPROCESS()
