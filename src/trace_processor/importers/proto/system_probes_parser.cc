@@ -21,9 +21,9 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
-#include "src/trace_processor/syscall_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"

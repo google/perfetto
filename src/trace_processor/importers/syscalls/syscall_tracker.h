@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SYSCALL_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_SYSCALL_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_
 
 #include <limits>
 #include <tuple>
@@ -99,4 +99,4 @@ class SyscallTracker : public Destructible {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SYSCALL_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_

@@ -128,6 +128,7 @@ source_set("storage_minimal") {
     "importers/proto/track_event_parser.h",
     "importers/proto/track_event_tokenizer.cc",
     "importers/proto/track_event_tokenizer.h",
+    "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "metadata_tracker.cc",
     "metadata_tracker.h",
@@ -138,7 +139,6 @@ source_set("storage_minimal") {
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
     "status_macros.h",
-    "syscall_tracker.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
     "trace_parser.h",
@@ -243,6 +243,12 @@ source_set("storage_full") {
     "importers/proto/system_probes_parser.h",
     "importers/proto/vulkan_memory_tracker.cc",
     "importers/proto/vulkan_memory_tracker.h",
+    "importers/syscalls/syscall_tracker.cc",
+    "importers/syscalls/syscalls_aarch32.h",
+    "importers/syscalls/syscalls_aarch64.h",
+    "importers/syscalls/syscalls_armeabi.h",
+    "importers/syscalls/syscalls_x86.h",
+    "importers/syscalls/syscalls_x86_64.h",
     "importers/systrace/systrace_line_parser.cc",
     "importers/systrace/systrace_line_parser.h",
     "importers/systrace/systrace_line_tokenizer.cc",
@@ -251,12 +257,6 @@ source_set("storage_full") {
     "importers/systrace/systrace_parser.h",
     "importers/systrace/systrace_trace_parser.cc",
     "importers/systrace/systrace_trace_parser.h",
-    "syscall_tracker.cc",
-    "syscalls_aarch32.h",
-    "syscalls_aarch64.h",
-    "syscalls_armeabi.h",
-    "syscalls_x86.h",
-    "syscalls_x86_64.h",
   ]
   public_deps = [ ":storage_minimal" ]
   deps = [
@@ -378,10 +378,10 @@ perfetto_unittest_source_set("unittests") {
     "importers/proto/heap_graph_tracker_unittest.cc",
     "importers/proto/heap_graph_walker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
+    "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
     "slice_tracker_unittest.cc",
-    "syscall_tracker_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
