@@ -19,6 +19,7 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -174,6 +175,18 @@ void TestHelper::WaitForTracingDisabled(uint32_t timeout_ms) {
 void TestHelper::WaitForReadData(uint32_t read_count, uint32_t timeout_ms) {
   RunUntilCheckpoint("readback.complete." + std::to_string(read_count),
                      timeout_ms);
+}
+
+TracingServiceState TestHelper::QueryServiceStateAndWait() {
+  TracingServiceState res;
+  auto checkpoint = CreateCheckpoint("query_svc_state");
+  auto callback = [&checkpoint, &res](bool, const TracingServiceState& tss) {
+    res = tss;
+    checkpoint();
+  };
+  endpoint_->QueryServiceState(callback);
+  RunUntilCheckpoint("query_svc_state");
+  return res;
 }
 
 std::function<void()> TestHelper::WrapTask(
