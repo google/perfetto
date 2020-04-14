@@ -46,6 +46,18 @@ source_set("track_event_descriptor") {
   sources = [ "importers/proto/track_event.descriptor.h" ]
 }
 
+source_set("ftrace_descriptors") {
+  sources = [
+    "importers/ftrace/ftrace_descriptors.cc",
+    "importers/ftrace/ftrace_descriptors.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base:base",
+    "../protozero",
+  ]
+}
+
 source_set("protozero_to_text") {
   sources = [
     "protozero_to_text.cc",
@@ -58,7 +70,7 @@ source_set("protozero_to_text") {
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/trace/track_event:zero",
     "../base",
-    "../protozero:protozero",
+    "../protozero",
   ]
 }
 
@@ -72,7 +84,7 @@ source_set("descriptors") {
     "../../include/perfetto/trace_processor",
     "../../protos/perfetto/common:zero",
     "../base",
-    "../protozero:protozero",
+    "../protozero",
   ]
 }
 
@@ -195,8 +207,6 @@ source_set("storage_full") {
     "additional_modules.h",
     "importers/ftrace/binder_tracker.cc",
     "importers/ftrace/binder_tracker.h",
-    "importers/ftrace/ftrace_descriptors.cc",
-    "importers/ftrace/ftrace_descriptors.h",
     "importers/ftrace/ftrace_module_impl.cc",
     "importers/ftrace/ftrace_module_impl.h",
     "importers/ftrace/ftrace_parser.cc",
@@ -260,6 +270,7 @@ source_set("storage_full") {
   ]
   public_deps = [ ":storage_minimal" ]
   deps = [
+    ":ftrace_descriptors",
     "../../include/perfetto/ext/base:base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
     "../../protos/perfetto/common:zero",
@@ -304,12 +315,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "dynamic/experimental_flamegraph_generator.cc",
       "dynamic/experimental_flamegraph_generator.h",
       "read_trace.cc",
-      "sql_stats_table.cc",
-      "sql_stats_table.h",
-      "sqlite_raw_table.cc",
-      "sqlite_raw_table.h",
-      "stats_table.cc",
-      "stats_table.h",
       "trace_processor.cc",
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
