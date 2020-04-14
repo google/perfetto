@@ -23,6 +23,7 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/heap_profile_tracker.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/perf_sample_tracker.h"

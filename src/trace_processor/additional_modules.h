@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_ADDITIONAL_MODULES_H_
 #define SRC_TRACE_PROCESSOR_ADDITIONAL_MODULES_H_
 
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
