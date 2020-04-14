@@ -22,6 +22,7 @@ source_set("end_to_end_integrationtests") {
     ":test_helper",
     "../gn:default_deps",
     "../gn:gtest_and_gmock",
+    "../include/perfetto/ext/ipc",
     "../include/perfetto/ext/traced",
     "../include/perfetto/protozero",
     "../protos/perfetto/config:cpp",
