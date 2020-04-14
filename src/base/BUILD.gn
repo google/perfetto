@@ -33,6 +33,7 @@ source_set("base") {
     "string_splitter.cc",
     "string_utils.cc",
     "string_view.cc",
+    "subprocess.cc",
     "thread_checker.cc",
     "time.cc",
     "uuid.cc",
@@ -50,10 +51,6 @@ source_set("base") {
       "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
-  }
-
-  if (!is_win && !is_nacl && !is_fuchsia) {
-    sources += [ "subprocess.cc" ]
   }
 
   if (enable_stack_trace) {
@@ -130,6 +127,7 @@ perfetto_unittest_source_set("unittests") {
     "string_utils_unittest.cc",
     "string_view_unittest.cc",
     "string_writer_unittest.cc",
+    "subprocess_unittest.cc",
     "time_unittest.cc",
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
@@ -145,9 +143,6 @@ perfetto_unittest_source_set("unittests") {
       "thread_task_runner_unittest.cc",
       "utils_unittest.cc",
     ]
-  }
-  if (!is_win && !is_nacl && !is_fuchsia) {
-    sources += [ "subprocess_unittest.cc" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     # This causes some problems on the chromium waterfall.
