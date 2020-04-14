@@ -32,8 +32,8 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/reader.h>

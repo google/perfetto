@@ -20,7 +20,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"

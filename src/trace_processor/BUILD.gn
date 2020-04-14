@@ -85,8 +85,6 @@ source_set("storage_minimal") {
     "clock_tracker.h",
     "default_modules.cc",
     "default_modules.h",
-    "destructible.cc",
-    "destructible.h",
     "event_tracker.cc",
     "event_tracker.h",
     "forwarding_trace_parser.cc",
@@ -143,7 +141,6 @@ source_set("storage_minimal") {
     "trace_blob_view.h",
     "trace_parser.h",
     "trace_processor_context.cc",
-    "trace_processor_context.h",
     "trace_processor_storage.cc",
     "trace_processor_storage_impl.cc",
     "trace_processor_storage_impl.h",
@@ -285,6 +282,7 @@ source_set("export_json") {
     "../../gn:default_deps",
     "../base",
     "storage",
+    "types",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
   if (enable_perfetto_trace_processor_json) {
@@ -407,6 +405,7 @@ perfetto_unittest_source_set("unittests") {
     "db:unittests",
     "storage",
     "tables:unittests",
+    "types",
     "types:unittests",
   ]
 
