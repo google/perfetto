@@ -152,9 +152,21 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 heap_profile_jit.textproto heap_profile_frames.sql heap_profile_jit.out
 
 profiler_smaps.textproto profiler_smaps.sql profiler_smaps.out
+
+heap_graph_baseapk.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
+heap_graph_baseapk.textproto heap_graph_object.sql heap_graph_object.out
+heap_graph_baseapk.textproto heap_graph_reference.sql heap_graph_reference.out
+
 heap_graph.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
+heap_graph_two_locations.textproto heap_graph_object.sql heap_graph_two_locations.out
+# TODO(b/153552977): Stop supporting legacy heap graphs. These never made
+#                    it into a public release, so we should eventually stop
+#                    supporting workarounds for them.
+heap_graph_legacy.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
+heap_graph_legacy.textproto heap_graph_object.sql heap_graph_object.out
+heap_graph_legacy.textproto heap_graph_reference.sql heap_graph_reference.out
 heap_graph_interleaved.textproto heap_graph_object.sql heap_graph_interleaved_object.out
 heap_graph_interleaved.textproto heap_graph_reference.sql heap_graph_interleaved_reference.out
 ../data/system-server-heap-graph.pftrace heap_graph_flamegraph.sql heap_graph_flamegraph_system-server-heap-graph.out
