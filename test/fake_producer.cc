@@ -22,6 +22,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -120,10 +121,21 @@ void FakeProducer::ProduceStartupEventBatch(
     callback();
   });
 }
+
 // Note: this can be called on a different thread.
 void FakeProducer::ProduceEventBatch(std::function<void()> callback) {
   task_runner_->PostTask(
       [this, callback] { EmitEventBatchOnTaskRunner(callback); });
+}
+
+void FakeProducer::RegisterDataSource(const DataSourceDescriptor& desc) {
+  task_runner_->PostTask([this, desc] { endpoint_->RegisterDataSource(desc); });
+}
+
+void FakeProducer::CommitData(const CommitDataRequest& req,
+                              std::function<void()> callback) {
+  task_runner_->PostTask(
+      [this, req, callback] { endpoint_->CommitData(req, callback); });
 }
 
 void FakeProducer::OnTracingSetup() {}

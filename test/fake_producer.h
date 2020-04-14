@@ -59,6 +59,9 @@ class FakeProducer : public Producer {
   // posts a callback when the service acknowledges the commit.
   void ProduceEventBatch(std::function<void()> callback = [] {});
 
+  void RegisterDataSource(const DataSourceDescriptor&);
+  void CommitData(const CommitDataRequest&, std::function<void()> callback);
+
   bool IsShmemProvidedByProducer() const {
     return endpoint_->IsShmemProvidedByProducer();
   }

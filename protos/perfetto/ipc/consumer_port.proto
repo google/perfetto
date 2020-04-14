@@ -230,6 +230,10 @@ message ObserveEventsResponse {
 message QueryServiceStateRequest {}
 
 message QueryServiceStateResponse {
+  // In order to avoid hitting IPC message size limitations, the service will
+  // return >1 replies for each query, chunking the TracingServiceState. The
+  // receiver is expected to merge replies together and parse that when the
+  // last reply is received (i.e. when IPC's |has_more| == false).
   optional TracingServiceState service_state = 1;
 }
 

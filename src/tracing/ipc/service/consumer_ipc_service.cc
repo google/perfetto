@@ -206,14 +206,67 @@ void ConsumerIPCService::OnQueryServiceCallback(
     PendingQuerySvcResponses::iterator pending_response_it) {
   DeferredQueryServiceStateResponse response(std::move(*pending_response_it));
   pending_query_service_responses_.erase(pending_response_it);
-  if (success) {
+  if (!success) {
+    response.Reject();
+    return;
+  }
+
+  // The TracingServiceState object might be too big to fit into a single IPC
+  // message because it contains the DataSourceDescriptor of each data source.
+  // Here we split it in chunks to fit in the IPC limit, observing the
+  // following rule: each chunk must be invididually a valid TracingServiceState
+  // message; all the chunks concatenated together must form the original
+  // message. This is to deal with the legacy API that was just sending one
+  // whole message (failing in presence of too many data sources, b/153142114).
+  // The message is split as follows: we take the whole TracingServiceState,
+  // take out the data sources section (which is a top-level repeated field)
+  // and re-add them one-by-one. If, in the process of appending, the IPC msg
+  // size is reached, a new chunk is created. This assumes that the rest of
+  // TracingServiceState fits in one IPC message and each DataSourceDescriptor
+  // fits in the worst case in a dedicated message (which is true, because
+  // otherwise the RegisterDataSource() which passes the descriptor in the first
+  // place would fail).
+
+  std::vector<uint8_t> chunked_reply;
+
+  // Transmits the current chunk and starts a new one.
+  bool sent_eof = false;
+  auto send_chunked_reply = [&chunked_reply, &response,
+                             &sent_eof](bool has_more) {
+    PERFETTO_CHECK(!sent_eof);
+    sent_eof = !has_more;
     auto resp =
         ipc::AsyncResult<protos::gen::QueryServiceStateResponse>::Create();
-    *resp->mutable_service_state() = svc_state;
+    resp.set_has_more(has_more);
+    PERFETTO_CHECK(resp->mutable_service_state()->ParseFromArray(
+        chunked_reply.data(), chunked_reply.size()));
+    chunked_reply.clear();
     response.Resolve(std::move(resp));
-  } else {
-    response.Reject();
+  };
+
+  // Create a copy of the whole response and cut away the data_sources section.
+  protos::gen::TracingServiceState svc_state_copy = svc_state;
+  auto data_sources = std::move(*svc_state_copy.mutable_data_sources());
+  chunked_reply = svc_state_copy.SerializeAsArray();
+
+  // Now re-add them fitting within the IPC message limits (- some margin for
+  // the outer IPC frame).
+  constexpr size_t kMaxMsgSize = ipc::kIPCBufferSize - 128;
+  for (const auto& data_source : data_sources) {
+    protos::gen::TracingServiceState tmp;
+    tmp.mutable_data_sources()->emplace_back(std::move(data_source));
+    std::vector<uint8_t> chunk = tmp.SerializeAsArray();
+    if (chunked_reply.size() + chunk.size() < kMaxMsgSize) {
+      chunked_reply.insert(chunked_reply.end(), chunk.begin(), chunk.end());
+    } else {
+      send_chunked_reply(/*has_more=*/true);
+      chunked_reply = std::move(chunk);
+    }
   }
+
+  PERFETTO_DCHECK(!chunked_reply.empty());
+  send_chunked_reply(/*has_more=*/false);
+  PERFETTO_CHECK(sent_eof);
 }
 
 // Called by the service in response to a service_endpoint->Flush() request.
