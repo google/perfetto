@@ -338,16 +338,52 @@ void ConsumerIPCClientImpl::QueryServiceState(
     return;
   }
 
+  auto it = pending_query_svc_reqs_.insert(pending_query_svc_reqs_.end(),
+                                           {std::move(callback), {}});
   protos::gen::QueryServiceStateRequest req;
   ipc::Deferred<protos::gen::QueryServiceStateResponse> async_response;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   async_response.Bind(
-      [callback](
-          ipc::AsyncResult<protos::gen::QueryServiceStateResponse> response) {
-        if (!response)
-          callback(false, TracingServiceState());
-        callback(true, response->service_state());
+      [weak_this,
+       it](ipc::AsyncResult<protos::gen::QueryServiceStateResponse> response) {
+        if (weak_this)
+          weak_this->OnQueryServiceStateResponse(std::move(response), it);
       });
   consumer_port_.QueryServiceState(req, std::move(async_response));
+}
+
+void ConsumerIPCClientImpl::OnQueryServiceStateResponse(
+    ipc::AsyncResult<protos::gen::QueryServiceStateResponse> response,
+    PendingQueryServiceRequests::iterator req_it) {
+  PERFETTO_DCHECK(req_it->callback);
+
+  if (!response) {
+    auto callback = std::move(req_it->callback);
+    pending_query_svc_reqs_.erase(req_it);
+    callback(false, TracingServiceState());
+    return;
+  }
+
+  // The QueryServiceState response can be split in several chunks if the
+  // service has several data sources. The client is supposed to merge all the
+  // replies. The easiest way to achieve this is to re-serialize the partial
+  // response and then re-decode the merged result in one shot.
+  std::vector<uint8_t>& merged_resp = req_it->merged_resp;
+  std::vector<uint8_t> part = response->service_state().SerializeAsArray();
+  merged_resp.insert(merged_resp.end(), part.begin(), part.end());
+
+  if (response.has_more())
+    return;
+
+  // All replies have been received. Decode the merged result and reply to the
+  // callback.
+  protos::gen::TracingServiceState svc_state;
+  bool ok = svc_state.ParseFromArray(merged_resp.data(), merged_resp.size());
+  if (!ok)
+    PERFETTO_ELOG("Failed to decode merged QueryServiceStateResponse");
+  auto callback = std::move(req_it->callback);
+  pending_query_svc_reqs_.erase(req_it);
+  callback(ok, std::move(svc_state));
 }
 
 void ConsumerIPCClientImpl::QueryCapabilities(
