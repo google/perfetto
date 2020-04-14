@@ -160,8 +160,9 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
       ring_buffer_pages_(ring_buffer_pages),
       read_tick_period_ms_(read_tick_period_ms),
       samples_per_tick_limit_(samples_per_tick_limit),
+      target_filter_(std::move(target_filter)),
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
-      target_filter_(std::move(target_filter)) {
+      unwind_state_clear_period_ms_(cfg.unwind_state_clear_period_ms()) {
   auto& pe = perf_event_attr_;
   pe.size = sizeof(perf_event_attr);
 
