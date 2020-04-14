@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/chunked_trace_reader.h"
@@ -24,6 +24,7 @@
 #include "src/trace_processor/global_args_tracker.h"
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/metadata_tracker.h"
@@ -33,6 +34,7 @@
 #include "src/trace_processor/stack_profile_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/types/destructible.h"
 
 namespace perfetto {
 namespace trace_processor {
