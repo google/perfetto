@@ -96,8 +96,8 @@ using tables::ExperimentalFlamegraphNodesTable;
 std::vector<FocusedState> ComputeFocusedState(
     const ExperimentalFlamegraphNodesTable& table,
     const Matcher& focus_matcher) {
-  // Each row corresponds to a node in the flame chart tree with its parent ptr.
-  // Root trees (no parents) will have a null parent ptr.
+  // Each row corresponds to a node in the flame chart tree with its parent
+  // ptr. Root trees (no parents) will have a null parent ptr.
   std::vector<FocusedState> focused(table.row_count());
 
   for (uint32_t i = 0; i < table.row_count(); ++i) {
@@ -182,7 +182,8 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
     }
 
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
-    // We must reparent the rows as every insertion will get its own identifier.
+    // We must reparent the rows as every insertion will get its own
+    // identifier.
     auto original_parent_id = in->parent_id()[i];
     if (original_parent_id.has_value()) {
       auto original_idx = *in->id().IndexOf(*original_parent_id);
@@ -265,8 +266,8 @@ std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
   if (!values.focus_str.empty()) {
     table =
         FocusTable(context_->storage.get(), std::move(table), values.focus_str);
-    // The pseudocolumns must be populated because as far as SQLite is concerned
-    // these are equality constraints.
+    // The pseudocolumns must be populated because as far as SQLite is
+    // concerned these are equality constraints.
     auto focus_id =
         context_->storage->InternString(base::StringView(values.focus_str));
     for (uint32_t i = 0; i < table->row_count(); ++i) {

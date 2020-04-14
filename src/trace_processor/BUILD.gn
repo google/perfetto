@@ -91,20 +91,22 @@ source_set("descriptors") {
 source_set("storage_minimal") {
   sources = [
     "chunked_trace_reader.h",
-    "clock_tracker.cc",
-    "clock_tracker.h",
     "default_modules.cc",
     "default_modules.h",
-    "event_tracker.cc",
-    "event_tracker.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
     "importers/common/args_tracker.cc",
     "importers/common/args_tracker.h",
+    "importers/common/clock_tracker.cc",
+    "importers/common/clock_tracker.h",
+    "importers/common/event_tracker.cc",
+    "importers/common/event_tracker.h",
     "importers/common/global_args_tracker.cc",
     "importers/common/global_args_tracker.h",
     "importers/common/process_tracker.cc",
     "importers/common/process_tracker.h",
+    "importers/common/slice_tracker.cc",
+    "importers/common/slice_tracker.h",
     "importers/common/track_tracker.cc",
     "importers/common/track_tracker.h",
     "importers/ftrace/ftrace_module.cc",
@@ -148,8 +150,6 @@ source_set("storage_minimal") {
     "importers/proto/track_event_tokenizer.h",
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
-    "slice_tracker.cc",
-    "slice_tracker.h",
     "status_macros.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
@@ -373,10 +373,11 @@ if (enable_perfetto_trace_processor_sqlite) {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "clock_tracker_unittest.cc",
-    "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
+    "importers/common/clock_tracker_unittest.cc",
+    "importers/common/event_tracker_unittest.cc",
     "importers/common/process_tracker_unittest.cc",
+    "importers/common/slice_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
     "importers/proto/heap_graph_tracker_unittest.cc",
@@ -386,7 +387,6 @@ perfetto_unittest_source_set("unittests") {
     "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
-    "slice_tracker_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
