@@ -161,10 +161,13 @@ export class SelectionController extends Controller<'main'> {
         const cpu = result.columns[5].longValues![0] as number;
         const selected: SliceDetails =
             {ts: timeFromStart, dur, priority, endState, cpu, id, utid};
-        this.schedulingDetails(ts, utid).then(wakeResult => {
-          Object.assign(selected, wakeResult);
-          globals.publish('SliceDetails', selected);
-        });
+        this.schedulingDetails(ts, utid)
+            .then(wakeResult => {
+              Object.assign(selected, wakeResult);
+            })
+            .finally(() => {
+              globals.publish('SliceDetails', selected);
+            });
       }
     });
   }
