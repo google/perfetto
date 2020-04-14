@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_CONTEXT_H_
-#define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_CONTEXT_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
+#define SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 
 #include <memory>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/chunked_trace_reader.h"
-#include "src/trace_processor/destructible.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/types/destructible.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -40,6 +38,7 @@ class HeapGraphTracker;
 class HeapProfileTracker;
 class MetadataTracker;
 class PerfSampleTracker;
+class ProtoImporterModule;
 class ProcessTracker;
 class SliceTracker;
 class TraceParser;
@@ -59,7 +58,7 @@ class TraceProcessorContext {
 
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
   std::unique_ptr<TraceSorter> sorter;
-  
+
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker. Also keep it before other
   // trackers, as they may own ArgsTrackers themselves.
@@ -111,4 +110,4 @@ class TraceProcessorContext {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_CONTEXT_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_

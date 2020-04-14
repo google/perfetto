@@ -23,8 +23,8 @@
 #include "src/trace_processor/args_tracker.h"
 #include "src/trace_processor/process_tracker.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {

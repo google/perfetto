@@ -20,7 +20,7 @@
 
 #include "src/trace_processor/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {

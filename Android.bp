@@ -6566,7 +6566,6 @@ filegroup {
     "src/trace_processor/args_tracker.cc",
     "src/trace_processor/clock_tracker.cc",
     "src/trace_processor/default_modules.cc",
-    "src/trace_processor/destructible.cc",
     "src/trace_processor/event_tracker.cc",
     "src/trace_processor/forwarding_trace_parser.cc",
     "src/trace_processor/global_args_tracker.cc",
@@ -6632,6 +6631,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_types_types",
   srcs: [
+    "src/trace_processor/types/destructible.cc",
     "src/trace_processor/types/gfp_flags.cc",
     "src/trace_processor/types/task_state.cc",
     "src/trace_processor/types/variadic.cc",
