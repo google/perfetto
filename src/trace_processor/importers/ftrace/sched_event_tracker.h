@@ -22,9 +22,9 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/destructible.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {

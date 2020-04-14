@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/stack_profile_tracker.h"
 
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
