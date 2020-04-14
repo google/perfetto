@@ -234,6 +234,12 @@ def main(argv):
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
+  parser.add_argument(
+      "-o",
+      "--output",
+      help="Output directory.",
+      metavar="DIRECTORY",
+      default=None)
 
   args = parser.parse_args()
 
@@ -345,6 +351,22 @@ def main(argv):
         '> /dev/null'
     ])
 
+  profile_target = PROFILE_LOCAL_PATH
+  if args.output is not None:
+    profile_target = args.output
+  else:
+    os.mkdir(profile_target)
+
+  if not os.path.isdir(profile_target):
+    print("Output directory {} not found".format(profile_target),
+            file=sys.stderr)
+    return 1
+
+  if os.listdir(profile_target):
+    print("Output directory {} not empty".format(profile_target),
+            file=sys.stderr)
+    return 1
+
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out',
        PERFETTO_CMD.format(cfg=cfg)]).strip()
@@ -386,13 +408,15 @@ def main(argv):
     time.sleep(1)
 
   subprocess.check_call([
-      'adb', 'pull', PROFILE_DEVICE_PATH, PROFILE_LOCAL_PATH
+      'adb', 'pull', PROFILE_DEVICE_PATH,
+      os.path.join(profile_target, 'raw-trace')
   ], stdout=NULL)
   subprocess.check_call(
           ['adb', 'shell', 'rm', PROFILE_DEVICE_PATH], stdout=NULL)
 
   trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile', PROFILE_LOCAL_PATH],
+      [trace_to_text_binary, 'profile',
+          os.path.join(profile_target, 'raw-trace')],
       env=os.environ)
   profile_path = None
   for word in trace_to_text_output.split():
@@ -407,30 +431,39 @@ def main(argv):
     print_no_profile_error();
     return 1
 
+  for profile_file in profile_files:
+    shutil.copy(os.path.join(profile_path, profile_file), profile_target)
+
   subprocess.check_call(
       ['gzip'] +
-      [os.path.join(profile_path, x) for x in os.listdir(profile_path)])
+      [os.path.join(profile_target, x) for x in profile_files])
 
-  symlink_path = os.path.join(
-      os.path.dirname(profile_path), "heap_profile-latest")
-  if os.path.lexists(symlink_path):
-    os.unlink(symlink_path)
-  os.symlink(profile_path, symlink_path)
-  shutil.move(PROFILE_LOCAL_PATH, os.path.join(profile_path, 'raw-trace'))
+  symlink_path = None
+  if args.output is None:
+      symlink_path = os.path.join(
+          os.path.dirname(profile_target), "heap_profile-latest")
+      if os.path.lexists(symlink_path):
+        os.unlink(symlink_path)
+      os.symlink(profile_target, symlink_path)
 
   binary_path = os.getenv('PERFETTO_BINARY_PATH')
   if binary_path is not None:
       with open(os.path.join(profile_path, 'symbols'), 'w') as fd:
           ret = subprocess.call([
               trace_to_text_binary, 'symbolize',
-              os.path.join(profile_path, 'raw-trace')],
+              os.path.join(profile_target, 'raw-trace')],
               env=os.environ,
               stdout=fd)
           if ret != 0:
               print("Failed to symbolize. Continuing without symbols.",
                     file=sys.stderr)
 
-  print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
+  if symlink_path is not None:
+    print("Wrote profiles to {} (symlink {})".format(
+        profile_target, symlink_path))
+  else:
+    print("Wrote profiles to {}".format(profile_target))
+
   print("These can be viewed using pprof. Googlers: head to pprof/ and "
         "upload them.")
 
