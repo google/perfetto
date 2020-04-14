@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_STACK_PROFILE_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_STACK_PROFILE_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STACK_PROFILE_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STACK_PROFILE_TRACKER_H_
 
 #include <deque>
 #include <unordered_map>
@@ -227,4 +227,4 @@ class StackProfileTracker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_STACK_PROFILE_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STACK_PROFILE_TRACKER_H_
