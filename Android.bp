@@ -6445,7 +6445,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_descriptors",
   srcs: [
-    "src/trace_processor/descriptors.cc",
+    "src/trace_processor/util/descriptors.cc",
   ],
 }
 
@@ -6498,7 +6498,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_protozero_to_text",
   srcs: [
-    "src/trace_processor/protozero_to_text.cc",
+    "src/trace_processor/util/protozero_to_text.cc",
   ],
 }
 
@@ -6672,8 +6672,8 @@ filegroup {
     "src/trace_processor/importers/proto/proto_trace_parser_unittest.cc",
     "src/trace_processor/importers/syscalls/syscall_tracker_unittest.cc",
     "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
-    "src/trace_processor/protozero_to_text_unittests.cc",
     "src/trace_processor/trace_sorter_unittest.cc",
+    "src/trace_processor/util/protozero_to_text_unittests.cc",
   ],
 }
 
@@ -7802,8 +7802,8 @@ cc_binary_host {
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_track_event_descriptor",
     ":perfetto_src_trace_processor_types_types",
-    "src/trace_processor/proto_to_json.cc",
     "src/trace_processor/trace_processor_shell.cc",
+    "src/trace_processor/util/proto_to_json.cc",
   ],
   static_libs: [
     "libprotoc",
