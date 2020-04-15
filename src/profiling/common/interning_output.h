@@ -55,6 +55,8 @@ class InterningOutputTracker {
     return dumped_callstacks_.find(callstack_id) == dumped_callstacks_.end();
   }
 
+  void ClearHistory();
+
   // TODO(rsavitski): move elsewhere, used in heapprofd for orthogonal
   // reasons. Shouldn't be cleared together with the rest of the incremental
   // state.
