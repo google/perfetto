@@ -855,12 +855,20 @@ filegroup(
     ],
 )
 
-# GN target: //src/trace_processor:descriptors
+# GN target: //src/trace_processor/util:descriptors
 filegroup(
-    name = "src_trace_processor_descriptors",
+    name = "src_trace_processor_util_descriptors",
     srcs = [
         "src/trace_processor/util/descriptors.cc",
         "src/trace_processor/util/descriptors.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:util
+filegroup(
+    name = "src_trace_processor_util_util",
+    srcs = [
+        "src/trace_processor/util/status_macros.h",
     ],
 )
 
@@ -1043,7 +1051,6 @@ filegroup(
         "src/trace_processor/trace_processor_storage_impl.h",
         "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/trace_sorter.h",
-        "src/trace_processor/util/status_macros.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
 )
@@ -2816,7 +2823,6 @@ perfetto_cc_library(
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
-        ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_lib",
@@ -2828,6 +2834,8 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_util",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -2904,7 +2912,6 @@ perfetto_cc_binary(
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
-        ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_lib",
@@ -2918,6 +2925,8 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_util",
     ],
     visibility = [
         "//visibility:public",
@@ -3070,7 +3079,6 @@ perfetto_cc_binary(
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers",
         ":src_trace_processor_db_lib",
-        ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_lib",
@@ -3082,6 +3090,8 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_util",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",
         ":tools_trace_to_text_pprofbuilder",
