@@ -35,10 +35,15 @@ source_set("lib") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "compare_unittest.cc" ]
+  sources = [
+    "compare_unittest.cc",
+    "table_unittest.cc",
+  ]
   deps = [
     ":lib",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base:base",
+    "../tables:tables",
   ]
 }
