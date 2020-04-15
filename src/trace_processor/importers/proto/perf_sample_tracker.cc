@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/trace_processor/perf_sample_tracker.h"
+#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 
 #include <vector>
 
