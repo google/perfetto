@@ -21,6 +21,7 @@
 #include <inttypes.h>
 
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/thread_utils.h"
 
 namespace {
 constexpr size_t kUnwindingMaxFrames = 1000;
@@ -35,6 +36,7 @@ Unwinder::Delegate::~Delegate() = default;
 Unwinder::Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner)
     : task_runner_(task_runner), delegate_(delegate) {
   ResetAndEnableUnwindstackCache();
+  base::MaybeSetThreadName("stack-unwinding");
 }
 
 void Unwinder::PostStartDataSource(DataSourceInstanceID ds_id) {
