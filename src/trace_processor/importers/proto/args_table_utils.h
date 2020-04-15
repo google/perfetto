@@ -19,10 +19,10 @@
 
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/descriptors.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto {
 namespace trace_processor {
