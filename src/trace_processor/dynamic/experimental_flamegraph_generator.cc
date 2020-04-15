@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/experimental_flamegraph_generator.h"
+#include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
 
 #include "perfetto/ext/base/string_utils.h"
 

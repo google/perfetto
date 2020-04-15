@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -35,7 +36,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/track_tracker.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"

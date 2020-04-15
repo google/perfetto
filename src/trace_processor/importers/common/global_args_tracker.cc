@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
