@@ -33,8 +33,8 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 
-#include "src/trace_processor/descriptors.h"
 #include "src/trace_processor/metrics/metrics.h"
+#include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto {
 namespace trace_processor {

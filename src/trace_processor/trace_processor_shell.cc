@@ -39,7 +39,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/custom_options.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
-#include "src/trace_processor/proto_to_json.h"
+#include "src/trace_processor/util/proto_to_json.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"

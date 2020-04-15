@@ -60,8 +60,8 @@ source_set("ftrace_descriptors") {
 
 source_set("protozero_to_text") {
   sources = [
-    "protozero_to_text.cc",
-    "protozero_to_text.h",
+    "util/protozero_to_text.cc",
+    "util/protozero_to_text.h",
   ]
   deps = [
     ":descriptors",
@@ -76,8 +76,8 @@ source_set("protozero_to_text") {
 
 source_set("descriptors") {
   sources = [
-    "descriptors.cc",
-    "descriptors.h",
+    "util/descriptors.cc",
+    "util/descriptors.h",
   ]
   deps = [
     "../../gn:default_deps",
@@ -150,7 +150,6 @@ source_set("storage_minimal") {
     "importers/proto/track_event_tokenizer.h",
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
-    "status_macros.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
     "trace_parser.h",
@@ -160,6 +159,7 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
+    "util/status_macros.h",
     "virtual_destructors.cc",
   ]
   deps = [
@@ -363,9 +363,9 @@ if (enable_perfetto_trace_processor_sqlite) {
       deps += [ "rpc:httpd" ]
     }
     sources = [
-      "proto_to_json.cc",
-      "proto_to_json.h",
       "trace_processor_shell.cc",
+      "util/proto_to_json.cc",
+      "util/proto_to_json.h",
     ]
   }
 }  # if (enable_perfetto_trace_processor_sqlite)
@@ -386,8 +386,8 @@ perfetto_unittest_source_set("unittests") {
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
-    "protozero_to_text_unittests.cc",
     "trace_sorter_unittest.cc",
+    "util/protozero_to_text_unittests.cc",
   ]
   deps = [
     ":descriptors",

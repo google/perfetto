@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_STATUS_MACROS_H_
-#define SRC_TRACE_PROCESSOR_STATUS_MACROS_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
+#define SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
 
 #include "perfetto/trace_processor/status.h"
 
@@ -28,4 +28,4 @@
       return status_macro_internal_status;              \
   } while (0)
 
-#endif  // SRC_TRACE_PROCESSOR_STATUS_MACROS_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
