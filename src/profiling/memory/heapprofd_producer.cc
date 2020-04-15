@@ -934,6 +934,11 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
   process_state.unwinding_time_us.Add(alloc_rec.unwinding_time_us);
   process_state.total_unwinding_time_us += alloc_rec.unwinding_time_us;
 
+  // abspc may no longer refer to the same functions, as we had to reparse
+  // maps. Reset the cache.
+  if (alloc_rec.reparsed_map)
+    heap_tracker.ClearFrameCache();
+
   heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
                             alloc_metadata.sample_size,
                             alloc_metadata.alloc_size,

@@ -35,6 +35,18 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
                                uint64_t alloc_size,
                                uint64_t sequence_number,
                                uint64_t timestamp) {
+  std::vector<Interned<Frame>> frames;
+  frames.reserve(callstack.size());
+  for (const FrameData& loc : callstack) {
+    auto frame_it = frame_cache_.find(loc.frame.pc);
+    if (frame_it != frame_cache_.end()) {
+      frames.emplace_back(frame_it->second);
+    } else {
+      frames.emplace_back(callsites_->InternCodeLocation(loc));
+      frame_cache_.emplace(loc.frame.pc, frames.back());
+    }
+  }
+
   auto it = allocations_.find(address);
   if (it != allocations_.end()) {
     Allocation& alloc = it->second;
@@ -55,14 +67,14 @@ void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
       }
 
       SubtractFromCallstackAllocations(alloc);
-      GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
+      GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(frames);
       alloc.sample_size = sample_size;
       alloc.alloc_size = alloc_size;
       alloc.sequence_number = sequence_number;
       alloc.SetCallstackAllocations(MaybeCreateCallstackAllocations(node));
     }
   } else {
-    GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(callstack);
+    GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(frames);
     allocations_.emplace(address,
                          Allocation(sample_size, alloc_size, sequence_number,
                                     MaybeCreateCallstackAllocations(node)));

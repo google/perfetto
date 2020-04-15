@@ -135,7 +135,11 @@ class GlobalCallstackTrie {
   GlobalCallstackTrie(GlobalCallstackTrie&&) = delete;
   GlobalCallstackTrie& operator=(GlobalCallstackTrie&&) = delete;
 
+  Interned<Frame> InternCodeLocation(const FrameData& loc);
+
   Node* CreateCallsite(const std::vector<FrameData>& callstack);
+  Node* CreateCallsite(const std::vector<Interned<Frame>>& callstack);
+
   static void IncrementNode(Node* node);
   static void DecrementNode(Node* node);
 
@@ -152,7 +156,6 @@ class GlobalCallstackTrie {
  private:
   Node* GetOrCreateChild(Node* self, const Interned<Frame>& loc);
 
-  Interned<Frame> InternCodeLocation(const FrameData& loc);
   Interned<Frame> MakeRootFrame();
 
   Interner<std::string> string_interner_;
