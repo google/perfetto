@@ -437,6 +437,10 @@ message HeapprofdConfig {
   // Stop profile if heapprofd memory usage goes beyond the given value.
   optional uint32 max_heapprofd_memory_kb = 16;
 
+  // Stop profile if heapprofd CPU time since start of this data-source
+  // goes beyond given value.
+  optional uint64 max_heapprofd_cpu_secs = 17;
+
   // Do not emit function names for mappings starting with this prefix.
   // E.g. /system to not emit symbols for any system libraries.
   repeated string skip_symbol_prefix = 7;
