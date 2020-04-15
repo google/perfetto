@@ -1,10 +1,10 @@
-#include "src/trace_processor/protozero_to_text.h"
+#include "src/trace_processor/util/protozero_to_text.h"
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
-#include "src/trace_processor/descriptors.h"
+#include "src/trace_processor/util/descriptors.h"
 
 // This is the highest level that this protozero to text supports.
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"

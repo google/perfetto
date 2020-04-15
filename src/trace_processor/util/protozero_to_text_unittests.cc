@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/protozero_to_text.h"
+#include "src/trace_processor/util/protozero_to_text.h"
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"

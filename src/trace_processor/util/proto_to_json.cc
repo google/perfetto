@@ -22,7 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/proto_to_json.h"
+#include "src/trace_processor/util/proto_to_json.h"
 
 namespace perfetto {
 namespace trace_processor {

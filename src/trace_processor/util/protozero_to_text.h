@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PROTOZERO_TO_TEXT_H_
-#define SRC_TRACE_PROCESSOR_PROTOZERO_TO_TEXT_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_PROTOZERO_TO_TEXT_H_
+#define SRC_TRACE_PROCESSOR_UTIL_PROTOZERO_TO_TEXT_H_
 
 #include <string>
 
@@ -46,4 +46,4 @@ std::string ProtozeroEnumToText(const std::string& type, Enum enum_value) {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PROTOZERO_TO_TEXT_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_PROTOZERO_TO_TEXT_H_

@@ -859,8 +859,8 @@ filegroup(
 filegroup(
     name = "src_trace_processor_descriptors",
     srcs = [
-        "src/trace_processor/descriptors.cc",
-        "src/trace_processor/descriptors.h",
+        "src/trace_processor/util/descriptors.cc",
+        "src/trace_processor/util/descriptors.h",
     ],
 )
 
@@ -1034,7 +1034,6 @@ filegroup(
         "src/trace_processor/importers/proto/track_event_tokenizer.h",
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
         "src/trace_processor/importers/systrace/systrace_line.h",
-        "src/trace_processor/status_macros.h",
         "src/trace_processor/timestamped_trace_piece.h",
         "src/trace_processor/trace_blob_view.h",
         "src/trace_processor/trace_parser.h",
@@ -1044,6 +1043,7 @@ filegroup(
         "src/trace_processor/trace_processor_storage_impl.h",
         "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/trace_sorter.h",
+        "src/trace_processor/util/status_macros.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
 )
@@ -2885,9 +2885,9 @@ perfetto_cc_library(
 perfetto_cc_binary(
     name = "trace_processor_shell",
     srcs = [
-        "src/trace_processor/proto_to_json.cc",
-        "src/trace_processor/proto_to_json.h",
         "src/trace_processor/trace_processor_shell.cc",
+        "src/trace_processor/util/proto_to_json.cc",
+        "src/trace_processor/util/proto_to_json.h",
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
