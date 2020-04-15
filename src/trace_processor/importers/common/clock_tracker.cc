@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/clock_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 
 #include <inttypes.h>
 
