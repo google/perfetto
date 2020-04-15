@@ -48,5 +48,8 @@ SELECT AndroidLmkMetric(
       ))
     FROM lmk_counts
     WHERE score IS NOT NULL
+  ),
+  'oom_victim_count', (
+    SELECT COUNT(1) FROM instants WHERE name = 'mem.oom_kill'
   )
 );
