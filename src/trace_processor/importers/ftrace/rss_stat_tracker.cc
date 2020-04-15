@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 
-#include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

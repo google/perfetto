@@ -98,7 +98,8 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
           storage->mutable_string_pool(), nullptr));
 
   // FORWARD PASS:
-  // Aggregate callstacks by frame name / mapping name. Use symbolization data.
+  // Aggregate callstacks by frame name / mapping name. Use symbolization
+  // data.
   for (uint32_t i = 0; i < callsites_tbl.row_count(); ++i) {
     base::Optional<uint32_t> parent_idx;
 
