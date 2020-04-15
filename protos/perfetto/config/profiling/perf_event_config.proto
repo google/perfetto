@@ -40,16 +40,6 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 ring_buffer_pages = 3;
 
-  // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
-  // sampled process. This is primarily for Android, where this lookup is
-  // asynchronous. As long as the producer is waiting, the associated samples
-  // will be kept enqueued (putting pressure on the capacity of the shared
-  // unwinding queue). Once a lookup for a process expires, all associated
-  // samples are discarded. However, if the lookup still succeeds after the
-  // timeout, future samples will be handled normally.
-  // If unset, an implementation-defined default is used.
-  optional uint32 remote_descriptor_timeout_ms = 9;
-
   // Process ID (TGID) whitelist. If this list is not empty, only matching
   // samples will be retained. If multiple whitelists and blacklists are
   // specified by the config, then all of them are evaluated for each sampled
@@ -68,4 +58,23 @@ message PerfEventConfig {
 
   // Command line blacklist. Normalized in the same way as |target_cmdline|.
   repeated string exclude_cmdline = 7;
+
+  ////////////////////
+  // Uncommon options:
+
+  // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
+  // sampled process. This is primarily for Android, where this lookup is
+  // asynchronous. As long as the producer is waiting, the associated samples
+  // will be kept enqueued (putting pressure on the capacity of the shared
+  // unwinding queue). Once a lookup for a process expires, all associated
+  // samples are discarded. However, if the lookup still succeeds after the
+  // timeout, future samples will be handled normally.
+  // If unset, an implementation-defined default is used.
+  optional uint32 remote_descriptor_timeout_ms = 9;
+
+  // Optional period for clearing state cached by the unwinder. This is a heavy
+  // operation that is only necessary for traces that target a wide set of
+  // processes, and require the memory footprint to be reset periodically.
+  // If unset, the cached state will not be cleared.
+  optional uint32 unwind_state_clear_period_ms = 10;
 }
