@@ -1704,13 +1704,20 @@ TEST_F(PerfettoApiTest, TrackEventComputedName) {
   auto* tracing_session = NewTrace(cfg);
   tracing_session->get()->StartBlocking();
 
+  // New macros require perfetto::StaticString{} annotation.
   for (int i = 0; i < 3; i++)
-    TRACE_EVENT_BEGIN("test", i % 2 ? "Odd" : "Even");
+    TRACE_EVENT_BEGIN("test", perfetto::StaticString{i % 2 ? "Odd" : "Even"});
+
+  // Legacy macros assume all arguments are static strings.
+  for (int i = 0; i < 3; i++)
+    TRACE_EVENT_BEGIN0("test", i % 2 ? "Odd" : "Even");
+
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
-  EXPECT_THAT(slices, ElementsAre("B:test.Even", "B:test.Odd", "B:test.Even"));
+  EXPECT_THAT(slices, ElementsAre("B:test.Even", "B:test.Odd", "B:test.Even",
+                                  "B:test.Even", "B:test.Odd", "B:test.Even"));
 }
 
 TEST_F(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
