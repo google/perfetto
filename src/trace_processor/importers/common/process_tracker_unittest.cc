@@ -19,7 +19,6 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -87,31 +86,6 @@ TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
   auto name =
       context.storage->GetString(context.storage->process_table().name()[1]);
   ASSERT_EQ(name, "test");
-}
-
-TEST_F(ProcessTrackerTest, UpdateThreadMatch) {
-  uint32_t cpu = 3;
-  int64_t timestamp = 100;
-  int64_t prev_state = 32;
-  static const char kCommProc1[] = "process1";
-  static const char kCommProc2[] = "process2";
-  int32_t prio = 1024;
-  SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(&context);
-
-  sched_tracker->PushSchedSwitch(cpu, timestamp, /*tid=*/1, kCommProc2, prio,
-                                 prev_state,
-                                 /*tid=*/4, kCommProc1, prio);
-  sched_tracker->PushSchedSwitch(cpu, timestamp + 1, /*tid=*/4, kCommProc1,
-                                 prio, prev_state,
-                                 /*tid=*/1, kCommProc2, prio);
-
-  context.process_tracker->SetProcessMetadata(2, base::nullopt, "test");
-  context.process_tracker->UpdateThread(4, 2);
-
-  ASSERT_EQ(context.storage->thread_table().tid()[1], 4u);
-  ASSERT_EQ(context.storage->thread_table().upid()[1].value(), 1u);
-  ASSERT_EQ(context.storage->process_table().pid()[1], 2u);
-  ASSERT_EQ(context.storage->process_table().start_ts()[1], base::nullopt);
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
