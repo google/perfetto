@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/syscall_tracker.h"
+#include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 
 #include "src/trace_processor/slice_tracker.h"
 #include "test/gtest_and_gmock.h"

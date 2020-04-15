@@ -16,7 +16,7 @@
 
 #include <vector>
 
-#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
