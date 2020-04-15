@@ -796,11 +796,17 @@ filegroup(
         "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/span_join_operator_table.cc",
         "src/trace_processor/sqlite/span_join_operator_table.h",
+        "src/trace_processor/sqlite/sql_stats_table.cc",
+        "src/trace_processor/sqlite/sql_stats_table.h",
         "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite3_str_split.h",
+        "src/trace_processor/sqlite/sqlite_raw_table.cc",
+        "src/trace_processor/sqlite/sqlite_raw_table.h",
         "src/trace_processor/sqlite/sqlite_table.cc",
         "src/trace_processor/sqlite/sqlite_table.h",
         "src/trace_processor/sqlite/sqlite_utils.h",
+        "src/trace_processor/sqlite/stats_table.cc",
+        "src/trace_processor/sqlite/stats_table.h",
         "src/trace_processor/sqlite/window_operator_table.cc",
         "src/trace_processor/sqlite/window_operator_table.h",
     ],
@@ -867,6 +873,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor:ftrace_descriptors
+filegroup(
+    name = "src_trace_processor_ftrace_descriptors",
+    srcs = [
+        "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
+        "src/trace_processor/importers/ftrace/ftrace_descriptors.h",
+    ],
+)
+
 # GN target: //src/trace_processor:lib
 filegroup(
     name = "src_trace_processor_lib",
@@ -878,12 +893,6 @@ filegroup(
         "src/trace_processor/dynamic/experimental_flamegraph_generator.cc",
         "src/trace_processor/dynamic/experimental_flamegraph_generator.h",
         "src/trace_processor/read_trace.cc",
-        "src/trace_processor/sql_stats_table.cc",
-        "src/trace_processor/sql_stats_table.h",
-        "src/trace_processor/sqlite_raw_table.cc",
-        "src/trace_processor/sqlite_raw_table.h",
-        "src/trace_processor/stats_table.cc",
-        "src/trace_processor/stats_table.h",
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
         "src/trace_processor/trace_processor_impl.h",
@@ -898,8 +907,6 @@ filegroup(
         "src/trace_processor/additional_modules.h",
         "src/trace_processor/importers/ftrace/binder_tracker.cc",
         "src/trace_processor/importers/ftrace/binder_tracker.h",
-        "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
-        "src/trace_processor/importers/ftrace/ftrace_descriptors.h",
         "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
         "src/trace_processor/importers/ftrace/ftrace_module_impl.h",
         "src/trace_processor/importers/ftrace/ftrace_parser.cc",
@@ -2811,6 +2818,7 @@ perfetto_cc_library(
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
@@ -2898,6 +2906,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_rpc_httpd",
@@ -3063,6 +3072,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_lib",
         ":src_trace_processor_descriptors",
         ":src_trace_processor_export_json",
+        ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
