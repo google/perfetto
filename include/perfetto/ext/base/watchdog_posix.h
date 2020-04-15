@@ -27,6 +27,14 @@
 namespace perfetto {
 namespace base {
 
+struct ProcStat {
+  unsigned long int utime = 0l;
+  unsigned long int stime = 0l;
+  long int rss_pages = -1l;
+};
+
+bool ReadProcStat(int fd, ProcStat* out);
+
 // Ensures that the calling program does not exceed certain hard limits on
 // resource usage e.g. time, memory and CPU. If exceeded, the program is
 // crashed.
