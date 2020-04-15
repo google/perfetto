@@ -75,7 +75,7 @@ class CircularQueue {
     }
 
     const T* operator->() const {
-      return const_cast<CircularQueue<T>*>(this)->operator->();
+      return const_cast<CircularQueue<T>::Iterator*>(this)->operator->();
     }
 
     T& operator*() { return *(operator->()); }
@@ -84,7 +84,7 @@ class CircularQueue {
     value_type& operator[](difference_type i) { return *(*this + i); }
 
     const value_type& operator[](difference_type i) const {
-      return const_cast<CircularQueue<T>&>(*this)[i];
+      return const_cast<CircularQueue<T>::Iterator&>(*this)[i];
     }
 
     Iterator& operator++() {
