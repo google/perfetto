@@ -79,10 +79,8 @@ class PerfProducer : public Producer,
   void Flush(FlushRequestID flush_id,
              const DataSourceInstanceID* data_source_ids,
              size_t num_data_sources) override;
-
-  // TODO(rsavitski): clear ds->interning_output, then re-emit fixed internings.
-  void ClearIncrementalState(const DataSourceInstanceID* /*data_source_ids*/,
-                             size_t /*num_data_sources*/) override {}
+  void ClearIncrementalState(const DataSourceInstanceID* data_source_ids,
+                             size_t num_data_sources) override;
 
   // ProcDescriptorDelegate impl:
   void OnProcDescriptors(pid_t pid,
