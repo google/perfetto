@@ -932,8 +932,8 @@ filegroup(
 filegroup(
     name = "src_trace_processor_storage_full",
     srcs = [
-        "src/trace_processor/additional_modules.cc",
-        "src/trace_processor/additional_modules.h",
+        "src/trace_processor/importers/additional_modules.cc",
+        "src/trace_processor/importers/additional_modules.h",
         "src/trace_processor/importers/ftrace/binder_tracker.cc",
         "src/trace_processor/importers/ftrace/binder_tracker.h",
         "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
@@ -1004,10 +1004,10 @@ filegroup(
     name = "src_trace_processor_storage_minimal",
     srcs = [
         "src/trace_processor/chunked_trace_reader.h",
-        "src/trace_processor/default_modules.cc",
-        "src/trace_processor/default_modules.h",
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
+        "src/trace_processor/importers/default_modules.cc",
+        "src/trace_processor/importers/default_modules.h",
         "src/trace_processor/importers/ftrace/ftrace_module.cc",
         "src/trace_processor/importers/ftrace/ftrace_module.h",
         "src/trace_processor/importers/fuchsia/fuchsia_record.h",

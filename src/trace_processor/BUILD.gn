@@ -61,10 +61,10 @@ source_set("ftrace_descriptors") {
 source_set("storage_minimal") {
   sources = [
     "chunked_trace_reader.h",
-    "default_modules.cc",
-    "default_modules.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
+    "importers/default_modules.cc",
+    "importers/default_modules.h",
     "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
     "importers/fuchsia/fuchsia_record.h",
@@ -160,8 +160,8 @@ source_set("storage_minimal") {
 
 source_set("storage_full") {
   sources = [
-    "additional_modules.cc",
-    "additional_modules.h",
+    "importers/additional_modules.cc",
+    "importers/additional_modules.h",
     "importers/ftrace/binder_tracker.cc",
     "importers/ftrace/binder_tracker.h",
     "importers/ftrace/ftrace_module_impl.cc",
