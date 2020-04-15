@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
-#define SRC_TRACE_PROCESSOR_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_DYNAMIC_DESCRIBE_SLICE_GENERATOR_H_
+#define SRC_TRACE_PROCESSOR_DYNAMIC_DESCRIBE_SLICE_GENERATOR_H_
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
@@ -24,27 +24,32 @@
 namespace perfetto {
 namespace trace_processor {
 
-class ExperimentalCounterDurGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class TraceProcessorContext;
+
+// Dynamic table for implementing the describe_slice table.
+// See /docs/analysis.md for details about the functionality and usage of this
+// table.
+class DescribeSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
  public:
-  explicit ExperimentalCounterDurGenerator(const tables::CounterTable& table);
-  virtual ~ExperimentalCounterDurGenerator() override;
+  struct InputValues {
+    uint32_t slice_id_value;
+  };
+
+  explicit DescribeSliceGenerator(TraceProcessorContext* context);
+  ~DescribeSliceGenerator() override;
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
   uint32_t EstimateRowCount() override;
   util::Status ValidateConstraints(const QueryConstraints&) override;
-  std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>&,
-                                      const std::vector<Order>&) override;
-
-  // public + static for testing
-  static SparseVector<int64_t> ComputeDurColumn(const Table& table);
+  std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>& cs,
+                                      const std::vector<Order>& ob) override;
 
  private:
-  const tables::CounterTable* counter_table_ = nullptr;
+  TraceProcessorContext* context_ = nullptr;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_DYNAMIC_DESCRIBE_SLICE_GENERATOR_H_
