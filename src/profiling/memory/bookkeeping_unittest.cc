@@ -31,10 +31,12 @@ std::vector<FrameData> stack() {
   unwindstack::FrameData data{};
   data.function_name = "fun1";
   data.map_name = "map1";
+  data.pc = 1;
   res.emplace_back(std::move(data), "dummy_buildid");
   data = {};
   data.function_name = "fun2";
   data.map_name = "map2";
+  data.pc = 2;
   res.emplace_back(std::move(data), "dummy_buildid");
   return res;
 }
@@ -44,10 +46,12 @@ std::vector<FrameData> stack2() {
   unwindstack::FrameData data{};
   data.function_name = "fun1";
   data.map_name = "map1";
+  data.pc = 1;
   res.emplace_back(std::move(data), "dummy_buildid");
   data = {};
   data.function_name = "fun3";
   data.map_name = "map3";
+  data.pc = 3;
   res.emplace_back(std::move(data), "dummy_buildid");
   return res;
 }
