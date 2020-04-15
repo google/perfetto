@@ -68,6 +68,7 @@ class FtraceParser {
   void ParseSignalDeliver(int64_t ts, uint32_t pid, protozero::ConstBytes);
   void ParseLowmemoryKill(int64_t ts, protozero::ConstBytes);
   void ParseOOMScoreAdjUpdate(int64_t ts, protozero::ConstBytes);
+  void ParseOOMKill(int64_t ts, protozero::ConstBytes);
   void ParseMmEventRecord(int64_t ts, uint32_t pid, protozero::ConstBytes);
   void ParseSysEvent(int64_t ts,
                      uint32_t pid,
@@ -95,6 +96,7 @@ class FtraceParser {
   const StringId lmk_id_;
   const StringId comm_name_id_;
   const StringId signal_name_id_;
+  const StringId oom_kill_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).

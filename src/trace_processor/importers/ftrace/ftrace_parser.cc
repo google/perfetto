@@ -75,7 +75,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
       lmk_id_(context->storage->InternString("mem.lmk")),
       comm_name_id_(context->storage->InternString("comm")),
-      signal_name_id_(context_->storage->InternString("signal.sig")) {
+      signal_name_id_(context_->storage->InternString("signal.sig")),
+      oom_kill_id_(context_->storage->InternString("mem.oom_kill")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -292,6 +293,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kOomScoreAdjUpdateFieldNumber: {
         ParseOOMScoreAdjUpdate(ts, data);
+        break;
+      }
+      case FtraceEvent::kMarkVictimFieldNumber: {
+        ParseOOMKill(ts, data);
         break;
       }
       case FtraceEvent::kMmEventRecordFieldNumber: {
@@ -661,6 +666,14 @@ void FtraceParser::ParseOOMScoreAdjUpdate(int64_t ts, ConstBytes blob) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->event_tracker->PushProcessCounterForThread(ts, oom_adj,
                                                        oom_score_adj_id_, utid);
+}
+
+void FtraceParser::ParseOOMKill(int64_t ts, ConstBytes blob) {
+  protos::pbzero::MarkVictimFtraceEvent::Decoder evt(blob.data, blob.size);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(
+      static_cast<uint32_t>(evt.pid()));
+  context_->event_tracker->PushInstant(ts, oom_kill_id_, utid,
+                                       RefType::kRefUtid, true);
 }
 
 void FtraceParser::ParseMmEventRecord(int64_t ts,
