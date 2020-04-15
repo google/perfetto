@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SYSCALLS_AARCH64_H_
-#define SRC_TRACE_PROCESSOR_SYSCALLS_AARCH64_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_AARCH64_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_AARCH64_H_
 
 namespace perfetto {
 namespace trace_processor {
@@ -321,4 +321,4 @@ constexpr const char* kSyscalls_Aarch64[] = {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SYSCALLS_AARCH64_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_AARCH64_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACK_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_TRACK_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -186,8 +186,8 @@ class TrackTracker {
     int64_t context_id;
 
     friend bool operator<(const GpuTrackTuple& l, const GpuTrackTuple& r) {
-      return std::tie(l.track_name, l.scope, l.context_id)
-          < std::tie(r.track_name, r.scope, r.context_id);
+      return std::tie(l.track_name, l.scope, l.context_id) <
+             std::tie(r.track_name, r.scope, r.context_id);
     }
   };
   struct ChromeTrackTuple {
@@ -291,4 +291,4 @@ class TrackTracker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACK_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_

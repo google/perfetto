@@ -17,10 +17,10 @@
 #include "src/trace_processor/event_tracker.h"
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/track_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
