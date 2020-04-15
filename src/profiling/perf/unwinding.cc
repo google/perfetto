@@ -26,6 +26,17 @@
 namespace {
 constexpr size_t kUnwindingMaxFrames = 1000;
 constexpr uint32_t kDataSourceShutdownRetryDelayMs = 400;
+
+void MaybeReleaseAllocatorMemToOS() {
+#if defined(__BIONIC__)
+  // TODO(b/152414415): libunwindstack's volume of small allocations is
+  // adverarial to scudo, which doesn't automatically release small
+  // allocation regions back to the OS. Forceful purge does reclaim all size
+  // classes.
+  mallopt(M_PURGE, 0);
+#endif
+}
+
 }  // namespace
 
 namespace perfetto {
@@ -391,8 +402,38 @@ void Unwinder::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   delegate_->PostFinishDataSourceStop(ds_id);
 }
 
+void Unwinder::PostClearCachedStatePeriodic(DataSourceInstanceID ds_id,
+                                            uint32_t period_ms) {
+  task_runner_->PostDelayedTask(
+      [this, ds_id, period_ms] { ClearCachedStatePeriodic(ds_id, period_ms); },
+      period_ms);
+}
+
+// See header for rationale.
+void Unwinder::ClearCachedStatePeriodic(DataSourceInstanceID ds_id,
+                                        uint32_t period_ms) {
+  auto it = data_sources_.find(ds_id);
+  if (it == data_sources_.end())
+    return;  // stop the periodic task
+
+  DataSourceState& ds = it->second;
+  if (ds.status != DataSourceState::Status::kActive)
+    return;
+
+  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_CACHE_CLEAR);
+  PERFETTO_DLOG("Clearing unwinder's cached state.");
+
+  for (auto& pid_and_process : ds.process_states) {
+    pid_and_process.second.unwind_state->fd_maps.Reset();
+  }
+  ResetAndEnableUnwindstackCache();
+  MaybeReleaseAllocatorMemToOS();
+
+  PostClearCachedStatePeriodic(ds_id, period_ms);  // repost
+}
+
 void Unwinder::ResetAndEnableUnwindstackCache() {
-  PERFETTO_DLOG("resetting unwindstack cache");
+  PERFETTO_DLOG("Resetting unwindstack cache");
   // Libunwindstack uses an unsynchronized variable for setting/checking whether
   // the cache is enabled. Therefore unwinding and cache toggling should stay on
   // the same thread, but we might be moving unwinding across threads if we're
