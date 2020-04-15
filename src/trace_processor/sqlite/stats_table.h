@@ -14,37 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQL_STATS_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SQL_STATS_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_STATS_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_STATS_TABLE_H_
 
 #include <limits>
 #include <memory>
 
 #include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class QueryConstraints;
-class TraceStorage;
-
-// A virtual table that allows to introspect performances of the SQL engine
-// for the kMaxLogEntries queries.
-class SqlStatsTable : public SqliteTable {
+// The stats table contains diagnostic info and errors that are either:
+// - Collected at trace time (e.g., ftrace buffer overruns).
+// - Generated at parsing time (e.g., clock events out-of-order).
+class StatsTable : public SqliteTable {
  public:
-  enum Column {
-    kQuery = 0,
-    kTimeQueued = 1,
-    kTimeStarted = 2,
-    kTimeFirstNext = 3,
-    kTimeEnded = 4,
-  };
-
-  // Implementation of the SQLite cursor interface.
+  enum Column { kName = 0, kIndex, kSeverity, kSource, kValue };
   class Cursor : public SqliteTable::Cursor {
    public:
-    Cursor(SqlStatsTable* storage);
-    ~Cursor() override;
+    Cursor(StatsTable*);
 
     // Implementation of SqliteTable::Cursor.
     int Filter(const QueryConstraints&,
@@ -61,26 +52,25 @@ class SqlStatsTable : public SqliteTable {
     Cursor(Cursor&&) noexcept = default;
     Cursor& operator=(Cursor&&) = default;
 
-    size_t row_ = 0;
-    size_t num_rows_ = 0;
+    StatsTable* table_ = nullptr;
     const TraceStorage* storage_ = nullptr;
-    SqlStatsTable* table_ = nullptr;
+    size_t key_ = 0;
+    TraceStorage::Stats::IndexMap::const_iterator index_{};
   };
-
-  SqlStatsTable(sqlite3*, const TraceStorage* storage);
 
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
+  StatsTable(sqlite3*, const TraceStorage*);
+
   // Table implementation.
-  util::Status Init(int, const char* const*, Schema*) override;
+  util::Status Init(int, const char* const*, SqliteTable::Schema*) override;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 
  private:
   const TraceStorage* const storage_;
 };
-
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQL_STATS_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_STATS_TABLE_H_

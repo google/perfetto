@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_RAW_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_RAW_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_writer.h"
@@ -64,4 +64,4 @@ class SqliteRawTable : public DbSqliteTable {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_RAW_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
