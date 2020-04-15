@@ -53,6 +53,7 @@ synth_oom.py oom_query.sql synth_oom_oom_query.out
 # LMK handling
 kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
+oom_kill.textproto oom_kill.sql oom_kill.out
 
 # Rss stats
 rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
