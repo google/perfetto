@@ -58,36 +58,6 @@ source_set("ftrace_descriptors") {
   ]
 }
 
-source_set("protozero_to_text") {
-  sources = [
-    "util/protozero_to_text.cc",
-    "util/protozero_to_text.h",
-  ]
-  deps = [
-    ":descriptors",
-    ":track_event_descriptor",
-    "../../gn:default_deps",
-    "../../protos/perfetto/common:zero",
-    "../../protos/perfetto/trace/track_event:zero",
-    "../base",
-    "../protozero",
-  ]
-}
-
-source_set("descriptors") {
-  sources = [
-    "util/descriptors.cc",
-    "util/descriptors.h",
-  ]
-  deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/trace_processor",
-    "../../protos/perfetto/common:zero",
-    "../base",
-    "../protozero",
-  ]
-}
-
 source_set("storage_minimal") {
   sources = [
     "chunked_trace_reader.h",
@@ -159,11 +129,9 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
-    "util/status_macros.h",
     "virtual_destructors.cc",
   ]
   deps = [
-    ":descriptors",
     ":track_event_descriptor",
     "../../gn:default_deps",
     "../base",
@@ -172,6 +140,8 @@ source_set("storage_minimal") {
     "storage",
     "tables",
     "types",
+    "util",
+    "util:descriptors",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor:storage",
@@ -387,11 +357,8 @@ perfetto_unittest_source_set("unittests") {
     "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
     "trace_sorter_unittest.cc",
-    "util/protozero_to_text_unittests.cc",
   ]
   deps = [
-    ":descriptors",
-    ":protozero_to_text",
     ":storage_full",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
@@ -416,6 +383,7 @@ perfetto_unittest_source_set("unittests") {
     "tables:unittests",
     "types",
     "types:unittests",
+    "util:unittests",
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
