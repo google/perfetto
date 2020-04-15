@@ -230,16 +230,22 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
       std::forward_as_tuple(event_config.value(), std::move(writer),
                             std::move(per_cpu_readers)));
   PERFETTO_CHECK(inserted);
+  DataSourceState& ds = ds_it->second;
 
   // Write out a packet to initialize the incremental state for this sequence.
   InterningOutputTracker::WriteFixedInterningsPacket(
       ds_it->second.trace_writer.get());
 
-  // Inform unwinder of the new data source instance.
+  // Inform unwinder of the new data source instance, and optionally start a
+  // periodic task to clear its cached state.
   unwinding_worker_->PostStartDataSource(instance_id);
+  if (ds.event_config.unwind_state_clear_period_ms()) {
+    unwinding_worker_->PostClearCachedStatePeriodic(
+        instance_id, ds.event_config.unwind_state_clear_period_ms());
+  }
 
   // Kick off periodic read task.
-  auto tick_period_ms = ds_it->second.event_config.read_tick_period_ms();
+  auto tick_period_ms = ds.event_config.read_tick_period_ms();
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_this, instance_id] {
