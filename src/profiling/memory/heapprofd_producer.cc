@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
+#include "perfetto/ext/base/watchdog_posix.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -128,6 +129,14 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
       socket_delegate_(this),
       weak_factory_(this) {
   CheckDataSourceMemory();  // Kick off guardrail task.
+  stat_fd_.reset(open("/proc/self/stat", O_RDONLY));
+  if (!stat_fd_) {
+    PERFETTO_ELOG(
+        "Failed to open /proc/self/stat. Cannot accept profiles "
+        "with CPU guardrails.");
+  } else {
+    CheckDataSourceCpu();  // Kick off guardrail task.
+  }
 }
 
 HeapprofdProducer::~HeapprofdProducer() = default;
@@ -356,6 +365,16 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     }
   }
 
+  base::Optional<uint64_t> start_cputime_sec;
+  if (heapprofd_config.max_heapprofd_cpu_secs() > 0) {
+    start_cputime_sec = GetCputimeSec();
+
+    if (!start_cputime_sec) {
+      PERFETTO_ELOG("Failed to enforce CPU guardrail. Rejecting config.");
+      return;
+    }
+  }
+
   auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
   DataSource data_source(endpoint_->CreateTraceWriter(buffer_id));
   data_source.id = id;
@@ -367,6 +386,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
+  data_source.start_cputime_sec = start_cputime_sec;
 
   InterningOutputTracker::WriteFixedInterningsPacket(
       data_source.trace_writer.get());
@@ -384,6 +404,20 @@ bool HeapprofdProducer::IsPidProfiled(pid_t pid) {
       return true;
   }
   return false;
+}
+
+base::Optional<uint64_t> HeapprofdProducer::GetCputimeSec() {
+  if (!stat_fd_) {
+    return base::nullopt;
+  }
+  lseek(stat_fd_.get(), 0, SEEK_SET);
+  base::ProcStat stat;
+  if (!ReadProcStat(stat_fd_.get(), &stat)) {
+    PERFETTO_ELOG("Failed to read stat file to enforce guardrails.");
+    return base::nullopt;
+  }
+  return (stat.utime + stat.stime) /
+         static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
 }
 
 void HeapprofdProducer::SetStartupProperties(DataSource* data_source) {
@@ -1029,6 +1063,52 @@ void HeapprofdProducer::HandleSocketDisconnected(
   DumpProcessState(&ds, pid, &process_state);
   ds.process_states.erase(pid);
   MaybeFinishDataSource(&ds);
+}
+
+void HeapprofdProducer::CheckDataSourceCpu() {
+  auto weak_producer = weak_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_producer] {
+        if (!weak_producer)
+          return;
+        weak_producer->CheckDataSourceCpu();
+      },
+      kGuardrailIntervalMs);
+
+  bool any_guardrail = false;
+  for (auto& id_and_ds : data_sources_) {
+    DataSource& ds = id_and_ds.second;
+    if (ds.config.max_heapprofd_cpu_secs() > 0)
+      any_guardrail = true;
+  }
+
+  if (!any_guardrail)
+    return;
+
+  base::Optional<uint64_t> cputime_sec = GetCputimeSec();
+  if (!cputime_sec) {
+    PERFETTO_ELOG("Failed to get CPU time.");
+    return;
+  }
+
+  for (auto& id_and_ds : data_sources_) {
+    DataSource& ds = id_and_ds.second;
+    uint64_t ds_max_cpu = ds.config.max_heapprofd_cpu_secs();
+    if (ds_max_cpu > 0) {
+      // We reject data-sources with CPU guardrails if we cannot read the
+      // initial value.
+      PERFETTO_CHECK(ds.start_cputime_sec);
+      uint64_t cpu_diff = *cputime_sec - *ds.start_cputime_sec;
+      if (*cputime_sec > *ds.start_cputime_sec && cpu_diff > ds_max_cpu) {
+        PERFETTO_ELOG(
+            "Exceeded data-source CPU guardrail "
+            "(%" PRIu64 " > %" PRIu64 "). Shutting down.",
+            cpu_diff, ds_max_cpu);
+        ds.hit_guardrail = true;
+        ShutdownDataSource(&ds);
+      }
+    }
+  }
 }
 
 void HeapprofdProducer::CheckDataSourceMemory() {
