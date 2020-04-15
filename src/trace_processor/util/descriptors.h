@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DESCRIPTORS_H_
-#define SRC_TRACE_PROCESSOR_DESCRIPTORS_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_DESCRIPTORS_H_
+#define SRC_TRACE_PROCESSOR_UTIL_DESCRIPTORS_H_
 
 #include <algorithm>
 #include <string>
@@ -162,4 +162,4 @@ class DescriptorPool {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DESCRIPTORS_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_DESCRIPTORS_H_
