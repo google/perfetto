@@ -17,12 +17,13 @@
 #include "src/trace_processor/trace_processor_storage_impl.h"
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/clock_tracker.h"
 #include "src/trace_processor/default_modules.h"
-#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -30,7 +31,6 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
-#include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 
