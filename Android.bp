@@ -6457,6 +6457,14 @@ filegroup {
   ],
 }
 
+// GN: //src/trace_processor:ftrace_descriptors
+filegroup {
+  name: "perfetto_src_trace_processor_ftrace_descriptors",
+  srcs: [
+    "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
+  ],
+}
+
 // GN: //src/trace_processor:lib
 filegroup {
   name: "perfetto_src_trace_processor_lib",
@@ -6465,9 +6473,6 @@ filegroup {
     "src/trace_processor/dynamic/experimental_counter_dur_generator.cc",
     "src/trace_processor/dynamic/experimental_flamegraph_generator.cc",
     "src/trace_processor/read_trace.cc",
-    "src/trace_processor/sql_stats_table.cc",
-    "src/trace_processor/sqlite_raw_table.cc",
-    "src/trace_processor/stats_table.cc",
     "src/trace_processor/trace_processor.cc",
     "src/trace_processor/trace_processor_impl.cc",
   ],
@@ -6504,8 +6509,11 @@ filegroup {
     "src/trace_processor/sqlite/db_sqlite_table.cc",
     "src/trace_processor/sqlite/query_constraints.cc",
     "src/trace_processor/sqlite/span_join_operator_table.cc",
+    "src/trace_processor/sqlite/sql_stats_table.cc",
     "src/trace_processor/sqlite/sqlite3_str_split.cc",
+    "src/trace_processor/sqlite/sqlite_raw_table.cc",
     "src/trace_processor/sqlite/sqlite_table.cc",
+    "src/trace_processor/sqlite/stats_table.cc",
     "src/trace_processor/sqlite/window_operator_table.cc",
   ],
 }
@@ -6527,7 +6535,6 @@ filegroup {
   srcs: [
     "src/trace_processor/additional_modules.cc",
     "src/trace_processor/importers/ftrace/binder_tracker.cc",
-    "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
     "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
     "src/trace_processor/importers/ftrace/ftrace_parser.cc",
     "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
@@ -7536,6 +7543,7 @@ cc_test {
     ":perfetto_src_trace_processor_db_unittests",
     ":perfetto_src_trace_processor_descriptors",
     ":perfetto_src_trace_processor_export_json",
+    ":perfetto_src_trace_processor_ftrace_descriptors",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metrics_lib",
     ":perfetto_src_trace_processor_metrics_unittests",
@@ -7784,6 +7792,7 @@ cc_binary_host {
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_descriptors",
     ":perfetto_src_trace_processor_export_json",
+    ":perfetto_src_trace_processor_ftrace_descriptors",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metrics_lib",
     ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -7898,6 +7907,7 @@ cc_binary_host {
     ":perfetto_src_trace_processor_db_lib",
     ":perfetto_src_trace_processor_descriptors",
     ":perfetto_src_trace_processor_export_json",
+    ":perfetto_src_trace_processor_ftrace_descriptors",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metrics_lib",
     ":perfetto_src_trace_processor_sqlite_sqlite",
