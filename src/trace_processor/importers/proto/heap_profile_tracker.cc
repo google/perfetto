@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/heap_profile_tracker.h"
+#include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/process_tracker.h"

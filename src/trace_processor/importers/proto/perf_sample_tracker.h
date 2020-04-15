@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERF_SAMPLE_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_PERF_SAMPLE_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PERF_SAMPLE_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PERF_SAMPLE_TRACKER_H_
 
 #include <stdint.h>
 
@@ -47,4 +47,4 @@ class PerfSampleTracker {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PERF_SAMPLE_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PERF_SAMPLE_TRACKER_H_
