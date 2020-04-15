@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/descriptors.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 

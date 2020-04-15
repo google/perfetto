@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PROTO_TO_JSON_H_
-#define SRC_TRACE_PROCESSOR_PROTO_TO_JSON_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_JSON_H_
+#define SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_JSON_H_
 
 #include <google/protobuf/message.h>
 
@@ -35,4 +35,4 @@ std::string MessageToJsonWithAnnotations(
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PROTO_TO_JSON_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_JSON_H_
