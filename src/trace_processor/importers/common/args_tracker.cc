@@ -96,5 +96,9 @@ ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
 
 ArgsTracker::BoundInserter::~BoundInserter() {}
 
+ArgsTracker::BoundInserter::BoundInserter(BoundInserter&&) = default;
+ArgsTracker::BoundInserter& ArgsTracker::BoundInserter::operator=(
+    BoundInserter&&) = default;
+
 }  // namespace trace_processor
 }  // namespace perfetto

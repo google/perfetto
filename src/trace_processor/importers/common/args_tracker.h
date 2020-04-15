@@ -38,6 +38,12 @@ class ArgsTracker {
    public:
     virtual ~BoundInserter();
 
+    BoundInserter(BoundInserter&&);
+    BoundInserter& operator=(BoundInserter&&);
+
+    BoundInserter(const BoundInserter&) = delete;
+    BoundInserter& operator=(const BoundInserter&) = delete;
+
     // Adds an arg with the same key and flat_key.
     BoundInserter& AddArg(
         StringId key,
