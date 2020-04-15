@@ -55,17 +55,27 @@ double MeanForArray(const uint64_t array[], size_t size) {
 
 bool ReadProcStat(int fd, ProcStat* out) {
   char c[512];
-  if (PERFETTO_EINTR(read(fd, c, sizeof(c))) < 0) {
-    PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
-    return false;
+  size_t c_pos = 0;
+  while (c_pos < sizeof(c) - 1) {
+    ssize_t rd = PERFETTO_EINTR(read(fd, c + c_pos, sizeof(c) - c_pos));
+    if (rd < 0) {
+      PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
+      return false;
+    }
+    if (rd == 0)
+      break;
+    c_pos += static_cast<size_t>(rd);
   }
-  c[sizeof(c) - 1] = '\0';
+  PERFETTO_CHECK(c_pos < sizeof(c));
+  c[c_pos] = '\0';
 
-  PERFETTO_CHECK(
-      sscanf(c,
+  if (sscanf(c,
              "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu"
              "%lu %*d %*d %*d %*d %*d %*d %*u %*u %ld",
-             &out->utime, &out->stime, &out->rss_pages) == 3);
+             &out->utime, &out->stime, &out->rss_pages) != 3) {
+    PERFETTO_ELOG("Invalid stat format: %s", c);
+    return false;
+  }
   return true;
 }
 
