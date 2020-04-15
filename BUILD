@@ -713,6 +713,27 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers:common
+filegroup(
+    name = "src_trace_processor_importers_common",
+    srcs = [
+        "src/trace_processor/importers/common/args_tracker.cc",
+        "src/trace_processor/importers/common/args_tracker.h",
+        "src/trace_processor/importers/common/clock_tracker.cc",
+        "src/trace_processor/importers/common/clock_tracker.h",
+        "src/trace_processor/importers/common/event_tracker.cc",
+        "src/trace_processor/importers/common/event_tracker.h",
+        "src/trace_processor/importers/common/global_args_tracker.cc",
+        "src/trace_processor/importers/common/global_args_tracker.h",
+        "src/trace_processor/importers/common/process_tracker.cc",
+        "src/trace_processor/importers/common/process_tracker.h",
+        "src/trace_processor/importers/common/slice_tracker.cc",
+        "src/trace_processor/importers/common/slice_tracker.h",
+        "src/trace_processor/importers/common/track_tracker.cc",
+        "src/trace_processor/importers/common/track_tracker.h",
+    ],
+)
+
 genrule(
     name = "src_trace_processor_metrics_gen_merged_sql_metrics",
     srcs = [
@@ -987,20 +1008,6 @@ filegroup(
         "src/trace_processor/default_modules.h",
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
-        "src/trace_processor/importers/common/args_tracker.cc",
-        "src/trace_processor/importers/common/args_tracker.h",
-        "src/trace_processor/importers/common/clock_tracker.cc",
-        "src/trace_processor/importers/common/clock_tracker.h",
-        "src/trace_processor/importers/common/event_tracker.cc",
-        "src/trace_processor/importers/common/event_tracker.h",
-        "src/trace_processor/importers/common/global_args_tracker.cc",
-        "src/trace_processor/importers/common/global_args_tracker.h",
-        "src/trace_processor/importers/common/process_tracker.cc",
-        "src/trace_processor/importers/common/process_tracker.h",
-        "src/trace_processor/importers/common/slice_tracker.cc",
-        "src/trace_processor/importers/common/slice_tracker.h",
-        "src/trace_processor/importers/common/track_tracker.cc",
-        "src/trace_processor/importers/common/track_tracker.h",
         "src/trace_processor/importers/ftrace/ftrace_module.cc",
         "src/trace_processor/importers/ftrace/ftrace_module.h",
         "src/trace_processor/importers/fuchsia/fuchsia_record.h",
@@ -2825,6 +2832,7 @@ perfetto_cc_library(
         ":src_trace_processor_db_lib",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
+        ":src_trace_processor_importers_common",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
@@ -2914,6 +2922,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_lib",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
+        ":src_trace_processor_importers_common",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_rpc_httpd",
@@ -3081,6 +3090,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_lib",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
+        ":src_trace_processor_importers_common",
         ":src_trace_processor_lib",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
