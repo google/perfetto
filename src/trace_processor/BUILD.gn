@@ -78,8 +78,6 @@ source_set("descriptors") {
 
 source_set("storage_minimal") {
   sources = [
-    "args_tracker.cc",
-    "args_tracker.h",
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
@@ -89,10 +87,16 @@ source_set("storage_minimal") {
     "event_tracker.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
-    "global_args_tracker.cc",
-    "global_args_tracker.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
+    "importers/common/args_tracker.cc",
+    "importers/common/args_tracker.h",
+    "importers/common/global_args_tracker.cc",
+    "importers/common/global_args_tracker.h",
+    "importers/common/process_tracker.cc",
+    "importers/common/process_tracker.h",
+    "importers/common/track_tracker.cc",
+    "importers/common/track_tracker.h",
     "importers/ftrace/ftrace_module.cc",
     "importers/ftrace/ftrace_module.h",
     "importers/fuchsia/fuchsia_record.h",
@@ -124,19 +128,17 @@ source_set("storage_minimal") {
     "importers/proto/track_event_parser.h",
     "importers/proto/track_event_tokenizer.cc",
     "importers/proto/track_event_tokenizer.h",
+    "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "metadata_tracker.cc",
     "metadata_tracker.h",
     "perf_sample_tracker.cc",
     "perf_sample_tracker.h",
-    "process_tracker.cc",
-    "process_tracker.h",
     "slice_tracker.cc",
     "slice_tracker.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
     "status_macros.h",
-    "syscall_tracker.h",
     "timestamped_trace_piece.h",
     "trace_blob_view.h",
     "trace_parser.h",
@@ -146,8 +148,6 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
-    "track_tracker.cc",
-    "track_tracker.h",
     "virtual_destructors.cc",
   ]
   deps = [
@@ -177,9 +177,13 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/track_event:zero",
   ]
+
+  # json_utils optionally depends on jsoncpp.
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
   }
+
+  # gzip_utils optionally depends on zlib.
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
   }
@@ -239,6 +243,12 @@ source_set("storage_full") {
     "importers/proto/system_probes_parser.h",
     "importers/proto/vulkan_memory_tracker.cc",
     "importers/proto/vulkan_memory_tracker.h",
+    "importers/syscalls/syscall_tracker.cc",
+    "importers/syscalls/syscalls_aarch32.h",
+    "importers/syscalls/syscalls_aarch64.h",
+    "importers/syscalls/syscalls_armeabi.h",
+    "importers/syscalls/syscalls_x86.h",
+    "importers/syscalls/syscalls_x86_64.h",
     "importers/systrace/systrace_line_parser.cc",
     "importers/systrace/systrace_line_parser.h",
     "importers/systrace/systrace_line_tokenizer.cc",
@@ -247,12 +257,6 @@ source_set("storage_full") {
     "importers/systrace/systrace_parser.h",
     "importers/systrace/systrace_trace_parser.cc",
     "importers/systrace/systrace_trace_parser.h",
-    "syscall_tracker.cc",
-    "syscalls_aarch32.h",
-    "syscalls_aarch64.h",
-    "syscalls_armeabi.h",
-    "syscalls_x86.h",
-    "syscalls_x86_64.h",
   ]
   public_deps = [ ":storage_minimal" ]
   deps = [
@@ -293,12 +297,12 @@ source_set("export_json") {
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
-      "describe_slice_generator.cc",
-      "describe_slice_generator.h",
-      "experimental_counter_dur_generator.cc",
-      "experimental_counter_dur_generator.h",
-      "experimental_flamegraph_generator.cc",
-      "experimental_flamegraph_generator.h",
+      "dynamic/describe_slice_generator.cc",
+      "dynamic/describe_slice_generator.h",
+      "dynamic/experimental_counter_dur_generator.cc",
+      "dynamic/experimental_counter_dur_generator.h",
+      "dynamic/experimental_flamegraph_generator.cc",
+      "dynamic/experimental_flamegraph_generator.h",
       "read_trace.cc",
       "sql_stats_table.cc",
       "sql_stats_table.h",
@@ -368,16 +372,16 @@ perfetto_unittest_source_set("unittests") {
     "event_tracker_unittest.cc",
     "forwarding_trace_parser_unittest.cc",
     "heap_profile_tracker_unittest.cc",
+    "importers/common/process_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
     "importers/proto/heap_graph_tracker_unittest.cc",
     "importers/proto/heap_graph_walker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
+    "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
-    "process_tracker_unittest.cc",
     "protozero_to_text_unittests.cc",
     "slice_tracker_unittest.cc",
-    "syscall_tracker_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
@@ -410,7 +414,7 @@ perfetto_unittest_source_set("unittests") {
   ]
 
   if (enable_perfetto_trace_processor_sqlite) {
-    sources += [ "experimental_counter_dur_generator_unittest.cc" ]
+    sources += [ "dynamic/experimental_counter_dur_generator_unittest.cc" ]
     deps += [
       ":lib",
       "../../gn:sqlite",

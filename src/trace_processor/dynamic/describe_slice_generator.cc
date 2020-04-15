@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/describe_slice_generator.h"
+#include "src/trace_processor/dynamic/describe_slice_generator.h"
 
 #include "src/trace_processor/analysis/describe_slice.h"
 #include "src/trace_processor/types/trace_processor_context.h"

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SYSCALL_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_SYSCALL_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_
 
 #include <limits>
 #include <tuple>
 
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/track_tracker.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -99,4 +99,4 @@ class SyscallTracker : public Destructible {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SYSCALL_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_
