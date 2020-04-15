@@ -56,6 +56,18 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
   return node;
 }
 
+GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
+    const std::vector<Interned<Frame>>& callstack) {
+  Node* node = &root_;
+  // libunwindstack gives the frames top-first, but we want to bookkeep and
+  // emit as bottom first.
+  for (auto it = callstack.crbegin(); it != callstack.crend(); ++it) {
+    const Interned<Frame>& loc = *it;
+    node = GetOrCreateChild(node, loc);
+  }
+  return node;
+}
+
 void GlobalCallstackTrie::IncrementNode(Node* node) {
   while (node != nullptr) {
     node->ref_count_ += 1;
