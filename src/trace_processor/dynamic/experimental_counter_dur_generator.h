@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
-#define SRC_TRACE_PROCESSOR_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
+#define SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
@@ -24,33 +24,27 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessorContext;
-
-class ExperimentalFlamegraphGenerator
+class ExperimentalCounterDurGenerator
     : public DbSqliteTable::DynamicTableGenerator {
  public:
-  struct InputValues {
-    int64_t ts;
-    UniquePid upid;
-    std::string profile_type;
-    std::string focus_str;
-  };
-
-  explicit ExperimentalFlamegraphGenerator(TraceProcessorContext* context);
-  virtual ~ExperimentalFlamegraphGenerator() override;
+  explicit ExperimentalCounterDurGenerator(const tables::CounterTable& table);
+  virtual ~ExperimentalCounterDurGenerator() override;
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
   uint32_t EstimateRowCount() override;
   util::Status ValidateConstraints(const QueryConstraints&) override;
-  std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>& cs,
-                                      const std::vector<Order>& ob) override;
+  std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>&,
+                                      const std::vector<Order>&) override;
+
+  // public + static for testing
+  static SparseVector<int64_t> ComputeDurColumn(const Table& table);
 
  private:
-  TraceProcessorContext* context_ = nullptr;
+  const tables::CounterTable* counter_table_ = nullptr;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_

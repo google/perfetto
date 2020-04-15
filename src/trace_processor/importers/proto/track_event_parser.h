@@ -19,7 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/protozero/field.h"
-#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/slice_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"

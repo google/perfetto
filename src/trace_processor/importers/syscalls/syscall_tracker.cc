@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/syscall_tracker.h"
+#include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 
 #include <type_traits>
 #include <utility>
@@ -23,11 +23,11 @@
 
 #include "src/trace_processor/storage/stats.h"
 
-#include "src/trace_processor/syscalls_aarch32.h"
-#include "src/trace_processor/syscalls_aarch64.h"
-#include "src/trace_processor/syscalls_armeabi.h"
-#include "src/trace_processor/syscalls_x86.h"
-#include "src/trace_processor/syscalls_x86_64.h"
+#include "src/trace_processor/importers/syscalls/syscalls_aarch32.h"
+#include "src/trace_processor/importers/syscalls/syscalls_aarch64.h"
+#include "src/trace_processor/importers/syscalls/syscalls_armeabi.h"
+#include "src/trace_processor/importers/syscalls/syscalls_x86.h"
+#include "src/trace_processor/importers/syscalls/syscalls_x86_64.h"
 
 namespace perfetto {
 namespace trace_processor {
