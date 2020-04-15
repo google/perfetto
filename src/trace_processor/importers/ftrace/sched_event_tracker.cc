@@ -19,8 +19,8 @@
 #include <math.h>
 
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/storage/stats.h"
