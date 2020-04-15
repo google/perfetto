@@ -22,8 +22,8 @@
 #include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
-#include "src/trace_processor/metadata_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
