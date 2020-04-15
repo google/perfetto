@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/stack_profile_tracker.h"
+#include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 
 #include "src/trace_processor/types/trace_processor_context.h"
 
