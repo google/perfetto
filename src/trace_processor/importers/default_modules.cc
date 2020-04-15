@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/default_modules.h"
+#include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/profile_module.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
