@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 
 #include <math.h>
 
