@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_ADDITIONAL_MODULES_H_
-#define SRC_TRACE_PROCESSOR_ADDITIONAL_MODULES_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ADDITIONAL_MODULES_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ADDITIONAL_MODULES_H_
 
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -27,4 +27,4 @@ void RegisterAdditionalModules(TraceProcessorContext*);
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_ADDITIONAL_MODULES_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ADDITIONAL_MODULES_H_
