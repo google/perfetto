@@ -19,6 +19,7 @@ process_tracking_exec.py process_tracking.sql process_tracking_process_tracking_
 process_parent_pid_tracking_1.py process_parent_pid.sql process_parent_pid_process_parent_pid_tracking_1.out
 process_parent_pid_tracking_2.py process_parent_pid.sql process_parent_pid_process_parent_pid_tracking_2.out
 reused_thread_print.py process_tracking.sql process_tracking_reused_thread_print.out
+sde_tracing_mark_write.textproto slice_with_pid.sql slice_with_pid_sde_tracing_mark_write.out
 
 # Test for computing CPU time from sched events for threads.
 ../data/example_android_trace_30s.pb thread_cpu_time.sql thread_cpu_time_example_android_trace_30s.out
