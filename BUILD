@@ -921,6 +921,8 @@ filegroup(
         "src/trace_processor/dynamic/experimental_counter_dur_generator.h",
         "src/trace_processor/dynamic/experimental_flamegraph_generator.cc",
         "src/trace_processor/dynamic/experimental_flamegraph_generator.h",
+        "src/trace_processor/dynamic/experimental_slice_layout_generator.cc",
+        "src/trace_processor/dynamic/experimental_slice_layout_generator.h",
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
