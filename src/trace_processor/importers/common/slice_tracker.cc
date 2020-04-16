@@ -162,6 +162,9 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   }
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_id()[stack->back().first];
+  base::Optional<tables::SliceTable::Id> parent_id =
+      depth == 0 ? base::nullopt
+                 : base::make_optional(slices->id()[stack->back().first]);
 
   SliceId id = inserter();
   uint32_t slice_idx = *slices->id().IndexOf(id);
@@ -172,6 +175,8 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
   slices->mutable_depth()->Set(slice_idx, depth);
   slices->mutable_parent_stack_id()->Set(slice_idx, parent_stack_id);
   slices->mutable_stack_id()->Set(slice_idx, GetStackHash(*stack));
+  if (parent_id)
+    slices->mutable_parent_id()->Set(slice_idx, *parent_id);
 
   if (args_callback) {
     ArgsTracker* tracker = &stack->back().second;
