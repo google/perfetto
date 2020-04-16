@@ -35,6 +35,7 @@ namespace tables {
   C(uint32_t, depth)                                 \
   C(int64_t, stack_id)                               \
   C(int64_t, parent_stack_id)                        \
+  C(base::Optional<SliceTable::Id>, parent_id)       \
   C(uint32_t, arg_set_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
