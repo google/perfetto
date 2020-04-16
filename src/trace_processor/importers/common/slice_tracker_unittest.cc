@@ -169,6 +169,25 @@ TEST(SliceTrackerTest, Scoped) {
               ElementsAre(SliceInfo{0, 10}, SliceInfo{1, 8}, SliceInfo{2, 6}));
 }
 
+TEST(SliceTrackerTest, ParentId) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  constexpr TrackId track{22u};
+  tracker.Begin(100, track, kNullStringId, kNullStringId);
+  tracker.Begin(101, track, kNullStringId, kNullStringId);
+  tracker.Begin(102, track, kNullStringId, kNullStringId);
+  tracker.End(103, track);
+  tracker.End(150, track);
+  tracker.End(200, track);
+
+  SliceId parent = context.storage->slice_table().id()[0];
+  SliceId child = context.storage->slice_table().id()[1];
+  EXPECT_THAT(context.storage->slice_table().parent_id().ToVectorForTesting(),
+              ElementsAre(base::nullopt, parent, child));
+}
+
 TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
