@@ -311,6 +311,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../src/profiling/symbolizer:symbolize_database",
       "../base",
       "metrics:lib",
+      "util",
     ]
     if (enable_perfetto_version_gen) {
       deps += [ "../../gn/standalone:gen_git_revision" ]
