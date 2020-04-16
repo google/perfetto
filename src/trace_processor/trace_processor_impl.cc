@@ -26,6 +26,7 @@
 #include "src/trace_processor/dynamic/describe_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
 #include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
+#include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/additional_modules.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
@@ -562,6 +563,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new ExperimentalCounterDurGenerator(storage->counter_table())));
   RegisterDynamicTable(std::unique_ptr<DescribeSliceGenerator>(
       new DescribeSliceGenerator(&context_)));
+  RegisterDynamicTable(std::unique_ptr<ExperimentalSliceLayoutGenerator>(
+      new ExperimentalSliceLayoutGenerator(
+          context_.storage.get()->mutable_string_pool(),
+          &storage->slice_table())));
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());
