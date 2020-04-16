@@ -404,6 +404,67 @@ void CreateLastNonNullFunction(sqlite3* db) {
   }
 }
 
+void ExtractArg(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc != 2) {
+    sqlite3_result_error(ctx, "EXTRACT_ARG: 2 args required", -1);
+    return;
+  }
+  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+    sqlite3_result_error(ctx, "EXTRACT_ARG: 1st argument should be arg set id",
+                         -1);
+    return;
+  }
+  if (sqlite3_value_type(argv[1]) != SQLITE_TEXT) {
+    sqlite3_result_error(ctx, "EXTRACT_ARG: 2nd argument should be key", -1);
+    return;
+  }
+
+  TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
+  uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
+  const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+
+  const auto& args = storage->arg_table();
+  RowMap filtered = args.FilterToRowMap(
+      {args.arg_set_id().eq(arg_set_id), args.key().eq(key)});
+  if (filtered.size() == 0) {
+    sqlite3_result_null(ctx);
+    return;
+  }
+  if (filtered.size() > 1) {
+    sqlite3_result_error(
+        ctx, "EXTRACT_ARG: received multiple args matching arg set id and key",
+        -1);
+  }
+
+  uint32_t idx = filtered.Get(0);
+  Variadic::Type type = *storage->GetVariadicTypeForId(args.value_type()[idx]);
+  switch (type) {
+    case Variadic::kBool:
+    case Variadic::kInt:
+    case Variadic::kUint:
+    case Variadic::kPointer:
+      sqlite3_result_int64(ctx, *args.int_value()[idx]);
+      break;
+    case Variadic::kJson:
+    case Variadic::kString:
+      sqlite3_result_text(ctx, args.string_value().GetString(idx).data(), -1,
+                          nullptr);
+      break;
+    case Variadic::kReal:
+      sqlite3_result_double(ctx, *args.real_value()[idx]);
+      break;
+  }
+}
+
+void CreateExtractArgFunction(TraceStorage* ts, sqlite3* db) {
+  auto ret = sqlite3_create_function_v2(db, "EXTRACT_ARG", 2,
+                                        SQLITE_UTF8 | SQLITE_DETERMINISTIC, ts,
+                                        &ExtractArg, nullptr, nullptr, nullptr);
+  if (ret != SQLITE_OK) {
+    PERFETTO_FATAL("Error initializing EXTRACT_ARG: %s", sqlite3_errmsg(db));
+  }
+}
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics) {
@@ -470,10 +531,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateBuiltinViews(db);
   db_.reset(std::move(db));
 
-  CreateJsonExportFunction(this->context_.storage.get(), db);
+  CreateJsonExportFunction(context_.storage.get(), db);
   CreateHashFunction(db);
   CreateDemangledNameFunction(db);
   CreateLastNonNullFunction(db);
+  CreateExtractArgFunction(context_.storage.get(), db);
 
   SetupMetrics(this, *db_, &sql_metrics_);
 

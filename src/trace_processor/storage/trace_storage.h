@@ -670,15 +670,6 @@ class TraceStorage {
     return variadic_type_ids_[type];
   }
 
- private:
-  using StringHash = uint64_t;
-
-  TraceStorage(const TraceStorage&) = delete;
-  TraceStorage& operator=(const TraceStorage&) = delete;
-
-  TraceStorage(TraceStorage&&) = delete;
-  TraceStorage& operator=(TraceStorage&&) = delete;
-
   base::Optional<Variadic::Type> GetVariadicTypeForId(StringId id) const {
     auto it =
         std::find(variadic_type_ids_.begin(), variadic_type_ids_.end(), id);
@@ -688,6 +679,15 @@ class TraceStorage {
     int64_t idx = std::distance(variadic_type_ids_.begin(), it);
     return static_cast<Variadic::Type>(idx);
   }
+
+ private:
+  using StringHash = uint64_t;
+
+  TraceStorage(const TraceStorage&) = delete;
+  TraceStorage& operator=(const TraceStorage&) = delete;
+
+  TraceStorage(TraceStorage&&) = delete;
+  TraceStorage& operator=(TraceStorage&&) = delete;
 
   // TODO(lalitm): remove this when we find a better home for this.
   using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
