@@ -651,23 +651,10 @@ TEST_F(PerfettoTest, QueryServiceStateLargeResponse) {
 
   TestHelper helper(&task_runner);
   helper.StartServiceIfRequired();
-  FakeProducer* producer = helper.ConnectFakeProducer();
-
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
 
-  // Start a short tracing session. This is not really required for
-  // QueryServiceState. It's used only to put the FakeProducer in a state where
-  // it can call CommitData(). In turn CommitData() is used to linearize the
-  // producer with the service.
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
-  trace_config.set_duration_ms(1);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  helper.StartTracing(trace_config);
-  helper.WaitForProducerEnabled();
-  helper.WaitForTracingDisabled();
+  FakeProducer* producer = helper.ConnectFakeProducer();
 
   // Register 5 data sources with very large descriptors. Each descriptor will
   // max out the IPC message size, so that the service has no other choice
@@ -683,15 +670,10 @@ TEST_F(PerfettoTest, QueryServiceStateLargeResponse) {
     producer->RegisterDataSource(dsd);
   }
 
-  // CommitData() here is used only to linearize the producer with the service.
-  // We need to make sure that all the RegisterDataSource() calls above have
-  // been seen by the service before continuing. The CommitData() callback will
-  // force a round-trip to the service and hence linearization.
-  auto all_reg_cb = task_runner.CreateCheckpoint("all_registered");
-  producer->CommitData(CommitDataRequest(), [&task_runner, &all_reg_cb] {
-    task_runner.PostTask(all_reg_cb);
-  });
-  task_runner.RunUntilCheckpoint("all_registered");
+  // Linearize the producer with the service. We need to make sure that all the
+  // RegisterDataSource() calls above have been seen by the service before
+  // continuing.
+  helper.SyncAndWaitProducer();
 
   // Now invoke QueryServiceState() and wait for the reply. The service will
   // send 6 (1 + 5) IPCs which will be merged together in

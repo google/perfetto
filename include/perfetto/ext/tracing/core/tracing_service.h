@@ -136,6 +136,12 @@ class PERFETTO_EXPORT ProducerEndpoint {
   // This informs the service to activate any of these triggers if any tracing
   // session was waiting for them.
   virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
+
+  // Emits a synchronization barrier to linearize with the service. When
+  // |callback| is invoked, the caller has the guarantee that the service has
+  // seen and processed all the requests sent by this producer prior to the
+  // Sync() call. Used mainly in tests.
+  virtual void Sync(std::function<void()> callback) = 0;
 };  // class ProducerEndpoint.
 
 // The API for the Consumer port of the Service.
