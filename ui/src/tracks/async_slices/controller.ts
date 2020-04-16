@@ -38,13 +38,13 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
 
       await this.query(
           `create view ${this.tableName('small')} as ` +
-          `select ts,dur,depth,name,slice_id from slice ` +
-          `where track_id = ${this.config.trackId} ` +
+          `select ts,dur,layout_depth,name,id from experimental_slice_layout ` +
+          `where filter_track_ids = "${this.config.trackIds.join(',')}" ` +
           `and dur < ${minNs} ` +
           `order by ts;`);
 
       await this.query(`create virtual table ${this.tableName('span')} using
-      span_join(${this.tableName('small')} PARTITIONED depth,
+      span_join(${this.tableName('small')} PARTITIONED layout_depth,
       ${this.tableName('window')});`);
 
       this.setup = true;
@@ -63,15 +63,15 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
 
     await this.query(
         `create view ${this.tableName('small')} as ` +
-        `select ts,dur,depth,name, slice_id from slice ` +
-        `where track_id = ${this.config.trackId} ` +
+        `select ts,dur,layout_depth,name,id from experimental_slice_layout ` +
+        `where filter_track_ids = "${this.config.trackIds.join(',')}" ` +
         `and dur < ${minNs} ` +
         `order by ts `);
 
     await this.query(
         `create view ${this.tableName('big')} as ` +
-        `select ts,dur,depth,name, slice_id from slice ` +
-        `where track_id = ${this.config.trackId} ` +
+        `select ts,dur,layout_depth,name,id from experimental_slice_layout ` +
+        `where filter_track_ids = "${this.config.trackIds.join(',')}" ` +
         `and ts >= ${startNs} - dur ` +
         `and ts <= ${endNs} ` +
         `and dur >= ${minNs} ` +
@@ -82,11 +82,11 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
     await this.query(`create view ${this.tableName('summary')} as select
       (quantum_ts * ${minNs} + ${startNs}) as ts,
       ${minNs} as dur,
-      depth,
+      layout_depth,
       'Busy' as name,
-      -1 as slice_id
+      -1 as id
       from ${this.tableName('span')}
-      group by depth, quantum_ts
+      group by layout_depth, quantum_ts
       order by ts;`);
 
     const query = `select * from ${this.tableName('summary')} UNION ` +
