@@ -386,7 +386,7 @@ export class TraceController extends Controller<States> {
 
     const upidToProcessTracks = new Map();
     const rawProcessTracks = await engine.query(`
-      SELECT 
+      SELECT
         pt.upid,
         pt.name,
         pt.track_ids,
@@ -401,8 +401,8 @@ export class TraceController extends Controller<States> {
     for (let i = 0; i < rawProcessTracks.numRecords; i++) {
       const upid = +rawProcessTracks.columns[0].longValues![i];
       const name = rawProcessTracks.columns[1].stringValues![i];
-      const trackIds =
-          rawProcessTracks.columns[2].stringValues![i].split(',').map(parseInt);
+      const rawTrackIds = rawProcessTracks.columns[2].stringValues![i];
+      const trackIds = rawTrackIds.split(',').map(v => Number(v));
       const maxDepth = +rawProcessTracks.columns[3].longValues![i];
       const track = {
         engineId: this.engineId,
