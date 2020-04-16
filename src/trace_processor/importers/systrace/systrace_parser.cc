@@ -81,11 +81,21 @@ void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
                                               char trace_type,
                                               bool trace_begin,
                                               base::StringView trace_name,
-                                              uint32_t tgid,
+                                              uint32_t /* tgid */,
                                               int64_t value) {
   systrace_utils::SystraceTracePoint point{};
   point.name = trace_name;
-  point.tgid = tgid;
+
+  // Hardcode the tgid to 0 (i.e. no tgid available) because
+  // sde_tracing_mark_write events can come from kernel threads and because we
+  // group kernel threads into the kthreadd process, we would want |point.tgid
+  // == kKthreaddPid|. However, we don't have acces to the ppid of this process
+  // so we have to not associate to any process and leave the resolution of
+  // process to other events.
+  // TODO(lalitm): remove this hack once we move kernel thread grouping to
+  // the UI.
+  point.tgid = 0;
+
   point.value = value;
   // Some versions of this trace point fill trace_type with one of (B/E/C),
   // others use the trace_begin boolean and only support begin/end events:
@@ -108,7 +118,12 @@ void SystraceParser::ParseSystracePoint(
   switch (point.phase) {
     case 'B': {
       StringId name_id = context_->storage->InternString(point.name);
-      UniqueTid utid = context_->process_tracker->UpdateThread(pid, point.tgid);
+      UniqueTid utid;
+      if (point.tgid == 0) {
+        utid = context_->process_tracker->GetOrCreateThread(pid);
+      } else {
+        utid = context_->process_tracker->UpdateThread(pid, point.tgid);
+      }
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
                                      name_id);
