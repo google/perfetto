@@ -425,7 +425,7 @@ class Column {
          uint32_t col_idx_in_table,
          uint32_t row_map_idx,
          SparseVectorBase* sparse_vector,
-         std::unique_ptr<SparseVectorBase> owned_sparse_vector);
+         std::shared_ptr<SparseVectorBase> owned_sparse_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
@@ -579,7 +579,7 @@ class Column {
   // Only filled for columns which own the data inside them. Generally this is
   // only true for columns which are dynamically generated at runtime.
   // Keep this before |sparse_vector_|.
-  std::unique_ptr<SparseVectorBase> owned_sparse_vector_;
+  std::shared_ptr<SparseVectorBase> owned_sparse_vector_;
 
   // type_ is used to cast sparse_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;

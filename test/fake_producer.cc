@@ -22,6 +22,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -43,6 +44,7 @@ FakeProducer::FakeProducer(const std::string& name,
 FakeProducer::~FakeProducer() = default;
 
 void FakeProducer::Connect(const char* socket_name,
+                           std::function<void()> on_connect,
                            std::function<void()> on_setup_data_source_instance,
                            std::function<void()> on_create_data_source_instance,
                            std::unique_ptr<SharedMemory> shm,
@@ -54,6 +56,7 @@ void FakeProducer::Connect(const char* socket_name,
       /*shared_memory_size_hint_bytes=*/0,
       /*shared_memory_page_size_hint_bytes=*/base::kPageSize, std::move(shm),
       std::move(shm_arbiter));
+  on_connect_ = std::move(on_connect);
   on_setup_data_source_instance_ = std::move(on_setup_data_source_instance);
   on_create_data_source_instance_ = std::move(on_create_data_source_instance);
 }
@@ -63,6 +66,11 @@ void FakeProducer::OnConnect() {
   DataSourceDescriptor descriptor;
   descriptor.set_name(name_);
   endpoint_->RegisterDataSource(descriptor);
+  auto on_connect_callback = std::move(on_connect_);
+  auto task_runner = task_runner_;
+  endpoint_->Sync([task_runner, on_connect_callback] {
+    task_runner->PostTask(on_connect_callback);
+  });
 }
 
 void FakeProducer::OnDisconnect() {
@@ -120,10 +128,25 @@ void FakeProducer::ProduceStartupEventBatch(
     callback();
   });
 }
+
 // Note: this can be called on a different thread.
 void FakeProducer::ProduceEventBatch(std::function<void()> callback) {
   task_runner_->PostTask(
       [this, callback] { EmitEventBatchOnTaskRunner(callback); });
+}
+
+void FakeProducer::RegisterDataSource(const DataSourceDescriptor& desc) {
+  task_runner_->PostTask([this, desc] { endpoint_->RegisterDataSource(desc); });
+}
+
+void FakeProducer::CommitData(const CommitDataRequest& req,
+                              std::function<void()> callback) {
+  task_runner_->PostTask(
+      [this, req, callback] { endpoint_->CommitData(req, callback); });
+}
+
+void FakeProducer::Sync(std::function<void()> callback) {
+  task_runner_->PostTask([this, callback] { endpoint_->Sync(callback); });
 }
 
 void FakeProducer::OnTracingSetup() {}

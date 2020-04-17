@@ -17,6 +17,19 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_SUBPROCESS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_SUBPROCESS_H_
 
+#include "perfetto/base/build_config.h"
+
+// This is a #if as opposite to a GN condition, because GN conditions aren't propagated when
+// translating to Bazel or other build systems, as they get resolved at translation time. Without
+// this, the Bazel build breaks on Windows.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#define PERFETTO_HAS_SUBPROCESS() 1
+#else
+#define PERFETTO_HAS_SUBPROCESS() 0
+#endif
+
 #include <functional>
 #include <initializer_list>
 #include <string>

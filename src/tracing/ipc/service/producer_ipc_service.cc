@@ -355,6 +355,25 @@ void ProducerIPCService::GetAsyncCommand(
     producer->SendSetupTracing();
 }
 
+void ProducerIPCService::Sync(const protos::gen::SyncRequest&,
+                              DeferredSyncResponse resp) {
+  RemoteProducer* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    PERFETTO_DLOG("Producer invoked Sync() before InitializeConnection()");
+    return resp.Reject();
+  }
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto resp_it = pending_syncs_.insert(pending_syncs_.end(), std::move(resp));
+  auto callback = [weak_this, resp_it]() {
+    if (!weak_this)
+      return;
+    auto pending_resp = std::move(*resp_it);
+    weak_this->pending_syncs_.erase(resp_it);
+    pending_resp.Resolve(ipc::AsyncResult<protos::gen::SyncResponse>::Create());
+  };
+  producer->service_endpoint->Sync(callback);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // RemoteProducer methods
 ////////////////////////////////////////////////////////////////////////////////

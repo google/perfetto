@@ -19,6 +19,7 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -42,6 +43,7 @@ TestHelper::TestHelper(base::TestTaskRunner* task_runner)
       task_runner_(task_runner),
       service_thread_(TEST_PRODUCER_SOCK_NAME, TEST_CONSUMER_SOCK_NAME),
       fake_producer_thread_(TEST_PRODUCER_SOCK_NAME,
+                            WrapTask(CreateCheckpoint("producer.connect")),
                             WrapTask(CreateCheckpoint("producer.setup")),
                             WrapTask(CreateCheckpoint("producer.enabled"))) {}
 
@@ -84,6 +86,9 @@ void TestHelper::StartServiceIfRequired() {
 
 FakeProducer* TestHelper::ConnectFakeProducer() {
   fake_producer_thread_.Connect();
+  // This will wait until the service has seen the RegisterDataSource() call
+  // (because of the Sync() in FakeProducer::OnConnect()).
+  RunUntilCheckpoint("producer.connect");
   return fake_producer_thread_.producer();
 }
 
@@ -174,6 +179,27 @@ void TestHelper::WaitForTracingDisabled(uint32_t timeout_ms) {
 void TestHelper::WaitForReadData(uint32_t read_count, uint32_t timeout_ms) {
   RunUntilCheckpoint("readback.complete." + std::to_string(read_count),
                      timeout_ms);
+}
+
+void TestHelper::SyncAndWaitProducer() {
+  static int sync_id = 0;
+  std::string checkpoint_name = "producer_sync_" + std::to_string(++sync_id);
+  auto checkpoint = CreateCheckpoint(checkpoint_name);
+  fake_producer_thread_.producer()->Sync(
+      [this, &checkpoint] { task_runner_->PostTask(checkpoint); });
+  RunUntilCheckpoint(checkpoint_name);
+}
+
+TracingServiceState TestHelper::QueryServiceStateAndWait() {
+  TracingServiceState res;
+  auto checkpoint = CreateCheckpoint("query_svc_state");
+  auto callback = [&checkpoint, &res](bool, const TracingServiceState& tss) {
+    res = tss;
+    checkpoint();
+  };
+  endpoint_->QueryServiceState(callback);
+  RunUntilCheckpoint("query_svc_state");
+  return res;
 }
 
 std::function<void()> TestHelper::WrapTask(

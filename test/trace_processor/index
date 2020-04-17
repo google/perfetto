@@ -19,6 +19,7 @@ process_tracking_exec.py process_tracking.sql process_tracking_process_tracking_
 process_parent_pid_tracking_1.py process_parent_pid.sql process_parent_pid_process_parent_pid_tracking_1.out
 process_parent_pid_tracking_2.py process_parent_pid.sql process_parent_pid_process_parent_pid_tracking_2.out
 reused_thread_print.py process_tracking.sql process_tracking_reused_thread_print.out
+sde_tracing_mark_write.textproto slice_with_pid.sql slice_with_pid_sde_tracing_mark_write.out
 
 # Test for computing CPU time from sched events for threads.
 ../data/example_android_trace_30s.pb thread_cpu_time.sql thread_cpu_time_example_android_trace_30s.out
@@ -53,6 +54,7 @@ synth_oom.py oom_query.sql synth_oom_oom_query.out
 # LMK handling
 kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
+oom_kill.textproto oom_kill.sql oom_kill.out
 
 # Rss stats
 rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
@@ -151,9 +153,22 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 
 heap_profile_jit.textproto heap_profile_frames.sql heap_profile_jit.out
 
+profiler_smaps.textproto profiler_smaps.sql profiler_smaps.out
+
+heap_graph_baseapk.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
+heap_graph_baseapk.textproto heap_graph_object.sql heap_graph_object.out
+heap_graph_baseapk.textproto heap_graph_reference.sql heap_graph_reference.out
+
 heap_graph.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
+heap_graph_two_locations.textproto heap_graph_object.sql heap_graph_two_locations.out
+# TODO(b/153552977): Stop supporting legacy heap graphs. These never made
+#                    it into a public release, so we should eventually stop
+#                    supporting workarounds for them.
+heap_graph_legacy.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
+heap_graph_legacy.textproto heap_graph_object.sql heap_graph_object.out
+heap_graph_legacy.textproto heap_graph_reference.sql heap_graph_reference.out
 heap_graph_interleaved.textproto heap_graph_object.sql heap_graph_interleaved_object.out
 heap_graph_interleaved.textproto heap_graph_reference.sql heap_graph_interleaved_reference.out
 ../data/system-server-heap-graph.pftrace heap_graph_flamegraph.sql heap_graph_flamegraph_system-server-heap-graph.out

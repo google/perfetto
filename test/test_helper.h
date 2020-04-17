@@ -100,9 +100,11 @@ class ProbesProducerThread {
 class FakeProducerThread {
  public:
   FakeProducerThread(const std::string& producer_socket,
+                     std::function<void()> connect_callback,
                      std::function<void()> setup_callback,
                      std::function<void()> start_callback)
       : producer_socket_(producer_socket),
+        connect_callback_(std::move(connect_callback)),
         setup_callback_(std::move(setup_callback)),
         start_callback_(std::move(start_callback)) {
     runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.fake");
@@ -118,9 +120,9 @@ class FakeProducerThread {
 
   void Connect() {
     runner_->PostTaskAndWaitForTesting([this]() {
-      producer_->Connect(producer_socket_.c_str(), std::move(setup_callback_),
-                         std::move(start_callback_), std::move(shm_),
-                         std::move(shm_arbiter_));
+      producer_->Connect(producer_socket_.c_str(), std::move(connect_callback_),
+                         std::move(setup_callback_), std::move(start_callback_),
+                         std::move(shm_), std::move(shm_arbiter_));
     });
   }
 
@@ -146,6 +148,7 @@ class FakeProducerThread {
 
   std::string producer_socket_;
   std::unique_ptr<FakeProducer> producer_;
+  std::function<void()> connect_callback_;
   std::function<void()> setup_callback_;
   std::function<void()> start_callback_;
   std::unique_ptr<SharedMemory> shm_;
@@ -170,7 +173,11 @@ class TestHelper : public Consumer {
   void OnObservableEvents(const ObservableEvents&) override;
 
   void StartServiceIfRequired();
+
+  // Connects the producer and waits that the service has seen the
+  // RegisterDataSource() call.
   FakeProducer* ConnectFakeProducer();
+
   void ConnectConsumer();
   void StartTracing(const TraceConfig& config,
                     base::ScopedFile = base::ScopedFile());
@@ -188,6 +195,8 @@ class TestHelper : public Consumer {
   void WaitForProducerEnabled();
   void WaitForTracingDisabled(uint32_t timeout_ms = 5000);
   void WaitForReadData(uint32_t read_count = 0, uint32_t timeout_ms = 5000);
+  void SyncAndWaitProducer();
+  TracingServiceState QueryServiceStateAndWait();
 
   std::string AddID(const std::string& checkpoint) {
     return checkpoint + "." + std::to_string(instance_num_);

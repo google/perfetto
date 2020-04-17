@@ -117,8 +117,8 @@ message HeapGraph {
   // Legacy way to encode types. Names here are emitted by old perfetto_hprof,
   // which do not include the class_name. Handle like a HeapGraphType with
   // no location_id.
-  // TODO(fmayer): Remove this. This was was not used in any publicly available
-  // release.
+  // TODO(b/153552977): Remove this. This was was not used in any publicly
+  // available release.
   repeated InternedString type_names = 3;
 
   // Field names for references in managed heap graph.

@@ -91,25 +91,34 @@ packet {
   timestamp: 10
   heap_graph {
     pid: 2
-    type_names {
+    location_names {
       iid: 1
-      str: "FactoryProducerDelegateImplActor"
+      str: "/data/app/ASDFG/invalid.test.android-SDASD/test.apk"
     }
-    type_names {
-      iid: 2
-      str: "Foo"
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
+      location_id: 1
     }
-    type_names {
-      iid: 3
-      str: "a"
+    types {
+      id: 2
+      class_name: "Foo"
+      location_id: 1
     }
-    type_names {
-      iid: 4
-      str: "a[]"
+    types {
+      id: 3
+      class_name: "a"
+      location_id: 1
     }
-    type_names {
-      iid: 5
-      str: "java.lang.Class<a[]>"
+    types {
+      id: 4
+      class_name: "a[]"
+      location_id: 1
+    }
+    types {
+      id: 5
+      class_name: "java.lang.Class<a[]>"
+      location_id: 1
     }
     field_names {
       iid: 1
@@ -129,6 +138,7 @@ packet {
 }
 packet {
   deobfuscation_mapping {
+    package_name: "invalid.test.android"
     obfuscated_classes {
       obfuscated_name: "a"
       deobfuscated_name: "DeobfuscatedA"

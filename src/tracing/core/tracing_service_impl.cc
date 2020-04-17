@@ -3144,6 +3144,11 @@ void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
   });
 }
 
+void TracingServiceImpl::ProducerEndpointImpl::Sync(
+    std::function<void()> callback) {
+  task_runner_->PostTask(callback);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // TracingServiceImpl::TracingSession implementation
 ////////////////////////////////////////////////////////////////////////////////

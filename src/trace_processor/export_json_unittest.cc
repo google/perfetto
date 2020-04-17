@@ -25,11 +25,11 @@
 #include <json/value.h>
 
 #include "perfetto/ext/base/temp_file.h"
-#include "src/trace_processor/args_tracker.h"
-#include "src/trace_processor/metadata_tracker.h"
-#include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/trace_processor_context.h"
-#include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include "test/gtest_and_gmock.h"
 
