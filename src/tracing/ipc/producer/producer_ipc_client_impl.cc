@@ -155,6 +155,11 @@ void ProducerIPCClientImpl::OnConnect() {
       });
   producer_port_.GetAsyncCommand(protos::gen::GetAsyncCommandRequest(),
                                  std::move(on_cmd));
+
+  // If there are pending Sync() requests, send them now.
+  for (const auto& pending_sync : pending_sync_reqs_)
+    Sync(std::move(pending_sync));
+  pending_sync_reqs_.clear();
 }
 
 void ProducerIPCClientImpl::OnDisconnect() {
@@ -394,6 +399,23 @@ void ProducerIPCClientImpl::ActivateTriggers(
   }
   producer_port_.ActivateTriggers(
       proto_req, ipc::Deferred<protos::gen::ActivateTriggersResponse>());
+}
+
+void ProducerIPCClientImpl::Sync(std::function<void()> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!connected_) {
+    pending_sync_reqs_.emplace_back(std::move(callback));
+    return;
+  }
+  ipc::Deferred<protos::gen::SyncResponse> resp;
+  resp.Bind([callback](ipc::AsyncResult<protos::gen::SyncResponse>) {
+    // Here we ACK the callback even if the service replies with a failure
+    // (i.e. the service is too old and doesn't understand Sync()). In that
+    // case the service has still seen the request, the IPC roundtrip is
+    // still a (weaker) linearization fence.
+    callback();
+  });
+  producer_port_.Sync(protos::gen::SyncRequest(), std::move(resp));
 }
 
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(

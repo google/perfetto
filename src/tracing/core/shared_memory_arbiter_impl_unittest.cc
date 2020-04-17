@@ -46,6 +46,7 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
   void NotifyDataSourceStarted(DataSourceInstanceID) override {}
   void NotifyDataSourceStopped(DataSourceInstanceID) override {}
   void ActivateTriggers(const std::vector<std::string>&) {}
+  void Sync(std::function<void()>) override {}
   SharedMemory* shared_memory() const override { return nullptr; }
   size_t shared_buffer_page_size_kb() const override { return 0; }
   std::unique_ptr<TraceWriter> CreateTraceWriter(
