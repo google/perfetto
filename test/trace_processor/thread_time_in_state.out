@@ -1,0 +1,5 @@
+"name","tid","ts","value"
+"cpu0.time_in_state",5,2,20.000000
+"cpu0.time_in_state",5,3,20.000000
+"cpu2.time_in_state",7,3,10.000000
+"cpu2.time_in_state",11,3,10.000000
