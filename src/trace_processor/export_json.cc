@@ -1175,6 +1175,7 @@ class JsonExporter {
       }
 
       event["args"]["frames"] = merged_callstack;
+      event["args"]["process_priority"] = samples.process_priority()[i];
 
       // TODO(oysteine): Used for backwards compatibility with the memlog
       // pipeline, should remove once we've switched to looking directly at the

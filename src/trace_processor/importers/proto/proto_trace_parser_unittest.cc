@@ -2569,6 +2569,7 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
 
     samples->add_callstack_iid(1);
     samples->add_timestamp_delta_us(15);
+    samples->set_process_priority(20);
   }
 
   {
@@ -2578,6 +2579,7 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
 
     samples->add_callstack_iid(42);
     samples->add_timestamp_delta_us(42);
+    samples->set_process_priority(30);
   }
 
   EXPECT_CALL(*process_, UpdateThread(16, 15))
@@ -2592,14 +2594,17 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   EXPECT_EQ(samples.ts()[0], 11000);
   EXPECT_EQ(samples.callsite_id()[0], CallsiteId{0});
   EXPECT_EQ(samples.utid()[0], 1u);
+  EXPECT_EQ(samples.process_priority()[0], 20);
 
   EXPECT_EQ(samples.ts()[1], 26000);
   EXPECT_EQ(samples.callsite_id()[1], CallsiteId{1});
   EXPECT_EQ(samples.utid()[1], 1u);
+  EXPECT_EQ(samples.process_priority()[1], 20);
 
   EXPECT_EQ(samples.ts()[2], 68000);
   EXPECT_EQ(samples.callsite_id()[2], CallsiteId{0});
   EXPECT_EQ(samples.utid()[2], 1u);
+  EXPECT_EQ(samples.process_priority()[2], 30);
 
   // Breakpad build_ids should not be modified/mangled.
   ASSERT_STREQ(
