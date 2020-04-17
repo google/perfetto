@@ -207,3 +207,6 @@ process_metadata_matching.textproto process_metadata_matching.sql process_metada
 
 # Trace size
 ../data/android_sched_and_ps.pb trace_size.sql android_sched_and_ps_trace_size.out
+
+# Thread time_in_state
+thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
