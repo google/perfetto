@@ -49,6 +49,7 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
   MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
   MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
   MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
+  MOCK_METHOD1(Sync, void(std::function<void()>));
 };
 
 TEST(LogHistogramTest, Simple) {
