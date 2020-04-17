@@ -1573,6 +1573,16 @@ message GraphicsFrameEvent {
 
 // End of protos/perfetto/trace/android/graphics_frame_event.proto
 
+// Begin of protos/perfetto/trace/android/initial_display_state.proto
+
+message InitialDisplayState {
+  // Same values as android.view.Display.STATE_*
+  optional int32 display_state = 1;
+  optional double brightness = 2;
+}
+
+// End of protos/perfetto/trace/android/initial_display_state.proto
+
 // Begin of protos/perfetto/trace/android/packages_list.proto
 
 message PackagesList {
@@ -6716,7 +6726,7 @@ message Trigger {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 70.
+// Next id: 71.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -6771,6 +6781,7 @@ message TracePacket {
     CpuInfo cpu_info = 67;
     SmapsPacket smaps_packet = 68;
     TracingServiceEvent service_event = 69;
+    InitialDisplayState initial_display_state = 70;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
