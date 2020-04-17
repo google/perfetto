@@ -148,6 +148,7 @@ message StreamingProfilePacket {
   // TODO(eseckler): ThreadDescriptor-based timestamps are deprecated. Replace
   // this with ClockSnapshot-based delta encoding instead.
   repeated int64 timestamp_delta_us = 2;
+  optional int32 process_priority = 3;
 }
 
 // Namespace for the contained enums.
