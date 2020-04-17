@@ -17,6 +17,7 @@
 #ifndef SRC_TRACING_IPC_SERVICE_PRODUCER_IPC_SERVICE_H_
 #define SRC_TRACING_IPC_SERVICE_PRODUCER_IPC_SERVICE_H_
 
+#include <list>
 #include <map>
 #include <memory>
 #include <string>
@@ -61,12 +62,12 @@ class ProducerIPCService : public protos::gen::ProducerPort {
   void NotifyDataSourceStopped(
       const protos::gen::NotifyDataSourceStoppedRequest&,
       DeferredNotifyDataSourceStoppedResponse) override;
-
   void ActivateTriggers(const protos::gen::ActivateTriggersRequest&,
                         DeferredActivateTriggersResponse) override;
 
   void GetAsyncCommand(const protos::gen::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
+  void Sync(const protos::gen::SyncRequest&, DeferredSyncResponse) override;
   void OnClientDisconnected() override;
 
  private:
@@ -125,6 +126,9 @@ class ProducerIPCService : public protos::gen::ProducerPort {
   // Maps IPC clients to ProducerEndpoint instances registered on the
   // |core_service_| business logic.
   std::map<ipc::ClientID, std::unique_ptr<RemoteProducer>> producers_;
+
+  // List because pointers need to be stable.
+  std::list<DeferredSyncResponse> pending_syncs_;
 
   base::WeakPtrFactory<ProducerIPCService> weak_ptr_factory_;  // Keep last.
 };
