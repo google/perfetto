@@ -144,6 +144,7 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/perfetto/trace/ps:zero",
     "../../protos/perfetto/trace/sys_stats:zero",
+    "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
   ]
 
