@@ -83,7 +83,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                               \
   C(int64_t, ts, Column::Flag::kSorted)                           \
   C(StackProfileCallsiteTable::Id, callsite_id)                   \
-  C(uint32_t, utid)
+  C(uint32_t, utid)                                               \
+  C(int32_t, process_priority)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 
