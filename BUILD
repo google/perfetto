@@ -177,6 +177,7 @@ perfetto_cc_library(
         ":src_traced_probes_filesystem_filesystem",
         ":src_traced_probes_ftrace_format_parser",
         ":src_traced_probes_ftrace_ftrace",
+        ":src_traced_probes_initial_display_state_initial_display_state",
         ":src_traced_probes_metatrace_metatrace",
         ":src_traced_probes_packages_list_packages_list",
         ":src_traced_probes_power_power",
@@ -1156,6 +1157,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/initial_display_state:initial_display_state
+filegroup(
+    name = "src_traced_probes_initial_display_state_initial_display_state",
+    srcs = [
+        "src/traced/probes/initial_display_state/initial_display_state_data_source.cc",
+        "src/traced/probes/initial_display_state/initial_display_state_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes/metatrace:metatrace
 filegroup(
     name = "src_traced_probes_metatrace_metatrace",
@@ -2051,6 +2061,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
+        "protos/perfetto/trace/android/initial_display_state.proto",
         "protos/perfetto/trace/android/packages_list.proto",
     ],
     visibility = [
