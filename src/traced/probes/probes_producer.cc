@@ -37,6 +37,7 @@
 #include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
+#include "src/traced/probes/initial_display_state/initial_display_state_data_source.h"
 #include "src/traced/probes/metatrace/metatrace_data_source.h"
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 #include "src/traced/probes/power/android_power_data_source.h"
@@ -64,15 +65,16 @@ constexpr size_t kTracingSharedMemSizeHintBytes = 1024 * 1024;
 constexpr size_t kTracingSharedMemPageSizeHintBytes = 32 * 1024;
 
 ProbesDataSource::Descriptor const* const kAllDataSources[]{
-    &FtraceDataSource::descriptor,        //
-    &ProcessStatsDataSource::descriptor,  //
-    &InodeFileDataSource::descriptor,     //
-    &SysStatsDataSource::descriptor,      //
-    &AndroidPowerDataSource::descriptor,  //
-    &AndroidLogDataSource::descriptor,    //
-    &PackagesListDataSource::descriptor,  //
-    &MetatraceDataSource::descriptor,     //
-    &SystemInfoDataSource::descriptor,    //
+    &FtraceDataSource::descriptor,               //
+    &ProcessStatsDataSource::descriptor,         //
+    &InodeFileDataSource::descriptor,            //
+    &SysStatsDataSource::descriptor,             //
+    &AndroidPowerDataSource::descriptor,         //
+    &AndroidLogDataSource::descriptor,           //
+    &PackagesListDataSource::descriptor,         //
+    &MetatraceDataSource::descriptor,            //
+    &SystemInfoDataSource::descriptor,           //
+    &InitialDisplayStateDataSource::descriptor,  //
 };
 }  // namespace
 
@@ -166,6 +168,8 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
     data_source = CreateMetatraceDataSource(session_id, config);
   } else if (config.name() == SystemInfoDataSource::descriptor.name) {
     data_source = CreateSystemInfoDataSource(session_id, config);
+  } else if (config.name() == InitialDisplayStateDataSource::descriptor.name) {
+    data_source = CreateInitialDisplayStateDataSource(session_id, config);
   }
 
   if (!data_source) {
@@ -309,6 +313,15 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateSystemInfoDataSource(
   return std::unique_ptr<ProbesDataSource>(new SystemInfoDataSource(
       session_id, endpoint_->CreateTraceWriter(buffer_id),
       std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo())));
+}
+
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateInitialDisplayStateDataSource(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<ProbesDataSource>(new InitialDisplayStateDataSource(
+      session_id, endpoint_->CreateTraceWriter(buffer_id)));
 }
 
 void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
