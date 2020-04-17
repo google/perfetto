@@ -42,6 +42,7 @@ class FakeProducer : public Producer {
   ~FakeProducer() override;
 
   void Connect(const char* socket_name,
+               std::function<void()> on_connect,
                std::function<void()> on_setup_data_source_instance,
                std::function<void()> on_create_data_source_instance,
                std::unique_ptr<SharedMemory> shm = nullptr,
@@ -61,6 +62,7 @@ class FakeProducer : public Producer {
 
   void RegisterDataSource(const DataSourceDescriptor&);
   void CommitData(const CommitDataRequest&, std::function<void()> callback);
+  void Sync(std::function<void()> callback);
 
   bool IsShmemProvidedByProducer() const {
     return endpoint_->IsShmemProvidedByProducer();
@@ -90,6 +92,7 @@ class FakeProducer : public Producer {
   uint32_t message_size_ = 0;
   uint32_t message_count_ = 0;
   uint32_t max_messages_per_second_ = 0;
+  std::function<void()> on_connect_;
   std::function<void()> on_setup_data_source_instance_;
   std::function<void()> on_create_data_source_instance_;
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;

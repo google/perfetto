@@ -74,6 +74,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStarted(DataSourceInstanceID) override;
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
+  void Sync(std::function<void()> callback) override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
@@ -120,6 +121,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   size_t shared_memory_size_hint_bytes_ = 0;
   TracingService::ProducerSMBScrapingMode const smb_scraping_mode_;
   bool is_shmem_provided_by_producer_ = false;
+  std::vector<std::function<void()>> pending_sync_reqs_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 
