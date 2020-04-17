@@ -30,6 +30,7 @@
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -253,6 +254,17 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
         pid = fld.as_uint32();
         continue;
       }
+      if (fld.id() ==
+          protos::pbzero::ProcessStats::Process::kThreadsFieldNumber) {
+        if (PERFETTO_UNLIKELY(ms_per_tick_ == 0 ||
+                              thread_time_in_state_cpu_str_ids_.empty())) {
+          context_->storage->IncrementStats(
+              stats::thread_time_in_state_out_of_order);
+          continue;
+        }
+        ParseThreadStats(ts, pid, fld.as_bytes());
+        continue;
+      }
       bool is_counter_field = fld.id() < proc_stats_process_names_.size() &&
                               !proc_stats_process_names_[fld.id()].is_null();
       if (is_counter_field) {
@@ -281,6 +293,35 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
           context_->track_tracker->InternProcessCounterTrack(name, upid);
       context_->event_tracker->PushCounter(ts, value, track);
     }
+  }
+}
+
+void SystemProbesParser::ParseThreadStats(int64_t ts,
+                                          uint32_t pid,
+                                          ConstBytes blob) {
+  protos::pbzero::ProcessStats::Thread::Decoder stats(blob.data, blob.size);
+  UniqueTid utid = context_->process_tracker->UpdateThread(
+      static_cast<uint32_t>(stats.tid()), pid);
+  auto index_it = stats.cpu_freq_indices();
+  auto tick_it = stats.cpu_freq_ticks();
+  std::map<StringId, uint64_t> total_ticks_cpu;
+  for (; index_it && tick_it; index_it++, tick_it++) {
+    auto freq_index = *index_it;
+    if (PERFETTO_UNLIKELY(freq_index == 0 ||
+                          freq_index >=
+                              thread_time_in_state_cpu_str_ids_.size())) {
+      context_->storage->IncrementStats(
+          stats::thread_time_in_state_unknown_cpu_freq);
+      continue;
+    }
+    total_ticks_cpu[thread_time_in_state_cpu_str_ids_[freq_index]] += *tick_it;
+  }
+
+  for (auto it : total_ticks_cpu) {
+    TrackId track =
+        context_->track_tracker->InternThreadCounterTrack(it.first, utid);
+    auto ticks = it.second;
+    context_->event_tracker->PushCounter(ts, ticks * ms_per_tick_, track);
   }
 }
 
@@ -326,6 +367,28 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
         metadata::android_build_fingerprint,
         Variadic::String(context_->storage->InternString(
             packet.android_build_fingerprint())));
+  }
+
+  int64_t hz = packet.hz();
+  if (hz > 0)
+    ms_per_tick_ = 1000u / static_cast<uint64_t>(hz);
+}
+
+void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
+  protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
+  uint32_t cpu_index = 0;
+  thread_time_in_state_cpu_str_ids_.push_back(
+      context_->storage->InternString("invalid"));
+  for (auto it = packet.cpus(); it; it++) {
+    protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
+    std::string cpu_index_string =
+        "cpu" + std::to_string(cpu_index) + ".time_in_state";
+    base::StringView cpu_string(cpu_index_string);
+    for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
+      thread_time_in_state_cpu_str_ids_.push_back(
+          context_->storage->InternString(cpu_string));
+    }
+    cpu_index++;
   }
 }
 
