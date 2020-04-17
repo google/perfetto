@@ -90,6 +90,9 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   std::unique_ptr<ProbesDataSource> CreateSystemInfoDataSource(
       TracingSessionID session_id,
       const DataSourceConfig& config);
+  std::unique_ptr<ProbesDataSource> CreateInitialDisplayStateDataSource(
+      TracingSessionID session_id,
+      const DataSourceConfig& config);
 
  private:
   enum State {
