@@ -32,6 +32,7 @@ SystemProbesModule::SystemProbesModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kProcessStatsFieldNumber, context);
   RegisterForField(TracePacket::kSysStatsFieldNumber, context);
   RegisterForField(TracePacket::kSystemInfoFieldNumber, context);
+  RegisterForField(TracePacket::kCpuInfoFieldNumber, context);
 }
 
 void SystemProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
@@ -49,6 +50,9 @@ void SystemProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
       return;
     case TracePacket::kSystemInfoFieldNumber:
       parser_.ParseSystemInfo(decoder.system_info());
+      return;
+    case TracePacket::kCpuInfoFieldNumber:
+      parser_.ParseCpuInfo(decoder.cpu_info());
       return;
   }
 }
