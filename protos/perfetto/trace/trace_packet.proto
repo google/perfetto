@@ -20,6 +20,7 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
+import "protos/perfetto/trace/android/initial_display_state.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
@@ -61,7 +62,7 @@ package perfetto.protos;
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 70.
+// Next id: 71.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -116,6 +117,7 @@ message TracePacket {
     CpuInfo cpu_info = 67;
     SmapsPacket smaps_packet = 68;
     TracingServiceEvent service_event = 69;
+    InitialDisplayState initial_display_state = 70;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
