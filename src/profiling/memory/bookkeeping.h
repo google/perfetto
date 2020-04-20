@@ -145,8 +145,12 @@ class HeapTracker {
       auto& it = it_and_alloc.first;
       uint64_t allocated = it_and_alloc.second;
       const CallstackAllocations& alloc = it->second;
-      if (alloc.allocs == 0 && alloc.allocation_count == allocated)
+      if (alloc.allocs == 0 && alloc.allocation_count == allocated) {
+        // TODO(fmayer): We could probably be smarter than throw away
+        // our whole frames cache.
+        ClearFrameCache();
         callstack_allocations_.erase(it);
+      }
     }
     dead_callstack_allocations_.clear();
 
@@ -174,6 +178,8 @@ class HeapTracker {
                   uint64_t timestamp) {
     RecordOperation(sequence_number, {address, timestamp});
   }
+
+  void ClearFrameCache() { frame_cache_.clear(); }
 
   uint64_t committed_timestamp() { return committed_timestamp_; }
   uint64_t max_timestamp() { return max_timestamp_; }
@@ -330,6 +336,10 @@ class HeapTracker {
   uint64_t current_unfreed_ = 0;
   uint64_t max_unfreed_ = 0;
   uint64_t max_timestamp_ = 0;
+
+  // We index by abspc, which is unique as long as the maps do not change.
+  // This is why we ClearFrameCache after we reparsed maps.
+  std::unordered_map<uint64_t /* abs pc */, Interned<Frame>> frame_cache_;
 };
 
 }  // namespace profiling

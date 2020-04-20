@@ -16,8 +16,31 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto {
 namespace trace_processor {
+
+namespace {
+base::Optional<base::StringView> PackageFromApp(base::StringView location) {
+  location = location.substr(base::StringView("/data/app/").size());
+  size_t slash = location.find('/');
+  if (slash == std::string::npos) {
+    return base::nullopt;
+  }
+  size_t second_slash = location.find('/', slash + 1);
+  if (second_slash == std::string::npos) {
+    return base::nullopt;
+  }
+  location = location.substr(slash + 1, second_slash - slash);
+  size_t minus = location.find('-');
+  if (minus == std::string::npos) {
+    return base::nullopt;
+  }
+  return location.substr(0, minus);
+}
+}  // namespace
 
 base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type) {
   static const base::StringView kJavaClassTemplate("java.lang.Class<");
@@ -70,6 +93,93 @@ std::string DenormalizeTypeName(NormalizedType normalized,
 
 HeapGraphTracker::HeapGraphTracker(TraceProcessorContext* context)
     : context_(context) {}
+
+base::Optional<std::string> HeapGraphTracker::PackageFromLocation(
+    base::StringView location) {
+  // List of some hardcoded apps that do not follow the scheme used in
+  // PackageFromApp. Ask for yours to be added.
+  //
+  // TODO(b/153632336): Get rid of the hardcoded list of system apps.
+  base::StringView sysui(
+      "/system_ext/priv-app/SystemUIGoogle/SystemUIGoogle.apk");
+  if (location.size() >= sysui.size() &&
+      location.substr(0, sysui.size()) == sysui) {
+    return "com.android.systemui";
+  }
+
+  base::StringView phonesky("/product/priv-app/Phonesky/Phonesky.apk");
+  if (location.size() >= phonesky.size() &&
+      location.substr(0, phonesky.size()) == phonesky) {
+    return "com.android.vending";
+  }
+
+  base::StringView maps("/product/app/Maps/Maps.apk");
+  if (location.size() >= maps.size() &&
+      location.substr(0, maps.size()) == maps) {
+    return "com.google.android.apps.maps";
+  }
+
+  base::StringView launcher(
+      "/system_ext/priv-app/NexusLauncherRelease/NexusLauncherRelease.apk");
+  if (location.size() >= launcher.size() &&
+      location.substr(0, launcher.size()) == launcher) {
+    return "com.google.android.apps.nexuslauncher";
+  }
+
+  base::StringView photos("/product/app/Photos/Photos.apk");
+  if (location.size() >= photos.size() &&
+      location.substr(0, photos.size()) == photos) {
+    return "com.google.android.apps.photos";
+  }
+
+  base::StringView wellbeing(
+      "/product/priv-app/WellbeingPrebuilt/WellbeingPrebuilt.apk");
+  if (location.size() >= wellbeing.size() &&
+      location.substr(0, wellbeing.size()) == wellbeing) {
+    return "com.google.android.apps.wellbeing";
+  }
+
+  base::StringView matchmaker("MatchMaker");
+  if (location.size() >= matchmaker.size() &&
+      location.find(matchmaker) != base::StringView::npos) {
+    return "com.google.android.as";
+  }
+
+  base::StringView gm("/product/app/PrebuiltGmail/PrebuiltGmail.apk");
+  if (location.size() >= gm.size() && location.substr(0, gm.size()) == gm) {
+    return "com.google.android.gm";
+  }
+
+  base::StringView gmscore("/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore");
+  if (location.size() >= gmscore.size() &&
+      location.substr(0, gmscore.size()) == gmscore) {
+    return "com.google.android.gms";
+  }
+
+  base::StringView velvet("/product/priv-app/Velvet/Velvet.apk");
+  if (location.size() >= velvet.size() &&
+      location.substr(0, velvet.size()) == velvet) {
+    return "com.google.android.googlequicksearchbox";
+  }
+
+  base::StringView inputmethod(
+      "/product/app/LatinIMEGooglePrebuilt/LatinIMEGooglePrebuilt.apk");
+  if (location.size() >= inputmethod.size() &&
+      location.substr(0, inputmethod.size()) == inputmethod) {
+    return "com.google.android.inputmethod.latin";
+  }
+
+  base::StringView data_app("/data/app/");
+  if (location.substr(0, data_app.size()) == data_app) {
+    auto package = PackageFromApp(location);
+    if (!package) {
+      context_->storage->IncrementStats(stats::heap_graph_location_parse_error);
+      return base::nullopt;
+    }
+    return package->ToStdString();
+  }
+  return base::nullopt;
+}
 
 HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
     uint32_t seq_id) {
@@ -212,8 +322,39 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     type_id_to_db[id] = id_and_row.id;
     base::StringView normalized_type =
         NormalizeTypeName(context_->storage->GetString(interned_type.name));
-    class_to_rows_[context_->storage->InternString(normalized_type)]
-        .emplace_back(id_and_row.id);
+
+    // Annoyingly, some apps have a relative path to base.apk. We take this to
+    // mean the main package, so we treat it as if the location was unknown.
+    bool is_base_apk = false;
+    if (location_name) {
+      base::StringView base_apk("base.apk");
+      is_base_apk = context_->storage->GetString(*location_name)
+                        .substr(0, base_apk.size()) == base_apk;
+    }
+
+    if (location_name && !is_base_apk) {
+      base::Optional<std::string> package_name =
+          PackageFromLocation(context_->storage->GetString(*location_name));
+      if (package_name) {
+        class_to_rows_[std::make_pair(
+                           context_->storage->InternString(
+                               base::StringView(*package_name)),
+                           context_->storage->InternString(normalized_type))]
+            .emplace_back(id_and_row.id);
+      }
+    } else {
+      // TODO(b/153552977): Remove this workaround.
+      // For profiles collected for old versions of perfetto_hprof, we do not
+      // have any location information. We store them using the nullopt
+      // location, and assume they are all part of the main APK.
+      //
+      // This is to keep ingestion of old profiles working (especially
+      // important for the UI).
+      class_to_rows_[std::make_pair(
+                         base::nullopt,
+                         context_->storage->InternString(normalized_type))]
+          .emplace_back(id_and_row.id);
+    }
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
@@ -403,11 +544,13 @@ void HeapGraphTracker::NotifyEndOfFile() {
   }
 }
 
-StringPool::Id HeapGraphTracker::MaybeDeobfuscate(StringPool::Id id) {
+StringPool::Id HeapGraphTracker::MaybeDeobfuscate(
+    base::Optional<StringPool::Id> package_name,
+    StringPool::Id id) {
   base::StringView type_name = context_->storage->GetString(id);
   auto normalized_type = GetNormalizedType(type_name);
-  auto it = deobfuscation_mapping_.find(
-      context_->storage->InternString(normalized_type.name));
+  auto it = deobfuscation_mapping_.find(std::make_pair(
+      package_name, context_->storage->InternString(normalized_type.name)));
   if (it == deobfuscation_mapping_.end())
     return id;
 
@@ -419,9 +562,11 @@ StringPool::Id HeapGraphTracker::MaybeDeobfuscate(StringPool::Id id) {
 }
 
 void HeapGraphTracker::AddDeobfuscationMapping(
+    base::Optional<StringPool::Id> package_name,
     StringPool::Id obfuscated_name,
     StringPool::Id deobfuscated_name) {
-  deobfuscation_mapping_.emplace(obfuscated_name, deobfuscated_name);
+  deobfuscation_mapping_.emplace(std::make_pair(package_name, obfuscated_name),
+                                 deobfuscated_name);
 }
 
 }  // namespace trace_processor

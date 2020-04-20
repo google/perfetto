@@ -24,10 +24,10 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/protozero/proto_decoder.h"
-#include "src/trace_processor/stack_profile_tracker.h"
+#include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"

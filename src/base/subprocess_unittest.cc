@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/base/subprocess.h"
 
+#if PERFETTO_HAS_SUBPROCESS()
 #include <thread>
 
 #include <signal.h>
@@ -264,3 +265,5 @@ TEST(SubprocessTest, KillOnDtor) {
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_HAS_SUBPROCESS()

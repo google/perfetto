@@ -28,4 +28,8 @@ message AndroidLmkMetric {
   // Total count of LMK events observed in the trace.
   optional int32 total_count = 1;
   repeated ByOomScore by_oom_score = 2;
+
+  // OOM reaper kills. Enabled via the oom/mark_victim point. Should never
+  // happen.
+  optional int32 oom_victim_count = 3;
 }

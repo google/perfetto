@@ -94,6 +94,9 @@ class Unwinder {
   void PostProcessQueue();
   void PostInitiateDataSourceStop(DataSourceInstanceID ds_id);
 
+  void PostClearCachedStatePeriodic(DataSourceInstanceID ds_id,
+                                    uint32_t period_ms);
+
   UnwindQueue<UnwindEntry, kUnwindQueueCapacity>& unwind_queue() {
     return unwind_queue_;
   }
@@ -156,6 +159,36 @@ class Unwinder {
   // samples, and informs the service that it can continue the shutdown
   // sequence.
   void FinishDataSourceStop(DataSourceInstanceID ds_id);
+
+  // Clears the parsed maps for all previously-sampled processes, and resets the
+  // libunwindstack cache. This has the effect of deallocating the cached Elf
+  // objects within libunwindstack, which take up non-trivial amounts of memory.
+  //
+  // There are two reasons for having this operation:
+  // * over a longer trace, it's desireable to drop heavy state for processes
+  //   that haven't been sampled recently.
+  // * since libunwindstack's cache is not bounded, it'll tend towards having
+  //   state for all processes that are targeted by the profiling config.
+  //   Clearing the cache periodically helps keep its footprint closer to the
+  //   actual working set (NB: which might still be arbitrarily big, depending
+  //   on the profiling config).
+  //
+  // After this function completes, the next unwind for each process will
+  // therefore incur a guaranteed maps reparse.
+  //
+  // Unwinding for concurrent data sources will *not* be directly affected at
+  // the time of writing, as the non-cleared parsed maps will keep the cached
+  // Elf objects alive through shared_ptrs.
+  //
+  // Note that this operation is heavy in terms of cpu%, and should therefore
+  // be called only for profiling configs that require it.
+  //
+  // TODO(rsavitski): dropping the full parsed maps is somewhat excessive, could
+  // instead clear just the |MapInfo.elf| shared_ptr, but that's considered too
+  // brittle as it's an implementation detail of libunwindstack.
+  // TODO(rsavitski): improve libunwindstack cache's architecture (it is still
+  // worth having at the moment to speed up unwinds across map reparses).
+  void ClearCachedStatePeriodic(DataSourceInstanceID ds_id, uint32_t period_ms);
 
   void ResetAndEnableUnwindstackCache();
 

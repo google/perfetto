@@ -16,11 +16,11 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 
-#include "src/trace_processor/args_tracker.h"
-#include "src/trace_processor/event_tracker.h"
-#include "src/trace_processor/process_tracker.h"
-#include "src/trace_processor/slice_tracker.h"
-#include "src/trace_processor/track_tracker.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {

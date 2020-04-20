@@ -27,12 +27,16 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/ipc/basic_types.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
@@ -58,6 +62,7 @@ namespace perfetto {
 namespace {
 
 using ::testing::ContainsRegex;
+using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 
 constexpr size_t kBuiltinPackets = 8;
@@ -638,6 +643,53 @@ TEST_F(PerfettoTest, TestProducerProvidedSMB) {
   ASSERT_EQ(packets.size(), 2u);
   ASSERT_TRUE(packets[0].has_for_testing());
   ASSERT_TRUE(packets[1].has_for_testing());
+}
+
+// Regression test for b/153142114.
+TEST_F(PerfettoTest, QueryServiceStateLargeResponse) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  FakeProducer* producer = helper.ConnectFakeProducer();
+
+  // Register 5 data sources with very large descriptors. Each descriptor will
+  // max out the IPC message size, so that the service has no other choice
+  // than chunking them.
+  std::map<std::string, std::string> ds_expected;
+  for (int i = 0; i < 5; i++) {
+    DataSourceDescriptor dsd;
+    std::string name = "big_ds_" + std::to_string(i);
+    dsd.set_name(name);
+    std::string descriptor(ipc::kIPCBufferSize - 64, (' ' + i) % 64);
+    dsd.set_track_event_descriptor_raw(descriptor);
+    ds_expected[name] = std::move(descriptor);
+    producer->RegisterDataSource(dsd);
+  }
+
+  // Linearize the producer with the service. We need to make sure that all the
+  // RegisterDataSource() calls above have been seen by the service before
+  // continuing.
+  helper.SyncAndWaitProducer();
+
+  // Now invoke QueryServiceState() and wait for the reply. The service will
+  // send 6 (1 + 5) IPCs which will be merged together in
+  // producer_ipc_client_impl.cc.
+  auto svc_state = helper.QueryServiceStateAndWait();
+
+  ASSERT_GE(svc_state.producers().size(), 1u);
+
+  std::map<std::string, std::string> ds_found;
+  for (const auto& ds : svc_state.data_sources()) {
+    if (!base::StartsWith(ds.ds_descriptor().name(), "big_ds_"))
+      continue;
+    ds_found[ds.ds_descriptor().name()] =
+        ds.ds_descriptor().track_event_descriptor_raw();
+  }
+  EXPECT_THAT(ds_found, ElementsAreArray(ds_expected));
 }
 
 // Disable cmdline tests on sanitizets because they use fork() and that messes

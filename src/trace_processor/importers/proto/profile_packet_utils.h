@@ -20,7 +20,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/stack_profile_tracker.h"
+#include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
