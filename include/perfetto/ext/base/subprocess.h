@@ -122,6 +122,8 @@ class Subprocess {
   // Input arguments for configuring the subprocess behavior.
   struct Args {
     Args(std::initializer_list<std::string> _cmd = {}) : exec_cmd(_cmd) {}
+    Args(Args&&) noexcept;
+    Args& operator=(Args&&);
     // If non-empty this will cause an exec() when Start()/Call() are called.
     std::vector<std::string> exec_cmd;
 
