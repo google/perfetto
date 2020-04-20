@@ -24,9 +24,18 @@ message AndroidBatteryMetric {
     optional double current_avg_ua = 5;
   }
 
+  message BatteryAggregates {
+    // Field numbers for these 3 == the int values fromm Android
+    optional int64 total_screen_off_ns = 1;
+    optional int64 total_screen_on_ns = 2;
+    optional int64 total_screen_doze_ns = 3;
+  }
+
   // Battery counters info for each ts of the trace. This should only be
   // extracted for short traces.
   repeated BatteryCounters battery_counters = 1;
+
+  optional BatteryAggregates battery_aggregates = 2;
 }
 
 // End of protos/perfetto/metrics/android/batt_metric.proto
@@ -370,6 +379,10 @@ message AndroidLmkMetric {
   // Total count of LMK events observed in the trace.
   optional int32 total_count = 1;
   repeated ByOomScore by_oom_score = 2;
+
+  // OOM reaper kills. Enabled via the oom/mark_victim point. Should never
+  // happen.
+  optional int32 oom_victim_count = 3;
 }
 
 // End of protos/perfetto/metrics/android/lmk_metric.proto
@@ -682,6 +695,7 @@ message TraceMetadata {
   optional string android_build_fingerprint = 4;
   optional int64 statsd_triggering_subscription_id = 5;
   optional int64 trace_size_bytes = 6;
+  repeated string trace_trigger = 7;
 }
 
 // Root message for all Perfetto-based metrics.

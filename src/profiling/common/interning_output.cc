@@ -161,5 +161,12 @@ void InterningOutputTracker::WriteCallstack(GlobalCallstackTrie::Node* node,
   }
 }
 
+void InterningOutputTracker::ClearHistory() {
+  dumped_strings_.clear();
+  dumped_frames_.clear();
+  dumped_mappings_.clear();
+  dumped_callstacks_.clear();
+}
+
 }  // namespace profiling
 }  // namespace perfetto

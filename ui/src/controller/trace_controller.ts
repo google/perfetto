@@ -384,33 +384,35 @@ export class TraceController extends Controller<States> {
       }
     }
 
-
     const upidToProcessTracks = new Map();
     const rawProcessTracks = await engine.query(`
-      select
-        process_track.id as track_id,
-        process_track.upid,
-        process_track.name,
-        max(slice.depth) as max_depth
-      from process_track
-      join slice on slice.track_id = process_track.id
-      group by process_track.id
+      SELECT
+        pt.upid,
+        pt.name,
+        pt.track_ids,
+        MAX(experimental_slice_layout.layout_depth) as max_depth
+      FROM (
+        SELECT upid, name, GROUP_CONCAT(process_track.id) AS track_ids
+        FROM process_track GROUP BY upid, name
+      ) AS pt CROSS JOIN experimental_slice_layout
+      WHERE pt.track_ids = experimental_slice_layout.filter_track_ids
+      GROUP BY pt.track_ids;
     `);
     for (let i = 0; i < rawProcessTracks.numRecords; i++) {
-      const trackId = rawProcessTracks.columns[0].longValues![i];
-      const upid = rawProcessTracks.columns[1].longValues![i];
-      const name = rawProcessTracks.columns[2].stringValues![i];
-      const maxDepth = rawProcessTracks.columns[3].longValues![i];
+      const upid = +rawProcessTracks.columns[0].longValues![i];
+      const name = rawProcessTracks.columns[1].stringValues![i];
+      const rawTrackIds = rawProcessTracks.columns[2].stringValues![i];
+      const trackIds = rawTrackIds.split(',').map(v => Number(v));
+      const maxDepth = +rawProcessTracks.columns[3].longValues![i];
       const track = {
         engineId: this.engineId,
         kind: 'AsyncSliceTrack',
         name,
         config: {
-          trackId,
           maxDepth,
+          trackIds,
         },
       };
-
       const tracks = upidToProcessTracks.get(upid);
       if (tracks) {
         tracks.push(track);

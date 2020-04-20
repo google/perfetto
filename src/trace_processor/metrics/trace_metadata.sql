@@ -38,5 +38,10 @@ SELECT TraceMetadata(
  'trace_size_bytes', (
     SELECT int_value FROM metadata
     WHERE name = 'trace_size_bytes'
+  ),
+  'trace_trigger', (
+    SELECT RepeatedField(slice.name)
+    FROM track JOIN slice ON track.id = slice.track_id
+    WHERE track.name = 'Trace Triggers'
   )
 );

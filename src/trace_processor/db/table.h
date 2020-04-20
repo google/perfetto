@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/typed_column.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -174,6 +175,11 @@ class Table {
     if (it == columns_.end())
       return nullptr;
     return &*it;
+  }
+
+  template <typename T>
+  const TypedColumn<T>* GetTypedColumnByName(const char* name) const {
+    return TypedColumn<T>::FromColumn(GetColumnByName(name));
   }
 
   // Returns the number of columns in the Table.

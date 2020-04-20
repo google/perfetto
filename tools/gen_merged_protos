@@ -25,6 +25,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 CONFIG_PROTO_ROOTS = [
     'protos/perfetto/common/data_source_descriptor.proto',
+    'protos/perfetto/common/tracing_service_state.proto',
     'protos/perfetto/config/trace_config.proto'
 ]
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'

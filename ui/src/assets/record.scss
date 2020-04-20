@@ -273,14 +273,14 @@
   background: #fff;
   transition: opacity 0.25s ease;
   opacity: 0;
-  visibility: hidden;
+  display: none;
 
   &:not(.active) {
     max-height: 0;
   }
 
   &.active {
-    visibility: visible;
+    display: grid;
     opacity: 1;
   }
 
@@ -730,7 +730,7 @@
   }
 
   .code-snippet {
-    display: block;
+    display: grid;
     position: relative;
     padding: 0;
     margin: var(--record-section-padding);

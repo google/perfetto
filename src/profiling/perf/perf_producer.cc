@@ -112,6 +112,16 @@ bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
   return false;
 }
 
+void MaybeReleaseAllocatorMemToOS() {
+#if defined(__BIONIC__)
+  // TODO(b/152414415): libunwindstack's volume of small allocations is
+  // adverarial to scudo, which doesn't automatically release small
+  // allocation regions back to the OS. Forceful purge does reclaim all size
+  // classes.
+  mallopt(M_PURGE, 0);
+#endif
+}
+
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
   using Profiling = protos::pbzero::Profiling;
   switch (perf_cpu_mode) {
@@ -220,16 +230,22 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
       std::forward_as_tuple(event_config.value(), std::move(writer),
                             std::move(per_cpu_readers)));
   PERFETTO_CHECK(inserted);
+  DataSourceState& ds = ds_it->second;
 
   // Write out a packet to initialize the incremental state for this sequence.
   InterningOutputTracker::WriteFixedInterningsPacket(
       ds_it->second.trace_writer.get());
 
-  // Inform unwinder of the new data source instance.
+  // Inform unwinder of the new data source instance, and optionally start a
+  // periodic task to clear its cached state.
   unwinding_worker_->PostStartDataSource(instance_id);
+  if (ds.event_config.unwind_state_clear_period_ms()) {
+    unwinding_worker_->PostClearCachedStatePeriodic(
+        instance_id, ds.event_config.unwind_state_clear_period_ms());
+  }
 
   // Kick off periodic read task.
-  auto tick_period_ms = ds_it->second.event_config.read_tick_period_ms();
+  auto tick_period_ms = ds.event_config.read_tick_period_ms();
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_this, instance_id] {
@@ -285,6 +301,40 @@ void PerfProducer::Flush(FlushRequestID flush_id,
   }
   if (should_ack_flush)
     endpoint_->NotifyFlushComplete(flush_id);
+}
+
+void PerfProducer::ClearIncrementalState(
+    const DataSourceInstanceID* data_source_ids,
+    size_t num_data_sources) {
+  for (size_t i = 0; i < num_data_sources; i++) {
+    auto ds_id = data_source_ids[i];
+    PERFETTO_DLOG("ClearIncrementalState(%zu)", static_cast<size_t>(ds_id));
+
+    if (metatrace_writers_.find(ds_id) != metatrace_writers_.end())
+      continue;
+
+    auto ds_it = data_sources_.find(ds_id);
+    if (ds_it == data_sources_.end()) {
+      PERFETTO_DLOG("ClearIncrementalState(%zu): did not find matching entry",
+                    static_cast<size_t>(ds_id));
+      continue;
+    }
+    DataSourceState& ds = ds_it->second;
+
+    // Forget which incremental state we've emitted before.
+    ds.interning_output.ClearHistory();
+    InterningOutputTracker::WriteFixedInterningsPacket(ds.trace_writer.get());
+
+    // Drop the cross-datasource callstack interning trie. This is not
+    // necessary for correctness (the preceding step is sufficient). However,
+    // incremental clearing is likely to be used in ring buffer traces, where
+    // it makes sense to reset the trie's size periodically, and this is a
+    // reasonable point to do so. The trie keeps the monotonic interning IDs,
+    // so there is no confusion for other concurrent data sources. We do not
+    // bother with clearing concurrent sources' interning output trackers as
+    // their footprint should be trivial.
+    callstack_trie_.ClearTrie();
+  }
 }
 
 void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
@@ -653,13 +703,7 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   // Clean up resources if there are no more active sources.
   if (data_sources_.empty()) {
     callstack_trie_.ClearTrie();  // purge internings
-#if defined(__BIONIC__)
-    // TODO(b/152414415): libunwindstack's volume of small allocations is
-    // adverarial to scudo, which doesn't automatically release small
-    // allocation regions back to the OS. Forceful purge does reclaim all size
-    // classes.
-    mallopt(M_PURGE, 0);
-#endif
+    MaybeReleaseAllocatorMemToOS();
   }
 }
 
@@ -712,6 +756,7 @@ void PerfProducer::OnConnect() {
     // linux.perf
     DataSourceDescriptor desc;
     desc.set_name(kDataSourceName);
+    desc.set_handles_incremental_state_clear(true);
     desc.set_will_notify_on_stop(true);
     endpoint_->RegisterDataSource(desc);
   }

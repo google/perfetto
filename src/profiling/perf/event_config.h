@@ -55,6 +55,9 @@ class EventConfig {
   uint32_t remote_descriptor_timeout_ms() const {
     return remote_descriptor_timeout_ms_;
   }
+  uint32_t unwind_state_clear_period_ms() const {
+    return unwind_state_clear_period_ms_;
+  }
 
   const TargetFilter& filter() const { return target_filter_; }
 
@@ -88,11 +91,14 @@ class EventConfig {
   // *each* per-cpu buffer.
   const uint32_t samples_per_tick_limit_;
 
+  // Parsed whitelist/blacklist for filtering samples.
+  const TargetFilter target_filter_;
+
   // Timeout for proc-fd lookup.
   const uint32_t remote_descriptor_timeout_ms_;
 
-  // Parsed whitelist/blacklist for filtering samples.
-  const TargetFilter target_filter_;
+  // Optional period for clearing cached unwinder state. Skipped if zero.
+  const uint32_t unwind_state_clear_period_ms_;
 };
 
 }  // namespace profiling

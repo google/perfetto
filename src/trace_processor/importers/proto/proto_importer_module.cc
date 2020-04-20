@@ -15,7 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {

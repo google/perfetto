@@ -65,9 +65,14 @@ packet {
       type_id: 1
       self_size: 64
     }
-    type_names {
+    location_names {
       iid: 1
-      str: "FactoryProducerDelegateImplActor"
+      str: "TEST:TEST"
+    }
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
+      location_id: 1
     }
     continued: false
     index: 0
@@ -77,17 +82,24 @@ packet {
   trusted_packet_sequence_id: 999
   heap_graph {
     pid: 2
-    type_names {
+    location_names {
       iid: 1
-      str: "FactoryProducerDelegateImplActor"
+      str: "/data/app/ASDFG/invalid.test.android-SDASD/test.apk"
     }
-    type_names {
-      iid: 2
-      str: "Foo"
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
+      location_id: 1
     }
-    type_names {
-      iid: 3
-      str: "a"
+    types {
+      id: 2
+      class_name: "Foo"
+      location_id: 1
+    }
+    types {
+      id: 3
+      class_name: "a"
+      location_id: 1
     }
     field_names {
       iid: 1
@@ -103,6 +115,7 @@ packet {
 }
 packet {
   deobfuscation_mapping {
+    package_name: "invalid.test.android"
     obfuscated_classes {
       obfuscated_name: "a"
       deobfuscated_name: "DeobfuscatedA"
