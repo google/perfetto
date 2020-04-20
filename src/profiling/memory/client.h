@@ -104,6 +104,8 @@ class Client {
   bool SendWireMessageWithRetriesIfBlocking(const WireMessage&)
       PERFETTO_WARN_UNUSED_RESULT;
 
+  bool IsPostFork();
+
   // This is only valid for non-blocking sockets. This is when
   // client_config_.block_client is true.
   bool IsConnected();
@@ -128,6 +130,8 @@ class Client {
   // it'll proceed to write to the same shared buffer & control socket (with
   // duplicate sequence ids).
   const pid_t pid_at_creation_;
+  bool detected_fork_ = false;
+  bool postfork_return_value_ = false;
 };
 
 }  // namespace profiling
