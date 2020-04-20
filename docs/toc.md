@@ -29,3 +29,5 @@
   * [Embedding Perfetto](embedder-guide.md)
   * [ProtoZero internals](protozero.md)
   * [IPC internals](ipc.md)
+  * [heapprofd Design](heapprofd-design.md)
+  * [heapprofd Design: Wire Protocol](heapprofd-wire-protocol.md)
