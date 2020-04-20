@@ -53,6 +53,32 @@ double MeanForArray(const uint64_t array[], size_t size) {
 
 }  //  namespace
 
+bool ReadProcStat(int fd, ProcStat* out) {
+  char c[512];
+  size_t c_pos = 0;
+  while (c_pos < sizeof(c) - 1) {
+    ssize_t rd = PERFETTO_EINTR(read(fd, c + c_pos, sizeof(c) - c_pos));
+    if (rd < 0) {
+      PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
+      return false;
+    }
+    if (rd == 0)
+      break;
+    c_pos += static_cast<size_t>(rd);
+  }
+  PERFETTO_CHECK(c_pos < sizeof(c));
+  c[c_pos] = '\0';
+
+  if (sscanf(c,
+             "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu"
+             "%lu %*d %*d %*d %*d %*d %*d %*u %*u %ld",
+             &out->utime, &out->stime, &out->rss_pages) != 3) {
+    PERFETTO_ELOG("Invalid stat format: %s", c);
+    return false;
+  }
+  return true;
+}
+
 Watchdog::Watchdog(uint32_t polling_interval_ms)
     : polling_interval_ms_(polling_interval_ms) {}
 
@@ -134,24 +160,14 @@ void Watchdog::ThreadMain() {
 
     lseek(stat_fd.get(), 0, SEEK_SET);
 
-    char c[512];
-    if (read(stat_fd.get(), c, sizeof(c)) < 0) {
-      PERFETTO_ELOG("Failed to read stat file to enforce resource limits.");
+    ProcStat stat;
+    if (!ReadProcStat(stat_fd.get(), &stat)) {
       return;
     }
-    c[sizeof(c) - 1] = '\0';
 
-    unsigned long int utime = 0l;
-    unsigned long int stime = 0l;
-    long int rss_pages = -1l;
-    PERFETTO_CHECK(
-        sscanf(c,
-               "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu"
-               "%lu %*d %*d %*d %*d %*d %*d %*u %*u %ld",
-               &utime, &stime, &rss_pages) == 3);
-
-    uint64_t cpu_time = utime + stime;
-    uint64_t rss_bytes = static_cast<uint64_t>(rss_pages) * base::kPageSize;
+    uint64_t cpu_time = stat.utime + stat.stime;
+    uint64_t rss_bytes =
+        static_cast<uint64_t>(stat.rss_pages) * base::kPageSize;
 
     CheckMemory(rss_bytes);
     CheckCpu(cpu_time);

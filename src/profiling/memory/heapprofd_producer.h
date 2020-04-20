@@ -207,6 +207,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     bool hit_guardrail = false;
     bool was_stopped = false;
     uint32_t stop_timeout_ms;
+    base::Optional<uint64_t> start_cputime_sec;
   };
 
   struct PendingProcess {
@@ -222,7 +223,11 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void Restart();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
+
+  base::Optional<uint64_t> GetCputimeSec();
+
   void CheckDataSourceMemory();
+  void CheckDataSourceCpu();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
   bool DumpProcessesInDataSource(DataSourceInstanceID id);
@@ -289,6 +294,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   base::ScopedFile inherited_fd_;
 
   SocketDelegate socket_delegate_;
+  base::ScopedFile stat_fd_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;  // Keep last.
 };

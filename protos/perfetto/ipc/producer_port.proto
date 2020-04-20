@@ -78,6 +78,20 @@ service ProducerPort {
   // 2) Perform an action as defined in those sessions configs.
   rpc ActivateTriggers(ActivateTriggersRequest)
       returns (ActivateTriggersResponse) {}
+
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android R.
+  // ----------------------------------------------------
+
+  // This is used to linearize the producer with the service and to guarantee
+  // that all IPCs prior to this call have been seen and processed by the
+  // service. Example:
+  //   - RegisterDataSource(A)
+  //   - RegisterDataSource(B)
+  //   - Sync()
+  // When the Sync() response is received, the producer is guaranteed that the
+  // service has seen both data source registrations.
+  rpc Sync(SyncRequest) returns (SyncResponse) {}
 }
 
 // Arguments for rpc InitializeConnection().
@@ -280,3 +294,7 @@ message GetAsyncCommandResponse {
     ClearIncrementalState clear_incremental_state = 7;
   }
 }
+
+// Arguments for rpc Sync().
+message SyncRequest {}
+message SyncResponse {}

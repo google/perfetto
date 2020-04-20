@@ -29,7 +29,16 @@ message AndroidBatteryMetric {
     optional double current_avg_ua = 5;
   }
 
+  message BatteryAggregates {
+    // Field numbers for these 3 == the int values fromm Android
+    optional int64 total_screen_off_ns = 1;
+    optional int64 total_screen_on_ns = 2;
+    optional int64 total_screen_doze_ns = 3;
+  }
+
   // Battery counters info for each ts of the trace. This should only be
   // extracted for short traces.
   repeated BatteryCounters battery_counters = 1;
+
+  optional BatteryAggregates battery_aggregates = 2;
 }

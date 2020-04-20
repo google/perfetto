@@ -17,7 +17,7 @@ export const SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
 export interface Config {
   maxDepth: number;
-  trackId: number;
+  trackIds: number[];
 }
 
 export interface Data extends TrackData {

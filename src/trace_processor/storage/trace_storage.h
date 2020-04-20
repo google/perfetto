@@ -515,6 +515,13 @@ class TraceStorage {
     return &package_list_table_;
   }
 
+  const tables::ProfilerSmapsTable& profiler_smaps_table() const {
+    return profiler_smaps_table_;
+  }
+  tables::ProfilerSmapsTable* mutable_profiler_smaps_table() {
+    return &profiler_smaps_table_;
+  }
+
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return cpu_profile_stack_sample_table_;
@@ -663,15 +670,6 @@ class TraceStorage {
     return variadic_type_ids_[type];
   }
 
- private:
-  using StringHash = uint64_t;
-
-  TraceStorage(const TraceStorage&) = delete;
-  TraceStorage& operator=(const TraceStorage&) = delete;
-
-  TraceStorage(TraceStorage&&) = delete;
-  TraceStorage& operator=(TraceStorage&&) = delete;
-
   base::Optional<Variadic::Type> GetVariadicTypeForId(StringId id) const {
     auto it =
         std::find(variadic_type_ids_.begin(), variadic_type_ids_.end(), id);
@@ -681,6 +679,15 @@ class TraceStorage {
     int64_t idx = std::distance(variadic_type_ids_.begin(), it);
     return static_cast<Variadic::Type>(idx);
   }
+
+ private:
+  using StringHash = uint64_t;
+
+  TraceStorage(const TraceStorage&) = delete;
+  TraceStorage& operator=(const TraceStorage&) = delete;
+
+  TraceStorage(TraceStorage&&) = delete;
+  TraceStorage& operator=(TraceStorage&&) = delete;
 
   // TODO(lalitm): remove this when we find a better home for this.
   using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
@@ -775,6 +782,7 @@ class TraceStorage {
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, nullptr};
   tables::PackageListTable package_list_table_{&string_pool_, nullptr};
+  tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_, nullptr};
 
   // Symbol tables (mappings from frames to symbol names)
   tables::SymbolTable symbol_table_{&string_pool_, nullptr};
