@@ -61,13 +61,15 @@ message AndroidCpuMetric {
     reserved 3;
   }
 
-  // Next id: 4
+  // Next id: 8
   message Process {
     optional string name = 1;
     optional Metrics metrics = 4;
 
     // Breakdowns of above metrics.
-    repeated Thread threads = 2;
+    repeated Thread threads = 6;
+    repeated CoreData core = 7;
+    repeated CoreTypeData core_type = 5;
 
     reserved 3;
   }
