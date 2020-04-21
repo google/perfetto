@@ -16,35 +16,7 @@
 
 -- Create all the views used to generate the Android Cpu metrics proto.
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
-
-CREATE VIEW core_layout_mapping AS
-SELECT
-  CASE
-    WHEN (
-      str_value LIKE '%flame%' OR
-      str_value LIKE '%coral%'
-    ) THEN 'big_little_bigger'
-    WHEN (
-      str_value LIKE '%taimen%' OR
-      str_value LIKE '%walleye%' OR
-      str_value LIKE '%bonito%' OR
-      str_value LIKE '%sargo%' OR
-      str_value LIKE '%blueline%' OR
-      str_value LIKE '%crosshatch%'
-    ) THEN 'big_little'
-    ELSE 'unknown'
-  END AS layout
-FROM metadata
-WHERE name = 'android_build_fingerprint';
-
-CREATE TABLE core_layout_type AS
-SELECT *
-FROM (
-  SELECT layout from core_layout_mapping
-  UNION
-  SELECT 'unknown'
-)
-LIMIT 1;
+SELECT RUN_METRIC('android/cpu_info.sql');
 
 CREATE TABLE raw_metrics_per_core AS
 SELECT
