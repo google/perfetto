@@ -646,6 +646,30 @@ message AndroidTaskNames {
 
 // End of protos/perfetto/metrics/android/task_names.proto
 
+// Begin of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
+
+message AndroidThreadTimeInStateMetric {
+  message MetricsByCoreType {
+    optional string core_type = 1;
+    optional int64 runtime_ms = 2;
+  }
+
+  message Thread {
+    optional string name = 1;
+    repeated MetricsByCoreType metrics_by_core_type = 2;
+  }
+
+  message Process {
+    optional AndroidProcessMetadata metadata = 1;
+    repeated MetricsByCoreType metrics_by_core_type = 2;
+    repeated Thread threads = 3;
+  }
+
+  repeated Process processes = 1;
+}
+
+// End of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
+
 // Begin of protos/perfetto/metrics/android/unmapped_java_symbols.proto
 
 message UnmappedJavaSymbols {
@@ -702,7 +726,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 24
+// Next id: 25
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -762,6 +786,8 @@ message TraceMetrics {
   optional AndroidDisplayMetrics display_metrics = 22;
 
   optional AndroidTaskNames android_task_names = 23;
+
+  optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
 
   // Demo extensions.
   extensions 450 to 499;
