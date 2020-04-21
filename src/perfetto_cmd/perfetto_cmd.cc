@@ -495,7 +495,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   if (!trace_config_->incident_report_config().destination_package().empty()) {
     if (dropbox_tag_.empty()) {
-      PERFETTO_ELOG("Unexpected IncidentReportConfig without --dropbox.");
+      PERFETTO_ELOG(
+          "Unexpected IncidentReportConfig without --dropbox / --upload.");
       return 1;
     }
   }
