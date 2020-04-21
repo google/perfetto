@@ -21,14 +21,29 @@ package perfetto.protos;
 message ChromeLatencyInfo {
   optional int64 trace_id = 1;
 
+  // NEXT ID: 11
+  // All step are optional but the enum is ordered (not by number) below in the
+  // order we expect them to appear if they are emitted in trace in a blocking
+  // fashion.
   enum Step {
     STEP_UNSPECIFIED = 0;
-    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
-    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    // Emitted on the browser main thread.
     STEP_SEND_INPUT_EVENT_UI = 3;
-    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    // Happens on the renderer's compositor.
     STEP_HANDLE_INPUT_EVENT_IMPL = 5;
+    STEP_DID_HANDLE_INPUT_AND_OVERSCROLL = 8;
+    // Occurs on the Renderer's main thread.
+    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
+    // Could be emitted on both the renderer's main OR compositor.
+    STEP_HANDLED_INPUT_EVENT_MAIN_OR_IMPL = 9;
+    // Optionally sometimes HANDLED_INPUT_EVENT_MAIN_OR_IMPL will proxy to the
+    // renderer's compositor and this will be emitted.
+    STEP_HANDLED_INPUT_EVENT_IMPL = 10;
+    // Renderer's compositor.
     STEP_SWAP_BUFFERS = 6;
+    // Happens on the VizCompositor in the GPU process.
     STEP_DRAW_AND_SWAP = 7;
   };
 
