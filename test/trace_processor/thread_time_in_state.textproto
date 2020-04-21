@@ -28,7 +28,7 @@ packet {
         cpu_freq_indices: 1
         cpu_freq_ticks: 2
         cpu_freq_indices: 2
-        cpu_freq_indices: 1
+        cpu_freq_ticks: 1
       }
       threads {
         tid: 7
@@ -42,6 +42,29 @@ packet {
         tid: 11
         cpu_freq_indices: 6
         cpu_freq_ticks: 1
+      }
+      threads {
+        tid: 12
+        cpu_freq_indices: 6
+        cpu_freq_ticks: 1
+      }
+    }
+  }
+}
+packet {
+  timestamp: 4
+  process_stats {
+    processes {
+      pid: 11
+      threads {
+        tid: 11
+        cpu_freq_indices: 6
+        cpu_freq_ticks: 2
+      }
+      threads {
+        tid: 12
+        cpu_freq_indices: 6
+        cpu_freq_ticks: 2
       }
     }
   }
