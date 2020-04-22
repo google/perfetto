@@ -37,7 +37,7 @@ Clock synchronization is based on two elements of the trace:
 
 ### 1. The [`timestamp_clock_id`][timestamp_clock_id] field of TracePacket
 
-```proto
+```protobuf
 message TracePacket {
   optional uint64 timestamp = 8;
 

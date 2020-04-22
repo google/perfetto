@@ -15,11 +15,11 @@ This doc should:
 - Point out the relevant GN targets:
   `//src/tracing`, `//src/tracing:ipc`, `//src/ipc`.
 - Explain the API surface:
-  - [producer.h](/include/perfetto/tracing/core/producer.h)
-  - [consumer.h](/include/perfetto/tracing/core/consumer.h)
-  - [service.h](/include/perfetto/tracing/core/tracing_service.h)
+  - [producer.h](/include/perfetto/ext/tracing/core/producer.h)
+  - [consumer.h](/include/perfetto/ext/tracing/core/consumer.h)
+  - [service.h](/include/perfetto/ext/tracing/core/tracing_service.h)
 - Explain the ABI surface:
-  - [shared_memory_abi.h](/include/perfetto/tracing/core/shared_memory_abi.h)
+  - [shared_memory_abi.h](/include/perfetto/ext/tracing/core/shared_memory_abi.h)
   - IPC's [wire protocol](/protos/perfetto/ipc/wire_protocol.proto) (if used)
   - The input [config protos](/protos/perfetto/config)
   - The output [trace protos](/protos/perfetto/trace)

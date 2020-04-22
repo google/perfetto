@@ -69,6 +69,7 @@ rss_stat_after_free.py rss_stat_after_free.sql rss_stat_after_free.out
 ../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
 ../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
 ../data/memory_counters.pb global_memory_counter.sql global_memory_counter_memory_counters.out
+ion_stat.textproto ion_stat.sql ion_stat.out
 
 # Stats
 ../data/android_sched_and_ps.pb stats.sql android_sched_and_ps_stats.out
@@ -207,3 +208,6 @@ process_metadata_matching.textproto process_metadata_matching.sql process_metada
 
 # Trace size
 ../data/android_sched_and_ps.pb trace_size.sql android_sched_and_ps_trace_size.out
+
+# Thread time_in_state
+thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
