@@ -358,19 +358,8 @@ WriterID TraceWriterImpl::writer_id() const {
   return id_;
 }
 
-bool TraceWriterImpl::SetFirstChunkId(ChunkID chunk_id) {
-  if (next_chunk_id_ > 0)
-    return false;
-  next_chunk_id_ = chunk_id;
-  return true;
-}
-
 // Base class definitions.
 TraceWriter::TraceWriter() = default;
 TraceWriter::~TraceWriter() = default;
-
-bool TraceWriter::SetFirstChunkId(ChunkID) {
-  return false;
-}
 
 }  // namespace perfetto
