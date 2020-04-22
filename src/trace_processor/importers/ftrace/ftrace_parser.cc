@@ -31,6 +31,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/lowmemorykiller.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mm_event.pbzero.h"
@@ -67,6 +68,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
+      ion_total_id_(context->storage->InternString("mem.ion")),
+      ion_change_id_(context->storage->InternString("mem.ion_change")),
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
           context->storage->InternString("mem.ion_change.unknown")),
@@ -277,6 +280,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kIonHeapShrinkFieldNumber: {
         ParseIonHeapGrowOrShrink(ts, pid, data, false);
+        break;
+      }
+      case FtraceEvent::kIonStatFieldNumber: {
+        ParseIonStat(ts, pid, data);
         break;
       }
       case FtraceEvent::kSignalGenerateFieldNumber: {
@@ -552,6 +559,7 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t ts,
       evt.trace_name(), tgid, evt.value());
 }
 
+/** Parses ion heap events present in Pixel kernels. */
 void FtraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
                                             uint32_t pid,
                                             ConstBytes blob,
@@ -604,6 +612,24 @@ void FtraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
               static_cast<int>(protos::pbzero::IonHeapShrinkFtraceEvent::
                                    kHeapNameFieldNumber),
       "ION field mismatch");
+}
+
+/** Parses ion heap events (introduced in 4.19 kernels). */
+void FtraceParser::ParseIonStat(int64_t ts,
+                                uint32_t pid,
+                                protozero::ConstBytes data) {
+  protos::pbzero::IonStatFtraceEvent::Decoder ion(data.data, data.size);
+  // Push the global counter.
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(ion_total_id_);
+  context_->event_tracker->PushCounter(ts, ion.total_allocated(), track);
+
+  // Push the change counter.
+  // TODO(b/121331269): these should really be instant events.
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  track =
+      context_->track_tracker->InternThreadCounterTrack(ion_change_id_, utid);
+  context_->event_tracker->PushCounter(ts, ion.len(), track);
 }
 
 // This event has both the pid of the thread that sent the signal and the
