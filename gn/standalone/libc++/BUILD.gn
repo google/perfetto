@@ -26,16 +26,10 @@ config("config") {
       "-isystem" + rebase_path("$libcxxabi_prefix/include", root_build_dir),
     ]
 
-    # In theory here we want just -nostdlib++ to avoid linking both libc++ and
-    # libstdc++. Unfortunately the -nostdlib++ switch is available only in
-    # bleeding edge versions of clang. So, in order to get rid of libstdc++
-    # we have to remove all libs and then re-add the core ones like libc.
-    ldflags = [ "-nodefaultlibs" ]
+    # Avoid linking both libc++ and libstdc++.
+    ldflags = [ "-nostdlib++" ]
     libs = [
-      "c",  # libc: the core C library.
-      "m",  # libm: math library.
       "dl",  # libdl: dynamic linking.
-      "gcc_eh",  # gcc exception handling, required by libunwind.
     ]
   }
 }
