@@ -11,7 +11,7 @@ with Android's tracing daemons (think to hypervisors' nested page tables).
 
 The TL;DR of the trick is:
 - ABI stability of the
-  [shared_memory_abi.h](/include/perfetto/tracing/core/shared_memory_abi.h)
+  [shared_memory_abi.h](/include/perfetto/ext/tracing/core/shared_memory_abi.h)
 - ABI stability of the IPC surface.
 
 The tracing service in chromium should proxy Producer connections (adapting Mojo

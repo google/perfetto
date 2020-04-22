@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 // Configuration for go/heapprofd.
-// Next id: 17
+// Next id: 19
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -123,4 +123,11 @@ message HeapprofdConfig {
   // maximum. This causes ProfilePacket.HeapSample.self_max to be set, and
   // self_allocated and self_freed to not be set.
   optional bool dump_at_max = 13;
+
+  // FEATURE FLAGS. THERE BE DRAGONS.
+
+  // Escape hatch if the session is being torn down because of a forked child
+  // that shares memory space, but is not correctly identified as a vforked
+  // child.
+  optional bool disable_fork_teardown = 18;
 }

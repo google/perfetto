@@ -142,8 +142,8 @@ void ProfileModule::ParseStreamingProfilePacket(
     // Resolve the delta timestamps based on the packet's root timestamp.
     timestamp += *timestamp_it * 1000;
 
-    tables::CpuProfileStackSampleTable::Row sample_row{timestamp, *opt_cs_id,
-                                                       utid};
+    tables::CpuProfileStackSampleTable::Row sample_row{
+        timestamp, *opt_cs_id, utid, packet.process_priority()};
     storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
 }

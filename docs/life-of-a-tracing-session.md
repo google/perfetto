@@ -29,12 +29,12 @@ during a tracing session, with references to code and IPC requests / responses.
 10. The producer creates one or more data source instance, as instructed in
     the previous step.
 11. Each data source instance creates one or more
-    [`TraceWriter`](/include/perfetto/tracing/core/trace_writer.h) (typically
+    [`TraceWriter`](/include/perfetto/ext/tracing/core/trace_writer.h) (typically
     one for each thread).
 12. Each `TraceWriter` writes one or more
     [`TracePacket`](/protos/perfetto/trace/trace_packet.proto).
 13. While doing so, each `TraceWriter` takes ownership of shared memory buffer's
-    chunks, using the [`SharedMemoryArbiter`](/include/perfetto/tracing/core/shared_memory_arbiter.h).
+    chunks, using the [`SharedMemoryArbiter`](/include/perfetto/ext/tracing/core/shared_memory_arbiter.h).
 14. While writing a `TracePacket`, the `TraceWriter` will unavoidably cross the
     chunk boundary (typically 4KB, but can configured to be smaller).
 15. When this happens the `TraceWriter` will release the current chunk and
@@ -52,7 +52,7 @@ during a tracing session, with references to code and IPC requests / responses.
 18. The service will check if the given chunk, identified by the tuple
     `{ProducerID (unspoofable), WriterID, ChunkID}` is still present in the
     trace buffer and if so will proceed to patch it (% sanity checks).
-19. The consumer sends a [`FlushRequest`](/perfetto/ipc/consumer_port.proto#52)
+19. The consumer sends a [`FlushRequest`](/protos/perfetto/ipc/consumer_port.proto#52)
     to the service, asking it commit all data on flight in the trace buffers.
 20. The service, in turn, issues a
     [`Flush`](/protos/perfetto/ipc/producer_port.proto#132) request to all
