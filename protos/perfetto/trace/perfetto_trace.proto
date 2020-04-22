@@ -3284,6 +3284,16 @@ message SmbusReplyFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/i2c.proto
 
+// Begin of protos/perfetto/trace/ftrace/ion.proto
+
+message IonStatFtraceEvent {
+  optional uint32 buffer_id = 1;
+  optional int64 len = 2;
+  optional uint64 total_allocated = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/ion.proto
+
 // Begin of protos/perfetto/trace/ftrace/ipi.proto
 
 message IpiEntryFtraceEvent {
@@ -4380,6 +4390,7 @@ message FtraceEvent {
     GpuFrequencyFtraceEvent gpu_frequency = 332;
     SdeTracingMarkWriteFtraceEvent sde_tracing_mark_write = 333;
     MarkVictimFtraceEvent mark_victim = 334;
+    IonStatFtraceEvent ion_stat = 335;
   }
 }
 
