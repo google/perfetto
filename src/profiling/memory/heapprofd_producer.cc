@@ -381,6 +381,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   auto& cli_config = data_source.client_configuration;
   cli_config.interval = heapprofd_config.sampling_interval_bytes();
   cli_config.block_client = heapprofd_config.block_client();
+  cli_config.disable_fork_teardown = heapprofd_config.disable_fork_teardown();
   cli_config.block_client_timeout_us =
       heapprofd_config.block_client_timeout_us();
   data_source.config = heapprofd_config;

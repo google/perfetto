@@ -34,8 +34,6 @@ namespace base {
 class TaskRunner;
 }
 
-class StartupTraceWriter;
-class StartupTraceWriterRegistry;
 class SharedMemory;
 class TraceWriter;
 
@@ -102,31 +100,6 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // configuration (including the target buffer ID) from the service.
   virtual void BindStartupTargetBuffer(uint16_t target_buffer_reservation_id,
                                        BufferID target_buffer_id) = 0;
-
-  // Binds the provided unbound StartupTraceWriterRegistry to the arbiter's SMB.
-  // Normally this happens when the perfetto service has been initialized and we
-  // want to rebind all the writers created in the early startup phase.
-  //
-  // All StartupTraceWriters created by the registry are bound to the arbiter
-  // and the given target buffer. The writers may not be bound immediately if
-  // they are concurrently being written to or if this method isn't called on
-  // the arbiter's TaskRunner. The registry will retry on the arbiter's
-  // TaskRunner until all writers were bound successfully.
-  //
-  // The commit of the StartupTraceWriters' locally buffered data to the SMB is
-  // rate limited to avoid exhausting the SMB, and may continue asynchronously
-  // even after all writers were bound.
-  //
-  // By calling this method, the registry's ownership is transferred to the
-  // arbiter. The arbiter will delete the registry once all writers were bound.
-  //
-  // DEPRECATED. See SharedMemoryArbiter::CreateUnboundInstance() for a
-  // replacement.
-  //
-  // TODO(eseckler): Remove StartupTraceWriter support.
-  virtual void BindStartupTraceWriterRegistry(
-      std::unique_ptr<StartupTraceWriterRegistry>,
-      BufferID target_buffer) = 0;
 
   // Treat the reservation as resolved to an invalid buffer. Commits for this
   // reservation will be flushed to the service ASAP. The service will free

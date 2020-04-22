@@ -429,7 +429,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 17
+// Next id: 19
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -533,6 +533,13 @@ message HeapprofdConfig {
   // maximum. This causes ProfilePacket.HeapSample.self_max to be set, and
   // self_allocated and self_freed to not be set.
   optional bool dump_at_max = 13;
+
+  // FEATURE FLAGS. THERE BE DRAGONS.
+
+  // Escape hatch if the session is being torn down because of a forked child
+  // that shares memory space, but is not correctly identified as a vforked
+  // child.
+  optional bool disable_fork_teardown = 18;
 }
 
 // End of protos/perfetto/config/profiling/heapprofd_config.proto
@@ -1572,6 +1579,16 @@ message GraphicsFrameEvent {
 }
 
 // End of protos/perfetto/trace/android/graphics_frame_event.proto
+
+// Begin of protos/perfetto/trace/android/initial_display_state.proto
+
+message InitialDisplayState {
+  // Same values as android.view.Display.STATE_*
+  optional int32 display_state = 1;
+  optional double brightness = 2;
+}
+
+// End of protos/perfetto/trace/android/initial_display_state.proto
 
 // Begin of protos/perfetto/trace/android/packages_list.proto
 
@@ -3267,6 +3284,16 @@ message SmbusReplyFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/i2c.proto
 
+// Begin of protos/perfetto/trace/ftrace/ion.proto
+
+message IonStatFtraceEvent {
+  optional uint32 buffer_id = 1;
+  optional int64 len = 2;
+  optional uint64 total_allocated = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/ion.proto
+
 // Begin of protos/perfetto/trace/ftrace/ipi.proto
 
 message IpiEntryFtraceEvent {
@@ -4363,6 +4390,7 @@ message FtraceEvent {
     GpuFrequencyFtraceEvent gpu_frequency = 332;
     SdeTracingMarkWriteFtraceEvent sde_tracing_mark_write = 333;
     MarkVictimFtraceEvent mark_victim = 334;
+    IonStatFtraceEvent ion_stat = 335;
   }
 }
 
@@ -5196,14 +5224,29 @@ message ChromeKeyedService {
 message ChromeLatencyInfo {
   optional int64 trace_id = 1;
 
+  // NEXT ID: 11
+  // All step are optional but the enum is ordered (not by number) below in the
+  // order we expect them to appear if they are emitted in trace in a blocking
+  // fashion.
   enum Step {
     STEP_UNSPECIFIED = 0;
-    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
-    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    // Emitted on the browser main thread.
     STEP_SEND_INPUT_EVENT_UI = 3;
-    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    // Happens on the renderer's compositor.
     STEP_HANDLE_INPUT_EVENT_IMPL = 5;
+    STEP_DID_HANDLE_INPUT_AND_OVERSCROLL = 8;
+    // Occurs on the Renderer's main thread.
+    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
+    // Could be emitted on both the renderer's main OR compositor.
+    STEP_HANDLED_INPUT_EVENT_MAIN_OR_IMPL = 9;
+    // Optionally sometimes HANDLED_INPUT_EVENT_MAIN_OR_IMPL will proxy to the
+    // renderer's compositor and this will be emitted.
+    STEP_HANDLED_INPUT_EVENT_IMPL = 10;
+    // Renderer's compositor.
     STEP_SWAP_BUFFERS = 6;
+    // Happens on the VizCompositor in the GPU process.
     STEP_DRAW_AND_SWAP = 7;
   };
 
@@ -6051,6 +6094,7 @@ message StreamingProfilePacket {
   // TODO(eseckler): ThreadDescriptor-based timestamps are deprecated. Replace
   // this with ClockSnapshot-based delta encoding instead.
   repeated int64 timestamp_delta_us = 2;
+  optional int32 process_priority = 3;
 }
 
 // Namespace for the contained enums.
@@ -6716,7 +6760,7 @@ message Trigger {
 // TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 70.
+// Next id: 71.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -6771,6 +6815,7 @@ message TracePacket {
     CpuInfo cpu_info = 67;
     SmapsPacket smaps_packet = 68;
     TracingServiceEvent service_event = 69;
+    InitialDisplayState initial_display_state = 70;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

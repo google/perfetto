@@ -223,6 +223,11 @@ def main(argv):
       "rather than at the time of the dump.",
       action="store_true")
   parser.add_argument(
+      "--disable-fork-teardown",
+      help="Do not tear down client in forks. This can be useful for programs "
+      "that use vfork. Android 11+ only.",
+      action="store_true")
+  parser.add_argument(
       "--simpleperf",
       action="store_true",
       help="Get simpleperf profile of heapprofd. This is "
@@ -280,6 +285,8 @@ def main(argv):
     target_cfg += "no_running: true\n"
   if args.dump_at_max:
     target_cfg += "dump_at_max: true\n"
+  if args.disable_fork_teardown:
+    target_cfg += "disable_fork_teardown: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:
