@@ -38,8 +38,6 @@ source_set("core") {
     "shared_memory_abi.cc",
     "shared_memory_arbiter_impl.cc",
     "shared_memory_arbiter_impl.h",
-    "startup_trace_writer.cc",
-    "startup_trace_writer_registry.cc",
     "trace_packet.cc",
     "trace_writer_impl.cc",
     "trace_writer_impl.h",
@@ -105,7 +103,6 @@ perfetto_unittest_source_set("unittests") {
   if (!is_win) {
     sources += [
       "shared_memory_arbiter_impl_unittest.cc",
-      "startup_trace_writer_unittest.cc",
       "trace_writer_impl_unittest.cc",
       "tracing_service_impl_unittest.cc",
     ]

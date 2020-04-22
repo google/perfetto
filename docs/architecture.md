@@ -111,7 +111,7 @@ Each chunk:
   and without repetitions (see [trace-format.md](trace-format.md) for more).
 
 See the comments in
-[shared_memory_abi.h](/include/perfetto/tracing/core/shared_memory_abi.h)
+[shared_memory_abi.h](/include/perfetto/ext/tracing/core/shared_memory_abi.h)
 for more details about the binary format of this buffer.
 
 Other resources
