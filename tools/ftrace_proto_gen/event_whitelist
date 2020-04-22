@@ -329,3 +329,4 @@ systrace/0
 power/gpu_frequency
 sde/tracing_mark_write
 oom/mark_victim
+ion/ion_stat
