@@ -29,7 +29,6 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
-#include "perfetto/ext/tracing/core/startup_trace_writer_registry.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/core/id_allocator.h"
 
@@ -148,9 +147,6 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
                               base::TaskRunner*) override;
   void BindStartupTargetBuffer(uint16_t target_buffer_reservation_id,
                                BufferID target_buffer_id) override;
-  void BindStartupTraceWriterRegistry(
-      std::unique_ptr<StartupTraceWriterRegistry>,
-      BufferID target_buffer) override;
   void AbortStartupTracingForReservation(
       uint16_t target_buffer_reservation_id) override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -226,11 +222,6 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   std::unique_ptr<CommitDataRequest> commit_data_req_;
   size_t bytes_pending_commit_ = 0;  // SUM(chunk.size() : commit_data_req_).
   IdAllocator<WriterID> active_writer_ids_;
-
-  // Registries whose Bind() is in progress. We destroy each registry when their
-  // Bind() is complete or when the arbiter is destroyed itself.
-  std::vector<std::unique_ptr<StartupTraceWriterRegistry>>
-      startup_trace_writer_registries_;
 
   // Whether the arbiter itself and all startup target buffer reservations are
   // bound. Note that this can become false again later if a new target buffer
