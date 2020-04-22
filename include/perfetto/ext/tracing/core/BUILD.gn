@@ -28,8 +28,6 @@ source_set("core") {
     "shared_memory_abi.h",
     "shared_memory_arbiter.h",
     "slice.h",
-    "startup_trace_writer.h",
-    "startup_trace_writer_registry.h",
     "trace_packet.h",
     "trace_stats.h",
     "trace_writer.h",
