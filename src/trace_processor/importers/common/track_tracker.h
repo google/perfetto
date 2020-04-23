@@ -238,8 +238,12 @@ class TrackTracker {
     }
   };
 
+  base::Optional<TrackId> GetDescriptorTrackImpl(
+      uint64_t uuid,
+      std::vector<uint64_t>* descendent_uuids = nullptr);
   TrackId ResolveDescriptorTrack(uint64_t uuid,
-                                 const DescriptorTrackReservation&);
+                                 const DescriptorTrackReservation&,
+                                 std::vector<uint64_t>* descendent_uuids);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
