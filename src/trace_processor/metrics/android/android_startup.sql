@@ -18,6 +18,7 @@
 SELECT RUN_METRIC('android/android_startup_launches.sql');
 SELECT RUN_METRIC('android/android_task_state.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
+SELECT RUN_METRIC('android/hsc_startups.sql');
 
 -- Slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
@@ -215,6 +216,17 @@ SELECT
           'dur_ms', dur / 1e6
         )
         FROM zygote_forks_by_id WHERE id = launches.id
+      )
+    ),
+    'hsc', (
+      SELECT AndroidStartupMetric_HscMetrics(
+        'full_startup', (
+          SELECT AndroidStartupMetric_Slice(
+            'dur_ns', dur,
+            'dur_ms', dur / 1e6
+          )
+          FROM hsc_based_startup_times WHERE id = launches.id
+        )
       )
     )
   ) as startup
