@@ -130,11 +130,12 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
               base::StringToUInt32(tokens[1].ToStdString());
           const base::Optional<uint32_t> ppid =
               base::StringToUInt32(tokens[2].ToStdString());
-          const base::StringView& name = tokens[8];
+          base::StringView name = tokens[8];
+          // Command line may contain spaces, merge all remaining tokens:
+          const char* cmd_start = tokens[9].data();
           base::StringView cmd(
-              tokens[9].data(),
-              static_cast<size_t>((buffer.data() + buffer.size()) -
-                                  tokens[9].data()));
+              cmd_start,
+              static_cast<size_t>((buffer.data() + buffer.size()) - cmd_start));
           if (!pid || !ppid) {
             PERFETTO_ELOG("Could not parse line '%s'", buffer.c_str());
             return util::ErrStatus("Could not parse PROCESS DUMP line");
@@ -148,10 +149,11 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
               base::StringToUInt32(tokens[1].ToStdString());
           const base::Optional<uint32_t> tid =
               base::StringToUInt32(tokens[2].ToStdString());
+          // Command line may contain spaces, merge all remaining tokens:
+          const char* cmd_start = tokens[3].data();
           base::StringView cmd(
-              tokens[3].data(),
-              static_cast<size_t>((buffer.data() + buffer.size()) -
-                                  tokens[3].data()));
+              cmd_start,
+              static_cast<size_t>((buffer.data() + buffer.size()) - cmd_start));
           StringId cmd_id =
               ctx_->storage->mutable_string_pool()->InternString(cmd);
           if (!tid || !tgid) {
