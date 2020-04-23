@@ -463,7 +463,7 @@ class TrackEventParser::EventImporter {
       case TrackEvent::TYPE_INSTANT:
         return utid_ ? 'i' : 'n';
       default:
-        PERFETTO_FATAL("unexpected event type %d", event_.type());
+        PERFETTO_ELOG("unexpected event type %d", event_.type());
         return 0;
     }
   }
@@ -521,7 +521,7 @@ class TrackEventParser::EventImporter {
     protozero::RepeatedFieldIterator<uint64_t> track_uuid_it;
     if (event_.has_extra_counter_track_uuids()) {
       track_uuid_it = event_.extra_counter_track_uuids();
-    } else if (defaults_->has_extra_counter_track_uuids()) {
+    } else if (defaults_ && defaults_->has_extra_counter_track_uuids()) {
       track_uuid_it = defaults_->extra_counter_track_uuids();
     }
 
@@ -881,7 +881,7 @@ class TrackEventParser::EventImporter {
     }
 
     if (legacy_event_.flow_direction()) {
-      StringId value;
+      StringId value = kNullStringId;
       switch (legacy_event_.flow_direction()) {
         case LegacyEvent::FLOW_IN:
           value = parser_->flow_direction_value_in_id_;
@@ -893,8 +893,8 @@ class TrackEventParser::EventImporter {
           value = parser_->flow_direction_value_inout_id_;
           break;
         default:
-          PERFETTO_FATAL("Unknown flow direction: %d",
-                         legacy_event_.flow_direction());
+          PERFETTO_ELOG("Unknown flow direction: %d",
+                        legacy_event_.flow_direction());
           break;
       }
       inserter->AddArg(parser_->legacy_event_flow_direction_key_id_,
