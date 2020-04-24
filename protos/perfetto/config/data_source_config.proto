@@ -86,8 +86,10 @@ message DataSourceConfig {
   // Data source name: linux.sys_stats
   optional SysStatsConfig sys_stats_config = 104 [lazy = true];
   // Data source name: android.heapprofd
+  // Introduced in Android 10.
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
   // Data source name: android.java_hprof
+  // Introduced in Android 11.
   optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
   // Data source name: android.power
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
