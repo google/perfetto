@@ -130,4 +130,9 @@ message HeapprofdConfig {
   // that shares memory space, but is not correctly identified as a vforked
   // child.
   optional bool disable_fork_teardown = 18;
+
+  // We try to automatically detect when a target applicatation vforks but then
+  // does a memory allocation (or free). This auto-detection can be disabled
+  // with this.
+  optional bool disable_vfork_detection = 19;
 }
