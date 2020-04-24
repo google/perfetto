@@ -72,6 +72,14 @@ class SliceTracker {
       StringId opt_name = {},
       SetArgsCallback args_callback = SetArgsCallback());
 
+  // Usually args should be added in the Begin or End args_callback but this
+  // method is for the situation where new args need to be added to an
+  // in-progress slice.
+  void AddArgs(TrackId track_id,
+               StringId category,
+               StringId name,
+               SetArgsCallback args_callback);
+
   // TODO(lalitm): eventually this method should become End and End should
   // be renamed EndChrome.
   base::Optional<SliceId> EndGpu(

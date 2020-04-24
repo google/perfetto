@@ -79,9 +79,24 @@ class FtraceParser {
                         uint32_t source_tid,
                         protozero::ConstBytes);
   void ParseTaskRename(protozero::ConstBytes);
+  void ParseBinderTransaction(int64_t timestamp,
+                              uint32_t pid,
+                              protozero::ConstBytes);
+  void ParseBinderTransactionReceived(int64_t timestamp,
+                                      uint32_t pid,
+                                      protozero::ConstBytes);
+  void ParseBinderTransactionAllocBuf(int64_t timestamp,
+                                      uint32_t pid,
+                                      protozero::ConstBytes);
+  void ParseBinderLocked(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
+  void ParseBinderLock(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseBinderUnlock(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
 
   TraceProcessorContext* context_;
-  BinderTracker binder_tracker_;
   RssStatTracker rss_stat_tracker_;
 
   const StringId sched_wakeup_name_id_;
