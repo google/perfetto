@@ -47,6 +47,7 @@ struct ClientConfiguration {
   bool block_client;
   uint64_t block_client_timeout_us;
   bool disable_fork_teardown;
+  bool disable_vfork_detection;
 };
 
 // Types needed for the wire format used for communication between the client
