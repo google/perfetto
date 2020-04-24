@@ -119,13 +119,23 @@ std::string ToHex(const char* data, size_t size) {
   std::string hex(2 * size + 1, 'x');
   for (size_t i = 0; i < size; ++i) {
     // snprintf prints 3 characters, the two hex digits and a null byte. As we
-    // write left to write, we keep overwriting the nullbytes, except for the
+    // write left to right, we keep overwriting the nullbytes, except for the
     // last call to snprintf.
     snprintf(&(hex[2 * i]), 3, "%02hhx", data[i]);
   }
   // Remove the trailing nullbyte produced by the last snprintf.
   hex.resize(2 * size);
   return hex;
+}
+
+std::string IntToHexString(uint32_t number) {
+  size_t max_size = 11;  // Max uint32 is 0xFFFFFFFF + 1 for null byte.
+  std::string buf;
+  buf.resize(max_size);
+  auto final_size = snprintf(&buf[0], max_size, "0x%02x", number);
+  PERFETTO_DCHECK(final_size >= 0);
+  buf.resize(static_cast<size_t>(final_size));  // Cuts off the final null byte.
+  return buf;
 }
 
 std::string StripChars(const std::string& str,
