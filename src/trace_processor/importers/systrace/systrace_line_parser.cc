@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/types/task_state.h"
@@ -42,6 +43,8 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
 
 util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   context_->process_tracker->GetOrCreateThread(line.pid);
+  context_->process_tracker->UpdateThreadName(
+      line.pid, context_->storage->InternString(base::StringView(line.task)));
 
   if (!line.tgid_str.empty() && line.tgid_str != "-----") {
     base::Optional<uint32_t> tgid = base::StringToUInt32(line.tgid_str);
@@ -112,6 +115,56 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     TrackId track = context_->track_tracker->InternCpuCounterTrack(
         cpuidle_name_id_, event_cpu.value());
     context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
+  } else if (line.event_name == "binder_transaction") {
+    auto id = base::StringToInt32(args["transaction"]);
+    auto dest_node = base::StringToInt32(args["dest_node"]);
+    auto dest_tgid = base::StringToInt32(args["dest_proc"]);
+    auto dest_tid = base::StringToInt32(args["dest_thread"]);
+    auto is_reply = base::StringToInt32(args["reply"]).value() == 1;
+    auto flags_str = args["flags"];
+    char* end;
+    uint32_t flags = static_cast<uint32_t>(strtol(flags_str.c_str(), &end, 16));
+    std::string code_str = args["code"] + " Java Layer Dependent";
+    StringId code = context_->storage->InternString(base::StringView(code_str));
+    if (!dest_tgid.has_value()) {
+      return util::Status("Could not convert dest_tgid");
+    }
+    if (!dest_tid.has_value()) {
+      return util::Status("Could not convert dest_tid");
+    }
+    if (!id.has_value()) {
+      return util::Status("Could not convert transaction id");
+    }
+    if (!dest_node.has_value()) {
+      return util::Status("Could not covert dest node");
+    }
+    BinderTracker::GetOrCreate(context_)->Transaction(
+        line.ts, line.pid, id.value(), dest_node.value(), dest_tgid.value(),
+        dest_tid.value(), is_reply, flags, code);
+  } else if (line.event_name == "binder_transaction_received") {
+    auto id = base::StringToInt32(args["transaction"]);
+    if (!id.has_value()) {
+      return util::Status("Could not convert transaction id");
+    }
+    BinderTracker::GetOrCreate(context_)->TransactionReceived(line.ts, line.pid,
+                                                              id.value());
+  } else if (line.event_name == "binder_lock") {
+    BinderTracker::GetOrCreate(context_)->Lock(line.ts, line.pid);
+  } else if (line.event_name == "binder_locked") {
+    BinderTracker::GetOrCreate(context_)->Locked(line.ts, line.pid);
+  } else if (line.event_name == "binder_unlock") {
+    BinderTracker::GetOrCreate(context_)->Unlock(line.ts, line.pid);
+  } else if (line.event_name == "binder_transaction_alloc_buf") {
+    auto data_size = base::StringToUInt64(args["data_size"]);
+    auto offsets_size = base::StringToUInt64(args["offsets_size"]);
+    if (!data_size.has_value()) {
+      return util::Status("Could not convert data size");
+    }
+    if (!offsets_size.has_value()) {
+      return util::Status("Could not convert offsets size");
+    }
+    BinderTracker::GetOrCreate(context_)->TransactionAllocBuf(
+        line.ts, line.pid, data_size.value(), offsets_size.value());
   }
 
   return util::OkStatus();
