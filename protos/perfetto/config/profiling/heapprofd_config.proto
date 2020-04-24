@@ -60,13 +60,16 @@ message HeapprofdConfig {
   optional bool all = 5;
 
   // Do not profile processes whose anon RSS + swap < given value.
+  // Introduced in Android 11.
   optional uint32 min_anonymous_memory_kb = 15;
 
   // Stop profile if heapprofd memory usage goes beyond the given value.
+  // Introduced in Android 11.
   optional uint32 max_heapprofd_memory_kb = 16;
 
   // Stop profile if heapprofd CPU time since start of this data-source
   // goes beyond given value.
+  // Introduced in Android 11.
   optional uint64 max_heapprofd_cpu_secs = 17;
 
   // Do not emit function names for mappings starting with this prefix.
@@ -93,17 +96,20 @@ message HeapprofdConfig {
 
   // If set, stop the trace session after blocking the client for this
   // timeout. Needs to be larger than 100 us, otherwise no retries are done.
+  // Introduced in Android 11.
   optional uint32 block_client_timeout_us = 14;
 
   // Do not profile processes from startup, only match already running
   // processes.
   //
   // Can not be set at the same time as no_running.
+  // Introduced in Android 11.
   optional bool no_startup = 10;
 
   // Do not profile running processes. Only match processes on startup.
   //
   // Can not be set at the same time as no_startup.
+  // Introduced in Android 11.
   optional bool no_running = 11;
 
   // Gather information on how many bytes of allocations are on non-referenced
@@ -122,6 +128,7 @@ message HeapprofdConfig {
   // at the point in time when the sampled heap usage of the process was at its
   // maximum. This causes ProfilePacket.HeapSample.self_max to be set, and
   // self_allocated and self_freed to not be set.
+  // Introduced in Android 11.
   optional bool dump_at_max = 13;
 
   // FEATURE FLAGS. THERE BE DRAGONS.
@@ -129,10 +136,12 @@ message HeapprofdConfig {
   // Escape hatch if the session is being torn down because of a forked child
   // that shares memory space, but is not correctly identified as a vforked
   // child.
+  // Introduced in Android 11.
   optional bool disable_fork_teardown = 18;
 
   // We try to automatically detect when a target applicatation vforks but then
   // does a memory allocation (or free). This auto-detection can be disabled
   // with this.
+  // Introduced in Android 11.
   optional bool disable_vfork_detection = 19;
 }
