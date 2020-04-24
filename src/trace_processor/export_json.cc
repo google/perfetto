@@ -729,7 +729,9 @@ class JsonExporter {
       // Skip slices with empty category - these are ftrace/system slices that
       // were also imported into the raw table and will be exported from there
       // by trace_to_text.
-      if (slices.category()[i] == kNullStringId)
+      // TODO(b/153609716): Add a src column or do_not_export flag instead.
+      auto cat = slices.category().GetString(i);
+      if (cat.c_str() == nullptr || cat == "binder")
         continue;
 
       Json::Value event;
