@@ -167,6 +167,13 @@ TEST(StringUtilsTest, ToHex) {
   EXPECT_EQ(ToHex("abc123"), "616263313233");
 }
 
+TEST(StringUtilsTest, intToHex) {
+  EXPECT_EQ(IntToHexString(0), "0x00");
+  EXPECT_EQ(IntToHexString(1), "0x01");
+  EXPECT_EQ(IntToHexString(16), "0x10");
+  EXPECT_EQ(IntToHexString(4294967295), "0xffffffff");
+}
+
 TEST(StringUtilsTest, CaseInsensitiveEqual) {
   EXPECT_TRUE(CaseInsensitiveEqual("", ""));
   EXPECT_TRUE(CaseInsensitiveEqual("abc", "abc"));

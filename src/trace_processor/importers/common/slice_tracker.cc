@@ -122,6 +122,27 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
   return context_->storage->slice_table().id().IndexOf(*slice_id);
 }
 
+void SliceTracker::AddArgs(TrackId track_id,
+                           StringId category,
+                           StringId name,
+                           SetArgsCallback args_callback) {
+  auto& stack = stacks_[track_id];
+  if (stack.empty())
+    return;
+
+  auto* slices = context_->storage->mutable_slice_table();
+  base::Optional<uint32_t> stack_idx =
+      MatchingIncompleteSliceIndex(stack, name, category);
+  if (!stack_idx.has_value())
+    return;
+  uint32_t slice_idx = stack[*stack_idx].first;
+  PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
+  // Add args to current pending slice.
+  ArgsTracker* tracker = &stack[*stack_idx].second;
+  auto bound_inserter = tracker->AddArgsTo(slices->id()[slice_idx]);
+  args_callback(&bound_inserter);
+}
+
 base::Optional<SliceId> SliceTracker::EndGpu(int64_t ts,
                                              TrackId t_id,
                                              SetArgsCallback args_callback) {
