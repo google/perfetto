@@ -224,10 +224,12 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
 #define MAYBE_Clusterfuzz20215 DISABLED_Clusterfuzz20215
 #define MAYBE_Clusterfuzz20292 DISABLED_Clusterfuzz20292
 #define MAYBE_Clusterfuzz21178 DISABLED_Clusterfuzz21178
+#define MAYBE_Clusterfuzz21890 DISABLED_Clusterfuzz21890
 #else  // PERFETTO_DCHECK_IS_ON()
 #define MAYBE_Clusterfuzz20215 Clusterfuzz20215
 #define MAYBE_Clusterfuzz20292 Clusterfuzz20292
 #define MAYBE_Clusterfuzz21178 Clusterfuzz21178
+#define MAYBE_Clusterfuzz21890 Clusterfuzz21890
 #endif  // PERFETTO_DCHECK_IS_ON()
 
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz20215) {
@@ -240,6 +242,10 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz20292) {
 
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21178) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_21178", 4096).ok());
+}
+
+TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21890) {
+  ASSERT_TRUE(LoadTrace("clusterfuzz_21890", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
