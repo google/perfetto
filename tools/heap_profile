@@ -219,7 +219,7 @@ def main(argv):
       action="store_true")
   parser.add_argument(
       "--dump-at-max",
-      help="Dump the maximum memory usage"
+      help="Dump the maximum memory usage "
       "rather than at the time of the dump.",
       action="store_true")
   parser.add_argument(
