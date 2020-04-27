@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {timeToCode} from '../common/time';
+import {timeToCode, toNs} from '../common/time';
 
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
@@ -43,7 +43,11 @@ export class ChromeSliceDetailsPanel extends Panel {
                   m('td', `${timeToCode(sliceInfo.ts)}`)),
                 m('tr',
                   m('th', `Duration`),
-                  m('td', `${timeToCode(sliceInfo.dur)}`)),
+                  m('td',
+                    `${
+                        toNs(sliceInfo.dur) === -1 ?
+                            '-1 (Did not end)' :
+                            timeToCode(sliceInfo.dur)}`)),
                 this.getDescription(sliceInfo.description)),
               this.getArgs(sliceInfo.args),
               ));
