@@ -38,8 +38,8 @@ except ImportError:
     from urllib.request import urlretrieve
 
 TRACE_TO_TEXT_SHAS = {
-    'linux': '8e7b02e8ce710f8c8f9c7c7d5aa00cc724a7c059',
-    'mac': '332099f1650ec7eaa57069344b5bcf3c23a08839',
+    'linux': 'aba0e660818bfc249992ebbceb13a2e4c9a62c3a',
+    'mac': 'c7d1b9d904f008bfb95125b204837eff946c3ed7',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
