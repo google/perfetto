@@ -1096,20 +1096,9 @@ class TrackEventParser::EventImporter {
 
   void ParseChromeLegacyIpc(protozero::ConstBytes chrome_legacy_ipc,
                             BoundInserter* inserter) {
-    protos::pbzero::ChromeLegacyIpc::Decoder event(chrome_legacy_ipc);
-    if (event.has_message_class()) {
-      size_t message_class_index = static_cast<size_t>(event.message_class());
-      if (message_class_index >= parser_->chrome_legacy_ipc_class_ids_.size())
-        message_class_index = 0;
-      inserter->AddArg(
-          parser_->chrome_legacy_ipc_class_args_key_id_,
-          Variadic::String(
-              parser_->chrome_legacy_ipc_class_ids_[message_class_index]));
-    }
-    if (event.has_message_line()) {
-      inserter->AddArg(parser_->chrome_legacy_ipc_line_args_key_id_,
-                       Variadic::Integer(event.message_line()));
-    }
+    parser_->proto_to_args_.InternProtoIntoArgsTable(
+        chrome_legacy_ipc, ".perfetto.protos.ChromeLegacyIpc", inserter,
+        sequence_state_, "legacy_ipc");
   }
 
   void ParseChromeKeyedService(protozero::ConstBytes chrome_keyed_service,
