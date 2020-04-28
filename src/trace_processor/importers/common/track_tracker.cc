@@ -303,12 +303,19 @@ void TrackTracker::ReserveDescriptorChildTrack(uint64_t uuid,
 }
 
 base::Optional<TrackId> TrackTracker::GetDescriptorTrack(uint64_t uuid) {
+  return GetDescriptorTrackImpl(uuid);
+}
+
+base::Optional<TrackId> TrackTracker::GetDescriptorTrackImpl(
+    uint64_t uuid,
+    std::vector<uint64_t>* descendent_uuids) {
   auto it = resolved_descriptor_tracks_.find(uuid);
   if (it == resolved_descriptor_tracks_.end()) {
     auto reservation_it = reserved_descriptor_tracks_.find(uuid);
     if (reservation_it == reserved_descriptor_tracks_.end())
       return base::nullopt;
-    TrackId track_id = ResolveDescriptorTrack(uuid, reservation_it->second);
+    TrackId track_id =
+        ResolveDescriptorTrack(uuid, reservation_it->second, descendent_uuids);
     resolved_descriptor_tracks_[uuid] = track_id;
     return track_id;
   }
@@ -317,15 +324,44 @@ base::Optional<TrackId> TrackTracker::GetDescriptorTrack(uint64_t uuid) {
 
 TrackId TrackTracker::ResolveDescriptorTrack(
     uint64_t uuid,
-    const DescriptorTrackReservation& reservation) {
+    const DescriptorTrackReservation& reservation,
+    std::vector<uint64_t>* descendent_uuids) {
+  static constexpr size_t kMaxAncestors = 10;
+
+  // Try to resolve any parent tracks recursively, too.
   base::Optional<TrackId> parent_track_id;
   if (reservation.parent_uuid) {
-    // Ensure that parent track is resolved.
-    parent_track_id = GetDescriptorTrack(reservation.parent_uuid);
-    if (!parent_track_id) {
-      PERFETTO_ELOG("Unknown parent track %" PRIu64 " for track %" PRIu64,
-                    reservation.parent_uuid, uuid);
+    // Input data may contain loops or extremely long ancestor track chains. To
+    // avoid stack overflow in these situations, we keep track of the ancestors
+    // seen in the recursion.
+    std::unique_ptr<std::vector<uint64_t>> owned_descendent_uuids;
+    if (!descendent_uuids) {
+      owned_descendent_uuids.reset(new std::vector<uint64_t>());
+      descendent_uuids = owned_descendent_uuids.get();
     }
+    descendent_uuids->push_back(uuid);
+
+    if (descendent_uuids->size() > kMaxAncestors) {
+      PERFETTO_ELOG(
+          "Too many ancestors in parent_track_uuid hierarchy at track %" PRIu64
+          " with parent %" PRIu64,
+          uuid, reservation.parent_uuid);
+    } else if (std::find(descendent_uuids->begin(), descendent_uuids->end(),
+                         reservation.parent_uuid) != descendent_uuids->end()) {
+      PERFETTO_ELOG(
+          "Loop detected in parent_track_uuid hierarchy at track %" PRIu64
+          " with parent %" PRIu64,
+          uuid, reservation.parent_uuid);
+    } else {
+      parent_track_id =
+          GetDescriptorTrackImpl(reservation.parent_uuid, descendent_uuids);
+      if (!parent_track_id) {
+        PERFETTO_ELOG("Unknown parent track %" PRIu64 " for track %" PRIu64,
+                      reservation.parent_uuid, uuid);
+      }
+    }
+
+    descendent_uuids->pop_back();
   }
 
   if (reservation.tid) {
