@@ -37,6 +37,7 @@ genrule {
     "src/trace_processor/metrics/android/cpu_info.sql",
     "src/trace_processor/metrics/android/display_metrics.sql",
     "src/trace_processor/metrics/android/heap_profile_callsites.sql",
+    "src/trace_processor/metrics/android/hsc_startups.sql",
     "src/trace_processor/metrics/android/java_heap_histogram.sql",
     "src/trace_processor/metrics/android/java_heap_stats.sql",
     "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",

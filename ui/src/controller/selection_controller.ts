@@ -43,6 +43,7 @@ export class SelectionController extends Controller<'main'> {
         if (result.columns[0].longValues!.length === 0) return;
         this.sliceDetails(+result.columns[0].longValues![0]);
       });
+      this.lastSelectedKind = selection.kind;
       return;
     }
 

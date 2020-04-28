@@ -250,7 +250,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     uint64_t track_uuid;
     if (event.has_track_uuid()) {
       track_uuid = event.track_uuid();
-    } else if (defaults->has_track_uuid()) {
+    } else if (defaults && defaults->has_track_uuid()) {
       track_uuid = defaults->track_uuid();
     } else {
       PERFETTO_DLOG(
@@ -289,7 +289,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     protozero::RepeatedFieldIterator<uint64_t> track_uuid_it;
     if (event.has_extra_counter_track_uuids()) {
       track_uuid_it = event.extra_counter_track_uuids();
-    } else if (defaults->has_extra_counter_track_uuids()) {
+    } else if (defaults && defaults->has_extra_counter_track_uuids()) {
       track_uuid_it = defaults->extra_counter_track_uuids();
     } else {
       PERFETTO_DLOG(

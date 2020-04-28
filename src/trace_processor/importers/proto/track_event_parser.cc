@@ -33,13 +33,9 @@
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_latency_info.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_user_event.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
@@ -463,7 +459,7 @@ class TrackEventParser::EventImporter {
       case TrackEvent::TYPE_INSTANT:
         return utid_ ? 'i' : 'n';
       default:
-        PERFETTO_FATAL("unexpected event type %d", event_.type());
+        PERFETTO_ELOG("unexpected event type %d", event_.type());
         return 0;
     }
   }
@@ -521,7 +517,7 @@ class TrackEventParser::EventImporter {
     protozero::RepeatedFieldIterator<uint64_t> track_uuid_it;
     if (event_.has_extra_counter_track_uuids()) {
       track_uuid_it = event_.extra_counter_track_uuids();
-    } else if (defaults_->has_extra_counter_track_uuids()) {
+    } else if (defaults_ && defaults_->has_extra_counter_track_uuids()) {
       track_uuid_it = defaults_->extra_counter_track_uuids();
     }
 
@@ -881,7 +877,7 @@ class TrackEventParser::EventImporter {
     }
 
     if (legacy_event_.flow_direction()) {
-      StringId value;
+      StringId value = kNullStringId;
       switch (legacy_event_.flow_direction()) {
         case LegacyEvent::FLOW_IN:
           value = parser_->flow_direction_value_in_id_;
@@ -893,8 +889,8 @@ class TrackEventParser::EventImporter {
           value = parser_->flow_direction_value_inout_id_;
           break;
         default:
-          PERFETTO_FATAL("Unknown flow direction: %d",
-                         legacy_event_.flow_direction());
+          PERFETTO_ELOG("Unknown flow direction: %d",
+                        legacy_event_.flow_direction());
           break;
       }
       inserter->AddArg(parser_->legacy_event_flow_direction_key_id_,
@@ -1093,16 +1089,9 @@ class TrackEventParser::EventImporter {
 
   void ParseChromeUserEvent(protozero::ConstBytes chrome_user_event,
                             BoundInserter* inserter) {
-    protos::pbzero::ChromeUserEvent::Decoder event(chrome_user_event);
-    if (event.has_action()) {
-      StringId action_id = storage_->InternString(event.action());
-      inserter->AddArg(parser_->chrome_user_event_action_args_key_id_,
-                       Variadic::String(action_id));
-    }
-    if (event.has_action_hash()) {
-      inserter->AddArg(parser_->chrome_user_event_action_hash_args_key_id_,
-                       Variadic::UnsignedInteger(event.action_hash()));
-    }
+    parser_->proto_to_args_.InternProtoIntoArgsTable(
+        chrome_user_event, ".perfetto.protos.ChromeUserEvent", inserter,
+        sequence_state_, "user_event");
   }
 
   void ParseChromeLegacyIpc(protozero::ConstBytes chrome_legacy_ipc,
@@ -1125,12 +1114,9 @@ class TrackEventParser::EventImporter {
 
   void ParseChromeKeyedService(protozero::ConstBytes chrome_keyed_service,
                                BoundInserter* inserter) {
-    protos::pbzero::ChromeKeyedService::Decoder event(chrome_keyed_service);
-    if (event.has_name()) {
-      StringId action_id = storage_->InternString(event.name());
-      inserter->AddArg(parser_->chrome_keyed_service_name_args_key_id_,
-                       Variadic::String(action_id));
-    }
+    parser_->proto_to_args_.InternProtoIntoArgsTable(
+        chrome_keyed_service, ".perfetto.protos.ChromeKeyedService", inserter,
+        sequence_state_, "keyed_service");
   }
 
   void ParseChromeLatencyInfo(protozero::ConstBytes chrome_latency_info,
@@ -1142,23 +1128,9 @@ class TrackEventParser::EventImporter {
 
   void ParseChromeHistogramSample(protozero::ConstBytes chrome_histogram_sample,
                                   BoundInserter* inserter) {
-    protos::pbzero::ChromeHistogramSample::Decoder event(
-        chrome_histogram_sample);
-    if (event.has_name_hash()) {
-      uint64_t name_hash = static_cast<uint64_t>(event.name_hash());
-      inserter->AddArg(parser_->chrome_histogram_sample_name_hash_args_key_id_,
-                       Variadic::UnsignedInteger(name_hash));
-    }
-    if (event.has_name()) {
-      StringId name = storage_->InternString(event.name());
-      inserter->AddArg(parser_->chrome_keyed_service_name_args_key_id_,
-                       Variadic::String(name));
-    }
-    if (event.has_sample()) {
-      int64_t sample = static_cast<int64_t>(event.sample());
-      inserter->AddArg(parser_->chrome_histogram_sample_sample_args_key_id_,
-                       Variadic::Integer(sample));
-    }
+    parser_->proto_to_args_.InternProtoIntoArgsTable(
+        chrome_histogram_sample, ".perfetto.protos.ChromeHistogramSample",
+        inserter, sequence_state_, "histogram_sample");
   }
 
   TraceProcessorContext* context_;
@@ -1242,38 +1214,10 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
       flow_direction_value_in_id_(context->storage->InternString("in")),
       flow_direction_value_out_id_(context->storage->InternString("out")),
       flow_direction_value_inout_id_(context->storage->InternString("inout")),
-      chrome_user_event_action_args_key_id_(
-          context->storage->InternString("user_event.action")),
-      chrome_user_event_action_hash_args_key_id_(
-          context->storage->InternString("user_event.action_hash")),
       chrome_legacy_ipc_class_args_key_id_(
           context->storage->InternString("legacy_ipc.class")),
       chrome_legacy_ipc_line_args_key_id_(
           context->storage->InternString("legacy_ipc.line")),
-      chrome_keyed_service_name_args_key_id_(
-          context->storage->InternString("keyed_service.name")),
-      chrome_histogram_sample_name_hash_args_key_id_(
-          context->storage->InternString("histogram_sample.name_hash")),
-      chrome_histogram_sample_name_args_key_id_(
-          context->storage->InternString("histogram_sample.name")),
-      chrome_histogram_sample_sample_args_key_id_(
-          context->storage->InternString("histogram_sample.sample")),
-      chrome_latency_info_trace_id_key_id_(
-          context->storage->InternString("latency_info.trace_id")),
-      chrome_latency_info_step_key_id_(
-          context->storage->InternString("latency_info.step")),
-      chrome_latency_info_frame_tree_node_id_key_id_(
-          context->storage->InternString("latency_info.frame_tree_node_id")),
-      chrome_latency_info_step_ids_{
-          {context->storage->InternString("STEP_UNSPECIFIED"),
-           context->storage->InternString(
-               "STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT"),
-           context->storage->InternString("STEP_MAIN_THREAD_SCROLL_UPDATE"),
-           context->storage->InternString("STEP_SEND_INPUT_EVENT_UI"),
-           context->storage->InternString("STEP_HANDLE_INPUT_EVENT_MAIN"),
-           context->storage->InternString("STEP_HANDLE_INPUT_EVENT_IMPL"),
-           context->storage->InternString("STEP_SWAP_BUFFERS"),
-           context->storage->InternString("STEP_DRAW_AND_SWAP")}},
       chrome_legacy_ipc_class_ids_{
           {context->storage->InternString("UNSPECIFIED"),
            context->storage->InternString("AUTOMATION"),
