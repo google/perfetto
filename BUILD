@@ -3211,6 +3211,13 @@ perfetto_java_proto_library(
     ],
 )
 
+perfetto_java_proto_library(
+    name = "protos_perfetto_trace_merged_config_java",
+    deps = [
+        ":protos_perfetto_trace_merged_config_protos",
+    ],
+)
+
 perfetto_gensignature_internal_only(
     name = "trace_processor_sig",
     srcs = [
