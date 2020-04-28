@@ -28,8 +28,14 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib
 import uuid
+
+try:
+    # Python 2.x
+    from urllib import urlretrieve
+except ImportError:
+    # Python 3.x
+    from urllib.request import urlretrieve
 
 TRACE_TO_TEXT_SHAS = {
     'linux': '8e7b02e8ce710f8c8f9c7c7d5aa00cc724a7c059',
@@ -65,7 +71,7 @@ def load_trace_to_text(platform):
       return local_file
 
   url = TRACE_TO_TEXT_BASE_URL + file_name
-  urllib.urlretrieve(url, local_file)
+  urlretrieve(url, local_file)
   if not check_hash(local_file, sha_value):
     os.remove(local_file)
     raise ValueError("Invalid signature.")
