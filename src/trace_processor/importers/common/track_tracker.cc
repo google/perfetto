@@ -362,6 +362,8 @@ TrackId TrackTracker::ResolveDescriptorTrack(
     }
 
     descendent_uuids->pop_back();
+    if (owned_descendent_uuids)
+      descendent_uuids = nullptr;
   }
 
   if (reservation.tid) {
