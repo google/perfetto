@@ -135,6 +135,21 @@ def print_no_profile_error():
     "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
     file=sys.stderr)
 
+SDK = {
+    'R': 30,
+}
+
+def release_or_newer(release):
+  sdk = int(subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']
+  ).decode('utf-8').strip())
+  if sdk >= SDK[release]:
+    return True
+  codename = subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.build.version.codename']
+  ).decode('utf-8').strip()
+  return codename == release
+
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument(
@@ -250,10 +265,9 @@ def main(argv):
 
   args = parser.parse_args()
 
-  codename = subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.build.id']).decode('utf-8')[0]
-
-  uuid_trace = codename >= 'R'
+  # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
+  # this.
+  uuid_trace = release_or_newer('R')
   if uuid_trace:
     profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
   else:
