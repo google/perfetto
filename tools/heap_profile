@@ -384,7 +384,7 @@ def main(argv):
       ['adb', 'exec-out',
        PERFETTO_CMD.format(cfg=cfg)]).strip()
   try:
-    int(perfetto_pid.strip())
+    perfetto_pid = int(perfetto_pid.strip())
   except ValueError:
     print("Failed to invoke perfetto: {}".format(perfetto_pid), file=sys.stderr)
     return 1
@@ -403,7 +403,7 @@ def main(argv):
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
-    subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
+    subprocess.call(['adb', 'shell', 'kill', '-INT', str(perfetto_pid)])
   if args.simpleperf:
     subprocess.check_call(['adb', 'shell', 'killall', '-INT', 'simpleperf'])
     print("Waiting for simpleperf to exit.")
@@ -432,7 +432,7 @@ def main(argv):
           os.path.join(profile_target, 'raw-trace')],
       env=os.environ)
   profile_path = None
-  for word in trace_to_text_output.split():
+  for word in trace_to_text_output.decode('utf-8').split():
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
