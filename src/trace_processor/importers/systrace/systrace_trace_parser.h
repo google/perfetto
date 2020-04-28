@@ -44,6 +44,8 @@ class SystraceTraceParser : public ChunkedTraceReader {
     kHtmlBeforeSystrace,
     kTraceDataSection,
     kSystrace,
+    kProcessDumpLong,
+    kProcessDumpShort,
     kEndOfSystrace,
   };
 
@@ -55,6 +57,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
 
   SystraceLineTokenizer line_tokenizer_;
   SystraceLineParser line_parser_;
+  TraceProcessorContext* ctx_;
 };
 
 }  // namespace trace_processor

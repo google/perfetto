@@ -61,7 +61,6 @@ const char kKthreaddName[] = "kthreadd";
 
 FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
-      binder_tracker_(context),
       rss_stat_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
@@ -327,27 +326,27 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kBinderTransactionFieldNumber: {
-        binder_tracker_.Transaction(ts, pid);
+        ParseBinderTransaction(ts, pid, data);
         break;
       }
       case FtraceEvent::kBinderTransactionReceivedFieldNumber: {
-        binder_tracker_.TransactionReceived(ts, pid);
+        ParseBinderTransactionReceived(ts, pid, data);
         break;
       }
       case FtraceEvent::kBinderTransactionAllocBufFieldNumber: {
-        binder_tracker_.TransactionAllocBuf(ts, pid);
+        ParseBinderTransactionAllocBuf(ts, pid, data);
         break;
       }
       case FtraceEvent::kBinderLockFieldNumber: {
-        binder_tracker_.Lock(ts, pid);
+        ParseBinderLock(ts, pid, data);
         break;
       }
       case FtraceEvent::kBinderUnlockFieldNumber: {
-        binder_tracker_.Unlock(ts, pid);
+        ParseBinderUnlock(ts, pid, data);
         break;
       }
       case FtraceEvent::kBinderLockedFieldNumber: {
-        binder_tracker_.Locked(ts, pid);
+        ParseBinderLocked(ts, pid, data);
         break;
       }
       case FtraceEvent::kSdeTracingMarkWriteFieldNumber: {
@@ -786,6 +785,67 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   StringId comm = context_->storage->InternString(evt.newcomm());
   context_->process_tracker->UpdateThreadName(tid, comm);
   context_->process_tracker->UpdateProcessNameFromThreadName(tid, comm);
+}
+
+void FtraceParser::ParseBinderTransaction(int64_t timestamp,
+                                          uint32_t pid,
+                                          ConstBytes blob) {
+  protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob.data,
+                                                            blob.size);
+  int32_t dest_node = static_cast<int32_t>(evt.target_node());
+  int32_t dest_tgid = static_cast<int32_t>(evt.to_proc());
+  int32_t dest_tid = static_cast<int32_t>(evt.to_thread());
+  int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
+  bool is_reply = static_cast<int32_t>(evt.reply()) == 1;
+  uint32_t flags = static_cast<uint32_t>(evt.flags());
+  auto code_str = base::IntToHexString(evt.code()) + " Java Layer Dependent";
+  StringId code = context_->storage->InternString(base::StringView(code_str));
+  BinderTracker::GetOrCreate(context_)->Transaction(
+      timestamp, pid, transaction_id, dest_node, dest_tgid, dest_tid, is_reply,
+      flags, code);
+}
+
+void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
+                                                  uint32_t pid,
+                                                  ConstBytes blob) {
+  protos::pbzero::BinderTransactionReceivedFtraceEvent::Decoder evt(blob.data,
+                                                                    blob.size);
+  int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
+  BinderTracker::GetOrCreate(context_)->TransactionReceived(timestamp, pid,
+                                                            transaction_id);
+}
+
+void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
+                                                  uint32_t pid,
+                                                  ConstBytes blob) {
+  protos::pbzero::BinderTransactionAllocBufFtraceEvent::Decoder evt(blob.data,
+                                                                    blob.size);
+  uint64_t data_size = static_cast<uint64_t>(evt.data_size());
+  uint64_t offsets_size = static_cast<uint64_t>(evt.offsets_size());
+
+  BinderTracker::GetOrCreate(context_)->TransactionAllocBuf(
+      timestamp, pid, data_size, offsets_size);
+}
+
+void FtraceParser::ParseBinderLocked(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderLockedFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->Locked(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderLock(int64_t timestamp,
+                                   uint32_t pid,
+                                   ConstBytes blob) {
+  protos::pbzero::BinderLockFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->Lock(timestamp, pid);
+}
+
+void FtraceParser::ParseBinderUnlock(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderUnlockFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->Unlock(timestamp, pid);
 }
 
 }  // namespace trace_processor

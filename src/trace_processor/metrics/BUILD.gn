@@ -35,6 +35,7 @@ sql_files = [
   "android/cpu_info.sql",
   "android/display_metrics.sql",
   "android/heap_profile_callsites.sql",
+  "android/hsc_startups.sql",
   "android/android_hwui_metric.sql",
   "android/java_heap_histogram.sql",
   "android/java_heap_stats.sql",
