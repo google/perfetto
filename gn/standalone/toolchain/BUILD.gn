@@ -34,6 +34,7 @@ declare_args() {
 #    This is used by OSSFuzz.
 declare_args() {
   sysroot = ""
+  gcc_toolchain = ""
   ar = "ar"
   if (is_linux_host) {
     linker = "gold"
@@ -65,6 +66,7 @@ declare_args() {
 
 declare_args() {
   target_sysroot = sysroot
+  target_gcc_toolchain = ""
   if (!is_cross_compiling) {
     target_triplet = ""
   } else if (target_os == "mac" && target_cpu == "x64") {
@@ -140,6 +142,11 @@ template("gcc_like_toolchain") {
       _invoker_sysroot = invoker.sysroot
       cc = "$cc --sysroot=$_invoker_sysroot"
       cxx = "$cxx --sysroot=$_invoker_sysroot"
+    }
+    if (defined(invoker.gcc_toolchain) && invoker.gcc_toolchain != "") {
+      assert(is_clang, "gcc_toolchain can be used only when using clang")
+      _invoker_gcc_toolchain = invoker.gcc_toolchain
+      ld_arg = "$ld_arg --gcc-toolchain=$_invoker_gcc_toolchain"
     }
 
     tool("cc") {
@@ -232,6 +239,7 @@ gcc_like_toolchain("gcc_like") {
   cxx = target_cxx
   linker = target_linker
   sysroot = target_sysroot
+  gcc_toolchain = target_gcc_toolchain
 }
 
 gcc_like_toolchain("gcc_like_host") {
@@ -242,6 +250,7 @@ gcc_like_toolchain("gcc_like_host") {
   cxx = cxx
   linker = linker
   sysroot = sysroot
+  gcc_toolchain = gcc_toolchain
 }
 
 gcc_like_toolchain("wasm") {
