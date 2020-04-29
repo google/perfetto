@@ -60,3 +60,27 @@ export function drawDoubleHeadedArrow(
     ctx.closePath();
   }
 }
+
+export function drawIncompleteSlice(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    length: number,
+    width: number,
+    color: string) {
+  ctx.beginPath();
+  ctx.fillStyle = color;
+  const triangleSize = width / 4;
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + length, y);
+  ctx.lineTo(x + length - 3, y + triangleSize * 0.5);
+  ctx.lineTo(x + length, y + triangleSize);
+  ctx.lineTo(x + length - 3, y + (triangleSize * 1.5));
+  ctx.lineTo(x + length, y + 2 * triangleSize);
+  ctx.lineTo(x + length - 3, y + (triangleSize * 2.5));
+  ctx.lineTo(x + length, y + 3 * triangleSize);
+  ctx.lineTo(x + length - 3, y + (triangleSize * 3.5));
+  ctx.lineTo(x + length, y + 4 * triangleSize);
+  ctx.lineTo(x, y + width);
+  ctx.fill();
+}
