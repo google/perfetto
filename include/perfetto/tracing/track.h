@@ -91,8 +91,11 @@ struct PERFETTO_EXPORT Track {
   static Track Global(uint64_t id) { return Track(id, Track()); }
 
  protected:
-  static Track MakeThreadTrack(base::PlatformThreadId tid_) {
-    return Track(static_cast<uint64_t>(tid_), MakeProcessTrack());
+  static Track MakeThreadTrack(base::PlatformThreadId tid) {
+    // If tid were 0 here (which is an invalid tid), we would create a thread
+    // track with a uuid that conflicts with the corresponding ProcessTrack.
+    PERFETTO_DCHECK(tid != 0);
+    return Track(static_cast<uint64_t>(tid), MakeProcessTrack());
   }
 
   static Track MakeProcessTrack() { return Track(process_uuid, Track()); }
