@@ -280,7 +280,7 @@ export class TraceController extends Controller<States> {
     globals.dispatchMultiple(actions);
 
     // Make sure the helper views are available before we start adding tracks.
-    await this.initaliseHelperViews();
+    await this.initialiseHelperViews();
 
     {
       // When we reload from a permalink don't create extra tracks:
@@ -603,8 +603,8 @@ export class TraceController extends Controller<States> {
           tid,
           upid,
           pid,
-          thread.name as threadName,
-          process.name as processName,
+          ifnull(thread_track.name, thread.name) as threadName,
+          ifnull(process_track.name, process.name) as processName,
           total_dur as totalDur,
           ifnull(has_sched, false) as hasSched
         from
@@ -612,7 +612,9 @@ export class TraceController extends Controller<States> {
           left join (select utid, count(1), true as has_sched
               from sched group by utid
           ) using(utid)
+          left join process_track using(upid)
           left join process using(upid)
+          left join thread_track using(utid)
           left join (select upid, sum(dur) as total_dur
               from sched join thread using(utid)
               group by upid
@@ -914,7 +916,7 @@ export class TraceController extends Controller<States> {
     globals.publish('OverviewData', slicesData);
   }
 
-  async initaliseHelperViews() {
+  async initialiseHelperViews() {
     const engine = assertExists<Engine>(this.engine);
     this.updateStatus('Creating helper views');
     let event = 'sched_waking';
