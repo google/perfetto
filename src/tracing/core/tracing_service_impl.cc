@@ -89,6 +89,7 @@ constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kMaxConcurrentTracingSessions = 15;
 constexpr int kMaxConcurrentTracingSessionsPerUid = 5;
+constexpr int kMaxConcurrentTracingSessionsForStatsdUid = 10;
 constexpr int64_t kMinSecondsBetweenTracesGuardrail = 5 * 60;
 
 constexpr uint32_t kMillisPerHour = 3600000;
@@ -591,9 +592,15 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       [consumer](const decltype(tracing_sessions_)::value_type& s) {
         return s.second.consumer_uid == consumer->uid_;
       });
-  if (sessions_for_uid >= kMaxConcurrentTracingSessionsPerUid) {
-    PERFETTO_ELOG("Too many concurrent tracing sesions (%ld) for uid %d",
-                  sessions_for_uid, static_cast<int>(consumer->uid_));
+
+  int per_uid_limit = kMaxConcurrentTracingSessionsPerUid;
+  if (consumer->uid_ == 1066 /* AID_STATSD*/) {
+    per_uid_limit = kMaxConcurrentTracingSessionsForStatsdUid;
+  }
+  if (sessions_for_uid >= per_uid_limit) {
+    PERFETTO_ELOG(
+        "Too many concurrent tracing sesions (%ld) for uid %d limit is %d",
+        sessions_for_uid, static_cast<int>(consumer->uid_), per_uid_limit);
     return false;
   }
 

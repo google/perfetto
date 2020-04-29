@@ -48,6 +48,7 @@ sql_files = [
   "android/upid_span_view.sql",
   "android/unmapped_java_symbols.sql",
   "android/unsymbolized_frames.sql",
+  "chrome/chrome_processes.sql",
 ]
 
 config("gen_config") {
