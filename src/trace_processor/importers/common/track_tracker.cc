@@ -362,6 +362,8 @@ TrackId TrackTracker::ResolveDescriptorTrack(
     }
 
     descendent_uuids->pop_back();
+    if (owned_descendent_uuids)
+      descendent_uuids = nullptr;
   }
 
   if (reservation.tid) {
@@ -478,8 +480,20 @@ TrackId TrackTracker::ResolveDescriptorTrack(
     // The global track with no uuid is the default global track (e.g. for
     // global instant events). Any other global tracks are considered children
     // of the default track.
-    if (!parent_track_id && uuid)
-      parent_track_id = GetOrCreateDefaultDescriptorTrack();
+    if (!parent_track_id && uuid) {
+      // Detect loops where the default track has a parent that itself is a
+      // global track (and thus should be parent of the default track).
+      if (descendent_uuids &&
+          std::find(descendent_uuids->begin(), descendent_uuids->end(),
+                    kDefaultDescriptorTrackUuid) != descendent_uuids->end()) {
+        PERFETTO_ELOG(
+            "Loop detected in parent_track_uuid hierarchy at track %" PRIu64
+            " with parent %" PRIu64,
+            uuid, kDefaultDescriptorTrackUuid);
+      } else {
+        parent_track_id = GetOrCreateDefaultDescriptorTrack();
+      }
+    }
   }
 
   auto args = context_->args_tracker->AddArgsTo(*track_id);

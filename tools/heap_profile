@@ -28,12 +28,18 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib
 import uuid
 
+try:
+    # Python 2.x
+    from urllib import urlretrieve
+except ImportError:
+    # Python 3.x
+    from urllib.request import urlretrieve
+
 TRACE_TO_TEXT_SHAS = {
-    'linux': '8e7b02e8ce710f8c8f9c7c7d5aa00cc724a7c059',
-    'mac': '332099f1650ec7eaa57069344b5bcf3c23a08839',
+    'linux': 'aba0e660818bfc249992ebbceb13a2e4c9a62c3a',
+    'mac': 'c7d1b9d904f008bfb95125b204837eff946c3ed7',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
@@ -65,7 +71,7 @@ def load_trace_to_text(platform):
       return local_file
 
   url = TRACE_TO_TEXT_BASE_URL + file_name
-  urllib.urlretrieve(url, local_file)
+  urlretrieve(url, local_file)
   if not check_hash(local_file, sha_value):
     os.remove(local_file)
     raise ValueError("Invalid signature.")
@@ -113,13 +119,9 @@ CONTINUOUS_DUMP = """
       }}
 """
 
-PROFILE_DEVICE_PATH = '/data/misc/perfetto-traces/profile-' + UUID
 PROFILE_LOCAL_PATH = '/tmp/profile-' + UUID
 
-PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
-                'perfetto --txt -c - -o ' + PROFILE_DEVICE_PATH + ' -d')
 IS_INTERRUPTED = False
-
 
 def sigint_handler(sig, frame):
   global IS_INTERRUPTED
@@ -132,6 +134,21 @@ def print_no_profile_error():
     "If this is unexpected, check "
     "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
     file=sys.stderr)
+
+SDK = {
+    'R': 30,
+}
+
+def release_or_newer(release):
+  sdk = int(subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']
+  ).decode('utf-8').strip())
+  if sdk >= SDK[release]:
+    return True
+  codename = subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.build.version.codename']
+  ).decode('utf-8').strip()
+  return codename == release
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -219,7 +236,7 @@ def main(argv):
       action="store_true")
   parser.add_argument(
       "--dump-at-max",
-      help="Dump the maximum memory usage"
+      help="Dump the maximum memory usage "
       "rather than at the time of the dump.",
       action="store_true")
   parser.add_argument(
@@ -247,6 +264,18 @@ def main(argv):
       default=None)
 
   args = parser.parse_args()
+
+  # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
+  # this.
+  uuid_trace = release_or_newer('R')
+  if uuid_trace:
+    profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
+  else:
+    user = subprocess.check_output(
+      ['adb', 'shell', 'whoami']).decode('utf-8').strip()
+    profile_device_path = '/data/misc/perfetto-traces/profile-' + user
+  perfetto_cmd = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
+                  'perfetto --txt -c - -o ' + profile_device_path + ' -d')
 
   fail = False
   if args.block_client and args.no_block_client:
@@ -376,9 +405,9 @@ def main(argv):
 
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out',
-       PERFETTO_CMD.format(cfg=cfg)]).strip()
+       perfetto_cmd.format(cfg=cfg)]).strip()
   try:
-    int(perfetto_pid.strip())
+    perfetto_pid = int(perfetto_pid.strip())
   except ValueError:
     print("Failed to invoke perfetto: {}".format(perfetto_pid), file=sys.stderr)
     return 1
@@ -397,7 +426,7 @@ def main(argv):
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
-    subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
+    subprocess.call(['adb', 'shell', 'kill', '-INT', str(perfetto_pid)])
   if args.simpleperf:
     subprocess.check_call(['adb', 'shell', 'killall', '-INT', 'simpleperf'])
     print("Waiting for simpleperf to exit.")
@@ -415,18 +444,19 @@ def main(argv):
     time.sleep(1)
 
   subprocess.check_call([
-      'adb', 'pull', PROFILE_DEVICE_PATH,
+      'adb', 'pull', profile_device_path,
       os.path.join(profile_target, 'raw-trace')
   ], stdout=NULL)
-  subprocess.check_call(
-          ['adb', 'shell', 'rm', PROFILE_DEVICE_PATH], stdout=NULL)
+  if uuid_trace:
+    subprocess.check_call(
+          ['adb', 'shell', 'rm', profile_device_path], stdout=NULL)
 
   trace_to_text_output = subprocess.check_output(
       [trace_to_text_binary, 'profile',
           os.path.join(profile_target, 'raw-trace')],
       env=os.environ)
   profile_path = None
-  for word in trace_to_text_output.split():
+  for word in trace_to_text_output.decode('utf-8').split():
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
