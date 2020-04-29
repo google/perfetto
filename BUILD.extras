@@ -44,9 +44,9 @@ perfetto_java_proto_library(
 )
 
 perfetto_java_proto_library(
-    name = "protos_perfetto_trace_merged_config_java",
+    name = "protos_perfetto_config_merged_config_java",
     deps = [
-        ":protos_perfetto_trace_merged_config_protos",
+        ":protos_perfetto_config_merged_config_protos",
     ],
 )
 
