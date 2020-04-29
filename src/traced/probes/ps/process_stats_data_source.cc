@@ -24,6 +24,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -109,10 +110,6 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   ProcessStatsConfig::Decoder cfg(ds_config.process_stats_config_raw());
   record_thread_names_ = cfg.record_thread_names();
   dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
-  record_thread_time_in_state_ = cfg.record_thread_time_in_state();
-  thread_time_in_state_cache_size_ = cfg.thread_time_in_state_cache_size();
-  if (thread_time_in_state_cache_size_ == 0)
-    thread_time_in_state_cache_size_ = kThreadTimeInStateCacheSize;
 
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
@@ -133,6 +130,12 @@ ProcessStatsDataSource::ProcessStatsDataSource(
     process_stats_cache_ttl_ticks_ =
         std::max(proc_stats_ttl_ms / poll_period_ms_, 1u);
   }
+
+  record_thread_time_in_state_ = cfg.record_thread_time_in_state();
+  thread_time_in_state_cache_size_ = cfg.thread_time_in_state_cache_size();
+  if (thread_time_in_state_cache_size_ == 0)
+    thread_time_in_state_cache_size_ = kThreadTimeInStateCacheSize;
+  thread_time_in_state_cache_.resize(thread_time_in_state_cache_size_);
 }
 
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
@@ -390,6 +393,8 @@ void ProcessStatsDataSource::Tick(
     thiz.cache_ticks_ = 0;
     thiz.process_stats_cache_.clear();
     thiz.thread_time_in_state_cache_.clear();
+    thiz.thread_time_in_state_cache_.resize(
+        thiz.thread_time_in_state_cache_size_);
   }
 }
 
@@ -435,7 +440,7 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
       }
     }
 
-    if (record_thread_time_in_state_) {
+    if (record_thread_time_in_state_ && ShouldWriteThreadStats(pid)) {
       if (auto task_dir = OpenProcTaskDir(pid)) {
         while (int32_t tid = ReadNextNumericDir(*task_dir))
           WriteThreadStats(pid, tid);
@@ -449,15 +454,6 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
   // Ensure that we write once long-term process info (e.g., name) for new pids
   // that we haven't seen before.
   WriteProcessTree(pids);
-
-  // Ensure the cache stays within bounds by erasing some entries.
-  while (thread_time_in_state_cache_.size() >
-         thread_time_in_state_cache_size_) {
-    auto random = thread_time_in_state_cache_.begin();
-    std::advance(random, rand() % static_cast<int32_t>(
-                                      thread_time_in_state_cache_.size()));
-    thread_time_in_state_cache_.erase(random);
-  }
 }
 
 // Returns true if the stats for the given |pid| have been written, false it
@@ -571,6 +567,42 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
   return proc_status_has_mem_counters;
 }
 
+// Fast check to avoid reading information about all threads of a process.
+// If the total process cpu time has not changed, we can skip reading
+// time_in_state for all its threads.
+bool ProcessStatsDataSource::ShouldWriteThreadStats(int32_t pid) {
+  std::string stat = ReadProcPidFile(pid, "stat");
+  // /proc/pid/stat may contain an additional space inside comm. For example:
+  // 1 (comm foo) 2 3 ...
+  // We strip the prefix including comm. So the result is: 2 3 ...
+  size_t comm_end = stat.rfind(") ");
+  if (comm_end == std::string::npos)
+    return false;
+  std::string stat_after_comm = stat.substr(comm_end + 2);
+
+  // Indices of space separated fields in /proc/pid/stat offset by 2 to make
+  // up for fields removed by stripping the prefix including comm.
+  const uint32_t kStatCTimeIndex = 13 - 2;
+  const uint32_t kStatSTimeIndex = 14 - 2;
+
+  auto stat_parts = base::SplitString(stat_after_comm, " ");
+  if (stat_parts.size() <= kStatSTimeIndex)
+    return false;
+  auto maybe_ctime = base::StringToUInt64(stat_parts[kStatCTimeIndex]);
+  if (!maybe_ctime.has_value())
+    return false;
+  auto maybe_stime = base::StringToUInt64(stat_parts[kStatSTimeIndex]);
+  if (!maybe_stime.has_value())
+    return false;
+  uint64_t current = maybe_ctime.value() + maybe_stime.value();
+  uint64_t& cached = process_stats_cache_[pid].cpu_time;
+  if (current != cached) {
+    cached = current;
+    return true;
+  }
+  return false;
+}
+
 void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
   // Reads /proc/tid/time_in_state, which looks like:
   // cpu0
@@ -597,7 +629,6 @@ void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
       continue;
     uint32_t freq = ToU32(key_value.cur_token());
     uint32_t freq_index = cpu_freq_info_->GetCpuFreqIndex(last_cpu, freq);
-    TidCpuFreqIndex key = {tid, freq_index};
     if (!key_value.Next())
       continue;
     auto maybe_ticks = base::CStringToUInt64(key_value.cur_token());
@@ -606,15 +637,22 @@ void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
     uint64_t ticks = maybe_ticks.value();
     if (ticks == 0)
       continue;
-    auto& cached_ticks = thread_time_in_state_cache_[key];
-    if (ticks != cached_ticks) {
+    base::Hash key_hash;
+    key_hash.Update(tid);
+    key_hash.Update(freq_index);
+    size_t key = key_hash.digest() % thread_time_in_state_cache_size_;
+    PERFETTO_DCHECK(thread_time_in_state_cache_.size() ==
+                    thread_time_in_state_cache_size_);
+    TimeInStateCacheEntry& cached = thread_time_in_state_cache_[key];
+    TimeInStateCacheEntry current = {tid, freq_index, ticks};
+    if (current != cached) {
+      cached = current;
       if (thread == nullptr) {
         thread = GetOrCreateStatsProcess(pid)->add_threads();
         thread->set_tid(tid);
       }
       thread->add_cpu_freq_indices(freq_index);
       thread->add_cpu_freq_ticks(ticks);
-      cached_ticks = ticks;
     }
   }
 }
@@ -634,6 +672,7 @@ void ProcessStatsDataSource::ClearIncrementalState() {
   cache_ticks_ = 0;
   process_stats_cache_.clear();
   thread_time_in_state_cache_.clear();
+  thread_time_in_state_cache_.resize(thread_time_in_state_cache_size_);
 
   // Set the relevant flag in the next packet.
   did_clear_incremental_state_ = true;
