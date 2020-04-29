@@ -486,12 +486,18 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   auto fake_proc = base::TempDir::Create();
   const int kPid = 1;
   make_proc_path(fake_proc, kPid);
+  const int kIgnoredPid = 5;
+  make_proc_path(fake_proc, kIgnoredPid);
 
   // Populate a fake /proc/1/task directory.
   auto fake_proc_task = base::TempDir::Create();
   const int kTids[] = {1, 2};
   for (int tid : kTids)
     make_proc_path(fake_proc_task, tid);
+  // Populate a fake /proc/5/task directory.
+  auto fake_ignored_proc_task = base::TempDir::Create();
+  const int kIgnoredTid = 5;
+  make_proc_path(fake_ignored_proc_task, kIgnoredTid);
 
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
 
@@ -500,9 +506,16 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   }));
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "status"))
       .WillRepeatedly(
-          Return("Name:	pid_10\nVmSize:	 100 kB\nVmRSS:\t100  kB\n"));
+          Return("Name:	pid_1\nVmSize:	 100 kB\nVmRSS:\t100  kB\n"));
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "oom_score_adj"))
-      .WillRepeatedly(Return("900"));
+      .WillRepeatedly(Return("901"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "stat"))
+      .WillOnce(Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 54 117 4"))
+      // ctime++
+      .WillOnce(Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 55 117 4"))
+      // stime++
+      .WillOnce(
+          Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 55 118 4"));
   EXPECT_CALL(*data_source, OpenProcTaskDir(kPid))
       .WillRepeatedly(Invoke([&fake_proc_task](int32_t) {
         return base::ScopedDir(opendir(fake_proc_task.path().c_str()));
@@ -521,17 +534,39 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
         return "cpu0\n300000 200\n748800 0\n1324800 30\ncpu1\n300000 "
                "100\n652800 60\n";
       }));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kIgnoredPid, "status"))
+      .WillRepeatedly(
+          Return("Name:	pid_5\nVmSize:	 100 kB\nVmRSS:\t100  kB\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kIgnoredPid, "oom_score_adj"))
+      .WillRepeatedly(Return("905"));
+  EXPECT_CALL(*data_source, OpenProcTaskDir(kIgnoredPid))
+      .WillRepeatedly(Invoke([&fake_ignored_proc_task](int32_t) {
+        return base::ScopedDir(opendir(fake_ignored_proc_task.path().c_str()));
+      }));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kIgnoredPid, "stat"))
+      .WillRepeatedly(
+          Return("5 (pid_5) S 1 5 0 0 -1 4210944 2197 2451 0 1 99 99 4"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kIgnoredTid, "time_in_state"))
+      .Times(2)
+      .WillRepeatedly(
+          Return("cpu0\n300000 10\n748800 0\ncpu1\n300000 00\n652800 20\n"));
 
   data_source->Start();
   task_runner_.RunUntilCheckpoint("all_done");
   data_source->Flush(1 /* FlushRequestId */, []() {});
 
-  std::vector<protos::gen::ProcessStats::Process> processes;
+  // Collect all process packets order by their timestamp and pid.
+  using TimestampPid = std::pair</* timestamp */ uint64_t, /* pid */ int32_t>;
+  std::map<TimestampPid, protos::gen::ProcessStats::Process> processes_map;
   for (const auto& packet : writer_raw_->GetAllTracePackets())
     for (const auto& process : packet.process_stats().processes())
-      processes.push_back(process);
+      processes_map.insert({{packet.timestamp(), process.pid()}, process});
+  std::vector<protos::gen::ProcessStats::Process> processes;
+  for (auto it : processes_map)
+    processes.push_back(it.second);
 
-  EXPECT_EQ(processes.size(), 3u);
+  // 3 packets for pid=1, 2 packets for pid=5.
+  EXPECT_EQ(processes.size(), 5u);
 
   auto compare_tid = [](protos::gen::ProcessStats_Thread& l,
                         protos::gen::ProcessStats_Thread& r) {
@@ -539,6 +574,7 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   };
 
   // First pull has all threads.
+  // Check pid = 1.
   auto threads = processes[0].threads();
   EXPECT_EQ(threads.size(), 2u);
   std::sort(threads.begin(), threads.end(), compare_tid);
@@ -550,9 +586,14 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_EQ(thread.tid(), 2);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 10u, 11u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(10, 50, 60));
+  // Check pid = 5.
+  threads = processes[1].threads();
+  EXPECT_EQ(threads.size(), 1u);
+  EXPECT_EQ(threads[0].tid(), 5);
+  EXPECT_THAT(threads[0].cpu_freq_ticks(), ElementsAre(10, 20));
 
   // Second pull has only one thread with delta.
-  threads = processes[1].threads();
+  threads = processes[2].threads();
   EXPECT_EQ(threads.size(), 1u);
   thread = threads[0];
   EXPECT_EQ(thread.tid(), 2);
@@ -560,7 +601,8 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(20, 30, 100));
 
   // Third pull has all thread because cache was cleared.
-  threads = processes[2].threads();
+  // Check pid = 1.
+  threads = processes[3].threads();
   EXPECT_EQ(threads.size(), 2u);
   std::sort(threads.begin(), threads.end(), compare_tid);
   thread = threads[0];
@@ -571,6 +613,11 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_EQ(thread.tid(), 2);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 6u, 10u, 11u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(200, 30, 100, 60));
+  // Check pid = 5.
+  threads = processes[4].threads();
+  EXPECT_EQ(threads.size(), 1u);
+  EXPECT_EQ(threads[0].tid(), 5);
+  EXPECT_THAT(threads[0].cpu_freq_ticks(), ElementsAre(10, 20));
 
   for (const std::string& path : dirs_to_delete)
     rmdir(path.c_str());
