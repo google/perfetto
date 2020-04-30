@@ -46,7 +46,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
-WHERE frame_times.ts < (SELECT ts FROM functions WHERE function_name LIKE "animator%" AND process_name LIKE "%lix.mediaclient" ORDER BY ts LIMIT 1)
+WHERE frame_times.ts < (SELECT ts FROM functions WHERE function_name LIKE "animator%" AND process_name LIKE "%lix.mediaclient" ORDER BY ts LIMIT 1) AND frame_times.name LIKE "%lix.mediaclient%"
 ORDER BY ts_total LIMIT 1;
 
 -- Maps
