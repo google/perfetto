@@ -190,11 +190,13 @@ TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
 }
 
 void TrackTracker::ReserveDescriptorProcessTrack(uint64_t uuid,
+                                                 StringId name,
                                                  uint32_t pid,
                                                  int64_t timestamp) {
   DescriptorTrackReservation reservation;
   reservation.min_timestamp = timestamp;
   reservation.pid = pid;
+  reservation.name = name;
 
   std::map<uint64_t, DescriptorTrackReservation>::iterator it;
   bool inserted;
@@ -219,6 +221,7 @@ void TrackTracker::ReserveDescriptorProcessTrack(uint64_t uuid,
 
 void TrackTracker::ReserveDescriptorThreadTrack(uint64_t uuid,
                                                 uint64_t parent_uuid,
+                                                StringId name,
                                                 uint32_t pid,
                                                 uint32_t tid,
                                                 int64_t timestamp) {
@@ -227,6 +230,7 @@ void TrackTracker::ReserveDescriptorThreadTrack(uint64_t uuid,
   reservation.parent_uuid = parent_uuid;
   reservation.pid = pid;
   reservation.tid = tid;
+  reservation.name = name;
 
   std::map<uint64_t, DescriptorTrackReservation>::iterator it;
   bool inserted;
@@ -251,6 +255,7 @@ void TrackTracker::ReserveDescriptorThreadTrack(uint64_t uuid,
 
 void TrackTracker::ReserveDescriptorCounterTrack(uint64_t uuid,
                                                  uint64_t parent_uuid,
+                                                 StringId name,
                                                  StringId category,
                                                  int64_t unit_multiplier,
                                                  bool is_incremental,
@@ -258,6 +263,7 @@ void TrackTracker::ReserveDescriptorCounterTrack(uint64_t uuid,
   DescriptorTrackReservation reservation;
   reservation.parent_uuid = parent_uuid;
   reservation.is_counter = true;
+  reservation.name = name;
   reservation.category = category;
   reservation.unit_multiplier = unit_multiplier;
   reservation.is_incremental = is_incremental;
@@ -282,9 +288,11 @@ void TrackTracker::ReserveDescriptorCounterTrack(uint64_t uuid,
 }
 
 void TrackTracker::ReserveDescriptorChildTrack(uint64_t uuid,
-                                               uint64_t parent_uuid) {
+                                               uint64_t parent_uuid,
+                                               StringId name) {
   DescriptorTrackReservation reservation;
   reservation.parent_uuid = parent_uuid;
+  reservation.name = name;
 
   std::map<uint64_t, DescriptorTrackReservation>::iterator it;
   bool inserted;
@@ -326,6 +334,17 @@ TrackId TrackTracker::ResolveDescriptorTrack(
     uint64_t uuid,
     const DescriptorTrackReservation& reservation,
     std::vector<uint64_t>* descendent_uuids) {
+  auto set_track_name_and_return = [this, &reservation](TrackId track_id) {
+    // Initialize the track name here, so that, if a name was given in the
+    // reservation, it is set immediately after resolution takes place.
+    if (reservation.name != kNullStringId) {
+      auto* tracks = context_->storage->mutable_track_table();
+      tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id),
+                                  reservation.name);
+    }
+    return track_id;
+  };
+
   static constexpr size_t kMaxAncestors = 10;
 
   // Try to resolve any parent tracks recursively, too.
@@ -393,7 +412,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
 
       descriptor_uuids_by_utid_[utid] = uuid;
     }
-    return InternThreadTrack(utid);
+    return set_track_name_and_return(InternThreadTrack(utid));
   }
 
   if (reservation.pid) {
@@ -419,7 +438,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
 
       descriptor_uuids_by_upid_[upid] = uuid;
     }
-    return InternProcessTrack(upid);
+    return set_track_name_and_return(InternProcessTrack(upid));
   }
 
   base::Optional<TrackId> track_id;
@@ -506,7 +525,7 @@ TrackId TrackTracker::ResolveDescriptorTrack(
   if (reservation.category != kNullStringId) {
     args.AddArg(category_key_, Variadic::String(reservation.category));
   }
-  return *track_id;
+  return set_track_name_and_return(*track_id);
 }
 
 TrackId TrackTracker::GetOrCreateDefaultDescriptorTrack() {
@@ -518,13 +537,9 @@ TrackId TrackTracker::GetOrCreateDefaultDescriptorTrack() {
     return *track_id;
 
   // Otherwise reserve a new track and resolve it.
-  ReserveDescriptorChildTrack(kDefaultDescriptorTrackUuid, /*parent_uuid=*/0);
-  track_id = GetDescriptorTrack(kDefaultDescriptorTrackUuid);
-
-  auto* tracks = context_->storage->mutable_track_table();
-  tracks->mutable_name()->Set(*tracks->id().IndexOf(*track_id),
+  ReserveDescriptorChildTrack(kDefaultDescriptorTrackUuid, /*parent_uuid=*/0,
                               default_descriptor_track_name_);
-  return *track_id;
+  return *GetDescriptorTrack(kDefaultDescriptorTrackUuid);
 }
 
 TrackId TrackTracker::GetOrCreateTriggerTrack() {
