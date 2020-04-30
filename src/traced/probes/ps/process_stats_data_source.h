@@ -18,7 +18,6 @@
 #define SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 
 #include <limits>
-#include <map>
 #include <memory>
 #include <set>
 #include <unordered_map>
@@ -87,6 +86,9 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t vm_locked_kb = std::numeric_limits<uint32_t>::max();
     uint32_t vm_hvm_kb = std::numeric_limits<uint32_t>::max();
     int oom_score_adj = std::numeric_limits<int>::max();
+
+    // ctime + stime from /proc/pid/stat
+    uint64_t cpu_time = std::numeric_limits<uint64_t>::max();
   };
 
   // Common functions.
@@ -109,6 +111,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
+  bool ShouldWriteThreadStats(int32_t pid);
   void WriteThreadStats(int32_t pid, int32_t tid);
 
   // Scans /proc/pid/status and writes the ProcessTree packet for input pids.
@@ -158,9 +161,13 @@ class ProcessStatsDataSource : public ProbesDataSource {
   uint32_t process_stats_cache_ttl_ticks_ = 0;
   std::unordered_map<int32_t, CachedProcessStats> process_stats_cache_;
 
-  using TidCpuFreqIndex =
-      std::tuple</* tid */ int32_t, /* cpu_freq_index */ uint32_t>;
-  std::map<TidCpuFreqIndex, uint64_t> thread_time_in_state_cache_;
+  using TimeInStateCacheEntry = std::tuple</* tid */ int32_t,
+                                           /* cpu_freq_index */ uint32_t,
+                                           /* ticks */ uint64_t>;
+
+  // Cache for time in state. Size specificed in the config. Values are stored
+  // at index: hash(tid, cpu_freq_index) % thread_time_in_state_cache_size_.
+  std::vector<TimeInStateCacheEntry> thread_time_in_state_cache_;
   uint32_t thread_time_in_state_cache_size_;
 
   std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
