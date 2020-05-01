@@ -61,6 +61,9 @@ class TrackEventTokenizer {
       const protos::pbzero::ThreadDescriptor_Decoder&);
 
   TraceProcessorContext* context_;
+
+  const StringId counter_name_thread_time_id_;
+  const StringId counter_name_thread_instruction_count_id_;
 };
 
 }  // namespace trace_processor

@@ -54,6 +54,7 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -1442,6 +1443,110 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[1], 0);
   EXPECT_EQ(storage_->thread_slices().thread_instruction_counts()[1], 0);
   EXPECT_EQ(storage_->thread_slices().thread_instruction_deltas()[1], 0);
+}
+
+TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
+  context_.sorter.reset(new TraceSorter(
+      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
+
+  // Descriptors with timestamps after the event below. They will be tokenized
+  // in the order they appear here, but then resorted before parsing to appear
+  // after the events below.
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(3000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(1);
+    auto* thread_desc = track_desc->set_thread();
+    thread_desc->set_pid(5);
+    thread_desc->set_tid(1);
+    thread_desc->set_thread_name("t1");
+    // Default to track for "t1" and an extra counter for thread time.
+    auto* track_event_defaults =
+        packet->set_trace_packet_defaults()->set_track_event_defaults();
+    track_event_defaults->set_track_uuid(1);
+    // Thread-time counter track defined below.
+    track_event_defaults->add_extra_counter_track_uuids(10);
+  }
+  {
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(3000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(10);
+    track_desc->set_parent_uuid(1);
+    auto* counter = track_desc->set_counter();
+    counter->set_type(
+        protos::pbzero::CounterDescriptor::COUNTER_THREAD_TIME_NS);
+    counter->set_unit_multiplier(1000);  // provided in us.
+    counter->set_is_incremental(true);
+  }
+  {
+    // Event with timestamps before the descriptors above. The thread time
+    // counter values should still be imported as counter values and as args for
+    // JSON export. Should appear on default track "t1" with
+    // extra_counter_values for "c1".
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_sequence_flags(
+        protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+    packet->set_timestamp(1000);
+    auto* event = packet->set_track_event();
+    event->add_categories("cat1");
+    event->set_name("ev1");
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
+    event->add_extra_counter_values(1000);  // absolute: 1000000.
+  }
+  {
+    // End for "ev1".
+    auto* packet = trace_.add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1100);
+    auto* event = packet->set_track_event();
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_END);
+    event->add_extra_counter_values(10);  // absolute: 1010000.
+  }
+
+  EXPECT_CALL(*process_, UpdateThread(1, 5)).WillRepeatedly(Return(1));
+
+  tables::ThreadTable::Row t1(16);
+  t1.upid = 1u;
+  storage_->mutable_thread_table()->Insert(t1);
+
+  Tokenize();
+
+  StringId cat_1 = storage_->InternString("cat1");
+  StringId ev_1 = storage_->InternString("ev1");
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*event_,
+              PushCounter(1000, testing::DoubleEq(1000000), TrackId{1}));
+  EXPECT_CALL(*slice_, Begin(1000, TrackId{0}, cat_1, ev_1, _))
+      .WillOnce(Return(0u));
+
+  EXPECT_CALL(*event_,
+              PushCounter(1100, testing::DoubleEq(1010000), TrackId{1}));
+  EXPECT_CALL(*slice_, End(1100, TrackId{0}, kNullStringId, kNullStringId, _))
+      .WillOnce(Return(0u));
+
+  EXPECT_CALL(*process_,
+              SetThreadNameIfUnset(1u, storage_->InternString("t1")));
+
+  context_.sorter->ExtractEventsForced();
+
+  // First track is thread time track, second is "t1".
+  EXPECT_EQ(storage_->track_table().row_count(), 2u);
+  EXPECT_EQ(storage_->thread_track_table().row_count(), 1u);
+  EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
+
+  // Counter values should also be imported into thread slices.
+  EXPECT_EQ(storage_->thread_slices().slice_count(), 1u);
+  EXPECT_EQ(storage_->thread_slices().slice_ids()[0], 0u);
+  EXPECT_EQ(storage_->thread_slices().thread_timestamp_ns()[0], 1000000);
+  EXPECT_EQ(storage_->thread_slices().thread_duration_ns()[0], 10000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
