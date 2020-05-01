@@ -40,6 +40,7 @@ class AndroidProbesParser {
   void ParseAndroidLogStats(ConstBytes);
   void ParseStatsdMetadata(ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
+  void ParseInitialDisplayState(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
@@ -48,6 +49,7 @@ class AndroidProbesParser {
   const StringId batt_capacity_id_;
   const StringId batt_current_id_;
   const StringId batt_current_avg_id_;
+  const StringId screen_state_id_;
   std::vector<StringId> power_rails_strs_id_;
 };
 }  // namespace trace_processor
