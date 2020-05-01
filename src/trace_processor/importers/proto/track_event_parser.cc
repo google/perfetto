@@ -283,7 +283,7 @@ class TrackEventParser::EventImporter {
           track_tracker->GetDescriptorTrack(track_uuid_);
       if (!opt_track_id) {
         track_tracker->ReserveDescriptorChildTrack(track_uuid_,
-                                                   /*parent_uuid=*/0);
+                                                   /*parent_uuid=*/0, name_id_);
         opt_track_id = track_tracker->GetDescriptorTrack(track_uuid_);
       }
       track_id_ = *opt_track_id;
@@ -1272,6 +1272,7 @@ void TrackEventParser::ParseTrackDescriptor(
     ParseCounterDescriptor(track_id, decoder.counter());
   }
 
+  // Override the name with the most recent name seen (after sorting by ts).
   if (decoder.has_name()) {
     auto* tracks = context_->storage->mutable_track_table();
     StringId name_id = context_->storage->InternString(decoder.name());
