@@ -71,6 +71,7 @@ class TrackTracker {
   // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
   // time, |pid| will also be resolved to a |upid|.
   void ReserveDescriptorProcessTrack(uint64_t uuid,
+                                     StringId name,
                                      uint32_t pid,
                                      int64_t timestamp);
 
@@ -84,6 +85,7 @@ class TrackTracker {
   // time, |pid| will also be resolved to a |upid|.
   void ReserveDescriptorThreadTrack(uint64_t uuid,
                                     uint64_t parent_uuid,
+                                    StringId name,
                                     uint32_t pid,
                                     uint32_t tid,
                                     int64_t timestamp);
@@ -97,7 +99,9 @@ class TrackTracker {
   // the same |uuid|. If |parent_uuid| is 0, the track will become a global
   // track. Otherwise, it will become a new track of the same type as its parent
   // track.
-  void ReserveDescriptorChildTrack(uint64_t uuid, uint64_t parent_uuid);
+  void ReserveDescriptorChildTrack(uint64_t uuid,
+                                   uint64_t parent_uuid,
+                                   StringId name);
 
   // Associate a counter-type TrackDescriptor track identified by the given
   // |uuid| with a parent track (usually a process or thread track). This is
@@ -117,6 +121,7 @@ class TrackTracker {
   // process/thread as its parent track.
   void ReserveDescriptorCounterTrack(uint64_t uuid,
                                      uint64_t parent_uuid,
+                                     StringId name,
                                      StringId category,
                                      int64_t unit_multiplier,
                                      bool is_incremental,
@@ -217,6 +222,7 @@ class TrackTracker {
     base::Optional<uint32_t> pid;
     base::Optional<uint32_t> tid;
     int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
+    StringId name = kNullStringId;
 
     // For counter tracks.
     bool is_counter = false;
@@ -229,8 +235,8 @@ class TrackTracker {
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
     bool IsForSameTrack(const DescriptorTrackReservation& other) {
-      // Note that |min_timestamp| and |last_value| are ignored for this
-      // comparison.
+      // Note that |min_timestamp|, |latest_value|, and |name| are ignored for
+      // this comparison.
       return std::tie(parent_uuid, pid, tid, is_counter, category,
                       unit_multiplier, is_incremental, packet_sequence_id) ==
              std::tie(other.parent_uuid, pid, tid, is_counter, category,
