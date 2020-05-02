@@ -222,8 +222,8 @@ SELECT
       SELECT AndroidStartupMetric_HscMetrics(
         'full_startup', (
           SELECT AndroidStartupMetric_Slice(
-            'dur_ns', dur,
-            'dur_ms', dur / 1e6
+            'dur_ns', hsc_based_startup_times.ts_total,
+            'dur_ms', hsc_based_startup_times.ts_total / 1e6
           )
           FROM hsc_based_startup_times WHERE id = launches.id
         )
