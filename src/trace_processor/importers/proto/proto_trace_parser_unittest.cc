@@ -795,9 +795,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
   constexpr TrackId thread_time_track{1u};
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
+  // Only the begin thread time can be imported into the counter table.
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
-                                   thread_time_track));
-  EXPECT_CALL(*event_, PushCounter(1028000, testing::DoubleEq(2015000),
                                    thread_time_track));
   EXPECT_CALL(*slice_,
               Scoped(1005000, track, kNullStringId, kNullStringId, 23000, _))
@@ -1038,13 +1037,10 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   MockBoundInserter inserter;
+  // Only the begin timestamp counters can be imported into the counter table.
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(2003000),
                                    thread_time_track));
-  EXPECT_CALL(*event_, PushCounter(1028000, testing::DoubleEq(2015000),
-                                   thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1005000, testing::DoubleEq(3010),
-                                   thread_instruction_count_track));
-  EXPECT_CALL(*event_, PushCounter(1028000, testing::DoubleEq(3060),
                                    thread_instruction_count_track));
   EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, cat_2_3, ev_2, 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
@@ -2256,10 +2252,9 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   Tokenize();
 
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  // Only the begin thread time can be imported into the counter table.
   EXPECT_CALL(*event_,
               PushCounter(1010000, testing::DoubleEq(2005000), TrackId{1}));
-  EXPECT_CALL(*event_,
-              PushCounter(1033000, testing::DoubleEq(2020000), TrackId{1}));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
