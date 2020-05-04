@@ -15,6 +15,8 @@
  */
 
 #include "src/traced/probes/initial_display_state/initial_display_state_data_source.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -30,10 +32,13 @@ namespace {
 
 class TestInitialDisplayStateDataSource : public InitialDisplayStateDataSource {
  public:
-  TestInitialDisplayStateDataSource(std::unique_ptr<TraceWriter> writer)
-      : InitialDisplayStateDataSource(
-            /* session_id */ 0,
-            std::move(writer)) {}
+  TestInitialDisplayStateDataSource(base::TaskRunner* task_runner,
+                                    const DataSourceConfig& config,
+                                    std::unique_ptr<TraceWriter> writer)
+      : InitialDisplayStateDataSource(task_runner,
+                                      config,
+                                      /* session_id */ 0,
+                                      std::move(writer)) {}
 
   MOCK_METHOD1(ReadProperty,
                const base::Optional<std::string>(const std::string));
@@ -42,21 +47,23 @@ class TestInitialDisplayStateDataSource : public InitialDisplayStateDataSource {
 class InitialDisplayStateDataSourceTest : public ::testing::Test {
  protected:
   std::unique_ptr<TestInitialDisplayStateDataSource>
-  GetInitialDisplayStateDataSource() {
+  GetInitialDisplayStateDataSource(const DataSourceConfig& config) {
     auto writer =
         std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
     writer_raw_ = writer.get();
     auto instance = std::unique_ptr<TestInitialDisplayStateDataSource>(
-        new TestInitialDisplayStateDataSource(std::move(writer)));
+        new TestInitialDisplayStateDataSource(&task_runner_, config,
+                                              std::move(writer)));
     return instance;
   }
 
+  base::TestTaskRunner task_runner_;
   TraceWriterForTesting* writer_raw_ = nullptr;
 };
 
 TEST_F(InitialDisplayStateDataSourceTest, Success) {
   ASSERT_TRUE(true);
-  auto data_source = GetInitialDisplayStateDataSource();
+  auto data_source = GetInitialDisplayStateDataSource(DataSourceConfig());
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_state"))
       .WillOnce(Return(base::make_optional("2")));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_brightness"))
@@ -72,7 +79,7 @@ TEST_F(InitialDisplayStateDataSourceTest, Success) {
 
 TEST_F(InitialDisplayStateDataSourceTest, Invalid) {
   ASSERT_TRUE(true);
-  auto data_source = GetInitialDisplayStateDataSource();
+  auto data_source = GetInitialDisplayStateDataSource(DataSourceConfig());
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_state"))
       .WillOnce(Return(base::make_optional("2")));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_brightness"))
@@ -88,7 +95,7 @@ TEST_F(InitialDisplayStateDataSourceTest, Invalid) {
 
 TEST_F(InitialDisplayStateDataSourceTest, Failure) {
   ASSERT_TRUE(true);
-  auto data_source = GetInitialDisplayStateDataSource();
+  auto data_source = GetInitialDisplayStateDataSource(DataSourceConfig());
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_state"))
       .WillOnce(Return(base::nullopt));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_brightness"))

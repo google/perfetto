@@ -16,10 +16,13 @@
 
 #include "src/traced/probes/initial_display_state/initial_display_state_data_source.h"
 
+#include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/tracing/core/data_source_config.h"
 
+#include "protos/perfetto/config/android/android_polled_state_config.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -37,11 +40,52 @@ const InitialDisplayStateDataSource::Descriptor
 };
 
 InitialDisplayStateDataSource::InitialDisplayStateDataSource(
+    base::TaskRunner* task_runner,
+    const DataSourceConfig& ds_config,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, &descriptor), writer_(std::move(writer)) {}
+    : ProbesDataSource(session_id, &descriptor),
+      task_runner_(task_runner),
+      writer_(std::move(writer)),
+      weak_factory_(this) {
+  protos::pbzero::AndroidPolledStateConfig::Decoder cfg(
+      ds_config.android_polled_state_config_raw());
+  poll_period_ms_ = cfg.poll_ms();
+  if (poll_period_ms_ > 0 && poll_period_ms_ < 100) {
+    PERFETTO_ILOG("poll_ms %" PRIu32
+                  " is less than minimum of 100ms. Increasing to 100ms.",
+                  poll_period_ms_);
+    poll_period_ms_ = 100;
+  }
+}
 
 void InitialDisplayStateDataSource::Start() {
+  Tick();
+}
+
+base::WeakPtr<InitialDisplayStateDataSource>
+InitialDisplayStateDataSource::GetWeakPtr() const {
+  return weak_factory_.GetWeakPtr();
+}
+
+void InitialDisplayStateDataSource::Tick() {
+  if (poll_period_ms_) {
+    auto weak_this = GetWeakPtr();
+
+    uint32_t delay_ms =
+        poll_period_ms_ - (base::GetWallTimeMs().count() % poll_period_ms_);
+    task_runner_->PostDelayedTask(
+        [weak_this]() -> void {
+          if (weak_this) {
+            weak_this->Tick();
+          }
+        },
+        delay_ms);
+  }
+  WriteState();
+}
+
+void InitialDisplayStateDataSource::WriteState() {
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   const base::Optional<std::string> screen_state_str =

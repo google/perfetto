@@ -20,16 +20,23 @@
 #include <memory>
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
 
+namespace base {
+class TaskRunner;
+}
+
 class InitialDisplayStateDataSource : public ProbesDataSource {
  public:
   static const ProbesDataSource::Descriptor descriptor;
 
-  InitialDisplayStateDataSource(TracingSessionID,
+  InitialDisplayStateDataSource(base::TaskRunner* task_runner,
+                                const DataSourceConfig& ds_config,
+                                TracingSessionID session_id,
                                 std::unique_ptr<TraceWriter> writer);
 
   // ProbesDataSource implementation.
@@ -41,7 +48,15 @@ class InitialDisplayStateDataSource : public ProbesDataSource {
       const std::string name);
 
  private:
+  void Tick();
+  base::WeakPtr<InitialDisplayStateDataSource> GetWeakPtr() const;
+  void WriteState();
+
+  base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
+  uint32_t poll_period_ms_ = 0;
+  base::WeakPtrFactory<InitialDisplayStateDataSource>
+      weak_factory_;  // Keep last.
 };
 
 }  // namespace perfetto
