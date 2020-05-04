@@ -740,7 +740,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
   // Async event track.
-  context_.track_tracker->ReserveDescriptorChildTrack(1234, 0);
+  context_.track_tracker->ReserveDescriptorChildTrack(1234, 0, kNullStringId);
   TrackId track3 = *context_.track_tracker->GetDescriptorTrack(1234);
   context_.args_tracker->Flush();  // Flush track args.
   context_.storage->mutable_slice_table()->Insert(
