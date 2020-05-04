@@ -17,13 +17,17 @@
 SELECT RUN_METRIC('android/cpu_info.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
 
-CREATE VIEW android_thread_time_in_state_tracks AS
+CREATE VIEW android_thread_time_in_state_raw AS
 SELECT
-  id AS track_id,
   utid,
-  cast(REPLACE(REPLACE(name, '.time_in_state', ''), 'cpu', '') AS int) AS cpu
-FROM thread_counter_track
-WHERE name LIKE "cpu%.time_in_state";
+  CAST(SUBSTR(slices.name, 18) AS int) AS cpu,
+  key AS freq,
+  MAX(int_value) - MIN(int_value) runtime_ms
+FROM slices
+JOIN thread_track ON (slices.track_id = thread_track.id)
+JOIN args USING (arg_set_id)
+WHERE slices.name LIKE "time_in_state.%"
+GROUP by 1, 2, 3;
 
 CREATE TABLE android_thread_time_in_state_counters AS
 SELECT
@@ -40,9 +44,8 @@ SELECT
       END
     FROM core_layout_type
   ) AS core_type,
-  CAST((MAX(counter.value) - MIN(counter.value)) AS int) runtime_ms
-FROM counter
-JOIN android_thread_time_in_state_tracks USING (track_id)
+  SUM(runtime_ms) runtime_ms
+FROM android_thread_time_in_state_raw
 GROUP BY 1, 2
 HAVING runtime_ms > 0;
 

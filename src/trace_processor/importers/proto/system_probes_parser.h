@@ -69,8 +69,11 @@ class SystemProbesParser {
 
   uint64_t ms_per_tick_ = 0;
 
-  // Maps CPU frequency indices to CPU strings.
+  // Maps CPU frequency indices to CPU strings: time_in_state.cpuN.
   std::vector<StringId> thread_time_in_state_cpu_str_ids_;
+
+  // Maps CPU frequency indices to frequency strings.
+  std::vector<StringId> thread_time_in_state_cpu_freq_ids_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
