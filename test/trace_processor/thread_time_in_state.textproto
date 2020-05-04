@@ -55,6 +55,15 @@ packet {
   timestamp: 4
   process_stats {
     processes {
+      pid: 5
+      threads {
+        tid: 5
+        # cpu_freq_indices: 1 was skipped because it did not change.
+        cpu_freq_indices: 2
+        cpu_freq_ticks: 2
+      }
+    }
+    processes {
       pid: 11
       threads {
         tid: 11
