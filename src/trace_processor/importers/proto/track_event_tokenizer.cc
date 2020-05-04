@@ -40,8 +40,16 @@
 namespace perfetto {
 namespace trace_processor {
 
+namespace {
+using protos::pbzero::CounterDescriptor;
+}
+
 TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      counter_name_thread_time_id_(
+          context_->storage->InternString("thread_time")),
+      counter_name_thread_instruction_count_id_(
+          context_->storage->InternString("thread_instruction_count")) {}
 
 ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     PacketSequenceState* state,
@@ -56,6 +64,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
+
+  StringId name_id = kNullStringId;
+  if (track.has_name())
+    name_id = context_->storage->InternString(track.name());
 
   if (track.has_thread()) {
     protos::pbzero::ThreadDescriptor::Decoder thread(track.thread());
@@ -73,7 +85,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     context_->track_tracker->ReserveDescriptorThreadTrack(
-        track.uuid(), track.parent_uuid(), static_cast<uint32_t>(thread.pid()),
+        track.uuid(), track.parent_uuid(), name_id,
+        static_cast<uint32_t>(thread.pid()),
         static_cast<uint32_t>(thread.tid()), packet_timestamp);
   } else if (track.has_process()) {
     protos::pbzero::ProcessDescriptor::Decoder process(track.process());
@@ -86,7 +99,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     context_->track_tracker->ReserveDescriptorProcessTrack(
-        track.uuid(), static_cast<uint32_t>(process.pid()), packet_timestamp);
+        track.uuid(), name_id, static_cast<uint32_t>(process.pid()),
+        packet_timestamp);
   } else if (track.has_counter()) {
     protos::pbzero::CounterDescriptor::Decoder counter(track.counter());
 
@@ -105,13 +119,32 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       }
     }
 
+    // TODO(eseckler): Intern counter tracks for specific counter types like
+    // thread time, so that the same counter can be referred to from tracks with
+    // different uuids. (Chrome may emit thread time values on behalf of other
+    // threads, in which case it has to use absolute values on a different
+    // track_uuid. Right now these absolute values are imported onto a separate
+    // counter track than the other thread's regular thread time values.)
+    if (name_id == kNullStringId) {
+      switch (counter.type()) {
+        case CounterDescriptor::COUNTER_UNSPECIFIED:
+          break;
+        case CounterDescriptor::COUNTER_THREAD_TIME_NS:
+          name_id = counter_name_thread_time_id_;
+          break;
+        case CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT:
+          name_id = counter_name_thread_instruction_count_id_;
+          break;
+      }
+    }
+
     context_->track_tracker->ReserveDescriptorCounterTrack(
-        track.uuid(), track.parent_uuid(), category_id,
+        track.uuid(), track.parent_uuid(), name_id, category_id,
         counter.unit_multiplier(), counter.is_incremental(),
         packet.trusted_packet_sequence_id());
   } else {
-    context_->track_tracker->ReserveDescriptorChildTrack(track.uuid(),
-                                                         track.parent_uuid());
+    context_->track_tracker->ReserveDescriptorChildTrack(
+        track.uuid(), track.parent_uuid(), name_id);
   }
 
   // Let ProtoTraceTokenizer forward the packet to the parser.

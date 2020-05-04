@@ -36,9 +36,9 @@ FROM slices
 INNER JOIN process_track on slices.track_id = process_track.id
 INNER JOIN thread USING(upid);
 
-CREATE TABLE hsc_based_startup_times(package STRING, id INT, dur_ns INT);
+CREATE TABLE hsc_based_startup_times(package STRING, id INT, ts_total INT);
 
--- Netflix
+-- Calculator
 INSERT INTO hsc_based_startup_times
 SELECT
     launches.package as package,
@@ -46,7 +46,92 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
-WHERE frame_times.ts < (SELECT ts FROM functions WHERE function_name LIKE "animator%" AND process_name LIKE "%lix.mediaclient" ORDER BY ts LIMIT 1)
+WHERE frame_times.frame_number=2 AND frame_times.name LIKE "%roid.calcul%";
+
+-- Calendar
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts_end > (SELECT ts + dur FROM functions WHERE function_name LIKE "animator:growScale" AND process_name LIKE "%id.calendar" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%id.calendar%"
+ORDER BY ts_total LIMIT 1;
+
+-- Camera
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=1 AND frame_times.name LIKE "%id.GoogleCamera%";LECT ts + dur FROM functions WHERE function_name="ShutterButtonEnabled" AND process_name LIKE "%id.GoogleCamera%" ORDER BY ts LIMIT 1) AND frame_times.name LIKE "%id.GoogleCamera%"
+ORDER BY ts_total LIMIT 1;
+
+-- Chrome
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=1 AND frame_times.name LIKE "%chrome%";
+
+-- Clock
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts > (SELECT ts + dur FROM functions WHERE function_name="animator:translationZ" AND process_name LIKE "%id.deskclock" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%id.deskclock"
+ORDER BY ts_total LIMIT 1;
+
+-- Contacts
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts > (SELECT ts + dur FROM functions WHERE function_name="animator:elevation" AND process_name LIKE "%id.contacts" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%id.contacts"
+ORDER BY ts_total LIMIT 1;
+
+-- Dialer
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=2 AND frame_times.name LIKE "%id.dialer";
+
+-- Gmail
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts > (SELECT ts + dur FROM functions WHERE function_name="animator:elevation" AND process_name LIKE "%android.gm" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%android.gm"
+ORDER BY ts_total LIMIT 1;
+
+-- Instagram
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts_end > (SELECT start_ts FROM process WHERE name LIKE "%mqtt%" ORDER BY start_ts LIMIT 1) AND frame_times.name LIKE "%stagram.android%"
 ORDER BY ts_total LIMIT 1;
 
 -- Maps
@@ -58,3 +143,76 @@ SELECT
 FROM frame_times
 INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
 WHERE frame_times.frame_number=1 AND frame_times.name LIKE "%maps%";
+
+-- Messages
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts_end > (SELECT ts + dur FROM functions WHERE function_name="animator:translationZ" AND process_name LIKE "%apps.messaging%" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%apps.messaging%"
+ORDER BY ts_total LIMIT 1;
+
+-- Netflix
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts < (SELECT ts FROM functions WHERE function_name LIKE "animator%" AND process_name LIKE "%lix.mediaclient" ORDER BY ts LIMIT 1) AND frame_times.name LIKE "%lix.mediaclient%"
+ORDER BY ts_total DESC LIMIT 1;
+
+-- Photos
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=1 AND frame_times.name LIKE "%apps.photos%";
+
+-- Settings
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=4 AND frame_times.name LIKE "%settings%";
+
+-- Snapchat
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=1 AND frame_times.name LIKE "%napchat.android";
+
+-- Twitter
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.ts > (SELECT ts + dur FROM functions WHERE function_name="animator:translationZ" AND process_name LIKE "%tter.android" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%tter.android"
+ORDER BY ts_total LIMIT 1;
+
+-- Youtube
+INSERT INTO hsc_based_startup_times
+SELECT
+    launches.package as package,
+    launches.id as id,
+    frame_times.ts_end - launches.ts as ts_total
+FROM frame_times
+INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
+WHERE frame_times.frame_number=1 AND frame_times.name LIKE "%id.youtube";

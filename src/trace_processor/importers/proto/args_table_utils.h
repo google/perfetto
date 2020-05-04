@@ -136,6 +136,14 @@ class ProtoToArgsTable {
       PacketSequenceStateGeneration* sequence_state,
       const std::string& key_prefix);
 
+  // Parse several fields with ids given in |fields| using reflection.
+  util::Status InternProtoFieldsIntoArgsTable(
+      const protozero::ConstBytes& cb,
+      const std::string& type,
+      const std::vector<uint16_t>& fields,
+      ArgsTracker::BoundInserter* inserter,
+      PacketSequenceStateGeneration* sequence_state);
+
   // Installs an override for the field at the specified path. We will invoke
   // |parsing_override| when the field is encountered.
   //
