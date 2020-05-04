@@ -613,6 +613,11 @@ cc_library_static {
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ],
+  apex_available: [
+    "//apex_available:platform",
+    "com.android.art.debug",
+    "com.android.art.release",
+  ],
 }
 
 // GN: //src/perfetto_cmd:perfetto
@@ -7501,6 +7506,11 @@ cc_library_static {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+  ],
+  apex_available: [
+    "//apex_available:platform",
+    "com.android.art.debug",
+    "com.android.art.release",
   ],
 }
 
