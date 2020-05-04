@@ -479,34 +479,21 @@ class TrackEventParser::EventImporter {
       return;
     // When these fields are set, we don't expect TrackDescriptor-based counters
     // for thread time or instruction count for this thread in the trace, so we
-    // intern separate counter tracks based on name + utid.
+    // intern separate counter tracks based on name + utid. Note that we cannot
+    // import the counter values from the end of a complete event, because the
+    // EventTracker expects counters to be pushed in order of their timestamps.
+    // One more reason to switch to split begin/end events.
     if (event_data_->thread_timestamp) {
       TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
           parser_->counter_name_thread_time_id_, *utid_);
       context_->event_tracker->PushCounter(ts_, event_data_->thread_timestamp,
                                            track_id);
-      if (legacy_event_.duration_us() &&
-          legacy_event_.has_thread_duration_us()) {
-        context_->event_tracker->PushCounter(
-            ts_ + (legacy_event_.duration_us() * 1000),
-            event_data_->thread_timestamp +
-                (legacy_event_.thread_duration_us() * 1000),
-            track_id);
-      }
     }
     if (event_data_->thread_instruction_count) {
       TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
           parser_->counter_name_thread_instruction_count_id_, *utid_);
       context_->event_tracker->PushCounter(
           ts_, event_data_->thread_instruction_count, track_id);
-      if (legacy_event_.duration_us() &&
-          legacy_event_.has_thread_instruction_delta()) {
-        context_->event_tracker->PushCounter(
-            ts_ + (legacy_event_.duration_us() * 1000),
-            event_data_->thread_instruction_count +
-                legacy_event_.thread_instruction_delta(),
-            track_id);
-      }
     }
   }
 
@@ -826,7 +813,7 @@ class TrackEventParser::EventImporter {
         return;
       // Log error but continue parsing the other args.
       storage_->IncrementStats(stats::track_event_parser_errors);
-      PERFETTO_DLOG("%s", status.c_message());
+      PERFETTO_DLOG("ParseTrackEventArgs error: %s", status.c_message());
     };
 
     for (auto it = event_.debug_annotations(); it; ++it) {
@@ -1401,7 +1388,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       EventImporter(this, ts, event_data, std::move(blob)).Import();
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
-    PERFETTO_DLOG("%s", status.c_message());
+    PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
 }
 
