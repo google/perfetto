@@ -38,6 +38,44 @@ util::Status ProtoToArgsTable::AddProtoFileDescriptor(
                                         proto_descriptor_array_size);
 }
 
+util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
+    const protozero::ConstBytes& cb,
+    const std::string& type,
+    const std::vector<uint16_t>& fields,
+    ArgsTracker::BoundInserter* inserter,
+    PacketSequenceStateGeneration* sequence_state) {
+  auto idx = pool_.FindDescriptorIdx(type);
+  if (!idx) {
+    return util::Status("Failed to find proto descriptor");
+  }
+
+  auto descriptor = pool_.descriptors()[*idx];
+
+  protozero::ProtoDecoder decoder(cb);
+  for (protozero::Field f = decoder.ReadField(); f.valid();
+       f = decoder.ReadField()) {
+    auto it = std::find(fields.begin(), fields.end(), f.id());
+    if (it == fields.end()) {
+      continue;
+    }
+
+    auto field_idx = descriptor.FindFieldIdxByTag(*it);
+    if (!field_idx) {
+      return util::Status("Failed to find proto descriptor");
+    }
+    auto field = descriptor.fields()[*field_idx];
+    auto status =
+        InternProtoIntoArgsTable(f.as_bytes(), field.resolved_type_name(),
+                                 inserter, sequence_state, field.name());
+
+    if (!status.ok()) {
+      return status;
+    }
+  }
+
+  return util::OkStatus();
+}
+
 util::Status ProtoToArgsTable::InternProtoIntoArgsTable(
     const protozero::ConstBytes& cb,
     const std::string& type,

@@ -35,6 +35,12 @@ namespace perfetto {
 
 namespace trace_processor {
 
+// Field numbers to be added to args table automatically via reflection
+//
+// TODO(ddrone): replace with a predicate on field id to import new fields
+// automatically
+static constexpr uint16_t kReflectFields[] = {24, 25, 26, 27, 28, 29};
+
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 
@@ -94,6 +100,8 @@ class TrackEventParser {
   std::array<StringId, 9> chrome_process_name_ids_;
   std::array<StringId, 14> chrome_thread_name_ids_;
   std::array<StringId, 4> counter_unit_ids_;
+
+  std::vector<uint16_t> reflect_fields_;
 };
 
 }  // namespace trace_processor
