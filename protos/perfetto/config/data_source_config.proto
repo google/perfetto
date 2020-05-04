@@ -19,6 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/config/android/android_log_config.proto";
+import "protos/perfetto/config/android/android_polled_state_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
@@ -105,6 +106,9 @@ message DataSourceConfig {
   optional VulkanMemoryConfig vulkan_memory_config = 112 [lazy = true];
   // Data source name: track_event
   optional TrackEventConfig track_event_config = 113 [lazy = true];
+  // Data source name: android.polled_state
+  optional AndroidPolledStateConfig android_polled_state_config = 114
+      [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

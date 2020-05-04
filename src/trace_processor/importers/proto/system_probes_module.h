@@ -30,6 +30,12 @@ class SystemProbesModule : public ProtoImporterModule {
  public:
   explicit SystemProbesModule(TraceProcessorContext* context);
 
+  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&,
+                              TraceBlobView* packet,
+                              int64_t packet_timestamp,
+                              PacketSequenceState*,
+                              uint32_t field_id) override;
+
   void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
                    const TimestampedTracePiece& ttp,
                    uint32_t field_id) override;

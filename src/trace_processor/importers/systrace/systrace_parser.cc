@@ -26,7 +26,9 @@ namespace perfetto {
 namespace trace_processor {
 
 SystraceParser::SystraceParser(TraceProcessorContext* ctx)
-    : context_(ctx), lmk_id_(ctx->storage->InternString("mem.lmk")) {}
+    : context_(ctx),
+      lmk_id_(ctx->storage->InternString("mem.lmk")),
+      screen_state_id_(ctx->storage->InternString("ScreenState")) {}
 
 SystraceParser::~SystraceParser() = default;
 
@@ -182,6 +184,12 @@ void SystraceParser::ParseSystracePoint(
         }
         // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
+      } else if (point.name == "ScreenState") {
+        // Promote ScreenState to its own top level counter.
+        TrackId track =
+            context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
+        context_->event_tracker->PushCounter(ts, point.value, track);
+        return;
       }
       // This is per upid on purpose. Some counters are pushed from arbitrary
       // threads but are really per process.
