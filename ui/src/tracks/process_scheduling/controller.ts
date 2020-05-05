@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../../base/logging';
 import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
-
 import {
   TrackController,
   trackControllerRegistry
@@ -55,7 +55,10 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       await this.query(`create virtual table ${this.tableName('span')}
               using span_join(${this.tableName('process')} PARTITIONED utid,
                               ${this.tableName('window')});`);
-      this.maxCpu = Math.max(...await this.engine.getCpus()) + 1;
+      const cpus = await this.engine.getCpus();
+      // A process scheduling track should only exist in a trace that has cpus.
+      assertTrue(cpus.length > 0);
+      this.maxCpu = Math.max(...cpus) + 1;
       this.setup = true;
     }
 
