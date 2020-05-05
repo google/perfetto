@@ -406,18 +406,31 @@ class TrackEventDataSource
   }
 
   // Record metadata about different types of timeline tracks. See Track.
+  static void SetTrackDescriptor(const Track& track,
+                                 const protos::gen::TrackDescriptor& desc) {
+    PERFETTO_DCHECK(track.uuid == desc.uuid());
+    TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
+    Base::template Trace([&](typename Base::TraceContext ctx) {
+      TrackEventInternal::WriteTrackDescriptor(
+          track, ctx.tls_inst_->trace_writer.get());
+    });
+  }
+
+  // DEPRECATED. Only kept for backwards compatibility.
   static void SetTrackDescriptor(
       const Track& track,
       std::function<void(protos::pbzero::TrackDescriptor*)> callback) {
     SetTrackDescriptorImpl(track, std::move(callback));
   }
 
+  // DEPRECATED. Only kept for backwards compatibility.
   static void SetProcessDescriptor(
       std::function<void(protos::pbzero::TrackDescriptor*)> callback,
       const ProcessTrack& track = ProcessTrack::Current()) {
     SetTrackDescriptorImpl(std::move(track), std::move(callback));
   }
 
+  // DEPRECATED. Only kept for backwards compatibility.
   static void SetThreadDescriptor(
       std::function<void(protos::pbzero::TrackDescriptor*)> callback,
       const ThreadTrack& track = ThreadTrack::Current()) {
@@ -529,8 +542,7 @@ class TrackEventDataSource
   static void SetTrackDescriptorImpl(
       const TrackType& track,
       std::function<void(protos::pbzero::TrackDescriptor*)> callback) {
-    TrackRegistry::Get()->UpdateTrack(
-        track, [&](protos::pbzero::TrackDescriptor* desc) { callback(desc); });
+    TrackRegistry::Get()->UpdateTrack(track, std::move(callback));
     Base::template Trace([&](typename Base::TraceContext ctx) {
       TrackEventInternal::WriteTrackDescriptor(
           track, ctx.tls_inst_->trace_writer.get());
