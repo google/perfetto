@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 set -e
-CUR_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
+SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 
-export PATH="$PATH:$CUR_DIR"
+export PATH="$PATH:$SCRIPT_DIR"
 
 if [ "$TMPDIR" == "" ]; then
   TMPDIR=/tmp
@@ -194,8 +194,13 @@ else
   DIR=$(mktemp -p $TMPDIR -d perfetto.XXXXXX)
 fi
 
-"$CUR_DIR/ninja" -C "$OUT" \
-  traced traced_probes perfetto trace_to_text test/configs
+# (re)build the binaries
+BUILD_TARGETS=(traced traced_probes perfetto test/configs)
+if [[ SKIP_CONVERTERS -eq 0 ]]; then
+  BUILD_TARGETS+=(trace_to_text)
+fi
+
+"$SCRIPT_DIR/ninja" -C "$OUT" ${BUILD_TARGETS[*]}
 
 push "$OUT/traced"
 push "$OUT/traced_probes"
@@ -215,6 +220,7 @@ fi
 
 CONFIG_DEVICE_PATH="$CONFIG"
 CMD_OPTS=""
+# Shorthand for using serialized test configs.
 if [[ "$CONFIG" == *.protobuf ]]; then
   CONFIG_DEVICE_PATH="$CONFIG"
   CONFIG_PATH=$OUT/$CONFIG
@@ -225,10 +231,10 @@ if [[ "$CONFIG" == *.protobuf ]]; then
   push "$CONFIG_PATH"
 elif [[ "$CONFIG" != ":test" ]]; then
   CONFIG_DEVICE_PATH="$(basename "$CONFIG")"
-  CONFIG_PATH=test/configs/$CONFIG
-  # Check if this is a valid absolute path
+  CONFIG_PATH=$CONFIG
+  # If path isn't valid, assume it's a name of a test config.
   if [[ ! -f $CONFIG_PATH ]]; then
-    CONFIG_PATH=$CONFIG
+    CONFIG_PATH=test/configs/$CONFIG
     if [[ ! -f $CONFIG_PATH ]]; then
       echo >&2 "Config \"$CONFIG\" not known."
       exit 1
@@ -360,7 +366,7 @@ fi
 
 reset_tracing
 
-TRACE=$HOME/Downloads/trace
+TRACE=$TMPDIR/trace
 echo -e "\n\x1b[32mPulling trace into $TRACE.protobuf\x1b[0m"
 pull trace "$TRACE.protobuf"
 
