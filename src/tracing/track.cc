@@ -18,7 +18,9 @@
 
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
+#include "protos/perfetto/trace/track_event/process_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/thread_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 
 namespace perfetto {
@@ -26,25 +28,44 @@ namespace perfetto {
 // static
 uint64_t Track::process_uuid;
 
-void Track::Serialize(protos::pbzero::TrackDescriptor* desc) const {
-  desc->set_uuid(uuid);
+protos::gen::TrackDescriptor Track::Serialize() const {
+  protos::gen::TrackDescriptor desc;
+  desc.set_uuid(uuid);
   if (parent_uuid)
-    desc->set_parent_uuid(parent_uuid);
+    desc.set_parent_uuid(parent_uuid);
+  return desc;
+}
+
+void Track::Serialize(protos::pbzero::TrackDescriptor* desc) const {
+  auto bytes = Serialize().SerializeAsString();
+  desc->AppendRawProtoBytes(bytes.data(), bytes.size());
+}
+
+protos::gen::TrackDescriptor ProcessTrack::Serialize() const {
+  auto desc = Track::Serialize();
+  auto pd = desc.mutable_process();
+  pd->set_pid(static_cast<int32_t>(pid));
+  // TODO(skyostil): Record command line.
+  return desc;
 }
 
 void ProcessTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
-  Track::Serialize(desc);
-  auto pd = desc->set_process();
-  pd->set_pid(static_cast<int32_t>(pid));
-  // TODO(skyostil): Record command line.
+  auto bytes = Serialize().SerializeAsString();
+  desc->AppendRawProtoBytes(bytes.data(), bytes.size());
 }
 
-void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
-  Track::Serialize(desc);
-  auto td = desc->set_thread();
+protos::gen::TrackDescriptor ThreadTrack::Serialize() const {
+  auto desc = Track::Serialize();
+  auto td = desc.mutable_thread();
   td->set_pid(static_cast<int32_t>(pid));
   td->set_tid(static_cast<int32_t>(tid));
   // TODO(skyostil): Record thread name.
+  return desc;
+}
+
+void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
+  auto bytes = Serialize().SerializeAsString();
+  desc->AppendRawProtoBytes(bytes.data(), bytes.size());
 }
 
 namespace internal {
@@ -65,6 +86,12 @@ void TrackRegistry::InitializeInstance() {
   Track::process_uuid = static_cast<uint64_t>(base::Uuidv4().lsb());
 }
 
+void TrackRegistry::UpdateTrack(Track track,
+                                const std::string& serialized_desc) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  tracks_[track.uuid] = std::move(serialized_desc);
+}
+
 void TrackRegistry::UpdateTrackImpl(
     Track track,
     std::function<void(protos::pbzero::TrackDescriptor*)> fill_function) {
@@ -74,10 +101,7 @@ void TrackRegistry::UpdateTrackImpl(
       kInitialSliceSize, kMaximumSliceSize);
   fill_function(new_descriptor.get());
   auto serialized_desc = new_descriptor.SerializeAsString();
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    tracks_[track.uuid] = std::move(serialized_desc);
-  }
+  UpdateTrack(track, serialized_desc);
 }
 
 void TrackRegistry::EraseTrack(Track track) {
