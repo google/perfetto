@@ -64,6 +64,10 @@ def perfetto_java_proto_library(**kwargs):
     if not _rule_override("java_proto_library", **kwargs):
         native.java_proto_library(**kwargs)
 
+def perfetto_java_lite_proto_library(**kwargs):
+    if not _rule_override("java_lite_proto_library", **kwargs):
+        native.java_lite_proto_library(**kwargs)
+
 # +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
 # +----------------------------------------------------------------------------+
