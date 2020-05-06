@@ -24,6 +24,7 @@ load(
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_java_proto_library",
+    "perfetto_java_lite_proto_library",
     "perfetto_proto_library",
     "perfetto_py_binary",
     "perfetto_gensignature_internal_only",
@@ -3227,6 +3228,13 @@ perfetto_java_proto_library(
 
 perfetto_java_proto_library(
     name = "protos_perfetto_config_merged_config_java",
+    deps = [
+        ":protos_perfetto_config_merged_config_protos",
+    ],
+)
+
+perfetto_java_lite_proto_library(
+    name = "protos_perfetto_config_merged_config_java_lite",
     deps = [
         ":protos_perfetto_config_merged_config_protos",
     ],

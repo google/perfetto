@@ -77,9 +77,12 @@ PERFETTO_CONFIG = struct(
         cc_binary = None,
         cc_library = None,
         cc_proto_library = None,
+
         # Supporting java rules pulls in the JDK and generally is not something
         # we need for most embedders.
         java_proto_library = _noop_override,
+        java_lite_proto_library = _noop_override,
+
         proto_library = None,
         py_binary = None,
 
