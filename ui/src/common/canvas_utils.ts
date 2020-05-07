@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export function cropText(str: string, charWidth: number, rectWidth: number) {
-  const maxTextWidth = rectWidth - 4;
+  const maxTextWidth = rectWidth - 1;
   let displayText = '';
   const nameLength = str.length * charWidth;
   if (nameLength < maxTextWidth) {
@@ -21,8 +21,10 @@ export function cropText(str: string, charWidth: number, rectWidth: number) {
   } else {
     // -3 for the 3 ellipsis.
     const displayedChars = Math.floor(maxTextWidth / charWidth) - 3;
-    if (displayedChars > 3) {
+    if (displayedChars >= 2) {
       displayText = str.substring(0, displayedChars) + '...';
+    } else if (displayedChars >= -2) {
+      displayText = str.substring(0, 1);
     }
   }
   return displayText;
