@@ -52,7 +52,7 @@ LEFT JOIN (
 ) USING(ts)
 ORDER BY ts;
 
-SELECT RUN_METRIC('android/upid_span_view.sql',
+SELECT RUN_METRIC('android/counter_span_view.sql',
   'table_name', 'screen_state',
   'counter_name', 'ScreenState');
 
