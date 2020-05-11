@@ -150,6 +150,7 @@ class TrackEventDataSource
   // - Two debug annotations
   // - Track
   // - Track + Lambda
+  // - Track + timestamp
   // - Track + Lambda + timestamp
   // - Track + one debug annotation
   // - Track + two debug annotations
@@ -236,6 +237,22 @@ class TrackEventDataSource
     TraceForCategoryImpl<CategoryIndex>(
         instances, dynamic_category, event_name, type, track,
         TrackEventInternal::GetTimeNs(), std::move(arg_function));
+  }
+
+  // Trace point with a track and overridden timestamp.
+  template <size_t CategoryIndex,
+            typename CategoryType,
+            typename TrackType,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategory(uint32_t instances,
+                               const CategoryType& dynamic_category,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               const TrackType& track,
+                               uint64_t timestamp) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl<CategoryIndex>(instances, dynamic_category, event_name,
+                                        type, track, timestamp);
   }
 
   // Trace point with a track, a lambda function and an overridden timestamp.
