@@ -1008,6 +1008,7 @@ export class TraceController extends Controller<States> {
         ts BIG INT,
         dur BIG INT,
         depth INT,
+        cat STRING,
         name STRING,
         PRIMARY KEY (track_id, ts)
       ) WITHOUT ROWID;
@@ -1034,13 +1035,14 @@ export class TraceController extends Controller<States> {
           WHERE track_type = 'slice'
         `);
         await engine.query(`
-          INSERT INTO annotation_slice(id, track_id, ts, dur, depth, name)
+          INSERT INTO annotation_slice(id, track_id, ts, dur, depth, cat, name)
           SELECT
-            -1 as id,
+            row_number() over (order by ts) as id,
             t.id AS track_id,
             ts,
             dur,
             0 AS depth,
+            a.track_name as cat,
             slice_name AS name
           FROM ${metric}_annotations a
           JOIN annotation_slice_track t

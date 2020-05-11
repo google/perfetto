@@ -72,14 +72,23 @@ export class SelectionController extends Controller<'main'> {
               globals.publish('CounterDetails', selected);
             }
           });
-    } else if (selectedKind === 'SLICE') {
+    } else if (selection.kind === 'SLICE') {
       this.sliceDetails(selectedId as number);
-    } else if (selectedKind === 'CHROME_SLICE') {
-      const sqlQuery = `
+    } else if (selection.kind === 'CHROME_SLICE') {
+      const table = selection.table;
+      let sqlQuery = `
         SELECT ts, dur, name, cat, arg_set_id
         FROM slice
         WHERE id = ${selectedId}
       `;
+      // TODO(b/155483804): This is a hack to ensure annotation slices are
+      // selectable for now. We should tidy this up when improving this class.
+      if (table === 'annotation') {
+        sqlQuery = `
+        select ts, dur, name, cat, -1
+        from annotation_slice
+        where id = ${selectedId}`;
+      }
       this.args.engine.query(sqlQuery).then(result => {
         // Check selection is still the same on completion of query.
         const selection = globals.state.currentSelection;
@@ -92,7 +101,9 @@ export class SelectionController extends Controller<'main'> {
           const category = result.columns[3].stringValues![0];
           const argId = result.columns[4].longValues![0] as number;
           const argsAsync = this.getArgs(argId);
-          const descriptionAsync = this.describeSlice(selectedId);
+          // Don't fetch descriptions for annotation slices.
+          const describeId = table === 'annotation' ? -1 : selectedId as number;
+          const descriptionAsync = this.describeSlice(describeId);
           Promise.all([argsAsync, descriptionAsync])
               .then(([args, description]) => {
                 const selected: SliceDetails = {
@@ -100,7 +111,7 @@ export class SelectionController extends Controller<'main'> {
                   dur,
                   category,
                   name,
-                  id: selectedId,
+                  id: selectedId as number,
                   args,
                   description,
                 };
@@ -113,6 +124,7 @@ export class SelectionController extends Controller<'main'> {
 
   async describeSlice(id: number): Promise<Map<string, string>> {
     const map = new Map<string, string>();
+    if (id === -1) return map;
     const query = `
       select description, doc_link
       from describe_slice
