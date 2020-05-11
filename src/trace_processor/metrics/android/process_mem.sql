@@ -16,21 +16,21 @@
 
 -- Create all the views used to generate the Android Memory metrics proto.
 -- Anon RSS
-SELECT RUN_METRIC('android/upid_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'anon_rss',
   'counter_name', 'mem.rss.anon');
 
 -- File RSS
-SELECT RUN_METRIC('android/upid_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'file_rss',
   'counter_name', 'mem.rss.file');
 
-SELECT RUN_METRIC('android/upid_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'shmem_rss',
   'counter_name', 'mem.rss.shmem');
 
 -- Swap
-SELECT RUN_METRIC('android/upid_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'swap',
   'counter_name', 'mem.swap');
 
@@ -80,7 +80,7 @@ CAST(IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) + IFNULL(file_rss_val, 0) +
 FROM rss_and_swap_join;
 
 -- If we have dalvik events enabled (for ART trace points) we can construct the java heap timeline.
-SELECT RUN_METRIC('android/upid_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'java_heap_kb',
   'counter_name', 'Heap size (KB)');
 
