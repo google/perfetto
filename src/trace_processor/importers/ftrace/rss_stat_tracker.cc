@@ -32,7 +32,9 @@ RssStatTracker::RssStatTracker(TraceProcessorContext* context)
   rss_members_.emplace_back(context->storage->InternString("mem.swap"));
   rss_members_.emplace_back(context->storage->InternString("mem.rss.shmem"));
   rss_members_.emplace_back(
-      context->storage->InternString("mem.rss.unknown"));  // Keep this last.
+      context->storage->InternString("mem.unreclaimable"));
+  rss_members_.emplace_back(
+      context->storage->InternString("mem.unknown"));  // Keep this last.
 }
 
 void RssStatTracker::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
