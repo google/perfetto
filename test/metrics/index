@@ -9,6 +9,7 @@ android_lmk_reason.py android_lmk_reason android_lmk_reason.out
 ../trace_processor/oom_kill.textproto android_lmk android_lmk_oom.out
 
 android_ion.py android_ion android_ion.out
+android_ion_stat.textproto android_ion android_ion_stat.out
 
 android_startup.py android_startup android_startup.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
