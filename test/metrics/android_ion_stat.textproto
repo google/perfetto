@@ -1,0 +1,28 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100
+      pid: 1
+      ion_stat {
+        buffer_id: 123
+        len: 1000
+        total_allocated: 2000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 200
+      pid: 1
+      ion_stat {
+        buffer_id: 123
+        len: -1000
+        total_allocated: 1000
+      }
+    }
+  }
+}
