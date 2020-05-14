@@ -390,6 +390,10 @@ bool Client::SendWireMessageWithRetriesIfBlocking(const WireMessage& msg) {
 }
 
 bool Client::RecordFree(const uint64_t alloc_address) {
+  if (PERFETTO_UNLIKELY(IsPostFork())) {
+    return postfork_return_value_;
+  }
+
   uint64_t sequence_number =
       1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel);
 
@@ -410,10 +414,6 @@ bool Client::RecordFree(const uint64_t alloc_address) {
 }
 
 bool Client::FlushFreesLocked() {
-  if (PERFETTO_UNLIKELY(IsPostFork())) {
-    return postfork_return_value_;
-  }
-
   WireMessage msg = {};
   msg.record_type = RecordType::Free;
   msg.free_header = &free_batch_;
