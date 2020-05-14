@@ -277,6 +277,13 @@ const char* Client::GetStackBase() {
   return GetThreadStackBase();
 }
 
+// Best-effort detection of whether we're continuing work in a forked child of
+// the profiled process, in which case we want to stop. Note that due to
+// malloc_hooks.cc's atfork handler, the proper fork calls should leak the child
+// before reaching this point. Therefore this logic exists primarily to handle
+// clone and vfork.
+// TODO(rsavitski): rename/delete |disable_fork_teardown| config option if this
+// logic sticks, as the option becomes more clone-specific, and quite narrow.
 bool Client::IsPostFork() {
   if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
     // Only print the message once, even if we do not shut down the client.
