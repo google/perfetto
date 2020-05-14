@@ -53,6 +53,7 @@ class Server(object):
 
       def __init__(self, *args, **kwargs):
         SimpleHTTPRequestHandler.__init__(self, *args, **kwargs)
+        self.extensions_map['.wasm'] = 'application/wasm'
 
       def translate_path(self, path):
         path = SimpleHTTPRequestHandler.translate_path(self, path)
