@@ -153,7 +153,7 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
   });
 }
 
-base::Optional<uint32_t> GetRssAnonAndSwap(pid_t pid) {
+base::Optional<std::string> ReadStatus(pid_t pid) {
   std::string path = "/proc/" + std::to_string(pid) + "/status";
   std::string status;
   bool read_proc = base::ReadFile(path, &status);
@@ -161,6 +161,10 @@ base::Optional<uint32_t> GetRssAnonAndSwap(pid_t pid) {
     PERFETTO_ELOG("Failed to read %s", path.c_str());
     return base::nullopt;
   }
+  return base::Optional<std::string>(status);
+}
+
+base::Optional<uint32_t> GetRssAnonAndSwap(const std::string& status) {
   auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
   auto swap = ParseProcStatusSize(status, "VmSwap:");
   if (anon_rss.has_value() && swap.has_value()) {
@@ -171,29 +175,22 @@ base::Optional<uint32_t> GetRssAnonAndSwap(pid_t pid) {
 
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
   for (auto it = pids->begin(); it != pids->end();) {
-    base::Optional<uint32_t> rss_and_swap = GetRssAnonAndSwap(*it);
+    const pid_t pid = *it;
+
+    base::Optional<std::string> status = ReadStatus(pid);
+    base::Optional<uint32_t> rss_and_swap;
+    if (status)
+      rss_and_swap = GetRssAnonAndSwap(*status);
+
     if (rss_and_swap && rss_and_swap < min_size_kb) {
+      PERFETTO_LOG("Removing pid %d from profiled set (anon: %d kB < %" PRIu32
+                   ")",
+                   pid, *rss_and_swap, min_size_kb);
       it = pids->erase(it);
     } else {
       ++it;
     }
   }
-}
-
-bool IsUnderAnonRssAndSwapThreshold(pid_t pid,
-                                    uint32_t min_size_kb,
-                                    const std::string& status) {
-  auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
-  auto swap = ParseProcStatusSize(status, "VmSwap:");
-  if (anon_rss.has_value() && swap.has_value()) {
-    uint32_t anon_kb = anon_rss.value() + swap.value();
-    if (anon_kb < min_size_kb) {
-      PERFETTO_LOG("Removing pid %d from profiled set (anon: %d kB)", pid,
-                   anon_kb);
-      return true;
-    }
-  }
-  return false;
 }
 
 }  // namespace profiling
