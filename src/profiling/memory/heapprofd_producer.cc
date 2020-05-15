@@ -1134,7 +1134,11 @@ void HeapprofdProducer::CheckDataSourceMemory() {
   if (!any_guardrail)
     return;
 
-  base::Optional<uint32_t> anon_and_swap = GetRssAnonAndSwap(getpid());
+  base::Optional<uint32_t> anon_and_swap;
+  base::Optional<std::string> status = ReadStatus(getpid());
+  if (status)
+    anon_and_swap = GetRssAnonAndSwap(*status);
+
   if (!anon_and_swap) {
     PERFETTO_ELOG("Failed to read heapprofd memory.");
     return;
