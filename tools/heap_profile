@@ -65,7 +65,7 @@ def load_trace_to_text(platform):
       return local_file
 
   url = TRACE_TO_TEXT_BASE_URL + file_name
-  subprocess.check_call(['curl', '-#', '-o', local_file, url])
+  subprocess.check_call(['curl', '-L', '-#', '-o', local_file, url])
   if not check_hash(local_file, sha_value):
     os.remove(local_file)
     raise ValueError("Invalid signature.")

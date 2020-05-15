@@ -232,7 +232,7 @@ NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
 
 
 def DownloadURL(url, out_file):
-  subprocess.check_call(['curl', '-#', '-o', out_file, url])
+  subprocess.check_call(['curl', '-L', '-#', '-o', out_file, url])
 
 
 def ReadFile(path):
