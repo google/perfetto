@@ -75,8 +75,15 @@ DROP VIEW IF EXISTS rss_and_swap_span;
 CREATE VIEW rss_and_swap_span AS
 SELECT
 ts, dur, upid,
-CAST(IFNULL(anon_rss_val, 0) + IFNULL(swap_val, 0) + IFNULL(file_rss_val, 0) +
-  IFNULL(shmem_rss_val, 0) AS int) AS rss_and_swap_val
+CAST(IFNULL(file_rss_val, 0) AS INT) file_rss_val,
+CAST(IFNULL(anon_rss_val, 0) AS INT) anon_rss_val,
+CAST(IFNULL(shmem_rss_val, 0) AS INT) shmem_rss_val,
+CAST(IFNULL(swap_val, 0) AS INT) swap_val,
+CAST(
+  IFNULL(anon_rss_val, 0)
+  + IFNULL(swap_val, 0)
+  + IFNULL(file_rss_val, 0)
+  + IFNULL(shmem_rss_val, 0) AS int) AS rss_and_swap_val
 FROM rss_and_swap_join;
 
 -- If we have dalvik events enabled (for ART trace points) we can construct the java heap timeline.
