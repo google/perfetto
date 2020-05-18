@@ -19,35 +19,47 @@ SELECT RUN_METRIC('android/android_lmk.sql');
 SELECT RUN_METRIC('android/process_mem.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
 
-CREATE VIEW IF NOT EXISTS android_lmk_reason_ooms AS
-SELECT
-lmk_events.ts,
-oom_score_span.upid,
-oom_score_val
-FROM lmk_events
-JOIN oom_score_span
-WHERE lmk_events.ts
-  BETWEEN oom_score_span.ts
-  AND oom_score_span.ts + MAX(oom_score_span.dur - 1, 0);
-
 CREATE VIEW IF NOT EXISTS android_lmk_reason_output AS
 WITH
-lmk_ion_sizes AS (
+total_ion_name AS (
   SELECT
-  lmk_events.ts,
-  CAST(ion_timeline.value as int) system_ion_heap_size
+  CASE
+    WHEN EXISTS(SELECT TRUE FROM ion_timeline WHERE heap_name = 'all')
+      THEN 'all'
+    ELSE 'system'
+  END AS name
+),
+oom_score_at_lmk_time AS (
+  SELECT
+    lmk_events.ts,
+    oom_score_span.upid,
+    oom_score_val
   FROM lmk_events
-  JOIN ion_timeline
-  WHERE ion_timeline.heap_name = 'system'
-  AND lmk_events.ts
+  JOIN oom_score_span ON (
+    lmk_events.ts
+    BETWEEN oom_score_span.ts
+    AND oom_score_span.ts + MAX(oom_score_span.dur - 1, 0))
+),
+ion_at_lmk_time AS (
+  SELECT
+    lmk_events.ts,
+    CAST(ion_timeline.value AS INT) ion_size
+  FROM lmk_events
+  JOIN ion_timeline ON (
+    lmk_events.ts
     BETWEEN ion_timeline.ts
-    AND ion_timeline.ts + MAX(ion_timeline.dur - 1, 0)
+    AND ion_timeline.ts + MAX(ion_timeline.dur - 1, 0))
+  WHERE ion_timeline.heap_name IN (SELECT name FROM total_ion_name)
 ),
 lmk_process_sizes AS (
   SELECT
-  lmk_events.ts,
-  rss_and_swap_span.upid,
-  rss_and_swap_val
+    lmk_events.ts,
+    rss_and_swap_span.upid,
+    file_rss_val,
+    anon_rss_val,
+    shmem_rss_val,
+    swap_val,
+    rss_and_swap_val
   FROM lmk_events
   JOIN rss_and_swap_span
   WHERE lmk_events.ts
@@ -58,23 +70,28 @@ lmk_process_sizes_output AS (
   SELECT ts, RepeatedField(AndroidLmkReasonMetric_Process(
     'process', metadata,
     'oom_score_adj', oom_score_val,
-    'size', rss_and_swap_val
+    'size', rss_and_swap_val,
+    'file_rss_bytes', file_rss_val,
+    'anon_rss_bytes', anon_rss_val,
+    'shmem_rss_bytes', shmem_rss_val,
+    'swap_bytes', swap_val
   )) processes
   FROM lmk_process_sizes
   JOIN process_metadata USING (upid)
-  LEFT JOIN android_lmk_reason_ooms USING (ts, upid)
+  LEFT JOIN oom_score_at_lmk_time USING (ts, upid)
   GROUP BY ts
 )
 SELECT AndroidLmkReasonMetric(
   'lmks', (
     SELECT RepeatedField(AndroidLmkReasonMetric_Lmk(
       'oom_score_adj', oom_score_val,
-      'system_ion_heap_size', system_ion_heap_size,
+      'system_ion_heap_size', ion_size,
+      'ion_heaps_bytes', ion_size,
       'processes', processes
     ))
     FROM lmk_events
-    LEFT JOIN android_lmk_reason_ooms USING (ts, upid)
-    LEFT JOIN lmk_ion_sizes USING (ts)
+    LEFT JOIN oom_score_at_lmk_time USING (ts, upid)
+    LEFT JOIN ion_at_lmk_time USING (ts)
     LEFT JOIN lmk_process_sizes_output USING (ts)
     WHERE oom_score_val IS NOT NULL
     ORDER BY ts

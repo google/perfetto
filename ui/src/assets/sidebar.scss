@@ -165,6 +165,16 @@
                 &:hover {
                     background-color: #373f4b;
                 }
+                .trace-file-name {
+                  white-space: break-spaces;
+                  font-family: 'Roboto Condensed', sans-serif;
+                  word-break: break-all;
+                  user-select: text;
+                  font-weight: 300;
+                  letter-spacing: 0;
+                  margin-top: -10px;
+                  color: #fff;
+                }
             }
         }
       }

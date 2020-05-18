@@ -193,6 +193,7 @@ export interface HeapProfileFlamegraph {
 export interface ChromeSliceSelection {
   kind: 'CHROME_SLICE';
   id: number;
+  table: string;
 }
 
 export interface ThreadStateSelection {

@@ -516,12 +516,14 @@ export const StateActions = {
     state.currentHeapProfileFlamegraph.focusRegex = args.focusRegex;
   },
 
-  selectChromeSlice(state: StateDraft, args: {id: number, trackId: string}):
+  selectChromeSlice(
+      state: StateDraft, args: {id: number, trackId: string, table: string}):
       void {
         state.currentSelection = {
           kind: 'CHROME_SLICE',
           id: args.id,
-          trackId: args.trackId
+          trackId: args.trackId,
+          table: args.table
         };
       },
 

@@ -64,6 +64,10 @@ def perfetto_java_proto_library(**kwargs):
     if not _rule_override("java_proto_library", **kwargs):
         native.java_proto_library(**kwargs)
 
+def perfetto_java_lite_proto_library(**kwargs):
+    if not _rule_override("java_lite_proto_library", **kwargs):
+        native.java_lite_proto_library(**kwargs)
+
 # +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
 # +----------------------------------------------------------------------------+
@@ -193,10 +197,13 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
         output_group = "h",
     )
 
+    # The headers from the gen plugin have implicit dependencies
+    # on each other so will fail when compiled independently. Use
+    # textual_hdrs to indicate this to Bazel.
     perfetto_cc_library(
         name = name,
         srcs = [":" + name + "_gen"],
-        hdrs = [":" + name + "_gen_h"],
+        textual_hdrs = [":" + name + "_gen_h"],
         deps = [
             PERFETTO_CONFIG.root + ":libprotozero"
         ] + _cc_deps,
