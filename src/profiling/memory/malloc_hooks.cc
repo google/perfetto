@@ -344,6 +344,53 @@ void ShutdownLazy() {
     PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
 }
 
+// We're a library loaded into a potentially-multithreaded process, which might
+// not be explicitly aware of this possiblity. Deadling with forks/clones is
+// extremely complicated in such situations, but we attempt to handle certain
+// cases.
+//
+// There are two classes of forking processes to consider:
+//  * well-behaved processes that fork only when their threads (if any) are at a
+//    safe point, and therefore not in the middle of our hooks/client.
+//  * processes that fork with other threads in an arbitrary state. Though
+//    technically buggy, such processes exist in practice.
+//
+// This atfork handler follows a crude lowest-common-denominator approach, where
+// to handle the latter class of processes, we systematically leak any |Client|
+// state (present only when actively profiling at the time of fork) in the
+// postfork-child path.
+//
+// The alternative with acquiring all relevant locks in the prefork handler, and
+// releasing the state postfork handlers, poses a separate class of edge cases,
+// and is not deemed to be better as a result.
+//
+// Notes:
+// * this atfork handler fires only for the |fork| libc entrypoint, *not*
+//   |clone|. See client.cc's |IsPostFork| for some best-effort detection
+//   mechanisms for clone/vfork.
+// * it should be possible to start a new profiling session in this child
+//   process, modulo the bionic's heapprofd-loading state machine being in the
+//   right state.
+// * we cannot avoid leaks in all cases anyway (e.g. during shutdown sequence,
+//   when only individual straggler threads hold onto the Client).
+void AtForkChild() {
+  PERFETTO_LOG("heapprofd_client: handling atfork.");
+
+  // A thread (that has now disappeared across the fork) could have been holding
+  // the spinlock. We're now the only thread post-fork, so we can reset the
+  // spinlock, though the state it protects (the |g_client| shared_ptr) might
+  // not be in a consistent state.
+  g_client_lock.store(false);
+
+  // Leak the existing shared_ptr contents, including the profiling |Client| if
+  // profiling was active at the time of the fork.
+  // Note: this code assumes that the creation of the empty shared_ptr does not
+  // allocate, which should be the case for all implementations as the
+  // constructor has to be noexcept.
+  std::shared_ptr<perfetto::profiling::Client>& ref = g_client.ref();
+  new (&ref) std::shared_ptr<perfetto::profiling::Client>();
+}
+
 }  // namespace
 
 // Setup for the rest of profiling. The first time profiling is triggered in a
@@ -362,7 +409,17 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
   using ::perfetto::profiling::Client;
 
   // Table of pointers to backing implementation.
-  g_dispatch.store(malloc_dispatch, std::memory_order_relaxed);
+  bool first_init = g_dispatch.load() == nullptr;
+  g_dispatch.store(malloc_dispatch);
+
+  // Install an atfork handler to deal with *some* cases of the host forking.
+  // The handler will be unpatched automatically if we're dlclosed.
+  if (first_init && pthread_atfork(/*prepare=*/nullptr, /*parent=*/nullptr,
+                                   &AtForkChild) != 0) {
+    PERFETTO_PLOG("%s: pthread_atfork failed, not installing hooks.",
+                  getprogname());
+    return false;
+  }
 
   // TODO(fmayer): Check other destructions of client and make a decision
   // whether we want to ban heap objects in the client or not.
