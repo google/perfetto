@@ -108,6 +108,8 @@ class MessageHandle : public MessageHandleBase {
   MessageHandle() : MessageHandle(nullptr) {}
   explicit MessageHandle(T* message) : MessageHandleBase(message) {}
 
+  explicit operator bool() const { return MessageHandleBase::operator bool(); }
+
   T& operator*() const {
     return static_cast<T&>(MessageHandleBase::operator*());
   }
@@ -115,6 +117,8 @@ class MessageHandle : public MessageHandleBase {
   T* operator->() const {
     return static_cast<T*>(MessageHandleBase::operator->());
   }
+
+  T* get() const { return static_cast<T*>(MessageHandleBase::operator->()); }
 };
 
 }  // namespace protozero
