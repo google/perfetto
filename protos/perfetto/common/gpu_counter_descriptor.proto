@@ -22,6 +22,18 @@ package perfetto.protos;
 // This message is sent by a GPU counter producer to specify the counters
 // available in the hardware.
 message GpuCounterDescriptor {
+  // Logical groups for a counter.  This is used in the UI to present the
+  // related counters together.
+  enum GpuCounterGroup {
+    UNCLASSIFIED = 0;
+    SYSTEM = 1;
+    VERTICES = 2;
+    FRAGMENTS = 3;
+    PRIMITIVES = 4;
+    MEMORY = 5;  // Includes counters relating to caching and bandwidth.
+    COMPUTE = 6;
+  }
+
   message GpuCounterSpec {
     optional uint32 counter_id = 1;
     optional string name = 2;
@@ -34,6 +46,7 @@ message GpuCounterDescriptor {
     repeated MeasureUnit numerator_units = 7;
     repeated MeasureUnit denominator_units = 8;
     optional bool select_by_default = 9;
+    repeated GpuCounterGroup groups = 10;
   }
   repeated GpuCounterSpec specs = 1;
 
