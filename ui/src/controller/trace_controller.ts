@@ -782,15 +782,16 @@ export class TraceController extends Controller<States> {
     }
 
     const annotationSliceRows = await engine.query(`
-      SELECT id, name FROM annotation_slice_track`);
+      SELECT id, name, upid FROM annotation_slice_track`);
     for (let i = 0; i < annotationSliceRows.numRecords; i++) {
       const id = annotationSliceRows.columns[0].longValues![i];
       const name = annotationSliceRows.columns[1].stringValues![i];
+      const upid = annotationSliceRows.columns[2].longValues![i] as number;
       tracksToAdd.push({
         engineId: this.engineId,
         kind: SLICE_TRACK_KIND,
         name,
-        trackGroup: SCROLLING_TRACK_GROUP,
+        trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP : upidToUuid.get(upid),
         config: {
           maxDepth: 0,
           namespace: 'annotation',
@@ -800,15 +801,16 @@ export class TraceController extends Controller<States> {
     }
 
     const annotationCounterRows = await engine.query(`
-      SELECT id, name FROM annotation_counter_track`);
+      SELECT id, name, upid FROM annotation_counter_track`);
     for (let i = 0; i < annotationCounterRows.numRecords; i++) {
       const id = annotationCounterRows.columns[0].longValues![i];
       const name = annotationCounterRows.columns[1].stringValues![i];
+      const upid = annotationCounterRows.columns[2].longValues![i] as number;
       tracksToAdd.push({
         engineId: this.engineId,
         kind: 'CounterTrack',
         name,
-        trackGroup: SCROLLING_TRACK_GROUP,
+        trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP : upidToUuid.get(upid),
         config: {
           name,
           namespace: 'annotation',
@@ -981,14 +983,16 @@ export class TraceController extends Controller<States> {
       CREATE TABLE annotation_counter_track(
         id INTEGER PRIMARY KEY,
         name STRING,
-        __metric_name STRING
+        __metric_name STRING,
+        upid INTEGER
       );
     `);
     await engine.query(`
       CREATE TABLE annotation_slice_track(
         id INTEGER PRIMARY KEY,
         name STRING,
-        __metric_name STRING
+        __metric_name STRING,
+        upid INTEGER
       );
     `);
 
@@ -1008,6 +1012,7 @@ export class TraceController extends Controller<States> {
         ts BIG INT,
         dur BIG INT,
         depth INT,
+        cat STRING,
         name STRING,
         PRIMARY KEY (track_id, ts)
       ) WITHOUT ROWID;
@@ -1025,22 +1030,28 @@ export class TraceController extends Controller<States> {
       const hasSliceName =
           result.columnDescriptors.some(x => x.name === 'slice_name');
       const hasDur = result.columnDescriptors.some(x => x.name === 'dur');
+      const hasUpid = result.columnDescriptors.some(x => x.name === 'upid');
 
+      const upidColumn = hasUpid ? 'upid' : '0 AS upid';
       if (hasSliceName && hasDur) {
         await engine.query(`
-          INSERT INTO annotation_slice_track(name, __metric_name)
-          SELECT DISTINCT track_name, '${metric}' as metric_name
+          INSERT INTO annotation_slice_track(name, __metric_name, upid)
+          SELECT DISTINCT
+            track_name,
+            '${metric}' as metric_name,
+            ${upidColumn}
           FROM ${metric}_annotations
           WHERE track_type = 'slice'
         `);
         await engine.query(`
-          INSERT INTO annotation_slice(id, track_id, ts, dur, depth, name)
+          INSERT INTO annotation_slice(id, track_id, ts, dur, depth, cat, name)
           SELECT
-            -1 as id,
+            row_number() over (order by ts) as id,
             t.id AS track_id,
             ts,
             dur,
             0 AS depth,
+            a.track_name as cat,
             slice_name AS name
           FROM ${metric}_annotations a
           JOIN annotation_slice_track t
@@ -1052,8 +1063,11 @@ export class TraceController extends Controller<States> {
       const hasValue = result.columnDescriptors.some(x => x.name === 'value');
       if (hasValue) {
         await engine.query(`
-          INSERT INTO annotation_counter_track(name, __metric_name)
-          SELECT DISTINCT track_name, '${metric}' as metric_name
+          INSERT INTO annotation_counter_track(name, __metric_name, upid)
+          SELECT DISTINCT
+            track_name,
+            '${metric}' as metric_name,
+            ${upidColumn}
           FROM ${metric}_annotations
           WHERE track_type = 'counter'
         `);

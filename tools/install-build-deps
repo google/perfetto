@@ -26,7 +26,6 @@ import zipfile
 from collections import namedtuple
 from platform import system
 
-from compat import urlretrieve
 
 # The format for the deps below is the following:
 # (target_folder, source_url, sha1, target_platform)
@@ -232,6 +231,10 @@ UI_DIR = os.path.join(ROOT_DIR, 'ui')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
 
 
+def DownloadURL(url, out_file):
+  subprocess.check_call(['curl', '-L', '-#', '-o', out_file, url])
+
+
 def ReadFile(path):
   if not os.path.exists(path):
     return None
@@ -315,7 +318,7 @@ def CheckHashes():
       logging.info('Downloading %s from %s', rel_path, url)
       with tempfile.NamedTemporaryFile(delete=False) as f:
         f.close()
-        urlretrieve(url, f.name)
+        DownloadURL(url, f.name)
         actual_sha1 = HashLocalFile(f.name)
         os.unlink(f.name)
         if (actual_sha1 != expected_sha1):
@@ -361,7 +364,7 @@ def Main():
     if HashLocalFile(local_path) != expected_sha1:
       download_path = local_path + '.tmp'
       logging.info('Downloading %s from %s', local_path, url)
-      urlretrieve(url, download_path)
+      DownloadURL(url, download_path)
       os.chmod(download_path, 0o755)
       actual_sha1 = HashLocalFile(download_path)
       if (actual_sha1 != expected_sha1):

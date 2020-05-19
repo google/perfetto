@@ -18,6 +18,7 @@ source_set("tracing") {
     "../../../protos/perfetto/config/track_event:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
+    "../../../protos/perfetto/trace/track_event:cpp",
     "../../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",

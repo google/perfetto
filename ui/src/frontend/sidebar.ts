@@ -98,6 +98,8 @@ order by started desc`;
 
 const TRACE_STATS = 'select * from stats order by severity, source, name, idx';
 
+let lastTabTitle = '';
+
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
@@ -135,6 +137,7 @@ const SECTIONS = [
     summary: 'Actions on the current trace',
     expanded: true,
     hideIfNoTraceLoaded: true,
+    appendOpenedTraceTitle: true,
     items: [
       {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
       {
@@ -645,6 +648,38 @@ export class Sidebar implements m.ClassComponent {
         }
         vdomItems.push(
             m('li', m('a', attrs, m('i.material-icons', item.i), item.t)));
+      }
+      if (section.appendOpenedTraceTitle) {
+        const engines = Object.values(globals.state.engines);
+        if (engines.length === 1) {
+          let traceTitle = '';
+          switch (engines[0].source.type) {
+            case 'FILE':
+              // Split on both \ and / (because C:\Windows\paths\are\like\this).
+              traceTitle = engines[0].source.file.name.split(/[/\\]/).pop()!;
+              const fileSizeMB = Math.ceil(engines[0].source.file.size / 1e6);
+              traceTitle += ` (${fileSizeMB} MB)`;
+              break;
+            case 'URL':
+              traceTitle = engines[0].source.url.split('/').pop()!;
+              break;
+            case 'ARRAY_BUFFER':
+              traceTitle = 'External trace';
+              break;
+            case 'HTTP_RPC':
+              traceTitle = 'External trace (RPC)';
+              break;
+            default:
+              break;
+          }
+          if (traceTitle !== '') {
+            const tabTitle = `${traceTitle} - Perfetto UI`;
+            if (tabTitle !== lastTabTitle) {
+              document.title = lastTabTitle = tabTitle;
+            }
+            vdomItems.unshift(m('li', m('a.trace-file-name', traceTitle)));
+          }
+        }
       }
       vdomSections.push(
           m(`section${section.expanded ? '.expanded' : ''}`,

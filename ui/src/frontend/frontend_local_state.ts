@@ -40,6 +40,10 @@ function chooseLatest<T extends Timestamped<{}>>(current: T, next: T): T {
   return current;
 }
 
+function capBetween(t: number, start: number, end: number) {
+  return Math.min(Math.max(t, start), end);
+}
+
 // Calculate the space a scrollbar takes up so that we can subtract it from
 // the canvas width.
 function calculateScrollbarWidth() {
@@ -292,8 +296,9 @@ export class FrontendLocalState {
   }, 50);
 
   private updateLocalTime(ts: TimeSpan) {
-    const startSec = Math.max(ts.start, globals.state.traceTime.startSec);
-    const endSec = Math.min(ts.end, globals.state.traceTime.endSec);
+    const traceTime = globals.state.traceTime;
+    const startSec = capBetween(ts.start, traceTime.startSec, traceTime.endSec);
+    const endSec = capBetween(ts.end, traceTime.startSec, traceTime.endSec);
     this.visibleWindowTime = new TimeSpan(startSec, endSec);
     this.timeScale.setTimeBounds(this.visibleWindowTime);
     this.updateResolution(this.timeScale.startPx, this.timeScale.endPx);
