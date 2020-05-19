@@ -188,6 +188,14 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_VULKAN_MEMORY_ALLOCATIONS_DEF);
 
+#define PERFETTO_TP_GPU_COUNTER_GROUP_DEF(NAME, PARENT, C) \
+  NAME(GpuCounterGroupTable, "gpu_counter_group")          \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
+  C(int32_t, group_id)                                     \
+  C(TrackTable::Id, track_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_GPU_COUNTER_GROUP_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
