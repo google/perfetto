@@ -56,6 +56,7 @@ HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
 ProfilerSmapsTable::~ProfilerSmapsTable() = default;
+GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 
 // slice_tables.h
 SliceTable::~SliceTable() = default;

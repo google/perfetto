@@ -424,6 +424,13 @@ class TraceStorage {
     return &gpu_counter_track_table_;
   }
 
+  const tables::GpuCounterGroupTable& gpu_counter_group_table() const {
+    return gpu_counter_group_table_;
+  }
+  tables::GpuCounterGroupTable* mutable_gpu_counter_group_table() {
+    return &gpu_counter_group_table_;
+  }
+
   const tables::SchedSliceTable& sched_slice_table() const {
     return sched_slice_table_;
   }
@@ -728,6 +735,7 @@ class TraceStorage {
       &string_pool_, &counter_track_table_};
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
+  tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_, nullptr};
 
   // Args for all other tables.
   tables::ArgTable arg_table_{&string_pool_, nullptr};
