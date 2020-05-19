@@ -499,10 +499,18 @@ void OnNewRequest(size_t request_id) {
 Tracks can also optionally be annotated with metadata:
 
 ```C++
+auto desc = track.Serialize();
+desc.set_name("MyTrack");
+perfetto::TrackEvent::SetTrackDescriptor(track, desc);
+```
+
+Threads and processes can also be named in a similar way, e.g.:
+
+```C++
+auto desc = perfetto::ProcessTrack::Current().Serialize();
+desc.mutable_process()->set_process_name("MyProcess");
 perfetto::TrackEvent::SetTrackDescriptor(
-    track, [](perfetto::protos::pbzero::TrackDescriptor* desc) {
-  desc->set_name("MyTrack");
-});
+    perfetto::ProcessTrack::Current(), desc);
 ```
 
 The metadata remains valid between tracing sessions. To free up data for a

@@ -83,8 +83,8 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     horizontalScrollAndZoomToRange(sliceStart, sliceEnd);
     const sliceId = row.slice_id as number | undefined;
     if (sliceId !== undefined) {
-      globals.makeSelection(
-          Actions.selectChromeSlice({id: sliceId, trackId: uiTrackId}));
+      globals.makeSelection(Actions.selectChromeSlice(
+          {id: sliceId, trackId: uiTrackId, table: 'slice'}));
     }
   }
 

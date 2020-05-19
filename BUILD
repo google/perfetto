@@ -24,6 +24,7 @@ load(
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_java_proto_library",
+    "perfetto_java_lite_proto_library",
     "perfetto_proto_library",
     "perfetto_py_binary",
     "perfetto_gensignature_internal_only",
@@ -154,6 +155,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
         ":protos_perfetto_trace_system_info_zero",
+        ":protos_perfetto_trace_track_event_cpp",
         ":protos_perfetto_trace_track_event_zero",
     ],
 )
@@ -250,6 +252,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
         ":protos_perfetto_trace_system_info_zero",
+        ":protos_perfetto_trace_track_event_cpp",
         ":protos_perfetto_trace_track_event_zero",
     ],
     linkstatic = True,
@@ -752,6 +755,7 @@ genrule(
         "src/trace_processor/metrics/android/android_task_names.sql",
         "src/trace_processor/metrics/android/android_task_state.sql",
         "src/trace_processor/metrics/android/android_thread_time_in_state.sql",
+        "src/trace_processor/metrics/android/counter_span_view.sql",
         "src/trace_processor/metrics/android/cpu_info.sql",
         "src/trace_processor/metrics/android/display_metrics.sql",
         "src/trace_processor/metrics/android/heap_profile_callsites.sql",
@@ -759,6 +763,7 @@ genrule(
         "src/trace_processor/metrics/android/java_heap_histogram.sql",
         "src/trace_processor/metrics/android/java_heap_stats.sql",
         "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",
+        "src/trace_processor/metrics/android/process_counter_span_view.sql",
         "src/trace_processor/metrics/android/process_mem.sql",
         "src/trace_processor/metrics/android/process_metadata.sql",
         "src/trace_processor/metrics/android/process_oom_score.sql",
@@ -766,7 +771,6 @@ genrule(
         "src/trace_processor/metrics/android/span_view_stats.sql",
         "src/trace_processor/metrics/android/unmapped_java_symbols.sql",
         "src/trace_processor/metrics/android/unsymbolized_frames.sql",
-        "src/trace_processor/metrics/android/upid_span_view.sql",
         "src/trace_processor/metrics/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
     ],
@@ -2591,6 +2595,14 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/track_event:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_trace_track_event_cpp",
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/track_event:lite
 perfetto_cc_proto_library(
     name = "protos_perfetto_trace_track_event_lite",
@@ -2753,6 +2765,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
         ":protos_perfetto_trace_system_info_zero",
+        ":protos_perfetto_trace_track_event_cpp",
         ":protos_perfetto_trace_track_event_zero",
     ],
     linkstatic = True,
@@ -2832,6 +2845,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_ps_zero",
         ":protos_perfetto_trace_sys_stats_zero",
         ":protos_perfetto_trace_system_info_zero",
+        ":protos_perfetto_trace_track_event_cpp",
         ":protos_perfetto_trace_track_event_zero",
         ":src_perfetto_cmd_protos",
     ] + PERFETTO_CONFIG.deps.zlib,
@@ -3215,6 +3229,13 @@ perfetto_java_proto_library(
 
 perfetto_java_proto_library(
     name = "protos_perfetto_config_merged_config_java",
+    deps = [
+        ":protos_perfetto_config_merged_config_protos",
+    ],
+)
+
+perfetto_java_lite_proto_library(
+    name = "protos_perfetto_config_merged_config_java_lite",
     deps = [
         ":protos_perfetto_config_merged_config_protos",
     ],

@@ -103,7 +103,11 @@ class ThreadStateTrack extends Track<Config, Data> {
           colorSummarizedSlice(breakdown, rectStart, rectEnd);
           text = getSummarizedSliceText(breakdown);
         } else {
-          ctx.fillStyle = `hsl(${color.h},${color.s}%,${color.l}%)`;
+          let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
+          if (color.a) {
+            colorStr = `hsla(${color.h},${color.s}%,${color.l}%, ${color.a})`;
+          }
+          ctx.fillStyle = colorStr;
         }
         if (shouldGroupBusyStates && rectWidth < 1) {
           rectWidth = 1;
@@ -111,7 +115,7 @@ class ThreadStateTrack extends Track<Config, Data> {
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
         // Don't render text when we have less than 10px to play with.
-        if (rectWidth < 10) continue;
+        if (rectWidth < 10 || text === 'Sleeping') continue;
         const title = cropText(text, charWidth, rectWidth);
         const rectXCenter = rectStart + rectWidth / 2;
         ctx.fillStyle = color.l > 80 || breakdown ? '#404040' : '#fff';

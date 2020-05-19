@@ -52,13 +52,11 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
                          std::set<pid_t>* pids);
 bool GetCmdlineForPID(pid_t pid, std::string* name);
 
-base::Optional<uint32_t> GetRssAnonAndSwap(pid_t pid);
+base::Optional<std::string> ReadStatus(pid_t pid);
+base::Optional<uint32_t> GetRssAnonAndSwap(const std::string&);
 // Filters the list of pids (in-place), keeping only the
 // entries satisfying the minimum size criteria for anonymous memory.
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
-bool IsUnderAnonRssAndSwapThreshold(pid_t pid,
-                                    uint32_t min_size_kb,
-                                    const std::string& status);
 
 }  // namespace profiling
 }  // namespace perfetto
