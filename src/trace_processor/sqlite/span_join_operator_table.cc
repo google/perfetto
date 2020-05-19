@@ -159,6 +159,15 @@ util::Status SpanJoinOperatorTable::Init(int argc,
   CreateSchemaColsForDefn(t1_defn_, &cols);
   CreateSchemaColsForDefn(t2_defn_, &cols);
 
+  // Check if any column has : in its name. This often happens when SELECT *
+  // is used to create a view with the same column name in two joined tables.
+  for (const auto& col : cols) {
+    if (col.name().find(':') != std::string::npos) {
+      return util::ErrStatus("SPAN_JOIN: column %s has illegal character :",
+                             col.name().c_str());
+    }
+  }
+
   if (auto opt_dupe_col = HasDuplicateColumns(cols)) {
     return util::ErrStatus(
         "SPAN_JOIN: column %s present in both tables %s and %s",

@@ -79,6 +79,9 @@ function selectCurrentSearchResult() {
   if (source === 'cpu') {
     globals.dispatch(Actions.selectSlice({id: currentId, trackId}));
   } else {
-    globals.dispatch(Actions.selectChromeSlice({id: currentId, trackId}));
+    // Search results only include slices from the slice table for now.
+    // When we include annotations we need to pass the correct table.
+    globals.dispatch(
+        Actions.selectChromeSlice({id: currentId, trackId, table: 'slice'}));
   }
 }

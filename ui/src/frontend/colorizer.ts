@@ -21,6 +21,7 @@ export interface Color {
   h: number;
   s: number;
   l: number;
+  a?: number;
 }
 
 const MD_PALETTE: Color[] = [
@@ -76,11 +77,12 @@ const LIME_GREEN: Color = {
   s: 55,
   l: 47
 };
-const LIGHT_GREY: Color = {
-  c: 'light grey',
+const TRANSPARENT_WHITE: Color = {
+  c: 'white',
   h: 0,
-  s: 0,
-  l: 87
+  s: 1,
+  l: 97,
+  a: 0.55,
 };
 const ORANGE: Color = {
   c: 'orange',
@@ -104,7 +106,7 @@ export function colorForState(stateCode: string): Readonly<Color> {
   } else if (state.includes('Uninterruptible Sleep')) {
     return ORANGE;
   } else if (state.includes('Sleeping')) {
-    return LIGHT_GREY;
+    return TRANSPARENT_WHITE;
   }
   return INDIGO;
 }

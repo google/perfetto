@@ -143,7 +143,8 @@ export class SearchController extends Controller<'main'> {
 
     const utids = [...rawUtidResult.columns[0].longValues!];
 
-    const maxCpu = Math.max(...await this.engine.getCpus());
+    const cpus = await this.engine.getCpus();
+    const maxCpu = Math.max(...cpus, -1);
 
     const rawResult = await this.query(`
         select

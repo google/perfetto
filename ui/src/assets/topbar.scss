@@ -110,36 +110,6 @@
           }
         }
     }
-    .omnibox-results {
-        @include transition(0.25s);
-        @include omnibox-width();
-        position: absolute;
-        z-index: 1;
-        max-height: 250px;
-        top: calc(var(--topbar-height) + 2px);
-        left: 0;
-        right: 0;
-        margin: auto;
-        background-color: hsla(213, 0%, 95%, 0.99);
-        box-shadow: 0 3px 9px #ccc;
-        border-radius: 0 0 5px 5px;
-        >* {
-            height: 24px;
-            line-height: 24px;
-            padding: 0 10px;
-            font-family: 'Raleway', sans-serif;
-            font-size: 14px;
-            vertical-align: middle;
-            color: #666;
-            border-bottom: 1px solid #eee;
-            &:hover {
-                background-color: hsl(213, 20%, 92%);
-            }
-            &.selected {
-                background-color: hsl(213, 40%, 90%);
-            }
-        }
-    }
     .progress {
         position: absolute;
         bottom: 0;

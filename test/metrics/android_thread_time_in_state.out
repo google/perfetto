@@ -2,12 +2,12 @@ android_thread_time_in_state {
   processes {
     metrics_by_core_type {
       core_type: "unknown"
-      runtime_ms: 10
+      runtime_ms: 20
     }
     threads {
       metrics_by_core_type {
         core_type: "unknown"
-        runtime_ms: 10
+        runtime_ms: 20
       }
     }
   }
