@@ -1,0 +1,68 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
+    counter_descriptor {
+      specs {
+        counter_id: 1
+        name: "GPU Frequency"
+        description: "clock speed"
+        denominator_units: SECOND,
+      }
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
+    counter_descriptor {
+      specs {
+        counter_id: 2
+        name: "Fragments / vertex"
+        description: "Number of fragments per vertex"
+        numerator_units: FRAGMENT
+        denominator_units: VERTEX
+        groups: FRAGMENTS
+        groups: VERTICES
+      }
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
+    counter_descriptor {
+      specs {
+        counter_id: 3
+        name: "Fragment / Second"
+        description: "Number of fragments per second"
+        numerator_units: PIXEL
+        denominator_units: SECOND
+        groups: FRAGMENTS
+      }
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  gpu_counter_event {
+    counter_descriptor {
+      specs {
+        counter_id: 4
+        name: "Triangle Acceleration"
+        description: "Number of triangles per ms-ms"
+        numerator_units: TRIANGLE
+        denominator_units: MILLISECOND
+        denominator_units: MILLISECOND
+        groups: PRIMITIVES
+      }
+    }
+  }
+}
+

@@ -1,0 +1,6 @@
+"group_id","name","description","unit"
+0,"GPU Frequency","clock speed","/22"
+3,"Fragments / vertex","Number of fragments per vertex","39/25"
+2,"Fragments / vertex","Number of fragments per vertex","39/25"
+3,"Fragment / Second","Number of fragments per second","26/22"
+4,"Triangle Acceleration","Number of triangles per ms-ms","27/21:21"
