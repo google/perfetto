@@ -514,25 +514,29 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
       // ctime++
       .WillOnce(Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 55 117 4"))
       // stime++
+      .WillOnce(Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 55 118 4"))
+      // ctime++, stime++
       .WillOnce(
-          Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 55 118 4"));
+          Return("1 (pid_1) S 1 1 0 0 -1 4210944 2197 2451 0 1 56 119 4"));
   EXPECT_CALL(*data_source, OpenProcTaskDir(kPid))
       .WillRepeatedly(Invoke([&fake_proc_task](int32_t) {
         return base::ScopedDir(opendir(fake_proc_task.path().c_str()));
       }));
   EXPECT_CALL(*data_source, ReadProcPidFile(kTids[0], "time_in_state"))
-      .Times(3)
+      .Times(4)
       .WillRepeatedly(Return("cpu0\n300000 1\n748800 1\ncpu1\n300000 5\n"));
   EXPECT_CALL(*data_source, ReadProcPidFile(kTids[1], "time_in_state"))
       .WillOnce(
           Return("cpu0\n300000 10\n748800 0\ncpu1\n300000 50\n652800 60\n"))
       .WillOnce(Return("cpu0\n300000 20\n748800 0\n1324800 30\ncpu1\n300000 "
                        "100\n652800 60\n"))
+      .WillOnce(Return("cpu0\n300000 200\n748800 0\n1324800 30\ncpu1\n300000 "
+                       "100\n652800 60\n"))
       .WillOnce(Invoke([&checkpoint](int32_t, const std::string&) {
         // Call checkpoint here to stop after the third tick.
         checkpoint();
-        return "cpu0\n300000 200\n748800 0\n1324800 30\ncpu1\n300000 "
-               "100\n652800 60\n";
+        return "cpu0\n300000 300\n748800 0\n1324800 40\ncpu1\n300000 "
+               "200\n652800 70\n";
       }));
   EXPECT_CALL(*data_source, ReadProcPidFile(kIgnoredPid, "status"))
       .WillRepeatedly(
@@ -565,15 +569,15 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   for (auto it : processes_map)
     processes.push_back(it.second);
 
-  // 3 packets for pid=1, 2 packets for pid=5.
-  EXPECT_EQ(processes.size(), 5u);
+  // 4 packets for pid=1, 2 packets for pid=5.
+  ASSERT_EQ(processes.size(), 6u);
 
   auto compare_tid = [](protos::gen::ProcessStats_Thread& l,
                         protos::gen::ProcessStats_Thread& r) {
     return l.tid() < r.tid();
   };
 
-  // First pull has all threads.
+  // First pull has all threads and all frequencies.
   // Check pid = 1.
   auto threads = processes[0].threads();
   EXPECT_EQ(threads.size(), 2u);
@@ -582,23 +586,30 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_EQ(thread.tid(), 1);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 3u, 10u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(1, 1, 5));
+  EXPECT_THAT(thread.cpu_freq_full(), true);
   thread = threads[1];
   EXPECT_EQ(thread.tid(), 2);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 10u, 11u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(10, 50, 60));
+  EXPECT_THAT(thread.cpu_freq_full(), true);
   // Check pid = 5.
   threads = processes[1].threads();
   EXPECT_EQ(threads.size(), 1u);
-  EXPECT_EQ(threads[0].tid(), 5);
-  EXPECT_THAT(threads[0].cpu_freq_ticks(), ElementsAre(10, 20));
+  thread = threads[0];
+  EXPECT_EQ(thread.tid(), 5);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 11u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(10, 20));
+  EXPECT_THAT(thread.cpu_freq_full(), true);
 
-  // Second pull has only one thread with delta.
+  // Second pull has only one thread that changed.
   threads = processes[2].threads();
   EXPECT_EQ(threads.size(), 1u);
   thread = threads[0];
   EXPECT_EQ(thread.tid(), 2);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 6u, 10u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(20, 30, 100));
+  // Value for cpu_freq index 11 did not change.
+  EXPECT_THAT(thread.has_cpu_freq_full(), false);
 
   // Third pull has all thread because cache was cleared.
   // Check pid = 1.
@@ -609,15 +620,31 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_EQ(thread.tid(), 1);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 3u, 10u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(1, 1, 5));
+  EXPECT_THAT(thread.cpu_freq_full(), true);
   thread = threads[1];
   EXPECT_EQ(thread.tid(), 2);
   EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 6u, 10u, 11u));
   EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(200, 30, 100, 60));
+  EXPECT_THAT(thread.cpu_freq_full(), true);
   // Check pid = 5.
   threads = processes[4].threads();
   EXPECT_EQ(threads.size(), 1u);
-  EXPECT_EQ(threads[0].tid(), 5);
-  EXPECT_THAT(threads[0].cpu_freq_ticks(), ElementsAre(10, 20));
+  thread = threads[0];
+  EXPECT_EQ(thread.tid(), 5);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 11u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(10, 20));
+  EXPECT_THAT(thread.cpu_freq_full(), true);
+
+  // Forth full has only one thread that changed.
+  threads = processes[5].threads();
+  EXPECT_EQ(threads.size(), 1u);
+  thread = threads[0];
+  EXPECT_EQ(thread.tid(), 2);
+  EXPECT_THAT(thread.cpu_freq_indices(), ElementsAre(1u, 6u, 10u, 11u));
+  EXPECT_THAT(thread.cpu_freq_ticks(), ElementsAre(300, 40, 200, 70));
+  // All non-zero values for all cpu_freq indices changed. It is an exhaustive
+  // snapshot.
+  EXPECT_THAT(thread.cpu_freq_full(), true);
 
   for (const std::string& path : dirs_to_delete)
     rmdir(path.c_str());

@@ -622,6 +622,8 @@ void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
   protos::pbzero::ProcessStats_Thread* thread = nullptr;
   base::StringSplitter entries(std::move(time_in_state), '\n');
   uint32_t last_cpu = 0;
+  // Whether all frequencies with non-zero ticks are added to cpu_freq_indices.
+  bool full = true;
   while (entries.Next()) {
     std::string line(entries.cur_token());
     if (base::StartsWith(line, "cpu")) {
@@ -657,7 +659,12 @@ void ProcessStatsDataSource::WriteThreadStats(int32_t pid, int32_t tid) {
       }
       thread->add_cpu_freq_indices(freq_index);
       thread->add_cpu_freq_ticks(ticks);
+    } else {
+      full = false;
     }
+  }
+  if (full && thread != nullptr) {
+    thread->set_cpu_freq_full(true);
   }
 }
 
