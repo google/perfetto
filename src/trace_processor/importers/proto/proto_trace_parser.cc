@@ -47,11 +47,11 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
@@ -286,7 +286,7 @@ void ProtoTraceParser::ParseProfilePacket(
     protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
 
     auto maybe_timestamp = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE,
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
         static_cast<int64_t>(entry.timestamp()));
 
     if (!maybe_timestamp) {

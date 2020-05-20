@@ -216,6 +216,23 @@ message TracingServiceState {
 
 // End of protos/perfetto/common/tracing_service_state.proto
 
+// Begin of protos/perfetto/common/builtin_clock.proto
+
+enum BuiltinClock {
+  BUILTIN_CLOCK_UNKNOWN = 0;
+  BUILTIN_CLOCK_REALTIME = 1;
+  BUILTIN_CLOCK_REALTIME_COARSE = 2;
+  BUILTIN_CLOCK_MONOTONIC = 3;
+  BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
+  BUILTIN_CLOCK_MONOTONIC_RAW = 5;
+  BUILTIN_CLOCK_BOOTTIME = 6;
+  BUILTIN_CLOCK_MAX_ID = 63;
+
+  reserved 7, 8;
+}
+
+// End of protos/perfetto/common/builtin_clock.proto
+
 // Begin of protos/perfetto/common/android_log_constants.proto
 
 // Values from NDK's android/log.h.
@@ -1135,6 +1152,14 @@ message TraceConfig {
     // Disable emitting events for data-source state changes (e.g. the marker
     // for all data sources having ACKed the start of the trace).
     optional bool disable_service_events = 4;
+
+    // The authoritative clock domain for the trace. Defaults to BOOTTIME. See
+    // also ClockSnapshot's primary_trace_clock. The configured value is written
+    // into the trace as part of the ClockSnapshots emitted by the service.
+    // Trace processor will attempt to translate packet/event timestamps from
+    // various data sources (and their chosen clock domains) to this domain
+    // during import. Added in Android S.
+    optional BuiltinClock primary_trace_clock = 5;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 

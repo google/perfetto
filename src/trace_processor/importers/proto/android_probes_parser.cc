@@ -27,11 +27,11 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
@@ -180,7 +180,7 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
   base::Optional<int64_t> opt_trace_time = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::ClockSnapshot::Clock::REALTIME, ts);
+      protos::pbzero::BUILTIN_CLOCK_REALTIME, ts);
   if (!opt_trace_time)
     return;
 
