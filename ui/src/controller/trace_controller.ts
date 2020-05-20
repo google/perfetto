@@ -1018,7 +1018,10 @@ export class TraceController extends Controller<States> {
       ) WITHOUT ROWID;
     `);
 
-    for (const metric of ['android_startup', 'android_ion']) {
+    for (const metric
+             of ['android_startup',
+                 'android_ion',
+                 'android_thread_time_in_state']) {
       // We don't care about the actual result of metric here as we are just
       // interested in the annotation tracks.
       const metricResult = await engine.computeMetric([metric]);
