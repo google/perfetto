@@ -33,6 +33,7 @@ source_set("common") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/profiling:zero",
     "../../base",
@@ -53,6 +54,7 @@ source_set("unittests") {
     ":common",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace:zero",
     "../../base",
     "../storage",

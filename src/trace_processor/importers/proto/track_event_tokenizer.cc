@@ -27,7 +27,7 @@
 #include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
@@ -226,7 +226,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     auto trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
@@ -236,7 +236,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
     auto trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
     if (trace_ts.has_value())
       timestamp = trace_ts.value();
   } else if (packet.has_timestamp()) {

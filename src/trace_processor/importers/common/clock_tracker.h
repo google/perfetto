@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 
+#include <inttypes.h>
 #include <stdint.h>
 
 #include <array>
@@ -178,6 +179,7 @@ class ClockTracker {
                                           ClockId target_clock_id);
 
   base::Optional<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
+    trace_time_clock_id_used_for_conversion_ = true;
     if (clock_id == trace_time_clock_id_)
       return timestamp;
     return Convert(clock_id, timestamp, trace_time_clock_id_);
@@ -185,6 +187,13 @@ class ClockTracker {
 
   void SetTraceTimeClock(ClockId clock_id) {
     PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
+    if (trace_time_clock_id_used_for_conversion_) {
+      PERFETTO_ELOG("Not updating trace time clock from %" PRIu64 " to %" PRIu64
+                    " because the old clock was already used for timestamp "
+                    "conversion - ClockSnapshot too late in trace?",
+                    trace_time_clock_id_, clock_id);
+      return;
+    }
     trace_time_clock_id_ = clock_id;
   }
 
@@ -299,6 +308,7 @@ class ClockTracker {
   bool cache_lookups_disabled_for_testing_ = false;
   std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
+  bool trace_time_clock_id_used_for_conversion_ = false;
 };
 
 }  // namespace trace_processor
