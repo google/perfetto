@@ -216,6 +216,23 @@ message TracingServiceState {
 
 // End of protos/perfetto/common/tracing_service_state.proto
 
+// Begin of protos/perfetto/common/builtin_clock.proto
+
+enum BuiltinClock {
+  BUILTIN_CLOCK_UNKNOWN = 0;
+  BUILTIN_CLOCK_REALTIME = 1;
+  BUILTIN_CLOCK_REALTIME_COARSE = 2;
+  BUILTIN_CLOCK_MONOTONIC = 3;
+  BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
+  BUILTIN_CLOCK_MONOTONIC_RAW = 5;
+  BUILTIN_CLOCK_BOOTTIME = 6;
+  BUILTIN_CLOCK_MAX_ID = 63;
+
+  reserved 7, 8;
+}
+
+// End of protos/perfetto/common/builtin_clock.proto
+
 // Begin of protos/perfetto/common/android_log_constants.proto
 
 // Values from NDK's android/log.h.
@@ -1135,6 +1152,14 @@ message TraceConfig {
     // Disable emitting events for data-source state changes (e.g. the marker
     // for all data sources having ACKed the start of the trace).
     optional bool disable_service_events = 4;
+
+    // The authoritative clock domain for the trace. Defaults to BOOTTIME. See
+    // also ClockSnapshot's primary_trace_clock. The configured value is written
+    // into the trace as part of the ClockSnapshots emitted by the service.
+    // Trace processor will attempt to translate packet/event timestamps from
+    // various data sources (and their chosen clock domains) to this domain
+    // during import. Added in Android S.
+    optional BuiltinClock primary_trace_clock = 5;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -1867,6 +1892,7 @@ message ChromeEventBundle {
 // A snapshot of clock readings to allow for trace alignment.
 message ClockSnapshot {
   message Clock {
+    // DEPRECATED. This enum has moved to ../common/builtin_clock.proto.
     enum BuiltinClocks {
       UNKNOWN = 0;
       REALTIME = 1;
@@ -1875,13 +1901,14 @@ message ClockSnapshot {
       MONOTONIC_COARSE = 4;
       MONOTONIC_RAW = 5;
       BOOTTIME = 6;
-      PROCESS_CPUTIME = 7;
-      THREAD_CPUTIME = 8;
       BUILTIN_CLOCK_MAX_ID = 63;
+
+      reserved 7, 8;
     }
 
     // Clock IDs have the following semantic:
-    // [1, 63]:    Builtin types, see BuiltinClocks above.
+    // [1, 63]:    Builtin types, see BuiltinClock from
+    //             ../common/builtin_clock.proto.
     // [64, 127]:  User-defined clocks. These clocks are sequence-scoped. They
     //             are only valid within the same |trusted_packet_sequence_id|
     //             (i.e. only for TracePacket(s) emitted by the same TraceWriter
@@ -1909,6 +1936,12 @@ message ClockSnapshot {
     optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;
+
+  // The authoritative clock domain for the trace. Defaults to BOOTTIME, but can
+  // be overridden in TraceConfig's builtin_data_sources. Trace processor will
+  // attempt to translate packet/event timestamps from various data sources (and
+  // their chosen clock domains) to this domain during import.
+  optional BuiltinClock primary_trace_clock = 2;
 }
 
 // End of protos/perfetto/trace/clock_snapshot.proto

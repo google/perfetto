@@ -25,6 +25,7 @@
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/track.h"
 #include "perfetto/tracing/track_event_category_registry.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
@@ -464,8 +465,7 @@ class TrackEventDataSource
   static uint64_t GetTraceTimeNs() { return TrackEventInternal::GetTimeNs(); }
 
   // Returns the type of clock used by GetTraceTimeNs().
-  static constexpr protos::pbzero::ClockSnapshot::Clock::BuiltinClocks
-  GetTraceClockId() {
+  static constexpr protos::pbzero::BuiltinClock GetTraceClockId() {
     return TrackEventInternal::GetClockId();
   }
 
