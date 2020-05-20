@@ -1469,6 +1469,7 @@ perfetto_proto_library(
     name = "protos_perfetto_common_protos",
     srcs = [
         "protos/perfetto/common/android_log_constants.proto",
+        "protos/perfetto/common/builtin_clock.proto",
         "protos/perfetto/common/commit_data_request.proto",
         "protos/perfetto/common/data_source_descriptor.proto",
         "protos/perfetto/common/descriptor.proto",

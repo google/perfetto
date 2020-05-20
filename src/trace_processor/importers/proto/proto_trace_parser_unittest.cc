@@ -36,6 +36,7 @@
 #include "src/trace_processor/trace_sorter.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
@@ -2316,9 +2317,8 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
   context_.sorter.reset(new TraceSorter(
       CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
-  clock_->AddSnapshot(
-      {{protos::pbzero::ClockSnapshot::Clock::BOOTTIME, 0},
-       {protos::pbzero::ClockSnapshot::Clock::MONOTONIC, 1000000}});
+  clock_->AddSnapshot({{protos::pbzero::BUILTIN_CLOCK_BOOTTIME, 0},
+                       {protos::pbzero::BUILTIN_CLOCK_MONOTONIC, 1000000}});
 
   {
     auto* packet = trace_.add_packet();
@@ -2722,11 +2722,10 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
     // 1000 us monotonic == 10000 us boottime.
     auto* clock_snapshot = packet->set_clock_snapshot();
     auto* clock_boot = clock_snapshot->add_clocks();
-    clock_boot->set_clock_id(protos::pbzero::ClockSnapshot::Clock::BOOTTIME);
+    clock_boot->set_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
     clock_boot->set_timestamp(10000000);
     auto* clock_monotonic = clock_snapshot->add_clocks();
-    clock_monotonic->set_clock_id(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+    clock_monotonic->set_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
     clock_monotonic->set_timestamp(1000000);
   }
 

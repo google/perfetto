@@ -1587,6 +1587,7 @@ genrule {
   name: "perfetto_protos_perfetto_common_cpp_gen",
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
+    "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
     "protos/perfetto/common/data_source_descriptor.proto",
     "protos/perfetto/common/descriptor.proto",
@@ -1605,6 +1606,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.gen.cc",
+    "external/perfetto/protos/perfetto/common/builtin_clock.gen.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.gen.cc",
     "external/perfetto/protos/perfetto/common/data_source_descriptor.gen.cc",
     "external/perfetto/protos/perfetto/common/descriptor.gen.cc",
@@ -1623,6 +1625,7 @@ genrule {
   name: "perfetto_protos_perfetto_common_cpp_gen_headers",
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
+    "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
     "protos/perfetto/common/data_source_descriptor.proto",
     "protos/perfetto/common/descriptor.proto",
@@ -1641,6 +1644,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.gen.h",
+    "external/perfetto/protos/perfetto/common/builtin_clock.gen.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.gen.h",
     "external/perfetto/protos/perfetto/common/data_source_descriptor.gen.h",
     "external/perfetto/protos/perfetto/common/descriptor.gen.h",
@@ -1663,6 +1667,7 @@ genrule {
   name: "perfetto_protos_perfetto_common_lite_gen",
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
+    "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
     "protos/perfetto/common/data_source_descriptor.proto",
     "protos/perfetto/common/descriptor.proto",
@@ -1680,6 +1685,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.cc",
+    "external/perfetto/protos/perfetto/common/builtin_clock.pb.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.cc",
     "external/perfetto/protos/perfetto/common/data_source_descriptor.pb.cc",
     "external/perfetto/protos/perfetto/common/descriptor.pb.cc",
@@ -1698,6 +1704,7 @@ genrule {
   name: "perfetto_protos_perfetto_common_lite_gen_headers",
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
+    "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
     "protos/perfetto/common/data_source_descriptor.proto",
     "protos/perfetto/common/descriptor.proto",
@@ -1715,6 +1722,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.h",
+    "external/perfetto/protos/perfetto/common/builtin_clock.pb.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.h",
     "external/perfetto/protos/perfetto/common/data_source_descriptor.pb.h",
     "external/perfetto/protos/perfetto/common/descriptor.pb.h",
@@ -1737,6 +1745,7 @@ genrule {
   name: "perfetto_protos_perfetto_common_zero_gen",
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
+    "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
     "protos/perfetto/common/data_source_descriptor.proto",
     "protos/perfetto/common/descriptor.proto",
@@ -1755,6 +1764,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.cc",
+    "external/perfetto/protos/perfetto/common/builtin_clock.pbzero.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.cc",
     "external/perfetto/protos/perfetto/common/data_source_descriptor.pbzero.cc",
     "external/perfetto/protos/perfetto/common/descriptor.pbzero.cc",
@@ -1773,6 +1783,7 @@ genrule {
   name: "perfetto_protos_perfetto_common_zero_gen_headers",
   srcs: [
     "protos/perfetto/common/android_log_constants.proto",
+    "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
     "protos/perfetto/common/data_source_descriptor.proto",
     "protos/perfetto/common/descriptor.proto",
@@ -1791,6 +1802,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.h",
+    "external/perfetto/protos/perfetto/common/builtin_clock.pbzero.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.h",
     "external/perfetto/protos/perfetto/common/data_source_descriptor.pbzero.h",
     "external/perfetto/protos/perfetto/common/descriptor.pbzero.h",
