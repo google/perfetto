@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/config/data_source_config.proto";
+import "protos/perfetto/common/builtin_clock.proto";
 
 package perfetto.protos;
 
@@ -85,6 +86,14 @@ message TraceConfig {
     // Disable emitting events for data-source state changes (e.g. the marker
     // for all data sources having ACKed the start of the trace).
     optional bool disable_service_events = 4;
+
+    // The authoritative clock domain for the trace. Defaults to BOOTTIME. See
+    // also ClockSnapshot's primary_trace_clock. The configured value is written
+    // into the trace as part of the ClockSnapshots emitted by the service.
+    // Trace processor will attempt to translate packet/event timestamps from
+    // various data sources (and their chosen clock domains) to this domain
+    // during import. Added in Android S.
+    optional BuiltinClock primary_trace_clock = 5;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 

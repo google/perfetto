@@ -190,6 +190,7 @@ track_event_with_atrace.textproto track_event_slices.sql track_event_with_atrace
 track_event_merged_debug_annotations.textproto track_event_args.sql track_event_merged_debug_annotations_args.out
 track_event_counters.textproto track_event_slices.sql track_event_counters_slices.out
 track_event_counters.textproto track_event_counters.sql track_event_counters_counters.out
+track_event_monotonic_trace_clock.textproto track_event_slices.sql track_event_monotonic_trace_clock_slices.out
 
 # Parsing systrace files
 ../data/systrace.html systrace_html.sql systrace_html.out

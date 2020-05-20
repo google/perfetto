@@ -45,6 +45,7 @@
 // production code).
 // yyy.gen.h includes are for the test readback path (the code in the test that
 // checks that the results are valid).
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -695,9 +696,9 @@ TEST_F(PerfettoApiTest, TrackEvent) {
   auto now = perfetto::TrackEvent::GetTraceTimeNs();
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  auto clock_id = perfetto::protos::pbzero::ClockSnapshot::Clock::BOOTTIME;
+  auto clock_id = perfetto::protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
 #else
-  auto clock_id = perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
+  auto clock_id = perfetto::protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
 #endif
   EXPECT_EQ(clock_id, perfetto::TrackEvent::GetTraceClockId());
 
