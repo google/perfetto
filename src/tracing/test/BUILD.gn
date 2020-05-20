@@ -83,6 +83,7 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/tracing/core",
       "../../../protos/perfetto/common:cpp",
+      "../../../protos/perfetto/common:zero",
       "../../../protos/perfetto/config/track_event:cpp",
       "../../../protos/perfetto/trace:cpp",
       "../../../protos/perfetto/trace:zero",

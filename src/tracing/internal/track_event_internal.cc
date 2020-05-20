@@ -262,10 +262,9 @@ bool TrackEventInternal::IsCategoryEnabled(
 
 // static
 uint64_t TrackEventInternal::GetTimeNs() {
-  if (GetClockId() == protos::pbzero::ClockSnapshot::Clock::BOOTTIME)
+  if (GetClockId() == protos::pbzero::BUILTIN_CLOCK_BOOTTIME)
     return static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count());
-  PERFETTO_DCHECK(GetClockId() ==
-                  protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
+  PERFETTO_DCHECK(GetClockId() == protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
   return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
 }
 
@@ -305,7 +304,7 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
   packet->set_timestamp(timestamp);
   // TODO(skyostil): Stop emitting this for every event once the trace
   // processor understands trace packet defaults.
-  if (GetClockId() != protos::pbzero::ClockSnapshot::Clock::BOOTTIME)
+  if (GetClockId() != protos::pbzero::BUILTIN_CLOCK_BOOTTIME)
     packet->set_timestamp_clock_id(GetClockId());
   packet->set_sequence_flags(seq_flags);
   return packet;

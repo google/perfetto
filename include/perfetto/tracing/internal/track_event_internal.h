@@ -23,7 +23,7 @@
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/track.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
@@ -149,13 +149,12 @@ class PERFETTO_EXPORT TrackEventInternal {
   static uint64_t GetTimeNs();
 
   // Get the clock used by GetTimeNs().
-  static constexpr protos::pbzero::ClockSnapshot::Clock::BuiltinClocks
-  GetClockId() {
+  static constexpr protos::pbzero::BuiltinClock GetClockId() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    return protos::pbzero::ClockSnapshot::Clock::BOOTTIME;
+    return protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
 #else
-    return protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
+    return protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
 #endif
   }
 
