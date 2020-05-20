@@ -1,0 +1,39 @@
+# Define MONOTONIC as trace clock and expect event timestamps to be imported
+# in MONOTONIC / converted to MONOTONIC if necessary.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  clock_snapshot {
+    primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+    clocks {
+      clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+      timestamp: 1000
+    }
+    clocks {
+      clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+      timestamp: 11000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  timestamp_clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name1"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 12000
+  timestamp_clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name2"
+    type: 3
+  }
+}

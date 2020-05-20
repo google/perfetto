@@ -26,6 +26,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
 namespace perfetto {
@@ -34,7 +35,8 @@ namespace trace_processor {
 using Clock = protos::pbzero::ClockSnapshot::Clock;
 
 ClockTracker::ClockTracker(TraceProcessorContext* ctx)
-    : context_(ctx), trace_time_clock_id_(Clock::BOOTTIME) {}
+    : context_(ctx),
+      trace_time_clock_id_(protos::pbzero::BUILTIN_CLOCK_BOOTTIME) {}
 
 ClockTracker::~ClockTracker() = default;
 
