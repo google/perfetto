@@ -43,7 +43,7 @@ source_set("base") {
   ]
 
   # TODO(brucedawson): Enable these for Windows when possible.
-  if (!is_win) {
+  if (!is_win && !is_nacl) {
     sources += [
       "event_fd.cc",
       "pipe.cc",
