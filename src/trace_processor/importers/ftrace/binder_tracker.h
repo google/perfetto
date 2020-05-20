@@ -70,7 +70,7 @@ class BinderTracker : public Destructible {
   TraceProcessorContext* const context_;
   std::unordered_set<int32_t> awaiting_rcv_for_reply_;
 
-  std::unordered_set<int32_t> transaction_await_rcv;
+  std::unordered_map<int32_t, TrackId> transaction_await_rcv;
   std::unordered_map<int32_t, SetArgsCallback> awaiting_async_rcv_;
 
   std::unordered_map<uint32_t, int64_t> attempt_lock_;
