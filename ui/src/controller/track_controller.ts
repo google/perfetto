@@ -138,9 +138,6 @@ export abstract class TrackController<
             .then(data => {
               this.publish(data);
             })
-            .catch(error => {
-              console.error(error);
-            })
             .finally(() => {
               this.requestingData = false;
               if (this.queuedRequest) {
