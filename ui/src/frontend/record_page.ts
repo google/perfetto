@@ -74,6 +74,8 @@ ATRACE_CATEGORIES.set('vibrator', 'Vibrator');
 ATRACE_CATEGORIES.set('aidl', 'AIDL calls');
 ATRACE_CATEGORIES.set('nnapi', 'Neural Network API');
 ATRACE_CATEGORIES.set('rro', 'Resource Overlay');
+ATRACE_CATEGORIES.set('binder_driver', 'Binder Kernel driver');
+ATRACE_CATEGORIES.set('binder_lock', 'Binder global lock trace');
 
 const LOG_BUFFERS = new Map<string, string>();
 LOG_BUFFERS.set('LID_DEFAULT', 'Main');
