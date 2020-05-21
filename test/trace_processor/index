@@ -216,3 +216,7 @@ thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
 
 # Initial display state
 initial_display_state.textproto initial_display_state.sql initial_display_state.out
+
+# CPU info
+cpu_info.textproto cpu.sql cpu.out
+cpu_info.textproto cpu_freq.sql cpu_freq.out
