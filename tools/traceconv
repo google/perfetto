@@ -27,8 +27,9 @@ exec python - "$@" <<'#'EOF
 import hashlib
 import os
 import sys
+import subprocess
 import tempfile
-import urllib
+
 
 # Keep this in sync with the SHAs in catapult file
 # systrace/systrace/tracing_agents/atrace_from_file_agent.py.
@@ -38,6 +39,10 @@ TRACE_TO_TEXT_SHAS = {
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
+
+
+def DownloadURL(url, out_file):
+  subprocess.check_call(['curl', '-L', '-#', '-o', out_file, url])
 
 
 def check_hash(file_name, sha_value):
@@ -58,7 +63,7 @@ def load_trace_to_text(platform):
       return local_file
 
   url = TRACE_TO_TEXT_BASE_URL + file_name
-  urllib.urlretrieve(url, local_file)
+  DownloadURL(url, local_file)
   if not check_hash(local_file, sha_value):
     os.remove(local_file)
     raise ValueError("Invalid signature.")
