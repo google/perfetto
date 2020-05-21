@@ -58,8 +58,24 @@ import "protos/perfetto/trace/test_event.proto";
 
 package perfetto.protos;
 
-// The root object emitted by Perfetto. A perfetto trace is just a stream of
-// TracePacket(s).
+// TracePacket is the root object of a Perfeto trace.
+// A Perfetto trace is a linear sequence of TracePacket(s).
+//
+// The tracing service guarantees that all TracePacket(s) written by a given
+// TraceWriter are seen in-order, without gaps or duplicates. If, for any
+// reason, a TraceWriter sequence becomes invalid, no more packets are returned
+// to the Consumer (or written into the trace file).
+// TracePacket(s) written by different TraceWriter(s), hence even different
+// data sources, can be seen in arbitrary order.
+// The consumer can re-establish a total order, if interested, using the packet
+// timestamps, after having synchronized the different clocks onto a global
+// clock.
+//
+// The tracing service is agnostic of the content of TracePacket, with the
+// exception of few fields (e.g.. trusted_*, trace_config) that are written by
+// the service itself.
+//
+// See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 13 (up to 15).
 // Next id: 71.
@@ -80,7 +96,6 @@ message TracePacket {
   optional uint32 timestamp_clock_id = 58;
 
   oneof data {
-    FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
     ProcessStats process_stats = 9;
     InodeFileMap inode_file_map = 4;
@@ -132,6 +147,9 @@ message TracePacket {
 
     // Deprecated, use TrackDescriptor instead.
     ThreadDescriptor thread_descriptor = 44;
+
+    // Events from the Linux kernel ftrace infrastructure.
+    FtraceEventBundle ftrace_events = 1;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
