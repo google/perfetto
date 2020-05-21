@@ -1,0 +1,103 @@
+# CPU info from bonito (Pixel 3a XL).
+packet {
+  cpu_info {
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 576000
+      frequencies: 748800
+      frequencies: 998400
+      frequencies: 1209600
+      frequencies: 1324800
+      frequencies: 1516800
+      frequencies: 1612800
+      frequencies: 1708800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 576000
+      frequencies: 748800
+      frequencies: 998400
+      frequencies: 1209600
+      frequencies: 1324800
+      frequencies: 1516800
+      frequencies: 1612800
+      frequencies: 1708800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 576000
+      frequencies: 748800
+      frequencies: 998400
+      frequencies: 1209600
+      frequencies: 1324800
+      frequencies: 1516800
+      frequencies: 1612800
+      frequencies: 1708800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 576000
+      frequencies: 748800
+      frequencies: 998400
+      frequencies: 1209600
+      frequencies: 1324800
+      frequencies: 1516800
+      frequencies: 1612800
+      frequencies: 1708800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 576000
+      frequencies: 748800
+      frequencies: 998400
+      frequencies: 1209600
+      frequencies: 1324800
+      frequencies: 1516800
+      frequencies: 1612800
+      frequencies: 1708800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 576000
+      frequencies: 748800
+      frequencies: 998400
+      frequencies: 1209600
+      frequencies: 1324800
+      frequencies: 1516800
+      frequencies: 1612800
+      frequencies: 1708800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 652800
+      frequencies: 825600
+      frequencies: 979200
+      frequencies: 1132800
+      frequencies: 1363200
+      frequencies: 1536000
+      frequencies: 1747200
+      frequencies: 1843200
+      frequencies: 1996800
+    }
+    cpus {
+      processor: "AArch64 Processor rev 13 (aarch64)"
+      frequencies: 300000
+      frequencies: 652800
+      frequencies: 825600
+      frequencies: 979200
+      frequencies: 1132800
+      frequencies: 1363200
+      frequencies: 1536000
+      frequencies: 1747200
+      frequencies: 1843200
+      frequencies: 1996800
+    }
+  }
+}
