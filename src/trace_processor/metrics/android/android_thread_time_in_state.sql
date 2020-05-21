@@ -152,4 +152,6 @@ FROM android_thread_time_in_state_annotations_raw
 WHERE thread_name IS NOT NULL
   AND runtime_ms IS NOT NULL
   AND dur != 0
-GROUP BY track_type, track_name, ts, dur, upid;
+GROUP BY track_type, track_name, ts, dur, upid
+-- Biggest values at top of list in UI.
+ORDER BY value DESC;
