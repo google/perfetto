@@ -40,11 +40,16 @@ closest_anon_swap AS (
       SELECT anon_swap_val
       FROM (
         SELECT
+          ts, dur,
           CAST(anon_and_swap_val AS INTEGER) anon_swap_val,
           ABS(ts - base_stats.graph_sample_ts) diff
         FROM anon_and_swap_span
         WHERE upid = base_stats.upid)
-      WHERE diff <= 1e8 -- 100ms
+      WHERE
+        (graph_sample_ts >= ts AND graph_sample_ts < ts + dur)
+         -- If the first memory sample for the UPID comes *after* the heap profile
+         -- accept it if close (500ms)
+        OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
       ORDER BY diff LIMIT 1
     ) val
   FROM base_stats

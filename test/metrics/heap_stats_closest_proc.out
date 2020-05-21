@@ -2,7 +2,7 @@ java_heap_stats {
   instance_stats {
     upid: 2
     process {
-      name: "system_server"
+      name: "proc1"
       uid: 1000
     }
     samples {
@@ -12,6 +12,23 @@ java_heap_stats {
       obj_count: 1
       reachable_obj_count: 1
       anon_rss_and_swap_size: 2048
+    }
+  }
+}
+java_heap_stats {
+  instance_stats {
+    upid: 3
+    process {
+      name: "proc2"
+      uid: 1000
+    }
+    samples {
+      ts: 1500000000
+      heap_size: 64
+      reachable_heap_size: 64
+      obj_count: 1
+      reachable_obj_count: 1
+      anon_rss_and_swap_size: 3072
     }
   }
 }
