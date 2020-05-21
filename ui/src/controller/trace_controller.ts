@@ -384,6 +384,38 @@ export class TraceController extends Controller<States> {
       }
     }
 
+    const rawGlobalAsyncTracks = await engine.query(`
+      SELECT
+        t.name,
+        t.track_ids,
+        MAX(experimental_slice_layout.layout_depth) as max_depth
+      FROM (
+        SELECT name, GROUP_CONCAT(track.id) AS track_ids
+        FROM track
+        WHERE track.type = "track"
+        GROUP BY name
+      ) AS t CROSS JOIN experimental_slice_layout
+      WHERE t.track_ids = experimental_slice_layout.filter_track_ids
+      GROUP BY t.track_ids;
+    `);
+    for (let i = 0; i < rawGlobalAsyncTracks.numRecords; i++) {
+      const name = rawGlobalAsyncTracks.columns[0].stringValues![i];
+      const rawTrackIds = rawGlobalAsyncTracks.columns[1].stringValues![i];
+      const trackIds = rawTrackIds.split(',').map(v => Number(v));
+      const maxDepth = +rawGlobalAsyncTracks.columns[2].longValues![i];
+      const track = {
+        engineId: this.engineId,
+        kind: 'AsyncSliceTrack',
+        trackGroup: SCROLLING_TRACK_GROUP,
+        name,
+        config: {
+          maxDepth,
+          trackIds,
+        },
+      };
+      tracksToAdd.push(track);
+    }
+
     const upidToProcessTracks = new Map();
     const rawProcessTracks = await engine.query(`
       SELECT
@@ -485,32 +517,6 @@ export class TraceController extends Controller<States> {
           name,
           trackId,
         }
-      });
-    }
-
-    // Add global slice tracks.
-    const globalSliceTracks = await engine.query(`
-      select
-        track.name as track_name,
-        track.id as track_id,
-        max(depth) as max_depth
-      from track
-      join slice on track.id = slice.track_id
-      where track.type = 'track'
-      group by track_id
-    `);
-
-    for (let i = 0; i < globalSliceTracks.numRecords; i++) {
-      const name = globalSliceTracks.columns[0].stringValues![i];
-      const trackId = +globalSliceTracks.columns[1].longValues![i];
-      const maxDepth = +globalSliceTracks.columns[2].longValues![i];
-
-      tracksToAdd.push({
-        engineId: this.engineId,
-        kind: SLICE_TRACK_KIND,
-        name: `${name}`,
-        trackGroup: SCROLLING_TRACK_GROUP,
-        config: {maxDepth, trackId},
       });
     }
 
