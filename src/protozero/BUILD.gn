@@ -92,3 +92,17 @@ perfetto_fuzzer_test("protozero_decoder_fuzzer") {
     "../base",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":protozero",
+      ":testing_messages_lite",
+      ":testing_messages_zero",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+    ]
+    sources = [ "test/protozero_benchmark.cc" ]
+  }
+}
