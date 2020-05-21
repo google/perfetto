@@ -807,11 +807,14 @@ export class TraceController extends Controller<States> {
     }
 
     const annotationCounterRows = await engine.query(`
-      SELECT id, name, upid FROM annotation_counter_track`);
+      SELECT id, name, upid, min_value, max_value
+      FROM annotation_counter_track`);
     for (let i = 0; i < annotationCounterRows.numRecords; i++) {
       const id = annotationCounterRows.columns[0].longValues![i];
       const name = annotationCounterRows.columns[1].stringValues![i];
       const upid = annotationCounterRows.columns[2].longValues![i] as number;
+      const minimumValue = annotationCounterRows.columns[3].doubleValues![i];
+      const maximumValue = annotationCounterRows.columns[4].doubleValues![i];
       tracksToAdd.push({
         engineId: this.engineId,
         kind: 'CounterTrack',
@@ -821,6 +824,8 @@ export class TraceController extends Controller<States> {
           name,
           namespace: 'annotation',
           trackId: id,
+          minimumValue,
+          maximumValue,
         }
       });
     }
@@ -990,7 +995,9 @@ export class TraceController extends Controller<States> {
         id INTEGER PRIMARY KEY,
         name STRING,
         __metric_name STRING,
-        upid INTEGER
+        upid INTEGER,
+        min_value DOUBLE,
+        max_value DOUBLE
       );
     `);
     await engine.query(`
@@ -1071,11 +1078,19 @@ export class TraceController extends Controller<States> {
 
       const hasValue = result.columnDescriptors.some(x => x.name === 'value');
       if (hasValue) {
+        const minMax = await engine.query(`
+          SELECT MIN(value) as min_value, MAX(value) as max_value
+          FROM ${metric}_annotations`);
+        const min = minMax.columns[0].longValues![0] as number;
+        const max = minMax.columns[1].longValues![0] as number;
         await engine.query(`
-          INSERT INTO annotation_counter_track(name, __metric_name, upid)
+          INSERT INTO annotation_counter_track(
+            name, __metric_name, min_value, max_value, upid)
           SELECT DISTINCT
             track_name,
             '${metric}' as metric_name,
+            ${min},
+            ${max},
             ${upidColumn}
           FROM ${metric}_annotations
           WHERE track_type = 'counter'
