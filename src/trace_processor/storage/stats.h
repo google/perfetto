@@ -116,13 +116,21 @@ namespace stats {
   F(heap_graph_malformed_packet,              kIndexed, kError,    kTrace),    \
   F(heap_graph_missing_packet,                kIndexed, kError,    kTrace),    \
   F(heap_graph_location_parse_error,          kSingle,  kError,    kTrace),    \
-  F(heapprofd_buffer_corrupted,               kIndexed, kError,    kTrace),    \
-  F(heapprofd_hit_guardrail,                  kIndexed, kError,    kTrace),    \
-  F(heapprofd_buffer_overran,                 kIndexed, kDataLoss, kTrace),    \
+  F(heapprofd_buffer_corrupted,               kIndexed, kError,    kTrace,     \
+      "Shared memory buffer corrupted. This is a bug or memory corruption "    \
+      "in the target. Indexed by target upid."),                               \
+  F(heapprofd_hit_guardrail,                  kIndexed, kError,    kTrace,     \
+      "HeapprofdConfig specified a CPU or Memory Guardrail that was hit. "     \
+      "Indexed by target upid."),                                              \
+  F(heapprofd_buffer_overran,                 kIndexed, kDataLoss, kTrace,     \
+      "The shared memory buffer between the target and heapprofd overran. "    \
+      "The profile was truncated early. Indexed by target upid."),             \
   F(heapprofd_client_disconnected,            kIndexed, kInfo,     kTrace),    \
   F(heapprofd_malformed_packet,               kIndexed, kError,    kTrace),    \
   F(heapprofd_missing_packet,                 kSingle,  kError,    kTrace),    \
-  F(heapprofd_rejected_concurrent,            kIndexed, kError,    kTrace),    \
+  F(heapprofd_rejected_concurrent,            kIndexed, kError,    kTrace,     \
+      "The target was already profiled by another tracing session, so the "    \
+      "profile was not taken. Indexed by target upid."),    \
   F(heapprofd_non_finalized_profile,          kSingle,  kError,    kTrace),    \
   F(metatrace_overruns,                       kSingle,  kError,    kTrace),    \
   F(packages_list_has_parse_errors,           kSingle,  kError,    kTrace),    \

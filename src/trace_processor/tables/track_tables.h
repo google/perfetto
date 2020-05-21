@@ -23,6 +23,8 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+// @tablegroup Tracks
+// @param source_arg_set_id {@joinable args.arg_set_id}
 #define PERFETTO_TP_TRACK_TABLE_DEF(NAME, PARENT, C) \
   NAME(TrackTable, "track")                          \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
@@ -31,6 +33,7 @@ namespace tables {
 
 PERFETTO_TP_TABLE(PERFETTO_TP_TRACK_TABLE_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_PROCESS_TRACK_TABLE_DEF(NAME, PARENT, C) \
   NAME(ProcessTrackTable, "process_track")                   \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)                     \
@@ -38,6 +41,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TRACK_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TRACK_TABLE_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_THREAD_TRACK_TABLE_DEF(NAME, PARENT, C) \
   NAME(ThreadTrackTable, "thread_track")                    \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)                    \
@@ -45,6 +49,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TRACK_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TRACK_TABLE_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_GPU_TRACK_DEF(NAME, PARENT, C) \
   NAME(GpuTrackTable, "gpu_track")                 \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)           \
@@ -54,6 +59,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TRACK_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(CounterTrackTable, "counter_track")             \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)               \
@@ -62,6 +68,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GPU_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_THREAD_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(ThreadCounterTrackTable, "thread_counter_track")       \
   PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                    \
@@ -69,6 +76,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_COUNTER_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_PROCESS_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(ProcessCounterTrackTable, "process_counter_track")      \
   PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                     \
@@ -76,6 +84,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_COUNTER_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_CPU_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(CpuCounterTrackTable, "cpu_counter_track")          \
   PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
@@ -83,6 +92,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_COUNTER_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_IRQ_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(IrqCounterTrackTable, "irq_counter_track")          \
   PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
@@ -90,6 +100,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_IRQ_COUNTER_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_SOFTIRQ_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(SoftirqCounterTrackTable, "softirq_counter_track")      \
   PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                     \
@@ -97,6 +108,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_IRQ_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SOFTIRQ_COUNTER_TRACK_DEF);
 
+// @tablegroup Tracks
 #define PERFETTO_TP_GPU_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(GpuCounterTrackTable, "gpu_counter_track")          \
   PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
