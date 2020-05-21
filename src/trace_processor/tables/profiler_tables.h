@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TABLES_PROFILER_TABLES_H_
 
 #include "src/trace_processor/tables/macros.h"
+#include "src/trace_processor/tables/track_tables.h"
 
 namespace perfetto {
 namespace trace_processor {
