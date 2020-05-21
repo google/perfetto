@@ -615,6 +615,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->graphics_frame_stats_table());
 
   RegisterDbTable(storage->metadata_table());
+  RegisterDbTable(storage->cpu_table());
+  RegisterDbTable(storage->cpu_freq_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() {

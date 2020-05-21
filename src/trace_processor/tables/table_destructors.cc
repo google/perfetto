@@ -39,6 +39,8 @@ CounterTable::~CounterTable() = default;
 RawTable::~RawTable() = default;
 ArgTable::~ArgTable() = default;
 MetadataTable::~MetadataTable() = default;
+CpuTable::~CpuTable() = default;
+CpuFreqTable::~CpuFreqTable() = default;
 ThreadTable::~ThreadTable() = default;
 ProcessTable::~ProcessTable() = default;
 

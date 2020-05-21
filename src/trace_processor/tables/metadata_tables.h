@@ -81,6 +81,22 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TABLE_DEF);
 
+#define PERFETTO_TP_CPU_TABLE_DEF(NAME, PARENT, C) \
+  NAME(CpuTable, "cpu")                            \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                \
+  C(uint32_t, time_in_state_cpu_id)                \
+  C(StringPool::Id, processor)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CPU_TABLE_DEF);
+
+#define PERFETTO_TP_CPU_FREQ_TABLE_DEF(NAME, PARENT, C) \
+  NAME(CpuFreqTable, "cpu_freq")                        \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                     \
+  C(CpuTable::Id, cpu_id)                               \
+  C(uint32_t, freq)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CPU_FREQ_TABLE_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
