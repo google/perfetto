@@ -90,20 +90,14 @@ void BinderTracker::Transaction(int64_t ts,
                                 uint32_t flags,
                                 StringId code) {
   UniqueTid src_utid = context_->process_tracker->GetOrCreateThread(tid);
-  const auto& thread_table = context_->storage->thread_table();
-  UniqueTid dest_utid = context_->process_tracker->GetOrCreateThread(
-      static_cast<uint32_t>(dest_tid));
-  StringId dest_name = thread_table.name()[dest_utid];
   TrackId track_id = context_->track_tracker->InternThreadTrack(src_utid);
 
-  auto args_inserter = [this, transaction_id, dest_node, dest_tgid, dest_tid,
-                        dest_name, is_reply, flags, code,
+  auto args_inserter = [this, transaction_id, dest_node, dest_tgid, is_reply,
+                        flags, code,
                         tid](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(transaction_id_, Variadic::Integer(transaction_id));
     inserter->AddArg(dest_node_, Variadic::Integer(dest_node));
     inserter->AddArg(dest_process_, Variadic::Integer(dest_tgid));
-    inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
-    inserter->AddArg(dest_name_, Variadic::String(dest_name));
     inserter->AddArg(is_reply_, Variadic::Boolean(is_reply));
     std::string flag_str =
         base::IntToHexString(flags) + " " + BinderFlagsToHuman(flags);
@@ -118,6 +112,18 @@ void BinderTracker::Transaction(int64_t ts,
   };
 
   if (is_reply) {
+    // Reply slices have accurate dest information, so we can add it.
+    const auto& thread_table = context_->storage->thread_table();
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(
+        static_cast<uint32_t>(dest_tid));
+    StringId dest_thread_name = thread_table.name()[utid];
+    auto dest_args_inserter = [this, dest_tid, &dest_thread_name](
+                                  ArgsTracker::BoundInserter* inserter) {
+      inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
+      inserter->AddArg(dest_name_, Variadic::String(dest_thread_name));
+    };
+    context_->slice_tracker->AddArgs(track_id, binder_category_id_, reply_id_,
+                                     dest_args_inserter);
     context_->slice_tracker->End(ts, track_id, binder_category_id_, reply_id_,
                                  args_inserter);
     awaiting_rcv_for_reply_.insert(transaction_id);
@@ -129,7 +135,7 @@ void BinderTracker::Transaction(int64_t ts,
   if (expects_reply) {
     context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
                                    transaction_slice_id_, args_inserter);
-    transaction_await_rcv.insert(transaction_id);
+    transaction_await_rcv[transaction_id] = track_id;
   } else {
     // TODO(taylori): Change these to instant events with 0 duration
     // once instants are displayed properly.
@@ -143,8 +149,10 @@ void BinderTracker::Transaction(int64_t ts,
 void BinderTracker::TransactionReceived(int64_t ts,
                                         uint32_t pid,
                                         int32_t transaction_id) {
-  UniqueTid src_utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(src_utid);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  const auto& thread_table = context_->storage->thread_table();
+  StringId thread_name = thread_table.name()[utid];
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   if (awaiting_rcv_for_reply_.count(transaction_id) > 0) {
     context_->slice_tracker->End(ts, track_id, binder_category_id_,
                                  transaction_slice_id_);
@@ -153,6 +161,15 @@ void BinderTracker::TransactionReceived(int64_t ts,
   }
 
   if (transaction_await_rcv.count(transaction_id) > 0) {
+    // Add accurate dest info to the binder transaction slice.
+    auto args_inserter = [this, pid,
+                          &thread_name](ArgsTracker::BoundInserter* inserter) {
+      inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
+      inserter->AddArg(dest_name_, Variadic::String(thread_name));
+    };
+    context_->slice_tracker->AddArgs(transaction_await_rcv[transaction_id],
+                                     binder_category_id_, transaction_slice_id_,
+                                     args_inserter);
     context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
                                    reply_id_);
     transaction_await_rcv.erase(transaction_id);
