@@ -27,6 +27,12 @@ import os
 import sys
 
 
+def make_parent_dirs(file_path):
+  directory = os.path.dirname(file_path)
+  if not os.path.exists(directory):
+    os.makedirs(directory)
+
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--filter', default=[], action='append')
@@ -36,7 +42,11 @@ def main():
   parser.add_argument('--root', required=True)
   args = parser.parse_args()
 
-  fout = open(args.output, 'w') if args.output else sys.stdout
+  if args.output:
+    make_parent_dirs(args.output)
+    fout = open(args.output, 'w')
+  else:
+    fout = sys.stdout
 
   def writepath(path):
     if args.deps:
