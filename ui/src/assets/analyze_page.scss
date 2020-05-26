@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2020 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
-import {Panel} from './panel';
-
-interface Attrs {
-  title: string;
-}
-
-export class HeaderPanel extends Panel<Attrs> {
-  renderCanvas() {}
-  view({attrs}: m.CVnode<Attrs>) {
-    return m('header', attrs.title);
+.analyze-page {
+  overflow-y: auto;
+  overflow-x: hidden;
+  .query-input {
+    width: 100%;
+    background-color: #111;
+    // When the user resizes the text box, the height is explicitly
+    // set as an inline style with overrides this style.
+    min-height: 2em;
+    height: var(--height-before-resize);
+    color: rgb(157, 220, 103);
+    font-size: inherit;
+    font-family: var(--monospace-font);
+    line-height: 1.2em;
+    padding: .5em;
+    overflow: auto;
+    resize: vertical;
   }
 }
