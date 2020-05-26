@@ -40,6 +40,7 @@ namespace metadata {
   F(benchmark_story_tags,              KeyType::kMulti,   Variadic::kString), \
   F(statsd_triggering_subscription_id, KeyType::kSingle,  Variadic::kInt),    \
   F(trace_uuid,                        KeyType::kSingle,  Variadic::kString), \
+  F(unique_session_name,               KeyType::kSingle,  Variadic::kString), \
   F(system_name,                       KeyType::kSingle,  Variadic::kString), \
   F(system_version,                    KeyType::kSingle,  Variadic::kString), \
   F(system_release,                    KeyType::kSingle,  Variadic::kString), \
