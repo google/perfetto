@@ -560,6 +560,13 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
     context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
                                             Variadic::String(id));
   }
+
+  if (trace_config.has_unique_session_name()) {
+    StringId id = context_->storage->InternString(
+        base::StringView(trace_config.unique_session_name()));
+    context_->metadata_tracker->SetMetadata(metadata::unique_session_name,
+                                            Variadic::String(id));
+  }
 }
 
 void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
