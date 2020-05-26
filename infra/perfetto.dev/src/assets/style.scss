@@ -209,6 +209,7 @@ h3 {
     section {
         display: block;
         position: relative;
+        overflow: hidden;
         padding: 0 20px;
         margin: 0 auto;
         max-width: calc(var(--content-max-width) + 2 * 20px);
@@ -216,10 +217,16 @@ h3 {
 
     .banner {
         height: calc(100vh - var(--home-highlights-height) - var(--site-header-height));
+        @media (max-height: 639px) {
+            // If the screen is too short (e.g. smartphone in landscape mode)
+            // move the highlights sections (the four tiles) out of the visible
+            // viewport.
+            height: calc(100vh - var(--site-header-height));
+        }
         min-height: 25vw;
         display: grid;
         grid-template-columns: 1fr;
-        grid-template-rows: max-content max-content 1fr;
+        grid-template-rows: 1fr 1fr 5fr;
         h1,
         h2 {
             margin: auto;
@@ -232,23 +239,31 @@ h3 {
         }
         h1 {
             font-size: 2.5rem;
-            font-size: calc(min(max(3.5vw, 2rem), 4rem));
+            font-size: calc(min(4rem, 8vw, 6vh));
             font-weight: 400;
-            padding-top: 40px;
+            padding-top: calc(max(1rem, 2vh));
         }
         h2 {
             font-size: 1.25rem;
-            font-size: calc(min(max(2vw, 1.25rem), 3rem));
+            font-size: calc(min(2rem, 6vw, 4vh));
             font-weight: 200;
             padding-top: 10px;
         }
         .home-img {
-            max-height: 100%;
-            max-width: 100%;
-            margin: auto;
-            padding: 20px 0;
+            padding: 1rem 0;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            img {
+                max-height: 100%;
+                max-width: 100%;
+                margin: auto;
+                display: block;
+            }
         }
     }
+
+
     .home-highlights {
         &:before {
             border-top: 1px solid hsl(210, 17%, 90%);
@@ -309,7 +324,7 @@ h3 {
         >img {
             grid-area: img;
             max-width: 100%;
-            max-height: 100%;
+            max-height: 55vh;
             margin: auto;
             margin-top: 40px;
         }
