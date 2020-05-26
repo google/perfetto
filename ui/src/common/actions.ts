@@ -611,6 +611,10 @@ export const StateActions = {
     state.recordingStatus = args.status;
     state.lastRecordingError = undefined;
   },
+
+  setAnalyzePageQuery(state: StateDraft, args: {query: string}): void {
+    state.analyzePageQuery = args.query;
+  }
 };
 
 // When we are on the frontend side, we don't really want to execute the
