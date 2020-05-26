@@ -128,11 +128,11 @@
 "ftrace_cpu_read_events_end",6,"info","trace",36733
 "ftrace_cpu_read_events_end",7,"info","trace",39240
 "traced_buf_buffer_size",0,"info","trace",0
-"traced_buf_bytes_overwritten",0,"data_loss","trace",0
+"traced_buf_bytes_overwritten",0,"info","trace",0
 "traced_buf_bytes_read",0,"info","trace",0
 "traced_buf_bytes_written",0,"info","trace",18780240
 "traced_buf_chunks_discarded",0,"info","trace",0
-"traced_buf_chunks_overwritten",0,"data_loss","trace",0
+"traced_buf_chunks_overwritten",0,"info","trace",0
 "traced_buf_chunks_read",0,"info","trace",0
 "traced_buf_chunks_rewritten",0,"info","trace",0
 "traced_buf_chunks_written",0,"info","trace",4603
