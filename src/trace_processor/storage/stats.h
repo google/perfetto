@@ -44,7 +44,9 @@ namespace stats {
   F(ftrace_cpu_oldest_event_ts_begin,         kIndexed, kInfo,     kTrace),    \
   F(ftrace_cpu_oldest_event_ts_end,           kIndexed, kInfo,     kTrace),    \
   F(ftrace_cpu_overrun_begin,                 kIndexed, kInfo,     kTrace),    \
-  F(ftrace_cpu_overrun_end,                   kIndexed, kDataLoss, kTrace),    \
+  F(ftrace_cpu_overrun_end,                   kIndexed, kDataLoss, kTrace,     \
+      "The kernel ftrace buffer cannot keep up with the rate of events "       \
+      "produced. Indexed by CPU. This is likely a misconfiguration."),         \
   F(ftrace_cpu_read_events_begin,             kIndexed, kInfo,     kTrace),    \
   F(ftrace_cpu_read_events_end,               kIndexed, kInfo,     kTrace),    \
   F(fuchsia_non_numeric_counters,             kSingle,  kError,    kAnalysis), \
@@ -77,11 +79,11 @@ namespace stats {
   F(systrace_parse_failure,                   kSingle,  kError,    kAnalysis), \
   F(task_state_invalid,                       kSingle,  kError,    kAnalysis), \
   F(traced_buf_buffer_size,                   kIndexed, kInfo,     kTrace),    \
-  F(traced_buf_bytes_overwritten,             kIndexed, kDataLoss, kTrace),    \
+  F(traced_buf_bytes_overwritten,             kIndexed, kInfo,     kTrace),    \
   F(traced_buf_bytes_read,                    kIndexed, kInfo,     kTrace),    \
   F(traced_buf_bytes_written,                 kIndexed, kInfo,     kTrace),    \
   F(traced_buf_chunks_discarded,              kIndexed, kInfo,     kTrace),    \
-  F(traced_buf_chunks_overwritten,            kIndexed, kDataLoss, kTrace),    \
+  F(traced_buf_chunks_overwritten,            kIndexed, kInfo,     kTrace),    \
   F(traced_buf_chunks_read,                   kIndexed, kInfo,     kTrace),    \
   F(traced_buf_chunks_rewritten,              kIndexed, kInfo,     kTrace),    \
   F(traced_buf_chunks_written,                kIndexed, kInfo,     kTrace),    \
