@@ -154,6 +154,7 @@ const SECTIONS = [
         checkDownloadDisabled: true,
       },
       {t: 'Legacy UI', a: openCurrentTraceWithOldUI, i: 'filter_none'},
+      {t: 'Analyze', a: navigateAnalyze, i: 'control_camera'},
     ],
   },
   {
@@ -421,6 +422,11 @@ function openInOldUIWithSizeCheck(trace: Blob) {
 function navigateRecord(e: Event) {
   e.preventDefault();
   globals.dispatch(Actions.navigate({route: '/record'}));
+}
+
+function navigateAnalyze(e: Event) {
+  e.preventDefault();
+  globals.dispatch(Actions.navigate({route: '/analyze'}));
 }
 
 function navigateViewer(e: Event) {
