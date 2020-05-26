@@ -18,7 +18,5 @@ executable("skippy") {
     "../../gn:default_deps",
     "../../src/base",
   ]
-  sources = [
-    "skippy.cc",
-  ]
+  sources = [ "skippy.cc" ]
 }

@@ -35,41 +35,39 @@ function showHelp() {
   helpModelOpen = true;
   showModal({
     title: 'Perfetto Help',
-    content:
-        m('.help',
-          m('h2', 'Navigation'),
-          m(
-              'table',
-              m(
-                  'tr',
-                  m('td', keycap('w'), '/', keycap('s')),
-                  m('td', 'Zoom in/out'),
-                  ),
-              m(
-                  'tr',
-                  m('td', keycap('a'), '/', keycap('d')),
-                  m('td', 'Pan left/right'),
-                  ),
-              ),
-          m('h2', 'Mouse Controls'),
-          m('table',
-            m('tr', m('td', 'Click'), m('td', 'Select event')),
-            m('tr', m('td', 'Ctrl + Scroll wheel'), m('td', 'Zoom in/out')),
-            m('tr', m('td', 'Click + Drag'), m('td', 'Pan left/right')),
+    content: m(
+        '.help',
+        m('h2', 'Navigation'),
+        m(
+            'table',
+            m(
+                'tr',
+                m('td', keycap('w'), '/', keycap('s')),
+                m('td', 'Zoom in/out'),
+                ),
+            m(
+                'tr',
+                m('td', keycap('a'), '/', keycap('d')),
+                m('td', 'Pan left/right'),
+                ),
+            ),
+        m('h2', 'Mouse Controls'),
+        m('table',
+          m('tr', m('td', 'Click'), m('td', 'Select event')),
+          m('tr', m('td', 'Ctrl + Scroll wheel'), m('td', 'Zoom in/out')),
+          m('tr', m('td', 'Click + Drag'), m('td', 'Select area')),
+          m('tr', m('td', 'Shift + Click + Drag'), m('td', 'Pan left/right'))),
+        m('h2', 'Other'),
+        m(
+            'table',
             m('tr',
-              m('td', 'Shift + Click + Drag'),
-              m('td', 'Select a time span'))),
-          m('h2', 'Other'),
-          m(
-              'table',
-              m('tr',
-                m('td', keycap('f'), ' (with event selected)'),
-                m('td', 'Scroll + zoom to current selection')),
-              m('tr',
-                m('td', keycap('m'), ' (with event selected)'),
-                m('td', 'Select time span of event')),
-              m('tr', m('td', keycap('?')), m('td', 'Show help')),
-              )),
+              m('td', keycap('f'), ' (with event selected)'),
+              m('td', 'Scroll + zoom to current selection')),
+            m('tr',
+              m('td', keycap('m'), ' (with event or area selected)'),
+              m('td', 'Mark the area')),
+            m('tr', m('td', keycap('?')), m('td', 'Show help')),
+            )),
     buttons: [],
   }).finally(() => {
     helpModelOpen = false;

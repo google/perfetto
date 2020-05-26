@@ -12,14 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import * as m from 'mithril';
+
 import {Actions} from '../common/actions';
 
 import {globals} from './globals';
+import {showModal} from './modal';
 
-const VALID_ORIGINS = [
-  'https://chrometto.googleplex.com',
-  'https://uma.googleplex.com',
-];
+// Returns whether incoming traces should be opened automatically or should
+// instead require a user interaction.
+function isTrustedOrigin(origin: string): boolean {
+  const TRUSTED_ORIGINS = [
+    'https://chrometto.googleplex.com',
+    'https://uma.googleplex.com',
+  ];
+  if (TRUSTED_ORIGINS.includes(origin)) return true;
+  if (new URL(origin).hostname.endsWith('corp.google.com')) return true;
+  return false;
+}
+
 
 // The message handler supports loading traces from an ArrayBuffer.
 // There is no other requirement than sending the ArrayBuffer as the |data|
@@ -28,17 +39,18 @@ const VALID_ORIGINS = [
 // ready, so the message handler always replies to a 'PING' message with 'PONG',
 // which indicates it is ready to receive a trace.
 export function postMessageHandler(messageEvent: MessageEvent) {
-  if (!isOriginAllowed(messageEvent.origin)) {
-    throw new Error('Invalid origin for postMessage: ' + messageEvent.origin);
-  }
-
   if (document.readyState !== 'complete') {
-    console.error('Not ready.');
+    console.error('Ignoring message - document not ready yet.');
     return;
   }
 
   if (messageEvent.source === null) {
     throw new Error('Incoming message has no source');
+  }
+
+  // This can happen if an extension tries to postMessage.
+  if (messageEvent.source !== window.opener) {
+    return;
   }
 
   if (!('data' in messageEvent)) {
@@ -63,18 +75,29 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     throw new Error('Incoming message trace buffer is empty');
   }
 
-  // For external traces, we need to disable other features such as downloading
-  // and sharing a trace.
-  globals.frontendLocalState.localOnlyMode = true;
+  const openTrace = () => {
+    // For external traces, we need to disable other features such as
+    // downloading and sharing a trace.
+    globals.frontendLocalState.localOnlyMode = true;
+    globals.dispatch(Actions.openTraceFromBuffer({buffer}));
+  };
 
-  globals.dispatch(Actions.openTraceFromBuffer({buffer}));
-}
+  // If the origin is trusted open the trace directly.
+  if (isTrustedOrigin(messageEvent.origin)) {
+    openTrace();
+    return;
+  }
 
-// Returns whether messages from the origin should be accepted.
-function isOriginAllowed(origin: string): boolean {
-  if (VALID_ORIGINS.includes(origin)) return true;
-
-  if (new URL(origin).hostname.endsWith('corp.google.com')) return true;
-
-  return false;
+  // If not ask the user if they expect this and trust the origin.
+  showModal({
+    title: 'Open trace?',
+    content:
+        m('div',
+          m('div', `${messageEvent.origin} is trying to open a trace file.`),
+          m('div', 'Do you trust the origin and want to proceed?')),
+    buttons: [
+      {text: 'NO', primary: true, id: 'pm_reject_trace', action: () => {}},
+      {text: 'YES', primary: false, id: 'pm_open_trace', action: openTrace},
+    ],
+  });
 }

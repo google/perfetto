@@ -28,13 +28,15 @@
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
 namespace {
+constexpr char kHexDigits[] = "0123456789abcdef";
 std::string HexDump(const uint8_t* src, size_t size) {
   std::string buf;
   buf.reserve(4096 * 4);
   char line[64];
   char* c = line;
   for (size_t i = 0; i < size; i++) {
-    c += sprintf(c, "%02x ", src[i]);
+    *c++ = kHexDigits[(src[i] >> 4) & 0x0f];
+    *c++ = kHexDigits[(src[i] >> 0) & 0x0f];
     if (i % 16 == 15) {
       buf.append("\n");
       buf.append(line);
@@ -878,6 +880,12 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
                         chunk_meta->is_complete())) {
     stats_.set_chunks_read(stats_.chunks_read() + 1);
     stats_.set_bytes_read(stats_.bytes_read() + chunk_meta->chunk_record->size);
+  } else {
+    // We have at least one more packet to parse. It should be within the chunk.
+    if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=
+        chunk_meta->chunk_record->size) {
+      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+    }
   }
 
   chunk_meta->set_last_read_packet_skipped(false);

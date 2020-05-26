@@ -90,6 +90,7 @@ template("protozero_library") {
                              "testonly",
                              "visibility",
                              "generate_descriptor",
+                             "propagate_imports_configs",
                            ])
   }
 }
@@ -133,6 +134,7 @@ template("protozero_cpp_library") {
                              "testonly",
                              "visibility",
                              "generate_descriptor",
+                             "propagate_imports_configs",
                            ])
   }
 }
@@ -147,7 +149,8 @@ template("ipc_library") {
         "$perfetto_root_path/src/ipc/protoc_plugin:ipc_plugin"
     generator_plugin_suffix = ".ipc"
     deps = [
-      "$perfetto_root_path/src/ipc",
+      "$perfetto_root_path/gn:default_deps",
+      "$perfetto_root_path/src/ipc:common",
     ]
     if (defined(invoker.deps)) {
       deps += invoker.deps
@@ -163,6 +166,7 @@ template("ipc_library") {
                              "sources",
                              "testonly",
                              "visibility",
+                             "propagate_imports_configs",
                            ])
   }
 }
@@ -193,6 +197,11 @@ template("perfetto_proto_library") {
   ]
   expansion_token = "@TYPE@"
 
+  # gn:public_config propagates the gen dir as include directory. We
+  # disable the proto_library's public_config to avoid duplicate include
+  # directory command line flags (crbug.com/1043279, crbug.com/gn/142).
+  propagate_imports_configs_ = false
+
   foreach(gen_type, proto_generators) {
     target_name_ = string_replace(target_name, expansion_token, gen_type)
 
@@ -210,6 +219,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=pbzero"
         deps = deps_
+        propagate_imports_configs = propagate_imports_configs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "cpp") {
@@ -218,6 +228,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
         deps = deps_
+        propagate_imports_configs = propagate_imports_configs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "ipc") {
@@ -227,6 +238,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
         deps = deps_ + [ ":$cpp_target_name_" ]
+        propagate_imports_configs = propagate_imports_configs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "lite") {
@@ -235,6 +247,8 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generate_python = false
         deps = deps_
+        cc_generator_options = "lite=true:"
+        propagate_imports_configs = propagate_imports_configs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "descriptor") {
@@ -247,6 +261,9 @@ template("perfetto_proto_library") {
         deps = deps_
         forward_variables_from(invoker, vars_to_forward)
       }
+
+      # Not needed for descriptor proto_library target.
+      not_needed([ "propagate_imports_configs_" ])
     } else {
       assert(false, "Invalid 'proto_generators' value.")
     }

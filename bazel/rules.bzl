@@ -22,7 +22,9 @@ load("@perfetto//bazel:proto_gen.bzl", "proto_gen")
 def default_cc_args():
     return {
         "deps": PERFETTO_CONFIG.deps.build_config,
-        "copts": [],
+        "copts": [
+            "-Wno-pragma-system-header-outside-header",
+        ],
         "includes": ["include"],
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
@@ -61,6 +63,10 @@ def perfetto_cc_proto_library(**kwargs):
 def perfetto_java_proto_library(**kwargs):
     if not _rule_override("java_proto_library", **kwargs):
         native.java_proto_library(**kwargs)
+
+def perfetto_java_lite_proto_library(**kwargs):
+    if not _rule_override("java_lite_proto_library", **kwargs):
+        native.java_lite_proto_library(**kwargs)
 
 # +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
@@ -122,9 +128,7 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
     _proto_deps = [d for d in deps if d.endswith("_protos")]
     _cc_deps = [d for d in deps if d not in _proto_deps]
     if len(_proto_deps) != 1:
-        fail("Too many proto deeps for target %s" % name)
-    # Generates the .gen.{cc,h} files.
-    perfetto_cc_protocpp_library(name = name + "_gen", deps = deps)
+        fail("Too many proto deps for target %s" % name)
 
     # Generates .ipc.{cc,h}.
     proto_gen(
@@ -148,7 +152,6 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
         srcs = [":" + name + "_src"],
         hdrs = [":" + name + "_h"],
         deps = [
-            ":" + name + "_gen",
             # Generated .ipc.{cc,h} depend on this and protozero.
             PERFETTO_CONFIG.root + ":perfetto_ipc",
             PERFETTO_CONFIG.root + ":libprotozero",
@@ -176,7 +179,7 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
     _proto_deps = [d for d in deps if d.endswith("_protos")]
     _cc_deps = [d for d in deps if d not in _proto_deps]
     if len(_proto_deps) != 1:
-        fail("Too many proto deeps for target %s" % name)
+        fail("Too many proto deps for target %s" % name)
 
     proto_gen(
         name = name + "_gen",
@@ -194,10 +197,13 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
         output_group = "h",
     )
 
+    # The headers from the gen plugin have implicit dependencies
+    # on each other so will fail when compiled independently. Use
+    # textual_hdrs to indicate this to Bazel.
     perfetto_cc_library(
         name = name,
         srcs = [":" + name + "_gen"],
-        hdrs = [":" + name + "_gen_h"],
+        textual_hdrs = [":" + name + "_gen_h"],
         deps = [
             PERFETTO_CONFIG.root + ":libprotozero"
         ] + _cc_deps,
@@ -220,7 +226,7 @@ def _merge_dicts(*args):
     res = {}
     for arg in args:
         for k, v in arg.items():
-            if type(v) == "string":
+            if type(v) == "string" or type(v) == "bool":
                 res[k] = v
             elif type(v) == "list" or type(v) == "select":
                 res[k] = res.get(k, []) + v

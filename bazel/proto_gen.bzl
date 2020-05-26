@@ -71,7 +71,7 @@ def _proto_gen_impl(ctx):
         plugin_deps += [ctx.executable.plugin]
     else:
         arguments += [
-            "--cpp_out=" + out_dir,
+            "--cpp_out=lite=true:" + out_dir,
         ]
 
     arguments += [src.path for src in proto_src]
@@ -82,13 +82,16 @@ def _proto_gen_impl(ctx):
         executable = ctx.executable.protoc,
         arguments = arguments,
     )
+    cc_files = depset([f for f in out_files if f.path.endswith(".cc")])
+    h_files = depset([f for f in out_files if f.path.endswith(".h")])
     return [
-        DefaultInfo(files = depset(out_files)),
+        DefaultInfo(files = cc_files),
         OutputGroupInfo(
-            cc = depset([f for f in out_files if f.path.endswith(".cc")]),
-            h = depset([f for f in out_files if f.path.endswith(".h")]),
+            cc = cc_files,
+            h = h_files,
         ),
     ]
+
 
 proto_gen = rule(
     attrs = {

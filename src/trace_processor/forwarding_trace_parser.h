@@ -19,7 +19,7 @@
 
 #include "src/trace_processor/chunked_trace_reader.h"
 
-#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -32,6 +32,7 @@ enum TraceType {
   kSystraceTraceType,
   kGzipTraceType,
   kCtraceTraceType,
+  kNinjaLogTraceType,
 };
 
 TraceType GuessTraceType(const uint8_t* data, size_t size);
@@ -43,6 +44,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  void NotifyEndOfFile() override;
 
  private:
   TraceProcessorContext* const context_;

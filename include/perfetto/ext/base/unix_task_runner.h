@@ -19,11 +19,11 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
-#include "perfetto/ext/base/thread_utils.h"
 
 #include <poll.h>
 #include <chrono>
@@ -87,7 +87,7 @@ class UnixTaskRunner : public TaskRunner {
   void RunFileDescriptorWatch(int fd);
 
   ThreadChecker thread_checker_;
-  PlatformThreadID created_thread_id_ = GetThreadId();
+  PlatformThreadId created_thread_id_ = GetThreadId();
 
   // On Linux, an eventfd(2) used to waking up the task runner when a new task
   // is posted. Otherwise the read end of a pipe used for the same purpose.

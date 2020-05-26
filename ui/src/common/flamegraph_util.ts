@@ -14,10 +14,10 @@
 
 import {CallsiteInfo} from '../common/state';
 
-export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'space';
-export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'alloc_space';
-export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'objects';
-export const OBJECTS_ALLOCATED_KEY = 'alloc_objects';
+export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE';
+export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE';
+export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS';
+export const OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS';
 
 export const DEFAULT_VIEWING_OPTION = SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY;
 
@@ -66,6 +66,7 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
     copiedCallsite.parentId =
         getCallsitesParentHash(copiedCallsite, mergedCallsites);
 
+    let mergedAny = false;
     // If current callsite is small, find other small callsites with same depth
     // and parent and merge them into the current one, marking them as merged.
     if (copiedCallsite.totalSize <= minSizeDisplayed && i + 1 < data.length) {
@@ -77,9 +78,14 @@ export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
             nextCallsite.totalSize <= minSizeDisplayed) {
           copiedCallsite.totalSize += nextCallsite.totalSize;
           mergedCallsites.set(nextCallsite.id, copiedCallsite.id);
+          mergedAny = true;
         }
         j++;
         nextCallsite = data[j];
+      }
+      if (mergedAny) {
+        copiedCallsite.name = '[merged]';
+        copiedCallsite.merged = true;
       }
     }
     mergedData.push(copiedCallsite);
@@ -95,7 +101,8 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
     name: callsite.name,
     totalSize: callsite.totalSize,
     mapping: callsite.mapping,
-    selfSize: callsite.selfSize
+    selfSize: callsite.selfSize,
+    merged: callsite.merged,
   };
 }
 

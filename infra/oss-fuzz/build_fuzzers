@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-$SRC/perfetto/tools/install-build-deps --no-android
+$SRC/perfetto/tools/install-build-deps
 
 mkdir -p $WORK/build
 

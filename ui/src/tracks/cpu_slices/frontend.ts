@@ -112,7 +112,7 @@ class CpuSliceTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.utids.length);
 
     ctx.textAlign = 'center';
-    ctx.font = '12px Google Sans';
+    ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     for (let i = 0; i < data.starts.length; i++) {
@@ -124,9 +124,7 @@ class CpuSliceTrack extends Track<Config, Data> {
       }
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
-      const rectWidth = rectEnd - rectStart;
-      if (rectWidth < 0.3) continue;
-
+      const rectWidth = Math.max(1, rectEnd - rectStart);
       const threadInfo = globals.threads.get(utid);
 
       // TODO: consider de-duplicating this code with the copied one from
@@ -162,7 +160,7 @@ class CpuSliceTrack extends Track<Config, Data> {
         color.s -= 20;
       }
       ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-      ctx.fillRect(rectStart, MARGIN_TOP, rectEnd - rectStart, RECT_HEIGHT);
+      ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
@@ -171,10 +169,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       subTitle = cropText(subTitle, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
       ctx.fillStyle = '#fff';
-      ctx.font = '12px Google Sans';
+      ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
       ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-      ctx.font = '10px Google Sans';
+      ctx.font = '10px Roboto Condensed';
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
@@ -189,12 +187,13 @@ class CpuSliceTrack extends Track<Config, Data> {
         const color = colorForThread(globals.threads.get(utid));
         const rectStart = timeScale.timeToPx(tStart);
         const rectEnd = timeScale.timeToPx(tEnd);
+        const rectWidth = Math.max(1, rectEnd - rectStart);
+
         // Draw a rectangle around the slice that is currently selected.
         ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
         ctx.beginPath();
         ctx.lineWidth = 3;
-        ctx.strokeRect(
-            rectStart, MARGIN_TOP - 1.5, rectEnd - rectStart, RECT_HEIGHT + 3);
+        ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth, RECT_HEIGHT + 3);
         ctx.closePath();
         // Draw arrow from wakeup time of current slice.
         if (details.wakeupTs) {
@@ -241,29 +240,14 @@ class CpuSliceTrack extends Track<Config, Data> {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined) {
-      let line1 = '';
-      let line2 = '';
+    if (hoveredThread !== undefined && this.mouseXpos !== undefined) {
+      const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       if (hoveredThread.pid) {
-        line1 = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        line2 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+        const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+        this.drawTrackHoverTooltip(ctx, this.mouseXpos, pidText, tidText);
       } else {
-        line1 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+        this.drawTrackHoverTooltip(ctx, this.mouseXpos, tidText);
       }
-
-      ctx.font = '10px Google Sans';
-      const line1Width = ctx.measureText(line1).width;
-      const line2Width = ctx.measureText(line2).width;
-      const width = Math.max(line1Width, line2Width);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillRect(this.mouseXpos!, MARGIN_TOP, width + 16, RECT_HEIGHT);
-      ctx.fillStyle = 'hsl(200, 50%, 40%)';
-      ctx.textAlign = 'left';
-      ctx.fillText(
-          line1, this.mouseXpos! + 8, MARGIN_TOP + RECT_HEIGHT / 2 - 2);
-      ctx.fillText(
-          line2, this.mouseXpos! + 8, MARGIN_TOP + RECT_HEIGHT / 2 + 10);
     }
   }
 

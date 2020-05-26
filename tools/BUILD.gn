@@ -45,9 +45,7 @@ group("tools") {
 
 if (is_linux && enable_perfetto_heapprofd) {
   executable("profiling_sample_distribution") {
-    sources = [
-      "profiling_sample_distribution.cc",
-    ]
+    sources = [ "profiling_sample_distribution.cc" ]
     deps = [
       "../gn:default_deps",
       "../src/base",
@@ -57,12 +55,8 @@ if (is_linux && enable_perfetto_heapprofd) {
 }
 
 executable("idle_alloc") {
-  deps = [
-    "../gn:default_deps",
-  ]
-  sources = [
-    "idle_alloc.cc",
-  ]
+  deps = [ "../gn:default_deps" ]
+  sources = [ "idle_alloc.cc" ]
 }
 
 # The protoc binary can end up in out/protoc or out/gcc_like_host/protoc
@@ -73,22 +67,14 @@ protoc_target = "../gn:protoc($host_toolchain)"
 if (current_toolchain != host_toolchain) {
   copy("copy_protoc") {
     testonly = true
-    deps = [
-      protoc_target,
-    ]
+    deps = [ protoc_target ]
     host_out_dir = get_label_info(protoc_target, "root_out_dir")
-    sources = [
-      "$host_out_dir/protoc",
-    ]
-    outputs = [
-      "$root_build_dir/protoc",
-    ]
+    sources = [ "$host_out_dir/protoc" ]
+    outputs = [ "$root_build_dir/protoc" ]
   }
 } else {
   # Nothing to do, in this case protoc is already built in the root out dir.
   group("copy_protoc") {
-    public_deps = [
-      protoc_target,
-    ]
+    public_deps = [ protoc_target ]
   }
 }

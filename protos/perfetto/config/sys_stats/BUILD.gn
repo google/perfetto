@@ -15,10 +15,6 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [
-    "../../common:@TYPE@",
-  ]
-  sources = [
-    "sys_stats_config.proto",
-  ]
+  deps = [ "../../common:@TYPE@" ]
+  sources = [ "sys_stats_config.proto" ]
 }

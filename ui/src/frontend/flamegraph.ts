@@ -44,8 +44,14 @@ export function findRootSize(data: CallsiteInfo[]) {
   return totalSize;
 }
 
+export interface NodeRendering {
+  totalSize?: string;
+  selfSize?: string;
+}
+
 export class Flamegraph {
   private isThumbnail = false;
+  private nodeRendering: NodeRendering = {};
   private flamegraphData: CallsiteInfo[];
   private maxDepth = -1;
   private totalSize = -1;
@@ -98,7 +104,9 @@ export class Flamegraph {
    * graph.
    */
   updateDataIfChanged(
-      flamegraphData: CallsiteInfo[], clickedCallsite?: CallsiteInfo) {
+      nodeRendering: NodeRendering, flamegraphData: CallsiteInfo[],
+      clickedCallsite?: CallsiteInfo) {
+    this.nodeRendering = nodeRendering;
     this.clickedCallsite = clickedCallsite;
     if (this.flamegraphData === flamegraphData) {
       return;
@@ -136,7 +144,7 @@ export class Flamegraph {
     // Draw root node.
     ctx.fillStyle = this.generateColor('root', false);
     ctx.fillRect(x, currentY, width, nodeHeight);
-    ctx.font = `${this.textSize}px Google Sans`;
+    ctx.font = `${this.textSize}px Roboto Condensed`;
     const text = cropText(
         `root: ${
             this.displaySize(
@@ -199,7 +207,7 @@ export class Flamegraph {
       }
 
       // Draw name.
-      ctx.font = `${this.textSize}px Google Sans`;
+      ctx.font = `${this.textSize}px Roboto Condensed`;
       const text = cropText(name, charWidth, width - 2);
       ctx.fillStyle = 'black';
       ctx.fillText(text, currentX + 5, currentY + nodeHeight - 4);
@@ -237,45 +245,45 @@ export class Flamegraph {
       const nameText = this.getCallsiteName(this.hoveredCallsite);
       lineSplitter =
           splitIfTooBig(nameText, width, ctx.measureText(nameText).width);
-      const nameTextWidth = lineSplitter.lineWidth;
+      let textWidth = lineSplitter.lineWidth;
       lines.push(...lineSplitter.lines);
 
       const mappingText = this.hoveredCallsite.mapping;
       lineSplitter =
           splitIfTooBig(mappingText, width, ctx.measureText(mappingText).width);
-      const mappingTextWidth = lineSplitter.lineWidth;
+      textWidth = Math.max(textWidth, lineSplitter.lineWidth);
       lines.push(...lineSplitter.lines);
 
-      const percentage = this.hoveredCallsite.totalSize / this.totalSize * 100;
-      const totalSizeText = `total: ${
-          this.displaySize(
-              this.hoveredCallsite.totalSize,
-              unit,
-              unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
-      lineSplitter = splitIfTooBig(
-          totalSizeText, width, ctx.measureText(totalSizeText).width);
-      const totalSizeTextWidth = lineSplitter.lineWidth;
-      lines.push(...lineSplitter.lines);
-
-      let selfSizeWidth = 0;
-      if (this.hoveredCallsite.selfSize > 0) {
-        const selfSizeText = `self: ${
+      if (this.nodeRendering.totalSize !== undefined) {
+        const percentage =
+            this.hoveredCallsite.totalSize / this.totalSize * 100;
+        const totalSizeText = `${this.nodeRendering.totalSize}: ${
             this.displaySize(
-                this.hoveredCallsite.selfSize,
+                this.hoveredCallsite.totalSize,
                 unit,
                 unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
         lineSplitter = splitIfTooBig(
-            selfSizeText, width, ctx.measureText(selfSizeText).width);
-        selfSizeWidth = lineSplitter.lineWidth;
+            totalSizeText, width, ctx.measureText(totalSizeText).width);
+        textWidth = Math.max(textWidth, lineSplitter.lineWidth);
         lines.push(...lineSplitter.lines);
       }
 
-      const rectWidth = Math.max(
-                            nameTextWidth,
-                            mappingTextWidth,
-                            totalSizeTextWidth,
-                            selfSizeWidth) +
-          16;
+      if (this.nodeRendering.selfSize !== undefined &&
+          this.hoveredCallsite.selfSize > 0) {
+        const selfPercentage =
+            this.hoveredCallsite.selfSize / this.totalSize * 100;
+        const selfSizeText = `${this.nodeRendering.selfSize}: ${
+            this.displaySize(
+                this.hoveredCallsite.selfSize,
+                unit,
+                unit === 'B' ? 1024 : 1000)} (${selfPercentage.toFixed(2)}%)`;
+        lineSplitter = splitIfTooBig(
+            selfSizeText, width, ctx.measureText(selfSizeText).width);
+        textWidth = Math.max(textWidth, lineSplitter.lineWidth);
+        lines.push(...lineSplitter.lines);
+      }
+
+      const rectWidth = textWidth + 16;
       const rectXStart = this.hoveredX + 8 + rectWidth > width ?
           width - rectWidth - 8 :
           this.hoveredX + 8;
@@ -284,7 +292,7 @@ export class Flamegraph {
           height - rectHeight - 8 :
           this.hoveredY + 4;
 
-      ctx.font = '12px Google Sans';
+      ctx.font = '12px Roboto Condensed';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(rectXStart, rectYStart, rectWidth, rectHeight);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
@@ -305,15 +313,18 @@ export class Flamegraph {
     if (unit === '') return totalSize.toLocaleString();
     if (totalSize === 0) return `0 ${unit}`;
     const units = [
-      ['', 0],
+      ['', 1],
       ['K', step],
       ['M', Math.pow(step, 2)],
       ['G', Math.pow(step, 3)]
     ];
     let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
     unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
-    return `${(totalSize / +units[unitsIndex][1]).toLocaleString()} ${
-        units[unitsIndex][0]}${unit}`;
+    const result = totalSize / +units[unitsIndex][1];
+    const resultString = totalSize % +units[unitsIndex][1] === 0 ?
+        result.toString() :
+        result.toFixed(2);
+    return `${resultString} ${units[unitsIndex][0]}${unit}`;
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
@@ -338,6 +349,12 @@ export class Flamegraph {
       return undefined;
     }
     const clickedCallsite = this.findSelectedCallsite(x, y);
+    // TODO(b/148596659): Allow to expand [merged] callsites. Currently,
+    // this expands to the biggest of the nodes that were merged, which
+    // is confusing, so we disallow clicking on them.
+    if (clickedCallsite === undefined || clickedCallsite.merged) {
+      return undefined;
+    }
     return clickedCallsite;
   }
 

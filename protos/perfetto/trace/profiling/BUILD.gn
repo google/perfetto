@@ -19,5 +19,6 @@ perfetto_proto_library("@TYPE@") {
     "heap_graph.proto",
     "profile_common.proto",
     "profile_packet.proto",
+    "smaps.proto",
   ]
 }

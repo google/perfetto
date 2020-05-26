@@ -21,6 +21,7 @@ import * as m from 'mithril';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
+import {AggregateData} from '../common/aggregation_data';
 import {
   LogBoundsKey,
   LogEntriesKey,
@@ -77,7 +78,7 @@ class FrontendApi {
   // want to keep in the global state. Figure out a more generic and type-safe
   // mechanism to achieve this.
 
-  publishOverviewData(data: {[key: string]: QuantizedLoad | QuantizedLoad[]}) {
+  publishOverviewData(data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
     for (const [key, value] of Object.entries(data)) {
       if (!globals.overviewStore.has(key)) {
         globals.overviewStore.set(key, []);
@@ -174,6 +175,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishAggregateData(args: {data: AggregateData, kind: string}) {
+    globals.setAggregateData(args.kind, args.data);
+    this.redraw();
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
@@ -245,6 +251,7 @@ function main() {
       dispatch);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
   globals.initialize(dispatch, controller);
+  globals.serviceWorkerController.install();
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
@@ -271,8 +278,10 @@ function main() {
 
   updateAvailableAdbDevices();
   try {
-    navigator.usb.addEventListener('connect', updateAvailableAdbDevices);
-    navigator.usb.addEventListener('disconnect', updateAvailableAdbDevices);
+    navigator.usb.addEventListener(
+        'connect', () => updateAvailableAdbDevices());
+    navigator.usb.addEventListener(
+        'disconnect', () => updateAvailableAdbDevices());
   } catch (e) {
     console.error('WebUSB API not supported');
   }

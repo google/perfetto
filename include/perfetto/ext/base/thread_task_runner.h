@@ -34,7 +34,9 @@ namespace base {
 //
 class ThreadTaskRunner {
  public:
-  static ThreadTaskRunner CreateAndStart() { return ThreadTaskRunner(); }
+  static ThreadTaskRunner CreateAndStart(const std::string& name = "") {
+    return ThreadTaskRunner(name);
+  }
 
   ThreadTaskRunner(const ThreadTaskRunner&) = delete;
   ThreadTaskRunner& operator=(const ThreadTaskRunner&) = delete;
@@ -42,6 +44,14 @@ class ThreadTaskRunner {
   ThreadTaskRunner(ThreadTaskRunner&&) noexcept;
   ThreadTaskRunner& operator=(ThreadTaskRunner&&);
   ~ThreadTaskRunner();
+
+  // Executes the given function on the task runner thread and blocks the caller
+  // thread until the function has run.
+  void PostTaskAndWaitForTesting(std::function<void()>);
+
+  // Can be called from another thread to get the CPU time of the thread the
+  // task-runner is executing on.
+  uint64_t GetThreadCPUTimeNsForTesting();
 
   // Returns a pointer to the UnixTaskRunner, which is valid for the lifetime of
   // this ThreadTaskRunner object (unless this object is moved-from, in which
@@ -53,10 +63,11 @@ class ThreadTaskRunner {
   UnixTaskRunner* get() const { return task_runner_; }
 
  private:
-  ThreadTaskRunner();
+  explicit ThreadTaskRunner(const std::string& name);
   void RunTaskThread(std::function<void(UnixTaskRunner*)> initializer);
 
   std::thread thread_;
+  std::string name_;
   UnixTaskRunner* task_runner_ = nullptr;
 };
 

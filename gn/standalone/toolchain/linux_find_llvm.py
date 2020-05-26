@@ -22,7 +22,7 @@ def main():
   for clang in ('clang', 'clang-3.8', 'clang-3.5'):
     if subprocess.call(['which', clang], stdout=devnull, stderr=devnull) != 0:
       continue
-    res = subprocess.check_output([clang, '-print-search-dirs'])
+    res = subprocess.check_output([clang, '-print-search-dirs']).decode("utf-8")
     for line in res.splitlines():
       if not line.startswith('libraries:'):
         continue
@@ -30,11 +30,11 @@ def main():
       for lib in libs:
         if '/clang/' not in lib or not os.path.isdir(lib + '/lib'):
           continue
-        print os.path.abspath(lib)
-        print clang
-        print clang.replace('clang', 'clang++')
+        print(os.path.abspath(lib))
+        print(clang)
+        print(clang.replace('clang', 'clang++'))
         return 0
-  print 'Could not find the LLVM lib dir'
+  print('Could not find the LLVM lib dir')
   return 1
 
 

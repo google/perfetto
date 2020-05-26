@@ -19,9 +19,13 @@ perfetto_unittests_targets = [
   "gn:gtest_main",
   "src/base:unittests",
   "src/protozero:unittests",
-  "src/tracing:unittests",
+  "src/tracing/core:unittests",
   "src/profiling:unittests",
 ]
+
+if (enable_perfetto_ipc) {
+  perfetto_unittests_targets += [ "src/tracing/test:tracing_integration_test" ]
+}
 
 if (enable_perfetto_tools && current_toolchain == host_toolchain) {
   perfetto_unittests_targets += [ "tools/ftrace_proto_gen:unittests" ]
@@ -36,7 +40,10 @@ if ((is_linux || is_android) && !perfetto_build_with_embedder) {
 }
 
 if (enable_perfetto_ipc) {
-  perfetto_unittests_targets += [ "src/ipc:unittests" ]
+  perfetto_unittests_targets += [
+    "src/tracing/ipc:unittests",
+    "src/ipc:unittests",
+  ]
 }
 
 if (enable_perfetto_platform_services) {
@@ -45,8 +52,13 @@ if (enable_perfetto_platform_services) {
     "src/traced/probes:unittests",
     "src/traced/probes/filesystem:unittests",
     "src/traced/probes/ftrace:unittests",
+    "src/traced/probes/ftrace/kallsyms:unittests",
     "src/traced/service:unittests",
   ]
+}
+
+if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
+  perfetto_unittests_targets += [ "src/profiling/common:unittests" ]
 }
 
 if (enable_perfetto_heapprofd) {
@@ -63,7 +75,7 @@ if (enable_perfetto_traced_perf) {
 if (enable_perfetto_trace_processor) {
   perfetto_unittests_targets += [ "src/trace_processor:unittests" ]
 
-  if (enable_perfetto_trace_processor_metrics) {
+  if (enable_perfetto_trace_processor_sqlite) {
     perfetto_unittests_targets += [ "src/trace_processor/metrics:unittests" ]
   }
 }

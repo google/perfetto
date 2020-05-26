@@ -7,13 +7,13 @@
     "array-type": [true, "array-simple"],
     "arrow-return-shorthand": true,
     "ban": [true,
-      {"name": "parseInt", "message": "See http://go/tsstyle#type-coercion"},
-      {"name": "parseFloat", "message": "See http://go/tsstyle#type-coercion"},
-      {"name": "Array", "message": "See http://go/tsstyle#array-constructor"},
-      {"name": ["*", "innerText"], "message": "Use .textContent instead. http://go/typescript/patterns#browser-oddities"}
+      {"name": "parseInt", "message": "See http://goto.google.com/tsstyle#type-coercion"},
+      {"name": "parseFloat", "message": "See http://goto.google.com/tsstyle#type-coercion"},
+      {"name": "Array", "message": "See http://goto.google.com/tsstyle#array-constructor"},
+      {"name": ["*", "innerText"], "message": "Use .textContent instead. http://goto.google.com/typescript/patterns#browser-oddities"}
     ],
     "ban-types": [true,
-      ["Object", "Use {} or 'object' instead. See http://go/ts-style#redundant-types"],
+      ["Object", "Use {} or 'object' instead. See http://goto.google.com/ts-style#redundant-types"],
       ["String", "Use 'string' instead."],
       ["Number", "Use 'number' instead."],
       ["Boolean", "Use 'boolean' instead."]

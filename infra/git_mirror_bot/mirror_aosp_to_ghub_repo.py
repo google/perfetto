@@ -34,14 +34,14 @@ import time
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 GIT_UPSTREAM = 'https://android.googlesource.com/platform/external/perfetto/'
-GIT_MIRROR = 'git@github.com:catapult-project/perfetto.git'
+GIT_MIRROR = 'git@github.com:google/perfetto.git'
 WORKDIR = os.path.join(CUR_DIR, 'repo')
 
 # Min delay (in seconds) between two consecutive git poll cycles. This is to
 # avoid hitting gerrit API quota limits.
 POLL_PERIOD_SEC = 60
 
-# The actual deploy_key is stored into the internal team drive, undef /infra/.
+# The actual key is stored into the Google Cloud project metadata.
 ENV = {'GIT_SSH_COMMAND': 'ssh -i ' + os.path.join(CUR_DIR, 'deploy_key')}
 
 
@@ -68,7 +68,11 @@ def Setup(args):
   os.makedirs(WORKDIR)
   GitCmd('init', '--bare', '--quiet')
   GitCmd('remote', 'add', 'upstream', GIT_UPSTREAM)
-  GitCmd('config', 'remote.upstream.fetch', '+refs/*:refs/remotes/upstream/*')
+  GitCmd('config', 'remote.upstream.tagOpt', '--no-tags')
+  GitCmd('config', '--add', 'remote.upstream.fetch',
+         '+refs/heads/*:refs/remotes/upstream/heads/*')
+  GitCmd('config', '--add', 'remote.upstream.fetch',
+         '+refs/tags/*:refs/remotes/upstream/tags/*')
   GitCmd('remote', 'add', 'mirror', GIT_MIRROR, '--mirror=fetch')
 
 
@@ -90,16 +94,17 @@ def Sync(args):
   for line in all_refs.splitlines():
     ref_sha1, ref = line.split()
 
-    PREFIX = 'refs/heads/'
-    if ref.startswith(PREFIX):
-      branch = ref[len(PREFIX):]
-      current_heads['refs/heads/' + branch] = ref_sha1
+    FILTER_REGEX = r'(heads/master|heads/releases/.*|tags/v\d+\.\d+)$'
+    m = re.match('refs/' + FILTER_REGEX, ref)
+    if m is not None:
+      branch = m.group(1)
+      current_heads['refs/' + branch] = ref_sha1
       continue
 
-    PREFIX = 'refs/remotes/upstream/heads/'
-    if ref.startswith(PREFIX):
-      branch = ref[len(PREFIX):]
-      future_heads['refs/heads/' + branch] = ref_sha1
+    m = re.match('refs/remotes/upstream/' + FILTER_REGEX, ref)
+    if m is not None:
+      branch = m.group(1)
+      future_heads['refs/' + branch] = ref_sha1
       continue
 
   deleted_heads = set(current_heads) - set(future_heads)
@@ -121,7 +126,7 @@ def Sync(args):
 
   if args.push:
     logging.info('Pushing updates')
-    GitCmd('push', 'mirror', '--all', '--prune', '--force')
+    GitCmd('push', 'mirror', '--all', '--prune', '--force', '--follow-tags')
     GitCmd('gc', '--prune=all', '--aggressive', '--quiet')
   else:
     logging.info('Dry-run mode, skipping git push. Pass --push for prod mode.')

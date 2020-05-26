@@ -28,48 +28,26 @@
 namespace perfetto {
 namespace trace_processor {
 
-class AndroidProbesModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
-                                PERFETTO_TP_ANDROID_PROBES)> {
+class AndroidProbesModule : public ProtoImporterModule {
  public:
-  explicit AndroidProbesModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context), parser_(context) {}
+  explicit AndroidProbesModule(TraceProcessorContext* context);
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                           const TimestampedTracePiece& ttp) {
-    if (decoder.has_battery()) {
-      parser_.ParseBatteryCounters(ttp.timestamp, decoder.battery());
-      return ModuleResult::Handled();
-    }
+  ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
+                              TraceBlobView* packet,
+                              int64_t packet_timestamp,
+                              PacketSequenceState*,
+                              uint32_t field_id) override;
 
-    if (decoder.has_power_rails()) {
-      parser_.ParsePowerRails(ttp.timestamp, decoder.power_rails());
-      return ModuleResult::Handled();
-    }
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                   const TimestampedTracePiece& ttp,
+                   uint32_t field_id) override;
 
-    if (decoder.has_android_log()) {
-      parser_.ParseAndroidLogPacket(decoder.android_log());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_packages_list()) {
-      parser_.ParseAndroidPackagesList(decoder.packages_list());
-      return ModuleResult::Handled();
-    }
-
-    return ModuleResult::Ignored();
-  }
-
-  ModuleResult ParseTraceConfig(
-      const protos::pbzero::TraceConfig::Decoder& decoder) {
-    if (decoder.has_statsd_metadata()) {
-      parser_.ParseStatsdMetadata(decoder.statsd_metadata());
-      return ModuleResult::Handled();
-    }
-    return ModuleResult::Ignored();
-  }
+  void ParseTraceConfig(
+      const protos::pbzero::TraceConfig::Decoder& decoder) override;
 
  private:
   AndroidProbesParser parser_;
+  TraceProcessorContext* context_ = nullptr;
 };
 
 }  // namespace trace_processor

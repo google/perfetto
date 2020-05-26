@@ -37,6 +37,11 @@ void FunctionWithOneTrackEvent();
 void FunctionWithOneTrackEventWithTypedArgument();
 void FunctionWithOneScopedTrackEvent();
 void FunctionWithOneTrackEventWithDebugAnnotations();
+void FunctionWithOneTrackEventWithCustomTrack();
+
+// Legacy events.
+void FunctionWithOneLegacyEvent();
+void FunctionWithOneScopedLegacyEvent();
 
 }  // namespace tracing_module
 

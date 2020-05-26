@@ -14,17 +14,23 @@
  * limitations under the License.
  */
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message JavaHeapStats {
+  // Next id: 7
   message Sample {
     optional int64 ts = 1;
+    // Size of the Java heap in bytes
     optional int64 heap_size = 2;
+    optional int64 obj_count = 4;
+    // Size of the reachable objects in bytes.
     optional int64 reachable_heap_size = 3;
+    optional int64 reachable_obj_count = 5;
+    // Sum of anonymous RSS + swap pages in bytes.
+    optional int64 anon_rss_and_swap_size = 6;
   }
 
   // Heap stats per process. One sample per dump (can be > 1 if continuous

@@ -38,9 +38,15 @@
 namespace perfetto {
 
 namespace {
-constexpr uint32_t kMinPollRateMs = 250;
+constexpr uint32_t kMinPollIntervalMs = 100;
 constexpr size_t kMaxNumRails = 32;
 }  // namespace
+
+// static
+const ProbesDataSource::Descriptor AndroidPowerDataSource::descriptor = {
+    /*name*/ "android.power",
+    /*flags*/ Descriptor::kFlagsNone,
+};
 
 // Dynamically loads the libperfetto_android_internal.so library which
 // allows to proxy calls to android hwbinder in in-tree builds.
@@ -88,21 +94,21 @@ AndroidPowerDataSource::AndroidPowerDataSource(
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::unique_ptr<TraceWriter> writer)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       rail_descriptors_logged_(false),
       writer_(std::move(writer)),
       weak_factory_(this) {
   using protos::pbzero::AndroidPowerConfig;
   AndroidPowerConfig::Decoder pcfg(cfg.android_power_config_raw());
-  poll_rate_ms_ = pcfg.battery_poll_ms();
+  poll_interval_ms_ = pcfg.battery_poll_ms();
   rails_collection_enabled_ = pcfg.collect_power_rails();
 
-  if (poll_rate_ms_ < kMinPollRateMs) {
+  if (poll_interval_ms_ < kMinPollIntervalMs) {
     PERFETTO_ELOG("Battery poll interval of %" PRIu32
                   " ms is too low. Capping to %" PRIu32 " ms",
-                  poll_rate_ms_, kMinPollRateMs);
-    poll_rate_ms_ = kMinPollRateMs;
+                  poll_interval_ms_, kMinPollIntervalMs);
+    poll_interval_ms_ = kMinPollIntervalMs;
   }
   for (auto counter = pcfg.battery_counters(); counter; ++counter) {
     auto hal_id = android_internal::BatteryCounter::kUnspecified;
@@ -143,7 +149,7 @@ void AndroidPowerDataSource::Tick() {
         if (weak_this)
           weak_this->Tick();
       },
-      poll_rate_ms_ - (now_ms % poll_rate_ms_));
+      poll_interval_ms_ - (now_ms % poll_interval_ms_));
 
   WriteBatteryCounters();
   WritePowerRailsData();
@@ -209,11 +215,11 @@ void AndroidPowerDataSource::WritePowerRailsData() {
     }
 
     for (const auto& rail_descriptor : rail_descriptors) {
-      auto* descriptor = rails_proto->add_rail_descriptor();
-      descriptor->set_index(rail_descriptor.index);
-      descriptor->set_rail_name(rail_descriptor.rail_name);
-      descriptor->set_subsys_name(rail_descriptor.subsys_name);
-      descriptor->set_sampling_rate(rail_descriptor.sampling_rate);
+      auto* rail_desc_proto = rails_proto->add_rail_descriptor();
+      rail_desc_proto->set_index(rail_descriptor.index);
+      rail_desc_proto->set_rail_name(rail_descriptor.rail_name);
+      rail_desc_proto->set_subsys_name(rail_descriptor.subsys_name);
+      rail_desc_proto->set_sampling_rate(rail_descriptor.sampling_rate);
     }
   }
 

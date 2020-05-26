@@ -52,6 +52,10 @@ LEFT JOIN (
 ) USING(ts)
 ORDER BY ts;
 
+SELECT RUN_METRIC('android/counter_span_view.sql',
+  'table_name', 'screen_state',
+  'counter_name', 'ScreenState');
+
 CREATE VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
   'battery_counters', (
@@ -65,5 +69,16 @@ SELECT AndroidBatteryMetric(
       )
     )
     FROM battery_view
+  ),
+  'battery_aggregates', (
+    SELECT AndroidBatteryMetric_BatteryAggregates(
+      'total_screen_off_ns',
+      SUM(CASE WHEN screen_state_val = 1.0 THEN dur ELSE 0 END),
+      'total_screen_on_ns',
+      SUM(CASE WHEN screen_state_val = 2.0 THEN dur ELSE 0 END),
+      'total_screen_doze_ns',
+      SUM(CASE WHEN screen_state_val = 3.0 THEN dur ELSE 0 END)
+    )
+    FROM screen_state_span
   )
 );

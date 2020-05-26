@@ -61,6 +61,7 @@ class Rpc {
   std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
   void RestoreInitialTables();
   std::string GetCurrentTraceName();
+  std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
 
  private:
   void MaybePrintProgress();

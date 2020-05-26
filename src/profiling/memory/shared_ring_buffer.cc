@@ -62,8 +62,8 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
 
   if (!fd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    // In-tree builds should only allow mem_fd, so we can inspect the seals
-    // to verify the fd is appropriately sealed.
+    // In-tree builds only allow mem_fd, so we can inspect the seals to verify
+    // the fd is appropriately sealed.
     PERFETTO_ELOG("memfd_create() failed");
     return;
 #else
@@ -104,6 +104,18 @@ SharedRingBuffer::~SharedRingBuffer() {
     size_t outer_size = kMetaPageSize + size_ * 2 + kGuardSize;
     munmap(meta_, outer_size);
   }
+
+  // This is work-around for code like the following:
+  // https://android.googlesource.com/platform/libcore/+/4ecb71f94378716f88703b9f7548b5d24839262f/ojluni/src/main/native/UNIXProcess_md.c#427
+  // They fork, close all fds by iterating over /proc/self/fd using opendir.
+  // Unfortunately closedir calls free, which detects the fork, and then tries
+  // to destruct the Client that holds this SharedRingBuffer.
+  //
+  // ScopedResource crashes on failure to close, so we explicitly ignore
+  // failures here.
+  int fd = mem_fd_.release();
+  if (fd != -1)
+    close(fd);
 }
 
 void SharedRingBuffer::Initialize(base::ScopedFile mem_fd) {

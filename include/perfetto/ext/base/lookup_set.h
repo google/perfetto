@@ -47,6 +47,8 @@ class LookupSet {
 
   bool Remove(const T& child) { return set_.erase(child); }
 
+  void Clear() { set_.clear(); }
+
   static_assert(std::is_const<U>::value, "key must be const");
 
  private:

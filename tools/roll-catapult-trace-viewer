@@ -42,11 +42,30 @@ ARCHIVE="$OUTDIR/catapult_trace_viewer.tar.gz"
 
 (
   cd "$OUTDIR"
+  cat >extra_origin_trials <<EOF
+  <!-- WebComponents V0 origin trial token for https://*.ui.perfetto.dev
+  Expires 1 Feb 2021. https://crbug.com/1021137. -->
+  <meta http-equiv="origin-trial" content="AjGFDFU57Af4e5OJJQd7kmYR0nEiObDCHkev6BBWzhGohACl1ri+pMhaVe9V8dDBaXDkWy4g7WYj3c5GiPwatgIAAABreyJvcmlnaW4iOiJodHRwczovL3VpLnBlcmZldHRvLmRldjo0NDMiLCJmZWF0dXJlIjoiV2ViQ29tcG9uZW50c1YwIiwiZXhwaXJ5IjoxNjEyMjIzOTk5LCJpc1N1YmRvbWFpbiI6dHJ1ZX0=">
+
+  <!-- WebComponents V0 origin trial token for http://localhost:10000
+  Expires 28 Jan 2021. https://crbug.com/1021137. -->
+  <meta http-equiv="origin-trial" content="AicMEv5glMGL1lq6ZRsxFJj8xlhn3XDYZrHK0/2KreAD/r62vTFjUBOueeMTxWuU1IlRXqCugRFDD7rY45YEgwkAAABTeyJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjEwMDAwIiwiZmVhdHVyZSI6IldlYkNvbXBvbmVudHNWMCIsImV4cGlyeSI6MTYxMTg0MDczNH0=">
+
+  <!-- WebComponents V0 origin trial token for https://staging-dot-perfetto-ui.appspot.com
+  Expires 1 Feb 2021. https://crbug.com/1021137. -->
+  <meta http-equiv="origin-trial" content="Au1cwnWfBB/GCD22HnNZE93/KamhGDsz8BZbEewICJB2PRtW+E1bobrtZbTZs8q5748uRiKXPvgaut5JOZ8jSw4AAABseyJvcmlnaW4iOiJodHRwczovL3N0YWdpbmctZG90LXBlcmZldHRvLXVpLmFwcHNwb3QuY29tOjQ0MyIsImZlYXR1cmUiOiJXZWJDb21wb25lbnRzVjAiLCJleHBpcnkiOjE2MTIyMjM5OTl9">
+
+  <!-- WebComponents V0 origin trial token for https://storage.googleapis.com/
+  Expires 1 Feb 2021. https://crbug.com/1021137. -->
+  <meta http-equiv="origin-trial" content="AtobKUpdVFIb6cx2Ev0EbAFX4SzLuXPnsnADRA8JV5w4B64q65gz42shquyLLNd2QP9rY22oNGxbatpTO0kd2AIAAABfeyJvcmlnaW4iOiJodHRwczovL3N0b3JhZ2UuZ29vZ2xlYXBpcy5jb206NDQzIiwiZmVhdHVyZSI6IldlYkNvbXBvbmVudHNWMCIsImV4cGlyeSI6MTYxMjIyMzk5OX0=">
+EOF
+
   mv about_tracing.html catapult_trace_viewer.html
   mv about_tracing.js catapult_trace_viewer.js
-  sed -i '' -e \
-      's|src="tracing.js"|src="/assets/catapult_trace_viewer.js"|g' \
+  sed -i -e \
+      's|src="tracing.js"|src="catapult_trace_viewer.js"|g' \
       catapult_trace_viewer.html
+   sed -i -e '/<head/r extra_origin_trials' catapult_trace_viewer.html
   tar -zcf "$ARCHIVE" catapult_trace_viewer.{js,html}
 )
 
@@ -57,8 +76,8 @@ gsutil cp -n -a public-read "$ARCHIVE" "$GCS_TARGET"
 rm -rf "$OUTDIR"
 
 # Update the reference to the new prebuilt in tools/install-build-deps.
-sed -i '' -e \
+sed -i -e \
     "s/^CATAPULT_SHA1 =.*/CATAPULT_SHA1 = '"$SHA1"'/g" \
      "$PROJECT_ROOT/tools/install-build-deps"
 
-"$PROJECT_ROOT/tools/install-build-deps" --ui --no-android
+"$PROJECT_ROOT/tools/install-build-deps" --ui

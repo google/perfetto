@@ -46,7 +46,7 @@ export class SliceDetailsPanel extends Panel {
     } else {
       return m(
           '.details-table',
-          m('table',
+          m('table.half-width',
             [
               m('tr',
                 m('th', `Process`),
@@ -55,7 +55,7 @@ export class SliceDetailsPanel extends Panel {
                 m('th', `Thread`),
                 m('td',
                   `${threadInfo.threadName} [${threadInfo.tid}]`,
-                  m('i.material-icons',
+                  m('i.material-icons.grey',
                     {onclick: () => this.goToThread(), title: 'Go to thread'},
                     'call_made'))),
               m('tr',
@@ -126,7 +126,7 @@ export class SliceDetailsPanel extends Panel {
       ctx.fillRect(startDraw.x - 1, startDraw.y, 2, 100);
 
       // Wakeup explanation text.
-      ctx.font = '13px Google Sans';
+      ctx.font = '13px Roboto Condensed';
       ctx.fillStyle = '#3c4b5d';
       if (threadInfo) {
         const displayText = `Wakeup @ ${
@@ -153,7 +153,7 @@ export class SliceDetailsPanel extends Panel {
         const explain2 =
             '(e.g. because of notifying a wait queue it was suspended on) to';
         const explain3 = 'when it started running.';
-        ctx.font = '10px Google Sans';
+        ctx.font = '10px Roboto Condensed';
         ctx.fillText(explain1, startDraw.x + 70, startDraw.y + 86 + 16);
         ctx.fillText(explain2, startDraw.x + 70, startDraw.y + 86 + 16 + 12);
         ctx.fillText(explain3, startDraw.x + 70, startDraw.y + 86 + 16 + 24);

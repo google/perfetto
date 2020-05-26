@@ -31,5 +31,8 @@ on property:persist.heapprofd.enable=1
 on property:traced.lazy.heapprofd=1
     start heapprofd
 
-on property:persist.heapprofd.enable=0 && property:traced.lazy.heapprofd=0
+on property:persist.heapprofd.enable="" && property:traced.lazy.heapprofd=""
     stop heapprofd
+
+on property:persist.heapprofd.enable=0
+    setprop persist.heapprofd.enable ""

@@ -25,11 +25,14 @@ import BatteryCounters =
 import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
 import ConsumerPort = protos.perfetto.protos.ConsumerPort;
-import ContinuousDumpConfig =
+import NativeContinuousDumpConfig =
     protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
+import JavaContinuousDumpConfig =
+    protos.perfetto.protos.JavaHprofConfig.ContinuousDumpConfig;
 import DataSourceConfig = protos.perfetto.protos.DataSourceConfig;
 import FtraceConfig = protos.perfetto.protos.FtraceConfig;
 import HeapprofdConfig = protos.perfetto.protos.HeapprofdConfig;
+import JavaHprofConfig = protos.perfetto.protos.JavaHprofConfig;
 import IAndroidPowerConfig = protos.perfetto.protos.IAndroidPowerConfig;
 import IBufferConfig = protos.perfetto.protos.TraceConfig.IBufferConfig;
 import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
@@ -43,10 +46,12 @@ import TraceConfig = protos.perfetto.protos.TraceConfig;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 
 // Trace Processor protos.
-import IRawQueryArgs = protos.perfetto.trace_processor.protos.IRawQueryArgs;
-import RawQueryArgs = protos.perfetto.trace_processor.protos.RawQueryArgs;
-import RawQueryResult = protos.perfetto.trace_processor.protos.RawQueryResult;
-import StatusResult = protos.perfetto.trace_processor.protos.StatusResult;
+import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
+import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
+import RawQueryResult = protos.perfetto.protos.RawQueryResult;
+import StatusResult = protos.perfetto.protos.StatusResult;
+import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
+import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
 
 // TODO(hjd): Maybe these should go in their own file.
 export interface Row { [key: string]: number|string; }
@@ -207,7 +212,8 @@ export {
   BufferConfig,
   ChromeConfig,
   ConsumerPort,
-  ContinuousDumpConfig,
+  ComputeMetricArgs,
+  ComputeMetricResult,
   DataSourceConfig,
   FtraceConfig,
   HeapprofdConfig,
@@ -217,12 +223,15 @@ export {
   IRawQueryArgs,
   ISysStatsConfig,
   ITraceConfig,
+  JavaContinuousDumpConfig,
+  JavaHprofConfig,
   MeminfoCounters,
+  NativeContinuousDumpConfig,
   ProcessStatsConfig,
   RawQueryArgs,
   RawQueryResult,
-  StatusResult,
   StatCounters,
+  StatusResult,
   SysStatsConfig,
   TraceConfig,
   VmstatCounters,

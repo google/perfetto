@@ -197,7 +197,7 @@ TEST_F(FtraceConfigMuxerTest, AddGenericEvent) {
 
   FtraceConfig config = CreateFtraceConfig({"power/cpu_frequency"});
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get());
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
@@ -244,7 +244,7 @@ TEST_F(FtraceConfigMuxerTest, AddSameNameEvents) {
 
   FtraceConfig config = CreateFtraceConfig({"group_one/foo", "group_two/foo"});
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get());
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
 
   static constexpr int kEventId1 = 1;
   Event event1;
@@ -298,7 +298,7 @@ TEST_F(FtraceConfigMuxerTest, AddAllEvents) {
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_new_event/enable", "1"));
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get());
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
   std::set<std::string> n = {"sched_switch", "sched_new_event"};
   ON_CALL(ftrace, GetEventNamesForGroup("events/sched"))
       .WillByDefault(Return(n));
@@ -346,7 +346,7 @@ TEST_F(FtraceConfigMuxerTest, TwoWildcardGroups) {
 
   FtraceConfig config = CreateFtraceConfig({"group_one/*", "group_two/*"});
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get());
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
 
   std::set<std::string> event_names = {"foo"};
   ON_CALL(ftrace, GetEventNamesForGroup("events/group_one"))
@@ -395,7 +395,7 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   FtraceConfig config = CreateFtraceConfig({"sched_switch", "foo"});
 
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
@@ -445,7 +445,7 @@ TEST_F(FtraceConfigMuxerTest, FtraceIsAlreadyOn) {
 
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
 
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   // If someone is using ftrace already don't stomp on what they are doing.
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
@@ -461,7 +461,7 @@ TEST_F(FtraceConfigMuxerTest, Atrace) {
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
   *config.add_atrace_categories() = "sched";
 
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
@@ -501,7 +501,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
   *config.add_atrace_apps() = "com.google.android.gms.persistent";
   *config.add_atrace_apps() = "com.google.android.gms";
 
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
@@ -509,7 +509,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
       atrace,
       RunAtrace(ElementsAreArray(
           {"atrace", "--async_start", "--only_userspace", "-a",
-           "com.google.android.gms.persistent,com.google.android.gms"})))
+           "com.google.android.gms,com.google.android.gms.persistent"})))
       .WillOnce(Return(true));
 
   FtraceConfigId id = model.SetupConfig(config);
@@ -526,11 +526,216 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
   ASSERT_TRUE(model.RemoveConfig(id));
 }
 
+TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  MockRunAtrace atrace;
+
+  FtraceConfig config_a = CreateFtraceConfig({});
+  *config_a.add_atrace_apps() = "app_a";
+  *config_a.add_atrace_categories() = "cat_a";
+
+  FtraceConfig config_b = CreateFtraceConfig({});
+  *config_b.add_atrace_apps() = "app_b";
+  *config_b.add_atrace_categories() = "cat_b";
+
+  FtraceConfig config_c = CreateFtraceConfig({});
+  *config_c.add_atrace_apps() = "app_c";
+  *config_c.add_atrace_categories() = "cat_c";
+
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "cat_a",
+                                                  "-a", "app_a"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_a = model.SetupConfig(config_a);
+  ASSERT_TRUE(id_a);
+
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_a", "cat_b", "-a", "app_a,app_b"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_b = model.SetupConfig(config_b);
+  ASSERT_TRUE(id_b);
+
+  EXPECT_CALL(atrace,
+              RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                          "--only_userspace", "cat_a", "cat_b",
+                                          "cat_c", "-a", "app_a,app_b,app_c"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_c = model.SetupConfig(config_c);
+  ASSERT_TRUE(id_c);
+
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_a", "cat_c", "-a", "app_a,app_c"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_b));
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "cat_c",
+                                                  "-a", "app_c"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_a));
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_c));
+}
+
+TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  MockRunAtrace atrace;
+
+  FtraceConfig config_a = CreateFtraceConfig({});
+  *config_a.add_atrace_apps() = "app_1";
+  *config_a.add_atrace_apps() = "app_2";
+  *config_a.add_atrace_categories() = "cat_1";
+  *config_a.add_atrace_categories() = "cat_2";
+
+  FtraceConfig config_b = CreateFtraceConfig({});
+  *config_b.add_atrace_apps() = "app_fail";
+  *config_b.add_atrace_categories() = "cat_fail";
+
+  FtraceConfig config_c = CreateFtraceConfig({});
+  *config_c.add_atrace_apps() = "app_1";
+  *config_c.add_atrace_apps() = "app_3";
+  *config_c.add_atrace_categories() = "cat_1";
+  *config_c.add_atrace_categories() = "cat_3";
+
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_1", "cat_2", "-a", "app_1,app_2"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_a = model.SetupConfig(config_a);
+  ASSERT_TRUE(id_a);
+
+  EXPECT_CALL(atrace,
+              RunAtrace(ElementsAreArray(
+                  {"atrace", "--async_start", "--only_userspace", "cat_1",
+                   "cat_2", "cat_fail", "-a", "app_1,app_2,app_fail"})))
+      .WillOnce(Return(false));
+  FtraceConfigId id_b = model.SetupConfig(config_b);
+  ASSERT_TRUE(id_b);
+
+  EXPECT_CALL(atrace,
+              RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                          "--only_userspace", "cat_1", "cat_2",
+                                          "cat_3", "-a", "app_1,app_2,app_3"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_c = model.SetupConfig(config_c);
+  ASSERT_TRUE(id_c);
+
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
+                                  "cat_1", "cat_2", "-a", "app_1,app_2"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_c));
+
+  // Removing the config we failed to enable doesn't change the atrace state
+  // so we don't expect a call here.
+  ASSERT_TRUE(model.RemoveConfig(id_b));
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_a));
+}
+
+TEST_F(FtraceConfigMuxerTest, AtraceDuplicateConfigs) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  MockRunAtrace atrace;
+
+  FtraceConfig config_a = CreateFtraceConfig({});
+  *config_a.add_atrace_apps() = "app_1";
+  *config_a.add_atrace_categories() = "cat_1";
+
+  FtraceConfig config_b = CreateFtraceConfig({});
+  *config_b.add_atrace_apps() = "app_1";
+  *config_b.add_atrace_categories() = "cat_1";
+
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "cat_1",
+                                                  "-a", "app_1"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_a = model.SetupConfig(config_a);
+  ASSERT_TRUE(id_a);
+
+  FtraceConfigId id_b = model.SetupConfig(config_b);
+  ASSERT_TRUE(id_b);
+
+  ASSERT_TRUE(model.RemoveConfig(id_a));
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_b));
+}
+
+TEST_F(FtraceConfigMuxerTest, AtraceAndFtraceConfigs) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  MockRunAtrace atrace;
+
+  FtraceConfig config_a = CreateFtraceConfig({"sched/sched_cpu_hotplug"});
+
+  FtraceConfig config_b = CreateFtraceConfig({"sched/sched_switch"});
+  *config_b.add_atrace_categories() = "b";
+
+  FtraceConfig config_c = CreateFtraceConfig({"sched/sched_switch"});
+
+  FtraceConfig config_d = CreateFtraceConfig({"sched/sched_cpu_hotplug"});
+  *config_d.add_atrace_categories() = "d";
+
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  FtraceConfigId id_a = model.SetupConfig(config_a);
+  ASSERT_TRUE(id_a);
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "b"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_b = model.SetupConfig(config_b);
+  ASSERT_TRUE(id_b);
+
+  FtraceConfigId id_c = model.SetupConfig(config_c);
+  ASSERT_TRUE(id_c);
+
+  EXPECT_CALL(atrace,
+              RunAtrace(ElementsAreArray(
+                  {"atrace", "--async_start", "--only_userspace", "b", "d"})))
+      .WillOnce(Return(true));
+  FtraceConfigId id_d = model.SetupConfig(config_d);
+  ASSERT_TRUE(id_d);
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "b"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_d));
+
+  ASSERT_TRUE(model.RemoveConfig(id_c));
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
+                          {"atrace", "--async_stop", "--only_userspace"})))
+      .WillOnce(Return(true));
+  ASSERT_TRUE(model.RemoveConfig(id_b));
+
+  ASSERT_TRUE(model.RemoveConfig(id_a));
+}
+
 TEST_F(FtraceConfigMuxerTest, SetupClockForTesting) {
   MockFtraceProcfs ftrace;
   FtraceConfig config;
 
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .Times(AnyNumber());
@@ -556,7 +761,7 @@ TEST_F(FtraceConfigMuxerTest, SetupClockForTesting) {
 
 TEST_F(FtraceConfigMuxerTest, GetFtraceEvents) {
   MockFtraceProcfs ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
   std::set<GroupAndName> events =
@@ -568,7 +773,7 @@ TEST_F(FtraceConfigMuxerTest, GetFtraceEvents) {
 
 TEST_F(FtraceConfigMuxerTest, GetFtraceEventsAtrace) {
   MockFtraceProcfs ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   FtraceConfig config = CreateFtraceConfig({});
   *config.add_atrace_categories() = "sched";
@@ -582,7 +787,7 @@ TEST_F(FtraceConfigMuxerTest, GetFtraceEventsAtrace) {
 
 TEST_F(FtraceConfigMuxerTest, GetFtraceEventsAtraceCategories) {
   MockFtraceProcfs ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   FtraceConfig config = CreateFtraceConfig({});
   *config.add_atrace_categories() = "sched";
@@ -606,7 +811,7 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   MockFtraceProcfs ftrace;
   FtraceConfig config =
       CreateFtraceConfig({"sched/sched_switch", "cgroup/cgroup_mkdir"});
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
@@ -667,7 +872,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
 
   NiceMock<MockFtraceProcfs> ftrace;
   table_ = CreateFakeTable(valid_compact_format);
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   // First data source - request compact encoding.
   FtraceConfig config_enabled = CreateFtraceConfig({"sched/sched_switch"});
@@ -698,7 +903,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
 
 TEST_F(FtraceConfigMuxerTest, CompactSchedConfigWithInvalidFormat) {
   NiceMock<MockFtraceProcfs> ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get());
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
 
   // Request compact encoding.
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});

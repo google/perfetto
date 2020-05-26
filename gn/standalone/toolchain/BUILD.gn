@@ -34,6 +34,7 @@ declare_args() {
 #    This is used by OSSFuzz.
 declare_args() {
   sysroot = ""
+  gcc_toolchain = ""
   ar = "ar"
   if (is_linux_host) {
     linker = "gold"
@@ -65,6 +66,7 @@ declare_args() {
 
 declare_args() {
   target_sysroot = sysroot
+  target_gcc_toolchain = ""
   if (!is_cross_compiling) {
     target_triplet = ""
   } else if (target_os == "mac" && target_cpu == "x64") {
@@ -141,14 +143,18 @@ template("gcc_like_toolchain") {
       cc = "$cc --sysroot=$_invoker_sysroot"
       cxx = "$cxx --sysroot=$_invoker_sysroot"
     }
+    if (defined(invoker.gcc_toolchain) && invoker.gcc_toolchain != "") {
+      assert(is_clang, "gcc_toolchain can be used only when using clang")
+      _invoker_gcc_toolchain = invoker.gcc_toolchain
+      ld_arg = "$ld_arg --gcc-toolchain=$_invoker_gcc_toolchain"
+    }
 
     tool("cc") {
       depfile = "{{output}}.d"
       command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${extra_cflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
-      outputs = [
-        "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o",
-      ]
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
       description = "compile {{source}}"
     }
 
@@ -156,9 +162,8 @@ template("gcc_like_toolchain") {
       depfile = "{{output}}.d"
       command = "$cc_wrapper $cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}}  ${extra_cflags} ${extra_cxxflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
-      outputs = [
-        "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o",
-      ]
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
       description = "compile {{source}}"
     }
 
@@ -166,9 +171,8 @@ template("gcc_like_toolchain") {
       depfile = "{{output}}.d"
       command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{asmflags}} -c {{source}} -o {{output}}"
       depsformat = "gcc"
-      outputs = [
-        "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o",
-      ]
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
       description = "assemble {{source}}"
     }
 
@@ -181,9 +185,8 @@ template("gcc_like_toolchain") {
         rspfile_content = "{{inputs}}"
         command = "rm -f {{output}} && $ar rcsD {{output}} @$rspfile"
       }
-      outputs = [
-        "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
-      ]
+      outputs =
+          [ "{{root_out_dir}}/{{target_output_name}}{{output_extension}}" ]
       default_output_extension = ".a"
       output_prefix = "lib"
       description = "link {{output}}"
@@ -198,9 +201,7 @@ template("gcc_like_toolchain") {
       }
 
       command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${extra_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o {{output}}"
-      outputs = [
-        "{{root_out_dir}}/$soname",
-      ]
+      outputs = [ "{{root_out_dir}}/$soname" ]
       output_prefix = "lib"
       default_output_extension = ".so"
       description = "link {{output}}"
@@ -208,9 +209,8 @@ template("gcc_like_toolchain") {
 
     tool("link") {
       command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${extra_ldflags} {{inputs}} {{solibs}} {{libs}} -o {{output}}"
-      outputs = [
-        "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
-      ]
+      outputs =
+          [ "{{root_out_dir}}/{{target_output_name}}{{output_extension}}" ]
       description = "link {{output}}"
     }
 
@@ -239,6 +239,7 @@ gcc_like_toolchain("gcc_like") {
   cxx = target_cxx
   linker = target_linker
   sysroot = target_sysroot
+  gcc_toolchain = target_gcc_toolchain
 }
 
 gcc_like_toolchain("gcc_like_host") {
@@ -249,6 +250,7 @@ gcc_like_toolchain("gcc_like_host") {
   cxx = cxx
   linker = linker
   sysroot = sysroot
+  gcc_toolchain = gcc_toolchain
 }
 
 gcc_like_toolchain("wasm") {

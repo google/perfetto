@@ -21,10 +21,8 @@ SELECT
   cpu,
   ts,
   LEAD(ts, 1, (SELECT end_ts from trace_bounds))
-    OVER (PARTITION by cpu ORDER BY ts) AS end_ts,
-  LEAD(ts, 1, (SELECT end_ts from trace_bounds))
     OVER (PARTITION by cpu ORDER BY ts) - ts AS dur,
-  value as freq
+  CAST(value AS INT) as freq_khz
 FROM counter
 JOIN cpu_counter_track on counter.track_id = cpu_counter_track.id
 WHERE name = 'cpufreq';

@@ -19,8 +19,11 @@ source_set("base") {
     "build_config.h",
     "compiler.h",
     "export.h",
+    "flat_set.h",
     "logging.h",
+    "proc_utils.h",
     "task_runner.h",
+    "thread_utils.h",
     "time.h",
   ]
 }

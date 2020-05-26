@@ -40,7 +40,5 @@ perfetto_proto_library("wire_protocol_@TYPE@") {
     "zero",
     "cpp",
   ]
-  sources = [
-    "wire_protocol.proto",
-  ]
+  sources = [ "wire_protocol.proto" ]
 }

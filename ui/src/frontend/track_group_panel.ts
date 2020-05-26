@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {hex} from 'color-convert';
 import * as m from 'mithril';
 
 import {assertExists} from '../base/logging';
@@ -24,6 +25,13 @@ import {
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
+import {
+  BLANK_CHECKBOX,
+  CHECKBOX,
+  EXPAND_DOWN,
+  EXPAND_UP,
+  INDETERMINATE_CHECKBOX
+} from './icons';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TrackContent} from './track_panel';
@@ -33,9 +41,9 @@ import {
   drawVerticalSelection,
 } from './vertical_line_helper';
 
-
 interface Attrs {
   trackGroupId: string;
+  selectable: boolean;
 }
 
 export class TrackGroupPanel extends Panel<Attrs> {
@@ -81,10 +89,18 @@ export class TrackGroupPanel extends Panel<Attrs> {
     }
 
     const selectedArea = globals.frontendLocalState.selectedArea.area;
-    const markSelectedClass =
-        selectedArea && selectedArea.tracks.includes(attrs.trackGroupId) ?
-        'selected' :
-        '';
+    const trackGroup = globals.state.trackGroups[attrs.trackGroupId];
+    let checkBox = BLANK_CHECKBOX;
+    if (selectedArea) {
+      if (selectedArea.tracks.includes(attrs.trackGroupId) &&
+          trackGroup.tracks.every(id => selectedArea.tracks.includes(id))) {
+        checkBox = CHECKBOX;
+      } else if (
+          selectedArea.tracks.includes(attrs.trackGroupId) ||
+          trackGroup.tracks.some(id => selectedArea.tracks.includes(id))) {
+        checkBox = INDETERMINATE_CHECKBOX;
+      }
+    }
 
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
@@ -97,16 +113,28 @@ export class TrackGroupPanel extends Panel<Attrs> {
               })),
                   e.stopPropagation();
             },
-            class: `${highlightClass} ${markSelectedClass}`,
+            class: `${highlightClass}`,
           },
+
+          m('.fold-button',
+            m('i.material-icons',
+              this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
           m('h1',
             {
               title: name,
             },
             name),
-          m('.fold-button',
-            m('i.material-icons',
-              this.trackGroupState.collapsed ? 'expand_more' : 'expand_less'))),
+          selectedArea ? m('i.material-icons.track-button',
+                           {
+                             onclick: (e: MouseEvent) => {
+                               globals.frontendLocalState.toggleTrackSelection(
+                                   attrs.trackGroupId, true /*trackGroup*/);
+                               e.stopPropagation();
+                             }
+                           },
+                           checkBox) :
+                         ''),
+
         this.summaryTrack ? m(TrackContent, {track: this.summaryTrack}) : null);
   }
 
@@ -121,6 +149,19 @@ export class TrackGroupPanel extends Panel<Attrs> {
         getComputedStyle(dom).getPropertyValue('--collapsed-background');
   }
 
+  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    const localState = globals.frontendLocalState;
+    const area = localState.selectedArea.area;
+    if (area && area.tracks.includes(this.trackGroupId)) {
+      ctx.fillStyle = '#ebeef9';
+      ctx.fillRect(
+          localState.timeScale.timeToPx(area.startSec) + this.shellWidth,
+          0,
+          localState.timeScale.deltaTimeToPx(area.endSec - area.startSec),
+          size.height);
+    }
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const collapsed = this.trackGroupState.collapsed;
     if (!collapsed) return;
@@ -130,6 +171,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     ctx.fillStyle = this.backgroundColor;
     ctx.fillRect(0, 0, size.width, size.height);
 
+    this.highlightIfTrackSelected(ctx, size);
+
     drawGridLines(
         ctx,
         globals.frontendLocalState.timeScale,
@@ -138,6 +181,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
         size.height);
 
     ctx.translate(this.shellWidth, 0);
+
     if (this.summaryTrack) {
       this.summaryTrack.render(ctx);
     }
@@ -145,22 +189,24 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
     const localState = globals.frontendLocalState;
     // Draw vertical line when hovering on the notes panel.
-    if (localState.showNotePreview) {
-      drawVerticalLineAtTime(ctx,
-                            localState.timeScale,
-                            localState.hoveredTimestamp,
-                            size.height,
-                            `#aaa`);
+    if (localState.hoveredNoteTimestamp !== -1) {
+      drawVerticalLineAtTime(
+          ctx,
+          localState.timeScale,
+          localState.hoveredNoteTimestamp,
+          size.height,
+          `#aaa`);
     }
-    // Draw vertical line when shift is pressed.
-    if (localState.showTimeSelectPreview) {
-      drawVerticalLineAtTime(ctx,
-                            localState.timeScale,
-                            localState.hoveredTimestamp,
-                            size.height,
-                            `rgb(52,69,150)`);
+    if (localState.hoveredLogsTimestamp !== -1) {
+      drawVerticalLineAtTime(
+          ctx,
+          localState.timeScale,
+          localState.hoveredLogsTimestamp,
+          size.height,
+          `rgb(52,69,150)`);
     }
-    if (localState.selectedArea.area !== undefined) {
+    if (localState.selectedArea.area !== undefined &&
+        !globals.frontendLocalState.selectingArea) {
       drawVerticalSelection(
           ctx,
           localState.timeScale,
@@ -177,6 +223,14 @@ export class TrackGroupPanel extends Panel<Attrs> {
                                note.timestamp,
                                size.height,
                                note.color);
+        if (note.noteType === 'AREA') {
+          drawVerticalLineAtTime(
+              ctx,
+              localState.timeScale,
+              note.area.endSec,
+              size.height,
+              note.color);
+        }
       }
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
@@ -186,6 +240,28 @@ export class TrackGroupPanel extends Panel<Attrs> {
             globals.sliceDetails.wakeupTs,
             size.height,
             `black`);
+      }
+    }
+    // All marked areas should have semi-transparent vertical lines
+    // marking the start and end.
+    for (const note of Object.values(globals.state.notes)) {
+      if (note.noteType === 'AREA') {
+        const transparentNoteColor =
+            'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
+        drawVerticalLineAtTime(
+            ctx,
+            localState.timeScale,
+            note.area.startSec,
+            size.height,
+            transparentNoteColor,
+            1);
+        drawVerticalLineAtTime(
+            ctx,
+            localState.timeScale,
+            note.area.endSec,
+            size.height,
+            transparentNoteColor,
+            1);
       }
     }
   }

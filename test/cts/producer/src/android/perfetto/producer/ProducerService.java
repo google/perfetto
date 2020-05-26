@@ -57,7 +57,11 @@ public class ProducerService extends Service {
     }
 
     @Override
-    public void onDestroy() {}
+    public void onDestroy() {
+        quitTaskRunner();
+    }
 
     private static native void setupProducer();
+
+    private static native void quitTaskRunner();
 }

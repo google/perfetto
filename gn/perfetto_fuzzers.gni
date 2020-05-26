@@ -18,7 +18,7 @@ perfetto_fuzzers_targets = [
   "gn:default_deps",
   "src/ipc:buffered_frame_deserializer_fuzzer",
   "src/protozero:protozero_decoder_fuzzer",
-  "src/tracing:packet_stream_validator_fuzzer",
+  "src/tracing/core:packet_stream_validator_fuzzer",
   "src/trace_processor:trace_processor_fuzzer",
   "src/traced/probes/ftrace:cpu_reader_fuzzer",
   "test:end_to_end_shared_memory_fuzzer",

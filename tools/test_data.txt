@@ -2,3 +2,4 @@
 # to the root.
 src/traced/probes/ftrace/test/data/
 src/traced/probes/filesystem/testdata/
+test/data/kallsyms.txt

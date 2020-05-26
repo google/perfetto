@@ -30,15 +30,25 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Various places in trace processor assume a max number of CPUs to keep code
+// simpler (e.g. use arrays instead of vectors).
+constexpr size_t kMaxCpus = 128;
+
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT Config {
   // When set to true, this option forces trace processor to perform a full
   // sort ignoring any internal heureustics to skip sorting parts of the data.
   bool force_full_sort = false;
 
-  // When set to a non-zero value, this overrides the default block size used
-  // by the StringPool. For defaults, see kDefaultBlockSize in string_pool.h.
-  size_t string_pool_block_size_bytes = 0;
+  // When set to false, this option makes the trace processor not include ftrace
+  // events in the raw table; this makes converting events back to the systrace
+  // text format impossible. On the other hand, it also saves ~50% of memory
+  // usage of trace processor. For reference, Studio intends to use this option.
+  //
+  // Note: "generic" ftrace events will be parsed into the raw table even if
+  // this flag is false and all other events which parse into the raw table are
+  // unaffected by this flag.
+  bool ingest_ftrace_in_raw_table = true;
 };
 
 // Represents a dynamically typed value returned by SQL.
@@ -75,46 +85,22 @@ struct PERFETTO_EXPORT SqlValue {
     return value;
   }
 
-  double AsDouble() {
-    assert(type == kDouble);
+  double AsDouble() const {
+    PERFETTO_CHECK(type == kDouble);
     return double_value;
   }
-
-  int64_t Compare(const SqlValue& value) const {
-    // TODO(lalitm): this is almost the same as what SQLite does with the
-    // exception of comparisions between long and double - we choose (for
-    // performance reasons) to omit comparisions between them.
-    if (type != value.type)
-      return type - value.type;
-
-    switch (type) {
-      case Type::kNull:
-        return 0;
-      case Type::kLong:
-        return long_value - value.long_value;
-      case Type::kDouble: {
-        return double_value < value.double_value
-                   ? -1
-                   : (double_value > value.double_value ? 1 : 0);
-      }
-      case Type::kString:
-        return strcmp(string_value, value.string_value);
-      case Type::kBytes: {
-        size_t bytes = std::min(bytes_count, value.bytes_count);
-        int ret = memcmp(bytes_value, value.bytes_value, bytes);
-        if (ret != 0)
-          return ret;
-        return static_cast<int64_t>(bytes_count - value.bytes_count);
-      }
-    }
-    PERFETTO_FATAL("For GCC");
+  int64_t AsLong() const {
+    PERFETTO_CHECK(type == kLong);
+    return long_value;
   }
-  bool operator==(const SqlValue& value) const { return Compare(value) == 0; }
-  bool operator<(const SqlValue& value) const { return Compare(value) < 0; }
-  bool operator!=(const SqlValue& value) const { return !(*this == value); }
-  bool operator>=(const SqlValue& value) const { return !(*this < value); }
-  bool operator<=(const SqlValue& value) const { return !(value < *this); }
-  bool operator>(const SqlValue& value) const { return value < *this; }
+  const char* AsString() const {
+    PERFETTO_CHECK(type == kString);
+    return string_value;
+  }
+  const void* AsBytes() const {
+    PERFETTO_CHECK(type == kBytes);
+    return bytes_value;
+  }
 
   bool is_null() const { return type == Type::kNull; }
 

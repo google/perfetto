@@ -24,9 +24,27 @@
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
 
-using testing::HasSubstr;
-using testing::Not;
 using testing::Contains;
+using testing::HasSubstr;
+using testing::IsEmpty;
+using testing::Not;
+using testing::UnorderedElementsAre;
+
+// These tests run only on Android because on linux they require access to
+// ftrace, which would be problematic in the CI when multiple tests run
+// concurrently on the same machine. Android instead uses one emulator instance
+// for each worker.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// On Android these tests conflict with traced_probes which expects to be the
+// only one modifying tracing. This led to the Setup code which attempts to
+// to skip these tests when traced_probes is using tracing. Unfortunately this
+// is racey and we still see spurious failures in practice. For now disable
+// these tests on Android also.
+// TODO(b/150675975) Re-enable these tests.
+#define ANDROID_ONLY_TEST(x) DISABLED_##x
+#else
+#define ANDROID_ONLY_TEST(x) DISABLED_##x
+#endif
 
 namespace perfetto {
 namespace {
@@ -37,12 +55,6 @@ std::string GetFtracePath() {
     i++;
   }
   return std::string(FtraceController::kTracingPaths[i]);
-}
-
-void ResetFtrace(FtraceProcfs* ftrace) {
-  ftrace->DisableAllEvents();
-  ftrace->ClearTrace();
-  ftrace->EnableTracing();
 }
 
 std::string ReadFile(const std::string& name) {
@@ -59,161 +71,111 @@ std::string GetTraceOutput() {
   return output;
 }
 
-}  // namespace
+class FtraceProcfsIntegrationTest : public testing::Test {
+ public:
+  void SetUp() override;
+  void TearDown() override;
 
-// TODO(lalitm): reenable these tests (see b/72306171).
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_CreateWithGoodPath CreateWithGoodPath
-#else
-#define MAYBE_CreateWithGoodPath DISABLED_CreateWithGoodPath
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithGoodPath) {
-  EXPECT_TRUE(FtraceProcfs::Create(GetFtracePath()));
+  std::unique_ptr<FtraceProcfs> ftrace_;
+};
+
+void FtraceProcfsIntegrationTest::SetUp() {
+  ftrace_ = FtraceProcfs::Create(GetFtracePath());
+  ASSERT_TRUE(ftrace_);
+  if (ftrace_->IsTracingEnabled()) {
+    GTEST_SKIP() << "Something else is using ftrace, skipping";
+  }
+
+  ftrace_->DisableAllEvents();
+  ftrace_->ClearTrace();
+  ftrace_->EnableTracing();
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_CreateWithBadPath CreateWithBadPath
-#else
-#define MAYBE_CreateWithBadPath DISABLED_CreateWithBadath
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_CreateWithBadPath) {
+void FtraceProcfsIntegrationTest::TearDown() {
+  ftrace_->DisableAllEvents();
+  ftrace_->ClearTrace();
+  ftrace_->DisableTracing();
+}
+
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(CreateWithBadPath)) {
   EXPECT_FALSE(FtraceProcfs::Create(GetFtracePath() + std::string("bad_path")));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_ClearTrace ClearTrace
-#else
-#define MAYBE_ClearTrace DISABLED_ClearTrace
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_ClearTrace) {
-  FtraceProcfs ftrace(GetFtracePath());
-  ResetFtrace(&ftrace);
-  ftrace.WriteTraceMarker("Hello, World!");
-  ftrace.ClearTrace();
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(ClearTrace)) {
+  ftrace_->WriteTraceMarker("Hello, World!");
+  ftrace_->ClearTrace();
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello, World!")));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_TraceMarker TraceMarker
-#else
-#define MAYBE_TraceMarker DISABLED_TraceMarker
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_TraceMarker) {
-  FtraceProcfs ftrace(GetFtracePath());
-  ResetFtrace(&ftrace);
-  ftrace.WriteTraceMarker("Hello, World!");
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(TraceMarker)) {
+  ftrace_->WriteTraceMarker("Hello, World!");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello, World!"));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_EnableDisableEvent EnableDisableEvent
-#else
-#define MAYBE_EnableDisableEvent DISABLED_EnableDisableEvent
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableEvent) {
-  FtraceProcfs ftrace(GetFtracePath());
-  ResetFtrace(&ftrace);
-  ftrace.EnableEvent("sched", "sched_switch");
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableEvent)) {
+  ASSERT_TRUE(ftrace_->EnableEvent("sched", "sched_switch"));
   sleep(1);
+  ASSERT_TRUE(ftrace_->DisableEvent("sched", "sched_switch"));
+
   EXPECT_THAT(GetTraceOutput(), HasSubstr("sched_switch"));
 
-  ftrace.DisableEvent("sched", "sched_switch");
-  ftrace.ClearTrace();
+  ftrace_->ClearTrace();
   sleep(1);
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_EnableDisableTracing EnableDisableTracing
-#else
-#define MAYBE_EnableDisableTracing DISABLED_EnableDisableTracing
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_EnableDisableTracing) {
-  FtraceProcfs ftrace(GetFtracePath());
-  ResetFtrace(&ftrace);
-  EXPECT_TRUE(ftrace.IsTracingEnabled());
-  ftrace.WriteTraceMarker("Before");
-  ftrace.DisableTracing();
-  EXPECT_FALSE(ftrace.IsTracingEnabled());
-  ftrace.WriteTraceMarker("During");
-  ftrace.EnableTracing();
-  EXPECT_TRUE(ftrace.IsTracingEnabled());
-  ftrace.WriteTraceMarker("After");
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableTracing)) {
+  EXPECT_TRUE(ftrace_->IsTracingEnabled());
+  ftrace_->WriteTraceMarker("Before");
+  ftrace_->DisableTracing();
+  EXPECT_FALSE(ftrace_->IsTracingEnabled());
+  ftrace_->WriteTraceMarker("During");
+  ftrace_->EnableTracing();
+  EXPECT_TRUE(ftrace_->IsTracingEnabled());
+  ftrace_->WriteTraceMarker("After");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Before"));
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("During")));
   EXPECT_THAT(GetTraceOutput(), HasSubstr("After"));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_ReadFormatFile ReadFormatFile
-#else
-#define MAYBE_ReadFormatFile DISABLED_ReadFormatFile
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_ReadFormatFile) {
-  FtraceProcfs ftrace(GetFtracePath());
-  std::string format = ftrace.ReadEventFormat("ftrace", "print");
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(ReadFormatFile)) {
+  std::string format = ftrace_->ReadEventFormat("ftrace", "print");
   EXPECT_THAT(format, HasSubstr("name: print"));
   EXPECT_THAT(format, HasSubstr("field:char buf"));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_CanOpenTracePipeRaw CanOpenTracePipeRaw
-#else
-#define MAYBE_CanOpenTracePipeRaw DISABLED_CanOpenTracePipeRaw
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_CanOpenTracePipeRaw) {
-  FtraceProcfs ftrace(GetFtracePath());
-  EXPECT_TRUE(ftrace.OpenPipeForCpu(0));
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(CanOpenTracePipeRaw)) {
+  EXPECT_TRUE(ftrace_->OpenPipeForCpu(0));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_Clock Clock
-#else
-#define MAYBE_Clock DISABLED_Clock
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_Clock) {
-  FtraceProcfs ftrace(GetFtracePath());
-  std::set<std::string> clocks = ftrace.AvailableClocks();
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(Clock)) {
+  std::set<std::string> clocks = ftrace_->AvailableClocks();
   EXPECT_THAT(clocks, Contains("local"));
   EXPECT_THAT(clocks, Contains("global"));
 
-  EXPECT_TRUE(ftrace.SetClock("global"));
-  EXPECT_EQ(ftrace.GetClock(), "global");
-  EXPECT_TRUE(ftrace.SetClock("local"));
-  EXPECT_EQ(ftrace.GetClock(), "local");
+  EXPECT_TRUE(ftrace_->SetClock("global"));
+  EXPECT_EQ(ftrace_->GetClock(), "global");
+  EXPECT_TRUE(ftrace_->SetClock("local"));
+  EXPECT_EQ(ftrace_->GetClock(), "local");
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_CanSetBufferSize CanSetBufferSize
-#else
-#define MAYBE_CanSetBufferSize DISABLED_CanSetBufferSize
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_CanSetBufferSize) {
-  FtraceProcfs ftrace(GetFtracePath());
-  EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(4ul));
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(CanSetBufferSize)) {
+  EXPECT_TRUE(ftrace_->SetCpuBufferSizeInPages(4ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");  // (4096 * 4) / 1024
-  EXPECT_TRUE(ftrace.SetCpuBufferSizeInPages(5ul));
+  EXPECT_TRUE(ftrace_->SetCpuBufferSizeInPages(5ul));
   EXPECT_EQ(ReadFile("buffer_size_kb"), "20\n");  // (4096 * 5) / 1024
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_FtraceControllerHardReset FtraceControllerHardReset
-#else
-#define MAYBE_FtraceControllerHardReset DISABLED_FtraceControllerHardReset
-#endif
-TEST(FtraceProcfsIntegrationTest, MAYBE_FtraceControllerHardReset) {
-  FtraceProcfs ftrace(GetFtracePath());
-  ResetFtrace(&ftrace);
-
-  ftrace.SetCpuBufferSizeInPages(4ul);
-  ftrace.EnableTracing();
-  ftrace.EnableEvent("sched", "sched_switch");
-  ftrace.WriteTraceMarker("Hello, World!");
+TEST_F(FtraceProcfsIntegrationTest,
+       ANDROID_ONLY_TEST(FtraceControllerHardReset)) {
+  ftrace_->SetCpuBufferSizeInPages(4ul);
+  ftrace_->EnableTracing();
+  ftrace_->EnableEvent("sched", "sched_switch");
+  ftrace_->WriteTraceMarker("Hello, World!");
 
   EXPECT_EQ(ReadFile("buffer_size_kb"), "16\n");
   EXPECT_EQ(ReadFile("tracing_on"), "1\n");
   EXPECT_EQ(ReadFile("events/enable"), "X\n");
-  EXPECT_THAT(GetTraceOutput(), HasSubstr("Hello"));
 
   HardResetFtraceState();
 
@@ -223,4 +185,20 @@ TEST(FtraceProcfsIntegrationTest, MAYBE_FtraceControllerHardReset) {
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("Hello")));
 }
 
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(ReadEnabledEvents)) {
+  EXPECT_THAT(ftrace_->ReadEnabledEvents(), IsEmpty());
+
+  ftrace_->EnableEvent("sched", "sched_switch");
+  ftrace_->EnableEvent("kmem", "kmalloc");
+
+  EXPECT_THAT(ftrace_->ReadEnabledEvents(),
+              UnorderedElementsAre("sched/sched_switch", "kmem/kmalloc"));
+
+  ftrace_->DisableEvent("sched", "sched_switch");
+  ftrace_->DisableEvent("kmem", "kmalloc");
+
+  EXPECT_THAT(ftrace_->ReadEnabledEvents(), IsEmpty());
+}
+
+}  // namespace
 }  // namespace perfetto

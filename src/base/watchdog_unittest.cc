@@ -17,9 +17,9 @@
 #include "perfetto/ext/base/watchdog.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/thread_utils.h"
 #include "test/gtest_and_gmock.h"
 
 #include <signal.h>
@@ -116,7 +116,7 @@ int RestoreSIGABRT(const struct sigaction* act) {
   return sigaction(SIGABRT, act, nullptr);
 }
 
-PlatformThreadID g_aborted_thread = 0;
+PlatformThreadId g_aborted_thread = 0;
 void SIGABRTHandler(int) {
   g_aborted_thread = GetThreadId();
 }
@@ -138,7 +138,7 @@ TEST(WatchdogTest, TimerCrashDeliveredToCallerThread) {
   std::condition_variable cv;
   bool quit = false;
   g_aborted_thread = 0;
-  PlatformThreadID expected_tid = 0;
+  PlatformThreadId expected_tid = 0;
 
   auto thread_fn = [&mutex, &cv, &quit, &expected_tid](size_t thread_num) {
     if (thread_num == kKillThreadNum) {

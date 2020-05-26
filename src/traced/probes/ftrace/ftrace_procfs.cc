@@ -27,6 +27,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -107,6 +109,20 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
   return ReadFileIntoString(path);
 }
 
+std::vector<std::string> FtraceProcfs::ReadEnabledEvents() {
+  std::string path = root_ + "set_event";
+  std::string s = ReadFileIntoString(path);
+  base::StringSplitter ss(s, '\n');
+  std::vector<std::string> events;
+  while (ss.Next()) {
+    std::string event = ss.cur_token();
+    if (event.size() == 0)
+      continue;
+    events.push_back(base::StripChars(event, ":", '/'));
+  }
+  return events;
+}
+
 std::string FtraceProcfs::ReadPageHeaderFormat() const {
   std::string path = root_ + "events/header_page";
   return ReadFileIntoString(path);
@@ -157,12 +173,14 @@ bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
 
 bool FtraceProcfs::EnableTracing() {
   KernelLogWrite("perfetto: enabled ftrace\n");
+  PERFETTO_LOG("enabled ftrace");
   std::string path = root_ + "tracing_on";
   return WriteToFile(path, "1");
 }
 
 bool FtraceProcfs::DisableTracing() {
   KernelLogWrite("perfetto: disabled ftrace\n");
+  PERFETTO_LOG("disabled ftrace");
   std::string path = root_ + "tracing_on";
   return WriteToFile(path, "0");
 }
@@ -173,7 +191,10 @@ bool FtraceProcfs::SetTracingOn(bool enable) {
 
 bool FtraceProcfs::IsTracingEnabled() {
   std::string path = root_ + "tracing_on";
-  return ReadOneCharFromFile(path) == '1';
+  char tracing_on = ReadOneCharFromFile(path);
+  if (tracing_on == '\0')
+    PERFETTO_PLOG("Failed to read %s", path.c_str());
+  return tracing_on == '1';
 }
 
 bool FtraceProcfs::SetClock(const std::string& clock_name) {

@@ -32,6 +32,7 @@
 #include "src/ipc/test/test_socket.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/ipc/wire_protocol.gen.h"
 #include "src/ipc/test/client_unittest_messages.gen.h"
 
 namespace perfetto {
@@ -186,8 +187,7 @@ class FakeHost : public base::UnixSocket::EventListener {
   void Reply(const Frame& frame) {
     auto buf = BufferedFrameDeserializer::Serialize(frame);
     ASSERT_TRUE(client_sock->is_connected());
-    EXPECT_TRUE(client_sock->Send(buf.data(), buf.size(), next_reply_fd,
-                                  base::UnixSocket::BlockingMode::kBlocking));
+    EXPECT_TRUE(client_sock->Send(buf.data(), buf.size(), next_reply_fd));
     next_reply_fd = -1;
   }
 

@@ -14,43 +14,31 @@
 -- limitations under the License.
 --
 
--- Helper to optimize the query for launching events
--- TODO(b/132771327): remove when fixed
-CREATE TABLE launching_events_helper AS
-SELECT
-  arg_set_id,
-  STR_SPLIT(STR_SPLIT(args.string_value, "|", 2), ": ", 1) package_name,
-  STR_SPLIT(args.string_value, "|", 0) type
-FROM args
-WHERE string_value LIKE '%|launching: %';
-
--- TODO: Replace with proper async slices once available
 -- The start of the launching event corresponds to the end of the AM handling
 -- the startActivity intent, whereas the end corresponds to the first frame drawn.
 -- Only successful app launches have a launching event.
 CREATE TABLE launching_events AS
 SELECT
   ts,
-  package_name,
-  type
-FROM raw
-CROSS JOIN launching_events_helper
-JOIN thread USING(utid)
+  dur,
+  ts + dur AS ts_end,
+  STR_SPLIT(s.name, ": ", 1) AS package_name
+FROM slice s
+JOIN process_track t ON s.track_id = t.id
 JOIN process USING(upid)
-WHERE raw.arg_set_id = launching_events_helper.arg_set_id
-AND raw.name = 'print'
-AND process.name = 'system_server';
+WHERE s.name LIKE 'launching: %'
+AND (process.name IS NULL OR process.name = 'system_server');
 
 -- Marks the beginning of the trace and is equivalent to when the statsd launch
 -- logging begins.
 CREATE VIEW activity_intent_received AS
-SELECT ts FROM slices
+SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 
 -- Successful activity launch. The end of the 'launching' event is not related
 -- to whether it actually succeeded or not.
 CREATE VIEW activity_intent_launch_successful AS
-SELECT ts FROM slices
+SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
 -- We partition the trace into spans based on posted activity intents.
@@ -74,9 +62,7 @@ SELECT * FROM activity_intent_recv_spans AS spans
 WHERE 1 = (
   SELECT COUNT(1)
   FROM launching_events
-  WHERE TRUE
-    AND type = 'S'
-    AND ts BETWEEN spans.ts AND spans.ts + spans.dur);
+  WHERE launching_events.ts BETWEEN spans.ts AND spans.ts + spans.dur);
 
 -- All activity launches in the trace, keyed by ID.
 CREATE TABLE launches(
@@ -91,15 +77,14 @@ CREATE TABLE launches(
 INSERT INTO launches
 SELECT
   lpart.ts AS ts,
-  finish_event.ts AS ts_end,
-  finish_event.ts - lpart.ts AS dur,
+  launching_events.ts_end AS ts_end,
+  launching_events.ts_end - lpart.ts AS dur,
   lpart.id AS id,
-  start_event.package_name AS package
+  package_name AS package
 FROM launch_partitions AS lpart
-JOIN (SELECT * FROM launching_events WHERE type = 'S') AS start_event
-  ON start_event.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
-JOIN (SELECT * FROM launching_events WHERE type = 'F') AS finish_event
-  ON finish_event.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
+JOIN launching_events ON
+  (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur) AND
+  (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
 JOIN activity_intent_launch_successful AS successful
   ON successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur;
 

@@ -19,11 +19,13 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/profiling/symbolizer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
+#include "src/profiling/symbolizer/symbolize_database.h"
+#include "src/profiling/symbolizer/symbolizer.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-#include "tools/trace_to_text/local_symbolizer.h"
+#include "src/profiling/symbolizer/local_symbolizer.h"
 #endif
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -36,11 +38,11 @@ namespace trace_to_text {
 // Ingest profile, and emit a symbolization table for each sequence. This can
 // be prepended to the profile to attach the symbol information.
 int SymbolizeProfile(std::istream* input, std::ostream* output) {
-  std::unique_ptr<Symbolizer> symbolizer;
-  auto binary_path = GetPerfettoBinaryPath();
+  std::unique_ptr<profiling::Symbolizer> symbolizer;
+  auto binary_path = profiling::GetPerfettoBinaryPath();
   if (!binary_path.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-    symbolizer.reset(new LocalSymbolizer(GetPerfettoBinaryPath()));
+    symbolizer.reset(new profiling::LocalSymbolizer(std::move(binary_path)));
 #else
     PERFETTO_FATAL("This build does not support local symbolization.");
 #endif
@@ -57,10 +59,9 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
 
   tp->NotifyEndOfFile();
 
-  SymbolizeDatabase(tp.get(), symbolizer.get(),
-                    [output](const std::string& packet_proto) {
-                      WriteTracePacket(packet_proto, output);
-                    });
+  SymbolizeDatabase(
+      tp.get(), symbolizer.get(),
+      [output](const std::string& trace_proto) { *output << trace_proto; });
   return 0;
 }
 

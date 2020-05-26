@@ -17,66 +17,31 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_MODULE_H_
 
-#include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
-#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class TrackEventModule : public ProtoImporterModuleBase</*IsEnabled=*/1> {
+class TrackEventModule : public ProtoImporterModule {
  public:
-  explicit TrackEventModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context),
-        tokenizer_(context),
-        parser_(context) {}
+  explicit TrackEventModule(TraceProcessorContext* context);
+
+  ~TrackEventModule() override;
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState* state) {
-    if (decoder.has_track_descriptor()) {
-      tokenizer_.TokenizeTrackDescriptorPacket(decoder);
-      return ModuleResult::Handled();
-    }
+      PacketSequenceState* state,
+      uint32_t field_id) override;
 
-    if (decoder.has_track_event()) {
-      tokenizer_.TokenizeTrackEventPacket(state, decoder, packet,
-                                          packet_timestamp);
-      return ModuleResult::Handled();
-    }
-
-    // TODO(eseckler): Remove these once Chrome has switched fully over to
-    // TrackDescriptors.
-    if (decoder.has_thread_descriptor()) {
-      tokenizer_.TokenizeThreadDescriptorPacket(state, decoder);
-      return ModuleResult::Handled();
-    }
-    if (decoder.has_process_descriptor()) {
-      tokenizer_.TokenizeProcessDescriptorPacket(decoder);
-      return ModuleResult::Handled();
-    }
-
-    return ModuleResult::Ignored();
-  }
-
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                           const TimestampedTracePiece& ttp) {
-    if (decoder.has_track_event()) {
-      parser_.ParseTrackEvent(
-          ttp.timestamp, ttp.thread_timestamp, ttp.thread_instruction_count,
-          ttp.packet_sequence_state, ttp.packet_sequence_state_generation,
-          decoder.track_event());
-      return ModuleResult::Handled();
-    }
-    return ModuleResult::Ignored();
-  }
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                   const TimestampedTracePiece& ttp,
+                   uint32_t field_id) override;
 
  private:
   TrackEventTokenizer tokenizer_;

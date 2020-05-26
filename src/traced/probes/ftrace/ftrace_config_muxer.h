@@ -32,8 +32,13 @@ namespace perfetto {
 // that data source's config.
 struct FtraceDataSourceConfig {
   FtraceDataSourceConfig(EventFilter _event_filter,
-                         CompactSchedConfig _compact_sched)
-      : event_filter(std::move(_event_filter)), compact_sched(_compact_sched) {}
+                         CompactSchedConfig _compact_sched,
+                         std::vector<std::string> _atrace_apps,
+                         std::vector<std::string> _atrace_categories)
+      : event_filter(std::move(_event_filter)),
+        compact_sched(_compact_sched),
+        atrace_apps(std::move(_atrace_apps)),
+        atrace_categories(std::move(_atrace_categories)) {}
 
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
@@ -41,6 +46,10 @@ struct FtraceDataSourceConfig {
 
   // Configuration of the optional compact encoding of scheduling events.
   const CompactSchedConfig compact_sched;
+
+  // Used only in Android for ATRACE_EVENT/os.Trace() userspace annotations.
+  std::vector<std::string> atrace_apps;
+  std::vector<std::string> atrace_categories;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
@@ -59,7 +68,10 @@ class FtraceConfigMuxer {
  public:
   // The FtraceConfigMuxer and ProtoTranslationTable
   // should outlive this instance.
-  FtraceConfigMuxer(FtraceProcfs* ftrace, ProtoTranslationTable* table);
+  FtraceConfigMuxer(
+      FtraceProcfs* ftrace,
+      ProtoTranslationTable* table,
+      std::map<std::string, std::vector<GroupAndName>> vendor_events);
   virtual ~FtraceConfigMuxer();
 
   // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
@@ -103,11 +115,16 @@ class FtraceConfigMuxer {
   }
 
  private:
+  static bool StartAtrace(const std::vector<std::string>& apps,
+                          const std::vector<std::string>& categories);
+
   struct FtraceState {
     EventFilter ftrace_events;
-    bool tracing_on = false;
-    bool atrace_on = false;
+    // Used only in Android for ATRACE_EVENT/os.Trace() userspace
+    std::vector<std::string> atrace_apps;
+    std::vector<std::string> atrace_categories;
     size_t cpu_buffer_size_pages = 0;
+    bool atrace_on = false;
   };
 
   FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
@@ -138,6 +155,8 @@ class FtraceConfigMuxer {
   // be active. When a config is present but not active, we do setup buffer
   // sizes and events, but don't enable ftrace (i.e. tracing_on).
   std::map<FtraceConfigId, FtraceDataSourceConfig> ds_configs_;
+
+  std::map<std::string, std::vector<GroupAndName>> vendor_events_;
 
   // Subset of |ds_configs_| that are currently active. At any time ftrace is
   // enabled iff |active_configs_| is not empty.

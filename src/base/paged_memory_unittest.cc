@@ -83,7 +83,7 @@ TEST(PagedMemoryTest, Uncommitted) {
 
     // Next page shouldn't be mapped.
     ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw + kMappedSize, 4096));
-    EXPECT_DEATH({ ptr_raw[kMappedSize] = 'x'; }, ".*");
+    EXPECT_DEATH_IF_SUPPORTED({ ptr_raw[kMappedSize] = 'x'; }, ".*");
 
     // Commit the remaining pages.
     mem.EnsureCommitted(kSize);
@@ -119,7 +119,7 @@ TEST(PagedMemoryTest, Uncommitted) {
 
 #if defined(ADDRESS_SANITIZER)
 TEST(PagedMemoryTest, AccessUncommittedMemoryTriggersASAN) {
-  EXPECT_DEATH(
+  EXPECT_DEATH_IF_SUPPORTED(
       {
         constexpr size_t kNumPages = 4096;
         constexpr size_t kSize = 4096 * kNumPages;
@@ -141,8 +141,8 @@ TEST(PagedMemoryTest, GuardRegions) {
   PagedMemory mem = PagedMemory::Allocate(kSize);
   ASSERT_TRUE(mem.IsValid());
   volatile char* raw = reinterpret_cast<char*>(mem.Get());
-  EXPECT_DEATH({ raw[-1] = 'x'; }, ".*");
-  EXPECT_DEATH({ raw[kSize] = 'x'; }, ".*");
+  EXPECT_DEATH_IF_SUPPORTED({ raw[-1] = 'x'; }, ".*");
+  EXPECT_DEATH_IF_SUPPORTED({ raw[kSize] = 'x'; }, ".*");
 }
 
 // Disable this on:

@@ -39,7 +39,8 @@ stdout_logfile_maxbytes=2MB
 redirect_stderr=true
 EOF
 
-curl -H Metadata-Flavor:Google "http://metadata.google.internal/computeMetadata/v1/instance/attributes/deploy_key" > /home/gitbot/deploy_key
+curl -H Metadata-Flavor:Google "http://metadata.google.internal/computeMetadata/v1/project/attributes/deploy_key" > /home/gitbot/deploy_key
+echo >> /home/gitbot/deploy_key  # metadata server strips trailing \n.
 chown gitbot /home/gitbot/deploy_key
 chmod 400 /home/gitbot/deploy_key
 
@@ -50,8 +51,3 @@ chmod 755 /home/gitbot/mirror_aosp_to_ghub_repo.py
 cd /home/gitbot
 sudo -u gitbot bash -c "mkdir -p .ssh; ssh-keyscan github.com >> .ssh/known_hosts;"
 /usr/bin/supervisord -c /etc/supervisord.conf
-
-dd if=/dev/zero of=/swap bs=1M count=4k
-chmod 600 /swap
-mkswap /swap
-swapon /swap

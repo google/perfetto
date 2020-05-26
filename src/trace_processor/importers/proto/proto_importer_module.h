@@ -36,23 +36,18 @@ class PacketSequenceState;
 struct TimestampedTracePiece;
 class TraceProcessorContext;
 
-// This file contains helper and base class templates for
-// ProtoTraceTokenizer/Parser modules. A module implements support for a subset
-// of features of the TracePacket proto format. Modules inherit from
-// ProtoImporterModuleBase, and should be instantiated using the
-// ProtoImporterModule<> wrapper template in trace_processor_context.h.
-//
+// This file contains a base class for ProtoTraceTokenizer/Parser modules.
+// A module implements support for a subset of features of the TracePacket
+// proto format.
 // To add and integrate a new module:
-// (1) Add MyModule as a subclass of ProtoImporterModuleBase<IsEnabled>,
-//     defining the TokenizePacket() and/or ParsePacket() methods.
-//     Typically, a build-time macro will inform the value of IsEnabled.
-//     See ftrace_module.h for an example.
-// (2) Add a member of type std::unique_ptr<ProtoImporterModule<MyModule>> to
-//     TraceProcessorContext (trace_processor_context.h) and init it from
-//     TraceProcessorImpl() and appropriate tests.
-// (3) Add an include of my_module.h and calls to your module's TokenizePacket /
-//     ParsePacket methods in ProtoTraceTokenizer and/or ProtoTraceParser
-//     (proxying via the wrapper).
+// (1) Add MyModule as a subclass of ProtoImporterModule,
+//     overriding the TokenizePacket(), ParsePacket() and/or ParseTraceConfig()
+//     methods.
+// (2) In the constructor call the RegisterForField method for every field
+//     that the module knows how to handle.
+// (3) Create a module instance and add it to TraceProcessorContext's |modules|
+//     vector in either default_modules.cc or additional_modules.cc.
+// See GraphicsEventModule for an example.
 
 class ModuleResult {
  public:
@@ -96,102 +91,39 @@ class ModuleResult {
   base::Optional<std::string> error_;
 };
 
-// Wrapper class for a module. This wrapper allows modules to be disabled
-// disabled at compile time to remove support for its features from the trace
-// processor.
-//
-// The trace processor will instantiate enabled modules for each
-// TraceProcessorContext. The tokenizer and parser notify individual modules
-// about trace data by calling their respective methods via the wrapper class.
-// If the module is enabled, the wrapper will forward the call to the module
-// implementation. This way, we avoid virtual methods, so that calling any of
-// the module's methods is zero overhead - they can be inlined by the compiler
-// at callsites directly.
-template <class ModuleType>
+// Base class for modules.
 class ProtoImporterModule {
  public:
-  ProtoImporterModule(TraceProcessorContext* context) {
-    if (ModuleType::kEnabled)
-      impl_.reset(new ModuleType(context));
-  }
+  ProtoImporterModule();
 
-  // ModuleType may specify methods with the signatures below.
-  // ProtoImporterModule<ModuleType> acts as a wrapper for these methods.
-  // ModuleType only needs to specify the methods that
-  // ProtoTraceParser/Tokenizer actually calls on the respective module.
+  virtual ~ProtoImporterModule();
 
-  // Wraps ModuleType::TokenizePacket(). If the module is disabled, compiles
-  // into a noop in optimized builds. Called by ProtoTraceTokenizer for each
-  // TracePacket during the tokenization stage, i.e. before sorting. If this
-  // returns a result other than ModuleResult::Ignored(), tokenization of the
-  // packet will be aborted after the module.
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket_Decoder& decoder,
+  // Called by ProtoTraceTokenizer during the tokenization stage, i.e. before
+  // sorting. It's called for each TracePacket that contains fields for which
+  // the module was registered. If this returns a result other than
+  // ModuleResult::Ignored(), tokenization of the packet will be aborted after
+  // the module.
+  virtual ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket_Decoder&,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState* state) {
-    if (ModuleType::kEnabled) {
-      return impl_->TokenizePacket(decoder, packet, packet_timestamp, state);
-    }
-    return ModuleResult::Ignored();
-  }
+      PacketSequenceState*,
+      uint32_t field_id);
 
-  // Wraps ModuleType::ParsePacket(). If the module is disabled, compiles into a
-  // noop in optimized builds. Called by ProtoTraceParser for each non-ftrace
-  // TracePacket after the sorting stage. If this returns a result other than
-  // ModuleResult::Ignored(), parsing of the packet will be aborted after the
-  // module.
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket_Decoder& decoder,
-                           const TimestampedTracePiece& ttp) {
-    if (ModuleType::kEnabled)
-      return impl_->ParsePacket(decoder, ttp);
-    return ModuleResult::Ignored();
-  }
+  // Called by ProtoTraceParser after the sorting stage for each non-ftrace
+  // TracePacket that contains fields for which the module was registered.
+  virtual void ParsePacket(const protos::pbzero::TracePacket_Decoder&,
+                           const TimestampedTracePiece&,
+                           uint32_t field_id);
 
-  // Wraps ModuleType::ParseTraceConfig(). If the module is disabled, compiles
-  // into a noop in optimized builds. Called by ProtoTraceParser for trace
-  // config packets after the sorting stage.
-  ModuleResult ParseTraceConfig(
-      const protos::pbzero::TraceConfig_Decoder& decoder) {
-    if (ModuleType::kEnabled)
-      return impl_->ParseTraceConfig(decoder);
-    return ModuleResult::Ignored();
-  }
+  // Called by ProtoTraceParser for trace config packets after the sorting
+  // stage, on all existing modules.
+  virtual void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&);
 
-  // For FtraceModule only. Wraps ModuleType::ParseFtracePacket(). If the module
-  // is disabled, compiles into a noop in optimized builds. Called by
-  // ProtoTraceParser for each ftrace TracePacket after the sorting stage.
-  // Ftrace packets are handled specially here because they are sorted in
-  // separate queues per CPU. If this returns a result other than
-  // ModuleResult::Ignored(), parsing of the packet will be aborted after the
-  // module.
-  ModuleResult ParseFtracePacket(uint32_t cpu,
-                                 const TimestampedTracePiece& ttp) {
-    if (ModuleType::kEnabled)
-      return impl_->ParseFtracePacket(cpu, ttp);
-    return ModuleResult::Ignored();
-  }
-
- private:
-  // Only initialized if the module is enabled.
-  std::unique_ptr<ModuleType> impl_;
-};
-
-// Base class for a proto trace module that can be disabled at compile time.
-// Typically, a build-time macro will inform the value of IsEnabled.
-template <int IsEnabled>
-class ProtoImporterModuleBase {
- public:
-  static constexpr bool kEnabled = static_cast<bool>(IsEnabled);
-
-  explicit ProtoImporterModuleBase(TraceProcessorContext* context)
-      : context_(context) {}
-  ~ProtoImporterModuleBase() {}
-
-  // See ProtoTraceModule<> for the public methods subclasses may implement.
+  virtual void NotifyEndOfFile() {}
 
  protected:
-  TraceProcessorContext* context_;
+  void RegisterForField(uint32_t field_id, TraceProcessorContext*);
 };
 
 }  // namespace trace_processor

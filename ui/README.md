@@ -7,8 +7,8 @@ Run:
 ```bash
 $ git clone https://android.googlesource.com/platform/external/perfetto/
 $ cd perfetto
-$ tools/install-build-deps --no-android --ui
-$ tools/gn gen out/debug --args='is_debug=true is_clang=true'
+$ tools/install-build-deps --ui
+$ tools/gn gen out/debug --args='is_debug=true'
 $ tools/ninja -C out/debug ui
 ```
 
@@ -32,4 +32,4 @@ Finally run:
 $ ./ui/run-dev-server out/debug
 ```
 
-and navigate to `localhost:3000`.
+and navigate to `localhost:10000`.

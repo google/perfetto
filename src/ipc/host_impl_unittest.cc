@@ -156,8 +156,7 @@ class FakeClient : public base::UnixSocket::EventListener {
 
   void SendFrame(const Frame& frame, int fd = -1) {
     std::string buf = BufferedFrameDeserializer::Serialize(frame);
-    ASSERT_TRUE(sock_->Send(buf.data(), buf.size(), fd,
-                            base::UnixSocket::BlockingMode::kBlocking));
+    ASSERT_TRUE(sock_->Send(buf.data(), buf.size(), fd));
   }
 
   BufferedFrameDeserializer frame_deserializer_;

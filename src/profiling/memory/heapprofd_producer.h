@@ -33,10 +33,11 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
+#include "src/profiling/common/interning_output.h"
+#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bookkeeping_dump.h"
 #include "src/profiling/memory/page_idle_checker.h"
-#include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
 
@@ -200,10 +201,13 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::set<pid_t> rejected_pids;
     std::map<pid_t, ProcessState> process_states;
     std::vector<std::string> normalized_cmdlines;
-    DumpState::InternState intern_state;
+    InterningOutputTracker intern_state;
     bool shutting_down = false;
     bool started = false;
+    bool hit_guardrail = false;
+    bool was_stopped = false;
     uint32_t stop_timeout_ms;
+    base::Optional<uint64_t> start_cputime_sec;
   };
 
   struct PendingProcess {
@@ -219,6 +223,11 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void Restart();
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
+
+  base::Optional<uint64_t> GetCputimeSec();
+
+  void CheckDataSourceMemory();
+  void CheckDataSourceCpu();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
   bool DumpProcessesInDataSource(DataSourceInstanceID id);
@@ -243,6 +252,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // Specific to mode_ == kChild
   void AdoptTargetProcessSocket();
 
+  void ShutdownDataSource(DataSource* ds);
   bool MaybeFinishDataSource(DataSource* ds);
 
   // Class state:
@@ -284,6 +294,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   base::ScopedFile inherited_fd_;
 
   SocketDelegate socket_delegate_;
+  base::ScopedFile stat_fd_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;  // Keep last.
 };

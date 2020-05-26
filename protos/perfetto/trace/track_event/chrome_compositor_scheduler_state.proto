@@ -15,7 +15,6 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/trace/track_event/source_location.proto";
 

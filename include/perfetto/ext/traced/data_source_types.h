@@ -31,6 +31,8 @@ using Inode = decltype(stat::st_ino);
 // On ARM, st_dev is not dev_t but unsigned long long.
 using BlockDeviceID = decltype(stat::st_dev);
 
+using InodeBlockPair = std::pair<Inode, BlockDeviceID>;
+
 // From inode_file_map.pbzero.h
 using InodeFileMap_Entry_Type = int32_t;
 

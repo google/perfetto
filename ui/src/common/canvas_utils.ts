@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export function cropText(str: string, charWidth: number, rectWidth: number) {
-  const maxTextWidth = rectWidth - 4;
+  const maxTextWidth = rectWidth - 1;
   let displayText = '';
   const nameLength = str.length * charWidth;
   if (nameLength < maxTextWidth) {
@@ -21,8 +21,10 @@ export function cropText(str: string, charWidth: number, rectWidth: number) {
   } else {
     // -3 for the 3 ellipsis.
     const displayedChars = Math.floor(maxTextWidth / charWidth) - 3;
-    if (displayedChars > 3) {
+    if (displayedChars >= 2) {
       displayText = str.substring(0, displayedChars) + '...';
+    } else if (displayedChars >= -2) {
+      displayText = str.substring(0, 1);
     }
   }
   return displayText;
@@ -59,4 +61,28 @@ export function drawDoubleHeadedArrow(
     ctx.stroke();
     ctx.closePath();
   }
+}
+
+export function drawIncompleteSlice(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    length: number,
+    width: number,
+    color: string) {
+  ctx.beginPath();
+  ctx.fillStyle = color;
+  const triangleSize = width / 4;
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + length, y);
+  ctx.lineTo(x + length - 3, y + triangleSize * 0.5);
+  ctx.lineTo(x + length, y + triangleSize);
+  ctx.lineTo(x + length - 3, y + (triangleSize * 1.5));
+  ctx.lineTo(x + length, y + 2 * triangleSize);
+  ctx.lineTo(x + length - 3, y + (triangleSize * 2.5));
+  ctx.lineTo(x + length, y + 3 * triangleSize);
+  ctx.lineTo(x + length - 3, y + (triangleSize * 3.5));
+  ctx.lineTo(x + length, y + 4 * triangleSize);
+  ctx.lineTo(x, y + width);
+  ctx.fill();
 }

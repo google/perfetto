@@ -34,8 +34,10 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
+#include "src/traced/probes/ftrace/discover_vendor_tracepoints.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -105,6 +107,8 @@ const char* const FtraceController::kTracingPaths[] = {
 // We don't know what state the rest of the system and process is so as far
 // as possible avoid allocations.
 void HardResetFtraceState() {
+  PERFETTO_LOG("Hard resetting ftrace state.");
+
   WriteToFile("/sys/kernel/debug/tracing/tracing_on", "0");
   WriteToFile("/sys/kernel/debug/tracing/buffer_size_kb", "4");
   WriteToFile("/sys/kernel/debug/tracing/events/enable", "0");
@@ -136,8 +140,12 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   if (!table)
     return nullptr;
 
+  AtraceHalWrapper hal;
+  auto vendor_evts =
+      vendor_tracepoints::DiscoverVendorTracepoints(&hal, ftrace_procfs.get());
+
   std::unique_ptr<FtraceConfigMuxer> model = std::unique_ptr<FtraceConfigMuxer>(
-      new FtraceConfigMuxer(ftrace_procfs.get(), table.get()));
+      new FtraceConfigMuxer(ftrace_procfs.get(), table.get(), vendor_evts));
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(ftrace_procfs), std::move(table),
                            std::move(model), runner, observer));

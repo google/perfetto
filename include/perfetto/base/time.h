@@ -110,7 +110,25 @@ inline TimeNanos GetBootTimeNs() {
   return GetWallTimeNs();
 }
 
-#else
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+
+// Tracing time doesn't need to work on NaCl since its going away shortly. We
+// just need to compile on it. The only function NaCl could support is
+// GetWallTimeNs(), but to prevent false hope we leave it unimplemented.
+
+inline TimeNanos GetWallTimeNs() {
+  return TimeNanos(0);
+}
+
+inline TimeNanos GetThreadCPUTimeNs() {
+  return TimeNanos(0);
+}
+
+inline TimeNanos GetBootTimeNs() {
+  return TimeNanos(0);
+}
+
+#else  // posix
 
 constexpr clockid_t kWallTimeClockSource = CLOCK_MONOTONIC;
 
@@ -139,8 +157,11 @@ inline TimeNanos GetWallTimeNs() {
 inline TimeNanos GetThreadCPUTimeNs() {
   return GetTimeInternalNs(CLOCK_THREAD_CPUTIME_ID);
 }
-
 #endif
+
+inline TimeSeconds GetBootTimeS() {
+  return std::chrono::duration_cast<TimeSeconds>(GetBootTimeNs());
+}
 
 inline TimeMillis GetWallTimeMs() {
   return std::chrono::duration_cast<TimeMillis>(GetWallTimeNs());

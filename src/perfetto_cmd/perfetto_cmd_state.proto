@@ -15,14 +15,21 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 package perfetto;
 
 message PerfettoCmdState {
-  // These are fixed size so that the file is always a constant length.
   optional fixed64 first_trace_timestamp = 1;
   optional fixed64 last_trace_timestamp = 2;
-  // Total of bytes uploaded since first_trace_timestamp.
+  // Total of bytes uploaded for un-named sessions since first_trace_timestamp.
   optional fixed64 total_bytes_uploaded = 3;
+
+  message PerSessionState {
+    optional string session_name = 1;
+    // Total of bytes uploaded by this session since first_trace_timestamp.
+    optional fixed64 total_bytes_uploaded = 3;
+    // Time of last upload for this session.
+    optional fixed64 last_trace_timestamp = 2;
+  }
+  repeated PerSessionState session_state = 4;
 }

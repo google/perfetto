@@ -13,14 +13,13 @@
 # limitations under the License.
 
 source_set("power") {
-  public_deps = [
-    "../../../tracing",
-  ]
+  public_deps = [ "../../../tracing/core" ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/config/power:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/power:zero",
     "../../../android_internal:lazy_library_loader",
     "../../../base",

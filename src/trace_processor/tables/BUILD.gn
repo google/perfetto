@@ -16,14 +16,17 @@ import("../../../gn/test.gni")
 
 source_set("tables") {
   sources = [
+    "android_tables.h",
+    "counter_tables.h",
     "macros.h",
     "macros_internal.h",
+    "metadata_tables.h",
     "profiler_tables.h",
     "slice_tables.h",
+    "table_destructors.cc",
     "track_tables.h",
   ]
   deps = [
-    "..:common",
     "../../../gn:default_deps",
     "../db:lib",
   ]
@@ -31,9 +34,7 @@ source_set("tables") {
 
 source_set("unittests") {
   testonly = true
-  sources = [
-    "macros_unittest.cc",
-  ]
+  sources = [ "macros_unittest.cc" ]
   deps = [
     ":tables",
     "../../../gn:default_deps",
@@ -49,8 +50,6 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:benchmark",
       "../../../gn:default_deps",
     ]
-    sources = [
-      "macros_benchmark.cc",
-    ]
+    sources = [ "macros_benchmark.cc" ]
   }
 }

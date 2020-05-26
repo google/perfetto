@@ -147,27 +147,14 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined) {
-      let line1 = '';
-      let line2 = '';
+    if (hoveredThread !== undefined && this.mouseXpos !== undefined) {
+      const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       if (hoveredThread.pid) {
-        line1 = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        line2 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+        const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
+        this.drawTrackHoverTooltip(ctx, this.mouseXpos, pidText, tidText);
       } else {
-        line1 = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+        this.drawTrackHoverTooltip(ctx, this.mouseXpos, tidText);
       }
-
-      ctx.font = '10px Google Sans';
-      const line1Width = ctx.measureText(line1).width;
-      const line2Width = ctx.measureText(line2).width;
-      const width = Math.max(line1Width, line2Width);
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillRect(this.mouseXpos!, MARGIN_TOP, width + 16, RECT_HEIGHT);
-      ctx.fillStyle = 'hsl(200, 50%, 40%)';
-      ctx.textAlign = 'left';
-      ctx.fillText(line1, this.mouseXpos! + 8, 18);
-      ctx.fillText(line2, this.mouseXpos! + 8, 28);
     }
   }
 

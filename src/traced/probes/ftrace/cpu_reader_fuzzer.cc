@@ -39,6 +39,7 @@ uint8_t g_page[base::kPageSize];
 using perfetto::protos::pbzero::FtraceEventBundle;
 
 void FuzzCpuReaderParsePage(const uint8_t* data, size_t size);
+void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size);
 
 // TODO(rsavitski): make the fuzzer generate multi-page payloads.
 void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
@@ -52,8 +53,8 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   memcpy(g_page, data, std::min(base::kPageSize, size));
 
   FtraceMetadata metadata{};
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   DisabledCompactSchedConfigForTesting()};
+  FtraceDataSourceConfig ds_config{
+      EventFilter{}, DisabledCompactSchedConfigForTesting(), {}, {}};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(

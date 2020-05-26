@@ -25,7 +25,7 @@
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto {
 
@@ -55,7 +55,7 @@ class MockConsumer : public Consumer {
   void FreeBuffers();
   void WaitForTracingDisabled(uint32_t timeout_ms = 3000);
   FlushRequest Flush(uint32_t timeout_ms = 10000);
-  std::vector<protos::TracePacket> ReadBuffers();
+  std::vector<protos::gen::TracePacket> ReadBuffers();
   void GetTraceStats();
   void WaitForTraceStats(bool success);
   TracingServiceState QueryServiceState();

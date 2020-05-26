@@ -15,7 +15,6 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 // This message is not intended to be written by the chrome on the device.

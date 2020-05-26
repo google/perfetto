@@ -20,6 +20,7 @@
 #include "perfetto/tracing/internal/track_event_internal.h"
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/tracing/event_context.h"
 
 #include <map>
 #include <type_traits>
@@ -169,8 +170,12 @@ class TrackEventInternedDataIndex
     : public internal::BaseTrackEventInternedDataIndex {
  public:
   // Return an interning id for |value|. The returned id can be immediately
-  // written to the trace.
-  static size_t Get(EventContext* ctx, const ValueType& value) {
+  // written to the trace. The optional |add_args| are passed to the Add()
+  // function.
+  template <typename... Args>
+  static size_t Get(EventContext* ctx,
+                    const ValueType& value,
+                    Args&&... add_args) {
     // First check if the value exists in the dictionary.
     auto index_for_field = GetOrCreateIndexForField(ctx->incremental_state_);
     size_t iid;
@@ -185,7 +190,7 @@ class TrackEventInternedDataIndex
     PERFETTO_DCHECK(iid);
     InternedDataType::Add(
         ctx->incremental_state_->serialized_interned_data.get(), iid,
-        std::move(value));
+        std::move(value), std::forward<Args>(add_args)...);
     return iid;
   }
 

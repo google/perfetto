@@ -90,7 +90,6 @@ struct Proto {
 std::string ToCamelCase(const std::string& s);
 ProtoType GetCommon(ProtoType one, ProtoType other);
 std::string ProtoHeader();
-bool GenerateProto(const FtraceEvent& format, Proto* proto_out);
 ProtoType InferProtoType(const FtraceEvent::Field& field);
 
 }  // namespace perfetto

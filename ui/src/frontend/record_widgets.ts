@@ -93,6 +93,7 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
   onTimeValueChange(attrs: SliderAttrs, hms: string) {
     try {
       const date = new Date(`1970-01-01T${hms}.000Z`);
+      if (isNaN(date.getTime())) return;
       this.onValueChange(attrs, date.getTime());
     } catch {
     }
@@ -258,12 +259,7 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
             onclick: () => copyToClipboard(attrs.text),
           },
           m('i.material-icons', 'assignment')),
-        m('code',
-          {
-            style: {
-              'white-space': attrs.hardWhitespace ? 'pre' : null,
-            },
-          },
-          attrs.text), );
+        m('code', attrs.text),
+    );
   }
 }

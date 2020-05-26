@@ -19,8 +19,8 @@
 
 #include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -36,6 +36,7 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  void NotifyEndOfFile() override;
 
  private:
   struct ProviderInfo {

@@ -24,6 +24,12 @@ packet {
       cmdline: "com.google.android.gms.persistent"
       uid: 10100
     }
+    processes {
+      pid: 5
+      ppid: 1
+      cmdline: "com.google.android.gms"
+      uid: 1010100
+    }
   }
 }
 packet {

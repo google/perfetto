@@ -66,14 +66,17 @@ uint32_t ClampTo10Ms(uint32_t period_ms, const char* counter_name) {
 }  // namespace
 
 // static
-constexpr int SysStatsDataSource::kTypeId;
+const ProbesDataSource::Descriptor SysStatsDataSource::descriptor = {
+    /*name*/ "linux.sys_stats",
+    /*flags*/ Descriptor::kFlagsNone,
+};
 
 SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
                                        TracingSessionID session_id,
                                        std::unique_ptr<TraceWriter> writer,
                                        const DataSourceConfig& ds_config,
                                        OpenFunction open_fn)
-    : ProbesDataSource(session_id, kTypeId),
+    : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       writer_(std::move(writer)),
       weak_factory_(this) {

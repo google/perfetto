@@ -18,7 +18,5 @@ executable("cpu_utilization") {
     "../../gn:default_deps",
     "../../src/base",
   ]
-  sources = [
-    "cpu_utilization.cc",
-  ]
+  sources = [ "cpu_utilization.cc" ]
 }

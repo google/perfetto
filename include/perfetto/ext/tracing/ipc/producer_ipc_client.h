@@ -20,6 +20,9 @@
 #include <memory>
 #include <string>
 
+#include "perfetto/base/export.h"
+#include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
@@ -31,16 +34,23 @@ class Producer;
 //   Producer(s) of the tracing library.
 // Implemented in:
 //   src/tracing/ipc/producer/producer_ipc_client_impl.cc
-class ProducerIPCClient {
+class PERFETTO_EXPORT ProducerIPCClient {
  public:
   // Connects to the producer port of the Service listening on the given
   // |service_sock_name|. If the connection is successful, the OnConnect()
-  // method will be invoked asynchronously on the passed Producer interface.
-  // If the connection fails, OnDisconnect() will be invoked instead.
-  // The returned ProducerEndpoint serves also to delimit the scope of the
-  // callbacks invoked on the Producer interface: no more Producer callbacks are
-  // invoked immediately after its destruction and any pending callback will be
-  // dropped.
+  // method will be invoked asynchronously on the passed Producer interface. If
+  // the connection fails, OnDisconnect() will be invoked instead. The returned
+  // ProducerEndpoint serves also to delimit the scope of the callbacks invoked
+  // on the Producer interface: no more Producer callbacks are invoked
+  // immediately after its destruction and any pending callback will be dropped.
+  // To provide a producer-allocated shared memory buffer, both |shm| and
+  // |shm_arbiter| should be set. |shm_arbiter| should be an unbound
+  // SharedMemoryArbiter instance. When |shm| and |shm_arbiter| are provided,
+  // the service will attempt to adopt the provided SMB. If this fails, the
+  // ProducerEndpoint will disconnect, but the SMB and arbiter will remain valid
+  // until the client is destroyed.
+  //
+  // TODO(eseckler): Support adoption failure more gracefully.
   static std::unique_ptr<TracingService::ProducerEndpoint> Connect(
       const char* service_sock_name,
       Producer*,
@@ -49,7 +59,9 @@ class ProducerIPCClient {
       TracingService::ProducerSMBScrapingMode smb_scraping_mode =
           TracingService::ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_size_hint_bytes = 0,
-      size_t shared_memory_page_size_hint_bytes = 0);
+      size_t shared_memory_page_size_hint_bytes = 0,
+      std::unique_ptr<SharedMemory> shm = nullptr,
+      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
 
  protected:
   ProducerIPCClient() = delete;

@@ -37,9 +37,9 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
 
     if (!this.setup) {
       const result = await this.query(`
-      select max(value) from
-        counters where name = 'gpufreq'
-        and ref = ${this.config.gpu}`);
+        select max(value)
+        from counter
+        where track_id = ${this.config.trackId}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
 
       await this.query(
@@ -49,25 +49,21 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
           as select
             ts,
             lead(ts) over (order by ts) - ts as dur,
-            ref as gpu,
-            name as freq_name,
             value as freq_value
-          from counters
-          where name = 'gpufreq'
-            and ref = ${this.config.gpu}
-            and ref_type = 'gpu';
+          from counter
+          where track_id = ${this.config.trackId};
       `);
 
       await this.query(`create virtual table ${this.tableName('span_activity')}
-      using span_join(${this.tableName('freq')} PARTITIONED gpu,
-                      ${this.tableName('window')});`);
+        using span_join(${this.tableName('freq')}, ${
+          this.tableName('window')});`);
 
-      await this.query(`create view ${this.tableName('activity')}
-      as select
-        ts,
-        dur,
-        quantum_ts,
-        freq_value as freq
+      await this.query(`create view ${this.tableName('activity')} as
+        select
+          ts,
+          dur,
+          quantum_ts,
+          freq_value as freq
         from ${this.tableName('span_activity')};
       `);
 
@@ -75,9 +71,9 @@ class GpuFreqTrackController extends TrackController<Config, Data> {
     }
 
     this.query(`update ${this.tableName('window')} set
-    window_start = ${startNs},
-    window_dur = ${Math.max(1, endNs - startNs)},
-    quantum = 0`);
+      window_start = ${startNs},
+      window_dur = ${Math.max(1, endNs - startNs)},
+      quantum = 0`);
 
     const result = await this.engine.queryOneRow(`select count(*)
       from ${this.tableName('activity')}`);

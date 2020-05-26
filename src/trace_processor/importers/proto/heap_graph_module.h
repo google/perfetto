@@ -27,31 +27,24 @@
 namespace perfetto {
 namespace trace_processor {
 
-class HeapGraphModule : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(
-                            PERFETTO_TP_HEAP_GRAPHS)> {
+class HeapGraphModule : public ProtoImporterModule {
  public:
-  explicit HeapGraphModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context) {
-    context_->heap_graph_tracker.reset(new HeapGraphTracker(context_));
-  }
+  explicit HeapGraphModule(TraceProcessorContext* context);
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                           const TimestampedTracePiece& ttp) {
-    if (decoder.has_heap_graph()) {
-      ParseHeapGraph(ttp.timestamp, decoder.heap_graph());
-      return ModuleResult::Handled();
-    }
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                   const TimestampedTracePiece& ttp,
+                   uint32_t field_id) override;
 
-    if (decoder.has_deobfuscation_mapping()) {
-      ParseDeobfuscationMapping(decoder.deobfuscation_mapping());
-      return ModuleResult::Handled();
-    }
-    return ModuleResult::Ignored();
-  }
+  void NotifyEndOfFile() override;
 
  private:
-  void ParseHeapGraph(int64_t ts, protozero::ConstBytes);
+  void ParseHeapGraph(uint32_t seq_id, int64_t ts, protozero::ConstBytes);
   void ParseDeobfuscationMapping(protozero::ConstBytes);
+  void DeobfuscateClass(base::Optional<StringPool::Id> package_name_id,
+                        StringPool::Id obfuscated_class_id,
+                        const protos::pbzero::ObfuscatedClass::Decoder& cls);
+
+  TraceProcessorContext* context_;
 };
 
 }  // namespace trace_processor

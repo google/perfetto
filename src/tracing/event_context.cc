@@ -29,6 +29,9 @@ EventContext::EventContext(
       incremental_state_(incremental_state) {}
 
 EventContext::~EventContext() {
+  if (!trace_packet_)
+    return;
+
   // When the track event is finalized (i.e., the context is destroyed), we
   // should flush any newly seen interned data to the trace. The data has
   // earlier been written to a heap allocated protobuf message

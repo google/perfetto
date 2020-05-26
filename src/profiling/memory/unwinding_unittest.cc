@@ -23,6 +23,7 @@
 #include <unwindstack/RegsGetLocal.h>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "test/gtest_and_gmock.h"
@@ -57,10 +58,10 @@ TEST(UnwindingTest, StackOverlayMemoryNonOverlay) {
   ASSERT_EQ(buf[0], value);
 }
 
-TEST(UnwindingTest, FileDescriptorMapsParse) {
+TEST(UnwindingTest, FDMapsParse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   ASSERT_TRUE(proc_maps);
-  FileDescriptorMaps maps(std::move(proc_maps));
+  FDMaps maps(std::move(proc_maps));
   ASSERT_TRUE(maps.Parse());
   unwindstack::MapInfo* map_info =
       maps.Find(reinterpret_cast<uint64_t>(&proc_maps));
@@ -138,8 +139,7 @@ TEST(UnwindingTest, DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
-  UnwindingMetadata metadata(getpid(), std::move(proc_maps),
-                             std::move(proc_mem));
+  UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
@@ -159,10 +159,9 @@ TEST(UnwindingTest, DoUnwindReparse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
   GlobalCallstackTrie callsites;
-  UnwindingMetadata metadata(getpid(), std::move(proc_maps),
-                             std::move(proc_mem));
+  UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
   // Force reparse in DoUnwind.
-  metadata.maps.Reset();
+  metadata.fd_maps.Reset();
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;

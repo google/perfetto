@@ -21,42 +21,105 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/tracing/core/data_source_config.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/config/data_source_config.pbzero.h"
-#include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
+#include "protos/perfetto/config/data_source_config.gen.h"
+#include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 
 namespace perfetto {
 namespace profiling {
 namespace {
 
-static DataSourceConfig ConfigForTid(int32_t tid) {
-  protozero::HeapBuffered<protos::pbzero::PerfEventConfig> pb_config;
-  pb_config->set_tid(tid);
-  protozero::HeapBuffered<protos::pbzero::DataSourceConfig> ds_config;
-  ds_config->set_perf_event_config_raw(pb_config.SerializeAsString());
-  DataSourceConfig cfg;
-  PERFETTO_CHECK(cfg.ParseFromString(ds_config.SerializeAsString()));
-  return cfg;
+bool IsPowerOfTwo(size_t v) {
+  return (v != 0 && ((v & (v - 1)) == 0));
 }
 
-TEST(EventConfigTest, TidRequired) {
-  // Doesn't pass validation without a TID
-  DataSourceConfig cfg;
-  ASSERT_TRUE(cfg.ParseFromString(""));
-
-  base::Optional<EventConfig> event_config = EventConfig::Create(cfg);
-  ASSERT_FALSE(event_config.has_value());
+static DataSourceConfig AsDataSourceConfig(
+    const protos::gen::PerfEventConfig& perf_cfg) {
+  protos::gen::DataSourceConfig ds_cfg;
+  ds_cfg.set_perf_event_config_raw(perf_cfg.SerializeAsString());
+  return ds_cfg;
 }
 
 TEST(EventConfigTest, AttrStructConstructed) {
-  auto cfg = ConfigForTid(42);
-  base::Optional<EventConfig> event_config = EventConfig::Create(cfg);
+  protos::gen::PerfEventConfig cfg;
+  base::Optional<EventConfig> event_config =
+      EventConfig::Create(AsDataSourceConfig(cfg));
 
   ASSERT_TRUE(event_config.has_value());
   ASSERT_TRUE(event_config->perf_attr() != nullptr);
+}
+
+TEST(EventConfigTest, RingBufferPagesValidated) {
+  {  // if unset, a default is used
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_GT(event_config->ring_buffer_pages(), 0u);
+    ASSERT_TRUE(IsPowerOfTwo(event_config->ring_buffer_pages()));
+  }
+  {  // power of two pages accepted
+    uint32_t num_pages = 128;
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_ring_buffer_pages(num_pages);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_EQ(event_config->ring_buffer_pages(), num_pages);
+  }
+  {  // entire config rejected if not a power of two of pages
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_ring_buffer_pages(7);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_FALSE(event_config.has_value());
+  }
+}
+
+TEST(EventConfigTest, ReadTickPeriodDefaultedIfUnset) {
+  {  // if unset, a default is used
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_GT(event_config->read_tick_period_ms(), 0u);
+  }
+  {  // otherwise, given value used
+    uint32_t period_ms = 250;
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_ring_buffer_read_period_ms(period_ms);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_EQ(event_config->read_tick_period_ms(), period_ms);
+  }
+}
+
+TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
+  {  // if unset, a default is used
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_GT(event_config->remote_descriptor_timeout_ms(), 0u);
+  }
+  {  // otherwise, given value used
+    uint32_t timeout_ms = 300;
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_remote_descriptor_timeout_ms(timeout_ms);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_EQ(event_config->remote_descriptor_timeout_ms(), timeout_ms);
+  }
 }
 
 }  // namespace

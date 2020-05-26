@@ -15,7 +15,5 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  sources = [
-    "inode_file_map.proto",
-  ]
+  sources = [ "inode_file_map.proto" ]
 }

@@ -37,8 +37,6 @@
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
-#include "src/tracing/internal/in_process_tracing_backend.h"
-#include "src/tracing/internal/system_tracing_backend.h"
 
 namespace perfetto {
 namespace internal {
@@ -144,7 +142,7 @@ void TracingMuxerImpl::ConsumerImpl::Initialize(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   service_ = std::move(endpoint);
   // Observe data source instance events so we get notified when tracing starts.
-  service_->ObserveEvents(ConsumerEndpoint::kDataSourceInstances);
+  service_->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnConnect() {
@@ -421,6 +419,12 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);  // Rebind the thread checker.
 
   auto add_backend = [this, &args](TracingBackend* backend, BackendType type) {
+    if (!backend) {
+      // We skip the log in release builds because the *_backend_fake.cc code
+      // has already an ELOG before returning a nullptr.
+      PERFETTO_DLOG("Backend creation failed, type %d", static_cast<int>(type));
+      return;
+    }
     TracingBackendId backend_id = backends_.size();
     backends_.emplace_back();
     RegisteredBackend& rb = backends_.back();
@@ -438,15 +442,14 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   };
 
   if (args.backends & kSystemBackend) {
-#if (PERFETTO_BUILDFLAG(PERFETTO_IPC))
-    add_backend(SystemTracingBackend::GetInstance(), kSystemBackend);
-#else
-    PERFETTO_ELOG("System backend not supporteed in the current configuration");
-#endif
+    PERFETTO_CHECK(args.system_backend_factory_);
+    add_backend(args.system_backend_factory_(), kSystemBackend);
   }
 
-  if (args.backends & kInProcessBackend)
-    add_backend(InProcessTracingBackend::GetInstance(), kInProcessBackend);
+  if (args.backends & kInProcessBackend) {
+    PERFETTO_CHECK(args.in_process_backend_factory_);
+    add_backend(args.in_process_backend_factory_(), kInProcessBackend);
+  }
 
   if (args.backends & kCustomBackend) {
     PERFETTO_CHECK(args.custom_backend);

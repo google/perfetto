@@ -33,7 +33,5 @@ perfetto_proto_library("minimal_complete_lite") {
     "../profiling:@TYPE@",
     "../track_event:@TYPE@",
   ]
-  sources = [
-    "chrome_trace_packet.proto",
-  ]
+  sources = [ "chrome_trace_packet.proto" ]
 }

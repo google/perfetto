@@ -23,12 +23,15 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
+
 namespace perfetto {
 
 namespace base {
@@ -46,18 +49,19 @@ class ProcessStats_Process;
 
 class ProcessStatsDataSource : public ProbesDataSource {
  public:
-  static constexpr int kTypeId = 3;
+  static const ProbesDataSource::Descriptor descriptor;
 
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
-                         const DataSourceConfig&);
+                         const DataSourceConfig&,
+                         std::unique_ptr<CpuFreqInfo> cpu_freq_info);
   ~ProcessStatsDataSource() override;
 
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
   void WriteAllProcesses();
-  void OnPids(const std::vector<int32_t>& pids);
-  void OnRenamePids(const std::vector<int32_t>& pids);
+  void OnPids(const base::FlatSet<int32_t>& pids);
+  void OnRenamePids(const base::FlatSet<int32_t>& pids);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -69,6 +73,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // Virtual for testing.
   virtual base::ScopedDir OpenProcDir();
   virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
+  virtual base::ScopedDir OpenProcTaskDir(int32_t pid);
 
  private:
   struct CachedProcessStats {
@@ -81,6 +86,9 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t vm_locked_kb = std::numeric_limits<uint32_t>::max();
     uint32_t vm_hvm_kb = std::numeric_limits<uint32_t>::max();
     int oom_score_adj = std::numeric_limits<int>::max();
+
+    // ctime + stime from /proc/pid/stat
+    uint64_t cpu_time = std::numeric_limits<uint64_t>::max();
   };
 
   // Common functions.
@@ -103,9 +111,11 @@ class ProcessStatsDataSource : public ProbesDataSource {
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
+  bool ShouldWriteThreadStats(int32_t pid);
+  void WriteThreadStats(int32_t pid, int32_t tid);
 
   // Scans /proc/pid/status and writes the ProcessTree packet for input pids.
-  void WriteProcessTree(const std::vector<int32_t>& pids);
+  void WriteProcessTree(const base::FlatSet<int32_t>&);
 
   // Read and "latch" the current procfs scan-start timestamp, which
   // we reset only in FinalizeCurPacket.
@@ -132,11 +142,12 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool record_thread_names_ = false;
   bool enable_on_demand_dumps_ = true;
   bool dump_all_procs_on_start_ = false;
+  bool record_thread_time_in_state_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
   // seen, not just the main thread id (aka thread group ID).
-  std::set<int32_t> seen_pids_;
+  base::FlatSet<int32_t> seen_pids_;
 
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;
@@ -149,6 +160,17 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // |poll_period_ms_| ms.
   uint32_t process_stats_cache_ttl_ticks_ = 0;
   std::unordered_map<int32_t, CachedProcessStats> process_stats_cache_;
+
+  using TimeInStateCacheEntry = std::tuple</* tid */ int32_t,
+                                           /* cpu_freq_index */ uint32_t,
+                                           /* ticks */ uint64_t>;
+
+  // Cache for time in state. Size specificed in the config. Values are stored
+  // at index: hash(tid, cpu_freq_index) % thread_time_in_state_cache_size_.
+  std::vector<TimeInStateCacheEntry> thread_time_in_state_cache_;
+  uint32_t thread_time_in_state_cache_size_;
+
+  std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
 
   // If true, the next trace packet will have the |incremental_state_cleared|
   // flag set. Set when handling a ClearIncrementalState call.

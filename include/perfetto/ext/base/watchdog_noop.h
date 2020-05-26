@@ -37,7 +37,7 @@ class Watchdog {
   }
   Timer CreateFatalTimer(uint32_t /*ms*/) { return Timer(); }
   void Start() {}
-  void SetMemoryLimit(uint32_t /*bytes*/, uint32_t /*window_ms*/) {}
+  void SetMemoryLimit(uint64_t /*bytes*/, uint32_t /*window_ms*/) {}
   void SetCpuLimit(uint32_t /*percentage*/, uint32_t /*window_ms*/) {}
 };
 

@@ -20,6 +20,7 @@ import("../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   sources = [
     "android_log_constants.proto",
+    "builtin_clock.proto",
     "commit_data_request.proto",
     "data_source_descriptor.proto",
     "descriptor.proto",
@@ -27,6 +28,7 @@ perfetto_proto_library("@TYPE@") {
     "observable_events.proto",
     "sys_stats_counters.proto",
     "trace_stats.proto",
+    "tracing_service_capabilities.proto",
     "tracing_service_state.proto",
     "track_event_descriptor.proto",
   ]

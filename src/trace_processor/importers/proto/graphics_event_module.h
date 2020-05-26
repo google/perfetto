@@ -27,45 +27,15 @@
 namespace perfetto {
 namespace trace_processor {
 
-class GraphicsEventModule
-    : public ProtoImporterModuleBase<PERFETTO_BUILDFLAG(PERFETTO_TP_GRAPHICS)> {
+class GraphicsEventModule : public ProtoImporterModule {
  public:
-  explicit GraphicsEventModule(TraceProcessorContext* context)
-      : ProtoImporterModuleBase(context), parser_(context) {}
+  explicit GraphicsEventModule(TraceProcessorContext* context);
 
-  ModuleResult ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                           const TimestampedTracePiece& ttp) {
-    if (decoder.has_gpu_counter_event()) {
-      parser_.ParseGpuCounterEvent(ttp.timestamp, decoder.gpu_counter_event());
-      return ModuleResult::Handled();
-    }
+  ~GraphicsEventModule() override;
 
-    if (decoder.has_gpu_render_stage_event()) {
-      parser_.ParseGpuRenderStageEvent(ttp.timestamp,
-                                       decoder.gpu_render_stage_event());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_gpu_log()) {
-      parser_.ParseGpuLog(ttp.timestamp, decoder.gpu_log());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_graphics_frame_event()) {
-      parser_.ParseGraphicsFrameEvent(ttp.timestamp,
-                                      decoder.graphics_frame_event());
-      return ModuleResult::Handled();
-    }
-
-    if (decoder.has_vulkan_memory_event()) {
-      parser_.ParseVulkanMemoryEvent(ttp.packet_sequence_state,
-                                     ttp.packet_sequence_state_generation,
-                                     decoder.vulkan_memory_event());
-      return ModuleResult::Handled();
-    }
-
-    return ModuleResult::Ignored();
-  }
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder&,
+                   const TimestampedTracePiece&,
+                   uint32_t field_id) override;
 
  private:
   GraphicsEventParser parser_;

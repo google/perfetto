@@ -21,45 +21,74 @@ import("../../gn/test.gni")
 # projects should be depending on our IPC layer.
 assert(enable_perfetto_ipc)
 
-source_set("ipc") {
-  public_configs = [ "../../gn:default_config" ]
+source_set("client") {
   public_deps = [
     "../../include/perfetto/ext/ipc",
     "../base:unix_socket",
   ]
   deps = [
+    ":common",
     "../../gn:default_deps",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
     "../base",
   ]
   sources = [
-    "buffered_frame_deserializer.cc",
-    "buffered_frame_deserializer.h",
     "client_impl.cc",
     "client_impl.h",
-    "deferred.cc",
+    "service_proxy.cc",
+  ]
+}
+
+source_set("host") {
+  public_deps = [
+    "../../include/perfetto/ext/ipc",
+    "../base:unix_socket",
+  ]
+  deps = [
+    ":common",
+    "../../gn:default_deps",
+    "../../protos/perfetto/ipc:wire_protocol_cpp",
+    "../base",
+  ]
+  sources = [
     "host_impl.cc",
     "host_impl.h",
-    "service_proxy.cc",
+  ]
+}
+
+source_set("common") {
+  public_deps = [
+    "../../include/perfetto/ext/ipc",
+    "../../protos/perfetto/ipc:wire_protocol_cpp",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../base",
+  ]
+  sources = [
+    "buffered_frame_deserializer.cc",
+    "buffered_frame_deserializer.h",
+    "deferred.cc",
     "virtual_destructors.cc",
   ]
 }
 
 perfetto_fuzzer_test("buffered_frame_deserializer_fuzzer") {
-  sources = [
-    "buffered_frame_deserializer_fuzzer.cc",
-  ]
+  sources = [ "buffered_frame_deserializer_fuzzer.cc" ]
   deps = [
-    ":ipc",
+    ":common",
     "../../gn:default_deps",
     "../../protos/perfetto/ipc:wire_protocol_cpp",
+    "../base",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":ipc",
+    ":client",
+    ":common",
+    ":host",
     ":test_messages_cpp",
     ":test_messages_ipc",
     "../../gn:default_deps",
@@ -94,7 +123,8 @@ perfetto_proto_library("test_messages_@TYPE@") {
 static_library("perfetto_ipc") {
   complete_static_lib = true
   deps = [
-    ":ipc",
+    ":client",
+    ":host",
     "../../gn:default_deps",
   ]
 }

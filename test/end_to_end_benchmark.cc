@@ -22,11 +22,10 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/gtest_and_gmock.h"
-#include "test/task_runner_thread.h"
-#include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/test_config.gen.h"
+#include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -72,8 +71,10 @@ void BenchmarkProducer(benchmark::State& state) {
   helper.WaitForProducerEnabled();
 
   uint64_t wall_start_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
-  uint64_t service_start_ns = helper.service_thread()->GetThreadCPUTimeNs();
-  uint64_t producer_start_ns = helper.producer_thread()->GetThreadCPUTimeNs();
+  uint64_t service_start_ns =
+      helper.service_thread()->GetThreadCPUTimeNsForTesting();
+  uint64_t producer_start_ns =
+      helper.producer_thread()->GetThreadCPUTimeNsForTesting();
   uint32_t iterations = 0;
   for (auto _ : state) {
     auto cname = "produced.and.committed." + std::to_string(iterations++);
@@ -82,9 +83,11 @@ void BenchmarkProducer(benchmark::State& state) {
     task_runner.RunUntilCheckpoint(cname, time_for_messages_ms);
   }
   uint64_t service_ns =
-      helper.service_thread()->GetThreadCPUTimeNs() - service_start_ns;
+      helper.service_thread()->GetThreadCPUTimeNsForTesting() -
+      service_start_ns;
   uint64_t producer_ns =
-      helper.producer_thread()->GetThreadCPUTimeNs() - producer_start_ns;
+      helper.producer_thread()->GetThreadCPUTimeNsForTesting() -
+      producer_start_ns;
   uint64_t wall_ns =
       static_cast<uint64_t>(base::GetWallTimeNs().count()) - wall_start_ns;
 
@@ -149,8 +152,8 @@ static void BenchmarkConsumer(benchmark::State& state) {
   helper.WaitForProducerEnabled();
 
   uint64_t wall_start_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
-  uint64_t service_start_ns =
-      static_cast<uint64_t>(helper.service_thread()->GetThreadCPUTimeNs());
+  uint64_t service_start_ns = static_cast<uint64_t>(
+      helper.service_thread()->GetThreadCPUTimeNsForTesting());
   uint64_t consumer_start_ns =
       static_cast<uint64_t>(base::GetThreadCPUTimeNs().count());
   uint64_t read_time_taken_ns = 0;
@@ -192,7 +195,8 @@ static void BenchmarkConsumer(benchmark::State& state) {
     }
   }
   uint64_t service_ns =
-      helper.service_thread()->GetThreadCPUTimeNs() - service_start_ns;
+      helper.service_thread()->GetThreadCPUTimeNsForTesting() -
+      service_start_ns;
   uint64_t consumer_ns =
       static_cast<uint64_t>(base::GetThreadCPUTimeNs().count()) -
       consumer_start_ns;
@@ -210,9 +214,9 @@ static void BenchmarkConsumer(benchmark::State& state) {
 
 void SaturateCpuProducerArgs(benchmark::internal::Benchmark* b) {
   int min_message_count = 16;
-  int max_message_count = IsBenchmarkFunctionalOnly() ? 1024 : 1024 * 1024;
+  int max_message_count = IsBenchmarkFunctionalOnly() ? 16 : 1024 * 1024;
   int min_payload = 8;
-  int max_payload = IsBenchmarkFunctionalOnly() ? 256 : 2048;
+  int max_payload = IsBenchmarkFunctionalOnly() ? 8 : 2048;
   for (int count = min_message_count; count <= max_message_count; count *= 2) {
     for (int bytes = min_payload; bytes <= max_payload; bytes *= 2) {
       b->Args({count, bytes, 0 /* speed */});

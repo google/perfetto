@@ -97,8 +97,8 @@ MockConsumer::FlushRequest MockConsumer::Flush(uint32_t timeout_ms) {
   return FlushRequest(wait_for_flush_completion);
 }
 
-std::vector<protos::TracePacket> MockConsumer::ReadBuffers() {
-  std::vector<protos::TracePacket> decoded_packets;
+std::vector<protos::gen::TracePacket> MockConsumer::ReadBuffers() {
+  std::vector<protos::gen::TracePacket> decoded_packets;
   static int i = 0;
   std::string checkpoint_name = "on_read_buffers_" + std::to_string(i++);
   auto on_read_buffers = task_runner_->CreateCheckpoint(checkpoint_name);
@@ -108,7 +108,8 @@ std::vector<protos::TracePacket> MockConsumer::ReadBuffers() {
                      std::vector<TracePacket>* packets, bool has_more) {
             for (TracePacket& packet : *packets) {
               decoded_packets.emplace_back();
-              protos::TracePacket* decoded_packet = &decoded_packets.back();
+              protos::gen::TracePacket* decoded_packet =
+                  &decoded_packets.back();
               decoded_packet->ParseFromString(packet.GetRawBytesForTesting());
             }
             if (!has_more)

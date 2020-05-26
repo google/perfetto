@@ -15,9 +15,7 @@
 import("../../../../gn/test.gni")
 
 source_set("sys_stats") {
-  public_deps = [
-    "../../../tracing",
-  ]
+  public_deps = [ "../../../tracing/core" ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
@@ -25,6 +23,7 @@ source_set("sys_stats") {
     "../../../../include/perfetto/ext/traced:sys_stats_counters",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config/sys_stats:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../base",
   ]
@@ -40,14 +39,10 @@ perfetto_unittest_source_set("unittests") {
     ":sys_stats",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/common:zero",
-    "../../../../protos/perfetto/config:zero",
-    "../../../../protos/perfetto/config/sys_stats:zero",
-    "../../../../protos/perfetto/trace/sys_stats:zero",
+    "../../../../protos/perfetto/config/sys_stats:cpp",
+    "../../../../protos/perfetto/trace/sys_stats:cpp",
     "../../../../src/base:test_support",
-    "../../../../src/tracing:test_support",
+    "../../../../src/tracing/test:test_support",
   ]
-  sources = [
-    "sys_stats_data_source_unittest.cc",
-  ]
+  sources = [ "sys_stats_data_source_unittest.cc" ]
 }

@@ -88,7 +88,7 @@ TEST(UtilsTest, EintrWrapper) {
 
   char buf[6] = {};
   EXPECT_EQ(4, PERFETTO_EINTR(read(*pipe.rd, buf, sizeof(buf))));
-  EXPECT_EQ(0, PERFETTO_EINTR(close(*pipe.rd)));
+  EXPECT_TRUE(close(*pipe.rd) == 0 || errno == EINTR);
   pipe.wr.reset();
 
   // A 2nd close should fail with the proper errno.

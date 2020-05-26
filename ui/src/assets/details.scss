@@ -24,14 +24,15 @@
     height: 28px;
     min-height: 28px;
     display: grid;
-    grid-auto-columns: 1fr 30px;
-    grid-template-areas: "tabs button";
+    grid-auto-columns: 1fr 60px;
+    grid-template-areas: "tabs buttons";
 
     .tabs {
       display: flex;
+      grid-area: tabs;
 
       .tab {
-        font-family: 'Google Sans';
+        font-family: 'Roboto Condensed', sans-serif;
         color: #3c4b5d;
         padding: 3px 10px 0px 10px;
         margin-top: 3px;
@@ -59,18 +60,26 @@
 
     i.material-icons {
       font-size: 24px;
-      float: right;
-      vertical-align: middle;
       margin-right: 5px;
       margin-top: 1px;
       &:hover{
         cursor: pointer;
       }
+      &[disabled] {
+        color: rgb(219, 219, 219);
+        &:hover{
+          cursor: default;
+        }
+      }
+    }
+
+    .buttons {
+      grid-area: buttons;
     }
 
     .handle-title {
-      float: left;
-      font-family: 'Google Sans';
+      font-family: 'Roboto Condensed', sans-serif;
+      font-weight: 300;
       color: #3c4b5d;
       margin-left: 5px;
       padding: 5px;
@@ -81,7 +90,8 @@
 }
 
 .details-panel {
-  font-family: 'Google Sans';
+  font-family: 'Roboto Condensed', sans-serif;
+  font-weight: 300;
   color: #3c4b5d;
   .details-panel-heading {
     padding: 10px 0 5px 0;
@@ -89,9 +99,24 @@
     top: 0px;
     display: flex;
     background: white;
+    table {
+      padding: 0 10px;
+      th {
+        font-weight: 500;
+      }
+    }
+    &.aggregation {
+      th {
+        cursor: pointer;
+        .material-icons {
+          margin-left: 2px;
+          font-size: 18px;
+        }
+      }
+    }
     h2 {
       font-size: 16px;
-      font-family: 'Google Sans';
+      font-weight: 400;
       padding: 0 10px;
       &.split {
         width: 50%;
@@ -99,9 +124,9 @@
     }
     &.heap-profile {
       display: flex;
-    justify-content: space-between;
-    align-content: center;
-    height: 30px;
+      justify-content: space-between;
+      align-content: center;
+      height: 30px;
       padding: 0px;
       font-size: 12px;
       * {
@@ -134,7 +159,6 @@
         .material-icons {
           font-size: 15px;
           margin-right: 3px;
-          vertical-align: middle;
         }
       }
       .title {
@@ -154,9 +178,7 @@
     @include transition(0.1s);
     font-size: 14px;
     line-height: 18px;
-    width: 50%;
-    min-width: 200px;
-    max-width: 50%;
+    width: 100%;
     table-layout: fixed;
     word-wrap: break-word;
     padding: 10px;
@@ -171,13 +193,17 @@
     .material-icons {
       @include transition(0.3s);
       font-size: 16px;
-      border-radius: 3px;
-      margin-left: 5px;
-      border: 1px solid transparent;
-      background-color: #e8e8e8;
+      margin-left: 5px; 
       &:hover {
         cursor: pointer;
-        border: #475566 solid 1px;
+      }
+      &.grey {
+        border-radius: 3px;
+        border: 1px solid transparent;
+        background-color: #e8e8e8;
+        &:hover {
+          border: #475566 solid 1px;
+        }
       }
     }
   }
@@ -196,12 +222,17 @@
   }
 }
 
+table.half-width {
+  max-width: 50%;
+}
+
 .notes-editor-panel {
   padding: 10px;
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: 'Google Sans';
+  font-family: 'Roboto Condensed', sans-serif;
+  font-weight: 300;
   color: #3c4b5d;
 
   .notes-editor-panel-heading-bar {

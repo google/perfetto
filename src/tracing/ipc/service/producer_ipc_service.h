@@ -17,6 +17,7 @@
 #ifndef SRC_TRACING_IPC_SERVICE_PRODUCER_IPC_SERVICE_H_
 #define SRC_TRACING_IPC_SERVICE_PRODUCER_IPC_SERVICE_H_
 
+#include <list>
 #include <map>
 #include <memory>
 #include <string>
@@ -61,12 +62,12 @@ class ProducerIPCService : public protos::gen::ProducerPort {
   void NotifyDataSourceStopped(
       const protos::gen::NotifyDataSourceStoppedRequest&,
       DeferredNotifyDataSourceStoppedResponse) override;
-
   void ActivateTriggers(const protos::gen::ActivateTriggersRequest&,
                         DeferredActivateTriggersResponse) override;
 
   void GetAsyncCommand(const protos::gen::GetAsyncCommandRequest&,
                        DeferredGetAsyncCommandResponse) override;
+  void Sync(const protos::gen::SyncRequest&, DeferredSyncResponse) override;
   void OnClientDisconnected() override;
 
  private:
@@ -95,6 +96,8 @@ class ProducerIPCService : public protos::gen::ProducerPort {
     void ClearIncrementalState(const DataSourceInstanceID* data_source_ids,
                                size_t num_data_sources) override;
 
+    void SendSetupTracing();
+
     // The interface obtained from the core service business logic through
     // Service::ConnectProducer(this). This allows to invoke methods for a
     // specific Producer on the Service business logic.
@@ -104,6 +107,11 @@ class ProducerIPCService : public protos::gen::ProducerPort {
     // to send asynchronous commands to the remote Producer (e.g. start/stop a
     // data source).
     DeferredGetAsyncCommandResponse async_producer_commands;
+
+    // Set if the service calls OnTracingSetup() before the
+    // |async_producer_commands| was bound by the service. In this case, we
+    // forward the SetupTracing command when it is bound later.
+    bool send_setup_tracing_on_async_commands_bound = false;
   };
 
   ProducerIPCService(const ProducerIPCService&) = delete;
@@ -118,6 +126,9 @@ class ProducerIPCService : public protos::gen::ProducerPort {
   // Maps IPC clients to ProducerEndpoint instances registered on the
   // |core_service_| business logic.
   std::map<ipc::ClientID, std::unique_ptr<RemoteProducer>> producers_;
+
+  // List because pointers need to be stable.
+  std::list<DeferredSyncResponse> pending_syncs_;
 
   base::WeakPtrFactory<ProducerIPCService> weak_ptr_factory_;  // Keep last.
 };

@@ -24,7 +24,6 @@
 // https://android-review.googlesource.com/c/platform/external/perfetto/+/
 // 591673#17 for details.
 syntax = "proto3";
-option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";

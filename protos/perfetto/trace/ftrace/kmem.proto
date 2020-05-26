@@ -3,7 +3,6 @@
 // Do not edit.
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message AllocPagesIommuEndFtraceEvent {
@@ -219,6 +218,8 @@ message MmPagePcpuDrainFtraceEvent {
 message RssStatFtraceEvent {
   optional int32 member = 1;
   optional int64 size = 2;
+  optional uint32 curr = 3;
+  optional uint32 mm_id = 4;
 }
 message IonHeapShrinkFtraceEvent {
   optional string heap_name = 1;

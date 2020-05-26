@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <list>
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
@@ -29,6 +30,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/tracing/core/forward_decls.h"
+
 #include "protos/perfetto/ipc/consumer_port.ipc.h"
 
 namespace perfetto {
@@ -70,6 +72,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void GetTraceStats() override;
   void ObserveEvents(uint32_t enabled_event_types) override;
   void QueryServiceState(QueryServiceStateCallback) override;
+  void QueryCapabilities(QueryCapabilitiesCallback) override;
 
   // ipc::ServiceProxy::EventListener implementation.
   // These methods are invoked by the IPC layer, which knows nothing about
@@ -78,10 +81,23 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void OnDisconnect() override;
 
  private:
+  struct PendingQueryServiceRequest {
+    QueryServiceStateCallback callback;
+
+    // All the replies will be appended here until |has_more| == false.
+    std::vector<uint8_t> merged_resp;
+  };
+
+  // List because we need stable iterators.
+  using PendingQueryServiceRequests = std::list<PendingQueryServiceRequest>;
+
   void OnReadBuffersResponse(
       ipc::AsyncResult<protos::gen::ReadBuffersResponse>);
   void OnEnableTracingResponse(
       ipc::AsyncResult<protos::gen::EnableTracingResponse>);
+  void OnQueryServiceStateResponse(
+      ipc::AsyncResult<protos::gen::QueryServiceStateResponse>,
+      PendingQueryServiceRequests::iterator);
 
   // TODO(primiano): think to dtor order, do we rely on any specific sequence?
   Consumer* const consumer_;
@@ -94,6 +110,8 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   protos::gen::ConsumerPortProxy consumer_port_;
 
   bool connected_ = false;
+
+  PendingQueryServiceRequests pending_query_svc_reqs_;
 
   // When a packet is too big to fit into a ReadBuffersResponse IPC, the service
   // will chunk it into several IPCs, each containing few slices of the packet

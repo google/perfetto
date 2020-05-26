@@ -126,7 +126,7 @@ class CpuFreqTrack extends Track<Config, Data> {
       }
     }
 
-    ctx.font = '10px Google Sans';
+    ctx.font = '10px Roboto Condensed';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       let text = `${this.hoveredValue.toLocaleString()}kHz`;
@@ -162,14 +162,9 @@ class CpuFreqTrack extends Track<Config, Data> {
         // Display the idle value +1 to be consistent with catapult.
         text += ` (Idle: ${(this.hoveredIdle + 1).toLocaleString()})`;
       }
-      const width = ctx.measureText(text).width;
 
       // Draw the tooltip.
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.fillRect(this.mouseXpos, MARGIN_TOP, width + 16, RECT_HEIGHT);
-      ctx.fillStyle = 'hsl(200, 50%, 40%)';
-      ctx.fillText(text, this.mouseXpos + 8, MARGIN_TOP + RECT_HEIGHT / 2);
+      this.drawTrackHoverTooltip(ctx, this.mouseXpos, text);
     }
 
     // Write the Y scale on the top left corner.

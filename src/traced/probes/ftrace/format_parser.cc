@@ -72,8 +72,9 @@ bool ParseFtraceEventBody(base::StringSplitter* ss,
       if (IsCommonFieldName(GetNameFromTypeAndName(type_and_name))) {
         if (common_fields)
           common_fields->push_back(field);
-      } else if (fields)
+      } else if (fields) {
         fields->push_back(field);
+      }
       continue;
     }
 
@@ -141,7 +142,7 @@ bool ParseFtraceEvent(std::string input, FtraceEvent* output) {
 
   for (base::StringSplitter ss(std::move(input), '\n'); ss.Next();) {
     const char* line = ss.cur_token();
-    if (!has_id && sscanf(line, "ID: %d", &id) == 1) {
+    if (!has_id && sscanf(line, "ID: %u", &id) == 1) {
       has_id = true;
       continue;
     }

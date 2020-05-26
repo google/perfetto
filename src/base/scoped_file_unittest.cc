@@ -170,7 +170,7 @@ TEST(ScopedFileTest, MoveAssignment) {
 #ifdef TEST_INVALID_CLOSE
 TEST(ScopedFileTest, CloseFailureIsFatal) {
   int raw_fd = open(kNullFilename, O_RDONLY);
-  ASSERT_DEATH(
+  ASSERT_DEATH_IF_SUPPORTED(
       {
         ScopedFile scoped_file(raw_fd);
         ASSERT_EQ(0, close(raw_fd));

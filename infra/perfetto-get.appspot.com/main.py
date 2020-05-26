@@ -40,7 +40,7 @@ class GitilesMirrorHandler(webapp2.RequestHandler):
     resource = resource.lower()
     if resource not in RESOURCES:
       self.error(404)
-      self.response.out.write('Rerource "%s" not found' % resource)
+      self.response.out.write('Resource "%s" not found' % resource)
       return
 
     url = BASE % RESOURCES[resource]

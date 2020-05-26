@@ -82,4 +82,25 @@ void FunctionWithOneTrackEventWithDebugAnnotations() {
   puts("Hello");
 }
 
+void FunctionWithOneTrackEventWithCustomTrack() {
+  TRACE_EVENT_BEGIN("cat1", "EventWithTrack", perfetto::Track(8086));
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
+void FunctionWithOneLegacyEvent() {
+  TRACE_EVENT_BEGIN("cat1", "LegacyEventWithArgs", "arg1", 42, "arg2", .5f);
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
+void FunctionWithOneScopedLegacyEvent() {
+  TRACE_EVENT("cat1", "ScopedLegacyEventWithArgs", "arg1", 42, "arg2", .5f);
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
 }  // namespace tracing_module

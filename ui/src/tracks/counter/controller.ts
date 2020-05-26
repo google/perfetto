@@ -38,23 +38,37 @@ class CounterTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
 
     if (!this.setup) {
+      if (this.config.namespace === undefined) {
+        await this.query(`
+          create view ${this.tableName('counter_view')} as
+          select
+            id,
+            ts,
+            dur,
+            value
+          from experimental_counter_dur
+          where track_id = ${this.config.trackId};
+        `);
+      } else {
+        await this.query(`
+          create view ${this.tableName('counter_view')} as
+          select
+            id,
+            ts,
+            lead(ts, 1, ts) over (order by ts) - ts as dur,
+            value
+          from ${this.namespaceTable('counter')}
+          where track_id = ${this.config.trackId};
+        `);
+      }
+
       const result = await this.query(`
         select max(value), min(value)
-        from counter
-        where track_id = ${this.config.trackId}`);
+        from ${this.tableName('counter_view')}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
       this.minimumValueSeen = +result.columns[1].doubleValues![0];
       await this.query(
-        `create virtual table ${this.tableName('window')} using window;`);
-
-      await this.query(`
-        create view ${this.tableName('counter_view')} as
-        select
-          ts,
-          lead(ts, 1, ts) over (order by ts) - ts as dur,
-          value
-        from counter
-        where track_id = ${this.config.trackId};`);
+          `create virtual table ${this.tableName('window')} using window;`);
 
       await this.query(`create virtual table ${this.tableName('span')} using
         span_join(${this.tableName('counter_view')},
@@ -64,19 +78,13 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     const result = await this.engine.queryOneRow(`
       select count(*)
-      from (
-        select
-          ts,
-          lead(ts, 1, ts) over (order by ts) as ts_end,
-        from counter
-        where track_id = ${this.config.trackId}
-      )
-      where ts <= ${endNs} and ${startNs} <= ts_end`);
+      from ${this.tableName('counter_view')}
+      where ts <= ${endNs} and ${startNs} <= ts + dur`);
 
     // Only quantize if we have too much data to draw.
     const isQuantized = result[0] > LIMIT;
-    // |resolution| is in s/px we want # ns for 10px window:
-    const bucketSizeNs = Math.round(resolution * 10 * 1e9);
+    // |resolution| is in s/px we want # ns for 1px window:
+    const bucketSizeNs = Math.round(resolution * 1e9);
     let windowStartNs = startNs;
     if (isQuantized) {
       windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
@@ -89,7 +97,8 @@ class CounterTrackController extends TrackController<Config, Data> {
     quantum=${isQuantized ? bucketSizeNs : 0}`);
 
     let query = `select min(ts) as ts,
-      max(value) as value
+      max(value) as value,
+      -1 as id
       from ${this.tableName('span')}
       group by quantum_ts limit ${LIMIT};`;
 
@@ -101,28 +110,18 @@ class CounterTrackController extends TrackController<Config, Data> {
       query = `
       select *
       from (
-        select ts, value, track_id
-        from counter
-        where
-          track_id = ${this.config.trackId} and
-          ts <= ${startNs}
+        select ts, value, id
+        from ${this.tableName('counter_view')}
+        where ts <= ${startNs}
         order by ts desc
         limit 1
       )
       union
       select *
       from (
-        select ts, value, track_id
-        from (
-          select
-            ts,
-            lead(ts, 1, ts) over (order by ts) as ts_end,
-            value,
-            track_id
-          from counter
-          where track_id = ${this.config.trackId}
-        )
-        where ts <= ${endNs} and ${startNs} <= ts_end
+        select ts, value, id
+        from ${this.tableName('counter_view')}
+        where ts <= ${endNs} and ${startNs} <= ts + dur
         limit ${LIMIT}
       );`;
     }

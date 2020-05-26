@@ -162,7 +162,8 @@ int main(int argc, char** argv) {
       if (!event.valid())
         continue;
 
-      std::string proto_name = perfetto::EventNameToProtoName(event.name());
+      std::string proto_name =
+          perfetto::EventNameToProtoName(group, event.name());
       perfetto::Proto proto;
       proto.name = proto_name;
       proto.event_name = event.name();
@@ -190,7 +191,7 @@ int main(int argc, char** argv) {
         }
 
         perfetto::Proto event_proto;
-        if (!perfetto::GenerateProto(format, &event_proto)) {
+        if (!perfetto::GenerateProto(group, format, &event_proto)) {
           fprintf(stderr, "Could not generate proto for file %s\n",
                   input_path.c_str());
           return 1;

@@ -15,9 +15,14 @@
 import {Draft} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {CallsiteInfo} from '../common/state';
+import {
+  Area,
+  CallsiteInfo,
+  HeapProfileFlamegraphViewingOption
+} from '../common/state';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 
+import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
 import {
   AdbRecordingTarget,
   createEmptyState,
@@ -183,6 +188,32 @@ export const StateActions = {
     };
   },
 
+  updateAggregateSorting(
+      state: StateDraft, args: {id: string, column: string}) {
+    let prefs = state.aggregatePreferences[args.id];
+    if (!prefs) {
+      prefs = {id: args.id};
+      state.aggregatePreferences[args.id] = prefs;
+    }
+
+    if (!prefs.sorting || prefs.sorting.column !== args.column) {
+      // No sorting set for current column.
+      state.aggregatePreferences[args.id].sorting = {
+        column: args.column,
+        direction: 'DESC'
+      };
+    } else if (prefs.sorting.direction === 'DESC') {
+      // Toggle the direction if the column is currently sorted.
+      state.aggregatePreferences[args.id].sorting = {
+        column: args.column,
+        direction: 'ASC'
+      };
+    } else {
+      // If direction is currently 'ASC' toggle to no sorting.
+      state.aggregatePreferences[args.id].sorting = undefined;
+    }
+  },
+
   setVisibleTracks(state: StateDraft, args: {tracks: string[]}) {
     state.visibleTracks = args.tracks;
   },
@@ -337,17 +368,32 @@ export const StateActions = {
       args: {timestamp: number, color: string, isMovie: boolean}): void {
     const id = `${state.nextId++}`;
     state.notes[id] = {
+      noteType: 'DEFAULT',
       id,
       timestamp: args.timestamp,
       color: args.color,
       text: '',
-      isMovie: args.isMovie
     };
     if (args.isMovie) {
       state.videoNoteIds.push(id);
     }
     this.selectNote(state, {id});
   },
+
+  addAreaNote(
+      state: StateDraft, args: {timestamp: number, area: Area, color: string}):
+      void {
+        const id = `${state.nextId++}`;
+        state.notes[id] = {
+          noteType: 'AREA',
+          id,
+          timestamp: args.timestamp,
+          area: args.area,
+          color: args.color,
+          text: '',
+        };
+        this.selectNote(state, {id});
+      },
 
   toggleVideo(state: StateDraft, _: {}): void {
     state.videoEnabled = !state.videoEnabled;
@@ -391,7 +437,7 @@ export const StateActions = {
   },
 
   removeNote(state: StateDraft, args: {id: string}): void {
-    if (state.notes[args.id].isMovie) {
+    if (state.notes[args.id].noteType === 'MOVIE') {
       state.videoNoteIds = state.videoNoteIds.filter(id => {
         return id !== args.id;
       });
@@ -426,18 +472,28 @@ export const StateActions = {
       },
 
   selectHeapProfile(
-      state: StateDraft, args: {id: number, upid: number, ts: number}): void {
-    state.currentSelection =
-        {kind: 'HEAP_PROFILE', id: args.id, upid: args.upid, ts: args.ts};
+      state: StateDraft,
+      args: {id: number, upid: number, ts: number, type: string}): void {
+    state.currentSelection = {
+      kind: 'HEAP_PROFILE',
+      id: args.id,
+      upid: args.upid,
+      ts: args.ts,
+      type: args.type,
+    };
   },
 
   showHeapProfileFlamegraph(
-      state: StateDraft, args: {id: number, upid: number, ts: number}): void {
+      state: StateDraft,
+      args: {id: number, upid: number, ts: number, type: string}): void {
     state.currentHeapProfileFlamegraph = {
       kind: 'HEAP_PROFILE_FLAMEGRAPH',
       id: args.id,
       upid: args.upid,
       ts: args.ts,
+      type: args.type,
+      viewingOption: DEFAULT_VIEWING_OPTION,
+      focusRegex: '',
     };
   },
 
@@ -448,17 +504,26 @@ export const StateActions = {
   },
 
   changeViewHeapProfileFlamegraph(
-      state: StateDraft, args: {viewingOption: string}): void {
+      state: StateDraft,
+      args: {viewingOption: HeapProfileFlamegraphViewingOption}): void {
     if (state.currentHeapProfileFlamegraph === null) return;
     state.currentHeapProfileFlamegraph.viewingOption = args.viewingOption;
   },
 
-  selectChromeSlice(state: StateDraft, args: {id: number, trackId: string}):
+  changeFocusHeapProfileFlamegraph(
+      state: StateDraft, args: {focusRegex: string}): void {
+    if (state.currentHeapProfileFlamegraph === null) return;
+    state.currentHeapProfileFlamegraph.focusRegex = args.focusRegex;
+  },
+
+  selectChromeSlice(
+      state: StateDraft, args: {id: number, trackId: string, table: string}):
       void {
         state.currentSelection = {
           kind: 'CHROME_SLICE',
           id: args.id,
-          trackId: args.trackId
+          trackId: args.trackId,
+          table: args.table
         };
       },
 

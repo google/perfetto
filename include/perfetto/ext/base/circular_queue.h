@@ -52,8 +52,8 @@ class CircularQueue {
    public:
     using difference_type = ptrdiff_t;
     using value_type = T;
-    using pointer = const T*;
-    using reference = const T&;
+    using pointer = T*;
+    using reference = T&;
     using iterator_category = std::random_access_iterator_tag;
 
     Iterator(CircularQueue* queue, uint64_t pos, uint32_t generation)
@@ -74,10 +74,17 @@ class CircularQueue {
       return queue_->Get(pos_);
     }
 
+    const T* operator->() const {
+      return const_cast<CircularQueue<T>::Iterator*>(this)->operator->();
+    }
+
     T& operator*() { return *(operator->()); }
+    const T& operator*() const { return *(operator->()); }
+
+    value_type& operator[](difference_type i) { return *(*this + i); }
 
     const value_type& operator[](difference_type i) const {
-      return *(*this + i);
+      return const_cast<CircularQueue<T>::Iterator&>(*this)[i];
     }
 
     Iterator& operator++() {

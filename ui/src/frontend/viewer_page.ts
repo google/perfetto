@@ -15,10 +15,8 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {QueryResponse} from '../common/queries';
 import {TimeSpan} from '../common/time';
 
-import {copyToClipboard} from './clipboard';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DetailsPanel} from './details_panel';
 import {globals} from './globals';
@@ -26,77 +24,18 @@ import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
-import {Panel} from './panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {QueryTable} from './query_table';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {computeZoom} from './time_scale';
 import {TimeSelectionPanel} from './time_selection_panel';
+import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {VideoPanel} from './video_panel';
 
 const SIDEBAR_WIDTH = 256;
-
-class QueryTable extends Panel {
-  view() {
-    const resp = globals.queryResults.get('command') as QueryResponse;
-    if (resp === undefined) {
-      return m('');
-    }
-    const cols = [];
-    for (const col of resp.columns) {
-      cols.push(m('td', col));
-    }
-    const header = m('tr', cols);
-
-    const rows = [];
-    for (let i = 0; i < resp.rows.length; i++) {
-      const cells = [];
-      for (const col of resp.columns) {
-        cells.push(m('td', resp.rows[i][col]));
-      }
-      rows.push(m('tr', cells));
-    }
-    return m(
-        'div',
-        m('header.overview',
-          `Query result - ${Math.round(resp.durationMs)} ms`,
-          m('span.code', resp.query),
-          resp.error ? null :
-                       m('button.query-ctrl',
-                         {
-                           onclick: () => {
-                             const lines: string[][] = [];
-                             lines.push(resp.columns);
-                             for (const row of resp.rows) {
-                               const line = [];
-                               for (const col of resp.columns) {
-                                 line.push(row[col].toString());
-                               }
-                               lines.push(line);
-                             }
-                             copyToClipboard(
-                                 lines.map(line => line.join('\t')).join('\n'));
-                           },
-                         },
-                         'Copy as .tsv'),
-          m('button.query-ctrl',
-            {
-              onclick: () => {
-                globals.queryResults.delete('command');
-                globals.rafScheduler.scheduleFullRedraw();
-              }
-            },
-            'Close'), ),
-        resp.error ?
-            m('.query-error', `SQL error: ${resp.error}`) :
-            m('table.query-table', m('thead', header), m('tbody', rows)));
-  }
-
-  renderCanvas() {}
-}
-
 
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
@@ -131,7 +70,10 @@ class TraceViewer implements m.ClassComponent {
     const frontendLocalState = globals.frontendLocalState;
     const updateDimensions = () => {
       const rect = vnode.dom.getBoundingClientRect();
-      frontendLocalState.updateResolution(0, rect.width - TRACK_SHELL_WIDTH);
+      frontendLocalState.updateResolution(
+          0,
+          rect.width - TRACK_SHELL_WIDTH -
+              frontendLocalState.getScrollbarWidth());
     };
 
     updateDimensions();
@@ -167,6 +109,8 @@ class TraceViewer implements m.ClassComponent {
           tStart = tEnd - origDelta;
         }
         frontendLocalState.updateVisibleTime(new TimeSpan(tStart, tEnd));
+        // If the user has panned they no longer need the hint.
+        localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
         globals.rafScheduler.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
@@ -179,10 +123,10 @@ class TraceViewer implements m.ClassComponent {
         frontendLocalState.updateVisibleTime(newSpan);
         globals.rafScheduler.scheduleRedraw();
       },
-      shouldDrag: (currentPx: number) => {
+      editSelection: (currentPx: number) => {
         return onTimeRangeBoundary(currentPx) !== null;
       },
-      onDrag: (
+      onSelection: (
           dragStartX: number,
           dragStartY: number,
           prevX: number,
@@ -195,30 +139,45 @@ class TraceViewer implements m.ClassComponent {
         if (editing) {
           const selectedArea = frontendLocalState.selectedArea.area;
           if (selectedArea !== undefined) {
-            const newTime = scale.pxToTime(currentX - TRACK_SHELL_WIDTH);
+            let newTime = scale.pxToTime(currentX - TRACK_SHELL_WIDTH);
             // Have to check again for when one boundary crosses over the other.
             const curBoundary = onTimeRangeBoundary(prevX);
             if (curBoundary == null) return;
             const keepTime = curBoundary === 'START' ? selectedArea.endSec :
                                                        selectedArea.startSec;
+            // Don't drag selection outside of current screen.
+            if (newTime < keepTime) {
+              newTime = Math.max(newTime, scale.pxToTime(scale.startPx));
+            } else {
+              newTime = Math.min(newTime, scale.pxToTime(scale.endPx));
+            }
             frontendLocalState.selectArea(
                 Math.max(Math.min(keepTime, newTime), traceTime.startSec),
                 Math.min(Math.max(keepTime, newTime), traceTime.endSec),
             );
           }
         } else {
-          frontendLocalState.setShowTimeSelectPreview(false);
-          const dragStartTime = scale.pxToTime(dragStartX - TRACK_SHELL_WIDTH);
-          const dragEndTime = scale.pxToTime(currentX - TRACK_SHELL_WIDTH);
+          const startPx = Math.max(
+              Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH,
+              scale.startPx);
+          const endPx = Math.min(
+              Math.max(dragStartX, currentX) - TRACK_SHELL_WIDTH, scale.endPx);
           frontendLocalState.selectArea(
-              Math.max(
-                  Math.min(dragStartTime, dragEndTime), traceTime.startSec),
-              Math.min(Math.max(dragStartTime, dragEndTime), traceTime.endSec),
-          );
+              scale.pxToTime(startPx), scale.pxToTime(endPx));
           frontendLocalState.areaY.start = dragStartY;
           frontendLocalState.areaY.end = currentY;
         }
         globals.rafScheduler.scheduleRedraw();
+      },
+      selectingStarted: () => {
+        globals.frontendLocalState.selectingArea = true;
+      },
+      selectingEnded: () => {
+        globals.frontendLocalState.selectingArea = false;
+        globals.frontendLocalState.areaY.start = undefined;
+        globals.frontendLocalState.areaY.end = undefined;
+        // Full redraw to color track shell.
+        globals.rafScheduler.scheduleFullRedraw();
       }
     });
   }
@@ -229,23 +188,25 @@ class TraceViewer implements m.ClassComponent {
   }
 
   view() {
-    const scrollingPanels: AnyAttrsVnode[] =
-        globals.state.scrollingTracks.map(id => m(TrackPanel, {key: id, id}));
+    const scrollingPanels: AnyAttrsVnode[] = globals.state.scrollingTracks.map(
+        id => m(TrackPanel, {key: id, id, selectable: true}));
 
     for (const group of Object.values(globals.state.trackGroups)) {
       scrollingPanels.push(m(TrackGroupPanel, {
         trackGroupId: group.id,
         key: `trackgroup-${group.id}`,
+        selectable: true,
       }));
       if (group.collapsed) continue;
       for (const trackId of group.tracks) {
         scrollingPanels.push(m(TrackPanel, {
           key: `track-${group.id}-${trackId}`,
           id: trackId,
+          selectable: true,
         }));
       }
     }
-    scrollingPanels.unshift(m(QueryTable, {key: 'query'}));
+    scrollingPanels.unshift(m(QueryTable, {key: 'query', queryId: 'command'}));
 
     return m(
         '.page',
@@ -270,7 +231,7 @@ class TraceViewer implements m.ClassComponent {
                   m(NotesPanel, {key: 'notes'}),
                   m(TickmarkPanel, {key: 'searchTickmarks'}),
                   ...globals.state.pinnedTracks.map(
-                      id => m(TrackPanel, {key: id, id})),
+                      id => m(TrackPanel, {key: id, id, selectable: true})),
                 ],
                 kind: 'OVERVIEW',
               })),

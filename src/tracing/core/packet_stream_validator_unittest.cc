@@ -18,7 +18,11 @@
 
 #include <string>
 
-#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -31,7 +35,7 @@ TEST(PacketStreamValidatorTest, NullPacket) {
 }
 
 TEST(PacketStreamValidatorTest, SimplePacket) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
 
@@ -41,7 +45,7 @@ TEST(PacketStreamValidatorTest, SimplePacket) {
 }
 
 TEST(PacketStreamValidatorTest, ComplexPacket) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   proto.mutable_ftrace_events()->set_cpu(0);
   auto* ft = proto.mutable_ftrace_events()->add_event();
@@ -58,7 +62,7 @@ TEST(PacketStreamValidatorTest, ComplexPacket) {
 }
 
 TEST(PacketStreamValidatorTest, SimplePacketWithUid) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.set_trusted_uid(123);
   std::string ser_buf = proto.SerializeAsString();
 
@@ -68,7 +72,7 @@ TEST(PacketStreamValidatorTest, SimplePacketWithUid) {
 }
 
 TEST(PacketStreamValidatorTest, SimplePacketWithZeroUid) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.set_trusted_uid(0);
   std::string ser_buf = proto.SerializeAsString();
 
@@ -78,7 +82,7 @@ TEST(PacketStreamValidatorTest, SimplePacketWithZeroUid) {
 }
 
 TEST(PacketStreamValidatorTest, SimplePacketWithNegativeOneUid) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.set_trusted_uid(-1);
   std::string ser_buf = proto.SerializeAsString();
 
@@ -88,7 +92,7 @@ TEST(PacketStreamValidatorTest, SimplePacketWithNegativeOneUid) {
 }
 
 TEST(PacketStreamValidatorTest, ComplexPacketWithUid) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   proto.mutable_ftrace_events()->set_cpu(0);
   auto* ft = proto.mutable_ftrace_events()->add_event();
@@ -106,7 +110,7 @@ TEST(PacketStreamValidatorTest, ComplexPacketWithUid) {
 }
 
 TEST(PacketStreamValidatorTest, FragmentedPacket) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   proto.mutable_ftrace_events()->set_cpu(0);
   auto* ft = proto.mutable_ftrace_events()->add_event();
@@ -126,7 +130,7 @@ TEST(PacketStreamValidatorTest, FragmentedPacket) {
 }
 
 TEST(PacketStreamValidatorTest, FragmentedPacketWithUid) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   proto.set_trusted_uid(123);
   proto.mutable_ftrace_events()->set_cpu(0);
@@ -148,7 +152,7 @@ TEST(PacketStreamValidatorTest, FragmentedPacketWithUid) {
 }
 
 TEST(PacketStreamValidatorTest, TruncatedPacket) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
 
@@ -160,7 +164,7 @@ TEST(PacketStreamValidatorTest, TruncatedPacket) {
 }
 
 TEST(PacketStreamValidatorTest, TrailingGarbage) {
-  protos::TracePacket proto;
+  protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   ser_buf += "bike is short for bichael";

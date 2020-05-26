@@ -79,14 +79,7 @@ class PERFETTO_EXPORT TraceWriter : public TraceWriterBase {
   virtual WriterID writer_id() const = 0;
 
   // Bytes written since creation. Is not reset when new chunks are acquired.
-  virtual uint64_t written() const = 0;
-
-  // Set the id of the first chunk the writer will emit. Returns |false| if not
-  // implemented or if the first chunk was already emitted by the writer.
-  //
-  // StartupTraceWriter will call this if it committed buffered data on
-  // behalf of the TraceWriter.
-  virtual bool SetFirstChunkId(ChunkID);
+  virtual uint64_t written() const override = 0;
 
  private:
   TraceWriter(const TraceWriter&) = delete;

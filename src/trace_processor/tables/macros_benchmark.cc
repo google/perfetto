@@ -27,6 +27,7 @@ namespace {
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
   C(uint32_t, root_sorted, Column::Flag::kSorted)    \
   C(uint32_t, root_non_null)                         \
+  C(uint32_t, root_non_null_2)                       \
   C(base::Optional<uint32_t>, root_nullable)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
@@ -39,6 +40,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
   C(base::Optional<uint32_t>, child_nullable)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CHILD_TABLE);
+
+RootTestTable::~RootTestTable() = default;
+ChildTestTable::~ChildTestTable() = default;
 
 }  // namespace
 }  // namespace trace_processor
@@ -72,8 +76,10 @@ void TableSortArgs(benchmark::internal::Benchmark* b) {
 
 using perfetto::trace_processor::ChildTestTable;
 using perfetto::trace_processor::RootTestTable;
+using perfetto::trace_processor::RowMap;
 using perfetto::trace_processor::SqlValue;
 using perfetto::trace_processor::StringPool;
+using perfetto::trace_processor::Table;
 
 static void BM_TableInsert(benchmark::State& state) {
   StringPool pool;
@@ -108,7 +114,31 @@ static void BM_TableIteratorChild(benchmark::State& state) {
 }
 BENCHMARK(BM_TableIteratorChild)->Apply(TableFilterArgs);
 
-static void BM_TableFilterIdColumn(benchmark::State& state) {
+static void BM_TableFilterAndSortRoot(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = 8;
+
+  std::minstd_rand0 rnd_engine(45);
+  for (uint32_t i = 0; i < size; ++i) {
+    RootTestTable::Row row;
+    row.root_non_null = rnd_engine() % partitions;
+    row.root_non_null_2 = static_cast<uint32_t>(rnd_engine());
+    root.Insert(row);
+  }
+
+  for (auto _ : state) {
+    Table filtered = root.Filter({root.root_non_null().eq(5)},
+                                 RowMap::OptimizeFor::kLookupSpeed);
+    benchmark::DoNotOptimize(
+        filtered.Sort({root.root_non_null_2().ascending()}));
+  }
+}
+BENCHMARK(BM_TableFilterAndSortRoot)->Apply(TableFilterArgs);
+
+static void BM_TableFilterRootId(benchmark::State& state) {
   StringPool pool;
   RootTestTable root(&pool, nullptr);
 
@@ -120,7 +150,66 @@ static void BM_TableFilterIdColumn(benchmark::State& state) {
     benchmark::DoNotOptimize(root.Filter({root.id().eq(30)}));
   }
 }
-BENCHMARK(BM_TableFilterIdColumn)->Apply(TableFilterArgs);
+BENCHMARK(BM_TableFilterRootId)->Apply(TableFilterArgs);
+
+static void BM_TableFilterRootIdAndOther(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  for (uint32_t i = 0; i < size; ++i) {
+    RootTestTable::Row root_row;
+    root_row.root_non_null = i * 4;
+    root.Insert(root_row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Filter(
+        {root.id().eq(root.row_count() - 1), root.root_non_null().gt(100)}));
+  }
+}
+BENCHMARK(BM_TableFilterRootIdAndOther)->Apply(TableFilterArgs);
+
+static void BM_TableFilterChildId(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  for (uint32_t i = 0; i < size; ++i) {
+    root.Insert({});
+    child.Insert({});
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(child.Filter({child.id().eq(30)}));
+  }
+}
+BENCHMARK(BM_TableFilterChildId)->Apply(TableFilterArgs);
+
+static void BM_TableFilterChildIdAndSortedInRoot(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+  ChildTestTable child(&pool, &root);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  for (uint32_t i = 0; i < size; ++i) {
+    RootTestTable::Row root_row;
+    root_row.root_sorted = i * 2;
+    root.Insert(root_row);
+
+    ChildTestTable::Row child_row;
+    child_row.root_sorted = i * 2 + 1;
+    child.Insert(child_row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(
+        child.Filter({child.id().eq(30), child.root_sorted().gt(1024)}));
+  }
+}
+BENCHMARK(BM_TableFilterChildIdAndSortedInRoot)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   StringPool pool;
@@ -140,6 +229,28 @@ static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)->Apply(TableFilterArgs);
+
+static void BM_TableFilterRootMultipleNonNull(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+  uint32_t partitions = size / 512;
+
+  std::minstd_rand0 rnd_engine;
+  for (uint32_t i = 0; i < size; ++i) {
+    RootTestTable::Row row;
+    row.root_non_null = rnd_engine() % partitions;
+    row.root_non_null_2 = rnd_engine() % partitions;
+    root.Insert(row);
+  }
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Filter(
+        {root.root_non_null().lt(4), root.root_non_null_2().lt(10)}));
+  }
+}
+BENCHMARK(BM_TableFilterRootMultipleNonNull)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   StringPool pool;
@@ -276,6 +387,31 @@ static void BM_TableFilterParentSortedEq(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_TableFilterParentSortedEq)->Apply(TableFilterArgs);
+
+static void BM_TableFilterParentSortedAndOther(benchmark::State& state) {
+  StringPool pool;
+  RootTestTable root(&pool, nullptr);
+
+  uint32_t size = static_cast<uint32_t>(state.range(0));
+
+  for (uint32_t i = 0; i < size; ++i) {
+    // Group the rows into rows of 10. This emulates the behaviour of e.g.
+    // args.
+    RootTestTable::Row row;
+    row.root_sorted = (i / 10) * 10;
+    row.root_non_null = i;
+    root.Insert(row);
+  }
+
+  // We choose to search for the last group as if there is O(n^2), it will
+  // be more easily visible.
+  uint32_t last_group = ((size - 1) / 10) * 10;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(root.Filter({root.root_sorted().eq(last_group),
+                                          root.root_non_null().eq(size - 1)}));
+  }
+}
+BENCHMARK(BM_TableFilterParentSortedAndOther)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildSortedEq(benchmark::State& state) {
   StringPool pool;

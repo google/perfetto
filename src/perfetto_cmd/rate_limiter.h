@@ -18,18 +18,20 @@
 #define SRC_PERFETTO_CMD_RATE_LIMITER_H_
 
 #include "perfetto/base/time.h"
-#include "src/perfetto_cmd/perfetto_cmd_state.pb.h"
+#include "src/perfetto_cmd/perfetto_cmd_state.gen.h"
 
 namespace perfetto {
 
 class RateLimiter {
  public:
   struct Args {
+    bool is_user_build = false;
     bool is_dropbox = false;
     bool ignore_guardrails = false;
     bool allow_user_build_tracing = false;
     base::TimeSeconds current_time = base::TimeSeconds(0);
     uint64_t max_upload_bytes_override = 0;
+    std::string unique_session_name = "";
   };
 
   RateLimiter();
@@ -41,16 +43,16 @@ class RateLimiter {
   bool ClearState();
 
   // virtual for testing.
-  virtual bool LoadState(PerfettoCmdState* state);
+  virtual bool LoadState(gen::PerfettoCmdState* state);
 
   // virtual for testing.
-  virtual bool SaveState(const PerfettoCmdState& state);
+  virtual bool SaveState(const gen::PerfettoCmdState& state);
 
   bool StateFileExists();
   virtual std::string GetStateFilePath() const;
 
  private:
-  PerfettoCmdState state_{};
+  gen::PerfettoCmdState state_{};
 };
 
 }  // namespace perfetto

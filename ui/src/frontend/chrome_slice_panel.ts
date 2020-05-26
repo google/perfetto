@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {timeToCode} from '../common/time';
+import {timeToCode, toNs} from '../common/time';
 
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
@@ -22,27 +22,34 @@ import {Panel, PanelSize} from './panel';
 export class ChromeSliceDetailsPanel extends Panel {
   view() {
     const sliceInfo = globals.sliceDetails;
-    if (sliceInfo.ts && sliceInfo.dur && sliceInfo.name) {
+    if (sliceInfo.ts !== undefined && sliceInfo.dur !== undefined &&
+        sliceInfo.name !== undefined) {
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', `Slice Details`)),
           m(
               '.details-table',
-              [m('table',
-                 [
-                   m('tr', m('th', `Name`), m('td', `${sliceInfo.name}`)),
-                   (sliceInfo.category === '[NULL]') ?
-                       null :
-                       m('tr',
-                         m('th', `Category`),
-                         m('td', `${sliceInfo.category}`)),
-                   m('tr',
-                     m('th', `Start time`),
-                     m('td', `${timeToCode(sliceInfo.ts)}`)),
-                   m('tr',
-                     m('th', `Duration`),
-                     m('td', `${timeToCode(sliceInfo.dur)}`))
-                 ])],
+              m('table.half-width',
+                m('tr', m('th', `Name`), m('td', `${sliceInfo.name}`)),
+                m('tr',
+                  m('th', `Category`),
+                  m('td',
+                    `${
+                        sliceInfo.category === '[NULL]' ?
+                            'N/A' :
+                            sliceInfo.category}`)),
+                m('tr',
+                  m('th', `Start time`),
+                  m('td', `${timeToCode(sliceInfo.ts)}`)),
+                m('tr',
+                  m('th', `Duration`),
+                  m('td',
+                    `${
+                        toNs(sliceInfo.dur) === -1 ?
+                            '-1 (Did not end)' :
+                            timeToCode(sliceInfo.dur)}`)),
+                this.getDescription(sliceInfo.description),
+                this.getArgs(sliceInfo.args)),
               ));
     } else {
       return m(
@@ -54,5 +61,24 @@ export class ChromeSliceDetailsPanel extends Panel {
                 )));
     }
   }
+
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
+
+  getArgs(args?: Map<string, string>): m.Vnode[] {
+    if (!args || args.size === 0) return [];
+    const result = [];
+    for (const [key, value] of args) {
+      result.push(m('tr', m('th', key), m('td', value)));
+    }
+    return result;
+  }
+
+  getDescription(description?: Map<string, string>): m.Vnode[] {
+    if (!description) return [];
+    const result = [];
+    for (const [key, value] of description) {
+      result.push(m('tr', m('th', key), m('td', value)));
+    }
+    return result;
+  }
 }

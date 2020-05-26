@@ -26,6 +26,7 @@ shared_library("libperfetto_android_internal") {
 source_set("headers") {
   deps = [
     "../../gn:default_deps",
+    "../../src/perfetto_cmd:perfetto_atoms",
   ]
   sources = [
     "atrace_hal.h",
@@ -33,13 +34,12 @@ source_set("headers") {
     "health_hal.h",
     "incident_service.h",
     "power_stats_hal.h",
+    "statsd_logging.h",
   ]
 }
 
 source_set("lazy_library_loader") {
-  public_deps = [
-    ":headers",
-  ]
+  public_deps = [ ":headers" ]
   deps = [
     "../../gn:default_deps",
     "../../src/base",
@@ -66,11 +66,15 @@ source_set("android_internal") {
       "health_hal.cc",
       "incident_service.cc",
       "power_stats_hal.cc",
+      "statsd_logging.cc",
     ]
     libs = [
       "android.hardware.health@2.0",
       "android.hardware.power.stats@1.0",
       "android.hardware.atrace@1.0",
+      "statslog_perfetto",
+      "statssocket",
+      "cutils",
       "base",
       "binder",
       "log",
@@ -84,8 +88,8 @@ source_set("android_internal") {
   # This target should never depend on any other perfetto target to avoid ODR
   # violation by doubly linking code in two .so(s) loaded in the same exe.
   assert_no_deps = [
+    "//include/*",
     "//src/base/*",
     "//src/tracing/*",
-    "//include/*",
   ]
 }

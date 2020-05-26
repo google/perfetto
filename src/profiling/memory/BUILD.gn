@@ -27,11 +27,9 @@ executable("heapprofd") {
     "../../../src/base:unix_socket",
     "../../../src/profiling/memory:daemon",
     "../../../src/profiling/memory:wire_protocol",
-    "../../../src/tracing:ipc",
+    "../../../src/tracing/ipc/producer",
   ]
-  sources = [
-    "main.cc",
-  ]
+  sources = [ "main.cc" ]
 }
 
 # This library gets loaded into (and executes in) arbitrary android processes.
@@ -48,36 +46,30 @@ if (perfetto_build_with_android) {
   shared_library("heapprofd_client") {
     configs -= [ "//gn/standalone:android_liblog" ]
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
-    deps = [
-      ":malloc_hooks",
-    ]
+    deps = [ ":malloc_hooks" ]
   }
 
   # This will export publicly visible symbols for the malloc_hooks.
   source_set("malloc_hooks") {
     deps = [
       ":client",
-      ":proc_utils",
       ":scoped_spinlock",
       ":wire_protocol",
       "../../../gn:default_deps",
       "../../base",
       "../../base:unix_socket",
+      "../common:proc_utils",
     ]
     cflags = [
       "-isystem",
       rebase_path("../../../buildtools/bionic/libc", root_build_dir),
     ]
-    sources = [
-      "malloc_hooks.cc",
-    ]
+    sources = [ "malloc_hooks.cc" ]
   }
 }  # if (perfetto_build_with_android)
 
 source_set("wire_protocol") {
-  public_deps = [
-    "../../../gn:libunwindstack",
-  ]
+  public_deps = [ "../../../gn:libunwindstack" ]
   deps = [
     ":ring_buffer",
     "../../../gn:default_deps",
@@ -87,18 +79,6 @@ source_set("wire_protocol") {
   sources = [
     "wire_protocol.cc",
     "wire_protocol.h",
-  ]
-}
-
-source_set("proc_utils") {
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/profiling:normalize",
-    "../../base",
-  ]
-  sources = [
-    "proc_utils.cc",
-    "proc_utils.h",
   ]
 }
 
@@ -133,23 +113,25 @@ source_set("ring_buffer_unittests") {
     "../../../gn:gtest_and_gmock",
     "../../base",
   ]
-  sources = [
-    "shared_ring_buffer_unittest.cc",
-  ]
+  sources = [ "shared_ring_buffer_unittest.cc" ]
 }
 
 source_set("daemon") {
   deps = [
-    ":proc_utils",
     ":ring_buffer",
     ":scoped_spinlock",
     ":wire_protocol",
     "../../../gn:default_deps",
-    "../../../protos/perfetto/config/profiling:lite",
+    "../../../protos/perfetto/config/profiling:cpp",
     "../../base",
     "../../base:unix_socket",
-    "../../tracing",
-    "../../tracing:ipc",
+    "../../tracing/core",
+    "../../tracing/ipc/producer",
+    "../common:callstack_trie",
+    "../common:interner",
+    "../common:interning_output",
+    "../common:proc_utils",
+    "../common:unwind_support",
   ]
   public_deps = [
     "../../../gn:libunwindstack",
@@ -165,7 +147,6 @@ source_set("daemon") {
     "bookkeeping_dump.h",
     "heapprofd_producer.cc",
     "heapprofd_producer.h",
-    "interner.h",
     "java_hprof_producer.cc",
     "java_hprof_producer.h",
     "page_idle_checker.cc",
@@ -175,24 +156,20 @@ source_set("daemon") {
     "unwinding.cc",
     "unwinding.h",
     "unwound_messages.h",
-    "utils.cc",
-    "utils.h",
   ]
 }
 
 source_set("client") {
   deps = [
-    ":proc_utils",
     ":ring_buffer",
     ":scoped_spinlock",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
     "../../base:unix_socket",
+    "../common:proc_utils",
   ]
-  public_deps = [
-    "../../../gn:libunwindstack",
-  ]
+  public_deps = [ "../../../gn:libunwindstack" ]
   sources = [
     "client.cc",
     "client.h",
@@ -205,23 +182,22 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":client",
     ":daemon",
-    ":proc_utils",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:libunwindstack",
-    "../../../include/perfetto/profiling:normalize",
     "../../base",
     "../../base:test_support",
-    "../../tracing",
+    "../../tracing/core",
+    "../common:proc_utils",
+    "../common:unwind_support",
   ]
   sources = [
     "bookkeeping_unittest.cc",
     "client_unittest.cc",
     "heapprofd_producer_unittest.cc",
-    "interner_unittest.cc",
     "page_idle_checker_unittest.cc",
-    "proc_utils_unittest.cc",
+    "parse_smaps_unittest.cc",
     "sampler_unittest.cc",
     "system_property_unittest.cc",
     "unwinding_unittest.cc",
@@ -238,15 +214,13 @@ source_set("end_to_end_tests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:libunwindstack",
-    "../../../include/perfetto/protozero",
-    "../../../protos/perfetto/config/profiling:zero",
+    "../../../protos/perfetto/config/profiling:cpp",
+    "../../../protos/perfetto/trace/profiling:cpp",
     "../../../test:test_helper",
     "../../base",
     "../../base:test_support",
   ]
-  sources = [
-    "heapprofd_end_to_end_test.cc",
-  ]
+  sources = [ "heapprofd_end_to_end_test.cc" ]
   if (start_daemons_for_testing) {
     defines = [ "PERFETTO_START_DAEMONS_FOR_TESTING" ]
   }
@@ -254,24 +228,21 @@ source_set("end_to_end_tests") {
 
 perfetto_fuzzer_test("unwinding_fuzzer") {
   testonly = true
-  sources = [
-    "unwinding_fuzzer.cc",
-  ]
+  sources = [ "unwinding_fuzzer.cc" ]
   deps = [
     ":daemon",
     ":ring_buffer",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
-    "../../tracing",
+    "../../tracing/core",
+    "../common:unwind_support",
   ]
 }
 
 perfetto_fuzzer_test("shared_ring_buffer_fuzzer") {
   testonly = true
-  sources = [
-    "shared_ring_buffer_fuzzer.cc",
-  ]
+  sources = [ "shared_ring_buffer_fuzzer.cc" ]
   deps = [
     ":ring_buffer",
     "../../../gn:default_deps",
@@ -281,9 +252,7 @@ perfetto_fuzzer_test("shared_ring_buffer_fuzzer") {
 
 perfetto_fuzzer_test("shared_ring_buffer_write_fuzzer") {
   testonly = true
-  sources = [
-    "shared_ring_buffer_write_fuzzer.cc",
-  ]
+  sources = [ "shared_ring_buffer_write_fuzzer.cc" ]
   deps = [
     ":ring_buffer",
     "../../../gn:default_deps",

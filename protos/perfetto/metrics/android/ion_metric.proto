@@ -15,7 +15,6 @@
  */
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
@@ -26,6 +25,10 @@ message AndroidIonMetric {
     optional double avg_size_bytes = 2;
     optional double min_size_bytes = 3;
     optional double max_size_bytes = 4;
+
+    // Total allocation size.
+    // Essentially the sum of positive allocs (-> new buffers).
+    optional double total_alloc_size_bytes = 5;
   }
 
   repeated Buffer buffer = 1;

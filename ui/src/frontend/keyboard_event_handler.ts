@@ -27,7 +27,13 @@ import {executeSearch} from './search_handler';
 export function handleKey(e: KeyboardEvent, down: boolean) {
   const key = e.key.toLowerCase();
   if (down && 'm' === key) {
-    selectSliceSpan();
+    const selectedArea = globals.frontendLocalState.selectedArea.area;
+    if (!selectedArea && globals.state.currentSelection !== null) {
+      selectSliceSpan();
+    }
+    if (selectedArea) {
+      globals.frontendLocalState.toggleLockArea();
+    }
   }
   if (down && 'f' === key) {
     findCurrentSelection();
@@ -45,6 +51,9 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
     } else {
       globals.frontendLocalState.setVidTimestamp(Number.MIN_SAFE_INTEGER);
     }
+  }
+  if (down && 'b' === key && (e.ctrlKey || e.metaKey)) {
+    globals.frontendLocalState.toggleSidebar();
   }
   if (down && '?' === key) {
     toggleHelp();

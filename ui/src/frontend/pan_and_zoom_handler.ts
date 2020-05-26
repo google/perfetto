@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Animation} from './animation';
-import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {handleKey} from './keyboard_event_handler';
@@ -44,8 +43,8 @@ const HORIZONTAL_WHEEL_PAN_SPEED = 1;
 const WHEEL_ZOOM_SPEED = -0.02;
 
 const EDITING_RANGE_CURSOR = 'ew-resize';
-const SHIFT_CURSOR = 'text';
-const DEFAULT_CURSOR = 'default';
+const DRAG_CURSOR = 'default';
+const PAN_CURSOR = 'move';
 
 enum Pan {
   None = 0,
@@ -94,28 +93,42 @@ export class PanAndZoomHandler {
   private contentOffsetX: number;
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
-  private shouldDrag: (currentPx: number) => boolean;
-  private onDrag:
+  private editSelection: (currentPx: number) => boolean;
+  private onSelection:
       (dragStartX: number, dragStartY: number, prevX: number, currentX: number,
        currentY: number, editing: boolean) => void;
+  private selectingStarted: () => void;
+  private selectingEnded: () => void;
 
-  constructor(
-      {element, contentOffsetX, onPanned, onZoomed, shouldDrag, onDrag}: {
-        element: HTMLElement,
-        contentOffsetX: number,
-        onPanned: (movedPx: number) => void,
-        onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
-        shouldDrag: (currentPx: number) => boolean,
-        onDrag:
-            (dragStartX: number, dragStartY: number, prevX: number,
-             currentX: number, currentY: number, editing: boolean) => void,
-      }) {
+  constructor({
+    element,
+    contentOffsetX,
+    onPanned,
+    onZoomed,
+    editSelection,
+    onSelection,
+    selectingStarted,
+    selectingEnded
+  }: {
+    element: HTMLElement,
+    contentOffsetX: number,
+    onPanned: (movedPx: number) => void,
+    onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
+    editSelection: (currentPx: number) => boolean,
+    onSelection:
+        (dragStartX: number, dragStartY: number, prevX: number,
+         currentX: number, currentY: number, editing: boolean) => void,
+    selectingStarted: () => void,
+    selectingEnded: () => void,
+  }) {
     this.element = element;
     this.contentOffsetX = contentOffsetX;
     this.onPanned = onPanned;
     this.onZoomed = onZoomed;
-    this.shouldDrag = shouldDrag;
-    this.onDrag = onDrag;
+    this.editSelection = editSelection;
+    this.onSelection = onSelection;
+    this.selectingStarted = selectingStarted;
+    this.selectingEnded = selectingEnded;
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
@@ -125,16 +138,14 @@ export class PanAndZoomHandler {
     let prevX = -1;
     let dragStartX = -1;
     let dragStartY = -1;
-    let drag = false;
+    let edit = false;
     new DragGestureHandler(
         this.element,
         (x, y) => {
-          // If we started our drag on a time range boundary or shift is down
-          // then we are drag selecting rather than panning.
-          if (drag || this.shiftDown) {
-            this.onDrag(dragStartX, dragStartY, prevX, x, y, !this.shiftDown);
-          } else {
+          if (this.shiftDown) {
             this.onPanned(prevX - x);
+          } else {
+            this.onSelection(dragStartX, dragStartY, prevX, x, y, edit);
           }
           prevX = x;
         },
@@ -142,21 +153,22 @@ export class PanAndZoomHandler {
           prevX = x;
           dragStartX = x;
           dragStartY = y;
-          drag = this.shouldDrag(x);
+          edit = this.editSelection(x);
           // Set the cursor style based on where the cursor is when the drag
           // starts.
-          if (drag) {
+          if (edit) {
             this.element.style.cursor = EDITING_RANGE_CURSOR;
-          } else if (this.shiftDown) {
-            this.element.style.cursor = SHIFT_CURSOR;
+          } else if (!this.shiftDown) {
+            this.selectingStarted();
+            this.element.style.cursor = DRAG_CURSOR;
           }
         },
         () => {
           // Reset the cursor now the drag has ended.
-          this.element.style.cursor =
-              this.shiftDown ? SHIFT_CURSOR : DEFAULT_CURSOR;
+          this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
           dragStartX = -1;
           dragStartY = -1;
+          this.selectingEnded();
         });
   }
 
@@ -213,17 +225,11 @@ export class PanAndZoomHandler {
     // the cursor flickering between styles if you drag fast and get too
     // far from the current time range.
     if (e.buttons === 0) {
-      if (!this.shouldDrag(this.mousePositionX)) {
-        this.element.style.cursor =
-            this.shiftDown ? SHIFT_CURSOR : DEFAULT_CURSOR;
-      } else {
+      if (this.editSelection(this.mousePositionX)) {
         this.element.style.cursor = EDITING_RANGE_CURSOR;
+      } else {
+        this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
       }
-    }
-    if (this.shiftDown) {
-      const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
-      const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
-      globals.frontendLocalState.setHoveredTimestamp(ts);
     }
   }
 
@@ -283,17 +289,9 @@ export class PanAndZoomHandler {
     if (down === this.shiftDown) return;
     this.shiftDown = down;
     if (this.shiftDown) {
-      if (this.mousePositionX) {
-        this.element.style.cursor = SHIFT_CURSOR;
-        const pos = this.mousePositionX - TRACK_SHELL_WIDTH;
-        const ts = globals.frontendLocalState.timeScale.pxToTime(pos);
-        globals.frontendLocalState.setHoveredTimestamp(ts);
-      }
-    } else {
-      globals.frontendLocalState.setHoveredTimestamp(-1);
-      this.element.style.cursor = DEFAULT_CURSOR;
+      this.element.style.cursor = PAN_CURSOR;
+    } else if (this.mousePositionX) {
+      this.element.style.cursor = DRAG_CURSOR;
     }
-
-    globals.frontendLocalState.setShowTimeSelectPreview(this.shiftDown);
   }
 }

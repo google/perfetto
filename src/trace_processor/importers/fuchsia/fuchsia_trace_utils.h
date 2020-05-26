@@ -22,8 +22,8 @@
 #include <functional>
 
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -195,7 +195,8 @@ class ArgValue {
 // https://fuchsia.googlesource.com/fuchsia/+/refs/heads/master/docs/development/tracing/trace-format/
 class RecordCursor {
  public:
-  RecordCursor(const TraceBlobView* tbv) : tbv_(*tbv), word_index_(0) {}
+  RecordCursor(const uint8_t* begin, size_t length)
+      : begin_(begin), end_(begin + length), word_index_(0) {}
 
   size_t WordIndex();
   void SetWordIndex(size_t index);
@@ -212,7 +213,8 @@ class RecordCursor {
  private:
   bool ReadWords(size_t num_words, const uint8_t** data_out);
 
-  const TraceBlobView& tbv_;
+  const uint8_t* begin_;
+  const uint8_t* end_;
   size_t word_index_;
 };
 

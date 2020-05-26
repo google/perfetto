@@ -44,6 +44,7 @@ def CheckChange(input, output):
   results += CheckBinaryDescriptors(input, output)
   results += CheckMergedTraceConfigProto(input, output)
   results += CheckWhitelist(input, output)
+  results += CheckBannedCpp(input, output)
   return results
 
 
@@ -106,6 +107,44 @@ def CheckIncludeGuards(input_api, output_api):
                                   ' to fix include guards.')
     ]
   return []
+
+
+def CheckBannedCpp(input_api, output_api):
+  bad_cpp = [
+      (r'\bNULL\b', 'New code should not use NULL prefer nullptr'),
+      (r'\bstd::stoi\b',
+       'std::stoi throws exceptions prefer base::StringToInt32()'),
+      (r'\bstd::stol\b',
+       'std::stoull throws exceptions prefer base::StringToInt32()'),
+      (r'\bstd::stoul\b',
+       'std::stoull throws exceptions prefer base::StringToUint32()'),
+      (r'\bstd::stoll\b',
+       'std::stoull throws exceptions prefer base::StringToInt64()'),
+      (r'\bstd::stoull\b',
+       'std::stoull throws exceptions prefer base::StringToUint64()'),
+      (r'\bstd::stof\b',
+       'std::stof throws exceptions prefer base::StringToDouble()'),
+      (r'\bstd::stod\b',
+       'std::stod throws exceptions prefer base::StringToDouble()'),
+      (r'\bstd::stold\b',
+       'std::stold throws exceptions prefer base::StringToDouble()'),
+      (r'\bPERFETTO_EINTR\(close\(',
+       'close(2) must not be retried on EINTR on Linux and other OSes '
+       'that we run on, as the fd will be closed.'),
+  ]
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(x, white_list=[r'.*\.h$', r'.*\.cc$'])
+
+  errors = []
+  for f in input_api.AffectedSourceFiles(file_filter):
+    for line_number, line in f.ChangedContents():
+      for regex, message in bad_cpp:
+        if input_api.re.search(regex, line):
+          errors.append(
+              output_api.PresubmitError('Banned pattern:\n  {}:{} {}'.format(
+                  f.LocalPath(), line_number, message)))
+  return errors
 
 
 def CheckIncludeViolations(input_api, output_api):

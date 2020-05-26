@@ -32,7 +32,7 @@ export class CounterDetailsPanel extends Panel<CounterDetailsPanelAttrs> {
           m('.details-panel-heading', m('h2', `Counter Details`)),
           m(
               '.details-table',
-              [m('table',
+              [m('table.half-width',
                  [
                    m('tr',
                      m('th', `Start time`),

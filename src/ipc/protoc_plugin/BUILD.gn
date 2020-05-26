@@ -15,9 +15,7 @@
 import("../../../gn/perfetto_host_executable.gni")
 
 perfetto_host_executable("ipc_plugin") {
-  sources = [
-    "ipc_plugin.cc",
-  ]
+  sources = [ "ipc_plugin.cc" ]
   deps = [
     "../../../gn:default_deps",
     "../../../gn:protoc_lib",

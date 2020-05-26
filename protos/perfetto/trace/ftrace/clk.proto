@@ -3,7 +3,6 @@
 // Do not edit.
 
 syntax = "proto2";
-option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 message ClkEnableFtraceEvent {

@@ -19,9 +19,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/trace_processor/stats.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/trace_storage.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -46,8 +46,8 @@ void FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle) {
   }
 
   uint32_t cpu = decoder.cpu();
-  if (PERFETTO_UNLIKELY(cpu > base::kMaxCpus)) {
-    PERFETTO_ELOG("CPU larger than kMaxCpus (%u > %zu)", cpu, base::kMaxCpus);
+  if (PERFETTO_UNLIKELY(cpu > kMaxCpus)) {
+    PERFETTO_ELOG("CPU larger than kMaxCpus (%u > %zu)", cpu, kMaxCpus);
     return;
   }
 
@@ -153,8 +153,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
     event.next_pid = *npid_it;
     event.next_prio = *nprio_it;
 
-    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp,
-                                            InlineEvent::SchedSwitch(event));
+    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp, event);
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
@@ -197,8 +196,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
     event.target_cpu = *tcpu_it;
     event.prio = *prio_it;
 
-    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp,
-                                            InlineEvent::SchedWaking(event));
+    context_->sorter->PushInlineFtraceEvent(cpu, event_timestamp, event);
   }
 
   // Check that all packed buffers were decoded correctly, and fully.

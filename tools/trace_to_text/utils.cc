@@ -25,7 +25,6 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -40,60 +39,9 @@ namespace {
 
 using Iterator = trace_processor::TraceProcessor::Iterator;
 
-constexpr const char* kQueryUnsymbolized =
-    "select spm.name, spm.build_id, spf.rel_pc "
-    "from stack_profile_frame spf "
-    "join stack_profile_mapping spm "
-    "on spf.mapping = spm.id "
-    "where spm.build_id != '' and spf.symbol_set_id == 0";
-
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 constexpr size_t kCompressionBufferSize = 500 * 1024;
-
-std::string FromHex(const char* str, size_t size) {
-  if (size % 2) {
-    PERFETTO_DFATAL_OR_ELOG("Failed to parse hex %s", str);
-    return "";
-  }
-  std::string result(size / 2, '\0');
-  for (size_t i = 0; i < size; i += 2) {
-    char hex_byte[3];
-    hex_byte[0] = str[i];
-    hex_byte[1] = str[i + 1];
-    hex_byte[2] = '\0';
-    char* end;
-    long int byte = strtol(hex_byte, &end, 16);
-    if (*end != '\0') {
-      PERFETTO_DFATAL_OR_ELOG("Failed to parse hex %s", str);
-      return "";
-    }
-    result[i / 2] = static_cast<char>(byte);
-  }
-  return result;
-}
-
-std::string FromHex(const std::string& str) {
-  return FromHex(str.c_str(), str.size());
-}
-
-using NameAndBuildIdPair = std::pair<std::string, std::string>;
-
-std::map<NameAndBuildIdPair, std::vector<uint64_t>> GetUnsymbolizedFrames(
-    trace_processor::TraceProcessor* tp) {
-  std::map<std::pair<std::string, std::string>, std::vector<uint64_t>> res;
-  Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
-  while (it.Next()) {
-    auto name_and_buildid =
-        std::make_pair(it.Get(0).string_value, FromHex(it.Get(1).string_value));
-    int64_t rel_pc = it.Get(2).long_value;
-    res[name_and_buildid].emplace_back(rel_pc);
-  }
-  if (!it.Status().ok()) {
-    PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",
-                            it.Status().message().c_str());
-    return {};
-  }
-  return res;
-}
+#endif
 
 std::map<std::string, std::set<std::string>> GetHeapGraphClasses(
     trace_processor::TraceProcessor* tp) {
@@ -185,16 +133,6 @@ void ForEachPacketBlobInTrace(
   }
 }
 
-std::vector<std::string> GetPerfettoBinaryPath() {
-  std::vector<std::string> roots;
-  const char* root = getenv("PERFETTO_BINARY_PATH");
-  if (root != nullptr) {
-    for (base::StringSplitter sp(std::string(root), ':'); sp.Next();)
-      roots.emplace_back(sp.cur_token(), sp.cur_token_size());
-  }
-  return roots;
-}
-
 base::Optional<std::string> GetPerfettoProguardMapPath() {
   base::Optional<std::string> proguard_map;
   const char* env = getenv("PERFETTO_PROGUARD_MAP");
@@ -242,38 +180,6 @@ bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
   return true;
 }
 
-void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
-                       Symbolizer* symbolizer,
-                       std::function<void(const std::string&)> callback) {
-  PERFETTO_CHECK(symbolizer);
-  auto unsymbolized = GetUnsymbolizedFrames(tp);
-  for (auto it = unsymbolized.cbegin(); it != unsymbolized.cend(); ++it) {
-    const auto& name_and_buildid = it->first;
-    const std::vector<uint64_t>& rel_pcs = it->second;
-    auto res = symbolizer->Symbolize(name_and_buildid.first,
-                                     name_and_buildid.second, rel_pcs);
-    if (res.empty())
-      continue;
-
-    protozero::HeapBuffered<perfetto::protos::pbzero::TracePacket> packet;
-    auto* module_symbols = packet->set_module_symbols();
-    module_symbols->set_path(name_and_buildid.first);
-    module_symbols->set_build_id(name_and_buildid.second);
-    PERFETTO_DCHECK(res.size() == rel_pcs.size());
-    for (size_t i = 0; i < res.size(); ++i) {
-      auto* address_symbols = module_symbols->add_address_symbols();
-      address_symbols->set_address(rel_pcs[i]);
-      for (const SymbolizedFrame& frame : res[i]) {
-        auto* line = address_symbols->add_lines();
-        line->set_function_name(frame.function_name);
-        line->set_source_file_name(frame.file_name);
-        line->set_line_number(frame.line);
-      }
-    }
-    callback(packet.SerializeAsString());
-  }
-}
-
 void DeobfuscateDatabase(
     trace_processor::TraceProcessor* tp,
     const std::map<std::string, profiling::ObfuscatedClass>& mapping,
@@ -285,7 +191,12 @@ void DeobfuscateDatabase(
   // can support multiple dumps in the same trace.
   auto* proto_mapping = packet->set_deobfuscation_mapping();
   for (const auto& p : classes) {
-    const std::string& obfuscated_class_name = p.first;
+    std::string obfuscated_class_name = p.first;
+    while (obfuscated_class_name.size() > 2 &&
+           obfuscated_class_name.substr(obfuscated_class_name.size() - 2) ==
+               "[]") {
+      obfuscated_class_name.resize(obfuscated_class_name.size() - 2);
+    }
     const std::set<std::string>& obfuscated_field_names = p.second;
     auto it = mapping.find(obfuscated_class_name);
     if (it == mapping.end()) {
@@ -315,13 +226,15 @@ TraceWriter::TraceWriter(std::ostream* output) : output_(output) {}
 
 TraceWriter::~TraceWriter() = default;
 
-void TraceWriter::Write(std::string s) {
+void TraceWriter::Write(const std::string& s) {
   Write(s.data(), s.size());
 }
 
 void TraceWriter::Write(const char* data, size_t sz) {
   output_->write(data, static_cast<std::streamsize>(sz));
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 DeflateTraceWriter::DeflateTraceWriter(std::ostream* output)
     : TraceWriter(output),
@@ -334,9 +247,15 @@ DeflateTraceWriter::DeflateTraceWriter(std::ostream* output)
 }
 
 DeflateTraceWriter::~DeflateTraceWriter() {
+  // Drain compressor until it has no more input, and has flushed its internal
+  // buffers.
   while (deflate(&stream_, Z_FINISH) != Z_STREAM_END) {
     Flush();
   }
+  // Flush any outstanding output bytes to the backing TraceWriter.
+  Flush();
+  PERFETTO_CHECK(stream_.avail_out == static_cast<size_t>(end_ - start_));
+
   CheckEq(deflateEnd(&stream_), Z_OK);
 }
 
@@ -364,6 +283,15 @@ void DeflateTraceWriter::CheckEq(int actual_code, int expected_code) {
   PERFETTO_FATAL("Expected %d got %d: %s", actual_code, expected_code,
                  stream_.msg);
 }
+#else
+
+DeflateTraceWriter::DeflateTraceWriter(std::ostream* output)
+    : TraceWriter(output) {
+  PERFETTO_ELOG("Cannot compress. Zlib is not enabled in the build config");
+}
+DeflateTraceWriter::~DeflateTraceWriter() = default;
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace trace_to_text
 }  // namespace perfetto
