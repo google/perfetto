@@ -28,11 +28,17 @@ namespace perfetto {
 class AtraceHalWrapper {
  public:
   AtraceHalWrapper();
-  virtual ~AtraceHalWrapper();
+  ~AtraceHalWrapper();
 
-  virtual std::vector<std::string> ListCategories();
-  virtual bool EnableCategories(const std::vector<std::string>& categories);
-  virtual bool DisableAllCategories();
+  struct TracingVendorCategory {
+    // The name identifying the category.
+    std::string name;
+
+    // A longer description of the category.
+    std::string description;
+  };
+
+  std::vector<TracingVendorCategory> GetAvailableCategories();
 
  private:
   struct DynamicLibLoader;

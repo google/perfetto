@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -34,10 +32,6 @@
 #include "perfetto_version.gen.h"
 #else
 #define PERFETTO_GET_GIT_REVISION() "unknown"
-#endif
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <unistd.h>
 #endif
 
 namespace perfetto {
@@ -155,11 +149,11 @@ int Main(int argc, char** argv) {
                        truncate_keep, full_sort);
 
   if (format == "systrace")
-    return TraceToSystrace(input_stream, output_stream, /*ctrace=*/false,
+    return TraceToSystrace(input_stream, output_stream, /*compress=*/false,
                            truncate_keep, full_sort);
 
   if (format == "ctrace")
-    return TraceToSystrace(input_stream, output_stream, /*ctrace=*/true,
+    return TraceToSystrace(input_stream, output_stream, /*compress=*/true,
                            truncate_keep, full_sort);
 
   if (truncate_keep != Keep::kAll) {

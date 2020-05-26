@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/base/test/utils.h"
+#include "src/trace_processor/importers/json/json_trace_parser.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -65,6 +66,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
   std::unique_ptr<TraceProcessor> processor_;
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
   auto it = Query(
@@ -77,7 +79,9 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
   ASSERT_EQ(it.Get(1).long_value, 19684308497);
   ASSERT_FALSE(it.Next());
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
   auto it = Query("select start_ts, end_ts from trace_bounds");
@@ -88,21 +92,7 @@ TEST_F(TraceProcessorIntegrationTest, TraceBounds) {
   ASSERT_EQ(it.Get(1).long_value, 81492700784311);
   ASSERT_FALSE(it.Next());
 }
-
-// Tests that the duration of the last slice is accounted in the computation
-// of the trace boundaries. Linux ftraces tend to hide this problem because
-// after the last sched_switch there's always a "wake" event which causes the
-// raw table to fix the bounds.
-TEST_F(TraceProcessorIntegrationTest, TraceBoundsUserspaceOnly) {
-  ASSERT_TRUE(LoadTrace("sfgate.json").ok());
-  auto it = Query("select start_ts, end_ts from trace_bounds");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(0).long_value, 2213649212614000);
-  ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(1).long_value, 2213689745140000);
-  ASSERT_FALSE(it.Next());
-}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
 
 TEST_F(TraceProcessorIntegrationTest, Hash) {
   auto it = Query("select HASH()");
@@ -138,13 +128,11 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Demangle) {
   ASSERT_TRUE(it.Get(0).is_null());
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 TEST_F(TraceProcessorIntegrationTest, Sfgate) {
   ASSERT_TRUE(LoadTrace("sfgate.json", strlen("{\"traceEvents\":[")).ok());
-  auto it = Query(
-      "select count(*), max(ts) - min(ts) "
-      "from slice s inner join thread_track t "
-      "on s.track_id = t.id where utid != 0");
+  auto it =
+      Query("select count(*), max(ts) - min(ts) from slices where utid != 0");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(0).long_value, 39828);
@@ -156,7 +144,7 @@ TEST_F(TraceProcessorIntegrationTest, Sfgate) {
 TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
   ASSERT_TRUE(
       LoadTrace("unsorted_trace.json", strlen("{\"traceEvents\":[")).ok());
-  auto it = Query("select ts, depth from slice order by ts");
+  auto it = Query("select ts, depth from slices order by ts");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(0).long_value, 50000);
@@ -178,7 +166,7 @@ TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
 TEST_F(TraceProcessorIntegrationTest, DISABLED_Clusterfuzz14357) {
   ASSERT_FALSE(LoadTrace("clusterfuzz_14357", 4096).ok());
 }
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14730) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14730", 4096).ok());
@@ -188,6 +176,7 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14753) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14753", 4096).ok());
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14762) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_14762", 4096 * 1024).ok());
   auto it = Query("select sum(value) from stats where severity = 'error';");
@@ -208,44 +197,14 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz14799) {
   ASSERT_TRUE(it.Next());
   ASSERT_GT(it.Get(0).long_value, 0);
 }
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz15252) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_15252", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
-  // This trace fails to load as it's detected as a systrace but is full of
-  // garbage data.
-  ASSERT_TRUE(!LoadTrace("clusterfuzz_17805", 4096).ok());
-}
-
-// Failing on DCHECKs during import because the traces aren't really valid.
-#if PERFETTO_DCHECK_IS_ON()
-#define MAYBE_Clusterfuzz20215 DISABLED_Clusterfuzz20215
-#define MAYBE_Clusterfuzz20292 DISABLED_Clusterfuzz20292
-#define MAYBE_Clusterfuzz21178 DISABLED_Clusterfuzz21178
-#define MAYBE_Clusterfuzz21890 DISABLED_Clusterfuzz21890
-#else  // PERFETTO_DCHECK_IS_ON()
-#define MAYBE_Clusterfuzz20215 Clusterfuzz20215
-#define MAYBE_Clusterfuzz20292 Clusterfuzz20292
-#define MAYBE_Clusterfuzz21178 Clusterfuzz21178
-#define MAYBE_Clusterfuzz21890 Clusterfuzz21890
-#endif  // PERFETTO_DCHECK_IS_ON()
-
-TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz20215) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_20215", 4096).ok());
-}
-
-TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz20292) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_20292", 4096).ok());
-}
-
-TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21178) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_21178", 4096).ok());
-}
-
-TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21890) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_21890", 4096).ok());
+  ASSERT_TRUE(LoadTrace("clusterfuzz_17805", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
@@ -268,42 +227,6 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
 
     ASSERT_EQ(RestoreInitialTables(), 3u);
   }
-}
-
-// This test checks that a ninja trace is tokenized properly even if read in
-// small chunks of 1KB each. The values used in the test have been cross-checked
-// with opening the same trace with ninjatracing + chrome://tracing.
-TEST_F(TraceProcessorIntegrationTest, NinjaLog) {
-  ASSERT_TRUE(LoadTrace("ninja_log", 1024).ok());
-  auto it = Query("select count(*) from process where name like 'build';");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 2);
-
-  it = Query(
-      "select count(*) from thread left join process using(upid) where "
-      "thread.name like 'worker%' and process.pid=1");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 14);
-
-  it = Query(
-      "create view slices_1st_build as select slices.* from slices left "
-      "join thread_track on(slices.track_id == thread_track.id) left join "
-      "thread using(utid) left join process using(upid) where pid=2");
-  it.Next();
-  ASSERT_TRUE(it.Status().ok());
-
-  it = Query("select (max(ts) - min(ts)) / 1000000 from slices_1st_build");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 12612);
-
-  it = Query("select name from slices_1st_build order by ts desc limit 1");
-  ASSERT_TRUE(it.Next());
-  ASSERT_STREQ(it.Get(0).string_value,
-               "obj/src/trace_processor/unittests.trace_sorter_unittest.o");
-
-  it = Query("select sum(dur) / 1000000 from slices_1st_build");
-  ASSERT_TRUE(it.Next());
-  ASSERT_EQ(it.Get(0).long_value, 276174);
 }
 
 }  // namespace

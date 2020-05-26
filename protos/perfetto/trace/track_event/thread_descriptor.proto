@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
@@ -27,10 +28,6 @@ message ThreadDescriptor {
   optional int32 tid = 2;
 
   optional string thread_name = 5;
-
-  // ---------------------------------------------------------------------------
-  // Deprecated / legacy fields, which will be removed in the future:
-  // ---------------------------------------------------------------------------
 
   enum ChromeThreadType {
     CHROME_THREAD_UNSPECIFIED = 0;
@@ -58,6 +55,10 @@ message ThreadDescriptor {
     CHROME_THREAD_SAMPLING_PROFILER = 51;
   };
   optional ChromeThreadType chrome_thread_type = 4;
+
+  // ---------------------------------------------------------------------------
+  // Deprecated / legacy fields, which will be removed in the future:
+  // ---------------------------------------------------------------------------
 
   // Deprecated. Use ClockSnapshot in combination with TracePacket's timestamp
   // and timestamp_clock_id fields instead.

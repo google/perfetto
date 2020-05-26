@@ -15,13 +15,13 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
-// Global process state at LMK time, used to identify potential culprits.
-// TODO: rename to AndroidLmkProcessState
+// Potential culplit of a low-memory kill on Android.
 message AndroidLmkReasonMetric {
   message Process {
     optional AndroidProcessMetadata process = 1;
@@ -31,25 +31,17 @@ message AndroidLmkReasonMetric {
 
     // RSS + swap.
     optional int64 size = 3;
-
-    optional int64 file_rss_bytes = 4;
-    optional int64 anon_rss_bytes = 5;
-    optional int64 shmem_rss_bytes = 6;
-    optional int64 swap_bytes = 7;
   }
   message Lmk {
     // OOM score adj of the LMK'ed process.
     optional int32 oom_score_adj = 1;
 
-    // Total size of the ION heap in bytes during this LMK.
-    optional int64 ion_heaps_bytes = 4;
-    // Deprecated. Prefer ion_heaps_bytes.
+    // Total size of the system ION heap in bytes during this LMK.
     optional int64 system_ion_heap_size = 2;
 
     // Processes present during this LMK.
     repeated Process processes = 3;
   }
 
-  // LMKs present in the trace, ordered on their timestamp.
   repeated Lmk lmks = 1;
 }

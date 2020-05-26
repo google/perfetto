@@ -164,11 +164,11 @@ class QueryWriter {
 
 int TraceToSystrace(std::istream* input,
                     std::ostream* output,
-                    bool ctrace,
+                    bool compress,
                     Keep truncate_keep,
                     bool full_sort) {
   std::unique_ptr<TraceWriter> trace_writer(
-      ctrace ? new DeflateTraceWriter(output) : new TraceWriter(output));
+      compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
   trace_processor::Config config;
   config.force_full_sort = full_sort;
@@ -179,9 +179,7 @@ int TraceToSystrace(std::istream* input,
     return 1;
   tp->NotifyEndOfFile();
 
-  if (ctrace)
-    *output << "TRACE:\n";
-
+  *output << "TRACE:\n";
   return ExtractSystrace(tp.get(), trace_writer.get(),
                          /*wrapped_in_json=*/false, truncate_keep);
 }

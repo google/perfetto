@@ -30,6 +30,8 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/task_runner_thread.h"
+#include "test/task_runner_thread_delegates.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -107,33 +109,23 @@ class FakeProducer : public Producer {
   std::function<void()> on_produced_and_committed_;
 };
 
-class FuzzerFakeProducerThread {
+class FakeProducerDelegate : public ThreadDelegate {
  public:
-  FuzzerFakeProducerThread(const uint8_t* data,
-                           size_t size,
-                           std::function<void()> on_produced_and_committed)
+  FakeProducerDelegate(const uint8_t* data,
+                       size_t size,
+                       std::function<void()> on_produced_and_committed)
       : data_(data),
         size_(size),
         on_produced_and_committed_(on_produced_and_committed) {}
+  ~FakeProducerDelegate() override = default;
 
-  ~FuzzerFakeProducerThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { producer_.reset(); });
-  }
-
-  void Connect() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.fake");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(new FakeProducer("android.perfetto.FakeProducer", data_,
-                                       size_, on_produced_and_committed_));
-      producer_->Connect(TEST_PRODUCER_SOCK_NAME, runner_->get());
-    });
+  void Initialize(base::TaskRunner* task_runner) override {
+    producer_.reset(new FakeProducer("android.perfetto.FakeProducer", data_,
+                                     size_, on_produced_and_committed_));
+    producer_->Connect(TEST_PRODUCER_SOCK_NAME, task_runner);
   }
 
  private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
   std::unique_ptr<FakeProducer> producer_;
   const uint8_t* data_;
   const size_t size_;
@@ -148,10 +140,11 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
   TestHelper helper(&task_runner);
   helper.StartServiceIfRequired();
 
-  auto cp =
-      helper.WrapTask(task_runner.CreateCheckpoint("produced.and.committed"));
-  FuzzerFakeProducerThread producer_thread(data, size, cp);
-  producer_thread.Connect();
+  TaskRunnerThread producer_thread("perfetto.prd");
+  producer_thread.Start(std::unique_ptr<FakeProducerDelegate>(
+      new FakeProducerDelegate(data, size,
+                               helper.WrapTask(task_runner.CreateCheckpoint(
+                                   "produced.and.committed")))));
 
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();

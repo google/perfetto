@@ -106,18 +106,11 @@ class PERFETTO_EXPORT ProducerEndpoint {
       BufferExhaustedPolicy buffer_exhausted_policy =
           BufferExhaustedPolicy::kDefault) = 0;
 
-  // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
-
-  // In some cases you can access the producer's SharedMemoryArbiter (for
-  // example if TracingService::ConnectProducer is called with
-  // |in_process=true|). The SharedMemoryArbiter can be used to create
-  // TraceWriters which is able to directly commit chunks. For the
-  // |in_process=true| case this can be done without going through an IPC layer.
-  virtual SharedMemoryArbiter* MaybeSharedMemoryArbiter() = 0;
-
-  // Whether the service accepted a shared memory buffer provided by the
-  // producer.
-  virtual bool IsShmemProvidedByProducer() const = 0;
+  // If TracingService::ConnectProducer is called with |in_process=true|,
+  // this returns the producer's SharedMemoryArbiter which can be used
+  // to create TraceWriters which is able to directly commit chunks
+  // without going through an IPC layer.
+  virtual SharedMemoryArbiter* GetInProcessShmemArbiter() = 0;
 
   // Called in response to a Producer::Flush(request_id) call after all data
   // for the flush request has been committed.
@@ -136,12 +129,6 @@ class PERFETTO_EXPORT ProducerEndpoint {
   // This informs the service to activate any of these triggers if any tracing
   // session was waiting for them.
   virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
-
-  // Emits a synchronization barrier to linearize with the service. When
-  // |callback| is invoked, the caller has the guarantee that the service has
-  // seen and processed all the requests sent by this producer prior to the
-  // Sync() call. Used mainly in tests.
-  virtual void Sync(std::function<void()> callback) = 0;
 };  // class ProducerEndpoint.
 
 // The API for the Consumer port of the Service.
@@ -203,25 +190,25 @@ class ConsumerEndpoint {
   // Will call OnTraceStats().
   virtual void GetTraceStats() = 0;
 
-  // Start or stop observing events of selected types. |events_mask| specifies
-  // the types of events to observe in a bitmask of ObservableEvents::Type.
-  // To disable observing, pass 0.
-  // Will call OnObservableEvents() repeatedly whenever an event of an enabled
-  // ObservableEventType occurs.
+  enum ObservableEventType : uint32_t {
+    kNone = 0,
+    kDataSourceInstances = 1 << 0
+  };
+
+  // Start or stop observing events of selected types. |enabled_event_types|
+  // specifies the types of events to observe in a bitmask (see
+  // ObservableEventType enum). To disable observing, pass
+  // ObservableEventType::kNone. Will call OnObservableEvents() repeatedly
+  // whenever an event of an enabled ObservableEventType occurs.
+  //
   // TODO(eseckler): Extend this to support producers & data sources.
-  virtual void ObserveEvents(uint32_t events_mask) = 0;
+  virtual void ObserveEvents(uint32_t enabled_event_types) = 0;
 
   // Used to obtain the list of connected data sources and other info about
   // the tracing service.
   using QueryServiceStateCallback =
       std::function<void(bool success, const TracingServiceState&)>;
   virtual void QueryServiceState(QueryServiceStateCallback) = 0;
-
-  // Used for feature detection. Makes sense only when the consumer and the
-  // service talk over IPC and can be from different versions.
-  using QueryCapabilitiesCallback =
-      std::function<void(const TracingServiceCapabilities&)>;
-  virtual void QueryCapabilities(QueryCapabilitiesCallback) = 0;
 };  // class ConsumerEndpoint.
 
 // The public API of the tracing Service business logic.
@@ -262,42 +249,24 @@ class PERFETTO_EXPORT TracingService {
 
   // Connects a Producer instance and obtains a ProducerEndpoint, which is
   // essentially a 1:1 channel between one Producer and the Service.
-  //
   // The caller has to guarantee that the passed Producer will be alive as long
-  // as the returned ProducerEndpoint is alive. Both the passed Producer and the
-  // returned ProducerEndpoint must live on the same task runner of the service,
-  // specifically:
+  // as the returned ProducerEndpoint is alive.
+  // Both the passed Prodcer and the returned ProducerEndpint must live on the
+  // same task runner of the service, specifically:
   // 1) The Service will call Producer::* methods on the Service's task runner.
   // 2) The Producer should call ProducerEndpoint::* methods only on the
   //    service's task runner, except for ProducerEndpoint::CreateTraceWriter(),
-  //    which can be called on any thread. To disconnect just destroy the
-  //    returned ProducerEndpoint object. It is safe to destroy the Producer
-  //    once the Producer::OnDisconnect() has been invoked.
-  //
+  //    which can be called on any thread.
+  // To disconnect just destroy the returned ProducerEndpoint object. It is safe
+  // to destroy the Producer once the Producer::OnDisconnect() has been invoked.
   // |uid| is the trusted user id of the producer process, used by the consumers
-  // for validating the origin of trace data. |shared_memory_size_hint_bytes|
-  // and |shared_memory_page_size_hint_bytes| are optional hints on the size of
-  // the shared memory buffer and its pages. The service can ignore the hints
-  // (e.g., if the hints are unreasonably large or other sizes were configured
-  // in a tracing session's config). |in_process| enables the ProducerEndpoint
-  // to manage its own shared memory and enables use of
-  // |ProducerEndpoint::CreateTraceWriter|.
-  //
-  // The producer can optionally provide a non-null |shm|, which the service
-  // will adopt for the connection to the producer, provided it is correctly
-  // sized. In this case, |shared_memory_page_size_hint_bytes| indicates the
-  // page size used in this SMB. The producer can use this mechanism to record
-  // tracing data to an SMB even before the tracing session is started by the
-  // service. This is used in Chrome to implement startup tracing. If the buffer
-  // is incorrectly sized, the service will discard the SMB and allocate a new
-  // one, provided to the producer via ProducerEndpoint::shared_memory() after
-  // OnTracingSetup(). To verify that the service accepted the SMB, the producer
-  // may check via ProducerEndpoint::IsShmemProvidedByProducer(). If the service
-  // accepted the SMB, the producer can then commit any data that is already in
-  // the SMB after the tracing session was started by the service via
-  // Producer::StartDataSource(). The |shm| will also be rejected when
-  // connecting to a service that is too old (pre Android-11).
-  //
+  // for validating the origin of trace data.
+  // |shared_memory_size_hint_bytes| and |shared_memory_page_size_hint_bytes|
+  // are optional hints on the size of the shared memory buffer and its pages.
+  // The service can ignore the hints (e.g., if the hints are unreasonably
+  // large or other sizes were configured in a tracing session's config).
+  // |in_process| enables the ProducerEndpoint to manage its own shared memory
+  // and enables use of |ProducerEndpoint::CreateTraceWriter|.
   // Can return null in the unlikely event that service has too many producers
   // connected.
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
@@ -308,8 +277,7 @@ class PERFETTO_EXPORT TracingService {
       bool in_process = false,
       ProducerSMBScrapingMode smb_scraping_mode =
           ProducerSMBScrapingMode::kDefault,
-      size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr) = 0;
+      size_t shared_memory_page_size_hint_bytes = 0) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.

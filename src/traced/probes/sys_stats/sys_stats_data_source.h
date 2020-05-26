@@ -45,8 +45,7 @@ class SysStats;
 
 class SysStatsDataSource : public ProbesDataSource {
  public:
-  static const ProbesDataSource::Descriptor descriptor;
-
+  static constexpr int kTypeId = 4;
   using OpenFunction = base::ScopedFile (*)(const char*);
   SysStatsDataSource(base::TaskRunner*,
                      TracingSessionID,

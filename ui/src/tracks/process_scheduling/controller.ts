@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../base/logging';
 import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
+
 import {
   TrackController,
   trackControllerRegistry
@@ -53,12 +53,9 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
           select utid, upid from thread
             where utid != 0 and upid = ${this.config.upid}) using(utid);`);
       await this.query(`create virtual table ${this.tableName('span')}
-              using span_join(${this.tableName('process')} PARTITIONED utid,
+              using span_join(${this.tableName('process')} PARTITIONED cpu,
                               ${this.tableName('window')});`);
-      const cpus = await this.engine.getCpus();
-      // A process scheduling track should only exist in a trace that has cpus.
-      assertTrue(cpus.length > 0);
-      this.maxCpu = Math.max(...cpus) + 1;
+      this.maxCpu = Math.max(...await this.engine.getCpus()) + 1;
       this.setup = true;
     }
 
@@ -92,10 +89,15 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
     const numBuckets = Math.ceil((endNs - startNs) / bucketSizeNs);
 
+    // cpu < maxCpu improves performance a lot since the window table can
+    // avoid generating many rows.
     const query = `select
         quantum_ts as bucket,
         sum(dur)/cast(${bucketSizeNs * this.maxCpu} as float) as utilization
         from ${this.tableName('span')}
+        where upid = ${this.config.upid}
+        and utid != 0
+        and cpu < ${this.maxCpu}
         group by quantum_ts
         limit ${LIMIT}`;
 
@@ -121,8 +123,17 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
   private async computeSlices(start: number, end: number, resolution: number):
       Promise<SliceData> {
+    // cpu < maxCpu improves performance a lot since the window table can
+    // avoid generating many rows.
     const query = `select ts,dur,cpu,utid from ${this.tableName('span')}
-        order by cpu, ts
+        join
+        (select utid from thread where upid = ${this.config.upid})
+        using(utid)
+        where
+        cpu < ${this.maxCpu}
+        order by
+        cpu,
+        ts
         limit ${LIMIT};`;
     const rawResult = await this.query(query);
 

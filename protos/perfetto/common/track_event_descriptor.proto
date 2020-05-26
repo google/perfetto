@@ -15,15 +15,10 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
-message TrackEventCategory {
-  optional string name = 1;
-  optional string description = 2;
-  repeated string tags = 3;
-}
-
 message TrackEventDescriptor {
-  repeated TrackEventCategory available_categories = 1;
+  repeated string available_categories = 1;
 }

@@ -15,12 +15,12 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
-import "protos/perfetto/trace/android/initial_display_state.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
@@ -36,18 +36,15 @@ import "protos/perfetto/trace/gpu/vulkan_memory_event.proto";
 import "protos/perfetto/trace/gpu/vulkan_api_event.proto";
 import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
-import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
 import "protos/perfetto/trace/power/power_rails.proto";
 import "protos/perfetto/trace/profiling/heap_graph.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
 import "protos/perfetto/trace/profiling/profile_packet.proto";
-import "protos/perfetto/trace/profiling/smaps.proto";
 import "protos/perfetto/trace/ps/process_stats.proto";
 import "protos/perfetto/trace/ps/process_tree.proto";
 import "protos/perfetto/trace/sys_stats/sys_stats.proto";
 import "protos/perfetto/trace/system_info.proto";
-import "protos/perfetto/trace/system_info/cpu_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
@@ -58,27 +55,11 @@ import "protos/perfetto/trace/test_event.proto";
 
 package perfetto.protos;
 
-// TracePacket is the root object of a Perfeto trace.
-// A Perfetto trace is a linear sequence of TracePacket(s).
-//
-// The tracing service guarantees that all TracePacket(s) written by a given
-// TraceWriter are seen in-order, without gaps or duplicates. If, for any
-// reason, a TraceWriter sequence becomes invalid, no more packets are returned
-// to the Consumer (or written into the trace file).
-// TracePacket(s) written by different TraceWriter(s), hence even different
-// data sources, can be seen in arbitrary order.
-// The consumer can re-establish a total order, if interested, using the packet
-// timestamps, after having synchronized the different clocks onto a global
-// clock.
-//
-// The tracing service is agnostic of the content of TracePacket, with the
-// exception of few fields (e.g.. trusted_*, trace_config) that are written by
-// the service itself.
-//
-// See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
+// The root object emitted by Perfetto. A perfetto trace is just a stream of
+// TracePacket(s).
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 71.
+// Next id: 66.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -96,6 +77,7 @@ message TracePacket {
   optional uint32 timestamp_clock_id = 58;
 
   oneof data {
+    FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
     ProcessStats process_stats = 9;
     InodeFileMap inode_file_map = 4;
@@ -128,11 +110,6 @@ message TracePacket {
     VulkanMemoryEvent vulkan_memory_event = 62;
     GpuLog gpu_log = 63;
     VulkanApiEvent vulkan_api_event = 65;
-    PerfSample perf_sample = 66;
-    CpuInfo cpu_info = 67;
-    SmapsPacket smaps_packet = 68;
-    TracingServiceEvent service_event = 69;
-    InitialDisplayState initial_display_state = 70;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -147,9 +124,6 @@ message TracePacket {
 
     // Deprecated, use TrackDescriptor instead.
     ThreadDescriptor thread_descriptor = 44;
-
-    // Events from the Linux kernel ftrace infrastructure.
-    FtraceEventBundle ftrace_events = 1;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID
@@ -192,6 +166,7 @@ message TracePacket {
   // it (since the last reset of interning state). It may also be emitted
   // proactively in advance of referring to them in later packets.
   optional InternedData interned_data = 12;
+
 
   enum SequenceFlags {
     SEQ_UNSPECIFIED = 0;

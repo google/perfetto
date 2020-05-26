@@ -21,10 +21,8 @@
 #include <regex>
 
 #include "src/trace_processor/chunked_trace_reader.h"
-#include "src/trace_processor/importers/systrace/systrace_line_parser.h"
-#include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/trace_processor_context.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -36,7 +34,6 @@ class SystraceTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t size) override;
-  void NotifyEndOfFile() override;
 
  private:
   enum ParseState {
@@ -44,20 +41,21 @@ class SystraceTraceParser : public ChunkedTraceReader {
     kHtmlBeforeSystrace,
     kTraceDataSection,
     kSystrace,
-    kProcessDumpLong,
-    kProcessDumpShort,
     kEndOfSystrace,
   };
+
+  util::Status ParseSingleSystraceEvent(const std::string& buffer);
+
+  TraceProcessorContext* const context_;
+  const StringId sched_wakeup_name_id_ = 0;
+  const StringId cpu_idle_name_id_ = 0;
+  const std::regex line_matcher_;
 
   ParseState state_ = ParseState::kBeforeParse;
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
   std::deque<uint8_t> partial_buf_;
-
-  SystraceLineTokenizer line_tokenizer_;
-  SystraceLineParser line_parser_;
-  TraceProcessorContext* ctx_;
 };
 
 }  // namespace trace_processor

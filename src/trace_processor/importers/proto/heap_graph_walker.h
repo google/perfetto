@@ -97,22 +97,6 @@ namespace trace_processor {
 
 class HeapGraphWalker {
  public:
-  using ClassNameId = int64_t;
-
-  struct PathFromRoot {
-    static constexpr size_t kRoot = 0;
-    struct Node {
-      uint32_t depth = 0;
-      // Invariant: parent_id < id of this node.
-      size_t parent_id = 0;
-      uint64_t size = 0;
-      uint64_t count = 0;
-      ClassNameId class_name = 0;
-      std::map<ClassNameId, size_t> children;
-    };
-    std::vector<Node> nodes{Node{}};
-  };
-
   class Delegate {
    public:
     virtual ~Delegate();
@@ -125,8 +109,7 @@ class HeapGraphWalker {
   HeapGraphWalker(Delegate* delegate) : delegate_(delegate) {}
 
   void AddEdge(int64_t owner_row, int64_t owned_row);
-  void AddNode(int64_t row, uint64_t size) { AddNode(row, size, 0); }
-  void AddNode(int64_t row, uint64_t size, ClassNameId class_name);
+  void AddNode(int64_t row, uint64_t size);
 
   // Mark a a node as root. This marks all the nodes reachable from it as
   // reachable.
@@ -134,8 +117,6 @@ class HeapGraphWalker {
   // Calculate the retained and unique retained size for each node. This
   // includes nodes not reachable from roots.
   void CalculateRetained();
-
-  PathFromRoot FindPathsFromRoot();
 
  private:
   struct Node {
@@ -149,14 +130,9 @@ class HeapGraphWalker {
     uint64_t lowlink = 0;
     int64_t component = -1;
 
-    ClassNameId class_name = 0;
-    int32_t distance_to_root = -1;
-
+    bool reachable = false;
     bool on_stack = false;
-    bool find_paths_from_root_visited = false;
-
-    bool root() { return distance_to_root == 0; }
-    bool reachable() { return distance_to_root >= 0; }
+    bool root = false;
   };
 
   struct Component {
@@ -178,14 +154,13 @@ class HeapGraphWalker {
   void FoundSCC(Node*);
   int64_t RetainedSize(const Component&);
 
-  void FindPathFromRoot(Node* n, PathFromRoot* path);
+  // Make node and all transitive children as reachable.
+  void ReachableNode(Node*);
 
   std::vector<Component> components_;
   std::vector<Node*> node_stack_;
   uint64_t next_node_index_ = 1;
   std::vector<Node> nodes_;
-
-  std::vector<Node*> roots_;
 
   Delegate* delegate_;
 };

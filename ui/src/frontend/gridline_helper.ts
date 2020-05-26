@@ -70,14 +70,13 @@ export function gridlines(width: number, span: TimeSpan, timescale: TimeScale):
     Array<[number, number]> {
   const desiredSteps = width / DESIRED_PX_PER_STEP;
   const step = getGridStepSize(span.duration, desiredSteps);
-  const actualSteps = Math.floor(span.duration / step);
   const start = Math.round(span.start / step) * step;
   const lines: Array<[number, number]> = [];
   let previousTimestamp = Number.NEGATIVE_INFINITY;
   // Iterating over the number of steps instead of
   // for (let s = start; s < span.end; s += step) because if start is very large
   // number and step very small, s will never reach end.
-  for (let i = 0; i <= actualSteps; i++) {
+  for (let i = 0; i < desiredSteps; i++) {
     let xPos = TRACK_SHELL_WIDTH;
     const timestamp = start + i * step;
     xPos += Math.floor(timescale.timeToPx(timestamp));

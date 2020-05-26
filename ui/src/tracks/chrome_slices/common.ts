@@ -18,26 +18,17 @@ export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
 export interface Config {
   maxDepth: number;
-  namespace: string;
+  upid: number;
+  utid: number;
   trackId: number;
 }
 
 export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion.
+  // Slices are stored in a columnar fashion. All fields have the same length.
   strings: string[];
   sliceIds: Float64Array;
   starts: Float64Array;
   ends: Float64Array;
   depths: Uint16Array;
-  titles: Uint16Array;  // Index into strings.
-
-  // Start offset into into summary columns or -1 if not summarised.
-  summarizedOffset: Int16Array;
-  // Number of summary data points for this slice.
-  summarizedSize: Uint16Array;
-
-  // These arrays are length S where S is number of summarized slices * the
-  // items in each slice.
-  summaryNameId: Uint16Array;
-  summaryPercent: Float64Array;
+  titles: Uint16Array;      // Index in |strings|.
 }

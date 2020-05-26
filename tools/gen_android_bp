@@ -61,9 +61,6 @@ default_targets = [
     '//src/profiling/perf:traced_perf',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
-    '//test/cts:perfetto_cts_deps',
-    '//test/cts:perfetto_cts_jni_deps',
-    '//test:perfetto_gtest_logcat_printer',
 ]
 
 # Host targets
@@ -85,7 +82,6 @@ default_targets += [
 target_initrc = {
     '//src/traced/service:traced': {'perfetto.rc'},
     '//src/profiling/memory:heapprofd': {'heapprofd.rc'},
-    '//src/profiling/perf:traced_perf': {'traced_perf.rc'},
 }
 
 target_host_supported = [
@@ -97,27 +93,20 @@ target_host_supported = [
 module_prefix = 'perfetto_'
 
 # Shared libraries which are directly translated to Android system equivalents.
-shared_library_whitelist = [
-    'android',
-    'android.hardware.atrace@1.0',
+library_whitelist = [
+    "android.hardware.atrace@1.0",
     'android.hardware.health@2.0',
-    'android.hardware.power.stats@1.0',
+    "android.hardware.power.stats@1.0",
+    'android',
     'base',
     'binder',
-    'cutils',
     'hidlbase',
     'hidltransport',
     'hwbinder',
     'incident',
     'log',
     'services',
-    'statssocket',
     'utils',
-]
-
-# Static libraries which are directly translated to Android system equivalents.
-static_library_whitelist = [
-    'statslog_perfetto',
 ]
 
 # Name of the module which settings such as compiler flags for all other
@@ -147,11 +136,7 @@ def enumerate_data_deps():
   with open(os.path.join(ROOT_DIR, 'tools', 'test_data.txt')) as f:
     lines = f.readlines()
   for line in (line.strip() for line in lines if not line.startswith('#')):
-    assert os.path.exists(line), 'file %s should exist' % line
-    if line.startswith('test/data/'):
-        # Skip test data files that require GCS. They are only for benchmarks.
-        # We don't run benchmarks in the android tree.
-        continue
+    assert os.path.exists(line), line
     if line.endswith('/'):
       yield line + '**/*'
     else:
@@ -165,39 +150,20 @@ additional_args = {
         ('static_libs', {'libasync_safe'}),
         ('header_libs', {'bionic_libc_platform_headers'}),
     ],
-    'perfetto_unittests': [
-        ('data', set(enumerate_data_deps())),
-        ('include_dirs', {'bionic/libc/kernel'}),
-    ],
+    'perfetto_unittests': [('data', set(enumerate_data_deps())),],
     'traced_probes': [
-        ('required', {'libperfetto_android_internal',
-                      'trigger_perfetto',
-                      'traced_perf'}),
+        ('required', {'libperfetto_android_internal', 'trigger_perfetto'}),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
+      ('dist', {'targets': ['sdk_repo']}),
       ('stl', 'libc++_static'),
-    ],
-    'libperfetto_client_experimental': [
-      ('apex_available', {
-        '//apex_available:platform',
-        'com.android.art.debug',
-        'com.android.art.release'}),
-    ],
-    'perfetto_trace_protos': [
-      ('apex_available', {
-        '//apex_available:platform',
-        'com.android.art.debug',
-        'com.android.art.release'}),
     ],
 }
 
 
-def enable_gtest_and_gmock(module):
+def enable_gmock(module):
   module.static_libs.add('libgmock')
-  module.static_libs.add('libgtest')
-  if module.name != 'perfetto_gtest_logcat_printer':
-    module.whole_static_libs.add('perfetto_gtest_logcat_printer')
 
 
 def enable_protobuf_full(module):
@@ -245,17 +211,13 @@ def enable_zlib(module):
     module.shared_libs.add('libz')
 
 
-def enable_uapi_headers(module):
-  module.include_dirs.add('bionic/libc/kernel')
-
-
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
     '//gn:default_deps': lambda x: None,
     '//gn:gtest_main': lambda x: None,
     '//gn:protoc': lambda x: None,
-    '//gn:gtest_and_gmock': enable_gtest_and_gmock,
+    '//gn:gtest_and_gmock': enable_gmock,
     '//gn:libunwind': enable_libunwind,
     '//gn:protobuf_full': enable_protobuf_full,
     '//gn:protobuf_lite': enable_protobuf_lite,
@@ -263,7 +225,6 @@ builtin_deps = {
     '//gn:libunwindstack': enable_libunwindstack,
     '//gn:sqlite': enable_sqlite,
     '//gn:zlib': enable_zlib,
-    '//gn:bionic_kernel_uapi_headers' : enable_uapi_headers,
 }
 
 # ----------------------------------------------------------------------------
@@ -324,14 +285,12 @@ class Target(object):
     self.name = name
     self.shared_libs = set()
     self.static_libs = set()
-    self.whole_static_libs = set()
     self.cflags = set()
 
   def to_string(self, output):
     nested_out = []
     self._output_field(nested_out, 'shared_libs')
     self._output_field(nested_out, 'static_libs')
-    self._output_field(nested_out, 'whole_static_libs')
     self._output_field(nested_out, 'cflags')
 
     if nested_out:
@@ -356,7 +315,6 @@ class Module(object):
     self.comment = 'GN: ' + gn_utils.label_without_toolchain(gn_target)
     self.shared_libs = set()
     self.static_libs = set()
-    self.whole_static_libs = set()
     self.tools = set()
     self.cmd = None
     self.host_supported = False
@@ -377,9 +335,7 @@ class Module(object):
     self.lto = None
     self.stl = None
     self.dist = dict()
-    self.strip = dict()
     self.data = set()
-    self.apex_available = set()
     # The genrule_XXX below are properties that must to be propagated back
     # on the module(s) that depend on the genrule.
     self.genrule_headers = set()
@@ -394,7 +350,6 @@ class Module(object):
     self._output_field(output, 'srcs')
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
-    self._output_field(output, 'whole_static_libs')
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
     self._output_field(output, 'host_supported')
@@ -409,11 +364,9 @@ class Module(object):
     self._output_field(output, 'header_libs')
     self._output_field(output, 'required')
     self._output_field(output, 'dist')
-    self._output_field(output, 'strip')
     self._output_field(output, 'tool_files')
     self._output_field(output, 'data')
     self._output_field(output, 'stl')
-    self._output_field(output, 'apex_available')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -547,7 +500,7 @@ def create_proto_modules(blueprint, gn, target):
   if target.proto_plugin == 'proto':
     suffixes = ['pb']
     source_module.genrule_shared_libs.add('libprotobuf-cpp-lite')
-    cmd += ['--cpp_out=lite=true:' + cpp_out_dir]
+    cmd += ['--cpp_out=' + cpp_out_dir]
   elif target.proto_plugin == 'protozero':
     suffixes = ['pbzero']
     plugin = create_modules_from_target(blueprint, gn, protozero_plugin)
@@ -675,10 +628,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       # Generally library names should be mangled as 'libXXX', unless they
       # are HAL libraries (e.g., android.hardware.health@2.0).
       android_lib = lib if '@' in lib else 'lib' + lib
-      if lib in shared_library_whitelist:
+      if lib in library_whitelist:
         module.shared_libs.add(android_lib)
-      if lib in static_library_whitelist:
-        module.static_libs.add(android_lib)
 
   # If the module is a static library, export all the generated headers.
   if module.type == 'cc_library_static':
@@ -739,8 +690,6 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       module.generated_headers.update(dep_module.genrule_headers)
       module.srcs.update(dep_module.genrule_srcs)
       module.shared_libs.update(dep_module.genrule_shared_libs)
-    elif dep_module.type == 'cc_binary':
-      continue  # Ignore executables deps (used by cmdline integration tests).
     else:
       raise Error('Unknown dep %s (%s) for target %s' %
                   (dep_module.name, dep_module.type, module.name))

@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/trace/profiling/profile_common.proto";
 
@@ -24,13 +25,7 @@ import "protos/perfetto/trace/profiling/profile_common.proto";
 package perfetto.protos;
 
 message ObfuscatedMember {
-  // This is the obfuscated field name relative to the class containing the
-  // ObfuscatedMember.
   optional string obfuscated_name = 1;
-  // If this is fully qualified (i.e. contains a '.') this is the deobfuscated
-  // field name including its class. Otherwise, this is this the unqualified
-  // deobfuscated field name relative to the class containing this
-  // ObfuscatedMember.
   optional string deobfuscated_name = 2;
 }
 
@@ -70,14 +65,6 @@ message HeapGraphRoot {
   optional Type root_type = 2;
 }
 
-message HeapGraphType {
-  // TODO(fmayer): Consider removing this and using the index in the repeaed
-  // field to save space.
-  optional uint64 id = 1;
-  optional uint64 location_id = 2;
-  optional string class_name = 3;
-}
-
 message HeapGraphObject {
   optional uint64 id = 1;
 
@@ -111,21 +98,11 @@ message HeapGraph {
   // garbage.
   repeated HeapGraphRoot roots = 7;
 
-  // Types used in HeapGraphObjects.
-  repeated HeapGraphType types = 9;
-
-  // Legacy way to encode types. Names here are emitted by old perfetto_hprof,
-  // which do not include the class_name. Handle like a HeapGraphType with
-  // no location_id.
-  // TODO(b/153552977): Remove this. This was was not used in any publicly
-  // available release.
+  // Type names used in managed heap graph.
   repeated InternedString type_names = 3;
 
   // Field names for references in managed heap graph.
   repeated InternedString field_names = 4;
-
-  // Paths of files used in managed heap graph.
-  repeated InternedString location_names = 8;
 
   optional bool continued = 5;
   optional uint64 index = 6;

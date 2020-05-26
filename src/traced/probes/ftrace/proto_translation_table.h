@@ -19,7 +19,6 @@
 
 #include <stdint.h>
 
-#include <iostream>
 #include <map>
 #include <memory>
 #include <set>
@@ -65,10 +64,6 @@ class GroupAndName {
   std::string group_;
   std::string name_;
 };
-
-inline void PrintTo(const GroupAndName& event, ::std::ostream* os) {
-  *os << "GroupAndName(" << event.group() << ", " << event.name() << ")";
-}
 
 bool InferFtraceType(const std::string& type_and_name,
                      size_t size,

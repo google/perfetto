@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/android_package_list.sql');
+
 DROP TABLE IF EXISTS uid_package_count;
 
 CREATE TABLE uid_package_count AS
@@ -27,16 +29,16 @@ CREATE TABLE process_metadata_table AS
 SELECT
   process.upid,
   process.name AS process_name,
-  process.android_appid AS uid,
+  process.uid,
   CASE WHEN uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
   plist.package_name,
   plist.version_code,
   plist.debuggable
 FROM process
-LEFT JOIN uid_package_count ON process.android_appid = uid_package_count.uid
+LEFT JOIN uid_package_count USING (uid)
 LEFT JOIN package_list plist
 ON (
-  process.android_appid = plist.uid
+  process.uid = plist.uid
   AND uid_package_count.uid = plist.uid
   AND (
     -- unique match
@@ -45,7 +47,9 @@ ON (
     OR process.name LIKE plist.package_name || '%')
   );
 
-CREATE VIEW IF NOT EXISTS process_metadata AS
+DROP VIEW IF EXISTS process_metadata;
+
+CREATE VIEW process_metadata AS
 WITH upid_packages AS (
   SELECT
   upid,
@@ -55,7 +59,7 @@ WITH upid_packages AS (
     'debuggable', package_list.debuggable
   )) packages_for_uid
   FROM process
-  JOIN package_list ON process.android_appid = package_list.uid
+  LEFT JOIN package_list USING (uid)
   GROUP BY upid
 )
 SELECT

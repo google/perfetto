@@ -22,29 +22,21 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/destructible.h"
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
+class TraceProcessorContext;
 class EventTracker;
 
 // Tracks sched events and stores them into the storage as sched slices.
-class SchedEventTracker : public Destructible {
+class SchedEventTracker {
  public:
-  // Declared public for testing only.
   explicit SchedEventTracker(TraceProcessorContext*);
   SchedEventTracker(const SchedEventTracker&) = delete;
   SchedEventTracker& operator=(const SchedEventTracker&) = delete;
-  ~SchedEventTracker() override;
-  static SchedEventTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->sched_tracker) {
-      context->sched_tracker.reset(new SchedEventTracker(context));
-    }
-    return static_cast<SchedEventTracker*>(context->sched_tracker.get());
-  }
+  virtual ~SchedEventTracker();
 
   // This method is called when a sched_switch event is seen in the trace.
   // Virtual for testing.
@@ -85,7 +77,7 @@ class SchedEventTracker : public Destructible {
   // Information retained from the preceding sched_switch seen on a given cpu.
   struct PendingSchedInfo {
     // The pending scheduling slice that the next event will complete.
-    uint32_t pending_slice_storage_idx = std::numeric_limits<uint32_t>::max();
+    size_t pending_slice_storage_idx = std::numeric_limits<size_t>::max();
 
     // pid/utid/prio corresponding to the last sched_switch seen on this cpu
     // (its "next_*" fields). There is some duplication with respect to the
@@ -96,22 +88,22 @@ class SchedEventTracker : public Destructible {
     int32_t last_prio = std::numeric_limits<int32_t>::max();
   };
 
-  uint32_t AddRawEventAndStartSlice(uint32_t cpu,
-                                    int64_t ts,
-                                    UniqueTid prev_utid,
-                                    uint32_t prev_pid,
-                                    StringId prev_comm_id,
-                                    int32_t prev_prio,
-                                    int64_t prev_state,
-                                    UniqueTid next_utid,
-                                    uint32_t next_pid,
-                                    StringId next_comm_id,
-                                    int32_t next_prio);
+  size_t AddRawEventAndStartSlice(uint32_t cpu,
+                                  int64_t ts,
+                                  UniqueTid prev_utid,
+                                  uint32_t prev_pid,
+                                  StringId prev_comm_id,
+                                  int32_t prev_prio,
+                                  int64_t prev_state,
+                                  UniqueTid next_utid,
+                                  uint32_t next_pid,
+                                  StringId next_comm_id,
+                                  int32_t next_prio);
 
-  void ClosePendingSlice(uint32_t slice_idx, int64_t ts, int64_t prev_state);
+  void ClosePendingSlice(size_t slice_idx, int64_t ts, int64_t prev_state);
 
   // Infromation retained from the preceding sched_switch seen on a given cpu.
-  std::array<PendingSchedInfo, kMaxCpus> pending_sched_per_cpu_{};
+  std::array<PendingSchedInfo, base::kMaxCpus> pending_sched_per_cpu_{};
 
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;

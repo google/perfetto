@@ -55,7 +55,7 @@ export class SearchController extends Controller<'main'> {
     await this.query(`create virtual table search_summary_sched_span using
       span_join(sched PARTITIONED cpu, search_summary_window);`);
     await this.query(`create virtual table search_summary_slice_span using
-      span_join(slice PARTITIONED track_id, search_summary_window);`);
+      span_join(slice PARTITIONED ref_type  ref, search_summary_window);`);
   }
 
   run() {
@@ -92,7 +92,7 @@ export class SearchController extends Controller<'main'> {
         sliceIds: new Float64Array(0),
         tsStarts: new Float64Array(0),
         utids: new Float64Array(0),
-        sources: [],
+        refTypes: [],
         trackIds: [],
         totalResults: 0,
       });
@@ -113,6 +113,9 @@ export class SearchController extends Controller<'main'> {
         });
 
     Promise.all([computeSummary, computeResults])
+        .catch(e => {
+          console.error(e);
+        })
         .finally(() => {
           this.updateInProgress = false;
           this.run();
@@ -140,8 +143,7 @@ export class SearchController extends Controller<'main'> {
 
     const utids = [...rawUtidResult.columns[0].longValues!];
 
-    const cpus = await this.engine.getCpus();
-    const maxCpu = Math.max(...cpus, -1);
+    const maxCpu = Math.max(...await this.engine.getCpus());
 
     const rawResult = await this.query(`
         select
@@ -203,10 +205,10 @@ export class SearchController extends Controller<'main'> {
 
     const rawResult = await this.query(`
     select
-      id as slice_id,
+      row_id as slice_id,
       ts,
       'cpu' as source,
-      cpu as source_id,
+      cpu as ref,
       utid
     from sched where utid in (${utids.join(',')})
     union
@@ -214,7 +216,7 @@ export class SearchController extends Controller<'main'> {
       slice_id,
       ts,
       'track' as source,
-      track_id as source_id,
+      track_id as ref,
       0 as utid
       from slice
       inner join track on slice.track_id = track.id
@@ -228,19 +230,19 @@ export class SearchController extends Controller<'main'> {
       tsStarts: new Float64Array(numRows),
       utids: new Float64Array(numRows),
       trackIds: [],
-      sources: [],
+      refTypes: [],
       totalResults: +numRows,
     };
 
     const columns = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
       const source = columns[2].stringValues![row];
-      const sourceId = +columns[3].longValues![row];
+      const ref = +columns[3].longValues![row];
       let trackId = undefined;
       if (source === 'cpu') {
-        trackId = cpuToTrackId.get(sourceId);
+        trackId = cpuToTrackId.get(ref);
       } else if (source === 'track') {
-        trackId = engineTrackIdToTrackId.get(sourceId);
+        trackId = engineTrackIdToTrackId.get(ref);
       }
 
       if (trackId === undefined) {
@@ -249,7 +251,7 @@ export class SearchController extends Controller<'main'> {
       }
 
       searchResults.trackIds.push(trackId);
-      searchResults.sources.push(source);
+      searchResults.refTypes.push(source);
       searchResults.sliceIds[row] = +columns[0].longValues![row];
       searchResults.tsStarts[row] = +columns[1].longValues![row];
       searchResults.utids[row] = +columns[4].longValues![row];
@@ -260,6 +262,10 @@ export class SearchController extends Controller<'main'> {
 
   private async query(query: string) {
     const result = await this.engine.query(query);
+    if (result.error) {
+      console.error(`Query error "${query}": ${result.error}`);
+      throw new Error(`Query error "${query}": ${result.error}`);
+    }
     return result;
   }
 }

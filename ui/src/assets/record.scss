@@ -136,12 +136,12 @@
         border: 1px solid #eee;
         outline: none;
         margin: 4px;
-        border-radius: 20px;
+        border-radius: 10px;
         padding: 4px;
         height: 30px;
         &:hover, &:active {
-          box-shadow: 0 0 4px 0px #ccc;
-          background-color: #fafafa;
+          box-shadow: 0 0 4px 0px #999;
+          background-color: hsl(88, 50%, 84%);
         }
         i {
           margin: 3px;
@@ -206,7 +206,7 @@
     padding: 0 1em;
     font-size: 15px;
     letter-spacing: 0.5px;
-    font-family: 'Raleway', sans-serif;
+    font-family: 'Raleway';
     font-weight: 600;
     color: #666;
     display: grid;
@@ -273,14 +273,14 @@
   background: #fff;
   transition: opacity 0.25s ease;
   opacity: 0;
-  display: none;
+  visibility: hidden;
 
   &:not(.active) {
     max-height: 0;
   }
 
   &.active {
-    display: grid;
+    visibility: visible;
     opacity: 1;
   }
 
@@ -296,7 +296,7 @@
 
   >header {
     text-align: center;
-    font-family: 'Raleway', sans-serif;
+    font-family: 'Raleway';
     font-size: 20px;
     padding: 15px 10px;
     color: #333;
@@ -693,6 +693,7 @@
 
       &.two-columns {
         height: 400px;
+        width: auto;
         margin: var(--record-section-padding);
         optgroup {
           display: grid;
@@ -718,6 +719,10 @@
     height: 152px;
   }
 
+  .chrome-categories {
+    height: 152px;
+  }
+
   textarea.extra-input {
     width: 100%;
     height: 60px;
@@ -730,7 +735,7 @@
   }
 
   .code-snippet {
-    display: grid;
+    display: block;
     position: relative;
     padding: 0;
     margin: var(--record-section-padding);
@@ -769,8 +774,6 @@
       font-size: 12px;
       line-height: 20px;
       overflow-y: auto;
-      white-space: pre-wrap;
-      word-wrap: break-word;
 
       // 510px and not 500px, so the overflowing line gets truncated, giving
       // a clear indication that the code box scrolls.

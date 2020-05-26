@@ -17,12 +17,10 @@
 #ifndef INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 #define INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 
-#include "perfetto/base/export.h"
-
 namespace perfetto {
 
-PERFETTO_EXPORT const char* GetConsumerSocket();
-PERFETTO_EXPORT const char* GetProducerSocket();
+const char* GetConsumerSocket();
+const char* GetProducerSocket();
 
 }  // namespace perfetto
 

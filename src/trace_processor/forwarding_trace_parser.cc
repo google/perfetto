@@ -18,26 +18,31 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/ninja/ninja_log_parser.h"
+#include "src/trace_processor/gzip_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/trace_sorter.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
+
+// JSON parsing and exporting is only supported in the standalone and
+// Chromium builds.
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+#include "src/trace_processor/importers/json/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_trace_tokenizer.h"
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
 
 namespace perfetto {
 namespace trace_processor {
 namespace {
 
-const char kNoZlibErr[] =
-    "Cannot open compressed trace. zlib not enabled in the build config";
-
-inline bool isspace(unsigned char c) {
-  return ::isspace(c);
-}
-
 std::string RemoveWhitespace(const std::string& input) {
   std::string str(input);
-  str.erase(std::remove_if(str.begin(), str.end(), isspace), str.end());
+  str.erase(std::remove_if(str.begin(), str.end(), ::isspace), str.end());
   return str;
 }
 
@@ -56,7 +61,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
                                           size_t size) {
   // If this is the first Parse() call, guess the trace type and create the
   // appropriate parser.
-  static const int64_t kMaxWindowSize = std::numeric_limits<int64_t>::max();
+
   if (!reader_) {
     TraceType trace_type;
     {
@@ -67,69 +72,56 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
     switch (trace_type) {
       case kJsonTraceType: {
         PERFETTO_DLOG("JSON trace detected");
-        if (context_->json_trace_tokenizer && context_->json_trace_parser) {
-          reader_ = std::move(context_->json_trace_tokenizer);
-
-          // JSON traces have no guarantees about the order of events in them.
-          context_->sorter.reset(new TraceSorter(
-              std::move(context_->json_trace_parser), kMaxWindowSize));
-        } else {
-          return util::ErrStatus("JSON support is disabled");
-        }
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+        reader_.reset(new JsonTraceTokenizer(context_));
+        // JSON traces have no guarantees about the order of events in them.
+        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
+        context_->sorter.reset(new TraceSorter(context_, window_size_ns));
+        context_->parser.reset(new JsonTraceParser(context_));
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
+        PERFETTO_FATAL("JSON traces not supported.");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON_IMPORT)
         break;
       }
       case kProtoTraceType: {
         PERFETTO_DLOG("Proto trace detected");
         // This will be reduced once we read the trace config and we see flush
         // period being set.
+        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
         reader_.reset(new ProtoTraceTokenizer(context_));
-        context_->sorter.reset(new TraceSorter(
-            std::unique_ptr<TraceParser>(new ProtoTraceParser(context_)),
-            kMaxWindowSize));
-        context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
-        break;
-      }
-      case kNinjaLogTraceType: {
-        PERFETTO_DLOG("Ninja log detected");
-        reader_.reset(new NinjaLogParser(context_));
+        context_->sorter.reset(new TraceSorter(context_, window_size_ns));
+        context_->parser.reset(new ProtoTraceParser(context_));
         break;
       }
       case kFuchsiaTraceType: {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         PERFETTO_DLOG("Fuchsia trace detected");
-        if (context_->fuchsia_trace_parser &&
-            context_->fuchsia_trace_tokenizer) {
-          reader_ = std::move(context_->fuchsia_trace_tokenizer);
-
-          // Fuschia traces can have massively out of order events.
-          context_->sorter.reset(new TraceSorter(
-              std::move(context_->fuchsia_trace_parser), kMaxWindowSize));
-        } else {
-          return util::ErrStatus("Fuchsia support is disabled");
-        }
+        // Fuschia traces can have massively out of order events.
+        int64_t window_size_ns = std::numeric_limits<int64_t>::max();
+        reader_.reset(new FuchsiaTraceTokenizer(context_));
+        context_->sorter.reset(new TraceSorter(context_, window_size_ns));
+        context_->parser.reset(new FuchsiaTraceParser(context_));
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
+        PERFETTO_FATAL("Fuchsia traces not supported.");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FUCHSIA)
         break;
       }
       case kSystraceTraceType:
         PERFETTO_DLOG("Systrace trace detected");
-        context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
-        if (context_->systrace_trace_parser) {
-          reader_ = std::move(context_->systrace_trace_parser);
-          break;
-        } else {
-          return util::ErrStatus("Systrace support is disabled");
-        }
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+        reader_.reset(new SystraceTraceParser(context_));
+        break;
+#else   // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
+        return util::ErrStatus("Systrace support is disabled");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_FTRACE)
       case kGzipTraceType:
+        PERFETTO_DLOG("gzip trace detected");
+        reader_.reset(new GzipTraceParser(context_));
+        break;
       case kCtraceTraceType:
-        if (trace_type == kGzipTraceType) {
-          PERFETTO_DLOG("gzip trace detected");
-        } else {
-          PERFETTO_DLOG("ctrace trace detected");
-        }
-        if (context_->gzip_trace_parser) {
-          reader_ = std::move(context_->gzip_trace_parser);
-          break;
-        } else {
-          return util::ErrStatus(kNoZlibErr);
-        }
+        PERFETTO_DLOG("ctrace trace detected");
+        reader_.reset(new GzipTraceParser(context_));
+        break;
       case kUnknownTraceType:
         return util::ErrStatus("Unknown trace type provided");
     }
@@ -138,25 +130,21 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
   return reader_->Parse(std::move(data), size);
 }
 
-void ForwardingTraceParser::NotifyEndOfFile() {
-  reader_->NotifyEndOfFile();
-}
-
 TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (size == 0)
     return kUnknownTraceType;
   std::string start(reinterpret_cast<const char*>(data),
                     std::min<size_t>(size, 20));
+  std::string start_minus_white_space = RemoveWhitespace(start);
+  if (base::StartsWith(start_minus_white_space, "{\"traceEvents\":["))
+    return kJsonTraceType;
+  if (base::StartsWith(start_minus_white_space, "[{"))
+    return kJsonTraceType;
   if (size >= 8) {
     uint64_t first_word = *reinterpret_cast<const uint64_t*>(data);
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
   }
-  std::string start_minus_white_space = RemoveWhitespace(start);
-  if (base::StartsWith(start_minus_white_space, "{"))
-    return kJsonTraceType;
-  if (base::StartsWith(start_minus_white_space, "[{"))
-    return kJsonTraceType;
 
   // Systrace with header but no leading HTML.
   if (base::StartsWith(start, "# tracer"))
@@ -170,10 +158,6 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   // Ctrace is deflate'ed systrace.
   if (start.find("TRACE:") != std::string::npos)
     return kCtraceTraceType;
-
-  // Ninja's buils log (.ninja_log).
-  if (base::StartsWith(start, "# ninja log"))
-    return kNinjaLogTraceType;
 
   // Systrace with no header or leading HTML.
   if (base::StartsWith(start, " "))

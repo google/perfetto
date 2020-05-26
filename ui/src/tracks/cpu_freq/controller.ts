@@ -49,9 +49,9 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       await this.query(`create view ${this.tableName('freq')}
           as select
             ts,
-            dur,
+            lead(ts) over () - ts as dur,
             value as freq_value
-          from experimental_counter_dur c
+          from counter c
           where track_id = ${this.config.freqTrackId};
       `);
 
@@ -68,9 +68,9 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
         await this.query(`create view ${this.tableName('idle')}
           as select
             ts,
-            dur,
+            lead(ts) over () - ts as dur,
             value as idle_value
-          from experimental_counter_dur c
+          from counter c
           where track_id = ${this.config.idleTrackId};
         `);
       }

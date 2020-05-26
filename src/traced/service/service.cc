@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include <getopt.h>
-#include <stdio.h>
-
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
@@ -24,38 +21,9 @@
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "src/traced/service/builtin_producer.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
-#include "perfetto_version.gen.h"
-#else
-#define PERFETTO_GET_GIT_REVISION() "unknown"
-#endif
-
 namespace perfetto {
 
-int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
-  enum LongOption {
-    OPT_VERSION = 1000,
-  };
-
-  static const struct option long_options[] = {
-      {"version", no_argument, nullptr, OPT_VERSION},
-      {nullptr, 0, nullptr, 0}};
-
-  int option_index;
-  for (;;) {
-    int option = getopt_long(argc, argv, "", long_options, &option_index);
-    if (option == -1)
-      break;
-    switch (option) {
-      case OPT_VERSION:
-        printf("%s\n", PERFETTO_GET_GIT_REVISION());
-        return 0;
-      default:
-        PERFETTO_ELOG("Usage: %s [--version]", argv[0]);
-        return 1;
-    }
-  }
-
+int __attribute__((visibility("default"))) ServiceMain(int, char**) {
   base::UnixTaskRunner task_runner;
   std::unique_ptr<ServiceIPCHost> svc;
   svc = ServiceIPCHost::CreateInstance(&task_runner);
@@ -87,10 +55,9 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
 
   // Set the CPU limit and start the watchdog running. The memory limit will
   // be set inside the service code as it relies on the size of buffers.
-  // The CPU limit is the generic one defined in watchdog.h.
+  // The CPU limit is 75% over a 30 second interval.
   base::Watchdog* watchdog = base::Watchdog::GetInstance();
-  watchdog->SetCpuLimit(base::kWatchdogDefaultCpuLimit,
-                        base::kWatchdogDefaultCpuWindow);
+  watchdog->SetCpuLimit(75, 30 * 1000);
   watchdog->Start();
 
   PERFETTO_ILOG("Started traced, listening on %s %s", GetProducerSocket(),

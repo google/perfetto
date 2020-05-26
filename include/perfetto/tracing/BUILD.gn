@@ -14,12 +14,10 @@
 
 source_set("tracing") {
   public_deps = [
+    "../../../gn:default_deps",
     "../../../protos/perfetto/common:cpp",
-    "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/config/track_event:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
-    "../../../protos/perfetto/trace/track_event:cpp",
     "../../../protos/perfetto/trace/track_event:zero",
     "../base",
     "../protozero",
@@ -33,8 +31,6 @@ source_set("tracing") {
     "event_context.h",
     "internal/basic_types.h",
     "internal/data_source_internal.h",
-    "internal/in_process_tracing_backend.h",
-    "internal/system_tracing_backend.h",
     "internal/tracing_muxer.h",
     "internal/tracing_tls.h",
     "internal/track_event_data_source.h",
@@ -45,10 +41,8 @@ source_set("tracing") {
     "trace_writer_base.h",
     "tracing.h",
     "tracing_backend.h",
-    "track.h",
     "track_event.h",
     "track_event_category_registry.h",
     "track_event_interned_data_index.h",
-    "track_event_legacy.h",
   ]
 }

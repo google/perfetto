@@ -28,13 +28,13 @@
 #endif
 
 #define PERFETTO_EINTR(x)                                   \
-  ([&] {                                                    \
+  ({                                                        \
     decltype(x) eintr_wrapper_result;                       \
     do {                                                    \
       eintr_wrapper_result = (x);                           \
     } while (eintr_wrapper_result == -1 && errno == EINTR); \
-    return eintr_wrapper_result;                            \
-  }())
+    eintr_wrapper_result;                                   \
+  })
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 // TODO(brucedawson) - create a ::perfetto::base::IOSize to replace this.
@@ -54,6 +54,7 @@ constexpr pid_t kInvalidPid = static_cast<pid_t>(-1);
 #endif
 
 constexpr size_t kPageSize = 4096;
+constexpr size_t kMaxCpus = 128;
 
 template <typename T>
 constexpr size_t ArraySize(const T& array) {

@@ -19,16 +19,16 @@
 
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/args_tracker.h"
+#include "src/trace_processor/descriptors.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-// ProtoToArgsTable encapsulates the process of taking an arbitrary proto and
-// associating each field as a column in an args set. This is done by traversing
+// ProtoToArgsTable encapsulates the process of taking an arbitary proto and
+// assocating each field as a column in an args set. This is done by traversing
 // the proto using reflection (with descriptors provided by
 // AddProtoFileDescriptor()) and creating column names equal to this traversal.
 //
@@ -70,12 +70,14 @@ namespace trace_processor {
 class ProtoToArgsTable {
  public:
   struct ParsingOverrideState {
+    ArgsTracker* args_tracker;
     TraceProcessorContext* context;
-    PacketSequenceStateGeneration* sequence_state;
+    PacketSequenceState* sequence_state;
+    size_t sequence_generation;
+    RowId row_id;
   };
   using ParsingOverride = bool (*)(const ParsingOverrideState& state,
-                                   const protozero::Field&,
-                                   ArgsTracker::BoundInserter* inserter);
+                                   const protozero::Field&);
 
   // ScopedStringAppender will add |append| to |dest| when constructed and
   // erases the appended suffix from |dest| when it goes out of scope. Thus
@@ -98,8 +100,20 @@ class ProtoToArgsTable {
     std::string* str_;
   };
 
-  // |context| provides access to storage.
-  explicit ProtoToArgsTable(TraceProcessorContext* context);
+  // |sequence_state| and |sequence_state_generation| provide access to
+  // interning data. |context| provides access to storage.
+  //
+  // |args_tracker| is the access to the Args table, if nullptr then we will use
+  // the tracker inside |context|.
+  // |starting_prefix| will be prepended to all columns.
+  // |prefix_size_hint| allows the class to upfront reserve the expected string
+  // size needed.
+  ProtoToArgsTable(PacketSequenceState* sequence_state,
+                   size_t sequence_state_generation,
+                   TraceProcessorContext* context,
+                   ArgsTracker* args_tracker = nullptr,
+                   std::string starting_prefix = "",
+                   size_t prefix_size_hint = 64);
 
   // Adds a compile time reflection of a set of proto files. You must provide
   // the descriptor before attempting to parse this with
@@ -113,9 +127,7 @@ class ProtoToArgsTable {
                                       size_t proto_descriptor_array_size);
 
   // Given a view of bytes that represent a serialized protozero message of
-  // |type| we will parse each field into the Args table using RowId |row|,
-  // adding |key_prefix| in front of each name (can be an empty string if no
-  // prefix is needed).
+  // |type| we will parse each field into the Args table using RowId |row|.
   //
   // Returns on any error with a status describing the problem. However any
   // added values before encountering the error will be added to the
@@ -126,23 +138,14 @@ class ProtoToArgsTable {
   // beginning. I.E. ".perfetto.protos.TrackEvent". And must match one of the
   // descriptors already added through |AddProtoFileDescriptor|.
   //
-  // IMPORTANT: currently bytes fields are not supported.
+  // IMPORTANT: currently bytes fields are not supported and repeated fields do
+  // not properly use key/flat_key in the args table (they will be equal in
+  // value).
   //
-  // TODO(b/145578432): Add support for byte fields.
-  util::Status InternProtoIntoArgsTable(
-      const protozero::ConstBytes& cb,
-      const std::string& type,
-      ArgsTracker::BoundInserter* inserter,
-      PacketSequenceStateGeneration* sequence_state,
-      const std::string& key_prefix);
-
-  // Parse several fields with ids given in |fields| using reflection.
-  util::Status InternProtoFieldsIntoArgsTable(
-      const protozero::ConstBytes& cb,
-      const std::string& type,
-      const std::vector<uint16_t>& fields,
-      ArgsTracker::BoundInserter* inserter,
-      PacketSequenceStateGeneration* sequence_state);
+  // TODO(b/145578432): Add support for repeated fields and byte fields.
+  util::Status InternProtoIntoArgsTable(const protozero::ConstBytes& cb,
+                                        const std::string& type,
+                                        RowId row);
 
   // Installs an override for the field at the specified path. We will invoke
   // |parsing_override| when the field is encountered.
@@ -169,25 +172,22 @@ class ProtoToArgsTable {
                           ParsingOverride parsing_override);
 
  private:
-  util::Status InternProtoIntoArgsTableInternal(
-      const protozero::ConstBytes& cb,
-      const std::string& type,
-      ArgsTracker::BoundInserter* inserter,
-      ParsingOverrideState state);
+  util::Status InternProtoIntoArgsTableInternal(const protozero::ConstBytes& cb,
+                                                const std::string& type,
+                                                RowId row,
+                                                std::string* prefix);
 
   using OverrideIterator =
       std::vector<std::pair<std::string, ParsingOverride>>::iterator;
   OverrideIterator FindOverride(const std::string& field);
 
   Variadic ConvertProtoTypeToVariadic(const FieldDescriptor& descriptor,
-                                      const protozero::Field& field,
-                                      ParsingOverrideState state);
+                                      const protozero::Field& field);
 
+  ParsingOverrideState state_;
   std::vector<std::pair<std::string, ParsingOverride>> overrides_;
   DescriptorPool pool_;
-  std::string key_prefix_;
-  std::string flat_key_prefix_;
-  TraceProcessorContext* context_;
+  std::string prefix_;
 };
 
 }  // namespace trace_processor

@@ -16,6 +16,7 @@
 
 #include "src/profiling/memory/page_idle_checker.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/profiling/memory/utils.h"
 
 #include <inttypes.h>
 #include <vector>
@@ -73,7 +74,8 @@ void PageIdleChecker::MarkPageIdle(uint64_t virt_page_nr) {
   off64_t offset = 8 * (virt_page_nr / 64);
   size_t bit_offset = virt_page_nr % 64;
   uint64_t bit_pattern = 1 << bit_offset;
-  if (pwrite64(*page_idle_fd_, &bit_pattern, sizeof(bit_pattern), offset) !=
+  if (WriteAtOffsetClobberSeekPos(*page_idle_fd_, &bit_pattern,
+                                  sizeof(bit_pattern), offset) !=
       static_cast<ssize_t>(sizeof(bit_pattern))) {
     PERFETTO_PLOG("Failed to write bit pattern at %" PRIi64 ".", offset);
   }
@@ -83,7 +85,8 @@ int PageIdleChecker::IsPageIdle(uint64_t virt_page_nr) {
   off64_t offset = 8 * (virt_page_nr / 64);
   size_t bit_offset = virt_page_nr % 64;
   uint64_t bit_pattern;
-  if (pread64(*page_idle_fd_, &bit_pattern, sizeof(bit_pattern), offset) !=
+  if (ReadAtOffsetClobberSeekPos(*page_idle_fd_, &bit_pattern,
+                                 sizeof(bit_pattern), offset) !=
       static_cast<ssize_t>(sizeof(bit_pattern))) {
     PERFETTO_PLOG("Failed to read bit pattern at %" PRIi64 ".", offset);
     return -1;

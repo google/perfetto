@@ -16,6 +16,8 @@
 
 #include "tools/trace_to_text/trace_to_text.h"
 
+#include <zlib.h>
+
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -28,10 +30,6 @@
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-#include <zlib.h>
-#endif
 
 namespace perfetto {
 namespace trace_to_text {
@@ -80,7 +78,6 @@ constexpr char kPacketSuffix[] = "}\n";
 void PrintCompressedPackets(const std::string& packets,
                             Message* compressed_msg_scratch,
                             ZeroCopyOutputStream* output) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   uint8_t out[4096];
   std::vector<uint8_t> data;
 
@@ -123,24 +120,6 @@ void PrintCompressedPackets(const std::string& packets,
   }
   WriteToZeroCopyOutput(output, kCompressedPacketsSuffix,
                         sizeof(kCompressedPacketsSuffix) - 1);
-#else
-  base::ignore_result(packets);
-  base::ignore_result(compressed_msg_scratch);
-  base::ignore_result(kIndentedPacketPrefix);
-  base::ignore_result(kIndentedPacketSuffix);
-  WriteToZeroCopyOutput(output, kCompressedPacketsPrefix,
-                        sizeof(kCompressedPacketsPrefix) - 1);
-  static const char kErrMsg[] =
-      "Cannot decode compressed packets. zlib not enabled in the build config";
-  WriteToZeroCopyOutput(output, kErrMsg, sizeof(kErrMsg) - 1);
-  WriteToZeroCopyOutput(output, kCompressedPacketsSuffix,
-                        sizeof(kCompressedPacketsSuffix) - 1);
-  static bool log_once = [] {
-    PERFETTO_ELOG("%s", kErrMsg);
-    return true;
-  }();
-  base::ignore_result(log_once);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 }
 
 }  // namespace

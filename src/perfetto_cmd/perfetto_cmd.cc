@@ -24,23 +24,17 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/system_properties.h>
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <sstream>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -121,19 +115,6 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
   return true;
 }
 
-bool IsUserBuild() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  char value[PROP_VALUE_MAX];
-  if (!__system_property_get("ro.build.type", value)) {
-    PERFETTO_ELOG("Unable to read ro.build.type: assuming user build");
-    return true;
-  }
-  return strcmp(value, "user") == 0;
-#else
-  return false;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-}
-
 }  // namespace
 
 const char* kStateDir = "/data/misc/perfetto-traces";
@@ -183,7 +164,7 @@ Detach mode. DISCOURAGED, read https://docs.perfetto.dev/#/detached-mode :
   --detach=key          : Detach from the tracing session with the given key.
   --attach=key [--stop] : Re-attach to the session (optionally stop tracing once reattached).
   --is_detached=key     : Check if the session can be re-attached (0:Yes, 2:No, 1:Error).
-)", /* this comment fixes syntax highlighting in some editors */
+)",
                 argv0);
   return 1;
 }
@@ -437,8 +418,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   // 3) A set of option arguments (-t 10s -s 10m).
   // The only cases in which a trace config is not expected is --attach.
   // For this we are just acting on already existing sessions.
-  trace_config_.reset(new TraceConfig());
-
+  TraceConfig trace_config_proto;
   std::vector<std::string> triggers_to_activate;
   bool parsed = false;
   const bool will_trace = !is_attach() && !query_service_;
@@ -454,7 +434,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
           "--buffer, --app, ATRACE_CAT, FTRACE_EVENT");
       return 1;
     }
-    parsed = CreateConfigFromOptions(config_options, trace_config_.get());
+    parsed = CreateConfigFromOptions(config_options, &trace_config_proto);
   } else {
     if (trace_config_raw.empty()) {
       PERFETTO_ELOG("The TraceConfig is empty");
@@ -463,14 +443,16 @@ int PerfettoCmd::Main(int argc, char** argv) {
     PERFETTO_DLOG("Parsing TraceConfig, %zu bytes", trace_config_raw.size());
     if (parse_as_pbtxt) {
       parsed = ParseTraceConfigPbtxt(config_file_name, trace_config_raw,
-                                     trace_config_.get());
+                                     &trace_config_proto);
     } else {
-      parsed = trace_config_->ParseFromString(trace_config_raw);
+      parsed = trace_config_proto.ParseFromString(trace_config_raw);
     }
   }
 
+  trace_config_.reset(new TraceConfig());
   if (parsed) {
-    *trace_config_->mutable_statsd_metadata() = std::move(statsd_metadata);
+    *trace_config_proto.mutable_statsd_metadata() = std::move(statsd_metadata);
+    trace_config_->FromProto(trace_config_proto);
     trace_config_raw.clear();
   } else if (will_trace) {
     PERFETTO_ELOG("The trace config is invalid, bailing out.");
@@ -480,10 +462,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
   if (trace_config_->trace_uuid_lsb() == 0 &&
       trace_config_->trace_uuid_msb() == 0) {
     base::Uuid uuid = base::Uuidv4();
-    if (trace_config_->statsd_metadata().triggering_subscription_id()) {
-      uuid.set_lsb(
-          trace_config_->statsd_metadata().triggering_subscription_id());
-    }
     uuid_ = uuid.ToString();
     trace_config_->set_trace_uuid_msb(uuid.msb());
     trace_config_->set_trace_uuid_lsb(uuid.lsb());
@@ -495,8 +473,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   if (!trace_config_->incident_report_config().destination_package().empty()) {
     if (dropbox_tag_.empty()) {
-      PERFETTO_ELOG(
-          "Unexpected IncidentReportConfig without --dropbox / --upload.");
+      PERFETTO_ELOG("Unexpected IncidentReportConfig without --dropbox.");
       return 1;
     }
   }
@@ -509,23 +486,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
         "Can't log to a file (--out) and DropBox (--dropbox) at the same "
         "time");
     return 1;
-  }
-
-  if (!trace_config_->output_path().empty()) {
-    if (!trace_out_path_.empty() || !dropbox_tag_.empty()) {
-      PERFETTO_ELOG(
-          "Can't pass --out or --dropbox if output_path is set in the "
-          "trace config");
-      return 1;
-    }
-    if (access(trace_config_->output_path().c_str(), F_OK) == 0) {
-      PERFETTO_ELOG(
-          "The output_path must not exist, the service cannot overwrite "
-          "existing files for security reasons. Remove %s or use a different "
-          "path.",
-          trace_config_->output_path().c_str());
-      return 1;
-    }
   }
 
   // |activate_triggers| in the trace config is shorthand for trigger_perfetto.
@@ -546,9 +506,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       PERFETTO_ELOG("Can't pass an --out file (or --dropbox) with this option");
       return 1;
     }
-  } else if (!triggers_to_activate.empty() ||
-             (trace_config_->write_into_file() &&
-              !trace_config_->output_path().empty())) {
+  } else if (!triggers_to_activate.empty()) {
     open_out_file = false;
   } else if (trace_out_path_.empty() && dropbox_tag_.empty()) {
     PERFETTO_ELOG("Either --out or --dropbox is required");
@@ -596,7 +554,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
   if (!triggers_to_activate.empty()) {
-    LogUploadEvent(PerfettoStatsdAtom::kTriggerBegin);
     bool finished_with_success = false;
     TriggerProducer producer(
         &task_runner_,
@@ -606,11 +563,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
         },
         &triggers_to_activate);
     task_runner_.Run();
-    if (finished_with_success) {
-      LogUploadEvent(PerfettoStatsdAtom::kTriggerSuccess);
-    } else {
-      LogUploadEvent(PerfettoStatsdAtom::kTriggerFailure);
-    }
     return finished_with_success ? 0 : 1;
   }
 
@@ -624,31 +576,22 @@ int PerfettoCmd::Main(int argc, char** argv) {
   if (trace_config_->compression_type() ==
       TraceConfig::COMPRESSION_TYPE_DEFLATE) {
     if (packet_writer_) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
       packet_writer_ = CreateZipPacketWriter(std::move(packet_writer_));
-#else
-      PERFETTO_ELOG("Cannot compress. Zlib not enabled in the build config");
-#endif
     } else {
       PERFETTO_ELOG("Cannot compress when tracing directly to file.");
     }
   }
 
   RateLimiter::Args args{};
-  args.is_user_build = IsUserBuild();
   args.is_dropbox = !dropbox_tag_.empty();
   args.current_time = base::GetWallTimeS();
   args.ignore_guardrails = ignore_guardrails;
   args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
-  args.unique_session_name = trace_config_->unique_session_name();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_USERDEBUG_BUILD) || \
     PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
   args.max_upload_bytes_override =
       trace_config_->guardrail_overrides().max_upload_per_day_bytes();
 #endif
-
-  if (!args.unique_session_name.empty())
-    base::MaybeSetThreadName("p-" + args.unique_session_name);
 
   if (args.is_dropbox && !args.ignore_guardrails &&
       (trace_config_->duration_ms() == 0 &&
@@ -667,16 +610,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
     expected_duration_ms_ = timeout_ms + max_stop_delay_ms;
   }
 
-  if (trace_config_->trigger_config().trigger_timeout_ms() == 0) {
-    LogUploadEvent(PerfettoStatsdAtom::kTraceBegin);
-  } else {
-    LogUploadEvent(PerfettoStatsdAtom::kBackgroundTraceBegin);
-  }
-
-  if (!limiter.ShouldTrace(args)) {
-    LogUploadEvent(PerfettoStatsdAtom::kHitGuardrails);
+  if (!limiter.ShouldTrace(args))
     return 1;
-  }
 
   consumer_endpoint_ =
       ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
@@ -688,7 +623,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
 }
 
 void PerfettoCmd::OnConnect() {
-  LogUploadEvent(PerfettoStatsdAtom::kOnConnect);
   if (query_service_) {
     consumer_endpoint_->QueryServiceState(
         [this](bool success, const TracingServiceState& svc_state) {
@@ -715,7 +649,7 @@ void PerfettoCmd::OnConnect() {
   trace_config_->set_enable_extra_guardrails(!dropbox_tag_.empty());
 
   base::ScopedFile optional_fd;
-  if (trace_config_->write_into_file() && trace_config_->output_path().empty())
+  if (trace_config_->write_into_file())
     optional_fd.reset(dup(fileno(*trace_out_stream_)));
 
   consumer_endpoint_->EnableTracing(*trace_config_, std::move(optional_fd));
@@ -741,7 +675,6 @@ void PerfettoCmd::OnDisconnect() {
 
 void PerfettoCmd::OnTimeout() {
   PERFETTO_ELOG("Timed out while waiting for trace from the service, aborting");
-  LogUploadEvent(PerfettoStatsdAtom::kOnTimeout);
   task_runner_.Quit();
 }
 
@@ -769,8 +702,6 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 }
 
 void PerfettoCmd::OnTracingDisabled() {
-  LogUploadEvent(PerfettoStatsdAtom::kOnTracingDisabled);
-
   if (trace_config_->write_into_file()) {
     // If write_into_file == true, at this point the passed file contains
     // already all the packets.
@@ -786,7 +717,6 @@ void PerfettoCmd::OnTracingDisabled() {
 }
 
 void PerfettoCmd::FinalizeTraceAndExit() {
-  LogUploadEvent(PerfettoStatsdAtom::kFinalizeTraceAndExit);
   packet_writer_.reset();
 
   if (trace_out_stream_) {
@@ -945,14 +875,6 @@ void PerfettoCmd::PrintServiceState(bool success,
 
 void PerfettoCmd::OnObservableEvents(
     const ObservableEvents& /*observable_events*/) {}
-
-void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  LogUploadEventAndroid(atom);
-#else
-  base::ignore_result(atom);
-#endif
-}
 
 int __attribute__((visibility("default")))
 PerfettoCmdMain(int argc, char** argv) {

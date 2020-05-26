@@ -19,36 +19,21 @@ if (enable_perfetto_trace_processor_sqlite) {
     sources = [
       "db_sqlite_table.cc",
       "db_sqlite_table.h",
-      "query_cache.h",
       "query_constraints.cc",
       "query_constraints.h",
       "scoped_db.h",
-      "span_join_operator_table.cc",
-      "span_join_operator_table.h",
-      "sql_stats_table.cc",
-      "sql_stats_table.h",
       "sqlite3_str_split.cc",
       "sqlite3_str_split.h",
-      "sqlite_raw_table.cc",
-      "sqlite_raw_table.h",
       "sqlite_table.cc",
       "sqlite_table.h",
       "sqlite_utils.h",
-      "stats_table.cc",
-      "stats_table.h",
-      "window_operator_table.cc",
-      "window_operator_table.h",
     ]
     deps = [
-      "..:ftrace_descriptors",
       "../../../gn:default_deps",
       "../../../gn:sqlite",
       "../../../include/perfetto/trace_processor",
-      "../../../protos/perfetto/trace/ftrace:zero",
       "../../base",
       "../db:lib",
-      "../storage",
-      "../types",
     ]
   }
 
@@ -57,7 +42,6 @@ if (enable_perfetto_trace_processor_sqlite) {
     sources = [
       "db_sqlite_table_unittest.cc",
       "query_constraints_unittest.cc",
-      "span_join_operator_table_unittest.cc",
       "sqlite3_str_split_unittest.cc",
     ]
     deps = [
@@ -68,4 +52,4 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../base",
     ]
   }
-}
+}  # if (enable_perfetto_trace_processor_sqlite)

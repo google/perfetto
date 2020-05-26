@@ -33,6 +33,5 @@
 #include "perfetto/tracing/tracing_backend.h"
 #include "perfetto/tracing/track_event.h"
 #include "perfetto/tracing/track_event_interned_data_index.h"
-#include "perfetto/tracing/track_event_legacy.h"
 
 #endif  // INCLUDE_PERFETTO_TRACING_H_

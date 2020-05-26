@@ -35,15 +35,9 @@ class TrackEventInternal;
 //                       dbg->set_int_value(1234);
 //                     });
 //
-class PERFETTO_EXPORT EventContext {
+class EventContext {
  public:
   EventContext(EventContext&&) = default;
-
-  // For Chromium during the transition phase to the client library.
-  // TODO(eseckler): Remove once Chromium has switched to client lib entirely.
-  explicit EventContext(protos::pbzero::TrackEvent* event)
-      : event_(event), incremental_state_(nullptr) {}
-
   ~EventContext();
 
   protos::pbzero::TrackEvent* event() const { return event_; }

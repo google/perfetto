@@ -18,14 +18,16 @@
 #include <random>
 #include "test/gtest_and_gmock.h"
 
+#include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
-#include "test/cts/utils.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/test_config.gen.h"
-#include "protos/perfetto/trace/test_event.gen.h"
-#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -43,23 +45,6 @@ class PerfettoCtsTest : public ::testing::Test {
     }
 
     base::TestTaskRunner task_runner;
-
-    const std::string app_name = "android.perfetto.producer";
-    const std::string activity = "ProducerActivity";
-    if (IsAppRunning(app_name)) {
-      StopApp(app_name, "old.app.stopped", &task_runner);
-      task_runner.RunUntilCheckpoint("old.app.stopped");
-    }
-    StartAppActivity(app_name, activity, "target.app.running", &task_runner,
-                     /*delay_ms=*/100);
-    task_runner.RunUntilCheckpoint("target.app.running");
-
-    const std::string isolated_process_name =
-        "android.perfetto.producer:android.perfetto.producer."
-        "ProducerIsolatedService";
-    WaitForProcess(isolated_process_name, "isolated.service.running",
-                   &task_runner, 1000 /*ms*/);
-    task_runner.RunUntilCheckpoint("isolated.service.running");
 
     TestHelper helper(&task_runner);
     helper.ConnectConsumer();

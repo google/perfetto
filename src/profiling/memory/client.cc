@@ -35,9 +35,9 @@
 #include <new>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/sampler.h"
@@ -56,12 +56,8 @@ inline bool IsMainThread() {
   return getpid() == base::GetThreadId();
 }
 
-// The implementation of pthread_getattr_np for the main thread uses malloc,
-// so we cannot use it in GetStackBase, which we use inside of RecordMalloc
-// (which is called from malloc). We would re-enter malloc if we used it.
-//
-// This is why we find the stack base for the main-thread when constructing
-// the client and remember it.
+// TODO(b/117203899): Remove this after making bionic implementation safe to
+// use.
 char* FindMainThreadStack() {
   base::ScopedFstream maps(fopen("/proc/self/maps", "r"));
   if (!maps) {
@@ -174,7 +170,7 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
 
   base::ScopedFile page_idle(base::OpenFile("/proc/self/page_idle", O_RDWR));
   if (!page_idle) {
-    PERFETTO_DLOG("Failed to open /proc/self/page_idle. Continuing.");
+    PERFETTO_LOG("Failed to open /proc/self/page_idle. Continuing.");
     num_send_fds = kHandshakeSize - 1;
   }
 
@@ -252,20 +248,6 @@ Client::Client(base::UnixSocketRaw sock,
       shmem_(std::move(shmem)),
       pid_at_creation_(pid_at_creation) {}
 
-Client::~Client() {
-  // This is work-around for code like the following:
-  // https://android.googlesource.com/platform/libcore/+/4ecb71f94378716f88703b9f7548b5d24839262f/ojluni/src/main/native/UNIXProcess_md.c#427
-  // They fork, close all fds by iterating over /proc/self/fd using opendir.
-  // Unfortunately closedir calls free, which detects the fork, and then tries
-  // to destruct this Client.
-  //
-  // ScopedResource crashes on failure to close, so we explicitly ignore
-  // failures here.
-  int fd = sock_.ReleaseFd().release();
-  if (fd != -1)
-    close(fd);
-}
-
 const char* Client::GetStackBase() {
   if (IsMainThread()) {
     if (!main_thread_stack_base_)
@@ -275,50 +257,6 @@ const char* Client::GetStackBase() {
     return main_thread_stack_base_;
   }
   return GetThreadStackBase();
-}
-
-// Best-effort detection of whether we're continuing work in a forked child of
-// the profiled process, in which case we want to stop. Note that due to
-// malloc_hooks.cc's atfork handler, the proper fork calls should leak the child
-// before reaching this point. Therefore this logic exists primarily to handle
-// clone and vfork.
-// TODO(rsavitski): rename/delete |disable_fork_teardown| config option if this
-// logic sticks, as the option becomes more clone-specific, and quite narrow.
-bool Client::IsPostFork() {
-  if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
-    // Only print the message once, even if we do not shut down the client.
-    if (!detected_fork_) {
-      detected_fork_ = true;
-      const char* vfork_detected = "";
-
-      // We use the fact that vfork does not update Bionic's TID cache, so
-      // we will have a mismatch between the actual TID (from the syscall)
-      // and the cached one.
-      //
-      // What we really want to check is if we are sharing virtual memory space
-      // with the original process. This would be
-      // syscall(__NR_kcmp, syscall(__NR_getpid), pid_at_creation_,
-      //         KCMP_VM, 0, 0),
-      //  but that is not compiled into our kernels and disallowed by seccomp.
-      if (!client_config_.disable_vfork_detection &&
-          syscall(__NR_gettid) != base::GetThreadId()) {
-        postfork_return_value_ = true;
-        vfork_detected = " (vfork detected)";
-      } else {
-        postfork_return_value_ = client_config_.disable_fork_teardown;
-      }
-      const char* action =
-          postfork_return_value_ ? "Not shutting down" : "Shutting down";
-      const char* force =
-          postfork_return_value_ ? " (fork teardown disabled)" : "";
-      PERFETTO_LOG(
-          "Detected post-fork child situation. Not profiling the child. "
-          "%s client%s%s",
-          action, force, vfork_detected);
-    }
-    return true;
-  }
-  return false;
 }
 
 // The stack grows towards numerically smaller addresses, so the stack layout
@@ -336,8 +274,9 @@ bool Client::IsPostFork() {
 bool Client::RecordMalloc(uint64_t sample_size,
                           uint64_t alloc_size,
                           uint64_t alloc_address) {
-  if (PERFETTO_UNLIKELY(IsPostFork())) {
-    return postfork_return_value_;
+  if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
+    PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
+    return false;
   }
 
   AllocMetadata metadata;
@@ -397,10 +336,6 @@ bool Client::SendWireMessageWithRetriesIfBlocking(const WireMessage& msg) {
 }
 
 bool Client::RecordFree(const uint64_t alloc_address) {
-  if (PERFETTO_UNLIKELY(IsPostFork())) {
-    return postfork_return_value_;
-  }
-
   uint64_t sequence_number =
       1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel);
 
@@ -421,6 +356,11 @@ bool Client::RecordFree(const uint64_t alloc_address) {
 }
 
 bool Client::FlushFreesLocked() {
+  if (PERFETTO_UNLIKELY(getpid() != pid_at_creation_)) {
+    PERFETTO_LOG("Detected post-fork child situation, stopping profiling.");
+    return false;
+  }
+
   WireMessage msg = {};
   msg.record_type = RecordType::Free;
   msg.free_header = &free_batch_;

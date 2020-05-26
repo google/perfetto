@@ -113,18 +113,16 @@ bool PagedMemory::AdviseDontNeed(void* p, size_t size) {
   PERFETTO_DCHECK(p_);
   PERFETTO_DCHECK(p >= p_);
   PERFETTO_DCHECK(static_cast<char*>(p) + size <= p_ + size_);
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // Discarding pages on Windows has more CPU cost than is justified for the
   // possible memory savings.
   return false;
-#else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // http://man7.org/linux/man-pages/man2/madvise.2.html
   int res = madvise(p, size, MADV_DONTNEED);
   PERFETTO_DCHECK(res == 0);
   return true;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
 #if TRACK_COMMITTED_SIZE()

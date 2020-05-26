@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  ComputeMetricArgs,
-  ComputeMetricResult,
-  RawQueryArgs,
-  RawQueryResult
-} from './protos';
+import {RawQueryArgs, RawQueryResult} from './protos';
 import {TimeSpan} from './time';
 
 export interface LoadingTracker {
@@ -69,17 +64,11 @@ export abstract class Engine {
    */
   abstract rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array>;
 
-  /*
-   * Performs computation of metrics and returns a proto-encoded TraceMetrics
-   * object.
-   */
-  abstract rawComputeMetric(computeMetricArgs: Uint8Array): Promise<Uint8Array>;
-
   /**
    * Shorthand for sending a SQL query to the engine.
    * Deals with {,un}marshalling of request/response args.
    */
-  async query(sqlQuery: string, userQuery = false): Promise<RawQueryResult> {
+  async query(sqlQuery: string): Promise<RawQueryResult> {
     this.loadingTracker.beginLoading();
     try {
       const args = new RawQueryArgs();
@@ -87,42 +76,16 @@ export abstract class Engine {
       args.timeQueuedNs = Math.floor(performance.now() * 1e6);
       const argsEncoded = RawQueryArgs.encode(args).finish();
       const respEncoded = await this.rawQuery(argsEncoded);
-      const result = RawQueryResult.decode(respEncoded);
-      if (!result.error || userQuery) return result;
-      // Query failed, throw an error since it was not a user query
-      throw new Error(`Query error "${sqlQuery}": ${result.error}`);
+      return RawQueryResult.decode(respEncoded);
     } finally {
       this.loadingTracker.endLoading();
     }
   }
 
-  /**
-   * Shorthand for sending a compute metrics request to the engine.
-   * Deals with {,un}marshalling of request/response args.
-   */
-  async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
-    const args = new ComputeMetricArgs();
-    args.metricNames = metrics;
-    const argsEncoded = ComputeMetricArgs.encode(args).finish();
-    const respEncoded = await this.rawComputeMetric(argsEncoded);
-    return ComputeMetricResult.decode(respEncoded);
-  }
-
   async queryOneRow(query: string): Promise<number[]> {
     const result = await this.query(query);
     const res: number[] = [];
-    if (result.numRecords === 0) return res;
-    for (const col of result.columns) {
-      if (col.longValues!.length === 0) {
-        console.error(
-            `queryOneRow should only be used for queries that return long values
-             : ${query}`);
-        throw new Error(
-            `queryOneRow should only be used for queries that return long values
-             : ${query}`);
-      }
-      res.push(+col.longValues![0]);
-    }
+    result.columns.map(c => res.push(+c.longValues![0]));
     return res;
   }
 
@@ -131,7 +94,6 @@ export abstract class Engine {
     if (!this._cpus) {
       const result =
           await this.query('select distinct(cpu) from sched order by cpu;');
-      if (result.numRecords === 0) return [];
       this._cpus = result.columns[0].longValues!.map(n => +n);
     }
     return this._cpus;
@@ -139,11 +101,8 @@ export abstract class Engine {
 
   async getNumberOfGpus(): Promise<number> {
     if (!this._numGpus) {
-      const result = await this.query(`
-        select count(distinct(gpu_id)) as gpuCount
-        from gpu_counter_track
-        where name = 'gpufreq';
-      `);
+      const result = await this.query(
+          'select count(distinct(arg_set_id)) as gpuCount from counters where name = "gpufreq";');
       this._numGpus = +result.columns[0].longValues![0];
     }
     return this._numGpus;

@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
+import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
-import {toNs} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
@@ -25,7 +24,6 @@ import {Config, Data, SLICE_TRACK_KIND} from './common';
 
 const SLICE_HEIGHT = 18;
 const TRACK_PADDING = 4;
-const INCOMPLETE_SLICE_TIME_S = 0.00003;
 
 function hash(s: string): number {
   let hash = 0x811c9dc5 & 0xfffffff;
@@ -67,7 +65,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.end),
     );
 
-    ctx.font = '12px Roboto Condensed';
+    ctx.font = '12px Google Sans';
     ctx.textAlign = 'center';
 
     // measuretext is expensive so we only use it once.
@@ -80,56 +78,25 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
-      let tEnd = data.ends[i];
+      const tEnd = data.ends[i];
       const depth = data.depths[i];
       const titleId = data.titles[i];
       const sliceId = data.sliceIds[i];
       const title = data.strings[titleId];
-      const summarizedOffset =
-          data.summarizedOffset ? data.summarizedOffset[i] : -1;
-      let incompleteSlice = false;
-
-      if (toNs(tEnd) - toNs(tStart) === -1) {  // incomplete slice
-        incompleteSlice = true;
-        tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
-      }
-
       if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
         continue;
       }
-
       const rectXStart = Math.max(timeScale.timeToPx(tStart), 0);
-      let rectXEnd = Math.min(timeScale.timeToPx(tEnd), pxEnd);
-      let rectWidth = rectXEnd - rectXStart;
-      // All slices should be at least 1px.
-      if (rectWidth < 1) {
-        rectWidth = 1;
-        rectXEnd = rectXStart + 1;
-      }
+      const rectXEnd = Math.min(timeScale.timeToPx(tEnd), pxEnd);
+      const rectWidth = rectXEnd - rectXStart;
       const rectYStart = TRACK_PADDING + depth * SLICE_HEIGHT;
-      const name = title.replace(/( )?\d+/g, '');
-      const hue = hash(name);
-      const saturation = 50;
+
       const hovered = titleId === this.hoveredTitleId;
-      const color = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
-      if (summarizedOffset !== -1) {
-        const summarizedSize = data.summarizedSize[i];
-        const nameHues =
-            (data.summaryNameId.slice(
-                 summarizedOffset, summarizedOffset + summarizedSize))
-                .map(id => hash(data.strings[id]));
-        const percents = data.summaryPercent.slice(
-            summarizedOffset, summarizedOffset + summarizedSize);
-        colorSummarizedSlice(nameHues, percents, rectXStart, rectXEnd, hovered);
-      } else {
-        ctx.fillStyle = color;
-      }
-      if (incompleteSlice && rectWidth > SLICE_HEIGHT / 4) {
-        drawIncompleteSlice(
-            ctx, rectXStart, rectYStart, rectWidth, SLICE_HEIGHT, color);
-      } else {
-        ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
-      }
+      const name = title.replace(/( )?\d+/g, '');
+      const hue = title === 'Busy' ? 88 : hash(name);
+      const saturation = 50;
+      ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
+      ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
 
       // Selected case
       const currentSelection = globals.state.currentSelection;
@@ -153,25 +120,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
-
-    // Make a gradient ordered most common to least common slices within the
-    // summarized slice.
-    function colorSummarizedSlice(
-        nameHues: Uint16Array,
-        percents: Float64Array,
-        rectStart: number,
-        rectEnd: number,
-        hovered: boolean) {
-      const gradient = ctx.createLinearGradient(
-          rectStart, SLICE_HEIGHT, rectEnd, SLICE_HEIGHT);
-      let colorStop = 0;
-      for (let i = 0; i < nameHues.length; i++) {
-        const colorString = `hsl(${nameHues[i]}, 50%, ${hovered ? 30 : 65}%)`;
-        colorStop = Math.max(0, Math.min(1, colorStop + percents[i]));
-        gradient.addColorStop(colorStop, colorString);
-      }
-      ctx.fillStyle = gradient;
-    }
   }
 
   getSliceIndex({x, y}: {x: number, y: number}): number|void {
@@ -184,10 +132,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     const depth = Math.floor(y / SLICE_HEIGHT);
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
-      let tEnd = data.ends[i];
-      if (toNs(tEnd) - toNs(tStart) === -1) {
-        tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
-      }
+      const tEnd = data.ends[i];
       if (tStart <= t && t <= tEnd && depth === data.depths[i]) {
         return i;
       }
@@ -213,12 +158,9 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     const data = this.data();
     if (data === undefined) return false;
     const sliceId = data.sliceIds[sliceIndex];
-    if (sliceId !== undefined && sliceId !== -1) {
-      globals.makeSelection(Actions.selectChromeSlice({
-        id: sliceId,
-        trackId: this.trackState.id,
-        table: this.config.namespace
-      }));
+    if (sliceId) {
+      globals.makeSelection(Actions.selectChromeSlice(
+          {id: sliceId, trackId: this.trackState.id}));
       return true;
     }
     return false;

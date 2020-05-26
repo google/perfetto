@@ -307,12 +307,10 @@ void ConsumerIPCClientImpl::ObserveEvents(uint32_t enabled_event_types) {
   }
 
   protos::gen::ObserveEventsRequest req;
-  for (uint32_t i = 0; i < 32; i++) {
-    const uint32_t event_id = 1u << i;
-    if (enabled_event_types & event_id)
-      req.add_events_to_observe(static_cast<ObservableEvents::Type>(event_id));
+  if (enabled_event_types & ObservableEventType::kDataSourceInstances) {
+    req.add_events_to_observe(
+        protos::gen::ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
   }
-
   ipc::Deferred<protos::gen::ObserveEventsResponse> async_response;
   // The IPC layer guarantees that callbacks are destroyed after this object
   // is destroyed (by virtue of destroying the |consumer_port_|). In turn the
@@ -321,8 +319,8 @@ void ConsumerIPCClientImpl::ObserveEvents(uint32_t enabled_event_types) {
   async_response.Bind(
       [this](ipc::AsyncResult<protos::gen::ObserveEventsResponse> response) {
         // Skip empty response, which the service sends to close the stream.
-        if (!response.has_more()) {
-          PERFETTO_DCHECK(!response->events().instance_state_changes().size());
+        if (!response->events().instance_state_changes().size()) {
+          PERFETTO_DCHECK(!response.has_more());
           return;
         }
         consumer_->OnObservableEvents(response->events());
@@ -338,77 +336,16 @@ void ConsumerIPCClientImpl::QueryServiceState(
     return;
   }
 
-  auto it = pending_query_svc_reqs_.insert(pending_query_svc_reqs_.end(),
-                                           {std::move(callback), {}});
   protos::gen::QueryServiceStateRequest req;
   ipc::Deferred<protos::gen::QueryServiceStateResponse> async_response;
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  async_response.Bind(
-      [weak_this,
-       it](ipc::AsyncResult<protos::gen::QueryServiceStateResponse> response) {
-        if (weak_this)
-          weak_this->OnQueryServiceStateResponse(std::move(response), it);
-      });
-  consumer_port_.QueryServiceState(req, std::move(async_response));
-}
-
-void ConsumerIPCClientImpl::OnQueryServiceStateResponse(
-    ipc::AsyncResult<protos::gen::QueryServiceStateResponse> response,
-    PendingQueryServiceRequests::iterator req_it) {
-  PERFETTO_DCHECK(req_it->callback);
-
-  if (!response) {
-    auto callback = std::move(req_it->callback);
-    pending_query_svc_reqs_.erase(req_it);
-    callback(false, TracingServiceState());
-    return;
-  }
-
-  // The QueryServiceState response can be split in several chunks if the
-  // service has several data sources. The client is supposed to merge all the
-  // replies. The easiest way to achieve this is to re-serialize the partial
-  // response and then re-decode the merged result in one shot.
-  std::vector<uint8_t>& merged_resp = req_it->merged_resp;
-  std::vector<uint8_t> part = response->service_state().SerializeAsArray();
-  merged_resp.insert(merged_resp.end(), part.begin(), part.end());
-
-  if (response.has_more())
-    return;
-
-  // All replies have been received. Decode the merged result and reply to the
-  // callback.
-  protos::gen::TracingServiceState svc_state;
-  bool ok = svc_state.ParseFromArray(merged_resp.data(), merged_resp.size());
-  if (!ok)
-    PERFETTO_ELOG("Failed to decode merged QueryServiceStateResponse");
-  auto callback = std::move(req_it->callback);
-  pending_query_svc_reqs_.erase(req_it);
-  callback(ok, std::move(svc_state));
-}
-
-void ConsumerIPCClientImpl::QueryCapabilities(
-    QueryCapabilitiesCallback callback) {
-  if (!connected_) {
-    PERFETTO_DLOG(
-        "Cannot QueryCapabilities(), not connected to tracing service");
-    return;
-  }
-
-  protos::gen::QueryCapabilitiesRequest req;
-  ipc::Deferred<protos::gen::QueryCapabilitiesResponse> async_response;
   async_response.Bind(
       [callback](
-          ipc::AsyncResult<protos::gen::QueryCapabilitiesResponse> response) {
-        if (!response) {
-          // If the IPC fails, we are talking to an older version of the service
-          // that didn't support QueryCapabilities at all. In this case return
-          // an empty capabilities message.
-          callback(TracingServiceCapabilities());
-        } else {
-          callback(response->capabilities());
-        }
+          ipc::AsyncResult<protos::gen::QueryServiceStateResponse> response) {
+        if (!response)
+          callback(false, TracingServiceState());
+        callback(true, response->service_state());
       });
-  consumer_port_.QueryCapabilities(req, std::move(async_response));
+  consumer_port_.QueryServiceState(req, std::move(async_response));
 }
 
 }  // namespace perfetto

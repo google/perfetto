@@ -17,13 +17,10 @@
 #ifndef SRC_PROFILING_PERF_EVENT_CONFIG_H_
 #define SRC_PROFILING_PERF_EVENT_CONFIG_H_
 
-#include <string>
-
 #include <linux/perf_event.h>
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
@@ -32,73 +29,60 @@
 namespace perfetto {
 namespace profiling {
 
-// Parsed whitelist/blacklist for filtering samples.
-// An empty whitelist set means that all targets are allowed.
-struct TargetFilter {
-  base::FlatSet<std::string> cmdlines;
-  base::FlatSet<std::string> exclude_cmdlines;
-  base::FlatSet<pid_t> pids;
-  base::FlatSet<pid_t> exclude_pids;
-};
-
 // Describes a single profiling configuration. Bridges the gap between the data
 // source config proto, and the raw "perf_event_attr" structs to pass to the
 // perf_event_open syscall.
+// TODO(rsavitski): make sampling conditional? Or should we always go through
+// the sampling interface for simplicity? Reads can be done on-demand even if
+// sampling is on. So the question becomes whether we need *only* on-demand
+// reads.
 class EventConfig {
  public:
-  static base::Optional<EventConfig> Create(const DataSourceConfig& ds_config);
+  static base::Optional<EventConfig> Create(const DataSourceConfig& ds_config) {
+    protos::pbzero::PerfEventConfig::Decoder pb_config(
+        ds_config.perf_event_config_raw());
 
-  uint32_t target_all_cpus() const { return target_all_cpus_; }
-  uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }
-  uint32_t read_tick_period_ms() const { return read_tick_period_ms_; }
-  uint32_t samples_per_tick_limit() const { return samples_per_tick_limit_; }
-  uint32_t remote_descriptor_timeout_ms() const {
-    return remote_descriptor_timeout_ms_;
-  }
-  uint32_t unwind_state_clear_period_ms() const {
-    return unwind_state_clear_period_ms_;
+    if (!pb_config.has_tid())
+      return base::nullopt;
+
+    return EventConfig(pb_config);
   }
 
-  const TargetFilter& filter() const { return target_filter_; }
+  int32_t target_tid() const { return target_tid_; }
 
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
 
  private:
-  EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
-              uint32_t sampling_frequency,
-              uint32_t ring_buffer_pages,
-              uint32_t read_tick_period_ms,
-              uint32_t samples_per_tick_limit,
-              uint32_t remote_descriptor_timeout_ms,
-              TargetFilter target_filter);
+  EventConfig(const protos::pbzero::PerfEventConfig::Decoder& pb_config)
+      : target_tid_(pb_config.tid()) {
+    auto& pe = perf_event_attr_;
+    memset(&pe, 0, sizeof(perf_event_attr));
+    pe.size = sizeof(perf_event_attr);
 
-  // If true, process all system-wide samples.
-  const bool target_all_cpus_;
+    pe.exclude_kernel = true;
+    pe.disabled = false;
 
-  // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel.
-  // Must be a power of two.
-  const uint32_t ring_buffer_pages_;
+    // Ask the kernel to tune sampling period to get ~100 Hz.
+    pe.type = PERF_TYPE_SOFTWARE;
+    pe.config = PERF_COUNT_SW_CPU_CLOCK;
+    pe.sample_freq = 100;
+    pe.freq = true;
 
-  // Parameter struct for |perf_event_open| calls.
-  struct perf_event_attr perf_event_attr_ = {};
+    pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_STACK_USER;
+    // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
+    pe.sample_stack_user = (1u << 15);
 
-  // How often the ring buffers should be read.
-  const uint32_t read_tick_period_ms_;
+    // Note: can't use inherit with task-scoped event mmap
+    pe.inherit = false;
+  }
 
-  // Guardrail for the amount of samples a given read attempt will extract from
-  // *each* per-cpu buffer.
-  const uint32_t samples_per_tick_limit_;
-
-  // Parsed whitelist/blacklist for filtering samples.
-  const TargetFilter target_filter_;
-
-  // Timeout for proc-fd lookup.
-  const uint32_t remote_descriptor_timeout_ms_;
-
-  // Optional period for clearing cached unwinder state. Skipped if zero.
-  const uint32_t unwind_state_clear_period_ms_;
+  // TODO(rsavitski): this will have to represent entire event groups, thus this
+  // class will represent N events. So we'll need N cpus/tids, but likely still
+  // a single perf_event_attr.
+  int32_t target_tid_ = 0;
+  perf_event_attr perf_event_attr_;
 };
 
 }  // namespace profiling

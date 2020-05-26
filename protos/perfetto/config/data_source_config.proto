@@ -15,11 +15,11 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
 import "protos/perfetto/config/android/android_log_config.proto";
-import "protos/perfetto/config/android/android_polled_state_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
@@ -33,7 +33,6 @@ import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
-import "protos/perfetto/config/track_event/track_event_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
 message DataSourceConfig {
@@ -87,10 +86,8 @@ message DataSourceConfig {
   // Data source name: linux.sys_stats
   optional SysStatsConfig sys_stats_config = 104 [lazy = true];
   // Data source name: android.heapprofd
-  // Introduced in Android 10.
   optional HeapprofdConfig heapprofd_config = 105 [lazy = true];
   // Data source name: android.java_hprof
-  // Introduced in Android 11.
   optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
   // Data source name: android.power
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
@@ -104,11 +101,6 @@ message DataSourceConfig {
   optional PerfEventConfig perf_event_config = 111 [lazy = true];
   // Data source name: vulkan.memory_tracker
   optional VulkanMemoryConfig vulkan_memory_config = 112 [lazy = true];
-  // Data source name: track_event
-  optional TrackEventConfig track_event_config = 113 [lazy = true];
-  // Data source name: android.polled_state
-  optional AndroidPolledStateConfig android_polled_state_config = 114
-      [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

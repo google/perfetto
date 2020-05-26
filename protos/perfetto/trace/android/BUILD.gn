@@ -15,12 +15,13 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [ "../../common:@TYPE@" ]
+  deps = [
+    "../../common:@TYPE@",
+  ]
 
   sources = [
     "android_log.proto",
     "graphics_frame_event.proto",
-    "initial_display_state.proto",
     "packages_list.proto",
   ]
 }

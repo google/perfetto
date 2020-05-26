@@ -18,26 +18,10 @@
 #define INCLUDE_PERFETTO_TRACING_DEBUG_ANNOTATION_H_
 
 #include "perfetto/base/export.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 #include <stdint.h>
 
-#include <memory>
 #include <string>
-
-namespace {
-// std::underlying_type can't be used with non-enum types, so we need this
-// indirection.
-template <typename T, bool = std::is_enum<T>::value>
-struct safe_underlying_type {
-  using type = typename std::underlying_type<T>::type;
-};
-
-template <typename T>
-struct safe_underlying_type<T, false> {
-  using type = T;
-};
-}  // namespace
 
 namespace perfetto {
 namespace protos {
@@ -57,81 +41,20 @@ class PERFETTO_EXPORT DebugAnnotation {
 };
 
 namespace internal {
-// Overloads for all the supported built in debug annotation types. Numeric
-// types are handled with templates to avoid problems with overloading
-// platform-specific types (e.g., size_t).
-void PERFETTO_EXPORT WriteDebugAnnotation(protos::pbzero::DebugAnnotation*,
-                                          const char*);
-void PERFETTO_EXPORT WriteDebugAnnotation(protos::pbzero::DebugAnnotation*,
-                                          const std::string&);
-void PERFETTO_EXPORT WriteDebugAnnotation(protos::pbzero::DebugAnnotation*,
-                                          const void*);
-void PERFETTO_EXPORT WriteDebugAnnotation(protos::pbzero::DebugAnnotation*,
-                                          const DebugAnnotation&);
 
-template <typename T>
-void WriteDebugAnnotation(
-    protos::pbzero::DebugAnnotation* annotation,
-    T value,
-    typename std::enable_if<std::is_floating_point<T>::value>::type* =
-        nullptr) {
-  annotation->set_double_value(static_cast<double>(value));
-}
-
-template <typename T>
-void WriteDebugAnnotation(
-    protos::pbzero::DebugAnnotation* annotation,
-    T value,
-    typename std::enable_if<std::is_integral<T>::value &&
-                            !std::is_same<T, bool>::value &&
-                            std::is_signed<T>::value>::type* = nullptr) {
-  annotation->set_int_value(value);
-}
-
-template <typename T>
-void WriteDebugAnnotation(
-    protos::pbzero::DebugAnnotation* annotation,
-    T value,
-    typename std::enable_if<
-        std::is_enum<T>::value &&
-        std::is_signed<typename safe_underlying_type<T>::type>::value>::type* =
-        nullptr) {
-  annotation->set_int_value(value);
-}
-
-template <typename T>
-void WriteDebugAnnotation(
-    protos::pbzero::DebugAnnotation* annotation,
-    T value,
-    typename std::enable_if<std::is_enum<T>::value &&
-                            std::is_unsigned<typename safe_underlying_type<
-                                T>::type>::value>::type* = nullptr) {
-  annotation->set_uint_value(value);
-}
-
-template <typename T>
-void WriteDebugAnnotation(
-    protos::pbzero::DebugAnnotation* annotation,
-    T value,
-    typename std::enable_if<std::is_integral<T>::value &&
-                            !std::is_same<T, bool>::value &&
-                            std::is_unsigned<T>::value>::type* = nullptr) {
-  annotation->set_uint_value(value);
-}
-
-template <typename T>
-void WriteDebugAnnotation(
-    protos::pbzero::DebugAnnotation* annotation,
-    T value,
-    typename std::enable_if<std::is_same<T, bool>::value>::type* = nullptr) {
-  annotation->set_bool_value(value);
-}
-
-template <typename T>
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          const std::unique_ptr<T>& value) {
-  WriteDebugAnnotation(annotation, *value);
-}
+// Overloads for all the supported built in debug annotation types.
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, bool);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, uint64_t);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, unsigned);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, int64_t);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, int);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, double);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, float);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, const char*);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, const std::string&);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*, const void*);
+void WriteDebugAnnotation(protos::pbzero::DebugAnnotation*,
+                          const DebugAnnotation&);
 
 }  // namespace internal
 }  // namespace perfetto

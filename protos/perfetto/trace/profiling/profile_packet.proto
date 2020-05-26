@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 import "protos/perfetto/trace/profiling/profile_common.proto";
 
@@ -107,10 +108,6 @@ message ProfilePacket {
     // MEMORY CORRUPTION.
     optional bool buffer_corrupted = 8;
 
-    // If disconnected, this disconnect was caused by heapprofd exceeding
-    // guardrails during this profiling session.
-    optional bool hit_guardrail = 10;
-
     // Timestamp of the state of the target process that this dump represents.
     // This can be different to the timestamp of the TracePackets for various
     // reasons:
@@ -145,85 +142,5 @@ message ProfilePacket {
 // points in time, rather than aggregated over an interval.
 message StreamingProfilePacket {
   repeated uint64 callstack_iid = 1;  // Index into InternedData.callstacks
-  // TODO(eseckler): ThreadDescriptor-based timestamps are deprecated. Replace
-  // this with ClockSnapshot-based delta encoding instead.
   repeated int64 timestamp_delta_us = 2;
-  optional int32 process_priority = 3;
-}
-
-// Namespace for the contained enums.
-message Profiling {
-  enum CpuMode {
-    MODE_UNKNOWN = 0;
-    MODE_KERNEL = 1;
-    MODE_USER = 2;
-    // The following values aren't expected, but included for completeness:
-    MODE_HYPERVISOR = 3;
-    MODE_GUEST_KERNEL = 4;
-    MODE_GUEST_USER = 5;
-  }
-
-  // Enumeration of libunwindstack's error codes.
-  // NB: the integral representations of the two enums are different.
-  enum StackUnwindError {
-    UNWIND_ERROR_UNKNOWN = 0;
-    UNWIND_ERROR_NONE = 1;
-    UNWIND_ERROR_MEMORY_INVALID = 2;
-    UNWIND_ERROR_UNWIND_INFO = 3;
-    UNWIND_ERROR_UNSUPPORTED = 4;
-    UNWIND_ERROR_INVALID_MAP = 5;
-    UNWIND_ERROR_MAX_FRAMES_EXCEEDED = 6;
-    UNWIND_ERROR_REPEATED_FRAME = 7;
-    UNWIND_ERROR_INVALID_ELF = 8;
-  }
-}
-
-// Individual performance sampling packet payload. Typically corresponds to a
-// stack sample on a configration-dependent counter overflow.
-// Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
-// There are three distinct views of this message:
-// * completely processed sample (callstack_iid set)
-// * indication of kernel buffer data loss (kernel_records_lost set)
-// * indication of skipped samples (sample_skipped_reason set)
-message PerfSample {
-  optional uint32 cpu = 1;
-  optional uint32 pid = 2;
-  optional uint32 tid = 3;
-
-  // Execution state that the process was sampled at.
-  optional Profiling.CpuMode cpu_mode = 5;
-
-  // Unwound callstack. Might be partial, in which case a synthetic "error"
-  // frame is appended, and |unwind_error| is set appropriately.
-  optional uint64 callstack_iid = 4;
-
-  // If set, stack unwinding was incomplete due to an error.
-  // Unset values should be treated as UNWIND_ERROR_NONE.
-  oneof optional_unwind_error { Profiling.StackUnwindError unwind_error = 16; };
-
-  // If set, indicates that this message is not a sample, but rather an
-  // indication of data loss in the ring buffer allocated for |cpu|. Such data
-  // loss occurs when the kernel has insufficient ring buffer capacity to write
-  // a record (which gets discarded). A record in this context is an individual
-  // ring buffer entry, and counts more than just sample records.
-  //
-  // The |timestamp| of the packet corresponds to the time that the producer
-  // wrote the packet for trace-sorting purposes alone, and should not be
-  // interpreted relative to the sample timestamps. This field is sufficient to
-  // detect that *some* kernel data loss happened within the trace, but not the
-  // specific time bounds of that loss (which would require tracking precedessor
-  // & successor timestamps, which is not deemed necessary at the moment).
-  optional uint64 kernel_records_lost = 17;
-
-  // If set, indicates that the profiler encountered a sample that was relevant,
-  // but was skipped.
-  enum SampleSkipReason {
-    PROFILER_SKIP_UNKNOWN = 0;
-    PROFILER_SKIP_READ_STAGE = 1;
-    PROFILER_SKIP_UNWIND_STAGE = 2;
-    PROFILER_SKIP_UNWIND_ENQUEUE = 3;
-  }
-  oneof optional_sample_skipped_reason {
-    SampleSkipReason sample_skipped_reason = 18;
-  };
 }

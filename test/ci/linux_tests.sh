@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS=""
+INSTALL_BUILD_DEPS_ARGS="--no-android"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
@@ -23,7 +23,6 @@ tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS}
 
 ${OUT_PATH}/perfetto_unittests
 ${OUT_PATH}/perfetto_integrationtests
-${OUT_PATH}/trace_processor_minimal_smoke_tests
 
 # If this is a split host+target build, use the trace_processoer_shell binary
 # from the host directory. In some cases (e.g. lsan x86 builds) the host binary
@@ -38,8 +37,13 @@ fi
 mkdir -p /ci/artifacts/perf
 
 tools/diff_test_trace_processor.py \
-  --test-type=all \
-  --perf-file=/ci/artifacts/perf/tp-perf-all.json \
+  --test-type=queries \
+  --perf-file=/ci/artifacts/perf/tp-perf-queries.json \
+  ${TP_SHELL}
+
+tools/diff_test_trace_processor.py \
+  --test-type=metrics \
+  --perf-file=/ci/artifacts/perf/tp-perf-metrics.json \
   ${TP_SHELL}
 
 # Don't run benchmarks under sanitizers or debug, too slow and pointless.

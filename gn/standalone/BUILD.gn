@@ -12,32 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//gn/perfetto_check_build_deps.gni")
 import("//gn/standalone/android.gni")
 import("//gn/standalone/sanitizers/sanitizers.gni")
 import("//gn/standalone/wasm.gni")
-
-# These warnings have been introduced with the newest version of clang (only in
-# the hermetic build) and are enabled just with -Werror.
-# TODO(primiano): we should look into Wimplicit-int-float-conversion. Seems
-# failing mostly in tests though.
-hermetic_clang_suppressions = [
-  "-Wno-c99-designator",
-  "-Wno-implicit-int-float-conversion",
-]
 
 config("extra_warnings") {
   cflags = [
     "-Wall",
     "-Wextra",
-    "-Wpedantic",
   ]
-
-  # Disable variadic macro warning as we make extensive use of them in trace
-  # processor and client API.
-  if (is_clang) {
-    cflags += [ "-Wno-gnu-zero-variadic-macro-arguments" ]
-  }
 
   # Disable Weverything on fuzzers to avoid breakages when new versions of clang
   # are rolled into OSS-fuzz.
@@ -49,15 +32,11 @@ config("extra_warnings") {
       "-Wno-disabled-macro-expansion",
       "-Wno-gnu-include-next",
       "-Wno-gnu-statement-expression",
+      "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-reserved-id-macro",
       "-Wno-unknown-sanitizers",
     ]
-  }
-
-  if (!is_clang) {
-    # Use return std::move(...) for compatibility with old compilers.
-    cflags += [ "-Wno-redundant-move" ]
   }
 }
 
@@ -109,12 +88,6 @@ config("default") {
       "-fcolor-diagnostics",
       "-fdiagnostics-show-template-tree",
     ]
-  }
-
-  if (is_hermetic_clang && is_linux && !is_wasm) {
-    cflags += hermetic_clang_suppressions
-  } else {
-    not_needed([ "hermetic_clang_suppressions" ])
   }
 
   if (is_lto) {
@@ -248,7 +221,7 @@ config("executable") {
 
   # Android will refuse to run executables if they aren't position independent.
   # Instead on Linux there isn't any need and they break ASan (goo.gl/paFR6K).
-  if (is_android || is_linux) {
+  if (is_android) {
     asmflags = [ "-fPIE" ]
     cflags = [ "-fPIE" ]
     ldflags += [ "-pie" ]
@@ -289,15 +262,8 @@ action("gen_git_revision") {
   generated_header = "${root_gen_dir}/perfetto_version.gen.h"
   args = [ rebase_path(generated_header, root_build_dir) ]
   inputs = []
-  outputs = [ generated_header ]
+  outputs = [
+    generated_header,
+  ]
   public_configs = [ ":gen_include_path" ]
-}
-
-# Checks that tools/install-build-deps has been run since it last changed.
-perfetto_check_build_deps("check_build_deps") {
-  args = []
-}
-
-perfetto_check_build_deps("check_build_deps_android") {
-  args = [ "--android" ]
 }

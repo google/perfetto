@@ -30,8 +30,8 @@ namespace perfetto {
 Consumer::~Consumer() = default;
 Producer::~Producer() = default;
 TracingService::~TracingService() = default;
-ConsumerEndpoint::~ConsumerEndpoint() = default;
-ProducerEndpoint::~ProducerEndpoint() = default;
+TracingService::ConsumerEndpoint::~ConsumerEndpoint() = default;
+TracingService::ProducerEndpoint::~ProducerEndpoint() = default;
 SharedMemory::~SharedMemory() = default;
 SharedMemory::Factory::~Factory() = default;
 SharedMemoryArbiter::~SharedMemoryArbiter() = default;

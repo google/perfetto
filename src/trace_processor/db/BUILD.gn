@@ -16,34 +16,54 @@ import("../../../gn/test.gni")
 
 source_set("lib") {
   sources = [
+    "bit_vector.cc",
+    "bit_vector.h",
+    "bit_vector_iterators.cc",
+    "bit_vector_iterators.h",
     "column.cc",
     "column.h",
-    "compare.h",
+    "row_map.cc",
+    "row_map.h",
+    "sparse_vector.h",
     "table.cc",
     "table.h",
     "typed_column.h",
-    "typed_column_internal.h",
   ]
   deps = [
+    "../:common",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
-    "../containers",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "compare_unittest.cc",
-    "table_unittest.cc",
+    "bit_vector_unittest.cc",
+    "row_map_unittest.cc",
+    "sparse_vector_unittest.cc",
   ]
   deps = [
     ":lib",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../base:base",
-    "../tables:tables",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":lib",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+    ]
+    sources = [
+      "bit_vector_benchmark.cc",
+      "row_map_benchmark.cc",
+      "sparse_vector_benchmark.cc",
+    ]
+  }
 }

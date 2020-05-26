@@ -20,7 +20,6 @@
 #include <sys/system_properties.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -49,19 +48,15 @@ bool IsDebuggableBuild() {
   char buf[PROP_VALUE_MAX + 1] = {};
   int ret = __system_property_get("ro.debuggable", buf);
   PERFETTO_CHECK(ret >= 0);
-  return std::string(buf) == "1";
-}
-
-bool IsUserBuild() {
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.build.type", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return std::string(buf) == "user";
+  std::string debuggable(buf);
+  if (debuggable == "1")
+    return true;
+  return false;
 }
 
 // note: cannot use gtest macros due to return type
 bool IsAppRunning(const std::string& name) {
-  std::string cmd = "pgrep -f ^" + name + "$";
+  std::string cmd = "pgrep -f " + name;
   int retcode = system(cmd.c_str());
   PERFETTO_CHECK(retcode >= 0);
   int exit_status = WEXITSTATUS(retcode);
@@ -72,46 +67,22 @@ bool IsAppRunning(const std::string& name) {
   PERFETTO_FATAL("unexpected exit status from system(pgrep): %d", exit_status);
 }
 
-int PidForProcessName(const std::string& name) {
-  std::string cmd = "pgrep -f ^" + name + "$";
-  FILE* fp = popen(cmd.c_str(), "re");
-  if (!fp)
-    return -1;
+void StartAppActivity(const std::string& app_name,
+                      const std::string& checkpoint_name,
+                      base::TestTaskRunner* task_runner,
+                      int delay_ms) {
+  std::string start_cmd = "am start " + app_name + "/.MainActivity";
+  int status = system(start_cmd.c_str());
+  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
 
-  std::string out;
-  base::ReadFileStream(fp, &out);
-  pclose(fp);
-
-  char* endptr = nullptr;
-  int pid = static_cast<int>(strtol(out.c_str(), &endptr, 10));
-  if (*endptr != '\0' && *endptr != '\n')
-    return -1;
-  return pid;
-}
-
-void WaitForProcess(const std::string& process,
-                    const std::string& checkpoint_name,
-                    base::TestTaskRunner* task_runner,
-                    uint32_t delay_ms) {
   bool desired_run_state = true;
   const auto checkpoint = task_runner->CreateCheckpoint(checkpoint_name);
   task_runner->PostDelayedTask(
-      [desired_run_state, task_runner, process, checkpoint] {
-        PollRunState(desired_run_state, task_runner, process,
+      [desired_run_state, task_runner, app_name, checkpoint] {
+        PollRunState(desired_run_state, task_runner, app_name,
                      std::move(checkpoint));
       },
       delay_ms);
-}
-
-void StartAppActivity(const std::string& app_name,
-                      const std::string& activity_name,
-                      const std::string& checkpoint_name,
-                      base::TestTaskRunner* task_runner,
-                      uint32_t delay_ms) {
-  std::string start_cmd = "am start " + app_name + "/." + activity_name;
-  int status = system(start_cmd.c_str());
-  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
-  WaitForProcess(app_name, checkpoint_name, task_runner, delay_ms);
 }
 
 void StopApp(const std::string& app_name,
@@ -129,7 +100,7 @@ void StopApp(const std::string& app_name,
   });
 }
 
-void StopApp(const std::string& app_name) {
+void StopApp(std::string app_name) {
   std::string stop_cmd = "am force-stop " + app_name;
   system(stop_cmd.c_str());
 }

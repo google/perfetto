@@ -15,65 +15,46 @@
 --
 
 SELECT RUN_METRIC('android/process_metadata.sql');
-SELECT RUN_METRIC('android/process_mem.sql');
+
+CREATE VIEW total_size_samples AS
+SELECT upid, graph_sample_ts, SUM(self_size) AS total_size
+FROM heap_graph_object
+GROUP BY 1, 2;
+
+CREATE VIEW total_reachable_size_samples AS
+SELECT upid, graph_sample_ts, SUM(self_size) AS total_reachable_size
+FROM heap_graph_object
+WHERE reachable = TRUE
+GROUP BY 1, 2;
+
+CREATE TABLE heap_graph_samples AS
+SELECT upid, graph_sample_ts, total_size, total_reachable_size
+FROM total_size_samples JOIN total_reachable_size_samples
+USING (upid, graph_sample_ts);
+
+CREATE VIEW heap_graph_sample_protos AS
+SELECT
+  upid,
+  JavaHeapStats_Sample(
+    'ts', graph_sample_ts,
+    'heap_size', total_size,
+    'reachable_heap_size', total_reachable_size
+  ) sample_proto
+FROM heap_graph_samples;
+
+CREATE TABLE heap_graph_instance_stats AS
+SELECT
+  upid,
+  process_metadata.metadata AS process_metadata,
+  RepeatedField(sample_proto) AS sample_protos
+FROM heap_graph_sample_protos JOIN process_metadata USING (upid)
+GROUP BY 1, 2;
 
 CREATE VIEW java_heap_stats_output AS
-WITH
--- Base view
-base_stats AS (
-  SELECT
-    upid,
-    graph_sample_ts,
-    SUM(self_size) AS total_size,
-    COUNT(1) AS total_obj_count,
-    SUM(CASE reachable WHEN TRUE THEN self_size ELSE 0 END) AS reachable_size,
-    SUM(CASE reachable WHEN TRUE THEN 1 ELSE 0 END) AS reachable_obj_count
-  FROM heap_graph_object
-  GROUP BY 1, 2
-),
--- Find closest value
-closest_anon_swap AS (
-  SELECT
-    upid,
-    graph_sample_ts,
-    (
-      SELECT anon_swap_val
-      FROM (
-        SELECT
-          ts, dur,
-          CAST(anon_and_swap_val AS INTEGER) anon_swap_val,
-          ABS(ts - base_stats.graph_sample_ts) diff
-        FROM anon_and_swap_span
-        WHERE upid = base_stats.upid)
-      WHERE
-        (graph_sample_ts >= ts AND graph_sample_ts < ts + dur)
-         -- If the first memory sample for the UPID comes *after* the heap profile
-         -- accept it if close (500ms)
-        OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
-      ORDER BY diff LIMIT 1
-    ) val
-  FROM base_stats
-),
--- Group by upid
-heap_graph_sample_protos AS (
-  SELECT
-    base_stats.upid,
-    RepeatedField(JavaHeapStats_Sample(
-      'ts', graph_sample_ts,
-      'heap_size', total_size,
-      'obj_count', total_obj_count,
-      'reachable_heap_size', reachable_size,
-      'reachable_obj_count', reachable_obj_count,
-      'anon_rss_and_swap_size', closest_anon_swap.val
-    )) sample_protos
-  FROM base_stats
-  LEFT JOIN closest_anon_swap USING (upid, graph_sample_ts)
-  GROUP BY 1
-)
 SELECT JavaHeapStats(
   'instance_stats', RepeatedField(JavaHeapStats_InstanceStats(
     'upid', upid,
-    'process', process_metadata.metadata,
+    'process', process_metadata,
     'samples', sample_protos
   )))
-FROM heap_graph_sample_protos JOIN process_metadata USING (upid);
+FROM heap_graph_instance_stats;

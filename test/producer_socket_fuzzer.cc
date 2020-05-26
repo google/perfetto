@@ -37,7 +37,8 @@ class FakeEventListener : public base::UnixSocket::EventListener {
 
   void OnConnect(base::UnixSocket* self, bool connected) override {
     PERFETTO_CHECK(connected && self->is_connected());
-    self->Send(data_, size_, self->fd());
+    self->Send(data_, size_, self->fd(),
+               base::UnixSocket::BlockingMode::kBlocking);
     data_sent_();
   }
 

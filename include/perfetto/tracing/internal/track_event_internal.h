@@ -17,25 +17,18 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNAL_H_
 
-#include "perfetto/base/flat_set.h"
+#include <unordered_map>
+
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/trace_writer_base.h"
-#include "perfetto/tracing/track.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
-#include <unordered_map>
-
 namespace perfetto {
 class EventContext;
-struct Category;
 namespace protos {
-namespace gen {
-class TrackEventConfig;
-}  // namespace gen
 namespace pbzero {
 class DebugAnnotation;
 }  // namespace pbzero
@@ -77,43 +70,28 @@ struct TrackEventIncrementalState {
                 std::unique_ptr<BaseTrackEventInternedDataIndex>>;
   std::array<InternedDataIndex, kMaxInternedDataFields> interned_data_indices =
       {};
-
-  // Track uuids for which we have written descriptors into the trace. If a
-  // trace event uses a track which is not in this set, we'll write out a
-  // descriptor for it.
-  base::FlatSet<uint64_t> seen_tracks;
-
-  // Dynamically registered category names that have been encountered during
-  // this tracing session. The value in the map indicates whether the category
-  // is enabled or disabled.
-  std::unordered_map<std::string, bool> dynamic_categories;
 };
 
 // The backend portion of the track event trace point implemention. Outlined to
 // a separate .cc file so it can be shared by different track event category
 // namespaces.
-class PERFETTO_EXPORT TrackEventInternal {
+class TrackEventInternal {
  public:
   static bool Initialize(
-      const TrackEventCategoryRegistry&,
       bool (*register_data_source)(const DataSourceDescriptor&));
 
   static void EnableTracing(const TrackEventCategoryRegistry& registry,
-                            const protos::gen::TrackEventConfig& config,
+                            const DataSourceConfig& config,
                             uint32_t instance_index);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
                              uint32_t instance_index);
-  static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
-                                const protos::gen::TrackEventConfig& config,
-                                const Category& category);
 
   static perfetto::EventContext WriteEvent(
       TraceWriterBase*,
       TrackEventIncrementalState*,
-      const Category* category,
+      const char* category,
       const char* name,
-      perfetto::protos::pbzero::TrackEvent::Type,
-      uint64_t timestamp = GetTimeNs());
+      perfetto::protos::pbzero::TrackEvent::Type);
 
   template <typename T>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
@@ -123,48 +101,7 @@ class PERFETTO_EXPORT TrackEventInternal {
     WriteDebugAnnotation(annotation, value);
   }
 
-  // If the given track hasn't been seen by the trace writer yet, write a
-  // descriptor for it into the trace. Doesn't take a lock unless the track
-  // descriptor is new.
-  template <typename TrackType>
-  static void WriteTrackDescriptorIfNeeded(
-      const TrackType& track,
-      TraceWriterBase* trace_writer,
-      TrackEventIncrementalState* incr_state) {
-    auto it_and_inserted = incr_state->seen_tracks.insert(track.uuid);
-    if (PERFETTO_LIKELY(!it_and_inserted.second))
-      return;
-    WriteTrackDescriptor(track, trace_writer);
-  }
-
-  // Unconditionally write a track descriptor into the trace.
-  template <typename TrackType>
-  static void WriteTrackDescriptor(const TrackType& track,
-                                   TraceWriterBase* trace_writer) {
-    TrackRegistry::Get()->SerializeTrack(
-        track, NewTracePacket(trace_writer, GetTimeNs()));
-  }
-
-  // Get the current time in nanoseconds in the trace clock timebase.
-  static uint64_t GetTimeNs();
-
-  // Get the clock used by GetTimeNs().
-  static constexpr protos::pbzero::BuiltinClock GetClockId() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    return protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
-#else
-    return protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
-#endif
-  }
-
  private:
-  static void ResetIncrementalState(TraceWriterBase*, uint64_t timestamp);
-  static protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket(
-      TraceWriterBase*,
-      uint64_t timestamp,
-      uint32_t seq_flags =
-          protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
   static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
       perfetto::EventContext*,
       const char* name);

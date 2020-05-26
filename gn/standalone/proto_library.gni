@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../perfetto.gni")
-
 template("proto_library") {
   assert(defined(invoker.sources))
   proto_sources = invoker.sources
@@ -128,31 +126,21 @@ template("proto_library") {
     outputs = get_path_info(protogens, "abspath")
 
     protoc_script = "//gn/standalone/protoc.py"
-
-    if (perfetto_use_system_protobuf) {
-      protoc_rebased_path = "protoc"  # from PATH
-    } else {
-      protoc_label = "//gn:protoc($host_toolchain)"
-      protoc_path = get_label_info(protoc_label, "root_out_dir") + "/protoc"
-      protoc_rebased_path = "./" + rebase_path(protoc_path, root_build_dir)
-    }
+    protoc_label = "//gn:protoc($host_toolchain)"
+    protoc_path = get_label_info(protoc_label, "root_out_dir") + "/protoc"
     args = [
       "./" + rebase_path(protoc_script, root_build_dir),
 
       # Path should be rebased because |root_build_dir| for current toolchain
       # may be different from |root_out_dir| of protoc built on host toolchain.
-      protoc_rebased_path,
+      "./" + rebase_path(protoc_path, root_build_dir),
       "--proto_path",
       rebase_path(proto_in_dir, root_build_dir),
     ]
     if (generate_cc) {
-      cc_generator_options_ = ""
-      if (defined(invoker.cc_generator_options)) {
-        cc_generator_options_ = invoker.cc_generator_options
-      }
       args += [
         "--cpp_out",
-        cc_generator_options_ + rel_cc_out_dir,
+        rel_cc_out_dir,
       ]
     }
     if (generate_descriptor != "") {
@@ -182,13 +170,13 @@ template("proto_library") {
 
     args += rebase_path(proto_sources, root_build_dir)
 
-    if (!perfetto_use_system_protobuf) {
-      inputs = [ protoc_path ]
-      deps = [ protoc_label ]
-    } else {
-      inputs = []
-      deps = []
-    }
+    inputs = [
+      protoc_path,
+    ]
+
+    deps = [
+      protoc_label,
+    ]
 
     # TODO(hjd): Avoid adding to deps here this.
     # When we generate BUILD files we need find the transitive proto,
@@ -234,28 +222,20 @@ template("proto_library") {
       }
 
       public_configs += [
-        "//gn:protobuf_gen_config",
+        "//buildtools:protobuf_gen_config",
         ":$config_name",
       ]
-
-      # By default, propagate the config for |include_dirs| to dependent
-      # targets, so that public imports can be resolved to corresponding header
-      # files. In some cases, the embedder target handles include directory
-      # propagation itself, e.g. via a common config.
-      propagate_imports_configs = !defined(invoker.propagate_imports_configs) ||
-                                  invoker.propagate_imports_configs
-      if (propagate_imports_configs) {
-        public_configs += [ ":$config_name" ]
-      } else {
-        configs += [ ":$config_name" ]
-      }
 
       # Use protobuf_full only for tests.
       if (defined(invoker.use_protobuf_full) &&
           invoker.use_protobuf_full == true) {
-        deps = [ "//gn:protobuf_full" ]
+        deps = [
+          "//gn:protobuf_full",
+        ]
       } else if (generate_cc) {
-        deps = [ "//gn:protobuf_lite" ]
+        deps = [
+          "//gn:protobuf_lite",
+        ]
       } else {
         deps = []
       }

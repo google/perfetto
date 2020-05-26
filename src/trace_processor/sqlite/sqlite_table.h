@@ -20,7 +20,6 @@
 #include <sqlite3.h>
 
 #include <functional>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,9 +55,7 @@ class SqliteTable : public sqlite3_vtab {
     size_t index() const { return index_; }
     const std::string& name() const { return name_; }
     SqlValue::Type type() const { return type_; }
-
     bool hidden() const { return hidden_; }
-    void set_hidden(bool hidden) { hidden_ = hidden; }
 
    private:
     size_t index_ = 0;
@@ -140,8 +137,6 @@ class SqliteTable : public sqlite3_vtab {
     std::string ToCreateTableStmt() const;
 
     const std::vector<Column>& columns() const { return columns_; }
-    std::vector<Column>* mutable_columns() { return &columns_; }
-
     const std::vector<size_t> primary_keys() { return primary_keys_; }
 
    private:
@@ -174,8 +169,9 @@ class SqliteTable : public sqlite3_vtab {
     // Stores the estimated cost of this query.
     double estimated_cost = 0;
 
-    // Estimated row count.
-    int64_t estimated_rows = 0;
+    // Estimated row count. The default is set to 25 to match the SQLite
+    // default.
+    uint32_t estimated_rows = 25;
   };
 
   template <typename Context>
@@ -213,7 +209,7 @@ class SqliteTable : public sqlite3_vtab {
     auto create_fn = [](sqlite3* xdb, void* arg, int argc,
                         const char* const* argv, sqlite3_vtab** tab,
                         char** pzErr) {
-      auto* xdesc = static_cast<TableDescriptor<Context>*>(arg);
+      const auto* xdesc = static_cast<const TableDescriptor<Context>*>(arg);
       auto table = xdesc->factory(xdb, std::move(xdesc->context));
       table->name_ = xdesc->name;
 
@@ -258,13 +254,6 @@ class SqliteTable : public sqlite3_vtab {
     };
     module->xFilter = [](sqlite3_vtab_cursor* vc, int i, const char* s, int a,
                          sqlite3_value** v) {
-      // If the idxNum is equal to kSqliteConstraintBestIndexNum, that means
-      // in BestIndexInternal, we tried to discourage the query planner from
-      // chosing this plan. As the subclass has informed us that it cannot
-      // handle this plan, just return the error now.
-      if (i == kInvalidConstraintsInBestIndexNum)
-        return SQLITE_CONSTRAINT;
-
       auto* c = static_cast<Cursor*>(vc);
       bool is_cached = c->table_->ReadConstraints(i, s, a);
 
@@ -341,9 +330,6 @@ class SqliteTable : public sqlite3_vtab {
   const std::string& name() const { return name_; }
 
  private:
-  static constexpr int kInvalidConstraintsInBestIndexNum =
-      std::numeric_limits<int>::max();
-
   template <typename TableType, typename Context>
   static Factory<Context> GetFactory() {
     return [](sqlite3* db, Context ctx) {

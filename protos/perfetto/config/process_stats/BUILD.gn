@@ -15,5 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  sources = [ "process_stats_config.proto" ]
+  sources = [
+    "process_stats_config.proto",
+  ]
 }

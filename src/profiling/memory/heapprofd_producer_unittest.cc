@@ -41,15 +41,13 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
   MOCK_CONST_METHOD0(shared_buffer_page_size_kb, size_t());
   MOCK_METHOD2(CreateTraceWriter,
                std::unique_ptr<TraceWriter>(BufferID, BufferExhaustedPolicy));
-  MOCK_METHOD0(MaybeSharedMemoryArbiter, SharedMemoryArbiter*());
-  MOCK_CONST_METHOD0(IsShmemProvidedByProducer, bool());
+  MOCK_METHOD0(GetInProcessShmemArbiter, SharedMemoryArbiter*());
   MOCK_METHOD1(ActivateTriggers, void(const std::vector<std::string>&));
 
   MOCK_METHOD1(RegisterDataSource, void(const DataSourceDescriptor&));
   MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
   MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
   MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
-  MOCK_METHOD1(Sync, void(std::function<void()>));
 };
 
 TEST(LogHistogramTest, Simple) {

@@ -15,10 +15,13 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {QueryResponse} from '../common/queries';
 import {EngineConfig} from '../common/state';
 
 import {globals} from './globals';
 import {executeSearch} from './search_handler';
+
+const QUERY_ID = 'quicksearch';
 
 const SEARCH = Symbol('search');
 const COMMAND = Symbol('command');
@@ -29,10 +32,20 @@ const PLACEHOLDER = {
   [COMMAND]: 'e.g. select * from sched left join thread using(utid) limit 10'
 };
 
-export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
-
+let selResult = 0;
+let numResults = 0;
 let mode: Mode = SEARCH;
 let displayStepThrough = false;
+
+function clearOmniboxResults(e: Event) {
+  globals.queryResults.delete(QUERY_ID);
+  globals.dispatch(Actions.deleteQuery({queryId: QUERY_ID}));
+  const txt = (e.target as HTMLInputElement);
+  if (txt.value.length <= 0) {
+    mode = SEARCH;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+}
 
 function onKeyDown(e: Event) {
   const event = (e as KeyboardEvent);
@@ -41,6 +54,13 @@ function onKeyDown(e: Event) {
     e.stopPropagation();
   }
   const txt = (e.target as HTMLInputElement);
+
+  // Avoid that the global 'a', 'd', 'w', 's' handler sees these keystrokes.
+  // TODO: this seems a bug in the pan_and_zoom_handler.ts.
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    e.preventDefault();
+    return;
+  }
 
   if (mode === SEARCH && txt.value === '' && key === ':') {
     e.preventDefault();
@@ -65,8 +85,17 @@ function onKeyUp(e: Event) {
   const event = (e as KeyboardEvent);
   const key = event.key;
   const txt = e.target as HTMLInputElement;
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    selResult += (key === 'ArrowUp') ? -1 : 1;
+    selResult = Math.max(selResult, 0);
+    selResult = Math.min(selResult, numResults - 1);
+    e.preventDefault();
+    globals.rafScheduler.scheduleFullRedraw();
+    return;
+  }
 
   if (key === 'Escape') {
+    globals.queryResults.delete(QUERY_ID);
     globals.dispatch(Actions.deleteQuery({queryId: 'command'}));
     mode = SEARCH;
     txt.value = '';
@@ -83,6 +112,7 @@ function onKeyUp(e: Event) {
 class Omnibox implements m.ClassComponent {
   oncreate(vnode: m.VnodeDOM) {
     const txt = vnode.dom.querySelector('input') as HTMLInputElement;
+    txt.addEventListener('blur', clearOmniboxResults);
     txt.addEventListener('keydown', onKeyDown);
     txt.addEventListener('keyup', onKeyUp);
   }
@@ -104,6 +134,16 @@ class Omnibox implements m.ClassComponent {
           }));
     }
 
+    // TODO(primiano): handle query results here.
+    const results = [];
+    const resp = globals.queryResults.get(QUERY_ID) as QueryResponse;
+    if (resp !== undefined) {
+      numResults = resp.rows ? resp.rows.length : 0;
+      for (let i = 0; i < resp.rows.length; i++) {
+        const clazz = (i === selResult) ? '.selected' : '';
+        results.push(m(`div${clazz}`, resp.rows[i][resp.columns[0]]));
+      }
+    }
     const commandMode = mode === COMMAND;
     const state = globals.frontendLocalState;
     return m(
@@ -150,7 +190,8 @@ class Omnibox implements m.ClassComponent {
                   },
                   m('i.material-icons.right', 'keyboard_arrow_right')),
                 ) :
-            '');
+            '',
+        m('.omnibox-results', results));
   }
 }
 
@@ -178,7 +219,8 @@ class Progress implements m.ClassComponent {
   loadingAnimation() {
     if (this.progressBar === undefined) return;
     const engine: EngineConfig = globals.state.engines['0'];
-    if ((engine !== undefined && !engine.ready) ||
+    if (globals.state.queries[QUERY_ID] !== undefined ||
+        (engine !== undefined && !engine.ready) ||
         globals.numQueuedQueries > 0) {
       this.progressBar.classList.add('progress-anim');
     } else {
@@ -187,65 +229,8 @@ class Progress implements m.ClassComponent {
   }
 }
 
-
-class NewVersionNotification implements m.ClassComponent {
-  view() {
-    if (!globals.frontendLocalState.newVersionAvailable) return;
-    return m(
-        '.new-version-toast',
-        'A new version of the UI is available!',
-        m('button.notification-btn.preferred',
-          {
-            onclick: () => {
-              location.reload();
-            }
-          },
-          'Reload'),
-        m('button.notification-btn',
-          {
-            onclick: () => {
-              globals.frontendLocalState.newVersionAvailable = false;
-              globals.rafScheduler.scheduleFullRedraw();
-            }
-          },
-          'Dismiss'),
-    );
-  }
-}
-
-
-class HelpPanningNotification implements m.ClassComponent {
-  view() {
-    const dismissed = localStorage.getItem(DISMISSED_PANNING_HINT_KEY);
-    if (dismissed === 'true' || !globals.frontendLocalState.showPanningHint) {
-      return;
-    }
-    return m(
-        '.helpful-hint',
-        m('.hint-text',
-          'Are you trying to pan? Use the WASD keys or hold shift to click ' +
-              'and drag. Press \'?\' for more help.'),
-        m('button.hint-dismiss-button',
-          {
-            onclick: () => {
-              globals.frontendLocalState.showPanningHint = false;
-              localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-              globals.rafScheduler.scheduleFullRedraw();
-            }
-          },
-          'Dismiss'),
-    );
-  }
-}
-
 export class Topbar implements m.ClassComponent {
   view() {
-    return m(
-        '.topbar',
-        globals.frontendLocalState.newVersionAvailable ?
-            m(NewVersionNotification) :
-            m(Omnibox),
-        m(Progress),
-        m(HelpPanningNotification));
+    return m('.topbar', m(Omnibox), m(Progress));
   }
 }

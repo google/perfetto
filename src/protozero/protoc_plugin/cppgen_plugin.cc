@@ -217,9 +217,6 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
       local_enums.push_back(enum_desc);
   };
 
-  for (int i = 0; i < file->enum_type_count(); i++)
-    add_enum(file->enum_type(i));
-
   std::stack<const Descriptor*> recursion_stack;
   for (int i = 0; i < file->message_type_count(); i++)
     recursion_stack.push(file->message_type(i));
@@ -490,6 +487,7 @@ void CppObjGenerator::GenEnum(const EnumDescriptor* enum_desc,
   // enum MyEnum { FOO=1, BAR=2 }
   // Hence this |prefix| logic.
   std::string prefix = enum_desc->containing_type() ? full_name + "_" : "";
+
   p->Print("enum $f$ : int {\n", "f", full_name);
   for (int e = 0; e < enum_desc->value_count(); e++) {
     const EnumValueDescriptor* value = enum_desc->value(e);
@@ -501,28 +499,12 @@ void CppObjGenerator::GenEnum(const EnumDescriptor* enum_desc,
 
 void CppObjGenerator::GenEnumAliases(const EnumDescriptor* enum_desc,
                                      Printer* p) const {
-  int min_value = std::numeric_limits<int>::max();
-  int max_value = std::numeric_limits<int>::min();
-  std::string min_name;
-  std::string max_name;
   std::string full_name = GetFullName(enum_desc);
   for (int e = 0; e < enum_desc->value_count(); e++) {
     const EnumValueDescriptor* value = enum_desc->value(e);
     p->Print("static constexpr auto $n$ = $f$_$n$;\n", "f", full_name, "n",
              value->name());
-    if (value->number() < min_value) {
-      min_value = value->number();
-      min_name = full_name + "_" + value->name();
-    }
-    if (value->number() > max_value) {
-      max_value = value->number();
-      max_name = full_name + "_" + value->name();
-    }
   }
-  p->Print("static constexpr auto $n$_MIN = $m$;\n", "n", enum_desc->name(),
-           "m", min_name);
-  p->Print("static constexpr auto $n$_MAX = $m$;\n", "n", enum_desc->name(),
-           "m", max_name);
 }
 
 void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
@@ -575,6 +557,17 @@ void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
   p->Print("std::string SerializeAsString() const override;\n");
   p->Print("std::vector<uint8_t> SerializeAsArray() const override;\n");
   p->Print("void Serialize(::protozero::Message*) const;\n");
+
+  p->Print("// (DEPRECATED) Conversion methods from/to libprotobuf types.\n");
+  p->Print("// These two will go away soon, see go/perfetto-libprotobuf.\n");
+  p->Print(
+      "template <typename T /*$p$*/> void FromProto(const T& pb_obj) { "
+      "ParseFromString(pb_obj.SerializeAsString()); }\n",
+      "p", proto_type);
+  p->Print(
+      "template <typename T /*$p$*/> void ToProto(T* pb_obj) const { "
+      "pb_obj->Clear(); pb_obj->ParseFromString(SerializeAsString()); }\n",
+      "p", proto_type);
 
   // Generate accessors.
   for (int i = 0; i < msg->field_count(); i++) {

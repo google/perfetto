@@ -20,7 +20,6 @@
 #include <memory>
 #include <string>
 
-#include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
@@ -32,7 +31,7 @@ class Consumer;
 //   Consumer(s) of the tracing library.
 // Implemented in:
 //   src/tracing/ipc/consumer/consumer_ipc_client_impl.cc
-class PERFETTO_EXPORT ConsumerIPCClient {
+class ConsumerIPCClient {
  public:
   // Connects to the producer port of the Service listening on the given
   // |service_sock_name|. If the connection is successful, the OnConnect()

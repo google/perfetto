@@ -42,14 +42,13 @@ uint8_t g_garbage_chunk[1024];
 
 TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
                                  WriterID id,
-                                 MaybeUnboundBufferID target_buffer,
+                                 BufferID target_buffer,
                                  BufferExhaustedPolicy buffer_exhausted_policy)
     : shmem_arbiter_(shmem_arbiter),
       id_(id),
       target_buffer_(target_buffer),
       buffer_exhausted_policy_(buffer_exhausted_policy),
-      protobuf_stream_writer_(this),
-      process_id_(base::GetProcessId()) {
+      protobuf_stream_writer_(this) {
   // TODO(primiano): we could handle the case of running out of TraceWriterID(s)
   // more gracefully and always return a no-op TracePacket in NewTracePacket().
   PERFETTO_CHECK(id_ != 0);
@@ -80,20 +79,12 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
   // for the sake of getting the callback posted back.
   shmem_arbiter_->FlushPendingCommitDataRequests(callback);
   protobuf_stream_writer_.Reset({nullptr, nullptr});
-
-  // |last_packet_size_field_| might have pointed into the chunk we returned.
-  last_packet_size_field_ = nullptr;
 }
 
 TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   // If we hit this, the caller is calling NewTracePacket() without having
   // finalized the previous packet.
   PERFETTO_CHECK(cur_packet_->is_finalized());
-  // If we hit this, this trace writer was created in a different process. This
-  // likely means that the process forked while tracing was active, and the
-  // forked child process tried to emit a trace event. This is not supported, as
-  // it would lead to two processes writing to the same tracing SMB.
-  PERFETTO_DCHECK(process_id_ == base::GetProcessId());
 
   fragmenting_packet_ = false;
 
@@ -358,8 +349,19 @@ WriterID TraceWriterImpl::writer_id() const {
   return id_;
 }
 
+bool TraceWriterImpl::SetFirstChunkId(ChunkID chunk_id) {
+  if (next_chunk_id_ > 0)
+    return false;
+  next_chunk_id_ = chunk_id;
+  return true;
+}
+
 // Base class definitions.
 TraceWriter::TraceWriter() = default;
 TraceWriter::~TraceWriter() = default;
+
+bool TraceWriter::SetFirstChunkId(ChunkID) {
+  return false;
+}
 
 }  // namespace perfetto

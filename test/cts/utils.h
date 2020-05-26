@@ -24,29 +24,19 @@
 namespace perfetto {
 
 bool IsDebuggableBuild();
-bool IsUserBuild();
 
 bool IsAppRunning(const std::string& name);
 
-// returns -1 if the process wasn't found
-int PidForProcessName(const std::string& name);
-
-void WaitForProcess(const std::string& process,
-                    const std::string& checkpoint_name,
-                    base::TestTaskRunner* task_runner,
-                    uint32_t delay_ms = 1);
-
 void StartAppActivity(const std::string& app_name,
-                      const std::string& activity_name,
                       const std::string& checkpoint_name,
                       base::TestTaskRunner* task_runner,
-                      uint32_t delay_ms = 1);
+                      int delay_ms = 1);
 
 void StopApp(const std::string& app_name,
              const std::string& checkpoint_name,
              base::TestTaskRunner* task_runner);
 
-void StopApp(const std::string& app_name);
+void StopApp(std::string app_name);
 
 }  // namespace perfetto
 

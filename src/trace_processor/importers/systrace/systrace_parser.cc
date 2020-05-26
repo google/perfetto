@@ -17,20 +17,16 @@
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/event_tracker.h"
+#include "src/trace_processor/process_tracker.h"
+#include "src/trace_processor/slice_tracker.h"
+#include "src/trace_processor/track_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 SystraceParser::SystraceParser(TraceProcessorContext* ctx)
-    : context_(ctx),
-      lmk_id_(ctx->storage->InternString("mem.lmk")),
-      screen_state_id_(ctx->storage->InternString("ScreenState")) {}
-
-SystraceParser::~SystraceParser() = default;
+    : context_(ctx), lmk_id_(ctx->storage->InternString("mem.lmk")) {}
 
 void SystraceParser::ParsePrintEvent(int64_t ts,
                                      uint32_t pid,
@@ -75,42 +71,7 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
   }
-  ParseSystracePoint(ts, pid, point);
-}
-
-void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
-                                              uint32_t pid,
-                                              char trace_type,
-                                              bool trace_begin,
-                                              base::StringView trace_name,
-                                              uint32_t /* tgid */,
-                                              int64_t value) {
-  systrace_utils::SystraceTracePoint point{};
-  point.name = trace_name;
-
-  // Hardcode the tgid to 0 (i.e. no tgid available) because
-  // sde_tracing_mark_write events can come from kernel threads and because we
-  // group kernel threads into the kthreadd process, we would want |point.tgid
-  // == kKthreaddPid|. However, we don't have acces to the ppid of this process
-  // so we have to not associate to any process and leave the resolution of
-  // process to other events.
-  // TODO(lalitm): remove this hack once we move kernel thread grouping to
-  // the UI.
-  point.tgid = 0;
-
-  point.value = value;
-  // Some versions of this trace point fill trace_type with one of (B/E/C),
-  // others use the trace_begin boolean and only support begin/end events:
-  if (trace_type == 0) {
-    point.phase = trace_begin ? 'B' : 'E';
-  } else if (trace_type == 'B' || trace_type == 'E' || trace_type == 'C') {
-    point.phase = trace_type;
-  } else {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
-    return;
-  }
-
-  ParseSystracePoint(ts, pid, point);
+  context_->systrace_parser->ParseSystracePoint(ts, pid, point);
 }
 
 void SystraceParser::ParseSystracePoint(
@@ -120,34 +81,13 @@ void SystraceParser::ParseSystracePoint(
   switch (point.phase) {
     case 'B': {
       StringId name_id = context_->storage->InternString(point.name);
-      UniqueTid utid;
-      if (point.tgid == 0) {
-        utid = context_->process_tracker->GetOrCreateThread(pid);
-      } else {
-        utid = context_->process_tracker->UpdateThread(pid, point.tgid);
-      }
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
-                                     name_id);
+      context_->slice_tracker->BeginAndroid(ts, pid, point.tgid, 0 /*cat_id*/,
+                                            name_id);
       break;
     }
 
     case 'E': {
-      // |point.tgid| can be 0 in older android versions where the end event
-      // would not contain the value.
-      UniqueTid utid;
-      if (point.tgid == 0) {
-        // If we haven't seen this thread before, there can't have been a Begin
-        // event for it so just ignore the event.
-        auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
-        if (!opt_utid)
-          break;
-        utid = *opt_utid;
-      } else {
-        utid = context_->process_tracker->UpdateThread(pid, point.tgid);
-      }
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->End(ts, track_id);
+      context_->slice_tracker->EndAndroid(ts, pid, point.tgid);
       break;
     }
 
@@ -161,7 +101,8 @@ void SystraceParser::ParseSystracePoint(
       TrackId track_id = context_->track_tracker->InternAndroidAsyncTrack(
           name_id, upid, cookie);
       if (point.phase == 'S') {
-        context_->slice_tracker->Begin(ts, track_id, kNullStringId, name_id);
+        context_->slice_tracker->Begin(ts, track_id, track_id,
+                                       RefType::kRefTrack, 0, name_id);
       } else {
         context_->slice_tracker->End(ts, track_id);
       }
@@ -179,17 +120,11 @@ void SystraceParser::ParseSystracePoint(
         if (killed_pid != 0) {
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
-          context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
+          context_->event_tracker->PushInstant(ts, lmk_id_, 0, killed_upid,
                                                RefType::kRefUpid);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
-      } else if (point.name == "ScreenState") {
-        // Promote ScreenState to its own top level counter.
-        TrackId track =
-            context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
-        context_->event_tracker->PushCounter(ts, point.value, track);
-        return;
       }
       // This is per upid on purpose. Some counters are pushed from arbitrary
       // threads but are really per process.

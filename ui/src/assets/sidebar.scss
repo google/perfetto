@@ -14,22 +14,19 @@
 
 .sidebar {
     --sidebar-padding-bottom: 40px;
-    --sidebar-timing: 0.15s;
     grid-area: sidebar;
     z-index: 4;
     background-color: #262f3c;
-    overflow: hidden;
+    overflow: visible;
     width: var(--sidebar-width);
     display: flex;
     flex-direction: column;
-    transition: margin-left var(--anim-easing) var(--sidebar-timing),
-                visibility linear var(--sidebar-timing);
     >* {
         border-bottom: 1px solid #404854;
     }
     input[type=file] { display:none; }
     >header {
-        font-family: 'Raleway', sans-serif;
+        font-family: 'Raleway';
         height: var(--topbar-height);
         line-height: var(--topbar-height);
         vertical-align: middle;
@@ -39,34 +36,30 @@
         font-size: 24px;
         letter-spacing: 0.5px;
         overflow: visible;
-        .brand {
-          height: 40px;
-          margin-top: 4px;
+        &:before {
+            width: 32px;
+            height: 32px;
+            display: inline-block;
+            content: '';
+            vertical-align: middle;
+            background-image: url('assets/logo.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            margin-right: 15px;
         }
-    }
-    .sidebar-button {
-      position: absolute;
-      z-index: 5;
-      background-color: #262f3c;
-      height: var(--topbar-height);
-      left: calc(var(--sidebar-width) - 50px);
-      padding-top: 3px;
-      border-radius: 0 5px 5px 0;
-      border-bottom: inherit;
-      visibility: visible;  // So stays visible when the sidebar is hidden.
-      transition: left var(--anim-easing) var(--sidebar-timing);
-      width: 48px;
-      overflow: hidden;
-      >button {
-        vertical-align: middle;
-      }
-    }
-    &.hide-sidebar {
-      visibility: hidden;
-      margin-left: calc(var(--sidebar-width) * -1);
-      .sidebar-button {
-        left: 0;
-      }
+        >.sidebar-button {
+          display: inline-block;
+          position: relative;
+          height: inherit;
+          background-color: #262f3c;
+          overflow: visible;
+          padding: 0 10px;
+          border-radius: 0 5px 5px 0;
+          border-bottom: inherit;
+          >button {
+            vertical-align: middle;
+          }
+        }
     }
     .sidebar-scroll {
       overflow-y: auto;
@@ -95,7 +88,7 @@
                 cursor: pointer;
                 >h1,
                 >h2 {
-                    font-family: 'Raleway', sans-serif;
+                    font-family: 'Raleway';
                     letter-spacing: 0.25px;
                     overflow: hidden;
                     text-overflow: ellipsis;
@@ -150,7 +143,7 @@
                     line-height: 24px;
                     font-size: 14px;
                     font-weight: 400;
-                    font-family: 'Raleway', sans-serif;
+                    font-family: 'Raleway';
                     letter-spacing: 0.5px;
                     padding: 5px 24px;
                     text-decoration: none;
@@ -160,20 +153,11 @@
                     }
                 }
                 .material-icons {
+                    vertical-align: middle;
                     margin-right: 10px;
                 }
                 &:hover {
                     background-color: #373f4b;
-                }
-                .trace-file-name {
-                  white-space: break-spaces;
-                  font-family: 'Roboto Condensed', sans-serif;
-                  word-break: break-all;
-                  user-select: text;
-                  font-weight: 300;
-                  letter-spacing: 0;
-                  margin-top: -10px;
-                  color: #fff;
                 }
             }
         }
@@ -200,7 +184,7 @@
         }
       }
 
-      > .dbg-info-square {
+      > .num-queued-queries {
         width: 24px;
         height: 22px;
         line-height: 22px;
@@ -210,15 +194,11 @@
         border-radius: 5px;
         font-size: 12px;
         text-align: center;
-        &.green {
+        &.rpc {
           background: #7aca75;
           color: #12161b;
         }
-        &.amber {
-          background: #FFC107;
-          color: #333;
-        }
-        &.red {
+        &.failed {
           background: #d32f2f;
           color: #fff;
         }
@@ -228,6 +208,17 @@
         }
       }
     }
+}
+
+.hide-sidebar {
+  margin-left: calc(var(--sidebar-width) * -1);
+  .sidebar-button {
+    left: 96px;
+  }
+}
+
+.show-sidebar .sidebar-button {
+  left: 46px;
 }
 
 .keycap {

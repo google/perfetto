@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -37,11 +37,8 @@ class SystemProbesParser {
   void ParseProcessStats(int64_t timestamp, ConstBytes);
   void ParseSysStats(int64_t ts, ConstBytes);
   void ParseSystemInfo(ConstBytes);
-  void ParseCpuInfo(ConstBytes);
 
  private:
-  void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
-
   TraceProcessorContext* const context_;
 
   const StringId utid_name_id_;
@@ -66,14 +63,6 @@ class SystemProbesParser {
   // id of ProcessStats::Process.
   static constexpr size_t kProcStatsProcessSize = 11;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
-
-  uint64_t ms_per_tick_ = 0;
-
-  // Maps CPU frequency indices to CPU strings: time_in_state.cpuN.
-  std::vector<StringId> thread_time_in_state_cpu_str_ids_;
-
-  // Maps CPU frequency indices to frequency strings.
-  std::vector<StringId> thread_time_in_state_cpu_freq_ids_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto

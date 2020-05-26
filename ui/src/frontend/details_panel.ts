@@ -32,15 +32,22 @@ const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
 const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
+let HEAP_PROFILE_DETAILS_HEIGHT_PX = DEFAULT_DETAILS_HEIGHT_PX;
 
-function getFullScreenHeight() {
+function generateHeapProfileHeight() {
   const panelContainer =
-      document.querySelector('.pan-and-zoom-content') as HTMLElement;
-  if (panelContainer !== null) {
-    return panelContainer.clientHeight;
-  } else {
-    return DEFAULT_DETAILS_HEIGHT_PX;
+      document.querySelector('.scrolling-panel-container') as HTMLElement;
+  if (HEAP_PROFILE_DETAILS_HEIGHT_PX === DEFAULT_DETAILS_HEIGHT_PX &&
+      panelContainer !== null) {
+    HEAP_PROFILE_DETAILS_HEIGHT_PX = panelContainer.clientHeight;
   }
+}
+
+function getHeightForDetailsPanel(): number {
+  return globals.state.currentSelection &&
+          globals.state.currentSelection.kind === 'HEAP_PROFILE' ?
+      HEAP_PROFILE_DETAILS_HEIGHT_PX :
+      DEFAULT_DETAILS_HEIGHT_PX;
 }
 
 function hasLogs(): boolean {
@@ -51,8 +58,10 @@ function hasLogs(): boolean {
 interface DragHandleAttrs {
   height: number;
   resize: (height: number) => void;
-  tabs: string[];
+  tabs: Tab[];
 }
+
+export type Tab = 'current_selection'|'time_range'|'android_logs';
 
 class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private dragStartHeight = 0;
@@ -60,12 +69,10 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private previousHeight = this.height;
   private resize: (height: number) => void = () => {};
   private isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
-  private isFullscreen = false;
-  // We can't get real fullscreen height until the pan_and_zoom_handler exists.
-  private fullscreenHeight = DEFAULT_DETAILS_HEIGHT_PX;
-  private tabNames = new Map<string, string>([
+  private tabNames = new Map<Tab, string>([
     ['current_selection', 'Current Selection'],
-    ['android_logs', 'Android Logs'],
+    ['time_range', 'Time Range'],
+    ['android_logs', 'Android Logs']
   ]);
 
 
@@ -73,7 +80,6 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.resize = attrs.resize;
     this.height = attrs.height;
     this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
-    this.fullscreenHeight = getFullScreenHeight();
     const elem = dom as HTMLElement;
     new DragGestureHandler(
         elem,
@@ -89,11 +95,9 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 
   onDrag(_x: number, y: number) {
-    const newHeight =
-        Math.floor(this.dragStartHeight + (DRAG_HANDLE_HEIGHT_PX / 2) - y);
-    this.isClosed = newHeight <= DRAG_HANDLE_HEIGHT_PX;
-    this.isFullscreen = newHeight >= this.fullscreenHeight;
-    this.resize(newHeight);
+    const newHeight = this.dragStartHeight + (DRAG_HANDLE_HEIGHT_PX / 2) - y;
+    this.isClosed = Math.floor(newHeight) <= DRAG_HANDLE_HEIGHT_PX;
+    this.resize(Math.floor(newHeight));
     globals.rafScheduler.scheduleFullRedraw();
   }
 
@@ -106,14 +110,11 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   view({attrs}: m.CVnode<DragHandleAttrs>) {
     const icon = this.isClosed ? UP_ICON : DOWN_ICON;
     const title = this.isClosed ? 'Show panel' : 'Hide panel';
-    const renderTab = (key: string) => {
+    const renderTab = (key: Tab) => {
       if (globals.frontendLocalState.currentTab === key ||
           globals.frontendLocalState.currentTab === undefined &&
               attrs.tabs[0] === key) {
-        return m(
-            '.tab[active]',
-            this.tabNames.get(key) === undefined ? key :
-                                                   this.tabNames.get(key));
+        return m('.tab[active]', this.tabNames.get(key));
       }
       return m(
           '.tab',
@@ -123,41 +124,27 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               globals.rafScheduler.scheduleFullRedraw();
             }
           },
-          this.tabNames.get(key) === undefined ? key : this.tabNames.get(key));
+          this.tabNames.get(key));
     };
     return m(
         '.handle',
         m('.tabs', attrs.tabs.map(renderTab)),
-        m('.buttons',
-          m('i.material-icons',
-            {
-              onclick: () => {
+        m('i.material-icons',
+          {
+            onclick: () => {
+              if (this.height === DRAG_HANDLE_HEIGHT_PX) {
                 this.isClosed = false;
-                this.isFullscreen = true;
-                this.resize(this.fullscreenHeight);
-                globals.rafScheduler.scheduleFullRedraw();
-              },
-              title: 'Open fullscreen',
-              disabled: this.isFullscreen
+                this.resize(this.previousHeight);
+              } else {
+                this.isClosed = true;
+                this.previousHeight = this.height;
+                this.resize(DRAG_HANDLE_HEIGHT_PX);
+              }
+              globals.rafScheduler.scheduleFullRedraw();
             },
-            'vertical_align_top'),
-          m('i.material-icons',
-            {
-              onclick: () => {
-                if (this.height === DRAG_HANDLE_HEIGHT_PX) {
-                  this.isClosed = false;
-                  this.resize(this.previousHeight);
-                } else {
-                  this.isFullscreen = false;
-                  this.isClosed = true;
-                  this.previousHeight = this.height;
-                  this.resize(DRAG_HANDLE_HEIGHT_PX);
-                }
-                globals.rafScheduler.scheduleFullRedraw();
-              },
-              title
-            },
-            icon)));
+            title
+          },
+          icon));
   }
 }
 
@@ -165,9 +152,10 @@ export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = DRAG_HANDLE_HEIGHT_PX;
   // Used to set details panel to default height on selection.
   private showDetailsPanel = true;
+  private lastSelectedKind?: string;
 
   view() {
-    const detailsPanels: Map<string, AnyAttrsVnode> = new Map();
+    const detailsPanels: Map<Tab, AnyAttrsVnode> = new Map();
     const curSelection = globals.state.currentSelection;
     if (curSelection) {
       switch (curSelection.kind) {
@@ -191,6 +179,7 @@ export class DetailsPanel implements m.ClassComponent {
           detailsPanels.set(
               'current_selection',
               m(HeapProfileDetailsPanel, {key: 'heap_profile'}));
+          generateHeapProfileHeight();
           break;
         case 'CHROME_SLICE':
           detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
@@ -213,22 +202,21 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.set('android_logs', m(LogPanel, {}));
     }
 
-    for (const [key, value] of globals.aggregateDataStore.entries()) {
-      if (value.columns.length > 0 && value.columns[0].data.length > 0) {
-        detailsPanels.set(
-            value.tabName, m(AggregationPanel, {kind: key, data: value}));
-      }
+    if (globals.frontendLocalState.selectedArea.area !== undefined) {
+      detailsPanels.set('time_range', m(AggregationPanel));
     }
 
     const wasShowing = this.showDetailsPanel;
+    const changedSelection =
+        curSelection && this.lastSelectedKind !== curSelection.kind;
     this.showDetailsPanel = detailsPanels.size > 0;
-    // The first time the details panel appears, it should be default height.
-    if (!wasShowing && this.showDetailsPanel) {
-      this.detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
+    this.lastSelectedKind = curSelection ? curSelection.kind : undefined;
+    // Pop up details panel on first selection.
+    if (!wasShowing && changedSelection && this.showDetailsPanel) {
+      this.detailsHeight = getHeightForDetailsPanel();
     }
 
-    const panel = globals.frontendLocalState.currentTab &&
-            detailsPanels.has(globals.frontendLocalState.currentTab) ?
+    const panel = globals.frontendLocalState.currentTab ?
         detailsPanels.get(globals.frontendLocalState.currentTab) :
         detailsPanels.values().next().value;
     const panels = panel ? [panel] : [];

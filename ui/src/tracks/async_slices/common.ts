@@ -11,21 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import {TrackData} from '../../common/track_data';
+
+export {Data} from '../chrome_slices/common';
 
 export const SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
 export interface Config {
   maxDepth: number;
-  trackIds: number[];
-}
-
-export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  strings: string[];
-  sliceIds: Float64Array;
-  starts: Float64Array;
-  ends: Float64Array;
-  depths: Uint16Array;
-  titles: Uint16Array;  // Index in |strings|.
+  trackId: number;
 }

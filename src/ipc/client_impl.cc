@@ -27,8 +27,6 @@
 #include "perfetto/ext/ipc/service_descriptor.h"
 #include "perfetto/ext/ipc/service_proxy.h"
 
-#include "protos/perfetto/ipc/wire_protocol.gen.h"
-
 // TODO(primiano): Add ThreadChecker everywhere.
 
 // TODO(primiano): Add timeouts.
@@ -123,7 +121,8 @@ bool ClientImpl::SendFrame(const Frame& frame, int fd) {
   // socket buffer is full? We might want to either drop the request or throttle
   // the send and PostTask the reply later? Right now we are making Send()
   // blocking as a workaround. Propagate bakpressure to the caller instead.
-  bool res = sock_->Send(buf.data(), buf.size(), fd);
+  bool res = sock_->Send(buf.data(), buf.size(), fd,
+                         base::UnixSocket::BlockingMode::kBlocking);
   PERFETTO_CHECK(res || !sock_->is_connected());
   return res;
 }

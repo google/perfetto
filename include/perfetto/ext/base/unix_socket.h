@@ -48,7 +48,9 @@ enum class SockFamily { kUnix = 200, kInet };
 class UnixSocketRaw {
  public:
   // Creates a new unconnected unix socket.
-  static UnixSocketRaw CreateMayFail(SockFamily family, SockType type);
+  static UnixSocketRaw CreateMayFail(SockFamily family, SockType type) {
+    return UnixSocketRaw(family, type);
+  }
 
   // Crates a pair of connected sockets.
   static std::pair<UnixSocketRaw, UnixSocketRaw> CreatePair(SockFamily,
@@ -181,6 +183,8 @@ class UnixSocket {
     kListening    // After Listen(), until Shutdown().
   };
 
+  enum class BlockingMode { kNonBlocking, kBlocking };
+
   // Creates a socket and starts listening. If SockFamily::kUnix and
   // |socket_name| starts with a '@', an abstract UNIX dmoain socket will be
   // created instead of a filesystem-linked UNIX socket (Linux/Android only).
@@ -240,16 +244,26 @@ class UnixSocket {
   // EventListener::OnDisconnect() will be called.
   // If the socket is not connected, Send() will just return false.
   // Does not append a null string terminator to msg in any case.
-  bool Send(const void* msg, size_t len, const int* send_fds, size_t num_fds);
+  //
+  // DO NOT PASS kNonBlocking, it is broken.
+  bool Send(const void* msg,
+            size_t len,
+            const int* send_fds,
+            size_t num_fds,
+            BlockingMode blocking = BlockingMode::kNonBlocking);
 
-  inline bool Send(const void* msg, size_t len, int send_fd = -1) {
+  inline bool Send(const void* msg,
+                   size_t len,
+                   int send_fd = -1,
+                   BlockingMode blocking = BlockingMode::kNonBlocking) {
     if (send_fd != -1)
-      return Send(msg, len, &send_fd, 1);
-    return Send(msg, len, nullptr, 0);
+      return Send(msg, len, &send_fd, 1, blocking);
+    return Send(msg, len, nullptr, 0, blocking);
   }
 
-  inline bool Send(const std::string& msg) {
-    return Send(msg.c_str(), msg.size() + 1, -1);
+  inline bool Send(const std::string& msg,
+                   BlockingMode blocking = BlockingMode::kNonBlocking) {
+    return Send(msg.c_str(), msg.size() + 1, -1, blocking);
   }
 
   // Returns the number of bytes (<= |len|) written in |msg| or 0 if there
@@ -280,7 +294,6 @@ class UnixSocket {
   // the last peer.
   uid_t peer_uid() const {
     PERFETTO_DCHECK(!is_listening() && peer_uid_ != kInvalidUid);
-    ignore_result(kInvalidPid);  // Silence warnings in amalgamated builds.
     return peer_uid_;
   }
 

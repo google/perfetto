@@ -18,7 +18,8 @@
 
 #include <string>
 
-#include "perfetto/base/build_config.h"
+#include <zlib.h>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
@@ -26,18 +27,16 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/clock_tracker.h"
+#include "src/trace_processor/event_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
-#include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
-#include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/importers/proto/track_event_module.h"
+#include "src/trace_processor/stats.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/trace_storage.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
@@ -55,32 +54,33 @@ namespace {
 constexpr uint8_t kTracePacketTag =
     MakeTagLengthDelimited(protos::pbzero::Trace::kPacketFieldNumber);
 
-TraceBlobView Decompress(GzipDecompressor* decompressor, TraceBlobView input) {
-  PERFETTO_DCHECK(gzip::IsGzipSupported());
-
+TraceBlobView Decompress(TraceBlobView input) {
   uint8_t out[4096];
+  std::string s;
 
-  std::vector<uint8_t> data;
-  data.reserve(input.length());
+  z_stream stream{};
+  stream.next_in = const_cast<uint8_t*>(input.data());
+  stream.avail_in = static_cast<unsigned int>(input.length());
 
-  // Ensure that the decompressor is able to cope with a new stream of data.
-  decompressor->Reset();
-  decompressor->SetInput(input.data(), input.length());
+  if (inflateInit(&stream) != Z_OK)
+    return TraceBlobView(nullptr, 0, 0);
 
-  using ResultCode = GzipDecompressor::ResultCode;
-  for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
-    auto res = decompressor->Decompress(out, base::ArraySize(out));
-    ret = res.ret;
-    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
-        ret == ResultCode::kNeedsMoreInput)
+  int ret;
+  do {
+    stream.next_out = out;
+    stream.avail_out = sizeof(out);
+    ret = inflate(&stream, Z_NO_FLUSH);
+    if (ret != Z_STREAM_END && ret != Z_OK) {
+      inflateEnd(&stream);
       return TraceBlobView(nullptr, 0, 0);
+    }
+    s.append(reinterpret_cast<char*>(out), sizeof(out) - stream.avail_out);
+  } while (ret != Z_STREAM_END);
+  inflateEnd(&stream);
 
-    data.insert(data.end(), out, out + res.bytes_written);
-  }
-
-  std::unique_ptr<uint8_t[]> output(new uint8_t[data.size()]);
-  memcpy(output.get(), data.data(), data.size());
-  return TraceBlobView(std::move(output), 0, data.size());
+  std::unique_ptr<uint8_t[]> output(new uint8_t[s.size()]);
+  memcpy(output.get(), s.data(), s.size());
+  return TraceBlobView(std::move(output), 0, s.size());
 }
 
 }  // namespace
@@ -187,8 +187,63 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     return util::ErrStatus(
         "Failed to parse proto packet fully; the trace is probably corrupt.");
 
+  auto timestamp =
+      decoder.has_timestamp()
+          ? static_cast<int64_t>(decoder.timestamp())
+          : std::max(latest_timestamp_, context_->sorter->max_timestamp());
+
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
-  auto* state = GetIncrementalStateForPacketSequence(seq_id);
+
+  if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
+      (!decoder.timestamp_clock_id() ||
+       decoder.timestamp_clock_id() ==
+           protos::pbzero::ClockSnapshot::Clock::MONOTONIC)) {
+    // Chrome event timestamps are in MONOTONIC domain, but may occur in traces
+    // where (a) no clock snapshots exist or (b) no clock_id is specified for
+    // their timestamps. Adjust to trace time if we have a clock snapshot.
+    // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in chrome
+    // and then remove this.
+    auto trace_ts = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+    if (trace_ts.has_value())
+      timestamp = trace_ts.value();
+  } else if (decoder.timestamp_clock_id()) {
+    // If the TracePacket specifies a non-zero clock-id, translate the timestamp
+    // into the trace-time clock domain.
+    PERFETTO_DCHECK(decoder.has_timestamp());
+    ClockTracker::ClockId clock_id = decoder.timestamp_clock_id();
+    bool is_seq_scoped = ClockTracker::IsReservedSeqScopedClockId(clock_id);
+    if (is_seq_scoped) {
+      if (!seq_id) {
+        return util::ErrStatus(
+            "TracePacket specified a sequence-local clock id (%" PRIu32
+            ") but the TraceWriter's sequence_id is zero (the service is "
+            "probably too old)",
+            decoder.timestamp_clock_id());
+      }
+      clock_id = ClockTracker::SeqScopedClockIdToGlobal(
+          seq_id, decoder.timestamp_clock_id());
+    }
+    auto trace_ts = context_->clock_tracker->ToTraceTime(clock_id, timestamp);
+    if (!trace_ts.has_value()) {
+      // ToTraceTime() will increase the |clock_sync_failure| stat on failure.
+      static const char seq_extra_err[] =
+          " Because the clock id is sequence-scoped, the ClockSnapshot must be "
+          "emitted on the same TraceWriter sequence of the packet that refers "
+          "to that clock id.";
+      return util::ErrStatus(
+          "Failed to convert TracePacket's timestamp from clock_id=%" PRIu32
+          " seq_id=%" PRIu32
+          ". This is usually due to the lack of a prior ClockSnapshot proto.%s",
+          decoder.timestamp_clock_id(), seq_id,
+          is_seq_scoped ? seq_extra_err : "");
+    }
+    timestamp = trace_ts.value();
+  }
+  latest_timestamp_ = std::max(timestamp, latest_timestamp_);
+
+  auto* state = GetIncrementalStateForPacketSequence(
+      decoder.trusted_packet_sequence_id());
 
   uint32_t sequence_flags = decoder.sequence_flags();
 
@@ -198,25 +253,6 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     HandleIncrementalStateCleared(decoder);
   } else if (decoder.previous_packet_dropped()) {
     HandlePreviousPacketDropped(decoder);
-  }
-
-  // It is important that we parse defaults before parsing other fields such as
-  // the timestamp, since the defaults could affect them.
-  if (decoder.has_trace_packet_defaults()) {
-    auto field = decoder.trace_packet_defaults();
-    const size_t offset = packet.offset_of(field.data);
-    ParseTracePacketDefaults(decoder, packet.slice(offset, field.size));
-  }
-
-  if (decoder.has_interned_data()) {
-    auto field = decoder.interned_data();
-    const size_t offset = packet.offset_of(field.data);
-    ParseInternedData(decoder, packet.slice(offset, field.size));
-  }
-
-  if (decoder.has_clock_snapshot()) {
-    return ParseClockSnapshot(decoder.clock_snapshot(),
-                              decoder.trusted_packet_sequence_id());
   }
 
   if (decoder.sequence_flags() &
@@ -234,89 +270,35 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
     }
   }
 
-  protos::pbzero::TracePacketDefaults::Decoder* defaults =
-      state->current_generation()->GetTracePacketDefaults();
-
-  int64_t timestamp;
-  if (decoder.has_timestamp()) {
-    timestamp = static_cast<int64_t>(decoder.timestamp());
-
-    uint32_t timestamp_clock_id =
-        decoder.has_timestamp_clock_id()
-            ? decoder.timestamp_clock_id()
-            : (defaults ? defaults->timestamp_clock_id() : 0);
-
-    if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
-        (!timestamp_clock_id ||
-         timestamp_clock_id == protos::pbzero::BUILTIN_CLOCK_MONOTONIC)) {
-      // Chrome event timestamps are in MONOTONIC domain, but may occur in
-      // traces where (a) no clock snapshots exist or (b) no clock_id is
-      // specified for their timestamps. Adjust to trace time if we have a clock
-      // snapshot.
-      // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in
-      // chrome and then remove this.
-      auto trace_ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-      if (trace_ts.has_value())
-        timestamp = trace_ts.value();
-    } else if (timestamp_clock_id) {
-      // If the TracePacket specifies a non-zero clock-id, translate the
-      // timestamp into the trace-time clock domain.
-      ClockTracker::ClockId converted_clock_id = timestamp_clock_id;
-      bool is_seq_scoped =
-          ClockTracker::IsReservedSeqScopedClockId(converted_clock_id);
-      if (is_seq_scoped) {
-        if (!seq_id) {
-          return util::ErrStatus(
-              "TracePacket specified a sequence-local clock id (%" PRIu32
-              ") but the TraceWriter's sequence_id is zero (the service is "
-              "probably too old)",
-              timestamp_clock_id);
-        }
-        converted_clock_id =
-            ClockTracker::SeqScopedClockIdToGlobal(seq_id, timestamp_clock_id);
-      }
-      auto trace_ts =
-          context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
-      if (!trace_ts.has_value()) {
-        // ToTraceTime() will increase the |clock_sync_failure| stat on failure.
-        static const char seq_extra_err[] =
-            " Because the clock id is sequence-scoped, the ClockSnapshot must "
-            "be emitted on the same TraceWriter sequence of the packet that "
-            "refers to that clock id.";
-        return util::ErrStatus(
-            "Failed to convert TracePacket's timestamp from clock_id=%" PRIu32
-            " seq_id=%" PRIu32
-            ". This is usually due to the lack of a prior ClockSnapshot "
-            "proto.%s",
-            timestamp_clock_id, seq_id, is_seq_scoped ? seq_extra_err : "");
-      }
-      timestamp = trace_ts.value();
-    }
-  } else {
-    timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
+  if (decoder.has_clock_snapshot()) {
+    return ParseClockSnapshot(decoder.clock_snapshot(),
+                              decoder.trusted_packet_sequence_id());
   }
-  latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
-  auto& modules = context_->modules_by_field;
-  for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
-    if (modules[field_id] && decoder.Get(field_id).valid()) {
-      ModuleResult res = modules[field_id]->TokenizePacket(
-          decoder, &packet, timestamp, state, field_id);
-      if (!res.ignored())
-        return res.ToStatus();
-    }
+  // TODO(eseckler): Parse TracePacketDefaults.
+
+  if (decoder.has_interned_data()) {
+    auto field = decoder.interned_data();
+    const size_t offset = packet.offset_of(field.data);
+    ParseInternedData(decoder, packet.slice(offset, field.size));
   }
+
+  ModuleResult res = ModuleResult::Ignored();
+  res = context_->ftrace_module->TokenizePacket(decoder, &packet, timestamp,
+                                                state);
+  if (!res.ignored())
+    return res.ToStatus();
+
+  res = context_->track_event_module->TokenizePacket(decoder, &packet,
+                                                     timestamp, state);
+  if (!res.ignored())
+    return res.ToStatus();
 
   if (decoder.has_compressed_packets()) {
-    if (!gzip::IsGzipSupported())
-      return util::Status("Cannot decode compressed packets. Zlib not enabled");
-
     protozero::ConstBytes field = decoder.compressed_packets();
     const size_t field_off = packet.offset_of(field.data);
     TraceBlobView compressed_packets = packet.slice(field_off, field.size);
-    TraceBlobView packets =
-        Decompress(&decompressor_, std::move(compressed_packets));
+    TraceBlobView packets = Decompress(std::move(compressed_packets));
 
     const uint8_t* start = packets.data();
     const uint8_t* end = packets.data() + packets.length();
@@ -336,6 +318,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
       if (PERFETTO_UNLIKELY(!status.ok()))
         return status;
     }
+
     return util::OkStatus();
   }
 
@@ -385,8 +368,6 @@ void ProtoTraceTokenizer::HandleIncrementalStateCleared(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnIncrementalStateCleared();
-  context_->track_tracker->OnIncrementalStateCleared(
-      packet_decoder.trusted_packet_sequence_id());
 }
 
 void ProtoTraceTokenizer::HandlePreviousPacketDropped(
@@ -399,21 +380,6 @@ void ProtoTraceTokenizer::HandlePreviousPacketDropped(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnPacketLoss();
-}
-
-void ProtoTraceTokenizer::ParseTracePacketDefaults(
-    const protos::pbzero::TracePacket_Decoder& packet_decoder,
-    TraceBlobView trace_packet_defaults) {
-  if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
-    PERFETTO_ELOG(
-        "TracePacketDefaults packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
-    return;
-  }
-
-  auto* state = GetIncrementalStateForPacketSequence(
-      packet_decoder.trusted_packet_sequence_id());
-  state->UpdateTracePacketDefaults(std::move(trace_packet_defaults));
 }
 
 void ProtoTraceTokenizer::ParseInternedData(
@@ -449,10 +415,6 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
                                                      uint32_t seq_id) {
   std::vector<ClockTracker::ClockValue> clocks;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
-  if (evt.primary_trace_clock()) {
-    context_->clock_tracker->SetTraceTimeClock(
-        static_cast<ClockTracker::ClockId>(evt.primary_trace_clock()));
-  }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
     ClockTracker::ClockId clock_id = clk.clock_id();
@@ -475,8 +437,6 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
   context_->clock_tracker->AddSnapshot(clocks);
   return util::OkStatus();
 }
-
-void ProtoTraceTokenizer::NotifyEndOfFile() {}
 
 }  // namespace trace_processor
 }  // namespace perfetto

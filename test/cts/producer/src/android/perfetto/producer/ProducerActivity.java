@@ -50,9 +50,6 @@ public class ProducerActivity extends Activity {
         startForegroundService(new Intent(ProducerActivity.this, ProducerIsolatedService.class));
 
         System.loadLibrary("perfettocts_jni");
-
-        // We make sure at the C++ level that we don't setup multiple producers in the same
-        // process.
         new Thread(new Runnable() {
             public void run() {
                 try {
@@ -61,17 +58,9 @@ public class ProducerActivity extends Activity {
                     ex.printStackTrace();
                 }
             }
-        }).start();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-
-        quitTaskRunner();
+        })
+                .start();
     }
 
     private static native void setupProducer();
-
-    private static native void quitTaskRunner();
 }

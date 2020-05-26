@@ -19,7 +19,6 @@ import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineMode} from '../common/state';
 
-import {Animation} from './animation';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
@@ -55,11 +54,10 @@ select
   sum(dur * freq)/1e6 as mcycles
 from (
   select
-    cpu,
+    ref as cpu,
     value as freq,
-    lead(ts) over (partition by cpu order by ts) - ts as dur
-  from counter
-  inner join cpu_counter_track on counter.track_id = cpu_counter_track.id
+    lead(ts) over (partition by ref order by ts) - ts as dur
+  from counters
   where name = 'cpufreq'
 ) group by cpu, freq
 order by mcycles desc limit 32;`;
@@ -98,8 +96,6 @@ order by started desc`;
 
 const TRACE_STATS = 'select * from stats order by severity, source, name, idx';
 
-let lastTabTitle = '';
-
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
@@ -137,7 +133,6 @@ const SECTIONS = [
     summary: 'Actions on the current trace',
     expanded: true,
     hideIfNoTraceLoaded: true,
-    appendOpenedTraceTitle: true,
     items: [
       {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
       {
@@ -145,7 +140,6 @@ const SECTIONS = [
         a: dispatchCreatePermalink,
         i: 'share',
         checkDownloadDisabled: true,
-        internalUserOnly: true,
       },
       {
         t: 'Download',
@@ -220,7 +214,7 @@ const SECTIONS = [
     items: [
       {
         t: 'Controls',
-        a: openHelp,
+        a: toggleHelp,
         i: 'help',
       },
       {
@@ -247,11 +241,6 @@ const vidSection = {
   ],
 };
 
-function openHelp(e: Event) {
-  e.preventDefault();
-  toggleHelp();
-}
-
 function getFileElement(): HTMLInputElement {
   return document.querySelector('input[type=file]')! as HTMLInputElement;
 }
@@ -270,8 +259,7 @@ function popupFileSelectionDialogOldUI(e: Event) {
   getFileElement().click();
 }
 
-function openCurrentTraceWithOldUI(e: Event) {
-  e.preventDefault();
+function openCurrentTraceWithOldUI() {
   console.assert(isTraceLoaded());
   if (!isTraceLoaded) return;
   const engine = Object.values(globals.state.engines)[0];
@@ -322,7 +310,12 @@ function onInputElementFileSelectionChanged(e: Event) {
   globals.frontendLocalState.localOnlyMode = false;
 
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    openWithLegacyUi(file);
+    // Switch back to the old catapult UI.
+    if (isLegacyTrace(file.name)) {
+      openFileWithLegacyTraceViewer(file);
+      return;
+    }
+    openInOldUIWithSizeCheck(file);
     return;
   }
 
@@ -349,15 +342,7 @@ function onInputElementFileSelectionChanged(e: Event) {
   }
 
   globals.dispatch(Actions.openTraceFromFile({file}));
-}
 
-async function openWithLegacyUi(file: File) {
-  // Switch back to the old catapult UI.
-  if (await isLegacyTrace(file)) {
-    openFileWithLegacyTraceViewer(file);
-    return;
-  }
-  openInOldUIWithSizeCheck(file);
 }
 
 function openInOldUIWithSizeCheck(trace: Blob) {
@@ -478,7 +463,7 @@ function downloadTrace(e: Event) {
 }
 
 
-const EngineRPCWidget: m.Component = {
+const SidebarFooter: m.Component = {
   view() {
     let cssClass = '';
     let title = 'Number of pending SQL queries';
@@ -492,7 +477,7 @@ const EngineRPCWidget: m.Component = {
     for (const engine of engines) {
       mode = engine.mode;
       if (engine.failed !== undefined) {
-        cssClass += '.red';
+        cssClass += '.failed';
         title = 'Query engine crashed\n' + engine.failed;
         failed = true;
       }
@@ -513,7 +498,7 @@ const EngineRPCWidget: m.Component = {
     }
 
     if (mode === 'HTTP_RPC') {
-      cssClass += '.green';
+      cssClass += '.rpc';
       label = 'RPC';
       title += '\n(Query engine: native accelerator over HTTP+RPC)';
     } else {
@@ -521,88 +506,6 @@ const EngineRPCWidget: m.Component = {
       title += '\n(Query engine: built-in WASM)';
     }
 
-    return m(
-        `.dbg-info-square${cssClass}`,
-        {title},
-        m('div', label),
-        m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`));
-  }
-};
-
-const ServiceWorkerWidget: m.Component = {
-  view() {
-    let cssClass = '';
-    let title = 'Service Worker: ';
-    let label = 'N/A';
-    const ctl = globals.serviceWorkerController;
-    if ((!('serviceWorker' in navigator))) {
-      label = 'N/A';
-      title += 'not supported by the browser (requires HTTPS)';
-    } else if (ctl.bypassed) {
-      label = 'OFF';
-      cssClass = '.red';
-      title += 'Bypassed, using live network. Double-click to re-enable';
-    } else if (ctl.installing) {
-      label = 'UPD';
-      cssClass = '.amber';
-      title += 'Installing / updating ...';
-    } else if (!navigator.serviceWorker.controller) {
-      label = 'N/A';
-      title += 'Not available, using network';
-    } else {
-      label = 'ON';
-      cssClass = '.green';
-      title += 'Serving from cache. Ready for offline use';
-    }
-
-    const toggle = async () => {
-      if (globals.serviceWorkerController.bypassed) {
-        globals.serviceWorkerController.setBypass(false);
-        return;
-      }
-      showModal({
-        title: 'Disable service worker?',
-        content: m(
-            'div',
-            m('p', `If you continue the service worker will be disabled until
-                      manually re-enabled.`),
-            m('p', `All future requests will be served from the network and the
-                    UI won't be available offline.`),
-            m('p', `You should do this only if you are debugging the UI
-                    or if you are experiencing caching-related problems.`),
-            m('p', `Disabling will cause a refresh of the UI, the current state
-                    will be lost.`),
-            ),
-        buttons: [
-          {
-            text: 'Disable and reload',
-            primary: true,
-            id: 'sw-bypass-enable',
-            action: () => {
-              globals.serviceWorkerController.setBypass(true).then(
-                  () => location.reload());
-            }
-          },
-          {
-            text: 'Cancel',
-            primary: false,
-            id: 'sw-bypass-cancel',
-            action: () => {}
-          }
-        ]
-      });
-    };
-
-    return m(
-        `.dbg-info-square${cssClass}`,
-        {title, ondblclick: toggle},
-        m('div', 'SW'),
-        m('div', label));
-  }
-};
-
-const SidebarFooter: m.Component = {
-  view() {
     return m(
         '.sidebar-footer',
         m('button',
@@ -612,16 +515,16 @@ const SidebarFooter: m.Component = {
           m('i.material-icons',
             {title: 'Toggle Perf Debug Mode'},
             'assessment')),
-        m(EngineRPCWidget),
-        m(ServiceWorkerWidget),
+        m(`.num-queued-queries${cssClass}`,
+          {title},
+          m('div', label),
+          m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`)),
     );
   }
 };
 
 
 export class Sidebar implements m.ClassComponent {
-  private _redrawWhileAnimating =
-      new Animation(() => globals.rafScheduler.scheduleFullRedraw());
   view() {
     const vdomSections = [];
     for (const section of SECTIONS) {
@@ -631,55 +534,18 @@ export class Sidebar implements m.ClassComponent {
         let attrs = {
           onclick: typeof item.a === 'function' ? item.a : null,
           href: typeof item.a === 'string' ? item.a : '#',
-          target: typeof item.a === 'string' ? '_blank' : null,
           disabled: false,
         };
-        if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
-          if (!globals.isInternalUser) continue;
-        }
         if (isDownloadAndShareDisabled() &&
             item.hasOwnProperty('checkDownloadDisabled')) {
           attrs = {
             onclick: () => alert('Can not download or share external trace.'),
             href: '#',
-            target: null,
-            disabled: true,
+            disabled: true
           };
         }
         vdomItems.push(
             m('li', m('a', attrs, m('i.material-icons', item.i), item.t)));
-      }
-      if (section.appendOpenedTraceTitle) {
-        const engines = Object.values(globals.state.engines);
-        if (engines.length === 1) {
-          let traceTitle = '';
-          switch (engines[0].source.type) {
-            case 'FILE':
-              // Split on both \ and / (because C:\Windows\paths\are\like\this).
-              traceTitle = engines[0].source.file.name.split(/[/\\]/).pop()!;
-              const fileSizeMB = Math.ceil(engines[0].source.file.size / 1e6);
-              traceTitle += ` (${fileSizeMB} MB)`;
-              break;
-            case 'URL':
-              traceTitle = engines[0].source.url.split('/').pop()!;
-              break;
-            case 'ARRAY_BUFFER':
-              traceTitle = 'External trace';
-              break;
-            case 'HTTP_RPC':
-              traceTitle = 'External trace (RPC)';
-              break;
-            default:
-              break;
-          }
-          if (traceTitle !== '') {
-            const tabTitle = `${traceTitle} - Perfetto UI`;
-            if (tabTitle !== lastTabTitle) {
-              document.title = lastTabTitle = tabTitle;
-            }
-            vdomItems.unshift(m('li', m('a.trace-file-name', traceTitle)));
-          }
-        }
       }
       vdomSections.push(
           m(`section${section.expanded ? '.expanded' : ''}`,
@@ -724,14 +590,11 @@ export class Sidebar implements m.ClassComponent {
         'nav.sidebar',
         {
           class: globals.frontendLocalState.sidebarVisible ? 'show-sidebar' :
-                                                             'hide-sidebar',
-          // 150 here matches --sidebar-timing in the css.
-          ontransitionstart: () => this._redrawWhileAnimating.start(150),
-          ontransitionend: () => this._redrawWhileAnimating.stop(),
+                                                             'hide-sidebar'
         },
         m(
             'header',
-            m('img[src=assets/brand.png].brand'),
+            'Perfetto',
             m('button.sidebar-button',
               {
                 onclick: () => {

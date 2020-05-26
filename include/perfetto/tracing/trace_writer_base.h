@@ -38,7 +38,6 @@ class TraceWriterBase {
   NewTracePacket() = 0;
 
   virtual void Flush(std::function<void()> callback = {}) = 0;
-  virtual uint64_t written() const = 0;
 };
 
 }  // namespace perfetto

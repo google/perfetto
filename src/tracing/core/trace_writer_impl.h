@@ -17,7 +17,6 @@
 #ifndef SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 #define SRC_TRACING_CORE_TRACE_WRITER_IMPL_H_
 
-#include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
@@ -39,7 +38,7 @@ class TraceWriterImpl : public TraceWriter,
   // TracePacketHandle is defined in trace_writer.h
   TraceWriterImpl(SharedMemoryArbiterImpl*,
                   WriterID,
-                  MaybeUnboundBufferID buffer_id,
+                  BufferID,
                   BufferExhaustedPolicy);
   ~TraceWriterImpl() override;
 
@@ -47,6 +46,7 @@ class TraceWriterImpl : public TraceWriter,
   TracePacketHandle NewTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
+  bool SetFirstChunkId(ChunkID) override;
   uint64_t written() const override {
     return protobuf_stream_writer_.written();
   }
@@ -68,11 +68,9 @@ class TraceWriterImpl : public TraceWriter,
   // ID of the current writer.
   const WriterID id_;
 
-  // This is copied into the commit request by SharedMemoryArbiter. See comments
-  // in data_source_config.proto for |target_buffer|. If this is a reservation
-  // for a buffer ID in case of a startup trace writer, SharedMemoryArbiterImpl
-  // will also translate the reservation ID to the actual buffer ID.
-  const MaybeUnboundBufferID target_buffer_;
+  // This is just copied back into the chunk header.
+  // See comments in data_source_config.proto for |target_buffer|.
+  const BufferID target_buffer_;
 
   // Whether GetNewChunk() should stall or return an invalid chunk if the SMB is
   // exhausted.
@@ -129,10 +127,6 @@ class TraceWriterImpl : public TraceWriter,
   // later sent out-of-band to the tracing service, who will patch the required
   // chunks, if they are still around.
   PatchList patch_list_;
-
-  // PID of the process that created the trace writer. Used for a DCHECK that
-  // aims to detect unsupported process forks while tracing.
-  const base::PlatformProcessId process_id_;
 };
 
 }  // namespace perfetto

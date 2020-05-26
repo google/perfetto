@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS=""
+INSTALL_BUILD_DEPS_ARGS="--no-android"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 bazel build //:all --verbose_failures
@@ -28,5 +28,4 @@ kill $(jobs -p)
 ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
 # Check the amalgamated build here to avoid slowing down all the Linux bots.
-echo -e "\n\n***** Testing amalgamated build *****\n"
 tools/test_gen_amalgamated.py

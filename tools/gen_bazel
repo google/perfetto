@@ -62,7 +62,6 @@ public_targets = [
 # These targets are required by internal build rules but don't need to be
 # exported publicly.
 default_targets = [
-    '//test:client_api_example',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:libprotozero',
@@ -165,12 +164,7 @@ class BazelLabel(object):
         continue
       res += '    %s = ' % k
       if isinstance(v, basestring):
-        if v.startswith('PERFETTO_CONFIG.'):
-          res += '%s,\n' % v
-        else:
-          res += '"%s",\n' % v
-      elif isinstance(v, bool):
-        res += '%s,\n' % v
+        res += '"%s",\n' % v
       elif isinstance(v, list):
         res += '[\n'
         if k == 'deps' and len(self.external_deps) > 1:
@@ -201,7 +195,7 @@ class BazelLabel(object):
 
 
 # Public visibility for targets in Bazel.
-PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
+PUBLIC_VISIBILITY = ['//visibility:public']
 
 
 def get_bazel_label_name(gn_name):
@@ -311,17 +305,7 @@ def gen_target(gn_target):
 
   label = BazelLabel(get_bazel_label_name(gn_target.name), bazel_type)
   label.comment = gn_target.name
-
-  raw_srcs = [x[2:] for x in gn_target.sources]
-  if bazel_type == 'perfetto_cc_library':
-    label.srcs = [x for x in raw_srcs if not x.startswith('include')]
-    label.hdrs = [x for x in raw_srcs if x.startswith('include')]
-
-    # Most Perfetto libraries cannot by dynamically linked as they would
-    # cause ODR violations.
-    label.__dict__['linkstatic'] = True
-  else:
-    label.srcs = raw_srcs
+  label.srcs = [x[2:] for x in gn_target.sources]
 
   if gn_target.name in public_targets:
     label.visibility = ['//visibility:public']
@@ -390,7 +374,6 @@ load(
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_java_proto_library",
-    "perfetto_java_lite_proto_library",
     "perfetto_proto_library",
     "perfetto_py_binary",
     "perfetto_gensignature_internal_only",

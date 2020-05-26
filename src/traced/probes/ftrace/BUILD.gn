@@ -32,7 +32,9 @@ source_set("test_support") {
     "../../../base:test_support",
     "../../../protozero",
   ]
-  public_deps = [ "../../../protozero" ]
+  public_deps = [
+    "../../../protozero",
+  ]
 
   sources = [
     "test/cpu_reader_support.cc",
@@ -45,22 +47,18 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":format_parser",
     ":ftrace",
-    ":test_messages_cpp",
     ":test_messages_lite",
     ":test_messages_zero",
     ":test_support",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace:cpp",
-    "../../../../protos/perfetto/trace/ftrace:cpp",
-    "../../../../protos/perfetto/trace/ftrace:zero",
+    "../../../../protos/perfetto/trace/ftrace:lite",
     "../../../base:test_support",
-    "../../../tracing/test:test_support",
+    "../../../tracing:test_support",
   ]
   sources = [
     "cpu_reader_unittest.cc",
     "cpu_stats_parser_unittest.cc",
-    "discover_vendor_tracepoints_unittest.cc",
     "event_info_unittest.cc",
     "format_parser_unittest.cc",
     "ftrace_config_muxer_unittest.cc",
@@ -73,11 +71,12 @@ perfetto_unittest_source_set("unittests") {
 
 perfetto_proto_library("test_messages_@TYPE@") {
   proto_generators = [
-    "cpp",
     "lite",
     "zero",
   ]
-  sources = [ "test/test_messages.proto" ]
+  sources = [
+    "test/test_messages.proto",
+  ]
   proto_path = perfetto_root_path
 }
 
@@ -90,24 +89,26 @@ source_set("integrationtests") {
     ":test_support",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/trace/ftrace:lite",
     "../../../base",
-    "../../../tracing/core",
+    "../../../tracing",
   ]
-  sources = [ "ftrace_procfs_integrationtest.cc" ]
+  sources = [
+    "ftrace_procfs_integrationtest.cc",
+  ]
 }
 
 source_set("ftrace") {
   public_deps = [
     "../../../../protos/perfetto/config/ftrace:cpp",
     "../../../../protos/perfetto/trace/ftrace:zero",
-    "../../../tracing/core",
+    "../../../tracing",
   ]
   deps = [
     ":format_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
-    "../../../../protos/perfetto/trace:zero",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero",
@@ -123,8 +124,6 @@ source_set("ftrace") {
     "cpu_reader.h",
     "cpu_stats_parser.cc",
     "cpu_stats_parser.h",
-    "discover_vendor_tracepoints.cc",
-    "discover_vendor_tracepoints.h",
     "event_info.cc",
     "event_info.h",
     "event_info_constants.cc",
@@ -137,6 +136,7 @@ source_set("ftrace") {
     "ftrace_controller.h",
     "ftrace_data_source.cc",
     "ftrace_data_source.h",
+    "ftrace_metadata.cc",
     "ftrace_metadata.h",
     "ftrace_procfs.cc",
     "ftrace_procfs.h",
@@ -167,13 +167,17 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:benchmark",
       "../../../../gn:default_deps",
     ]
-    sources = [ "cpu_reader_benchmark.cc" ]
+    sources = [
+      "cpu_reader_benchmark.cc",
+    ]
   }
 }
 
 perfetto_fuzzer_test("cpu_reader_fuzzer") {
   testonly = true
-  sources = [ "cpu_reader_fuzzer.cc" ]
+  sources = [
+    "cpu_reader_fuzzer.cc",
+  ]
   deps = [
     ":ftrace",
     ":test_support",

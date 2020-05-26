@@ -45,14 +45,6 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-// PERFETTO_COMPONENT_EXPORT is used to mark symbols in Perfetto's headers
-// (typically templates) that are defined by the user outside of Perfetto and
-// should be made visible outside the current module. (e.g., in Chrome's
-// component build).
-#if !defined(PERFETTO_COMPONENT_EXPORT)
-#define PERFETTO_COMPONENT_EXPORT
-#endif
-
 namespace perfetto {
 namespace internal {
 class TracingMuxerImpl;
@@ -195,11 +187,6 @@ class DataSource : public DataSourceBase {
     void Flush(std::function<void()> cb = {}) {
       tls_inst_->trace_writer->Flush(cb);
     }
-
-    // Returns the number of bytes written on the current thread by the current
-    // data-source since its creation.
-    // This can be useful for splitting protos that might grow very large.
-    uint64_t written() { return tls_inst_->trace_writer->written(); }
 
     // Returns a RAII handle to access the data source instance, guaranteeing
     // that it won't be deleted on another thread (because of trace stopping)
@@ -382,9 +369,10 @@ class DataSource : public DataSourceBase {
   // Setup/Start/Stop notifications and makes the Trace() method work when
   // tracing is enabled and the data source is selected.
   // This must be called after Tracing::Initialize().
+  // The caller must also use the DEFINE_DATA_SOURCE_STATIC_MEMBERS() macro
+  // documented below.
   // Can return false to signal failure if attemping to register more than
-  // kMaxDataSources (32) data sources types or if tracing hasn't been
-  // initialized.
+  // kMaxDataSources (32) data sources types.
   static bool Register(const DataSourceDescriptor& descriptor) {
     // Silences -Wunused-variable warning in case the trace method is not used
     // by the translation unit that declares the data source.
@@ -395,8 +383,6 @@ class DataSource : public DataSourceBase {
       return std::unique_ptr<DataSourceBase>(new DataSourceType());
     };
     auto* tracing_impl = internal::TracingMuxer::Get();
-    if (!tracing_impl)
-      return false;
     return tracing_impl->RegisterDataSource(descriptor, factory,
                                             &static_state_);
   }
@@ -469,32 +455,19 @@ thread_local internal::DataSourceThreadLocalState* DataSource<T, D>::tls_state_;
 
 }  // namespace perfetto
 
-// If placed at the end of a macro declaration, eats the semicolon at the end of
-// the macro invocation (e.g., "MACRO(...);") to avoid warnings about extra
-// semicolons.
-#define PERFETTO_INTERNAL_SWALLOW_SEMICOLON() \
-  extern int perfetto_internal_unused
+// Not needed -- only here for backwards compatibility.
+// TODO(skyostil): Remove this macro.
+#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)
 
-// This macro must be used once for each data source next to the data source's
-// declaration.
-#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)              \
-  template <>                                                         \
-  PERFETTO_COMPONENT_EXPORT perfetto::internal::DataSourceStaticState \
-      perfetto::DataSource<__VA_ARGS__>::static_state_;               \
-  template <>                                                         \
-  PERFETTO_COMPONENT_EXPORT thread_local perfetto::internal::         \
-      DataSourceThreadLocalState*                                     \
-          perfetto::DataSource<__VA_ARGS__>::tls_state_
-
-// This macro must be used once for each data source in one source file to
-// allocate static storage for the data source's static state.
-#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)               \
-  template <>                                                         \
-  PERFETTO_COMPONENT_EXPORT perfetto::internal::DataSourceStaticState \
-      perfetto::DataSource<__VA_ARGS__>::static_state_{};             \
-  template <>                                                         \
-  PERFETTO_COMPONENT_EXPORT thread_local perfetto::internal::         \
-      DataSourceThreadLocalState*                                     \
-          perfetto::DataSource<__VA_ARGS__>::tls_state_ = nullptr
+// The API client must use this in a translation unit. This is because it needs
+// to instantiate the static storage for the datasource to allow the fastpath
+// enabled check.
+#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)        \
+  template <>                                                  \
+  perfetto::internal::DataSourceStaticState                    \
+      perfetto::DataSource<__VA_ARGS__>::static_state_{};      \
+  template <>                                                  \
+  thread_local perfetto::internal::DataSourceThreadLocalState* \
+      perfetto::DataSource<__VA_ARGS__>::tls_state_ = nullptr
 
 #endif  // INCLUDE_PERFETTO_TRACING_DATA_SOURCE_H_

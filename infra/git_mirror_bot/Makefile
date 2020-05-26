@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PROJECT="perfetto-aosp-to-github-bot"
-VM_NAME="perfetto-aosp-to-github-bot"
+PROJECT="perfetto-ci"
+VM_NAME="perfetto-ci-git-mirror-bot"
 ZONE="us-central1-c"
 
 ssh:
@@ -26,19 +26,23 @@ stop:
 		instances delete $(VM_NAME) \
 		--zone $(ZONE)
 
-start:
+deploy_key:
+	@echo "Download the deploy_key from the teams drive (go/perfetto_deploy_key)"
+	@exit 1
+
+start: deploy_key
 	gcloud compute \
 		--project $(PROJECT) \
 		instances create $(VM_NAME) \
 		--zone $(ZONE) \
-		--machine-type "n1-standard-2" \
+		--machine-type "n1-highcpu-16" \
 		--subnet "default" \
 		--maintenance-policy "MIGRATE" \
-		--image "debian-9-drawfork-v20191004" \
-		--image-project "eip-images" \
+		--image "debian-9-stretch-v20170918" \
+		--image-project "debian-cloud" \
 		--boot-disk-size "10" \
 		--boot-disk-type "pd-standard" \
 		--boot-disk-device-name "perfetto-ci-git-mirror-bot" \
-		--metadata-from-file=startup-script=startup-script.sh,main=mirror_aosp_to_ghub_repo.py
+		--metadata-from-file=startup-script=startup-script.sh,deploy_key=deploy_key,main=mirror_aosp_to_ghub_repo.py
 
 .PHONY: ssh stop start

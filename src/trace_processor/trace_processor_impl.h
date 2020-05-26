@@ -28,13 +28,13 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
+#include "src/trace_processor/descriptors.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/util/descriptors.h"
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
 namespace perfetto {
 namespace trace_processor {
@@ -56,6 +56,7 @@ class TraceProcessorImpl : public TraceProcessor,
   Iterator ExecuteQuery(const std::string& sql,
                         int64_t time_queued = 0) override;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
   util::Status RegisterMetric(const std::string& path,
                               const std::string& sql) override;
 
@@ -63,6 +64,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   util::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
   void InterruptQuery() override;
 
@@ -75,23 +77,12 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to delete themselves from the vector.
   friend class IteratorImpl;
 
-  template <typename Table>
-  void RegisterDbTable(const Table& table) {
-    DbSqliteTable::RegisterTable(*db_, query_cache_.get(), Table::Schema(),
-                                 &table, table.table_name());
-  }
-
-  void RegisterDynamicTable(
-      std::unique_ptr<DbSqliteTable::DynamicTableGenerator> generator) {
-    DbSqliteTable::RegisterTable(*db_, query_cache_.get(),
-                                 std::move(generator));
-  }
-
   ScopedDb db_;
-  std::unique_ptr<QueryCache> query_cache_;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
   DescriptorPool pool_;
   std::vector<metrics::SqlMetricFile> sql_metrics_;
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_METRICS)
 
   std::vector<IteratorImpl*> iterators_;
 

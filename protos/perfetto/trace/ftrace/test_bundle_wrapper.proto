@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
 

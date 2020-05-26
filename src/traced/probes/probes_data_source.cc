@@ -18,10 +18,8 @@
 
 namespace perfetto {
 
-ProbesDataSource::ProbesDataSource(TracingSessionID session_id,
-                                   const Descriptor* desc)
-    : tracing_session_id(session_id), descriptor(desc) {}
-
+ProbesDataSource::ProbesDataSource(TracingSessionID session_id, int id)
+    : tracing_session_id(session_id), type_id(id) {}
 ProbesDataSource::~ProbesDataSource() = default;
 
 }  // namespace perfetto

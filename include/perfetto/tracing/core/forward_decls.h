@@ -57,7 +57,6 @@ class DataSourceDescriptor;
 class ObservableEvents;
 class TraceConfig;
 class TraceStats;
-class TracingServiceCapabilities;
 class TracingServiceState;
 
 }  // namespace gen
@@ -70,8 +69,6 @@ using DataSourceDescriptor = ::perfetto::protos::gen::DataSourceDescriptor;
 using ObservableEvents = ::perfetto::protos::gen::ObservableEvents;
 using TraceConfig = ::perfetto::protos::gen::TraceConfig;
 using TraceStats = ::perfetto::protos::gen::TraceStats;
-using TracingServiceCapabilities =
-    ::perfetto::protos::gen::TracingServiceCapabilities;
 using TracingServiceState = ::perfetto::protos::gen::TracingServiceState;
 
 }  // namespace perfetto

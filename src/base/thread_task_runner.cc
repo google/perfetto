@@ -25,13 +25,7 @@
 #include <thread>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/prctl.h>
-#endif
 
 namespace perfetto {
 namespace base {
@@ -58,7 +52,7 @@ ThreadTaskRunner::~ThreadTaskRunner() {
     thread_.join();
 }
 
-ThreadTaskRunner::ThreadTaskRunner(const std::string& name) : name_(name) {
+ThreadTaskRunner::ThreadTaskRunner() {
   std::mutex init_lock;
   std::condition_variable init_cv;
 
@@ -72,7 +66,6 @@ ThreadTaskRunner::ThreadTaskRunner(const std::string& name) : name_(name) {
         // notifying).
         init_cv.notify_one();
       };
-
   thread_ = std::thread(&ThreadTaskRunner::RunTaskThread, this,
                         std::move(initializer));
 
@@ -82,37 +75,9 @@ ThreadTaskRunner::ThreadTaskRunner(const std::string& name) : name_(name) {
 
 void ThreadTaskRunner::RunTaskThread(
     std::function<void(UnixTaskRunner*)> initializer) {
-  if (!name_.empty()) {
-    base::MaybeSetThreadName(name_);
-  }
-
   UnixTaskRunner task_runner;
   task_runner.PostTask(std::bind(std::move(initializer), &task_runner));
   task_runner.Run();
-}
-
-void ThreadTaskRunner::PostTaskAndWaitForTesting(std::function<void()> fn) {
-  std::mutex mutex;
-  std::condition_variable cv;
-
-  std::unique_lock<std::mutex> lock(mutex);
-  bool done = false;
-  task_runner_->PostTask([&mutex, &cv, &done, &fn] {
-    fn();
-
-    std::lock_guard<std::mutex> inner_lock(mutex);
-    done = true;
-    cv.notify_one();
-  });
-  cv.wait(lock, [&done] { return done; });
-}
-
-uint64_t ThreadTaskRunner::GetThreadCPUTimeNsForTesting() {
-  uint64_t thread_time_ns = 0;
-  PostTaskAndWaitForTesting([&thread_time_ns] {
-    thread_time_ns = static_cast<uint64_t>(base::GetThreadCPUTimeNs().count());
-  });
-  return thread_time_ns;
 }
 
 }  // namespace base

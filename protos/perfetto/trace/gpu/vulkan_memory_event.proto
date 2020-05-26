@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
@@ -34,7 +35,7 @@ message VulkanMemoryEventAnnotation {
   }
 }
 
-// Each VulkanMemoryEvent encompasses information regarding one single function
+// Each VulkanMemoryEvent encompasses information regarding one signle function
 // call that results in reserving, binding or freeing host or GPU memory. There
 // is a special message type, ANNOTATIONS, which is used to communicate
 // information that are not directly related to a memory event, nonetheless are

@@ -70,18 +70,15 @@ function moveViewportToCurrentSearch() {
 function selectCurrentSearchResult() {
   const state = globals.frontendLocalState;
   const searchIndex = state.searchIndex;
-  const source = globals.currentSearchResults.sources[searchIndex];
+  const refType = globals.currentSearchResults.refTypes[searchIndex];
   const currentId = globals.currentSearchResults.sliceIds[searchIndex];
   const trackId = globals.currentSearchResults.trackIds[searchIndex];
 
   if (currentId === undefined) return;
 
-  if (source === 'cpu') {
+  if (refType === 'cpu') {
     globals.dispatch(Actions.selectSlice({id: currentId, trackId}));
   } else {
-    // Search results only include slices from the slice table for now.
-    // When we include annotations we need to pass the correct table.
-    globals.dispatch(
-        Actions.selectChromeSlice({id: currentId, trackId, table: 'slice'}));
+    globals.dispatch(Actions.selectChromeSlice({id: currentId, trackId}));
   }
 }

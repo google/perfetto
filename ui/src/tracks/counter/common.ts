@@ -20,6 +20,7 @@ export interface Data extends TrackData {
   isQuantized: boolean;
   maximumValue: number;
   minimumValue: number;
+
   timestamps: Float64Array;
   values: Float64Array;
   ids: Float64Array;
@@ -29,9 +30,6 @@ export interface Config {
   name: string;
   maximumValue?: number;
   minimumValue?: number;
-  startTs?: number;
-  endTs?: number;
-  namespace: string;
   trackId: number;
   scale?: 'DEFAULT'|'RELATIVE';
 }

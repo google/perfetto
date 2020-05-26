@@ -21,8 +21,8 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/trace_processor_context.h"
 #include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -48,17 +48,15 @@ class MockTraceParser : public ProtoTraceParser {
   void ParseFtracePacket(uint32_t cpu,
                          int64_t timestamp,
                          TimestampedTracePiece ttp) override {
-    bool isNonCompact = ttp.type == TimestampedTracePiece::Type::kFtraceEvent;
-    MOCK_ParseFtracePacket(cpu, timestamp,
-                           isNonCompact ? ttp.ftrace_event.data() : nullptr,
-                           isNonCompact ? ttp.ftrace_event.length() : 0);
+    TraceBlobView& tbv = ttp.blob_view;
+    MOCK_ParseFtracePacket(cpu, timestamp, tbv.data(), tbv.length());
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,
                void(int64_t ts, const uint8_t* data, size_t length));
 
   void ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) override {
-    TraceBlobView& tbv = ttp.packet_data.packet;
+    TraceBlobView& tbv = ttp.blob_view;
     MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
 };
@@ -76,13 +74,10 @@ class TraceSorterTest : public ::testing::Test {
       : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
-
-    std::unique_ptr<MockTraceParser> parser(new MockTraceParser(&context_));
-    parser_ = parser.get();
-
-    context_.sorter.reset(
-        new TraceSorter(std::move(parser),
-                        std::numeric_limits<int64_t>::max() /*window_size*/));
+    context_.sorter.reset(new TraceSorter(
+        &context_, std::numeric_limits<int64_t>::max() /*window_size*/));
+    parser_ = new MockTraceParser(&context_);
+    context_.parser.reset(parser_);
   }
 
  protected:
@@ -102,16 +97,14 @@ TEST_F(TraceSorterTest, TestFtrace) {
 }
 
 TEST_F(TraceSorterTest, TestTracePacket) {
-  PacketSequenceState state(&context_);
   TraceBlobView view = test_buffer_.slice(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1000, view.data(), 1));
-  context_.sorter->PushTracePacket(1000, &state, std::move(view));
+  context_.sorter->PushTracePacket(1000, nullptr, std::move(view));
   context_.sorter->FinalizeFtraceEventBatch(1000);
   context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(TraceSorterTest, Ordering) {
-  PacketSequenceState state(&context_);
   TraceBlobView view_1 = test_buffer_.slice(0, 1);
   TraceBlobView view_2 = test_buffer_.slice(0, 2);
   TraceBlobView view_3 = test_buffer_.slice(0, 3);
@@ -128,8 +121,8 @@ TEST_F(TraceSorterTest, Ordering) {
   context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
                                    std::move(view_4));
   context_.sorter->FinalizeFtraceEventBatch(2);
-  context_.sorter->PushTracePacket(1001, &state, std::move(view_2));
-  context_.sorter->PushTracePacket(1100, &state, std::move(view_3));
+  context_.sorter->PushTracePacket(1001, nullptr, std::move(view_2));
+  context_.sorter->PushTracePacket(1100, nullptr, std::move(view_3));
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
                                    std::move(view_1));
 
@@ -138,7 +131,6 @@ TEST_F(TraceSorterTest, Ordering) {
 }
 
 TEST_F(TraceSorterTest, SetWindowSize) {
-  PacketSequenceState state(&context_);
   TraceBlobView view_1 = test_buffer_.slice(0, 1);
   TraceBlobView view_2 = test_buffer_.slice(0, 2);
   TraceBlobView view_3 = test_buffer_.slice(0, 3);
@@ -161,8 +153,8 @@ TEST_F(TraceSorterTest, SetWindowSize) {
   context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
                                    std::move(view_4));
   context_.sorter->FinalizeFtraceEventBatch(2);
-  context_.sorter->PushTracePacket(1001, &state, std::move(view_2));
-  context_.sorter->PushTracePacket(1100, &state, std::move(view_3));
+  context_.sorter->PushTracePacket(1001, nullptr, std::move(view_2));
+  context_.sorter->PushTracePacket(1100, nullptr, std::move(view_3));
 
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
                                    std::move(view_1));

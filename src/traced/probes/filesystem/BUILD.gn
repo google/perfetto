@@ -17,14 +17,13 @@ import("../../../../gn/test.gni")
 source_set("filesystem") {
   public_deps = [
     "../../../../protos/perfetto/trace/filesystem:zero",
-    "../../../tracing/core",
+    "../../../tracing",
   ]
   deps = [
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/config/inode_file:zero",
-    "../../../../protos/perfetto/trace:zero",
     "../../../base",
   ]
   sources = [

@@ -19,12 +19,12 @@
 
 #include <ostream>
 
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/trace_processor_context.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -48,10 +48,8 @@ struct SystraceTracePoint {
 
   static SystraceTracePoint C(uint32_t tgid,
                               base::StringView name,
-                              double value,
-                              base::StringView category_group = "") {
-    return SystraceTracePoint('C', tgid, std::move(name), value,
-                              category_group);
+                              double value) {
+    return SystraceTracePoint('C', tgid, std::move(name), value);
   }
 
   static SystraceTracePoint S(uint32_t tgid,
@@ -66,12 +64,8 @@ struct SystraceTracePoint {
     return SystraceTracePoint('F', tgid, std::move(name), value);
   }
 
-  SystraceTracePoint(char p,
-                     uint32_t tg,
-                     base::StringView n,
-                     double v,
-                     base::StringView c = "")
-      : phase(p), tgid(tg), name(std::move(n)), value(v), category_group(c) {}
+  SystraceTracePoint(char p, uint32_t tg, base::StringView n, double v)
+      : phase(p), tgid(tg), name(std::move(n)), value(v) {}
 
   // Phase can be one of B, E, C, S, F.
   char phase = '\0';
@@ -83,9 +77,6 @@ struct SystraceTracePoint {
 
   // For phase = 'C' only.
   double value = 0;
-
-  // For phase = 'C' only (from Chrome).
-  base::StringView category_group;
 
   // Visible for unittesting.
   friend std::ostream& operator<<(std::ostream& os,
@@ -103,7 +94,6 @@ struct SystraceTracePoint {
 // 4. C|1636|wq:monitor|0
 // 5. S|1636|frame_capture|123
 // 6. F|1636|frame_capture|456
-// 7. C|3209|TransfersBytesPendingOnDisk-value|0|Blob
 // Visible for unittesting.
 inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
                                                    SystraceTracePoint* out) {
@@ -111,28 +101,21 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
   size_t len = str.size();
   *out = {};
 
-  // We don't support empty events.
-  if (len == 0)
-    return SystraceParseResult::kFailure;
-
   constexpr const char* kClockSyncPrefix = "trace_event_clock_sync:";
   if (len >= strlen(kClockSyncPrefix) &&
       strncmp(kClockSyncPrefix, s, strlen(kClockSyncPrefix)) == 0)
     return SystraceParseResult::kUnsupported;
 
-  char ph = s[0];
-  if (ph != 'B' && ph != 'E' && ph != 'C' && ph != 'S' && ph != 'F')
-    return SystraceParseResult::kFailure;
-
-  out->phase = ph;
-
-  // We only support E events with no arguments.
-  if (len == 1 && ph != 'E')
+  if (len < 2)
     return SystraceParseResult::kFailure;
 
   // If str matches '[BEC]\|[0-9]+[\|\n]?' set tgid_length to the length of
   // the number. Otherwise return kFailure.
-  if (len >= 2 && s[1] != '|' && s[1] != '\n')
+  if (s[1] != '|' && s[1] != '\n')
+    return SystraceParseResult::kFailure;
+
+  char ph = s[0];
+  if (ph != 'B' && ph != 'E' && ph != 'C' && ph != 'S' && ph != 'F')
     return SystraceParseResult::kFailure;
 
   size_t tgid_length = 0;
@@ -145,11 +128,10 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
     tgid_length++;
   }
 
-  // If len == 1, tgid_length will be 0 which will ensure we don't do
-  // an out of bounds read.
   std::string tgid_str(s + 2, tgid_length);
   out->tgid = base::StringToUInt32(tgid_str).value_or(0);
 
+  out->phase = ph;
   switch (ph) {
     case 'B': {
       size_t name_index = 2 + tgid_length + 1;
@@ -178,13 +160,10 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
       out->name = base::StringView(s + name_index, name_length.value());
 
       size_t value_index = name_index + name_length.value() + 1;
-      size_t value_pipe = str.find('|', value_index);
-      size_t value_len = value_pipe == base::StringView::npos
-                             ? len - value_index
-                             : value_pipe - value_index;
+      size_t value_len = len - value_index;
       if (value_len == 0)
         return SystraceParseResult::kFailure;
-      if (s[value_index + value_len - 1] == '\n')
+      if (*(s + value_index + value_len - 1) == '\n')
         value_len--;
       std::string value_str(s + value_index, value_len);
       base::Optional<double> maybe_value = base::StringToDouble(value_str);
@@ -192,16 +171,6 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
         return SystraceParseResult::kFailure;
       }
       out->value = maybe_value.value();
-
-      if (value_pipe != base::StringView::npos) {
-        size_t group_len = len - value_pipe - 1;
-        if (group_len == 0)
-          return SystraceParseResult::kFailure;
-        if (s[len - 1] == '\n')
-          group_len--;
-        out->category_group = base::StringView(s + value_pipe + 1, group_len);
-      }
-
       return SystraceParseResult::kSuccess;
     }
     default:
@@ -218,25 +187,11 @@ inline bool operator==(const SystraceTracePoint& x,
 
 }  // namespace systrace_utils
 
-class SystraceParser : public Destructible {
+class SystraceParser {
  public:
-  static SystraceParser* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->systrace_parser) {
-      context->systrace_parser.reset(new SystraceParser(context));
-    }
-    return static_cast<SystraceParser*>(context->systrace_parser.get());
-  }
-  ~SystraceParser() override;
+  explicit SystraceParser(TraceProcessorContext*);
 
   void ParsePrintEvent(int64_t ts, uint32_t pid, base::StringView event);
-
-  void ParseSdeTracingMarkWrite(int64_t ts,
-                                uint32_t pid,
-                                char trace_type,
-                                bool trace_begin,
-                                base::StringView trace_name,
-                                uint32_t tgid,
-                                int64_t value);
 
   void ParseZeroEvent(int64_t ts,
                       uint32_t pid,
@@ -246,14 +201,12 @@ class SystraceParser : public Destructible {
                       int64_t value);
 
  private:
-  explicit SystraceParser(TraceProcessorContext*);
   void ParseSystracePoint(int64_t ts,
                           uint32_t pid,
                           systrace_utils::SystraceTracePoint event);
 
   TraceProcessorContext* const context_;
   const StringId lmk_id_;
-  const StringId screen_state_id_;
 };
 
 }  // namespace trace_processor

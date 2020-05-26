@@ -39,6 +39,7 @@
         line-height: 36px;
         &:before {
             @include material-icon('search');
+            vertical-align: middle;
             margin: 5px;
             color: #aaa;
             grid-area: icon;
@@ -48,8 +49,7 @@
             border: 0;
             padding: 0 10px;
             font-size: 18px;
-            font-family: 'Roboto Condensed', sans-serif;
-            font-weight: 300;
+            font-family: 'Google Sans';
             color: #666;
             background-color: transparent;
             &:focus {
@@ -57,7 +57,7 @@
             }
             &::placeholder {
                 color: #b4b7ba;
-                font-family: 'Raleway', sans-serif;
+                font-family: 'Raleway';
                 font-weight: 400;
             }
         }
@@ -99,15 +99,47 @@
           display: flex;
           font: inherit;
           font-size: 14px;
-          font-family: 'Roboto Condensed', sans-serif;
-          font-weight: 300;
+          font-family: 'Google Sans';
           color: #aaa;
           .current {
             padding-right: 10px;
           }
-          .material-icons.left {
-            border-right: rgb(218, 217, 217) solid 1px;
+          .material-icons {
+            vertical-align: middle;
+            &.left {
+              border-right: rgb(218, 217, 217) solid 1px;
+            }
           }
+        }
+    }
+    .omnibox-results {
+        @include transition(0.25s);
+        @include omnibox-width();
+        position: absolute;
+        z-index: 1;
+        max-height: 250px;
+        top: calc(var(--topbar-height) + 2px);
+        left: 0;
+        right: 0;
+        margin: auto;
+        background-color: hsla(213, 0%, 95%, 0.99);
+        box-shadow: 0 3px 9px #ccc;
+        border-radius: 0 0 5px 5px;
+        >* {
+            height: 24px;
+            line-height: 24px;
+            padding: 0 10px;
+            font-family: 'Raleway', sans-serif;
+            font-size: 14px;
+            vertical-align: middle;
+            color: #666;
+            border-bottom: 1px solid #eee;
+            &:hover {
+                background-color: hsl(213, 20%, 92%);
+            }
+            &.selected {
+                background-color: hsl(213, 40%, 90%);
+            }
         }
     }
     .progress {
@@ -167,50 +199,4 @@
             right: -90%;
         }
     }
-
-    .notification-btn {
-        @include transition(0.25s);
-        font-size: 16px;
-        padding: 8px 10px;
-        margin: 0 10px;
-        border-radius: 2px;
-        background: hsl(210, 10%, 73%);
-        &:hover {
-            background: hsl(210, 10%, 83%);
-        }
-
-        &.preferred {
-            background: hsl(210, 98%, 53%);
-            color: #fff;
-            &:hover {
-                background: hsl(210, 98%, 63%);
-            }
-        }
-    }
-}
-
-.helpful-hint {
-  position: absolute;
-  right: 5px;
-  top: 5px;
-  width: 300px;
-  background-color: white;
-  font-size: 12px;
-  color: #3f4040;
-  display: grid;
-  border-radius: 5px;
-  padding: 8px;
-  box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
-}
-
-.hint-text {
-  padding-bottom: 5px
-}
-
-.hint-dismiss-button {
-  color: #f4fafb;
-  background-color: #19212b;
-  width: fit-content;
-  padding: 3px;
-  border-radius: 3px;
 }

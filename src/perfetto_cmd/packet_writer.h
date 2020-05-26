@@ -22,23 +22,15 @@
 
 #include <stdio.h>
 
-#include "perfetto/ext/tracing/core/trace_packet.h"
-
 namespace perfetto {
+
+class TracePacket;
 
 class PacketWriter {
  public:
   PacketWriter();
   virtual ~PacketWriter();
-  virtual bool WritePackets(const std::vector<TracePacket>& packets) {
-    for (const TracePacket& packet : packets) {
-      if (!WritePacket(packet)) {
-        return false;
-      }
-    }
-    return true;
-  }
-  virtual bool WritePacket(const TracePacket& packets) = 0;
+  virtual bool WritePackets(const std::vector<TracePacket>& packets) = 0;
 };
 
 std::unique_ptr<PacketWriter> CreateFilePacketWriter(FILE*);

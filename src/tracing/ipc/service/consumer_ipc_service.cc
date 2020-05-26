@@ -29,7 +29,6 @@
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/trace_config.h"
-#include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 
 namespace perfetto {
@@ -72,7 +71,7 @@ void ConsumerIPCService::EnableTracing(
   }
   const TraceConfig& trace_config = req.trace_config();
   base::ScopedFile fd;
-  if (trace_config.write_into_file() && trace_config.output_path().empty())
+  if (trace_config.write_into_file())
     fd = ipc::Service::TakeReceivedFD();
   remote_consumer->service_endpoint->EnableTracing(trace_config, std::move(fd));
   remote_consumer->enable_tracing_response = std::move(resp);
@@ -171,15 +170,22 @@ void ConsumerIPCService::ObserveEvents(
 
   remote_consumer->observe_events_response = std::move(resp);
 
-  uint32_t events_mask = 0;
+  bool observe_instances = false;
   for (const auto& type : req.events_to_observe()) {
-    events_mask |= static_cast<uint32_t>(type);
+    switch (static_cast<int>(type)) {
+      case protos::gen::ObservableEvents::TYPE_DATA_SOURCES_INSTANCES:
+        observe_instances = true;
+        break;
+      default:
+        PERFETTO_DFATAL("Unknown ObservableEvent type: %d", type);
+        break;
+    }
   }
-  remote_consumer->service_endpoint->ObserveEvents(events_mask);
+  remote_consumer->service_endpoint->ObserveEvents(observe_instances);
 
   // If no events are to be observed, close the stream immediately so that the
   // client can clean up.
-  if (events_mask == 0)
+  if (req.events_to_observe().size() == 0)
     remote_consumer->CloseObserveEventsResponseStream();
 }
 
@@ -199,76 +205,6 @@ void ConsumerIPCService::QueryServiceState(
   remote_consumer->service_endpoint->QueryServiceState(callback);
 }
 
-// Called by the service in response to service_endpoint->QueryServiceState().
-void ConsumerIPCService::OnQueryServiceCallback(
-    bool success,
-    const TracingServiceState& svc_state,
-    PendingQuerySvcResponses::iterator pending_response_it) {
-  DeferredQueryServiceStateResponse response(std::move(*pending_response_it));
-  pending_query_service_responses_.erase(pending_response_it);
-  if (!success) {
-    response.Reject();
-    return;
-  }
-
-  // The TracingServiceState object might be too big to fit into a single IPC
-  // message because it contains the DataSourceDescriptor of each data source.
-  // Here we split it in chunks to fit in the IPC limit, observing the
-  // following rule: each chunk must be invididually a valid TracingServiceState
-  // message; all the chunks concatenated together must form the original
-  // message. This is to deal with the legacy API that was just sending one
-  // whole message (failing in presence of too many data sources, b/153142114).
-  // The message is split as follows: we take the whole TracingServiceState,
-  // take out the data sources section (which is a top-level repeated field)
-  // and re-add them one-by-one. If, in the process of appending, the IPC msg
-  // size is reached, a new chunk is created. This assumes that the rest of
-  // TracingServiceState fits in one IPC message and each DataSourceDescriptor
-  // fits in the worst case in a dedicated message (which is true, because
-  // otherwise the RegisterDataSource() which passes the descriptor in the first
-  // place would fail).
-
-  std::vector<uint8_t> chunked_reply;
-
-  // Transmits the current chunk and starts a new one.
-  bool sent_eof = false;
-  auto send_chunked_reply = [&chunked_reply, &response,
-                             &sent_eof](bool has_more) {
-    PERFETTO_CHECK(!sent_eof);
-    sent_eof = !has_more;
-    auto resp =
-        ipc::AsyncResult<protos::gen::QueryServiceStateResponse>::Create();
-    resp.set_has_more(has_more);
-    PERFETTO_CHECK(resp->mutable_service_state()->ParseFromArray(
-        chunked_reply.data(), chunked_reply.size()));
-    chunked_reply.clear();
-    response.Resolve(std::move(resp));
-  };
-
-  // Create a copy of the whole response and cut away the data_sources section.
-  protos::gen::TracingServiceState svc_state_copy = svc_state;
-  auto data_sources = std::move(*svc_state_copy.mutable_data_sources());
-  chunked_reply = svc_state_copy.SerializeAsArray();
-
-  // Now re-add them fitting within the IPC message limits (- some margin for
-  // the outer IPC frame).
-  constexpr size_t kMaxMsgSize = ipc::kIPCBufferSize - 128;
-  for (const auto& data_source : data_sources) {
-    protos::gen::TracingServiceState tmp;
-    tmp.mutable_data_sources()->emplace_back(std::move(data_source));
-    std::vector<uint8_t> chunk = tmp.SerializeAsArray();
-    if (chunked_reply.size() + chunk.size() < kMaxMsgSize) {
-      chunked_reply.insert(chunked_reply.end(), chunk.begin(), chunk.end());
-    } else {
-      send_chunked_reply(/*has_more=*/true);
-      chunked_reply = std::move(chunk);
-    }
-  }
-
-  PERFETTO_DCHECK(!chunked_reply.empty());
-  send_chunked_reply(/*has_more=*/false);
-  PERFETTO_CHECK(sent_eof);
-}
-
 // Called by the service in response to a service_endpoint->Flush() request.
 void ConsumerIPCService::OnFlushCallback(
     bool success,
@@ -282,30 +218,21 @@ void ConsumerIPCService::OnFlushCallback(
   }
 }
 
-void ConsumerIPCService::QueryCapabilities(
-    const protos::gen::QueryCapabilitiesRequest&,
-    DeferredQueryCapabilitiesResponse resp) {
-  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
-  auto it = pending_query_capabilities_responses_.insert(
-      pending_query_capabilities_responses_.end(), std::move(resp));
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  auto callback = [weak_this, it](const TracingServiceCapabilities& caps) {
-    if (weak_this)
-      weak_this->OnQueryCapabilitiesCallback(caps, std::move(it));
-  };
-  remote_consumer->service_endpoint->QueryCapabilities(callback);
-}
-
-// Called by the service in response to service_endpoint->QueryCapabilities().
-void ConsumerIPCService::OnQueryCapabilitiesCallback(
-    const TracingServiceCapabilities& caps,
-    PendingQueryCapabilitiesResponses::iterator pending_response_it) {
-  DeferredQueryCapabilitiesResponse response(std::move(*pending_response_it));
-  pending_query_capabilities_responses_.erase(pending_response_it);
-  auto resp =
-      ipc::AsyncResult<protos::gen::QueryCapabilitiesResponse>::Create();
-  *resp->mutable_capabilities() = caps;
-  response.Resolve(std::move(resp));
+// Called by the service in response to service_endpoint->QueryServiceState().
+void ConsumerIPCService::OnQueryServiceCallback(
+    bool success,
+    const TracingServiceState& svc_state,
+    PendingQuerySvcResponses::iterator pending_response_it) {
+  DeferredQueryServiceStateResponse response(std::move(*pending_response_it));
+  pending_query_service_responses_.erase(pending_response_it);
+  if (success) {
+    auto resp =
+        ipc::AsyncResult<protos::gen::QueryServiceStateResponse>::Create();
+    *resp->mutable_service_state() = svc_state;
+    response.Resolve(std::move(resp));
+  } else {
+    response.Reject();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,5 +18,7 @@ executable("busy_threads") {
     "../../gn:default_deps",
     "../../src/base",
   ]
-  sources = [ "busy_threads.cc" ]
+  sources = [
+    "busy_threads.cc",
+  ]
 }

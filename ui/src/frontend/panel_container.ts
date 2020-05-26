@@ -45,7 +45,6 @@ export interface Attrs {
 }
 
 interface PanelPosition {
-  id: string;
   height: number;
   width: number;
   x: number;
@@ -95,8 +94,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       const pos = this.panelPositions[i];
       const realPosX = pos.x - TRACK_SHELL_WIDTH;
       if (realPosX + pos.width >= minX && realPosX <= maxX &&
-          pos.y + pos.height >= minY && pos.y <= maxY &&
-          this.attrs.panels[i].attrs.selectable) {
+          pos.y + pos.height >= minY && pos.y <= maxY) {
         panels.push(this.attrs.panels[i]);
       }
     }
@@ -110,23 +108,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
          this.prevAreaSelection.lastUpdate >= selection.lastUpdate) ||
         area === undefined ||
         globals.frontendLocalState.areaY.start === undefined ||
-        globals.frontendLocalState.areaY.end === undefined ||
-        this.panelPositions.length === 0) {
+        globals.frontendLocalState.areaY.end === undefined) {
       return;
     }
-    // Only get panels from the current panel container if the selection began
-    // in this container.
-    const panelContainerTop = this.panelPositions[0].y;
-    const panelContainerBottom =
-        this.panelPositions[this.panelPositions.length - 1].y +
-        this.panelPositions[this.panelPositions.length - 1].height;
-    if (globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT <
-            panelContainerTop ||
-        globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT >
-            panelContainerBottom) {
-      return;
-    }
-
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
     const panels = this.getPanelsInRegion(
@@ -250,18 +234,13 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const ctx = assertExists(this.ctx);
     const canvas = assertExists(ctx.canvas);
     canvas.style.height = `${this.canvasHeight}px`;
-
-    // If're we're non-scrolling canvas and the scroll-limiter should always
-    // have the same height. Enforce this by explicitly setting the height.
-    if (!this.attrs.doesScroll) {
-      const scrollLimiter = canvas.parentElement;
-      if (scrollLimiter) {
-        scrollLimiter.style.height = `${this.canvasHeight}px`;
-      }
-    }
-
     const dpr = window.devicePixelRatio;
-    ctx.canvas.width = this.parentWidth * dpr;
+    // On non-MacOS if there is a solid scroll bar it can cover important
+    // pixels, reduce the size of the canvas so it doesn't overlap with
+    // the scroll bar.
+    ctx.canvas.width =
+        (this.parentWidth - globals.frontendLocalState.getScrollbarWidth()) *
+        dpr;
     ctx.canvas.height = this.canvasHeight * dpr;
     ctx.scale(dpr, dpr);
   }
@@ -281,11 +260,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const oldWidth = this.parentWidth;
     const oldHeight = this.parentHeight;
     const clientRect = assertExists(dom.parentElement).getBoundingClientRect();
-    // On non-MacOS if there is a solid scroll bar it can cover important
-    // pixels, reduce the size of the canvas so it doesn't overlap with
-    // the scroll bar.
-    this.parentWidth =
-        clientRect.width - globals.frontendLocalState.getScrollbarWidth();
+    this.parentWidth = clientRect.width;
     this.parentHeight = clientRect.height;
     return this.parentHeight !== oldHeight || this.parentWidth !== oldWidth;
   }
@@ -303,10 +278,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     assertTrue(panels.length === this.attrs.panels.length);
     for (let i = 0; i < panels.length; i++) {
       const rect = panels[i].getBoundingClientRect() as DOMRect;
-      const id = this.attrs.panels[i].attrs.id ||
-          this.attrs.panels[i].attrs.trackGroupId;
       this.panelPositions[i] =
-          {id, height: rect.height, width: rect.width, x: rect.x, y: rect.y};
+          {height: rect.height, width: rect.width, x: rect.x, y: rect.y};
       this.totalPanelHeight += rect.height;
     }
 
@@ -324,7 +297,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const canvasYStart =
         Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
 
-    this.handleAreaSelection();
+    if (this.attrs.kind === 'TRACKS') {
+      this.handleAreaSelection();
+    }
 
     let panelYStart = 0;
     const panels = assertExists(this.attrs).panels;
@@ -359,68 +334,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       this.ctx.restore();
       panelYStart += panelHeight;
     }
-
-    this.drawTopLayerOnCanvas();
     const redrawDur = debugNow() - redrawStart;
     this.updatePerfStats(redrawDur, panels.length, totalOnCanvas);
-  }
-
-  // The panels each draw on the canvas but some details need to be drawn across
-  // the whole canvas rather than per panel.
-  private drawTopLayerOnCanvas() {
-    if (!this.ctx) return;
-    const selection = globals.frontendLocalState.selectedArea;
-    const area = selection.area;
-    if (area === undefined ||
-        globals.frontendLocalState.areaY.start === undefined ||
-        globals.frontendLocalState.areaY.end === undefined ||
-        !globals.frontendLocalState.selectingArea) {
-      return;
-    }
-    if (this.panelPositions.length === 0 || area.tracks.length === 0) return;
-
-    // Find the minY and maxY of the selected tracks in this panel container.
-    const panelContainerTop = this.panelPositions[0].y;
-    const panelContainerBottom =
-        this.panelPositions[this.panelPositions.length - 1].y +
-        this.panelPositions[this.panelPositions.length - 1].height;
-    let selectedTracksMinY = panelContainerBottom;
-    let selectedTracksMaxY = panelContainerTop;
-    let trackFromCurrentContainerSelected = false;
-    for (let i = 0; i < this.panelPositions.length; i++) {
-      if (area.tracks.includes(this.panelPositions[i].id)) {
-        trackFromCurrentContainerSelected = true;
-        selectedTracksMinY =
-            Math.min(selectedTracksMinY, this.panelPositions[i].y);
-        selectedTracksMaxY = Math.max(
-            selectedTracksMaxY,
-            this.panelPositions[i].y + this.panelPositions[i].height);
-      }
-    }
-
-    // No box should be drawn if there are no selected tracks in the current
-    // container.
-    if (!trackFromCurrentContainerSelected) {
-      return;
-    }
-
-    const startX = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
-    const endX = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
-    // To align with where to draw on the canvas subtract the first panel Y.
-    selectedTracksMinY -= panelContainerTop;
-    selectedTracksMaxY -= panelContainerTop;
-    this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(52,69,150)';
-    this.ctx.lineWidth = 1;
-    const canvasYStart =
-        Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
-    this.ctx.translate(TRACK_SHELL_WIDTH, -canvasYStart);
-    this.ctx.strokeRect(
-        startX,
-        selectedTracksMaxY,
-        endX - startX,
-        selectedTracksMinY - selectedTracksMaxY);
-    this.ctx.restore();
   }
 
   private updatePanelStats(

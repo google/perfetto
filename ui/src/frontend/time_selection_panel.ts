@@ -44,11 +44,6 @@ function drawHBar(
   const yMid = Math.floor(target.height / 2 + target.y);
   const xWidth = xRight - xLeft;
 
-  // Don't draw in the track shell.
-  ctx.beginPath();
-  ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
-  ctx.clip();
-
   // Draw horizontal bar of the H.
   ctx.fillRect(xLeft, yMid, xWidth, 1);
   // Draw left vertical bar of the H.
@@ -81,7 +76,7 @@ function drawHBar(
 
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#222';
-  ctx.font = '10px Roboto Condensed';
+  ctx.font = '10px Google Sans';
   ctx.fillText(label, labelXLeft, yMid);
 }
 
@@ -110,7 +105,7 @@ function drawIBar(
 
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#222';
-  ctx.font = '10px Roboto Condensed';
+  ctx.font = '10px Google Sans';
   ctx.fillText(label, xPosLabel, yMid);
 }
 
@@ -134,9 +129,8 @@ export class TimeSelectionPanel extends Panel {
       const start = Math.min(selectedArea.startSec, selectedArea.endSec);
       const end = Math.max(selectedArea.startSec, selectedArea.endSec);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
-    } else if (globals.frontendLocalState.hoveredLogsTimestamp !== -1) {
-      this.renderHover(
-          ctx, size, globals.frontendLocalState.hoveredLogsTimestamp);
+    } else if (globals.frontendLocalState.showTimeSelectPreview) {
+      this.renderHover(ctx, size, globals.frontendLocalState.hoveredTimestamp);
     }
   }
 
@@ -167,11 +161,6 @@ export class TimeSelectionPanel extends Panel {
   }
 
   private bounds(size: PanelSize): BBox {
-    return {
-      x: TRACK_SHELL_WIDTH,
-      y: 0,
-      width: size.width - TRACK_SHELL_WIDTH,
-      height: size.height
-    };
+    return {x: TRACK_SHELL_WIDTH, y: 0, width: size.width, height: size.height};
   }
 }

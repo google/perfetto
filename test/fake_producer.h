@@ -30,43 +30,19 @@
 
 namespace perfetto {
 
-namespace protos {
-namespace gen {
-class TestConfig;
-}  // namespace gen
-}  // namespace protos
-
 class FakeProducer : public Producer {
  public:
-  explicit FakeProducer(const std::string& name, base::TaskRunner* task_runner);
+  explicit FakeProducer(const std::string& name);
   ~FakeProducer() override;
 
   void Connect(const char* socket_name,
-               std::function<void()> on_connect,
+               base::TaskRunner* task_runner,
                std::function<void()> on_setup_data_source_instance,
-               std::function<void()> on_create_data_source_instance,
-               std::unique_ptr<SharedMemory> shm = nullptr,
-               std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
-
-  // Produces a batch of events (as configured by the passed config) before the
-  // producer is connected to the service using the provided unbound arbiter.
-  // Posts |callback| once the data was written. May only be called once.
-  void ProduceStartupEventBatch(
-      const protos::gen::TestConfig& config,
-      SharedMemoryArbiter* arbiter,
-      std::function<void()> callback = [] {});
+               std::function<void()> on_create_data_source_instance);
 
   // Produces a batch of events (as configured in the DataSourceConfig) and
   // posts a callback when the service acknowledges the commit.
   void ProduceEventBatch(std::function<void()> callback = [] {});
-
-  void RegisterDataSource(const DataSourceDescriptor&);
-  void CommitData(const CommitDataRequest&, std::function<void()> callback);
-  void Sync(std::function<void()> callback);
-
-  bool IsShmemProvidedByProducer() const {
-    return endpoint_->IsShmemProvidedByProducer();
-  }
 
   // Producer implementation.
   void OnConnect() override;
@@ -82,17 +58,15 @@ class FakeProducer : public Producer {
                              size_t /*num_data_sources*/) override {}
 
  private:
-  void SetupFromConfig(const protos::gen::TestConfig& config);
-  void EmitEventBatchOnTaskRunner(std::function<void()> callback);
+  void Shutdown();
 
   base::ThreadChecker thread_checker_;
-  std::string name_;
   base::TaskRunner* task_runner_ = nullptr;
+  std::string name_;
   std::minstd_rand0 rnd_engine_;
   uint32_t message_size_ = 0;
   uint32_t message_count_ = 0;
   uint32_t max_messages_per_second_ = 0;
-  std::function<void()> on_connect_;
   std::function<void()> on_setup_data_source_instance_;
   std::function<void()> on_create_data_source_instance_;
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;

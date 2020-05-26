@@ -22,15 +22,12 @@ import {Controller} from './controller';
 import {ControllerFactory} from './controller';
 import {globals} from './globals';
 
-interface TrackConfig {}
-
-type TrackConfigWithNamespace = TrackConfig&{namespace: string};
-
 
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
-export abstract class TrackController<
-    Config, Data extends TrackData = TrackData> extends Controller<'main'> {
+export abstract class TrackController<Config = {},
+                                      Data extends TrackData = TrackData>
+    extends Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
   private data?: TrackData;
@@ -57,18 +54,6 @@ export abstract class TrackController<
     return this.trackState.config as Config;
   }
 
-  configHasNamespace(config: TrackConfig): config is TrackConfigWithNamespace {
-    return 'namespace' in config;
-  }
-
-  namespaceTable(tableName: string): string {
-    if (this.configHasNamespace(this.config)) {
-      return this.config.namespace + '_' + tableName;
-    } else {
-      return tableName;
-    }
-  }
-
   publish(data: Data): void {
     this.data = data;
     globals.publish('TrackData', {id: this.trackId, data});
@@ -93,6 +78,10 @@ export abstract class TrackController<
 
   protected async query(query: string) {
     const result = await this.engine.query(query);
+    if (result.error) {
+      console.error(`Query error "${query}": ${result.error}`);
+      throw new Error(`Query error "${query}": ${result.error}`);
+    }
     return result;
   }
 
@@ -120,10 +109,7 @@ export abstract class TrackController<
 
   run() {
     const visibleState = globals.state.frontendLocalState.visibleState;
-    if (visibleState === undefined || visibleState.resolution === undefined ||
-        visibleState.resolution === Infinity) {
-      return;
-    }
+    if (visibleState === undefined) return;
     const dur = visibleState.endSec - visibleState.startSec;
     if (globals.state.visibleTracks.includes(this.trackId) &&
         this.shouldRequestData(visibleState)) {
@@ -137,6 +123,9 @@ export abstract class TrackController<
                 visibleState.resolution)
             .then(data => {
               this.publish(data);
+            })
+            .catch(error => {
+              console.error(error);
             })
             .finally(() => {
               this.requestingData = false;

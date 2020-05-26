@@ -45,8 +45,6 @@ class AndroidLogPacket_LogEvent;
 
 class AndroidLogDataSource : public ProbesDataSource {
  public:
-  static const ProbesDataSource::Descriptor descriptor;
-
   struct Stats {
     uint64_t num_total = 0;    // Total number of log entries received.
     uint64_t num_failed = 0;   // Parser failures.
@@ -58,6 +56,7 @@ class AndroidLogDataSource : public ProbesDataSource {
     std::string name;
     std::vector<std::string> fields;
   };
+  static constexpr int kTypeId = 6;
 
   AndroidLogDataSource(DataSourceConfig,
                        base::TaskRunner*,

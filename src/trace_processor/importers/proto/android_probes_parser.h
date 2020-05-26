@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -40,7 +40,6 @@ class AndroidProbesParser {
   void ParseAndroidLogStats(ConstBytes);
   void ParseStatsdMetadata(ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
-  void ParseInitialDisplayState(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
@@ -49,7 +48,6 @@ class AndroidProbesParser {
   const StringId batt_capacity_id_;
   const StringId batt_current_id_;
   const StringId batt_current_avg_id_;
-  const StringId screen_state_id_;
   std::vector<StringId> power_rails_strs_id_;
 };
 }  // namespace trace_processor

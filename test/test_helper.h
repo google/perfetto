@@ -18,142 +18,17 @@
 #define TEST_TEST_HELPER_H_
 
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/consumer.h"
-#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
-#include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
-#include "src/traced/probes/probes_producer.h"
-#include "src/tracing/ipc/posix_shared_memory.h"
 #include "test/fake_producer.h"
+#include "test/task_runner_thread.h"
 
-#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 
 namespace perfetto {
-
-// This is used only in daemon starting integrations tests.
-class ServiceThread {
- public:
-  ServiceThread(const std::string& producer_socket,
-                const std::string& consumer_socket)
-      : producer_socket_(producer_socket), consumer_socket_(consumer_socket) {}
-
-  ~ServiceThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { svc_.reset(); });
-  }
-
-  void Start() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.svc");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      svc_ = ServiceIPCHost::CreateInstance(runner_->get());
-      unlink(producer_socket_.c_str());
-      unlink(consumer_socket_.c_str());
-
-      bool res =
-          svc_->Start(producer_socket_.c_str(), consumer_socket_.c_str());
-      PERFETTO_CHECK(res);
-    });
-  }
-
-  base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
-
- private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
-  std::string producer_socket_;
-  std::string consumer_socket_;
-  std::unique_ptr<ServiceIPCHost> svc_;
-};
-
-// This is used only in daemon starting integrations tests.
-class ProbesProducerThread {
- public:
-  ProbesProducerThread(const std::string& producer_socket)
-      : producer_socket_(producer_socket) {}
-
-  ~ProbesProducerThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { producer_.reset(); });
-  }
-
-  void Connect() {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.probes");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(new ProbesProducer());
-      producer_->ConnectWithRetries(producer_socket_.c_str(), runner_->get());
-    });
-  }
-
- private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
-  std::string producer_socket_;
-  std::unique_ptr<ProbesProducer> producer_;
-};
-
-class FakeProducerThread {
- public:
-  FakeProducerThread(const std::string& producer_socket,
-                     std::function<void()> connect_callback,
-                     std::function<void()> setup_callback,
-                     std::function<void()> start_callback)
-      : producer_socket_(producer_socket),
-        connect_callback_(std::move(connect_callback)),
-        setup_callback_(std::move(setup_callback)),
-        start_callback_(std::move(start_callback)) {
-    runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.fake");
-    runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(
-          new FakeProducer("android.perfetto.FakeProducer", runner_->get()));
-    });
-  }
-
-  ~FakeProducerThread() {
-    runner_->PostTaskAndWaitForTesting([this]() { producer_.reset(); });
-  }
-
-  void Connect() {
-    runner_->PostTaskAndWaitForTesting([this]() {
-      producer_->Connect(producer_socket_.c_str(), std::move(connect_callback_),
-                         std::move(setup_callback_), std::move(start_callback_),
-                         std::move(shm_), std::move(shm_arbiter_));
-    });
-  }
-
-  base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
-
-  FakeProducer* producer() { return producer_.get(); }
-
-  void CreateProducerProvidedSmb() {
-    PosixSharedMemory::Factory factory;
-    shm_ = factory.CreateSharedMemory(1024 * 1024);
-    shm_arbiter_ =
-        SharedMemoryArbiter::CreateUnboundInstance(shm_.get(), base::kPageSize);
-  }
-
-  void ProduceStartupEventBatch(const protos::gen::TestConfig& config,
-                                std::function<void()> callback) {
-    PERFETTO_CHECK(shm_arbiter_);
-    producer_->ProduceStartupEventBatch(config, shm_arbiter_.get(), callback);
-  }
-
- private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
-
-  std::string producer_socket_;
-  std::unique_ptr<FakeProducer> producer_;
-  std::function<void()> connect_callback_;
-  std::function<void()> setup_callback_;
-  std::function<void()> start_callback_;
-  std::unique_ptr<SharedMemory> shm_;
-  std::unique_ptr<SharedMemoryArbiter> shm_arbiter_;
-};
 
 class TestHelper : public Consumer {
  public:
@@ -173,11 +48,7 @@ class TestHelper : public Consumer {
   void OnObservableEvents(const ObservableEvents&) override;
 
   void StartServiceIfRequired();
-
-  // Connects the producer and waits that the service has seen the
-  // RegisterDataSource() call.
   FakeProducer* ConnectFakeProducer();
-
   void ConnectConsumer();
   void StartTracing(const TraceConfig& config,
                     base::ScopedFile = base::ScopedFile());
@@ -186,17 +57,12 @@ class TestHelper : public Consumer {
   void ReadData(uint32_t read_count = 0);
   void DetachConsumer(const std::string& key);
   bool AttachConsumer(const std::string& key);
-  void CreateProducerProvidedSmb();
-  bool IsShmemProvidedByProducer();
-  void ProduceStartupEventBatch(const protos::gen::TestConfig& config);
 
   void WaitForConsumerConnect();
   void WaitForProducerSetup();
   void WaitForProducerEnabled();
   void WaitForTracingDisabled(uint32_t timeout_ms = 5000);
   void WaitForReadData(uint32_t read_count = 0, uint32_t timeout_ms = 5000);
-  void SyncAndWaitProducer();
-  TracingServiceState QueryServiceStateAndWait();
 
   std::string AddID(const std::string& checkpoint) {
     return checkpoint + "." + std::to_string(instance_num_);
@@ -213,11 +79,9 @@ class TestHelper : public Consumer {
 
   std::function<void()> WrapTask(const std::function<void()>& function);
 
-  base::ThreadTaskRunner* service_thread() { return service_thread_.runner(); }
-  base::ThreadTaskRunner* producer_thread() {
-    return fake_producer_thread_.runner();
-  }
-  const std::vector<protos::gen::TracePacket>& trace() { return trace_; }
+  TaskRunnerThread* service_thread() { return &service_thread_; }
+  TaskRunnerThread* producer_thread() { return &producer_thread_; }
+  const std::vector<protos::TracePacket>& trace() { return trace_; }
 
  private:
   static uint64_t next_instance_num_;
@@ -231,11 +95,10 @@ class TestHelper : public Consumer {
   std::function<void()> on_detach_callback_;
   std::function<void(bool)> on_attach_callback_;
 
-  std::vector<protos::gen::TracePacket> trace_;
+  std::vector<protos::TracePacket> trace_;
 
-  ServiceThread service_thread_;
-  FakeProducerThread fake_producer_thread_;
-
+  TaskRunnerThread service_thread_;
+  TaskRunnerThread producer_thread_;
   std::unique_ptr<TracingService::ConsumerEndpoint> endpoint_;  // Keep last.
 };
 

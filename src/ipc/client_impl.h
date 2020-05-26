@@ -17,24 +17,19 @@
 #ifndef SRC_IPC_CLIENT_IMPL_H_
 #define SRC_IPC_CLIENT_IMPL_H_
 
-#include <list>
-#include <map>
-#include <memory>
-
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/ipc/client.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 
-namespace perfetto {
+#include "protos/perfetto/ipc/wire_protocol.gen.h"
 
-namespace protos {
-namespace gen {
-class IPCFrame_BindServiceReply;
-class IPCFrame_InvokeMethodReply;
-}  // namespace gen
-}  // namespace protos
+#include <list>
+#include <map>
+#include <memory>
+
+namespace perfetto {
 
 namespace base {
 class TaskRunner;
@@ -83,10 +78,8 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
 
   bool SendFrame(const Frame&, int fd = -1);
   void OnFrameReceived(const Frame&);
-  void OnBindServiceReply(QueuedRequest,
-                          const protos::gen::IPCFrame_BindServiceReply&);
-  void OnInvokeMethodReply(QueuedRequest,
-                           const protos::gen::IPCFrame_InvokeMethodReply&);
+  void OnBindServiceReply(QueuedRequest, const Frame::BindServiceReply&);
+  void OnInvokeMethodReply(QueuedRequest, const Frame::InvokeMethodReply&);
 
   bool invoking_method_reply_ = false;
   std::unique_ptr<base::UnixSocket> sock_;

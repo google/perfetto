@@ -27,7 +27,5 @@ export interface Data extends TrackData {
 
 export interface Config {
   gpu: number;
-  trackId: number;
   maximumValue?: number;
-  minimumValue?: number;
-}
+  minimumValue?: number;}

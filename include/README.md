@@ -87,6 +87,8 @@ Usage example
     void OnStop(const StopArgs&) override {}
   };
   ...
+  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MyDataSource);
+  ...
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("my_data_source");
   MyDataSource::Register(dsd);

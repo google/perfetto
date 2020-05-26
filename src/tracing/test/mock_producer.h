@@ -22,7 +22,6 @@
 #include <string>
 
 #include "perfetto/ext/tracing/core/producer.h"
-#include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "test/gtest_and_gmock.h"
@@ -48,8 +47,7 @@ class MockProducer : public Producer {
                const std::string& producer_name,
                uid_t uid = 42,
                size_t shared_memory_size_hint_bytes = 0,
-               size_t shared_memory_page_size_hint_bytes = 0,
-               std::unique_ptr<SharedMemory> shm = nullptr);
+               size_t shared_memory_page_size_hint_bytes = 0);
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
                           bool ack_start = false,

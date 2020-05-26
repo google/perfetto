@@ -23,6 +23,7 @@ import {
 import {
   Config,
   Data,
+  groupBusyStates,
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
@@ -34,59 +35,82 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       Promise<Data> {
     const startNs = toNs(start);
     const endNs = toNs(end);
-    const minNs = Math.round(resolution * 1e9);
+    let minNs = 0;
+    if (groupBusyStates(resolution)) {
+      // Ns for 1px (the smallest state to display)
+      minNs = Math.round(resolution * 1e9);
+    }
 
-    await this.query(
-        `drop view if exists ${this.tableName('grouped_thread_states')}`);
+    if (this.setup === false) {
+      await this.query(
+          `create virtual table ${this.tableName('window')} using window;`);
 
-    // This query gives all contiguous slices less than minNs the same grouping.
-    await this.query(`create view ${this.tableName('grouped_thread_states')} as
-    select ts, dur, cpu, state,
-    ifnull(sum(value) over (order by ts), 0) as grouping
-    from
-    (select *,
-    (dur >= ${minNs}) or lag(dur >= ${minNs}) over (order by ts) as value
-    from thread_state
-    where utid = ${this.config.utid})`);
+      await this.query(`create view ${this.tableName('long_states')} as
+      select * from thread_state where dur >= ${minNs} and utid = ${
+          this.config.utid}`);
 
-    // Since there are more rows than slices we will output, check the number of
-    // distinct groupings to find the number of slices.
-    const totalSlicesQuery = `select count(distinct(grouping))
-      from ${this.tableName('grouped_thread_states')}
-      where ts <= ${endNs} and ts + dur >= ${startNs}`;
-    const totalSlices = (await this.engine.queryOneRow(totalSlicesQuery))[0];
+      // Create a slice from the first ts to the end of the trace. To
+      // be span joined with the long states - This effectively combines all
+      // of the short states into a single 'Busy' state.
+      await this.query(`create view ${this.tableName('fill_gaps')} as select
+      (select min(ts) from thread_state where utid = ${this.config.utid}) as ts,
+      (select end_ts from trace_bounds) -
+      (select min(ts) from thread_state where utid = ${
+          this.config.utid}) as dur,
+      ${this.config.utid} as utid`);
 
-    // We have ts contraints instead of span joining with the window table
-    // because when selecting a slice we need the real duration (even if it
-    // is outside of the current viewport)
-    // TODO(b/149303809): Return this to using
-    // the window table if possible.
-    const query = `select min(min(ts)) over (partition by grouping) as ts,
-    sum(sum(dur)) over (partition by grouping) as slice_dur,
-    cpu,
-    state,
-    (sum(dur) * 1.0)/(sum(sum(dur)) over (partition by grouping)) as percent,
-    grouping
-    from ${this.tableName('grouped_thread_states')}
-    where ts <= ${endNs} and ts + dur >= ${startNs}
-    group by grouping, state
-    order by grouping
-    limit ${LIMIT}`;
+      await this.query(`create virtual table ${this.tableName('summarized')}
+      using span_left_join(${this.tableName('fill_gaps')} partitioned utid,
+      ${this.tableName('long_states')} partitioned utid)`);
+
+      await this.query(`create virtual table ${this.tableName('current')}
+      using span_join(
+        ${this.tableName('window')},
+        ${this.tableName('summarized')} partitioned utid)`);
+
+      this.setup = true;
+    }
+
+    const windowDurNs = Math.max(1, endNs - startNs);
+
+    this.query(`update ${this.tableName('window')} set
+     window_start=${startNs},
+     window_dur=${windowDurNs},
+     quantum=0`);
+
+    this.query(`drop view if exists ${this.tableName('long_states')}`);
+    this.query(`drop view if exists ${this.tableName('fill_gaps')}`);
+
+    await this.query(`create view ${this.tableName('long_states')} as
+      select * from thread_state where dur >= ${minNs} and utid = ${
+        this.config.utid}`);
+
+    await this.query(`create view ${this.tableName('fill_gaps')} as select
+      (select min(ts) from thread_state where utid = ${this.config.utid}) as ts,
+      (select end_ts from trace_bounds) -
+      (select min(ts) from thread_state where utid = ${
+        this.config.utid}) as dur,
+      ${this.config.utid} as utid`);
+
+    const query = `select ts, cast(dur as double), utid,
+    case when state is not null then state else 'Busy' end as state,
+    cast(cpu as double)
+    from ${this.tableName('current')} limit ${LIMIT}`;
 
     const result = await this.query(query);
+
     const numRows = +result.numRecords;
 
     const summary: Data = {
       start,
       end,
       resolution,
-      length: totalSlices,
-      starts: new Float64Array(totalSlices),
-      ends: new Float64Array(totalSlices),
+      length: numRows,
+      starts: new Float64Array(numRows),
+      ends: new Float64Array(numRows),
       strings: [],
-      state: new Uint16Array(totalSlices),
-      cpu: new Uint8Array(totalSlices),
-      summarisedStateBreakdowns: new Map(),
+      state: new Uint16Array(numRows),
+      cpu: new Uint8Array(numRows)
     };
 
     const stringIndexes = new Map<string, number>();
@@ -99,52 +123,25 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       return idx;
     }
 
-    let outIndex = 0;
     for (let row = 0; row < numRows; row++) {
       const cols = result.columns;
-      const start = +cols[0].longValues![row];
-      const dur = +cols[1].longValues![row];
-      const state = cols[3].stringValues![row];
-      const percent = +(cols[4].doubleValues![row].toFixed(2));
-      const grouping = +cols[5].longValues![row];
-
-      if (percent !== 1) {
-        let breakdownMap = summary.summarisedStateBreakdowns.get(outIndex);
-        if (!breakdownMap) {
-          breakdownMap = new Map();
-          summary.summarisedStateBreakdowns.set(outIndex, breakdownMap);
-        }
-
-        const currentPercent = breakdownMap.get(state);
-        if (currentPercent === undefined) {
-          breakdownMap.set(state, percent);
-        } else {
-          breakdownMap.set(state, currentPercent + percent);
-        }
-      }
-
-      const nextGrouping =
-          row + 1 < numRows ? +cols[5].longValues![row + 1] : -1;
-      // If the next grouping is different then we have reached the end of this
-      // slice.
-      if (grouping !== nextGrouping) {
-        const numStates = summary.summarisedStateBreakdowns.get(outIndex) ?
-            summary.summarisedStateBreakdowns.get(outIndex)!.entries.length :
-            1;
-        summary.starts[outIndex] = fromNs(start);
-        summary.ends[outIndex] = fromNs(start + dur);
-        summary.state[outIndex] =
-            internString(numStates === 1 ? state : 'Various states');
-        summary.cpu[outIndex] = +cols[2].longValues![row];
-        outIndex++;
-      }
+      const start = fromNs(+cols[0].longValues![row]);
+      summary.starts[row] = start;
+      summary.ends[row] = start + fromNs(+cols[1].doubleValues![row]);
+      summary.state[row] = internString(cols[3].stringValues![row]);
+      summary.cpu[row] = +cols[4].doubleValues![row];
     }
+
     return summary;
   }
 
   onDestroy(): void {
     if (this.setup) {
-      this.query(`drop view ${this.tableName('grouped_thread_states')}`);
+      this.query(`drop table ${this.tableName('window')}`);
+      this.query(`drop table ${this.tableName('current')}`);
+      this.query(`drop table ${this.tableName('summarized')}`);
+      this.query(`drop view ${this.tableName('long_states')}`);
+      this.query(`drop view ${this.tableName('fill_gaps')}`);
       this.setup = false;
     }
   }

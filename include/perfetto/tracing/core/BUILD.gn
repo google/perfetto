@@ -23,7 +23,6 @@ source_set("core") {
     "data_source_config.h",
     "data_source_descriptor.h",
     "trace_config.h",
-    "tracing_service_capabilities.h",
     "tracing_service_state.h",
   ]
 }
@@ -32,5 +31,7 @@ source_set("core") {
 # forward_decls.h without polluting their public_deps with the proto-generated
 # {common,config}:cpp, which would slow-down build time.
 source_set("forward_decls") {
-  sources = [ "forward_decls.h" ]
+  sources = [
+    "forward_decls.h",
+  ]
 }

@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 package perfetto.protos;
 
 // Represents the mapping between inode numbers in a block device and their path

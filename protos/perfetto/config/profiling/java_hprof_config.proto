@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
@@ -42,15 +43,4 @@ message JavaHprofConfig {
 
   // Dump at a predefined interval.
   optional ContinuousDumpConfig continuous_dump_config = 3;
-
-  // Do not profile processes whose anon RSS + swap < given value.
-  optional uint32 min_anonymous_memory_kb = 4;
-
-  // Include the process' /proc/self/smaps.
-  // This only shows maps that:
-  // * start with /system
-  // * start with /vendor
-  // * start with /data/app
-  // * contain "extracted in memory from Y", where Y matches any of the above
-  optional bool dump_smaps = 5;
 }

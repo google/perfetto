@@ -28,12 +28,11 @@ import subprocess
 import sys
 import tempfile
 import time
-import uuid
-
+import urllib
 
 TRACE_TO_TEXT_SHAS = {
-    'linux': 'aba0e660818bfc249992ebbceb13a2e4c9a62c3a',
-    'mac': 'c7d1b9d904f008bfb95125b204837eff946c3ed7',
+    'linux': '74cb40d9413d7ad756e327e09e46a8adde90db92',
+    'mac': '47045bc6abd4f9113969211f37fdd2259b0c1cc3',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
@@ -44,7 +43,6 @@ NOOUT = {
     'stderr': NULL,
 }
 
-UUID = str(uuid.uuid4())
 
 def check_hash(file_name, sha_value):
   with open(file_name, 'rb') as fd:
@@ -65,7 +63,7 @@ def load_trace_to_text(platform):
       return local_file
 
   url = TRACE_TO_TEXT_BASE_URL + file_name
-  subprocess.check_call(['curl', '-L', '-#', '-o', local_file, url])
+  urllib.urlretrieve(url, local_file)
   if not check_hash(local_file, sha_value):
     os.remove(local_file)
     raise ValueError("Invalid signature.")
@@ -80,7 +78,7 @@ PACKAGES_LIST_CFG = '''data_sources {
 }
 '''
 
-CFG_INDENT = '      '
+CFG_IDENT = '      '
 CFG = '''buffers {{
   size_kb: 32768
 }}
@@ -101,10 +99,7 @@ data_sources {{
 duration_ms: {duration}
 write_into_file: true
 flush_timeout_ms: 30000
-flush_period_ms: 604800000
 '''
-
-# flush_period_ms of 1 week to suppress trace_processor_shell warning.
 
 CONTINUOUS_DUMP = """
       continuous_dump_config {{
@@ -113,36 +108,16 @@ CONTINUOUS_DUMP = """
       }}
 """
 
-PROFILE_LOCAL_PATH = '/tmp/profile-' + UUID
-
+PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
+                'perfetto --txt -c - -o '
+                '/data/misc/perfetto-traces/profile-{user} -d')
 IS_INTERRUPTED = False
+
 
 def sigint_handler(sig, frame):
   global IS_INTERRUPTED
   IS_INTERRUPTED = True
 
-
-def print_no_profile_error():
-  print("No profiles generated", file=sys.stderr)
-  print(
-    "If this is unexpected, check "
-    "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
-    file=sys.stderr)
-
-SDK = {
-    'R': 30,
-}
-
-def release_or_newer(release):
-  sdk = int(subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']
-  ).decode('utf-8').strip())
-  if sdk >= SDK[release]:
-    return True
-  codename = subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.build.version.codename']
-  ).decode('utf-8').strip()
-  return codename == release
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -192,12 +167,12 @@ def main(argv):
   parser.add_argument(
       "--no-running",
       action="store_true",
-      help="Do not target already running processes. Requires Android 11.")
+      help="Do not target already running processes.")
   parser.add_argument(
       "--no-startup",
       action="store_true",
       help="Do not target processes that start during "
-      "the profile. Requires Android 11.")
+      "the profile.")
   parser.add_argument(
       "--shmem-size",
       help="Size of buffer between client and "
@@ -230,13 +205,8 @@ def main(argv):
       action="store_true")
   parser.add_argument(
       "--dump-at-max",
-      help="Dump the maximum memory usage "
+      help="Dump the maximum memory usage"
       "rather than at the time of the dump.",
-      action="store_true")
-  parser.add_argument(
-      "--disable-fork-teardown",
-      help="Do not tear down client in forks. This can be useful for programs "
-      "that use vfork. Android 11+ only.",
       action="store_true")
   parser.add_argument(
       "--simpleperf",
@@ -250,26 +220,8 @@ def main(argv):
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
-  parser.add_argument(
-      "-o",
-      "--output",
-      help="Output directory.",
-      metavar="DIRECTORY",
-      default=None)
 
   args = parser.parse_args()
-
-  # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
-  # this.
-  uuid_trace = release_or_newer('R')
-  if uuid_trace:
-    profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
-  else:
-    user = subprocess.check_output(
-      ['adb', 'shell', 'whoami']).decode('utf-8').strip()
-    profile_device_path = '/data/misc/perfetto-traces/profile-' + user
-  perfetto_cmd = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
-                  'perfetto --txt -c - -o ' + profile_device_path + ' -d')
 
   fail = False
   if args.block_client and args.no_block_client:
@@ -308,8 +260,6 @@ def main(argv):
     target_cfg += "no_running: true\n"
   if args.dump_at_max:
     target_cfg += "dump_at_max: true\n"
-  if args.disable_fork_teardown:
-    target_cfg += "disable_fork_teardown: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:
@@ -317,10 +267,10 @@ def main(argv):
       except ValueError:
         print("FATAL: invalid PID %s" % pid, file=sys.stderr)
         fail = True
-      target_cfg += '{}pid: {}\n'.format(CFG_INDENT, pid)
+      target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
   if args.name:
     for name in args.name.split(','):
-      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_INDENT, name)
+      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
 
   if fail:
     parser.print_help()
@@ -372,6 +322,7 @@ def main(argv):
       atexit.register(subprocess.check_call,
                       ['adb', 'shell', 'setprop persist.heapprofd.enable 0'])
 
+  user = subprocess.check_output(['adb', 'shell', 'whoami']).strip()
 
   if args.simpleperf:
     subprocess.check_call([
@@ -381,27 +332,11 @@ def main(argv):
         '> /dev/null'
     ])
 
-  profile_target = PROFILE_LOCAL_PATH
-  if args.output is not None:
-    profile_target = args.output
-  else:
-    os.mkdir(profile_target)
-
-  if not os.path.isdir(profile_target):
-    print("Output directory {} not found".format(profile_target),
-            file=sys.stderr)
-    return 1
-
-  if os.listdir(profile_target):
-    print("Output directory {} not empty".format(profile_target),
-            file=sys.stderr)
-    return 1
-
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out',
-       perfetto_cmd.format(cfg=cfg)]).strip()
+       PERFETTO_CMD.format(cfg=cfg, user=user)]).strip()
   try:
-    perfetto_pid = int(perfetto_pid.strip())
+    int(perfetto_pid.strip())
   except ValueError:
     print("Failed to invoke perfetto: {}".format(perfetto_pid), file=sys.stderr)
     return 1
@@ -409,7 +344,6 @@ def main(argv):
   old_handler = signal.signal(signal.SIGINT, sigint_handler)
   print("Profiling active. Press Ctrl+C to terminate.")
   print("You may disconnect your device.")
-  print()
   exists = True
   device_connected = True
   while not device_connected or (exists and not IS_INTERRUPTED):
@@ -420,7 +354,7 @@ def main(argv):
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
-    subprocess.call(['adb', 'shell', 'kill', '-INT', str(perfetto_pid)])
+    subprocess.call(['adb', 'shell', 'kill', '-INT', perfetto_pid])
   if args.simpleperf:
     subprocess.check_call(['adb', 'shell', 'killall', '-INT', 'simpleperf'])
     print("Waiting for simpleperf to exit.")
@@ -438,63 +372,41 @@ def main(argv):
     time.sleep(1)
 
   subprocess.check_call([
-      'adb', 'pull', profile_device_path,
-      os.path.join(profile_target, 'raw-trace')
-  ], stdout=NULL)
-  if uuid_trace:
-    subprocess.check_call(
-          ['adb', 'shell', 'rm', profile_device_path], stdout=NULL)
-
+      'adb', 'pull', '/data/misc/perfetto-traces/profile-{}'.format(user),
+      '/tmp/profile'
+  ],
+                        stdout=NULL)
   trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile',
-          os.path.join(profile_target, 'raw-trace')],
-      env=os.environ)
+      [trace_to_text_binary, 'profile', '/tmp/profile'])
   profile_path = None
-  for word in trace_to_text_output.decode('utf-8').split():
+  for word in trace_to_text_output.split():
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
-    print_no_profile_error();
+    print("Could not find trace_to_text output path.", file=sys.stderr)
     return 1
 
   profile_files = os.listdir(profile_path)
   if not profile_files:
-    print_no_profile_error();
+    print("No profiles generated", file=sys.stderr)
+    print(
+        "If this is unexpected, check "
+        "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
+        file=sys.stderr)
     return 1
-
-  for profile_file in profile_files:
-    shutil.copy(os.path.join(profile_path, profile_file), profile_target)
 
   subprocess.check_call(
       ['gzip'] +
-      [os.path.join(profile_target, x) for x in profile_files])
+      [os.path.join(profile_path, x) for x in os.listdir(profile_path)])
 
-  symlink_path = None
-  if args.output is None:
-      symlink_path = os.path.join(
-          os.path.dirname(profile_target), "heap_profile-latest")
-      if os.path.lexists(symlink_path):
-        os.unlink(symlink_path)
-      os.symlink(profile_target, symlink_path)
+  symlink_path = os.path.join(
+      os.path.dirname(profile_path), "heap_profile-latest")
+  if os.path.lexists(symlink_path):
+    os.unlink(symlink_path)
+  os.symlink(profile_path, symlink_path)
+  shutil.copyfile('/tmp/profile', os.path.join(profile_path, 'raw-trace'))
 
-  binary_path = os.getenv('PERFETTO_BINARY_PATH')
-  if binary_path is not None:
-      with open(os.path.join(profile_path, 'symbols'), 'w') as fd:
-          ret = subprocess.call([
-              trace_to_text_binary, 'symbolize',
-              os.path.join(profile_target, 'raw-trace')],
-              env=os.environ,
-              stdout=fd)
-          if ret != 0:
-              print("Failed to symbolize. Continuing without symbols.",
-                    file=sys.stderr)
-
-  if symlink_path is not None:
-    print("Wrote profiles to {} (symlink {})".format(
-        profile_target, symlink_path))
-  else:
-    print("Wrote profiles to {}".format(profile_target))
-
+  print("Wrote profiles to {} (symlink {})".format(profile_path, symlink_path))
   print("These can be viewed using pprof. Googlers: head to pprof/ and "
         "upload them.")
 

@@ -40,9 +40,7 @@ namespace {
 
 constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
 constexpr char kJavaHprofDataSourceName[] = "android.java_hprof";
-constexpr char kTracedPerfDataSourceName[] = "linux.perf";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
-constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
 
 }  // namespace
 
@@ -50,22 +48,16 @@ BuiltinProducer::BuiltinProducer(base::TaskRunner* task_runner,
                                  uint32_t lazy_stop_delay_ms)
     : task_runner_(task_runner), weak_factory_(this) {
   lazy_heapprofd_.stop_delay_ms = lazy_stop_delay_ms;
-  lazy_traced_perf_.stop_delay_ms = lazy_stop_delay_ms;
 }
 
 BuiltinProducer::~BuiltinProducer() {
   if (!lazy_heapprofd_.instance_ids.empty())
-    SetAndroidProperty(kLazyHeapprofdPropertyName, "");
-  if (!lazy_traced_perf_.instance_ids.empty())
-    SetAndroidProperty(kLazyTracedPerfPropertyName, "");
+    SetAndroidProperty(kLazyHeapprofdPropertyName, "0");
 }
 
 void BuiltinProducer::ConnectInProcess(TracingService* svc) {
-  endpoint_ = svc->ConnectProducer(
-      this, geteuid(), "traced",
-      /*shared_memory_size_hint_bytes=*/16 * 1024, /*in_process=*/true,
-      TracingService::ProducerSMBScrapingMode::kDisabled,
-      /*shmem_page_size_hint_bytes=*/4096);
+  endpoint_ = svc->ConnectProducer(this, geteuid(), "traced",
+                                   /*shm_hint_kb*/ 16, /*in_process*/ true);
 }
 
 void BuiltinProducer::OnConnect() {
@@ -73,20 +65,17 @@ void BuiltinProducer::OnConnect() {
   metatrace_dsd.set_name(MetatraceWriter::kDataSourceName);
   metatrace_dsd.set_will_notify_on_stop(true);
   endpoint_->RegisterDataSource(metatrace_dsd);
+
   {
     DataSourceDescriptor lazy_heapprofd_dsd;
     lazy_heapprofd_dsd.set_name(kHeapprofdDataSourceName);
     endpoint_->RegisterDataSource(lazy_heapprofd_dsd);
   }
+
   {
     DataSourceDescriptor lazy_java_hprof_dsd;
     lazy_java_hprof_dsd.set_name(kJavaHprofDataSourceName);
     endpoint_->RegisterDataSource(lazy_java_hprof_dsd);
-  }
-  {
-    DataSourceDescriptor lazy_traced_perf_dsd;
-    lazy_traced_perf_dsd.set_name(kTracedPerfDataSourceName);
-    endpoint_->RegisterDataSource(lazy_traced_perf_dsd);
   }
 }
 
@@ -97,14 +86,6 @@ void BuiltinProducer::SetupDataSource(DataSourceInstanceID ds_id,
     SetAndroidProperty(kLazyHeapprofdPropertyName, "1");
     lazy_heapprofd_.generation++;
     lazy_heapprofd_.instance_ids.emplace(ds_id);
-    return;
-  }
-
-  if (ds_config.name() == kTracedPerfDataSourceName) {
-    SetAndroidProperty(kLazyTracedPerfPropertyName, "1");
-    lazy_traced_perf_.generation++;
-    lazy_traced_perf_.instance_ids.emplace(ds_id);
-    return;
   }
 }
 
@@ -133,33 +114,24 @@ void BuiltinProducer::StopDataSource(DataSourceInstanceID ds_id) {
     meta_it->second.WriteAllAndFlushTraceWriter([] {});
     metatrace_.writers.erase(meta_it);
     endpoint_->NotifyDataSourceStopped(ds_id);
-    return;
   }
 
-  MaybeInitiateLazyStop(ds_id, &lazy_heapprofd_, kLazyHeapprofdPropertyName);
-  MaybeInitiateLazyStop(ds_id, &lazy_traced_perf_, kLazyTracedPerfPropertyName);
-}
+  auto lazy_it = lazy_heapprofd_.instance_ids.find(ds_id);
+  if (lazy_it != lazy_heapprofd_.instance_ids.end()) {
+    lazy_heapprofd_.instance_ids.erase(lazy_it);
 
-void BuiltinProducer::MaybeInitiateLazyStop(DataSourceInstanceID ds_id,
-                                            LazyAndroidDaemonState* lazy_state,
-                                            const char* prop_name) {
-  auto lazy_it = lazy_state->instance_ids.find(ds_id);
-  if (lazy_it != lazy_state->instance_ids.end()) {
-    lazy_state->instance_ids.erase(lazy_it);
-
-    // if no more sessions - stop daemon after a delay
-    if (lazy_state->instance_ids.empty()) {
-      uint64_t cur_generation = lazy_state->generation;
+    // if no more sessions - stop heapprofd after a delay
+    if (lazy_heapprofd_.instance_ids.empty()) {
+      uint64_t cur_generation = lazy_heapprofd_.generation;
       auto weak_this = weak_factory_.GetWeakPtr();
       task_runner_->PostDelayedTask(
-          [weak_this, cur_generation, lazy_state, prop_name] {
+          [weak_this, cur_generation] {
             if (!weak_this)
               return;
-            // |lazy_state| should be valid if the |weak_this| is still valid
-            if (lazy_state->generation == cur_generation)
-              weak_this->SetAndroidProperty(prop_name, "");
+            if (weak_this->lazy_heapprofd_.generation == cur_generation)
+              weak_this->SetAndroidProperty(kLazyHeapprofdPropertyName, "0");
           },
-          lazy_state->stop_delay_ms);
+          lazy_heapprofd_.stop_delay_ms);
     }
   }
 }
@@ -172,7 +144,7 @@ void BuiltinProducer::Flush(FlushRequestID flush_id,
     if (meta_it != metatrace_.writers.end()) {
       meta_it->second.WriteAllAndFlushTraceWriter([] {});
     }
-    // nothing to be done for lazy sources
+    // nothing to be done for lazy heapprofd sources
   }
   endpoint_->NotifyFlushComplete(flush_id);
 }

@@ -18,16 +18,15 @@
 
 #include <string>
 
-#include "protos/perfetto/trace/test_event.gen.h"
-#include "protos/perfetto/trace/trace.gen.h"
-#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace.pb.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
 
 TEST(TracePacketTest, Simple) {
-  protos::gen::TracePacket proto;
+  protos::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
@@ -38,13 +37,13 @@ TEST(TracePacketTest, Simple) {
   ASSERT_EQ(ser_buf.size(), slice->size);
   ASSERT_EQ(tp.slices().end(), ++slice);
 
-  protos::gen::TracePacket decoded_packet;
+  protos::TracePacket decoded_packet;
   ASSERT_TRUE(decoded_packet.ParseFromString(tp.GetRawBytesForTesting()));
   ASSERT_EQ(proto.for_testing().str(), decoded_packet.for_testing().str());
 }
 
 TEST(TracePacketTest, Sliced) {
-  protos::gen::TracePacket proto;
+  protos::TracePacket proto;
   proto.mutable_for_testing()->set_str(
       "this is an arbitrarily long string ........................");
   std::string ser_buf = proto.SerializeAsString();
@@ -69,18 +68,18 @@ TEST(TracePacketTest, Sliced) {
 
   ASSERT_EQ(tp.slices().end(), ++slice);
 
-  protos::gen::TracePacket decoded_packet;
+  protos::TracePacket decoded_packet;
   ASSERT_TRUE(decoded_packet.ParseFromString(tp.GetRawBytesForTesting()));
   ASSERT_EQ(proto.for_testing().str(), decoded_packet.for_testing().str());
 }
 
 TEST(TracePacketTest, Corrupted) {
-  protos::gen::TracePacket proto;
+  protos::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
   std::string ser_buf = proto.SerializeAsString();
   TracePacket tp;
   tp.AddSlice({ser_buf.data(), ser_buf.size() - 2});  // corrupted.
-  protos::gen::TracePacket decoded_packet;
+  protos::TracePacket decoded_packet;
   ASSERT_FALSE(decoded_packet.ParseFromString(tp.GetRawBytesForTesting()));
 }
 
@@ -97,7 +96,7 @@ TEST(TracePacketTest, GetProtoPreamble) {
   ASSERT_EQ(0, preamble[1]);
 
   // Test packet with one slice.
-  protos::gen::TracePacket tp_proto;
+  protos::TracePacket tp_proto;
   char payload[257];
   for (size_t i = 0; i < sizeof(payload) - 1; i++)
     payload[i] = 'a' + (i % 16);
@@ -114,10 +113,11 @@ TEST(TracePacketTest, GetProtoPreamble) {
   memcpy(buf, preamble, preamble_size);
   ASSERT_EQ(1u, tp.slices().size());
   memcpy(&buf[preamble_size], tp.slices()[0].start, tp.slices()[0].size);
-  protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromArray(buf, preamble_size + tp.size()));
+  protos::Trace trace;
+  ASSERT_TRUE(
+      trace.ParseFromArray(buf, static_cast<int>(preamble_size + tp.size())));
   ASSERT_EQ(1, trace.packet_size());
-  ASSERT_EQ(payload, trace.packet()[0].for_testing().str());
+  ASSERT_EQ(payload, trace.packet(0).for_testing().str());
 }
 
 TEST(TracePacketTest, MoveOperators) {

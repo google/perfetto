@@ -15,10 +15,9 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
-
-import "protos/perfetto/metrics/android/process_metadata.proto";
 
 // Android app startup metrics.
 message AndroidStartupMetric {
@@ -31,17 +30,13 @@ message AndroidStartupMetric {
     optional int64 interruptible_sleep_dur_ns = 4;
   }
 
-  message Slice {
-    optional int64 dur_ns = 1;
-    optional double dur_ms = 2;
-  }
+  message Slice { optional int64 dur_ns = 1; }
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 21.
+  // All times and durations in nanoseconds (ns).
   message ToFirstFrame {
     optional int64 dur_ns = 1;
-    optional double dur_ms = 17;
     optional TaskStateBreakdown main_thread_by_task_state = 2;
 
     // In this timespan, how many processes (apart from the main activity) were
@@ -66,28 +61,12 @@ message AndroidStartupMetric {
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
 
-    optional Slice to_post_fork = 18;
-    optional Slice to_activity_thread_main = 19;
-    optional Slice to_bind_application = 20;
-
-    optional Slice time_post_fork = 16;
-
-    // Deprecated was other_process_to_activity_cpu_ratio
-    reserved 12;
-
-    // Removed: was uint32 versions of to_post_fork, to_activity_thread_main and
-    // to_bind_application.
-    reserved 13, 14, 15;
+    // The ratio between the cpu time of the activity process
+    // to all other processes in the system.
+    optional double other_process_to_activity_cpu_ratio = 12;
   }
 
-  // Metrics about startup which were developed by looking at experiments using
-  // high-speed cameras (HSC).
-  message HscMetrics {
-    // The duration of the full "startup" as defined by HSC tests.
-    optional Slice full_startup = 1;
-  }
-
-  // Next id: 8
+  // Next id: 7
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -108,11 +87,6 @@ message AndroidStartupMetric {
     optional uint32 activity_hosting_process_count = 6;
 
     optional ToFirstFrame to_first_frame = 5;
-
-    // Details about the process (uid, version, etc)
-    optional AndroidProcessMetadata process = 7;
-
-    optional HscMetrics hsc = 8;
   }
 
   repeated Startup startup = 1;

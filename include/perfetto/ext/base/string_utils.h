@@ -37,29 +37,22 @@ inline char Uppercase(char c) {
   return ('a' <= c && c <= 'z') ? static_cast<char>(c + ('A' - 'a')) : c;
 }
 
-inline Optional<uint32_t> CStringToUInt32(const char* s, int base = 10) {
+inline Optional<uint32_t> CStringToUInt32(const char* s) {
   char* endptr = nullptr;
-  auto value = static_cast<uint32_t>(strtoul(s, &endptr, base));
-  return (*s && !*endptr) ? base::make_optional(value) : base::nullopt;
+  uint64_t value = strtoul(s, &endptr, 10);
+  Optional<uint32_t> result(base::nullopt);
+  if (*s != '\0' && *endptr == '\0')
+    result = static_cast<uint32_t>(value);
+  return result;
 }
 
-inline Optional<int32_t> CStringToInt32(const char* s, int base = 10) {
+inline Optional<int32_t> CStringToInt32(const char* s) {
   char* endptr = nullptr;
-  auto value = static_cast<int32_t>(strtol(s, &endptr, base));
-  return (*s && !*endptr) ? base::make_optional(value) : base::nullopt;
-}
-
-// Note: it saturates to 7fffffffffffffff if parsing a hex number >= 0x8000...
-inline Optional<int64_t> CStringToInt64(const char* s, int base = 10) {
-  char* endptr = nullptr;
-  auto value = static_cast<int64_t>(strtoll(s, &endptr, base));
-  return (*s && !*endptr) ? base::make_optional(value) : base::nullopt;
-}
-
-inline Optional<uint64_t> CStringToUInt64(const char* s, int base = 10) {
-  char* endptr = nullptr;
-  auto value = static_cast<uint64_t>(strtoull(s, &endptr, base));
-  return (*s && !*endptr) ? base::make_optional(value) : base::nullopt;
+  int64_t value = strtol(s, &endptr, 10);
+  Optional<int32_t> result(base::nullopt);
+  if (*s != '\0' && *endptr == '\0')
+    result = static_cast<int32_t>(value);
+  return result;
 }
 
 inline Optional<double> CStringToDouble(const char* s) {
@@ -71,20 +64,12 @@ inline Optional<double> CStringToDouble(const char* s) {
   return result;
 }
 
-inline Optional<uint32_t> StringToUInt32(const std::string& s, int base = 10) {
-  return CStringToUInt32(s.c_str(), base);
+inline Optional<uint32_t> StringToUInt32(const std::string& s) {
+  return CStringToUInt32(s.c_str());
 }
 
-inline Optional<int32_t> StringToInt32(const std::string& s, int base = 10) {
-  return CStringToInt32(s.c_str(), base);
-}
-
-inline Optional<uint64_t> StringToUInt64(const std::string& s, int base = 10) {
-  return CStringToUInt64(s.c_str(), base);
-}
-
-inline Optional<int64_t> StringToInt64(const std::string& s, int base = 10) {
-  return CStringToInt64(s.c_str(), base);
+inline Optional<int32_t> StringToInt32(const std::string& s) {
+  return CStringToInt32(s.c_str());
 }
 
 inline Optional<double> StringToDouble(const std::string& s) {
@@ -111,7 +96,6 @@ std::string ToHex(const char* data, size_t size);
 inline std::string ToHex(const std::string& s) {
   return ToHex(s.c_str(), s.size());
 }
-std::string IntToHexString(uint32_t number);
 
 }  // namespace base
 }  // namespace perfetto

@@ -35,8 +35,8 @@
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/memory/client.h"
+#include "src/profiling/memory/proc_utils.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
@@ -220,21 +220,36 @@ std::string ReadSystemProperty(const char* key) {
   return prop_value;
 }
 
-bool ForceForkPrivateDaemon() {
-  // Note: if renaming the property, also update system_property.cc
-  std::string mode = ReadSystemProperty("heapprofd.userdebug.mode");
-  return mode == "fork";
+bool ShouldForkPrivateDaemon() {
+  std::string build_type = ReadSystemProperty("ro.build.type");
+  if (build_type.empty()) {
+    PERFETTO_ELOG(
+        "Cannot determine platform build type, proceeding in fork mode "
+        "profiling.");
+    return true;
+  }
+
+  // On development builds, we support both modes of profiling, depending on a
+  // system property.
+  if (build_type == "userdebug" || build_type == "eng") {
+    // Note: if renaming the property, also update system_property.cc
+    std::string mode = ReadSystemProperty("heapprofd.userdebug.mode");
+    return mode == "fork";
+  }
+
+  // User/other builds - always fork private profiler.
+  return true;
 }
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
-  PERFETTO_LOG("Constructing client for central daemon.");
+  PERFETTO_DLOG("Constructing client for central daemon.");
   using perfetto::profiling::Client;
 
   perfetto::base::Optional<perfetto::base::UnixSocketRaw> sock =
       Client::ConnectToHeapprofd(perfetto::profiling::kHeapprofdSocketFile);
   if (!sock) {
-    PERFETTO_ELOG("Failed to connect to %s. This is benign on user builds.",
+    PERFETTO_ELOG("Failed to connect to %s.",
                   perfetto::profiling::kHeapprofdSocketFile);
     return nullptr;
   }
@@ -244,7 +259,7 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientForCentralDaemon(
 
 std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
-  PERFETTO_LOG("Setting up fork mode profiling.");
+  PERFETTO_DLOG("Setting up fork mode profiling.");
   perfetto::base::UnixSocketRaw parent_sock;
   perfetto::base::UnixSocketRaw child_sock;
   std::tie(parent_sock, child_sock) = perfetto::base::UnixSocketRaw::CreatePair(
@@ -344,53 +359,6 @@ void ShutdownLazy() {
     PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
 }
 
-// We're a library loaded into a potentially-multithreaded process, which might
-// not be explicitly aware of this possiblity. Deadling with forks/clones is
-// extremely complicated in such situations, but we attempt to handle certain
-// cases.
-//
-// There are two classes of forking processes to consider:
-//  * well-behaved processes that fork only when their threads (if any) are at a
-//    safe point, and therefore not in the middle of our hooks/client.
-//  * processes that fork with other threads in an arbitrary state. Though
-//    technically buggy, such processes exist in practice.
-//
-// This atfork handler follows a crude lowest-common-denominator approach, where
-// to handle the latter class of processes, we systematically leak any |Client|
-// state (present only when actively profiling at the time of fork) in the
-// postfork-child path.
-//
-// The alternative with acquiring all relevant locks in the prefork handler, and
-// releasing the state postfork handlers, poses a separate class of edge cases,
-// and is not deemed to be better as a result.
-//
-// Notes:
-// * this atfork handler fires only for the |fork| libc entrypoint, *not*
-//   |clone|. See client.cc's |IsPostFork| for some best-effort detection
-//   mechanisms for clone/vfork.
-// * it should be possible to start a new profiling session in this child
-//   process, modulo the bionic's heapprofd-loading state machine being in the
-//   right state.
-// * we cannot avoid leaks in all cases anyway (e.g. during shutdown sequence,
-//   when only individual straggler threads hold onto the Client).
-void AtForkChild() {
-  PERFETTO_LOG("heapprofd_client: handling atfork.");
-
-  // A thread (that has now disappeared across the fork) could have been holding
-  // the spinlock. We're now the only thread post-fork, so we can reset the
-  // spinlock, though the state it protects (the |g_client| shared_ptr) might
-  // not be in a consistent state.
-  g_client_lock.store(false);
-
-  // Leak the existing shared_ptr contents, including the profiling |Client| if
-  // profiling was active at the time of the fork.
-  // Note: this code assumes that the creation of the empty shared_ptr does not
-  // allocate, which should be the case for all implementations as the
-  // constructor has to be noexcept.
-  std::shared_ptr<perfetto::profiling::Client>& ref = g_client.ref();
-  new (&ref) std::shared_ptr<perfetto::profiling::Client>();
-}
-
 }  // namespace
 
 // Setup for the rest of profiling. The first time profiling is triggered in a
@@ -409,17 +377,7 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
   using ::perfetto::profiling::Client;
 
   // Table of pointers to backing implementation.
-  bool first_init = g_dispatch.load() == nullptr;
-  g_dispatch.store(malloc_dispatch);
-
-  // Install an atfork handler to deal with *some* cases of the host forking.
-  // The handler will be unpatched automatically if we're dlclosed.
-  if (first_init && pthread_atfork(/*prepare=*/nullptr, /*parent=*/nullptr,
-                                   &AtForkChild) != 0) {
-    PERFETTO_PLOG("%s: pthread_atfork failed, not installing hooks.",
-                  getprogname());
-    return false;
-  }
+  g_dispatch.store(malloc_dispatch, std::memory_order_relaxed);
 
   // TODO(fmayer): Check other destructions of client and make a decision
   // whether we want to ban heap objects in the client or not.
@@ -430,8 +388,7 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
       AbortOnSpinlockTimeout();
 
     if (g_client.ref()) {
-      PERFETTO_LOG("%s: Rejecting concurrent profiling initialization.",
-                   getprogname());
+      PERFETTO_LOG("Rejecting concurrent profiling initialization.");
       return true;  // success as we're in a valid state
     }
     old_client = g_client.ref();
@@ -447,18 +404,16 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
 
   // These factory functions use heap objects, so we need to run them without
   // the spinlock held.
-  std::shared_ptr<Client> client;
-  if (!ForceForkPrivateDaemon())
-    client = CreateClientForCentralDaemon(unhooked_allocator);
-  if (!client)
-    client = CreateClientAndPrivateDaemon(unhooked_allocator);
+  std::shared_ptr<Client> client =
+      ShouldForkPrivateDaemon()
+          ? CreateClientAndPrivateDaemon(unhooked_allocator)
+          : CreateClientForCentralDaemon(unhooked_allocator);
 
   if (!client) {
-    PERFETTO_LOG("%s: heapprofd_client not initialized, not installing hooks.",
-                 getprogname());
+    PERFETTO_LOG("heapprofd_client not initialized, not installing hooks.");
     return false;
   }
-  PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
+  PERFETTO_LOG("heapprofd_client initialized.");
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
     if (PERFETTO_UNLIKELY(!s.locked()))
@@ -665,14 +620,13 @@ int HEAPPROFD_ADD_PREFIX(_malloc_info)(int options, FILE* fp) {
   return dispatch->malloc_info(options, fp);
 }
 
-int HEAPPROFD_ADD_PREFIX(_malloc_iterate)(uintptr_t base,
-                                          size_t size,
-                                          void (*callback)(uintptr_t base,
+int HEAPPROFD_ADD_PREFIX(_malloc_iterate)(uintptr_t,
+                                          size_t,
+                                          void (*)(uintptr_t base,
                                                    size_t size,
                                                    void* arg),
-                                          void* arg) {
-  const MallocDispatch* dispatch = GetDispatch();
-  return dispatch->malloc_iterate(base, size, callback, arg);
+                                          void*) {
+  return 0;
 }
 
 void HEAPPROFD_ADD_PREFIX(_malloc_disable)() {

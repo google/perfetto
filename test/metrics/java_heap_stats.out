@@ -7,11 +7,8 @@ java_heap_stats {
     }
     samples {
       ts: 10
-      heap_size: 992
-      reachable_heap_size: 352
-      obj_count: 6
-      reachable_obj_count: 3
-      anon_rss_and_swap_size: 4096000
+      heap_size: 480
+      reachable_heap_size: 96
     }
   }
 }

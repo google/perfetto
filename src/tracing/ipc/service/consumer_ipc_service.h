@@ -67,8 +67,6 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
                      DeferredObserveEventsResponse) override;
   void QueryServiceState(const protos::gen::QueryServiceStateRequest&,
                          DeferredQueryServiceStateResponse) override;
-  void QueryCapabilities(const protos::gen::QueryCapabilitiesRequest&,
-                         DeferredQueryCapabilitiesResponse) override;
   void OnClientDisconnected() override;
 
  private:
@@ -124,8 +122,6 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
   // This has to be a container that doesn't invalidate iterators.
   using PendingFlushResponses = std::list<DeferredFlushResponse>;
   using PendingQuerySvcResponses = std::list<DeferredQueryServiceStateResponse>;
-  using PendingQueryCapabilitiesResponses =
-      std::list<DeferredQueryCapabilitiesResponse>;
 
   ConsumerIPCService(const ConsumerIPCService&) = delete;
   ConsumerIPCService& operator=(const ConsumerIPCService&) = delete;
@@ -138,8 +134,6 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
   void OnQueryServiceCallback(bool success,
                               const TracingServiceState&,
                               PendingQuerySvcResponses::iterator);
-  void OnQueryCapabilitiesCallback(const TracingServiceCapabilities&,
-                                   PendingQueryCapabilitiesResponses::iterator);
 
   TracingService* const core_service_;
 
@@ -149,7 +143,6 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
 
   PendingFlushResponses pending_flush_responses_;
   PendingQuerySvcResponses pending_query_service_responses_;
-  PendingQueryCapabilitiesResponses pending_query_capabilities_responses_;
 
   base::WeakPtrFactory<ConsumerIPCService> weak_ptr_factory_;  // Keep last.
 };

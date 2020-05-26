@@ -106,7 +106,7 @@ class GpuFreqTrack extends Track<Config, Data> {
     ctx.fill();
     ctx.stroke();
 
-    ctx.font = '10px Roboto Condensed';
+    ctx.font = '10px Google Sans';
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       let text = `Freq: ${this.hoveredValue.toLocaleString()}kHz`;
@@ -114,6 +114,7 @@ class GpuFreqTrack extends Track<Config, Data> {
         text = `Weighted avg freq: ${this.hoveredValue.toLocaleString()}kHz`;
       }
 
+      const width = ctx.measureText(text).width;
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
@@ -138,7 +139,11 @@ class GpuFreqTrack extends Track<Config, Data> {
       ctx.stroke();
 
       // Draw the tooltip.
-      this.drawTrackHoverTooltip(ctx, this.mouseXpos, text);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(this.mouseXpos + 5, MARGIN_TOP, width + 16, RECT_HEIGHT);
+      ctx.fillStyle = 'hsl(200, 50%, 40%)';
+      const centerY = MARGIN_TOP + RECT_HEIGHT / 2;
+      ctx.fillText(text, this.mouseXpos + 10, centerY - 3);
     }
 
     // Write the Y scale on the top left corner.

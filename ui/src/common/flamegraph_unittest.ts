@@ -1,17 +1,3 @@
-// Copyright (C) 2019 The Android Open Source Project
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import {mergeCallsites} from './flamegraph_util';
 import {CallsiteInfo} from './state';
 
@@ -24,8 +10,7 @@ test('zeroCallsitesMerged', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -34,8 +19,7 @@ test('zeroCallsitesMerged', () => {
       depth: 0,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -44,8 +28,7 @@ test('zeroCallsitesMerged', () => {
       depth: 1,
       totalSize: 4,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
@@ -54,8 +37,7 @@ test('zeroCallsitesMerged', () => {
       depth: 1,
       totalSize: 4,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -74,8 +56,7 @@ test('zeroCallsitesMerged2', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -84,8 +65,7 @@ test('zeroCallsitesMerged2', () => {
       depth: 0,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -94,8 +74,7 @@ test('zeroCallsitesMerged2', () => {
       depth: 1,
       totalSize: 6,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
@@ -104,8 +83,7 @@ test('zeroCallsitesMerged2', () => {
       depth: 1,
       totalSize: 4,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 5,
@@ -114,8 +92,7 @@ test('zeroCallsitesMerged2', () => {
       depth: 1,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -134,8 +111,7 @@ test('twoCallsitesMerged', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -144,8 +120,7 @@ test('twoCallsitesMerged', () => {
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -154,8 +129,7 @@ test('twoCallsitesMerged', () => {
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -169,18 +143,16 @@ test('twoCallsitesMerged', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
       parentId: 1,
-      name: '[merged]',
+      name: 'A2',
       depth: 1,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
   ]);
 });
@@ -194,8 +166,7 @@ test('manyCallsitesMerged', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -204,8 +175,7 @@ test('manyCallsitesMerged', () => {
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -214,8 +184,7 @@ test('manyCallsitesMerged', () => {
       depth: 1,
       totalSize: 3,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
@@ -224,8 +193,7 @@ test('manyCallsitesMerged', () => {
       depth: 1,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 5,
@@ -234,8 +202,7 @@ test('manyCallsitesMerged', () => {
       depth: 1,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 6,
@@ -244,8 +211,7 @@ test('manyCallsitesMerged', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 7,
@@ -254,8 +220,7 @@ test('manyCallsitesMerged', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 8,
@@ -264,8 +229,7 @@ test('manyCallsitesMerged', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -277,8 +241,7 @@ test('manyCallsitesMerged', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -287,28 +250,25 @@ test('manyCallsitesMerged', () => {
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
       parentId: 1,
-      name: '[merged]',
+      name: 'A3',
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
     {
       id: 6,
       parentId: 3,
-      name: '[merged]',
+      name: 'A36',
       depth: 2,
       totalSize: 3,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
   ];
 
@@ -329,8 +289,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 0,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -339,8 +298,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 0,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -349,8 +307,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 1,
       totalSize: 3,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
@@ -359,8 +316,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 1,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 5,
@@ -369,8 +325,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 1,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 6,
@@ -379,8 +334,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 7,
@@ -389,8 +343,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 8,
@@ -399,8 +352,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -412,8 +364,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 0,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -422,18 +373,16 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 0,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
       parentId: 1,
-      name: '[merged]',
+      name: 'A3',
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
     {
       id: 6,
@@ -442,8 +391,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 1,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 7,
@@ -452,8 +400,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 8,
@@ -462,8 +409,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       depth: 2,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -485,8 +431,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 0,
       totalSize: 20,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -495,8 +440,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 1,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -505,8 +449,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 1,
       totalSize: 1,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
@@ -515,8 +458,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 1,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 5,
@@ -525,8 +467,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 1,
       totalSize: 3,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -538,8 +479,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 0,
       totalSize: 20,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -548,18 +488,16 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 1,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
       parentId: 1,
-      name: '[merged]',
+      name: 'A3',
       depth: 1,
       totalSize: 4,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
     {
       id: 4,
@@ -568,8 +506,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       depth: 1,
       totalSize: 8,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -591,8 +528,7 @@ test('smallCallsitesNotMerged', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -601,8 +537,7 @@ test('smallCallsitesNotMerged', () => {
       depth: 1,
       totalSize: 2,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -611,8 +546,7 @@ test('smallCallsitesNotMerged', () => {
       depth: 1,
       totalSize: 2,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -630,8 +564,7 @@ test('mergingRootCallsites', () => {
       depth: 0,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -640,8 +573,7 @@ test('mergingRootCallsites', () => {
       depth: 0,
       totalSize: 2,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -651,12 +583,11 @@ test('mergingRootCallsites', () => {
     {
       id: 1,
       parentId: -1,
-      name: '[merged]',
+      name: 'A',
       depth: 0,
       totalSize: 12,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
   ]);
 });
@@ -670,8 +601,7 @@ test('largerFlamegraph', () => {
       depth: 0,
       totalSize: 60,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -680,8 +610,7 @@ test('largerFlamegraph', () => {
       depth: 0,
       totalSize: 40,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -690,8 +619,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 25,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
@@ -700,8 +628,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 15,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 5,
@@ -710,8 +637,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 6,
@@ -720,8 +646,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 7,
@@ -730,8 +655,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 30,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 8,
@@ -740,8 +664,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 9,
@@ -750,8 +673,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 20,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 10,
@@ -760,8 +682,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 11,
@@ -770,8 +691,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 3,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 12,
@@ -780,8 +700,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 2,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 13,
@@ -790,8 +709,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 14,
@@ -800,8 +718,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 15,
@@ -810,8 +727,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 16,
@@ -820,8 +736,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 17,
@@ -830,8 +745,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 18,
@@ -840,8 +754,7 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 5,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 19,
@@ -850,8 +763,7 @@ test('largerFlamegraph', () => {
       depth: 3,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 20,
@@ -860,8 +772,7 @@ test('largerFlamegraph', () => {
       depth: 3,
       totalSize: 2,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 
@@ -873,8 +784,7 @@ test('largerFlamegraph', () => {
       depth: 0,
       totalSize: 60,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 2,
@@ -883,8 +793,7 @@ test('largerFlamegraph', () => {
       depth: 0,
       totalSize: 40,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 3,
@@ -893,18 +802,16 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 25,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 4,
       parentId: 1,
-      name: '[merged]',
+      name: 'A4',
       depth: 1,
       totalSize: 35,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
     {
       id: 7,
@@ -913,8 +820,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 30,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 8,
@@ -923,8 +829,7 @@ test('largerFlamegraph', () => {
       depth: 1,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 9,
@@ -933,28 +838,25 @@ test('largerFlamegraph', () => {
       depth: 2,
       totalSize: 20,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 10,
       parentId: 4,
-      name: '[merged]',
+      name: 'A410',
       depth: 2,
       totalSize: 25,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
     {
       id: 15,
       parentId: 7,
-      name: '[merged]',
+      name: 'A715',
       depth: 2,
       totalSize: 25,
       selfSize: 0,
-      mapping: 'x',
-      merged: true
+      mapping: 'x'
     },
     {
       id: 19,
@@ -963,8 +865,7 @@ test('largerFlamegraph', () => {
       depth: 3,
       totalSize: 10,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
     {
       id: 20,
@@ -973,8 +874,7 @@ test('largerFlamegraph', () => {
       depth: 3,
       totalSize: 2,
       selfSize: 0,
-      mapping: 'x',
-      merged: false
+      mapping: 'x'
     },
   ];
 

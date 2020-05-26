@@ -30,9 +30,9 @@
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pb.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 using testing::_;
@@ -46,9 +46,9 @@ using testing::Mock;
 using testing::NiceMock;
 using testing::Pair;
 using testing::Return;
-using testing::UnorderedElementsAre;
 
 using Table = perfetto::ProtoTranslationTable;
+using FtraceEventBundle = perfetto::protos::pbzero::FtraceEventBundle;
 
 namespace perfetto {
 
@@ -93,7 +93,7 @@ std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
 std::unique_ptr<FtraceConfigMuxer> FakeModel(FtraceProcfs* ftrace,
                                              ProtoTranslationTable* table) {
   return std::unique_ptr<FtraceConfigMuxer>(
-      new FtraceConfigMuxer(ftrace, table, {}));
+      new FtraceConfigMuxer(ftrace, table));
 }
 
 class MockFtraceProcfs : public FtraceProcfs {
@@ -473,8 +473,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
 
 TEST(FtraceMetadataTest, Clear) {
   FtraceMetadata metadata;
-  metadata.inode_and_device.insert(std::make_pair(1, 1));
-  metadata.pids.insert(2);
+  metadata.inode_and_device.push_back(std::make_pair(1, 1));
+  metadata.pids.push_back(2);
   metadata.last_seen_device_id = 100;
   metadata.Clear();
   EXPECT_THAT(metadata.inode_and_device, IsEmpty());
@@ -506,7 +506,7 @@ TEST(FtraceMetadataTest, AddInode) {
   metadata.AddInode(5);
 
   EXPECT_THAT(metadata.inode_and_device,
-              UnorderedElementsAre(Pair(2, 3), Pair(1, 3), Pair(3, 4)));
+              ElementsAre(Pair(2, 3), Pair(1, 3), Pair(3, 4)));
 }
 
 TEST(FtraceMetadataTest, AddPid) {
@@ -534,8 +534,8 @@ TEST(FtraceStatsTest, Write) {
     stats.Write(out);
   }
 
-  protos::gen::TracePacket result_packet = writer->GetOnlyTracePacket();
-  auto result = result_packet.ftrace_stats().cpu_stats()[0];
+  protos::TracePacket result_packet = writer->GetOnlyTracePacket();
+  auto result = result_packet.ftrace_stats().cpu_stats(0);
   EXPECT_EQ(result.cpu(), 0u);
   EXPECT_EQ(result.entries(), 1u);
   EXPECT_EQ(result.overrun(), 2u);

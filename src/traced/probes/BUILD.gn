@@ -22,47 +22,48 @@ executable("traced_probes") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/traced",
   ]
-  sources = [ "main.cc" ]
+  sources = [
+    "main.cc",
+  ]
   assert_no_deps = [ "//gn:protobuf_lite" ]
 }
 
 # Contains all the implementation but not the main() entry point. This target
 # is shared both by the executable and tests.
 source_set("probes") {
-  public_deps = [ "../../../include/perfetto/ext/traced" ]
+  public_deps = [
+    "../../../include/perfetto/ext/traced",
+  ]
   deps = [
     ":probes_src",
     "../../../gn:default_deps",
-    "../../tracing/ipc/producer",
+    "../../tracing:ipc",
   ]
-  if (enable_perfetto_version_gen) {
-    deps += [ "//gn/standalone:gen_git_revision" ]
-  }
-  sources = [ "probes.cc" ]
+  sources = [
+    "probes.cc",
+  ]
 }
 
 source_set("probes_src") {
-  public_deps = [ "ftrace" ]
+  public_deps = [
+    "ftrace",
+  ]
   deps = [
     ":data_source",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/traced",
     "../../../protos/perfetto/config/ftrace:cpp",
-    "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ps:zero",
     "../../base",
-    "../../tracing/core",
-    "../../tracing/ipc/producer",
+    "../../tracing:ipc",
+    "../../tracing:tracing",
     "android_log",
-    "common",
     "filesystem",
-    "initial_display_state",
     "metatrace",
     "packages_list",
     "power",
     "ps",
     "sys_stats",
-    "system_info",
   ]
   sources = [
     "probes_producer.cc",
@@ -75,7 +76,7 @@ source_set("probes_src") {
 source_set("data_source") {
   deps = [
     "../../../gn:default_deps",
-    "../../tracing/core",
+    "../../tracing",
   ]
   sources = [
     "probes_data_source.cc",
@@ -89,14 +90,11 @@ perfetto_unittest_source_set("unittests") {
     ":probes_src",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../tracing/test:test_support",
+    "../../tracing:test_support",
     "android_log:unittests",
-    "common:unittests",
     "filesystem:unittests",
-    "initial_display_state:unittests",
     "packages_list:unittests",
     "ps:unittests",
     "sys_stats:unittests",
-    "system_info:unittests",
   ]
 }

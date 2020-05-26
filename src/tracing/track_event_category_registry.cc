@@ -17,31 +17,10 @@
 #include "perfetto/tracing/track_event_category_registry.h"
 
 namespace perfetto {
-
-// static
-Category Category::FromDynamicCategory(const char* name) {
-  if (GetNthNameSize(1, name, name)) {
-    Category group(Group(name));
-    PERFETTO_DCHECK(group.name);
-    return group;
-  }
-  Category category(name);
-  PERFETTO_DCHECK(category.name);
-  return category;
-}
-
-Category Category::FromDynamicCategory(
-    const DynamicCategory& dynamic_category) {
-  return FromDynamicCategory(dynamic_category.name.c_str());
-}
-
 namespace internal {
 
-perfetto::DynamicCategory NullCategory(const perfetto::DynamicCategory&) {
-  return perfetto::DynamicCategory{};
-}
-
-const Category* TrackEventCategoryRegistry::GetCategory(size_t index) const {
+const TrackEventCategory* TrackEventCategoryRegistry::GetCategory(
+    size_t index) const {
   PERFETTO_DCHECK(index < category_count_);
   return &categories_[index];
 }

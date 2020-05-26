@@ -15,6 +15,7 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
 package perfetto.protos;
 
@@ -28,15 +29,9 @@ import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/heap_profile_callsites.proto";
-import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
-import "protos/perfetto/metrics/android/unmapped_java_symbols.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
-import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
-import "protos/perfetto/metrics/android/display_metrics.proto";
-import "protos/perfetto/metrics/android/task_names.proto";
-import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -51,13 +46,11 @@ message TraceMetadata {
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
   optional int64 statsd_triggering_subscription_id = 5;
-  optional int64 trace_size_bytes = 6;
-  repeated string trace_trigger = 7;
 }
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 25
+// Next id: 19
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -103,22 +96,8 @@ message TraceMetrics {
   // If the trace contains a heap graph, output allocation statistics.
   optional JavaHeapStats java_heap_stats = 17;
 
-  // If the trace contains a heap graph, output histogram.
-  optional JavaHeapHistogram java_heap_histogram = 21;
-
   // Metrics used to find potential culprits of low-memory kills.
   optional AndroidLmkReasonMetric android_lmk_reason = 18;
-
-  // Java type names that have no deobfuscation mappings.
-  optional UnmappedJavaSymbols unmapped_java_symbols = 19;
-
-  optional AndroidHwuiMetric android_hwui_metric = 20;
-
-  optional AndroidDisplayMetrics display_metrics = 22;
-
-  optional AndroidTaskNames android_task_names = 23;
-
-  optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
 
   // Demo extensions.
   extensions 450 to 499;

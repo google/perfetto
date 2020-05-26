@@ -19,17 +19,13 @@ SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
     OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
-  CASE name
-    WHEN 'mem.ion' THEN 'all'
-    ELSE SUBSTR(name, 9)
-  END AS heap_name,
-  track_id,
+  SUBSTR(name, 9) AS heap_name,
   value
 FROM counter JOIN counter_track
   ON counter.track_id = counter_track.id
-WHERE (name LIKE 'mem.ion.%' OR name = 'mem.ion');
+WHERE name LIKE 'mem.ion.%';
 
-CREATE VIEW IF NOT EXISTS ion_heap_stats AS
+CREATE VIEW IF NOT EXISTS ion_buffers AS
 SELECT
   heap_name,
   SUM(value * dur) / SUM(dur) AS avg_size,
@@ -38,42 +34,6 @@ SELECT
 FROM ion_timeline
 GROUP BY 1;
 
-CREATE VIEW IF NOT EXISTS ion_raw_allocs AS
-SELECT
-  CASE name
-    WHEN 'mem.ion_change' THEN 'all'
-    ELSE SUBSTR(name, 16)
-  END AS heap_name,
-  ts,
-  value AS instant_value,
-  SUM(value) OVER win AS value
-FROM counter c JOIN thread_counter_track t ON c.track_id = t.id
-WHERE (name LIKE 'mem.ion_change.%' OR name = 'mem.ion_change') AND value > 0
-WINDOW win AS (
-  PARTITION BY name ORDER BY ts
-  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-);
-
-CREATE VIEW IF NOT EXISTS ion_alloc_stats AS
-SELECT
-  heap_name,
-  SUM(instant_value) AS total_alloc_size_bytes
-FROM ion_raw_allocs
-GROUP BY 1;
-
--- We need to group by ts here as we can have two ion events from
--- different processes occurring at the same timestamp. We take the
--- max as this will take both allocations into account at that
--- timestamp.
-CREATE VIEW IF NOT EXISTS android_ion_annotations AS
-SELECT
-  'counter' AS track_type,
-  printf('ION allocations (heap: %s)', heap_name) AS track_name,
-  ts,
-  MAX(value) AS value
-FROM ion_raw_allocs
-GROUP BY 1, 2, 3;
-
 CREATE VIEW IF NOT EXISTS android_ion_output AS
 SELECT AndroidIonMetric(
   'buffer', RepeatedField(
@@ -81,8 +41,7 @@ SELECT AndroidIonMetric(
       'name', heap_name,
       'avg_size_bytes', avg_size,
       'min_size_bytes', min_size,
-      'max_size_bytes', max_size,
-      'total_alloc_size_bytes', total_alloc_size_bytes
+      'max_size_bytes', max_size
     )
   ))
-FROM ion_heap_stats JOIN ion_alloc_stats USING (heap_name);
+FROM ion_buffers;

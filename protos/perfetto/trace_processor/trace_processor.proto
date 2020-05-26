@@ -15,10 +15,9 @@
  */
 
 syntax = "proto2";
+option optimize_for = LITE_RUNTIME;
 
-package perfetto.protos;
-
-import "protos/perfetto/metrics/metrics.proto";
+package perfetto.trace_processor.protos;
 
 // This file defines the schema for {,un}marshalling arguments and return values
 // when interfacing to the trace processor binary interface.
@@ -83,15 +82,4 @@ message StatusResult {
   // when using the HTTP+RPC mode nad passing a trace file to the shell, via
   // trace_processor_shell -D trace_file.pftrace .
   optional string loaded_trace_name = 1;
-}
-
-// Input for the /compute_metric endpoint.
-message ComputeMetricArgs {
-  repeated string metric_names = 1;
-}
-
-// Output for the /compute_metric endpoint.
-message ComputeMetricResult {
-  optional perfetto.protos.TraceMetrics metrics = 1;
-  optional string error = 2;
 }

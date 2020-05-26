@@ -19,15 +19,12 @@
 
 #include <stdint.h>
 
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/trace_storage.h"
 
 namespace perfetto {
 
 namespace protos {
 namespace pbzero {
-class ChromeThreadDescriptor_Decoder;
-class ProcessDescriptor_Decoder;
 class ThreadDescriptor_Decoder;
 class TracePacket_Decoder;
 }  // namespace pbzero
@@ -43,27 +40,24 @@ class TrackEventTokenizer {
  public:
   explicit TrackEventTokenizer(TraceProcessorContext* context);
 
-  ModuleResult TokenizeTrackDescriptorPacket(
-      PacketSequenceState* state,
-      const protos::pbzero::TracePacket_Decoder&,
-      int64_t packet_timestamp);
-  ModuleResult TokenizeThreadDescriptorPacket(
+  void TokenizeTrackDescriptorPacket(
+      const protos::pbzero::TracePacket_Decoder&);
+  void TokenizeProcessDescriptorPacket(
+      const protos::pbzero::TracePacket_Decoder&);
+  void TokenizeThreadDescriptorPacket(
       PacketSequenceState* state,
       const protos::pbzero::TracePacket_Decoder&);
+  void TokenizeThreadDescriptor(
+      const protos::pbzero::ThreadDescriptor_Decoder&);
   void TokenizeTrackEventPacket(PacketSequenceState* state,
                                 const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView* packet,
                                 int64_t packet_timestamp);
 
  private:
-  void TokenizeThreadDescriptor(
-      PacketSequenceState* state,
-      const protos::pbzero::ThreadDescriptor_Decoder&);
-
   TraceProcessorContext* context_;
 
-  const StringId counter_name_thread_time_id_;
-  const StringId counter_name_thread_instruction_count_id_;
+  std::array<StringId, 9> process_name_ids_;
 };
 
 }  // namespace trace_processor

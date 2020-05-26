@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/tracing/internal/in_process_tracing_backend.h"
+#include "src/tracing/internal/in_process_tracing_backend.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
@@ -42,7 +42,6 @@ class InProcessShm : public SharedMemory {
   ~InProcessShm() override;
   void* start() const override;
   size_t size() const override;
-  int fd() const override;
 
  private:
   base::PagedMemory mem_;
@@ -67,10 +66,6 @@ size_t InProcessShm::size() const {
   return mem_.size();
 }
 
-int InProcessShm::fd() const {
-  return -1;
-}
-
 InProcessShmFactory::~InProcessShmFactory() = default;
 std::unique_ptr<SharedMemory> InProcessShmFactory::CreateSharedMemory(
     size_t size) {
@@ -80,7 +75,7 @@ std::unique_ptr<SharedMemory> InProcessShmFactory::CreateSharedMemory(
 }  // namespace
 
 // static
-TracingBackend* InProcessTracingBackend::GetInstance() {
+InProcessTracingBackend* InProcessTracingBackend::GetInstance() {
   static auto* instance = new InProcessTracingBackend();
   return instance;
 }
