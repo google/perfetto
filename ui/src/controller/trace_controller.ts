@@ -1078,22 +1078,18 @@ export class TraceController extends Controller<States> {
 
       const hasValue = result.columnDescriptors.some(x => x.name === 'value');
       if (hasValue) {
-        const minMax = await engine.query(`
-          SELECT MIN(value) as min_value, MAX(value) as max_value
-          FROM ${metric}_annotations`);
-        const min = minMax.columns[0].longValues![0] as number;
-        const max = minMax.columns[1].longValues![0] as number;
         await engine.query(`
           INSERT INTO annotation_counter_track(
             name, __metric_name, min_value, max_value, upid)
-          SELECT DISTINCT
+          SELECT
             track_name,
             '${metric}' as metric_name,
-            ${min},
-            ${max},
+            IFNULL(MIN(value), 0) as min_value,
+            IFNULL(MAX(value), 0) as max_value,
             ${upidColumn}
           FROM ${metric}_annotations
           WHERE track_type = 'counter'
+          GROUP BY track_name, upid
         `);
         await engine.query(`
           INSERT INTO annotation_counter(id, track_id, ts, value)
