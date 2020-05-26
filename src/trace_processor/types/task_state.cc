@@ -104,7 +104,9 @@ TaskState::TaskState(const char* state_str) {
 }
 
 TaskState::TaskStateStr TaskState::ToString(char separator) const {
-  PERFETTO_CHECK(is_valid());
+  if (!is_valid()) {
+    return TaskStateStr{"?"};
+  }
 
   char buffer[32];
   size_t pos = 0;
