@@ -63,17 +63,12 @@ git add sdk/perfetto.{cc,h}
 git commit -m "Amalgamated source for vX.Y"
 ```
 
-2. Check that the [SDK example
-   code](https://github.com/skyostil/perfetto-sdk-example) works with the new
-   release.
+2. Check that the SDK example code works with the new release.
 
 ```bash
-git clone https://github.com/skyostil/perfetto-sdk-example /tmp/perfetto-sdk-example
-cp -r sdk/ /tmp/perfetto-sdk-example/perfetto
-pushd /tmp/perfetto-sdk-example
+cd examples/sdk
 cmake -B build
 cmake --build build
-popd
 ```
 
 3. Upload the new release for review.
@@ -90,22 +85,9 @@ git tag -a -m "Perfetto vX.Y" vX.Y
 git push origin vX.Y
 ```
 
-5. Roll the SDK example code to the new release.
+5. Update the documentation to point to the latest release.
 
-```bash
-pushd /tmp/perfetto-sdk-example
-rm -rf perfetto/sdk
-git submodule update --init --recursive
-cd perfetto
-git checkout vX.Y
-cd ..
-git add perfetto
-git commit -m "Roll to perfetto vX.Y"
-git push
-popd
-```
-
-6. Update [the documentation](../instrumentation/tracing-sdk.md) to point to the
-   latest release.
+   - [docs/instrumentation/tracing-sdk.md](../instrumentation/tracing-sdk.md)
+   - [examples/sdk/README.md](../../examples/sdk/README.md)
 
 Phew, you're done!
