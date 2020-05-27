@@ -33,9 +33,13 @@ namespace {
 const char kCpuFrequenciesAndroidLittleCore[] =
     "300000 576000 748800 998400 1209600 1324800 1516800 1612800 1708800 \n";
 
+const char kCpuBoostFrequenciesAndroidLittleCore[] = "\n";
+
 const char kCpuFrequenciesAndroidBigCore[] =
     "300000 652800 825600 979200 1132800 1363200 1536000 1747200 1843200 "
     "1996800 \n";
+
+const char kCpuBoostFrequenciesAndroidBigCore[] = "2803200 \n";
 
 }  // namespace
 
@@ -47,11 +51,15 @@ CpuFreqInfoForTesting::CpuFreqInfoForTesting()
   AddDir("cpu0/cpufreq");
   AddFile("cpu0/cpufreq/scaling_available_frequencies",
           kCpuFrequenciesAndroidLittleCore);
+  AddFile("cpu0/cpufreq/scaling_boost_frequencies",
+          kCpuBoostFrequenciesAndroidLittleCore);
   AddDir("cpufreq");
   AddDir("cpu1");
   AddDir("cpu1/cpufreq");
   AddFile("cpu1/cpufreq/scaling_available_frequencies",
           kCpuFrequenciesAndroidBigCore);
+  AddFile("cpu1/cpufreq/scaling_boost_frequencies",
+          kCpuBoostFrequenciesAndroidBigCore);
   AddDir("power");
 }
 
