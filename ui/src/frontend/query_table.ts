@@ -160,7 +160,8 @@ export class QueryTable extends Panel<QueryTableAttrs> {
             ),
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
-            m('table.query-table', m('thead', header), m('tbody', rows)));
+            m('.query-table-container',
+              m('table.query-table', m('thead', header), m('tbody', rows))));
   }
 
   renderCanvas() {}
