@@ -48,7 +48,7 @@ TEST_F(CpuFreqInfoTest, CpuFreqInfo) {
                           1516800, 1612800, 1708800));
   EXPECT_THAT(FreqsToVector(cpu_freq_info->GetFreqs(1u)),
               ElementsAre(300000, 652800, 825600, 979200, 1132800, 1363200,
-                          1536000, 1747200, 1843200, 1996800));
+                          1536000, 1747200, 1843200, 1996800, 2803200));
   EXPECT_THAT(FreqsToVector(cpu_freq_info->GetFreqs(2u)), ElementsAre());
   EXPECT_THAT(FreqsToVector(cpu_freq_info->GetFreqs(100u)), ElementsAre());
 
@@ -56,6 +56,7 @@ TEST_F(CpuFreqInfoTest, CpuFreqInfo) {
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(0u, 748800u), 3u);
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 300000u), 10u);
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 1996800u), 19u);
+  EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 2803200), 20u);
   EXPECT_EQ(cpu_freq_info->GetCpuFreqIndex(1u, 5u), 0u);
 }
 
