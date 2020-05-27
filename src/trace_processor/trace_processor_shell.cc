@@ -690,6 +690,7 @@ struct CommandLineOptions {
   bool enable_httpd = false;
   bool wide = false;
   bool force_full_sort = false;
+  std::string metatrace_path;
 };
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -780,6 +781,8 @@ Options:
                                       specified in either proto binary, proto
                                       text format or JSON format (default: proto
                                       text).
+ -m, --metatrace FILE                 Enables metatracing of trace processor
+                                      writing the resulting trace into FILE.
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
                                       logic.)",
@@ -804,6 +807,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"perf-file", required_argument, nullptr, 'p'},
       {"query-file", required_argument, nullptr, 'q'},
       {"export", required_argument, nullptr, 'e'},
+      {"metatrace", required_argument, nullptr, 'm'},
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
@@ -813,7 +817,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   int option_index = 0;
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvWiDdp:q:e:", long_options, &option_index);
+        getopt_long(argc, argv, "hvWiDdm:p:q:e:", long_options, &option_index);
 
     if (option == -1)
       break;  // EOF.
@@ -859,6 +863,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'e') {
       command_line_options.sqlite_file_path = optarg;
+      continue;
+    }
+
+    if (option == 'm') {
+      command_line_options.metatrace_path = optarg;
       continue;
     }
 
@@ -1030,6 +1039,11 @@ util::Status TraceProcessorMain(int argc, char** argv) {
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
 
+  // Enable metatracing as soon as possible.
+  if (!options.metatrace_path.empty()) {
+    tp->EnableMetatrace();
+  }
+
   base::TimeNanos t_load{};
   if (!options.trace_file_path.empty()) {
     base::TimeNanos t_load_start = base::GetWallTimeNs();
@@ -1074,6 +1088,23 @@ util::Status TraceProcessorMain(int argc, char** argv) {
   } else if (!options.perf_file_path.empty()) {
     RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
   }
+
+  if (!options.metatrace_path.empty()) {
+    std::vector<uint8_t> serialized;
+    util::Status status = g_tp->DisableAndReadMetatrace(&serialized);
+    if (!status.ok())
+      return status;
+
+    auto file =
+        base::OpenFile(options.metatrace_path, O_CREAT | O_RDWR | O_TRUNC);
+    if (!file)
+      return util::ErrStatus("Unable to open metatrace file");
+
+    ssize_t res = base::WriteAll(*file, serialized.data(), serialized.size());
+    if (res < 0)
+      return util::ErrStatus("Error while writing metatrace file");
+  }
+
   return util::OkStatus();
 }
 

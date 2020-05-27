@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
+#include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -384,6 +386,10 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   sqlite3_value** argv,
                                   FilterHistory history) {
+  PERFETTO_TP_TRACE("DB_TABLE_XFILTER", [this](metatrace::Record* r) {
+    r->AddArg("Table", db_sqlite_table_->name());
+  });
+
   // Clear out the iterator before filtering to ensure the destructor is run
   // before the table's destructor.
   iterator_ = base::nullopt;
@@ -425,7 +431,10 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       // filters below.
       TryCacheCreateSortedTable(qc, history);
       break;
-    case TableComputation::kDynamic:
+    case TableComputation::kDynamic: {
+      PERFETTO_TP_TRACE("DYNAMIC_TABLE_GENERATE", [this](metatrace::Record* r) {
+        r->AddArg("Table", db_sqlite_table_->name());
+      });
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
       dynamic_table_ =
@@ -434,9 +443,77 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       if (!upstream_table_)
         return SQLITE_CONSTRAINT;
       break;
+    }
   }
 
-  // Attempt to filter into a RowMap first - we'll figure out whether to apply
+  PERFETTO_TP_TRACE("DB_TABLE_FILTER_AND_SORT", [this](metatrace::Record* r) {
+    const Table* source = SourceTable();
+    char buffer[2048];
+    for (const Constraint& c : constraints_) {
+      base::StringWriter writer(buffer, sizeof(buffer));
+      writer.AppendString(source->GetColumn(c.col_idx).name());
+
+      writer.AppendChar(' ');
+      switch (c.op) {
+        case FilterOp::kEq:
+          writer.AppendString("=");
+          break;
+        case FilterOp::kGe:
+          writer.AppendString(">=");
+          break;
+        case FilterOp::kGt:
+          writer.AppendString(">");
+          break;
+        case FilterOp::kLe:
+          writer.AppendString("<=");
+          break;
+        case FilterOp::kLt:
+          writer.AppendString("<");
+          break;
+        case FilterOp::kNe:
+          writer.AppendString("!=");
+          break;
+        case FilterOp::kIsNull:
+          writer.AppendString("IS");
+          break;
+        case FilterOp::kIsNotNull:
+          writer.AppendString("IS NOT");
+          break;
+      }
+      writer.AppendChar(' ');
+
+      switch (c.value.type) {
+        case SqlValue::kString:
+          writer.AppendString(c.value.AsString());
+          break;
+        case SqlValue::kBytes:
+          writer.AppendString("<bytes>");
+          break;
+        case SqlValue::kNull:
+          writer.AppendString("<null>");
+          break;
+        case SqlValue::kDouble: {
+          writer.AppendDouble(c.value.AsDouble());
+          break;
+        }
+        case SqlValue::kLong: {
+          writer.AppendInt(c.value.AsLong());
+          break;
+        }
+      }
+      r->AddArg("Constraint", writer.GetStringView());
+    }
+
+    for (const auto& o : orders_) {
+      base::StringWriter writer(buffer, sizeof(buffer));
+      writer.AppendString(source->GetColumn(o.col_idx).name());
+      if (o.desc)
+        writer.AppendString(" desc");
+      r->AddArg("Order by", writer.GetStringView());
+    }
+  });
+
+  // Attempt to filter into a RowMap first - weall figure out whether to apply
   // this to the table or we should use the RowMap directly. Also, if we are
   // going to sort on the RowMap, it makes sense that we optimize for lookup
   // speed so our sorting is not super slow.

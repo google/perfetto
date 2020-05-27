@@ -1,0 +1,13 @@
+__pycache__/
+.firebase/
+.firebaserc
+.gcloudignore
+.git
+.gitignore
+BUILD.gn
+deploy
+firebase-debug.log
+node_modules/
+package-lock.json
+package.json
+run-dev-server

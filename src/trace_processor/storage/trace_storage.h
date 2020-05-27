@@ -485,6 +485,12 @@ class TraceStorage {
   const tables::RawTable& raw_table() const { return raw_table_; }
   tables::RawTable* mutable_raw_table() { return &raw_table_; }
 
+  const tables::CpuTable& cpu_table() const { return cpu_table_; }
+  tables::CpuTable* mutable_cpu_table() { return &cpu_table_; }
+
+  const tables::CpuFreqTable& cpu_freq_table() const { return cpu_freq_table_; }
+  tables::CpuFreqTable* mutable_cpu_freq_table() { return &cpu_freq_table_; }
+
   const tables::StackProfileMappingTable& stack_profile_mapping_table() const {
     return stack_profile_mapping_table_;
   }
@@ -777,6 +783,11 @@ class TraceStorage {
   // args table. This table can be used to generate a text version of the
   // trace.
   tables::RawTable raw_table_{&string_pool_, nullptr};
+
+  tables::CpuTable cpu_table_{&string_pool_, nullptr};
+
+  tables::CpuFreqTable cpu_freq_table_{&string_pool_, nullptr};
+
   tables::AndroidLogTable android_log_table_{&string_pool_, nullptr};
 
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,

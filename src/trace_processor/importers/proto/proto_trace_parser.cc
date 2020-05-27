@@ -47,11 +47,11 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
@@ -286,7 +286,7 @@ void ProtoTraceParser::ParseProfilePacket(
     protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
 
     auto maybe_timestamp = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE,
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
         static_cast<int64_t>(entry.timestamp()));
 
     if (!maybe_timestamp) {
@@ -515,28 +515,98 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   StringId name_id = kNullStringId;
   char fallback[64];
 
-  if (event.has_event_id()) {
-    auto eid = event.event_id();
-    if (eid < metatrace::EVENTS_MAX) {
-      name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
+  // This function inserts the args from the proto into the args table.
+  // Args inserted with the same key multiple times are treated as an array:
+  // this function correctly creates the key and flat key for each arg array.
+  auto args_fn = [this, &event](ArgsTracker::BoundInserter* inserter) {
+    using Arg = std::pair<StringId, StringId>;
+
+    // First, get a list of all the args so we can group them by key.
+    std::vector<Arg> interned;
+    for (auto it = event.args(); it; ++it) {
+      protos::pbzero::PerfettoMetatrace::Arg::Decoder arg_proto(*it);
+      StringId key = context_->storage->InternString(arg_proto.key());
+      StringId value = context_->storage->InternString(arg_proto.value());
+      interned.emplace_back(key, value);
+    }
+
+    // We stable sort insted of sorting here to avoid changing the order of the
+    // args in arrays.
+    std::stable_sort(interned.begin(), interned.end(),
+                     [](const Arg& a, const Arg& b) {
+                       return a.first.raw_id() < b.second.raw_id();
+                     });
+
+    // Compute the correct key for each arg, possibly adding an index to
+    // the end of the key if needed.
+    char buffer[2048];
+    uint32_t current_idx = 0;
+    for (auto it = interned.begin(); it != interned.end(); ++it) {
+      auto next = it + 1;
+      StringId key = it->first;
+      StringId next_key = next == interned.end() ? kNullStringId : next->first;
+
+      if (key != next_key && current_idx == 0) {
+        inserter->AddArg(key, Variadic::String(it->second));
+      } else {
+        constexpr size_t kMaxIndexSize = 20;
+        base::StringView key_str = context_->storage->GetString(key);
+        if (key_str.size() >= sizeof(buffer) - kMaxIndexSize) {
+          PERFETTO_DLOG("Ignoring arg with unreasonbly large size");
+          continue;
+        }
+
+        base::StringWriter writer(buffer, sizeof(buffer));
+        writer.AppendString(key_str);
+        writer.AppendChar('[');
+        writer.AppendUnsignedInt(current_idx);
+        writer.AppendChar(']');
+
+        StringId new_key =
+            context_->storage->InternString(writer.GetStringView());
+        inserter->AddArg(key, new_key, Variadic::String(it->second));
+
+        current_idx = key == next_key ? current_idx + 1 : 0;
+      }
+    }
+  };
+
+  if (event.has_event_id() || event.has_event_name()) {
+    if (event.has_event_id()) {
+      auto eid = event.event_id();
+      if (eid < metatrace::EVENTS_MAX) {
+        name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
+      } else {
+        sprintf(fallback, "Event %d", eid);
+        name_id = context_->storage->InternString(fallback);
+      }
     } else {
-      sprintf(fallback, "Event %d", eid);
-      name_id = context_->storage->InternString(fallback);
+      name_id = context_->storage->InternString(event.event_name());
     }
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
     context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
-                                    event.event_duration_ns());
-  } else if (event.has_counter_id()) {
-    auto cid = event.counter_id();
-    if (cid < metatrace::COUNTERS_MAX) {
-      name_id = context_->storage->InternString(metatrace::kCounterNames[cid]);
+                                    event.event_duration_ns(), args_fn);
+  } else if (event.has_counter_id() || event.has_counter_name()) {
+    if (event.has_event_id()) {
+      auto cid = event.counter_id();
+      if (cid < metatrace::COUNTERS_MAX) {
+        name_id =
+            context_->storage->InternString(metatrace::kCounterNames[cid]);
+      } else {
+        sprintf(fallback, "Counter %d", cid);
+        name_id = context_->storage->InternString(fallback);
+      }
     } else {
-      sprintf(fallback, "Counter %d", cid);
-      name_id = context_->storage->InternString(fallback);
+      name_id = context_->storage->InternString(event.counter_name());
     }
     TrackId track =
         context_->track_tracker->InternThreadCounterTrack(name_id, utid);
-    context_->event_tracker->PushCounter(ts, event.counter_value(), track);
+    auto opt_id =
+        context_->event_tracker->PushCounter(ts, event.counter_value(), track);
+    if (opt_id) {
+      auto inserter = context_->args_tracker->AddArgsTo(*opt_id);
+      args_fn(&inserter);
+    }
   }
 
   if (event.has_overruns())
@@ -558,6 +628,13 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
     std::string str = uuid.ToPrettyString();
     StringId id = context_->storage->InternString(base::StringView(str));
     context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                            Variadic::String(id));
+  }
+
+  if (trace_config.has_unique_session_name()) {
+    StringId id = context_->storage->InternString(
+        base::StringView(trace_config.unique_session_name()));
+    context_->metadata_tracker->SetMetadata(metadata::unique_session_name,
                                             Variadic::String(id));
   }
 }

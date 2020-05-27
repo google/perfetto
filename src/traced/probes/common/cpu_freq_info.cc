@@ -24,6 +24,24 @@
 
 namespace perfetto {
 
+namespace {
+
+using CpuAndFreq = std::pair</* cpu */ uint32_t, /* freq */ uint32_t>;
+
+// Reads space-separated CPU frequencies from a sysfs file.
+void ReadAndAppendFreqs(std::set<CpuAndFreq>* freqs,
+                        uint32_t cpu_index,
+                        const std::string& sys_cpu_freqs) {
+  base::StringSplitter entries(sys_cpu_freqs, ' ');
+  while (entries.Next()) {
+    auto freq = base::StringToUInt32(entries.cur_token());
+    if (freq.has_value())
+      freqs->insert({cpu_index, freq.value()});
+  }
+}
+
+}  // namespace
+
 CpuFreqInfo::CpuFreqInfo(std::string cpu_dir_path) {
   base::ScopedDir cpu_dir(opendir(cpu_dir_path.c_str()));
   if (!cpu_dir) {
@@ -31,9 +49,7 @@ CpuFreqInfo::CpuFreqInfo(std::string cpu_dir_path) {
     return;
   }
   // Accumulate cpu and freqs into a set to ensure stable order.
-  std::set<std::pair</* cpu */ uint32_t, /* freq */ uint32_t>> freqs;
-  // Number of CPUs.
-  uint32_t cpus = 0;
+  std::set<CpuAndFreq> freqs;
   while (struct dirent* dir_ent = readdir(*cpu_dir)) {
     if (dir_ent->d_type != DT_DIR)
       continue;
@@ -45,17 +61,15 @@ CpuFreqInfo::CpuFreqInfo(std::string cpu_dir_path) {
     // There are some directories (cpufreq, cpuidle) which should be skipped.
     if (!maybe_cpu_index.has_value())
       continue;
-    cpus++;
     uint32_t cpu_index = maybe_cpu_index.value();
-    std::string sys_cpu_freqs =
+    ReadAndAppendFreqs(
+        &freqs, cpu_index,
         ReadFile(cpu_dir_path + "/cpu" + std::to_string(cpu_index) +
-                 "/cpufreq/scaling_available_frequencies");
-    base::StringSplitter entries(sys_cpu_freqs, ' ');
-    while (entries.Next()) {
-      auto freq = base::StringToUInt32(entries.cur_token());
-      if (freq.has_value())
-        freqs.insert({cpu_index, freq.value()});
-    }
+                 "/cpufreq/scaling_available_frequencies"));
+    ReadAndAppendFreqs(
+        &freqs, cpu_index,
+        ReadFile(cpu_dir_path + "/cpu" + std::to_string(cpu_index) +
+                 "/cpufreq/scaling_boost_frequencies"));
   }
 
   // Build index with guards.

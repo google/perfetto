@@ -1,0 +1,80 @@
+#!/bin/bash
+# Copyright (C) 2018 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e
+
+readonly CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+readonly ROOT_DIR=$(dirname $(dirname "$CUR_DIR"))
+readonly NODE_DIR="$ROOT_DIR/buildtools/nodejs/bin"
+readonly WRAPPER="$ROOT_DIR/gn/standalone/build_tool_wrapper.py"
+
+cd $CUR_DIR
+
+function echo_and_do {
+  echo $@
+  $@
+}
+
+function npm {
+  echo_and_do python "$WRAPPER" --path $NODE_DIR npm $@
+}
+
+CLEAN_OUT_DIR=true
+DEPLOY_PROD=false
+DEPLOY_STAGING=false
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+      --no-clean)
+      CLEAN_OUT_DIR=false
+      shift
+      ;;
+      --prod)
+      DEPLOY_PROD=true
+      shift
+      ;;
+      --staging)
+      DEPLOY_STAGING=true
+      shift
+      ;;
+      -h|--help)
+      echo "Usage: $0 [--no-clean] [--prod] [--staging]"
+      echo "    --no-clean  Don't remove the out directory"
+      echo "    --prod      Deploy prod version (implies --release)"
+      echo "    --staging   Deploy staging version"
+      echo "    -h|--help   Display this message"
+      exit 0
+      shift
+      ;;
+  esac
+done
+
+if [ "$CLEAN_OUT_DIR" = true ]; then
+  npm run clean
+fi
+
+npm run build
+
+if [ "$DEPLOY_PROD" = true ]; then
+  echo_and_do gcloud app deploy app.yaml --project perfetto-site \
+      -v prod --promote --stop-previous-version
+elif [ "$DEPLOY_STAGING" = true ]; then
+  echo_and_do gcloud app deploy app.yaml --project perfetto-site \
+      -v staging --no-promote --stop-previous-version
+else
+  echo_and_do gcloud app deploy app.yaml --project perfetto-site \
+      -v $USER --no-promote --stop-previous-version
+fi
