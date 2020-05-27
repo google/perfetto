@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
@@ -615,6 +616,9 @@ util::Status ComputeMetrics(TraceProcessor* tp,
     auto output_query =
         "SELECT * FROM " + sql_metric.output_table_name.value() + ";";
     PERFETTO_DLOG("Executing output query: %s", output_query.c_str());
+    PERFETTO_TP_TRACE("COMPUTE_METRIC_QUERY", [&](metatrace::Record* r) {
+      r->AddArg("SQL", output_query);
+    });
 
     auto it = tp->ExecuteQuery(output_query.c_str());
     auto has_next = it.Next();
