@@ -74,7 +74,17 @@ cmake --build build
 3. Upload the new release for review.
 
 ```bash
-git cl upload
+git cl upload --no-squash
+```
+
+If you get an error about a missing Change-Id field (`remote: ERROR: commit
+a7c7c4c: missing Change-Id in message footer`), install the commit-msg hook
+script and amend the change to make sure that field is present:
+
+```bash
+curl -Lo .git/hooks/commit-msg http://android-review.googlesource.com/tools/hooks/commit-msg
+chmod u+x .git/hooks/commit-msg
+git commit --amend
 ```
 
 4. Once the release has been reviewed and landed, create and push the tag for
