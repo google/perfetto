@@ -42,6 +42,17 @@ if (enable_perfetto_ui) {
   }
 }
 
+source_set("metatrace") {
+  sources = [
+    "tp_metatrace.cc",
+    "tp_metatrace.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("track_event_descriptor") {
   sources = [ "importers/proto/track_event.descriptor.h" ]
 }
@@ -283,6 +294,7 @@ if (enable_perfetto_trace_processor_sqlite) {
 
     deps = [
       ":export_json",
+      ":metatrace",
       ":storage_full",
       "../../gn:default_deps",
       "../../gn:sqlite",

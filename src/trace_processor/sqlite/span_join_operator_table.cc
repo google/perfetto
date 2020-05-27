@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -332,6 +333,8 @@ SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
 int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                           sqlite3_value** argv,
                                           FilterHistory) {
+  PERFETTO_TP_TRACE("SPAN_JOIN_XFILTER");
+
   util::Status status = t1_.Initialize(qc, argv);
   if (!status.ok())
     return SQLITE_ERROR;
