@@ -114,6 +114,16 @@ export class WasmEngineProxy extends Engine {
         'trace_processor_compute_metric', rawComputeMetric);
   }
 
+  async enableMetatrace(): Promise<void> {
+    await this.queueRequest(
+        'trace_processor_enable_metatrace', new Uint8Array());
+  }
+
+  disableAndReadMetatrace(): Promise<Uint8Array> {
+    return this.queueRequest(
+        'trace_processor_disable_and_read_metatrace', new Uint8Array());
+  }
+
   // Enqueues a request to the worker queue via postMessage(). The returned
   // promised will be resolved once the worker replies to the postMessage()
   // with the paylad of the response, a proto-encoded object which wraps the
