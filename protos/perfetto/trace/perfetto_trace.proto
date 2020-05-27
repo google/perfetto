@@ -5836,6 +5836,14 @@ message PerfettoMetatrace {
   oneof record_type {
     uint32 event_id = 1;
     uint32 counter_id = 2;
+
+    // For trace processor metatracing.
+    string event_name = 8;
+    string counter_name = 9;
+  }
+  message Arg {
+    optional string key = 1;
+    optional string value = 2;
   }
 
   // Only when using |event_id|.
@@ -5850,6 +5858,9 @@ message PerfettoMetatrace {
   // If true the meta-tracing ring buffer had overruns and hence some data is
   // missing from this point.
   optional bool has_overruns = 6;
+
+  // Args for the event.
+  repeated Arg args = 7;
 }
 
 // End of protos/perfetto/trace/perfetto/perfetto_metatrace.proto

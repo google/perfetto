@@ -937,6 +937,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor:metatrace
+filegroup(
+    name = "src_trace_processor_metatrace",
+    srcs = [
+        "src/trace_processor/tp_metatrace.cc",
+        "src/trace_processor/tp_metatrace.h",
+    ],
+)
+
 # GN target: //src/trace_processor:storage_full
 filegroup(
     name = "src_trace_processor_storage_full",
@@ -2865,6 +2874,7 @@ perfetto_cc_library(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_common",
         ":src_trace_processor_lib",
+        ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
@@ -2955,6 +2965,7 @@ perfetto_cc_binary(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_common",
         ":src_trace_processor_lib",
+        ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
@@ -3123,6 +3134,7 @@ perfetto_cc_binary(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_common",
         ":src_trace_processor_lib",
+        ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_lib",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
