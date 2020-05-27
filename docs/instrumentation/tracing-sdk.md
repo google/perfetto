@@ -25,7 +25,7 @@ for details.
 ## Getting started
 
 TIP: The code from these examples is also available [in the
-repository](../../examples/sdk/README.md).
+repository](/examples/sdk/README.md).
 
 To start using the Client API, first check out the latest SDK release:
 
