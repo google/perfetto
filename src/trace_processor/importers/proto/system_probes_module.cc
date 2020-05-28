@@ -45,6 +45,9 @@ ModuleResult SystemProbesModule::TokenizePacket(
     case TracePacket::kSystemInfoFieldNumber:
       parser_.ParseSystemInfo(decoder.system_info());
       return ModuleResult::Handled();
+    case TracePacket::kCpuInfoFieldNumber:
+      parser_.ParseCpuInfo(decoder.cpu_info());
+      return ModuleResult::Handled();
   }
   return ModuleResult::Ignored();
 }
@@ -61,9 +64,6 @@ void SystemProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
       return;
     case TracePacket::kSysStatsFieldNumber:
       parser_.ParseSysStats(ttp.timestamp, decoder.sys_stats());
-      return;
-    case TracePacket::kCpuInfoFieldNumber:
-      parser_.ParseCpuInfo(decoder.cpu_info());
       return;
   }
 }
