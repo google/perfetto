@@ -426,9 +426,11 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
           context_->storage->heap_graph_reference_table().row_count() - 1;
       field_to_rows_[field_name].emplace_back(row);
     }
-    context_->storage->mutable_heap_graph_object_table()
-        ->mutable_reference_set_id()
-        ->Set(owner_row, reference_set_id);
+    if (!seen_owned.empty()) {
+      context_->storage->mutable_heap_graph_object_table()
+          ->mutable_reference_set_id()
+          ->Set(owner_row, reference_set_id);
+    }
   }
 
   for (const SourceRoot& root : sequence_state.current_roots) {
