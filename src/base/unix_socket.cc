@@ -97,13 +97,18 @@ inline int GetSockFamily(SockFamily family) {
 }
 
 inline int GetSockType(SockType type) {
+#ifdef SOCK_CLOEXEC
+  constexpr int kSockCloExec = SOCK_CLOEXEC;
+#else
+  constexpr int kSockCloExec = 0;
+#endif
   switch (type) {
     case SockType::kStream:
-      return SOCK_STREAM;
+      return SOCK_STREAM | kSockCloExec;
     case SockType::kDgram:
-      return SOCK_DGRAM;
+      return SOCK_DGRAM | kSockCloExec;
     case SockType::kSeqPacket:
-      return SOCK_SEQPACKET;
+      return SOCK_SEQPACKET | kSockCloExec;
   }
   PERFETTO_CHECK(false);  // For GCC.
 }

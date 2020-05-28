@@ -37,6 +37,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
@@ -247,8 +248,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
 
     if ((decoder.has_chrome_events() || decoder.has_chrome_metadata()) &&
         (!timestamp_clock_id ||
-         timestamp_clock_id ==
-             protos::pbzero::ClockSnapshot::Clock::MONOTONIC)) {
+         timestamp_clock_id == protos::pbzero::BUILTIN_CLOCK_MONOTONIC)) {
       // Chrome event timestamps are in MONOTONIC domain, but may occur in
       // traces where (a) no clock snapshots exist or (b) no clock_id is
       // specified for their timestamps. Adjust to trace time if we have a clock
@@ -256,7 +256,7 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
       // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in
       // chrome and then remove this.
       auto trace_ts = context_->clock_tracker->ToTraceTime(
-          protos::pbzero::ClockSnapshot::Clock::MONOTONIC, timestamp);
+          protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
       if (trace_ts.has_value())
         timestamp = trace_ts.value();
     } else if (timestamp_clock_id) {
@@ -449,6 +449,10 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
                                                      uint32_t seq_id) {
   std::vector<ClockTracker::ClockValue> clocks;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
+  if (evt.primary_trace_clock()) {
+    context_->clock_tracker->SetTraceTimeClock(
+        static_cast<ClockTracker::ClockId>(evt.primary_trace_clock()));
+  }
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
     ClockTracker::ClockId clock_id = clk.clock_id();

@@ -24,6 +24,8 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
+// @tablegroup Events
+// @param arg_set_id {@joinable args.arg_set_id}
 #define PERFETTO_TP_COUNTER_TABLE_DEF(NAME, PARENT, C) \
   NAME(CounterTable, "counter")                        \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \

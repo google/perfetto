@@ -30,6 +30,7 @@ import {
 } from '../common/logs';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 
+import {AnalyzePage} from './analyze_page';
 import {maybeShowErrorDialog} from './error_dialog';
 import {
   CounterDetails,
@@ -247,6 +248,7 @@ function main() {
         '/': HomePage,
         '/viewer': ViewerPage,
         '/record': RecordPage,
+        '/analyze': AnalyzePage,
       },
       dispatch);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));

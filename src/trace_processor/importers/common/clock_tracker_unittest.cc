@@ -23,6 +23,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
 namespace perfetto {
@@ -32,11 +33,12 @@ namespace {
 using ::testing::NiceMock;
 using Clock = protos::pbzero::ClockSnapshot::Clock;
 
-constexpr auto REALTIME = Clock::REALTIME;
-constexpr auto BOOTTIME = Clock::BOOTTIME;
-constexpr auto MONOTONIC = Clock::MONOTONIC;
-constexpr auto MONOTONIC_COARSE = Clock::MONOTONIC_COARSE;
-constexpr auto MONOTONIC_RAW = Clock::MONOTONIC_RAW;
+constexpr auto REALTIME = protos::pbzero::BUILTIN_CLOCK_REALTIME;
+constexpr auto BOOTTIME = protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+constexpr auto MONOTONIC = protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
+constexpr auto MONOTONIC_COARSE =
+    protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE;
+constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
 
 class ClockTrackerTest : public ::testing::Test {
  public:
@@ -47,7 +49,7 @@ class ClockTrackerTest : public ::testing::Test {
 };
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {
-  EXPECT_EQ(ct_.ToTraceTime(Clock::REALTIME, 0), base::nullopt);
+  EXPECT_EQ(ct_.ToTraceTime(REALTIME, 0), base::nullopt);
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});

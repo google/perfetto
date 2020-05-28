@@ -400,14 +400,33 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
 
   protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
   uint32_t cpu_index = 0;
+  uint32_t time_in_state_cpu_index = 0;
+  std::vector<uint32_t> last_cpu_freqs;
   for (auto it = packet.cpus(); it; it++) {
     protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
+    tables::CpuTable::Row cpu_row;
+    if (cpu.has_processor())
+      cpu_row.processor = context_->storage->InternString(cpu.processor());
+    std::vector<uint32_t> freqs;
+    for (auto freq_it = cpu.frequencies(); freq_it; freq_it++)
+      freqs.push_back(*freq_it);
+    if (freqs != last_cpu_freqs)
+      time_in_state_cpu_index = cpu_index;
+    cpu_row.time_in_state_cpu_id = time_in_state_cpu_index;
+    last_cpu_freqs = freqs;
+    tables::CpuTable::Id cpu_row_id =
+        context_->storage->mutable_cpu_table()->Insert(cpu_row).id;
     std::string cpu_string = "time_in_state.cpu" + std::to_string(cpu_index);
     base::StringView cpu_string_view(cpu_string);
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
+      uint32_t freq = *freq_it;
+      tables::CpuFreqTable::Row cpu_freq_row;
+      cpu_freq_row.cpu_id = cpu_row_id;
+      cpu_freq_row.freq = freq;
+      context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
       thread_time_in_state_cpu_str_ids_.push_back(
           context_->storage->InternString(cpu_string_view));
-      std::string freq_string = std::to_string(*freq_it);
+      std::string freq_string = std::to_string(freq);
       base::StringView freq_string_view(freq_string);
       thread_time_in_state_cpu_freq_ids_.push_back(
           context_->storage->InternString(freq_string_view));
