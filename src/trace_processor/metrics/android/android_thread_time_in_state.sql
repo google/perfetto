@@ -43,7 +43,7 @@ FROM (
     -- the rest of the UI does.
     IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
         AS thread_name,
-    args.key AS freq,
+    CAST(args.key AS int) AS freq,
     args.int_value as runtime_ms_counter
   FROM slice
     JOIN thread_track ON slice.track_id = thread_track.id
@@ -138,20 +138,47 @@ SELECT
   freq,
   runtime_ms_counter - LAG(runtime_ms_counter)
       OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
-FROM android_thread_time_in_state_base;
+FROM android_thread_time_in_state_base
+WHERE thread_name IS NOT NULL;
 
-CREATE VIEW android_thread_time_in_state_annotations AS
+CREATE VIEW android_thread_time_in_state_annotations_global_raw AS
+SELECT
+  ts,
+  core_type,
+  SUM(runtime_ms * freq) AS ms_freq
+FROM android_thread_time_in_state_annotations_raw
+WHERE thread_name IS NOT NULL
+  AND runtime_ms IS NOT NULL
+GROUP BY ts, core_type;
+
+CREATE VIEW android_thread_time_in_state_annotations_thread AS
 SELECT
   'counter' AS track_type,
   thread_name || ' (' || core_type || ' core)' as track_name,
   ts,
   dur,
   upid,
-  sum(runtime_ms * freq / 1000) AS value -- i.e. cycles
+  sum(runtime_ms * freq) as ms_freq
 FROM android_thread_time_in_state_annotations_raw
-WHERE thread_name IS NOT NULL
-  AND runtime_ms IS NOT NULL
+WHERE runtime_ms IS NOT NULL
   AND dur != 0
-GROUP BY track_type, track_name, ts, dur, upid
+GROUP BY track_type, track_name, ts, dur, upid;
+
+CREATE VIEW android_thread_time_in_state_annotations_global AS
+SELECT
+  'counter' AS track_type,
+  'Total ' || core_type || ' core cycles / sec' as track_name,
+  ts,
+  ts - LAG(ts) OVER (PARTITION BY core_type ORDER BY ts) AS dur,
+  0 AS upid,
+  ms_freq
+FROM android_thread_time_in_state_annotations_global_raw;
+
+CREATE VIEW android_thread_time_in_state_annotations AS
+SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
+FROM android_thread_time_in_state_annotations_thread
+UNION
+SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
+FROM android_thread_time_in_state_annotations_global
 -- Biggest values at top of list in UI.
 ORDER BY value DESC;
