@@ -21,7 +21,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "protos/perfetto/metrics/metrics.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -249,12 +248,36 @@ std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
   util::Status status =
       trace_processor_->ComputeMetric(metric_names, &metrics_proto);
   if (status.ok()) {
-    auto* metrics = result->set_metrics();
-    metrics->AppendRawProtoBytes(metrics_proto.data(), metrics_proto.size());
+    result->AppendBytes(
+        protos::pbzero::ComputeMetricResult::kMetricsFieldNumber,
+        metrics_proto.data(), metrics_proto.size());
   } else {
     result->set_error(status.message());
   }
   return result.SerializeAsArray();
+}
+
+void Rpc::EnableMetatrace() {
+  if (!trace_processor_)
+    return;
+  trace_processor_->EnableMetatrace();
+}
+
+std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
+  protozero::HeapBuffered<protos::pbzero::DisableAndReadMetatraceResult> result;
+  if (!trace_processor_) {
+    result->set_error("Null trace processor instance");
+    return result.SerializeAsArray();
+  }
+
+  std::vector<uint8_t> trace_proto;
+  util::Status status = trace_processor_->DisableAndReadMetatrace(&trace_proto);
+  if (status.ok()) {
+    result->set_metatrace(trace_proto.data(), trace_proto.size());
+  } else {
+    result->set_error(status.message());
+  }
+  return trace_proto;
 }
 
 }  // namespace trace_processor
