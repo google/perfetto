@@ -448,7 +448,6 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
   }
 
-  auto paths = sequence_state.walker.FindPathsFromRoot();
   walkers_.emplace(
       std::make_pair(sequence_state.current_upid, sequence_state.current_ts),
       std::move(sequence_state.walker));
