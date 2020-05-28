@@ -97,6 +97,19 @@ void trace_processor_compute_metric(uint32_t size) {
           static_cast<uint32_t>(res.size()));
 }
 
+void EMSCRIPTEN_KEEPALIVE trace_processor_enable_metatrace(uint32_t);
+void trace_processor_enable_metatrace(uint32_t) {
+  g_trace_processor_rpc->EnableMetatrace();
+  g_reply("", 0);
+}
+
+void EMSCRIPTEN_KEEPALIVE trace_processor_disable_and_read_metatrace(uint32_t);
+void trace_processor_disable_and_read_metatrace(uint32_t) {
+  std::vector<uint8_t> res = g_trace_processor_rpc->DisableAndReadMetatrace();
+  g_reply(reinterpret_cast<const char*>(res.data()),
+          static_cast<uint32_t>(res.size()));
+}
+
 }  // extern "C"
 
 }  // namespace trace_processor
