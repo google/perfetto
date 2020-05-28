@@ -1,0 +1,124 @@
+packet {
+  process_tree {
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "proc1"
+      uid: 1000
+    }
+    processes {
+      pid: 3
+      ppid: 1
+      cmdline: "proc2"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 200000000
+  heap_graph {
+    pid: 2
+    roots {
+      root_type: ROOT_JAVA_FRAME
+      object_ids: 0x01
+    }
+    objects {
+      id: 0x01
+      type_id: 1
+      self_size: 64
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 200000000
+  heap_graph {
+    pid: 2
+    location_names {
+      iid: 1
+      str: "/data/app/ASDFG/invalid.test.android-SDASD/test.apk"
+    }
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
+      location_id: 1
+    }
+    continued: false
+    index: 1
+  }
+}
+packet {
+  timestamp: 299999998
+  process_stats {
+    processes {
+      pid: 2
+      rss_anon_kb: 2
+    }
+  }
+}
+packet {
+  timestamp: 299999999
+  process_stats {
+    processes {
+      pid: 2
+      rss_anon_kb: 3
+    }
+  }
+}
+packet {
+  timestamp: 1000000000
+  process_stats {
+    processes {
+      pid: 3
+      rss_anon_kb: 3
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 1500000000
+  heap_graph {
+    pid: 3
+    roots {
+      root_type: ROOT_JAVA_FRAME
+      object_ids: 0x02
+    }
+    objects {
+      id: 0x02
+      type_id: 2
+      self_size: 64
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 1500000000
+  heap_graph {
+    pid: 3
+    location_names {
+      iid: 2
+      str: "/data/app/ASDFG/invalid.test.android-SDASD/test.apk"
+    }
+    types {
+      id: 2
+      class_name: "FactoryProducerDelegateImplActor"
+      location_id: 2
+    }
+    continued: false
+    index: 1
+  }
+}
+packet {
+  timestamp: 2000000000
+  process_stats {
+    processes {
+      pid: 4
+      rss_anon_kb: 1
+    }
+  }
+}

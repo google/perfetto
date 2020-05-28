@@ -98,6 +98,20 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeTable(
   return AddLayoutColumn(*slice_table_, selected_tracks, filter_id);
 }
 
+// Union-Find style logic to find the stack_id of the BaseParent (depth 0) slice
+// that the current slice belongs to
+int64_t ExperimentalSliceLayoutGenerator::GetBaseParentStackId(
+    std::map<int64_t, int64_t>& stack_id_map,
+    int64_t stack_id,
+    int64_t parent_stack_id) {
+  if (parent_stack_id == 0 || stack_id == parent_stack_id) {
+    return stack_id;
+  }
+  stack_id_map[stack_id] = stack_id_map[parent_stack_id];
+  return GetBaseParentStackId(stack_id_map, parent_stack_id,
+                              stack_id_map[parent_stack_id]);
+}
+
 // The problem we're trying to solve is this: given a number of tracks each of
 // which contain a number of 'stalactites' - depth 0 slices and all their
 // children - layout the stalactites to minimize vertical depth without
@@ -134,11 +148,16 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     StringPool::Id filter_id) {
   const auto& track_id_col =
       *table.GetTypedColumnByName<tables::TrackTable::Id>("track_id");
+  const auto& stack_id_col = *table.GetTypedColumnByName<int64_t>("stack_id");
+  const auto& parent_stack_id_col =
+      *table.GetTypedColumnByName<int64_t>("parent_stack_id");
   const auto& depth_col = *table.GetTypedColumnByName<uint32_t>("depth");
   const auto& ts_col = *table.GetTypedColumnByName<int64_t>("ts");
   const auto& dur_col = *table.GetTypedColumnByName<int64_t>("dur");
 
-  std::map<TrackId, GroupInfo> groups;
+  std::map<int64_t, GroupInfo> groups;
+  // Map of stack_id -> parent_stack_id
+  std::map<int64_t, int64_t> stack_id_map;
 
   // Step 1:
   // Find the bounding box (start ts, end ts, and max depth) for each group
@@ -149,15 +168,18 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
       continue;
     }
 
+    int64_t stack_id = stack_id_col[i];
+    int64_t parent_stack_id = parent_stack_id_col[i];
     uint32_t depth = depth_col[i];
     int64_t start = ts_col[i];
     int64_t dur = dur_col[i];
     int64_t end = start + dur;
-
-    std::map<TrackId, GroupInfo>::iterator it;
+    stack_id_map[stack_id] =
+        GetBaseParentStackId(stack_id_map, stack_id, parent_stack_id);
+    std::map<int64_t, GroupInfo>::iterator it;
     bool inserted;
     std::tie(it, inserted) = groups.emplace(
-        std::piecewise_construct, std::forward_as_tuple(track_id),
+        std::piecewise_construct, std::forward_as_tuple(stack_id_map[stack_id]),
         std::forward_as_tuple(start, end, depth + 1));
     if (!inserted) {
       it->second.max_height = std::max(it->second.max_height, depth + 1);
@@ -165,14 +187,26 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     }
   }
 
+  // Sort the groups by ts
+  std::vector<GroupInfo*> sorted_groups;
+  sorted_groups.resize(groups.size());
+  size_t idx = 0;
+  for (auto& group : groups) {
+    sorted_groups[idx++] = &group.second;
+  }
+  std::sort(std::begin(sorted_groups), std::end(sorted_groups),
+            [](const GroupInfo* group1, const GroupInfo* group2) {
+              return group1->start < group2->start;
+            });
+
   // Step 2:
   // Go though each group and choose a depth for the root slice.
   // We keep track of those groups where the start time has passed but the
   // end time has not in this vector:
   std::vector<GroupInfo*> still_open;
-  for (auto& id_group : groups) {
-    int64_t start = id_group.second.start;
-    uint32_t max_height = id_group.second.max_height;
+  for (GroupInfo* group : sorted_groups) {
+    int64_t start = group->start;
+    uint32_t max_height = group->max_height;
 
     // Discard all 'closed' groups where that groups end_ts is < our start_ts:
     {
@@ -211,10 +245,10 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     }
 
     // Add this group to the open groups & re
-    still_open.push_back(&id_group.second);
+    still_open.push_back(group);
 
     // Set our root layout depth:
-    id_group.second.layout_depth = layout_depth;
+    group->layout_depth = layout_depth;
   }
 
   // Step 3: Add the two new columns layout_depth and filter_track_ids:
@@ -225,6 +259,7 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
 
   for (uint32_t i = 0; i < table.row_count(); ++i) {
     TrackId track_id = track_id_col[i];
+    int64_t stack_id = stack_id_col[i];
     uint32_t depth = depth_col[i];
     if (selected.count(track_id) == 0) {
       // Don't care about depth for slices from non-selected tracks:
@@ -235,7 +270,8 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     } else {
       // Each slice depth is it's current slice depth + root slice depth of the
       // group:
-      layout_depth_column->Append(depth + groups.at(track_id).layout_depth);
+      layout_depth_column->Append(
+          depth + groups.at(stack_id_map[stack_id]).layout_depth);
       // We must set this to the value we got in the constraint to ensure our
       // rows are not filtered out:
       filter_column->Append(filter_id);

@@ -1,0 +1,17 @@
+<%- include('template_header.html'); -%>
+<div class="docs">
+  <nav class="nav">
+    <%- nav %>
+  </nav>
+
+  <main class="doc" data-md-file="<%= fileName %>">
+    <%- markdown %>
+  </main>
+
+  <section class="toc"></section>
+
+  <%- include('template_footer.html'); -%>
+</div>
+
+</body>
+</html>

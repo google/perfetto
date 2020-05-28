@@ -31,6 +31,29 @@ base_stats AS (
   FROM heap_graph_object
   GROUP BY 1, 2
 ),
+-- Find closest value
+closest_anon_swap AS (
+  SELECT
+    upid,
+    graph_sample_ts,
+    (
+      SELECT anon_swap_val
+      FROM (
+        SELECT
+          ts, dur,
+          CAST(anon_and_swap_val AS INTEGER) anon_swap_val,
+          ABS(ts - base_stats.graph_sample_ts) diff
+        FROM anon_and_swap_span
+        WHERE upid = base_stats.upid)
+      WHERE
+        (graph_sample_ts >= ts AND graph_sample_ts < ts + dur)
+         -- If the first memory sample for the UPID comes *after* the heap profile
+         -- accept it if close (500ms)
+        OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
+      ORDER BY diff LIMIT 1
+    ) val
+  FROM base_stats
+),
 -- Group by upid
 heap_graph_sample_protos AS (
   SELECT
@@ -41,13 +64,10 @@ heap_graph_sample_protos AS (
       'obj_count', total_obj_count,
       'reachable_heap_size', reachable_size,
       'reachable_obj_count', reachable_obj_count,
-      'anon_rss_and_swap_size', CAST(anon_and_swap_val AS INTEGER)
+      'anon_rss_and_swap_size', closest_anon_swap.val
     )) sample_protos
   FROM base_stats
-  LEFT JOIN anon_and_swap_span ON
-    base_stats.upid = anon_and_swap_span.upid
-    AND anon_and_swap_span.ts <= base_stats.graph_sample_ts
-    AND base_stats.graph_sample_ts < anon_and_swap_span.ts + anon_and_swap_span.dur
+  LEFT JOIN closest_anon_swap USING (upid, graph_sample_ts)
   GROUP BY 1
 )
 SELECT JavaHeapStats(

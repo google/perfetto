@@ -113,9 +113,6 @@ export class SearchController extends Controller<'main'> {
         });
 
     Promise.all([computeSummary, computeResults])
-        .catch(e => {
-          console.error(e);
-        })
         .finally(() => {
           this.updateInProgress = false;
           this.run();

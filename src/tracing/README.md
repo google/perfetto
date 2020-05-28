@@ -52,5 +52,5 @@ ring-buffering, partitioning and multiplexing but knows nothing about
 platform-specific things like implementation of shared memory and RPC mechanism.
 
 `{include,src}/unix_rpc/`
-A concrete implementation of the transport layer based on unix domain sockets
+A concrete implementation of the transport layer based on UNIX domain sockets
 and posix shared memory.

@@ -22,6 +22,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+// @param arg_set_id {@joinable args.arg_set_id}
 #define PERFETTO_TP_TEST_EVENT_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestEventTable, "event")                           \
   PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \

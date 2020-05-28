@@ -231,6 +231,11 @@ button.close {
     color: #333;
 }
 
+.query-table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .query-table {
     width: 100%;
     border-collapse: collapse;
@@ -273,25 +278,6 @@ button.close {
     color: hsl(-10, 50%, 50%);
     font-family: 'Roboto Condensed', sans-serif;
     font-weight: 300;
-}
-
-.page header {
-    background-color: hsl(213, 22%, 82%);
-    color: hsl(213, 22%, 20%);
-    font-family: 'Roboto Condensed', sans-serif;
-    font-size: 15px;
-    font-weight: 400;
-    padding: 4px 10px;
-    vertical-align: middle;
-    border-color: hsl(213, 22%, 75%);
-    border-style: solid;
-    border-width: 1px 0;
-    .code {
-        font-family: var(--monospace-font);
-        font-size: 12px;
-        margin-left: 10px;
-        color: hsl(213, 22%, 40%);
-    }
 }
 
 .track {
@@ -454,7 +440,22 @@ canvas.main-canvas {
 header.overview {
   display: flex;
   align-content: center;
-
+  background-color: hsl(213, 22%, 82%);
+  color: hsl(213, 22%, 20%);
+  font-family: 'Roboto Condensed', sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  padding: 4px 10px;
+  vertical-align: middle;
+  border-color: hsl(213, 22%, 75%);
+  border-style: solid;
+  border-width: 1px 0;
+  .code {
+      font-family: var(--monospace-font);
+      font-size: 12px;
+      margin-left: 10px;
+      color: hsl(213, 22%, 40%);
+  }
   span.code {
     user-select: text;
     flex-grow: 1;
