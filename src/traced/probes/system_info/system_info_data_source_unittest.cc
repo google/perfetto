@@ -153,7 +153,7 @@ TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   ASSERT_EQ(cpu.processor(), "AArch64 Processor rev 13 (aarch64)");
   ASSERT_THAT(cpu.frequencies(),
               ElementsAre(300000, 652800, 825600, 979200, 1132800, 1363200,
-                          1536000, 1747200, 1843200, 1996800));
+                          1536000, 1747200, 1843200, 1996800, 2803200));
 }
 
 }  // namespace

@@ -1,104 +1,167 @@
-# Perfetto - Performance instrumentation and tracing
+# Perfetto - System profiling, app tracing and trace analysis
 
-Perfetto is an open-source project for performance instrumentation and tracing
-of Linux/Android/Chrome platforms and user-space apps.  
-It consists of:
+Perfetto is a production-grade open-source stack for performance
+instrumentation and trace analysis. It offers services and libraries and for
+recording system-level and app-level traces, native + java heap profiling, a
+library for analyzing traces using SQL and a web-based UI to visualize and
+explore multi-GB traces.
 
-**A portable, high efficiency, user-space tracing library**  
-designed for tracing of multi-process systems, based on zero-alloc zero-copy
-zero-syscall (on fast-paths) writing of protobufs over shared memory.
+![Perfetto stack](/docs/images/perfetto-stack.svg)
 
-**OS-wide Linux/Android probes for platform debugging**
-* Kernel tracing: a daemon that converts Kernel [Ftrace][ftrace] events into
-  API-stable protobufs, on device, with low overhead.
-* [Heap profiling](heapprofd): low-overhead, out of process unwinding,
-  variable sample rate, attachable to already running processes.
-* Power rails sampling
-* System stat counters
-* Chrome userspace tracing
-* I/O tracing
-* Many new probes coming soon: heap profiling, perf sampling, syscall tracing.
+## Recording traces
 
-**Processing of traces**  
-[A C++ library for efficient processing and extraction of trace-based
-metrics.](trace-processor). The library accepts both protobuf and json-based
-traces as input and exposes an SQL query interface to the data.
-The library is built to be linked by other programs but can also be used
-standalone as a command line tool.
+At its core, Perfetto introduces a novel userspace-to-userspace
+[tracing protocol](/docs/design-docs/api-and-abi.md#tracing-protocol-abi) based
+on direct protobuf serization onto a shared memory buffer. The tracing protocol
+is used both internally for the built-in data sources and exposed to C++ apps
+through the [Tracing SDK](/docs/instrumentation/tracing-sdk.md) and the
+[Track Event Library](/docs/instrumentation/track-events.md).
 
+This new tracing protocol allows dynamic configuration of all aspects of tracing
+through an extensible protobuf-based capability advertisement and data source
+configuration mechanism (see
+[Trace configuration docs](/docs/concepts/config.md)).
+Different data sources can be multiplexed onto different sub-sets of
+user-defined buffers, allowing also streaming of
+[arbitrarily long traces](/docs/concepts/config.md#long-traces) into the
+filesystem.
 
-**Web-based frontend**  
-An open-source UI for inspection and analysis of traces.
-Available at [ui.perfetto.dev](https://ui.perfetto.dev).
-The UI is built on top of C++ trace processor library which is cross-compiled
-to WASM to run locally in the browser.
+### System-wide tracing on Android and Linux
 
+On Linux and Anroid, Perfetto bundles a number of data sources that are able to
+gather detailed performance data from different system interfaces. For the full
+sets and details see the _Data Sources_ section of the documentation. Same
+examples:
 
-![Perfetto Stack](https://storage.googleapis.com/perfetto/markdown_img/perfetto-stack.png)
+* [Kernel tracing](/docs/data-sources/cpu-scheduling.md): Perfetto integrates
+  with [Linux's ftrace][ftrace] and allows to record kernel events (e.g
+  scheduling events, syscalls) into the trace.
 
-Goals
------
-Perfetto is building the next-gen unified tracing ecosystem for:
-- Android platform tracing ([Systrace][systrace])
-- Chrome platform tracing ([chrome://tracing][chrome-tracing])
-- App-defined user-space tracing (including support for non-Android apps).
+* [/proc and /sys pollers](/docs/data-sources/memory-counters.md), which allow
+  to sample the state of process-wide or system-wide cpu and memory counters
+  over time.
 
-The goal is to create an open, portable and developer friendly tracing ecosystem
-for app and platform performance debugging.
+* Integration with Android HALs modules for recording [battery and energy-usage
+  counters](/docs/data-sources/battery-counters.md).
 
-Key features
-------------
-**Designed for production**  
-Perfetto's tracing library and daemons are designed for use in production.
-Privilege isolation is a key design goal:
-* The interface for writing trace events are decoupled from the interface for
-  read-back and control and can be subjected to different ACLs.
-* Despite being based on shared memory, Perfetto is designed to prevent
-  cross-talk between data sources, even in case of arbitrary code execution
-  (memory is shared point-to-point, memory is never shared between processes).
-* Perfetto daemons are designed following to the principle of least privilege,
-  in order to allow strong sandboxing (via SELinux on Android).
+* [Native heap profiling](/docs/data-sources/native-heap-profiler.md): a
+  low-overhead heap profiler for hooking malloc/free/new/delete and associating
+  memory to callstacks, based on out-of-process unwinding, configurable
+  sampling, attachable to already running processes.
 
-See [security-model.md](security-model.md) for more details.
+* [Java heap profiling](/docs/data-sources/java-heap-profiler.md): an
+  out-of-process profiler tightly integrated with the Android RunTime that
+  allows to get full snapshots of the managed heap retention graph (types,
+  field names, retained size and references to other objects) without, however,
+  dumping the full heap contents (strings and bitmaps) and hence reducing the
+  serialization time and output file size.
 
-**Long traces**  
-Pefetto aims at supporting hours-long / O(100GB) traces, both in terms of
-recording backend and UI frontend.
+On Android, Perfetto is the next-generation system tracing system and replaces
+the chromium-based systrace.
+[ATrace-based intstrumentation](/docs/data-sources/atrace.md) remains fully
+supported.
+See [Android developer docs](https://developer.android.com/topic/performance/tracing)
+for more details.
 
-**Interoperability**  
-Perfetto traces (output) and configuration (input) consists of protobuf
-messages, in order to allow interoperability with several languages.
+### Tracing SDK and user-space instrumentation
 
-See [trace-format.md](trace-format.md) for more details.
+The [Perfetto Tracing SDK](/docs/instrumentation/tracing-sdk.md) enables C++
+developers to enrich traces with app-specific trace points. You can choose
+between the flexibility of defining your own strongly-typed events and creating
+custom data sources or using the easier-to-use
+[Track Event Library](/docs/instrumentation/track-events.md) which allows to
+easily create time-boudned slices, counters and time markers using annotations
+of the form `TRACE_EVENT("category", "event_name", "x", "str", "y", 42)`.
 
-**Composability**  
-As Perfetto is designed both for OS-level tracing and app-level tracing, its
-design allows to compose several instances of the Perfetto tracing library,
-allowing to nest multiple layers of tracing and drive then with the same
-frontend. This allows powerful blending of app-specific and OS-wide trace
-events.
-See [multi-layer-tracing.md](multi-layer-tracing.md) for more details.
+The SDK is designed for tracing of multi-process systems and multi-threaded
+processes. It is based on [ProtoZero](/docs/design-docs/protozero.md), a library
+for direct writing of protobuf events on thread-local shared memory buffers.
 
-**Portability**  
-The only dependencies of Perfetto's tracing libraries are C++11 and [Protobuf lite][protobuf] (plus google-test, google-benchmark, libprotobuf-full for testing).
+The same code can work both in fully-in-process mode, hosting an instance of the
+Perfetto tracing service on a dedicated thread, or in _system mode_, connecting
+to the Linux/Android tracing daemon through a UNIX socket, allowing to combine
+app-specific instrumentation points with system-wide tracing events.
 
-**Extensibility**  
-Perfetto allows third parties to defined their own protobufs for:
-* [(input) Configuration](/protos/perfetto/config/data_source_config.proto#52)
-* [(output) Trace packets](/protos/perfetto/trace/trace_packet.proto#36)
+The SDK is based on portable C++11 code [tested](/docs/contributing/testing.md)
+with the major C++ sanitizers (ASan, TSan, MSan, LSan). It doesn't rely on
+run-time code modifications or compiler plugins.
 
-Allowing apps to define their own strongly-typed input and output schema.
-See [trace-format.md](trace-format.md) for more details.
+### Tracing in Chromium
 
-Bugs
-----
-* For bugs affecting Android or the tracing internals use the internal
-bug tracker ([go/perfetto-bugs](http://goto.google.com/perfetto-bugs)).
-* For bugs affecting Chrome use http://crbug.com, Component:Speed>Tracing
-label:Perfetto.
+Perfetto has been designed from the grounds to replace the internals of the
+[chrome://tracing infrastructure][chrome-tracing]. Tracing in Chromium and its
+internals are based on Perfetto's codebase on all major platforms (Android,
+CrOS, Linux, MacOS, Windows).
+The same [service-based architecture](/docs/concepts/service-model.md) of
+system-wide tracing applies, but internally the Chromium Mojo IPC system is
+used instead of Perfetto's own UNIX socket.
 
+By default tracing works in in-process mode in Chromium, recording only data
+emitted by Chromium processes. On Android (and on Linux, if disabling the
+Chromium sandbox) tracing can work in hybrid in-process+system mode, combining
+chrome-specific trace events with Perfetto system events.
+
+_(Googlers: see [go/chrometto](https://goto.google.com/chrometto) for more)_
+
+## Trace analysis
+
+Beyond the trace recording capabilities, the Perfetto codebase includes a
+dedicated project for importing, parsing and querying new and legacy trace
+formats, [Trace Processor](/docs/analysis/trace-processor.md).
+
+Trace Processor is a portable C++11 library that provides a column-oriented
+table storage, designed ad-hoc for for efficiently holding hours of trace data
+into memory and exposes a SQL query interface based on the popular SQLite query
+engine.
+The trace data model becomes a set of
+[SQL tables](/docs/analysis/sql-tables.autogen) which can be queried and joined
+in extremely powerful and flexible ways to analyze the trace data.
+
+On top of this, Trace Processor includes also a
+[trace-based metrics subsystem](/docs/analysis/metrics.md) consisting of
+pre-baked and extensible queries that can output strongly-typed summaries
+about a trace in the form of JSON or protobuf messages (e.g., the CPU usage
+at different frequency states, breakdown by process and thread).
+
+Trace-based metrics allow an easy integration of traces in performance testing
+scenarios or batch analysis or large corpuses of traces.
+
+Trace Processor is also designed for low-latency queries and for building
+trace visualizers. Today Trace Processor is used by the
+[Perfetto UI](https://ui.perfetto.dev) as a Web Assembly module,
+[Android Studio](https://developer.android.com/studio) and
+[Android GPU Inspector](https://gpuinspector.dev/) as native C++ library.
+
+## Trace visualization
+
+Perfetto provides also a brand new trace visualizer for opening and querying
+hours-long traces, available at [ui.perfetto.dev](https://ui.perfetto.dev).
+The new visualizer takes advantage of modern web platform technolgies.
+Its multi-threading design based WebWorkers keeps the UI always responsive;
+the analytical power of Trace Processor and SQLite is fully available in-browser
+through WebAssembly.
+
+The Perfetto UI works fully offline after it has been opened once. Traces opened
+with the UI are processed locally by the browser and do not require any
+server-side interaction.
+
+![Perfetto UI screenshot](/docs/images/perfetto-ui-screenshot.png)
+
+## Contributing
+
+See the [Contributing -> Getting started page](/docs/contributing/getting-started.md).
+
+## Bugs
+
+For bugs affecting Android or the tracing internals:
+
+* **Googlers**: use the internal bug tracker [go/perfetto-bugs](http://goto.google.com/perfetto-bugs)
+
+* **Non-Googlers**: use [GitHub issues](https://github.com/google/perfetto/issues).
+
+For bugs affecting Chrome Tracing:
+
+* Use http://crbug.com `Component:Speed>Tracing label:Perfetto`.
 
 [ftrace]: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
-[systrace]: https://developer.android.com/studio/command-line/systrace.html
 [chrome-tracing]: https://www.chromium.org/developers/how-tos/trace-event-profiling-tool
-[protobuf]: https://developers.google.com/protocol-buffers/

@@ -115,6 +115,18 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
   // argument originally passed to SetCurrentTraceName(), e.g., "file (42 MB)".
   virtual std::string GetCurrentTraceName() = 0;
   virtual void SetCurrentTraceName(const std::string&) = 0;
+
+  // Enables "meta-tracing" of trace processor.
+  // Metatracing involves tracing trace processor itself to root-cause
+  // performace issues in trace processor. See |DisableAndReadMetatrace| for
+  // more information on the format of the metatrace.
+  virtual void EnableMetatrace() = 0;
+
+  // Disables "meta-tracing" of trace processor and writes the trace as a
+  // sequence of |TracePackets| into |trace_proto| returning the status of this
+  // read.
+  virtual util::Status DisableAndReadMetatrace(
+      std::vector<uint8_t>* trace_proto) = 0;
 };
 
 // When set, logs SQLite actions on the console.

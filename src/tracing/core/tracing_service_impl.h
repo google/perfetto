@@ -40,6 +40,9 @@
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/id_allocator.h"
+
+#include "protos/perfetto/common/builtin_clock.gen.h"
+
 namespace perfetto {
 
 namespace base {
@@ -546,7 +549,9 @@ class TracingServiceImpl : public TracingService {
                               DataSourceInstance* instance,
                               bool disable_immediately);
   void SnapshotSyncMarker(std::vector<TracePacket>*);
-  void SnapshotClocks(std::vector<TracePacket>*, bool set_root_timestamp);
+  void SnapshotClocks(std::vector<TracePacket>*,
+                      protos::gen::BuiltinClock trace_clock,
+                      bool set_root_timestamp);
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitServiceEvents(TracingSession*, std::vector<TracePacket>*);

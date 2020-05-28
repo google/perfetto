@@ -90,7 +90,6 @@ export abstract class Engine {
       const result = RawQueryResult.decode(respEncoded);
       if (!result.error || userQuery) return result;
       // Query failed, throw an error since it was not a user query
-      console.error(`Query error "${sqlQuery}": ${result.error}`);
       throw new Error(`Query error "${sqlQuery}": ${result.error}`);
     } finally {
       this.loadingTracker.endLoading();

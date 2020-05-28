@@ -41,6 +41,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
     deps = [
       "..:ftrace_descriptors",
+      "..:metatrace",
       "../../../gn:default_deps",
       "../../../gn:sqlite",
       "../../../include/perfetto/trace_processor",

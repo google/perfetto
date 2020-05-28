@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -35,6 +36,8 @@
 
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/util/descriptors.h"
+
+#include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -70,6 +73,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::string GetCurrentTraceName() override;
   void SetCurrentTraceName(const std::string&) override;
+
+  void EnableMetatrace() override;
+
+  util::Status DisableAndReadMetatrace(
+      std::vector<uint8_t>* trace_proto) override;
 
  private:
   // Needed for iterators to be able to delete themselves from the vector.
@@ -127,8 +135,7 @@ class TraceProcessor::IteratorImpl {
 
   // Methods called by TraceProcessor::Iterator.
   bool Next() {
-    // Delegate to the cc file to prevent trace_storage.h include in this
-    // file.
+    // Delegate to the cc file to prevent trace_storage.h include in this file.
     if (!called_next_) {
       RecordFirstNextInSqlStats();
       called_next_ = true;

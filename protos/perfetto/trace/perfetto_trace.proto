@@ -216,6 +216,23 @@ message TracingServiceState {
 
 // End of protos/perfetto/common/tracing_service_state.proto
 
+// Begin of protos/perfetto/common/builtin_clock.proto
+
+enum BuiltinClock {
+  BUILTIN_CLOCK_UNKNOWN = 0;
+  BUILTIN_CLOCK_REALTIME = 1;
+  BUILTIN_CLOCK_REALTIME_COARSE = 2;
+  BUILTIN_CLOCK_MONOTONIC = 3;
+  BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
+  BUILTIN_CLOCK_MONOTONIC_RAW = 5;
+  BUILTIN_CLOCK_BOOTTIME = 6;
+  BUILTIN_CLOCK_MAX_ID = 63;
+
+  reserved 7, 8;
+}
+
+// End of protos/perfetto/common/builtin_clock.proto
+
 // Begin of protos/perfetto/common/android_log_constants.proto
 
 // Values from NDK's android/log.h.
@@ -1135,6 +1152,14 @@ message TraceConfig {
     // Disable emitting events for data-source state changes (e.g. the marker
     // for all data sources having ACKed the start of the trace).
     optional bool disable_service_events = 4;
+
+    // The authoritative clock domain for the trace. Defaults to BOOTTIME. See
+    // also ClockSnapshot's primary_trace_clock. The configured value is written
+    // into the trace as part of the ClockSnapshots emitted by the service.
+    // Trace processor will attempt to translate packet/event timestamps from
+    // various data sources (and their chosen clock domains) to this domain
+    // during import. Added in Android S.
+    optional BuiltinClock primary_trace_clock = 5;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -1867,6 +1892,7 @@ message ChromeEventBundle {
 // A snapshot of clock readings to allow for trace alignment.
 message ClockSnapshot {
   message Clock {
+    // DEPRECATED. This enum has moved to ../common/builtin_clock.proto.
     enum BuiltinClocks {
       UNKNOWN = 0;
       REALTIME = 1;
@@ -1875,13 +1901,14 @@ message ClockSnapshot {
       MONOTONIC_COARSE = 4;
       MONOTONIC_RAW = 5;
       BOOTTIME = 6;
-      PROCESS_CPUTIME = 7;
-      THREAD_CPUTIME = 8;
       BUILTIN_CLOCK_MAX_ID = 63;
+
+      reserved 7, 8;
     }
 
     // Clock IDs have the following semantic:
-    // [1, 63]:    Builtin types, see BuiltinClocks above.
+    // [1, 63]:    Builtin types, see BuiltinClock from
+    //             ../common/builtin_clock.proto.
     // [64, 127]:  User-defined clocks. These clocks are sequence-scoped. They
     //             are only valid within the same |trusted_packet_sequence_id|
     //             (i.e. only for TracePacket(s) emitted by the same TraceWriter
@@ -1909,6 +1936,12 @@ message ClockSnapshot {
     optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;
+
+  // The authoritative clock domain for the trace. Defaults to BOOTTIME, but can
+  // be overridden in TraceConfig's builtin_data_sources. Trace processor will
+  // attempt to translate packet/event timestamps from various data sources (and
+  // their chosen clock domains) to this domain during import.
+  optional BuiltinClock primary_trace_clock = 2;
 }
 
 // End of protos/perfetto/trace/clock_snapshot.proto
@@ -5803,6 +5836,14 @@ message PerfettoMetatrace {
   oneof record_type {
     uint32 event_id = 1;
     uint32 counter_id = 2;
+
+    // For trace processor metatracing.
+    string event_name = 8;
+    string counter_name = 9;
+  }
+  message Arg {
+    optional string key = 1;
+    optional string value = 2;
   }
 
   // Only when using |event_id|.
@@ -5817,6 +5858,9 @@ message PerfettoMetatrace {
   // If true the meta-tracing ring buffer had overruns and hence some data is
   // missing from this point.
   optional bool has_overruns = 6;
+
+  // Args for the event.
+  repeated Arg args = 7;
 }
 
 // End of protos/perfetto/trace/perfetto/perfetto_metatrace.proto
@@ -6805,8 +6849,24 @@ message Trigger {
 
 // Begin of protos/perfetto/trace/trace_packet.proto
 
-// The root object emitted by Perfetto. A perfetto trace is just a stream of
-// TracePacket(s).
+// TracePacket is the root object of a Perfeto trace.
+// A Perfetto trace is a linear sequence of TracePacket(s).
+//
+// The tracing service guarantees that all TracePacket(s) written by a given
+// TraceWriter are seen in-order, without gaps or duplicates. If, for any
+// reason, a TraceWriter sequence becomes invalid, no more packets are returned
+// to the Consumer (or written into the trace file).
+// TracePacket(s) written by different TraceWriter(s), hence even different
+// data sources, can be seen in arbitrary order.
+// The consumer can re-establish a total order, if interested, using the packet
+// timestamps, after having synchronized the different clocks onto a global
+// clock.
+//
+// The tracing service is agnostic of the content of TracePacket, with the
+// exception of few fields (e.g.. trusted_*, trace_config) that are written by
+// the service itself.
+//
+// See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 13 (up to 15).
 // Next id: 71.
@@ -6827,7 +6887,6 @@ message TracePacket {
   optional uint32 timestamp_clock_id = 58;
 
   oneof data {
-    FtraceEventBundle ftrace_events = 1;
     ProcessTree process_tree = 2;
     ProcessStats process_stats = 9;
     InodeFileMap inode_file_map = 4;
@@ -6879,6 +6938,9 @@ message TracePacket {
 
     // Deprecated, use TrackDescriptor instead.
     ThreadDescriptor thread_descriptor = 44;
+
+    // Events from the Linux kernel ftrace infrastructure.
+    FtraceEventBundle ftrace_events = 1;
 
     // This field is emitted at periodic intervals (~10s) and
     // contains always the binary representation of the UUID

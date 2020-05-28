@@ -292,6 +292,7 @@ export interface State {
   recordingStatus?: string;
 
   chromeCategories: string[]|undefined;
+  analyzePageQuery?: string;
 }
 
 export const defaultTraceTime = {

@@ -5,7 +5,7 @@ remotely (i.e. not just in-process). It consists of two targets:
 
 ## `wasm_bridge`
 
-The WASM (Web Asssembly) interop bridge. It's used to call the Trace Processor
+The WASM (Web Assembly) interop bridge. It's used to call the Trace Processor
 from HTML/JS using WASM's `ccall`.
 
 ## `httpd`
