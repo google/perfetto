@@ -62,6 +62,8 @@ class Rpc {
   void RestoreInitialTables();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
+  void EnableMetatrace();
+  std::vector<uint8_t> DisableAndReadMetatrace();
 
  private:
   void MaybePrintProgress();

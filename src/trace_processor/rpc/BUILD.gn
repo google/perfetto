@@ -29,7 +29,6 @@ source_set("rpc") {
     "..:metatrace",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
-    "../../../protos/perfetto/metrics:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
