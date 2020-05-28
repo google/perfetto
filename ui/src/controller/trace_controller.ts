@@ -1097,7 +1097,7 @@ export class TraceController extends Controller<States> {
         await engine.query(`
           INSERT INTO annotation_counter_track(
             name, __metric_name, min_value, max_value, upid)
-          SELECT
+          SELECT DISTINCT
             track_name,
             '${metric}' as metric_name,
             CASE ${upidColumnWhere} WHEN 0 THEN NULL ELSE ${min} END,
@@ -1105,7 +1105,6 @@ export class TraceController extends Controller<States> {
             ${upidColumnSelect}
           FROM ${metric}_annotations
           WHERE track_type = 'counter'
-          GROUP BY track_name, upid
         `);
         await engine.query(`
           INSERT INTO annotation_counter(id, track_id, ts, value)
