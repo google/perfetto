@@ -369,9 +369,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     auto id_and_row =
         context_->storage->mutable_heap_graph_object_table()->Insert(
             {sequence_state.current_upid, sequence_state.current_ts,
-             static_cast<int64_t>(obj.object_id),
-             static_cast<int64_t>(obj.self_size), /*retained_size=*/-1,
-             /*unique_retained_size=*/-1, /*reference_set_id=*/base::nullopt,
+             static_cast<int64_t>(obj.self_size),
+             /*reference_set_id=*/base::nullopt,
              /*reachable=*/0, db_id,
              /*root_type=*/base::nullopt});
     int64_t row = id_and_row.row;
@@ -526,16 +525,7 @@ void HeapGraphTracker::MarkReachable(int64_t row) {
       ->Set(static_cast<uint32_t>(row), 1);
 }
 
-void HeapGraphTracker::SetRetained(int64_t row,
-                                   int64_t retained,
-                                   int64_t unique_retained) {
-  context_->storage->mutable_heap_graph_object_table()
-      ->mutable_retained_size()
-      ->Set(static_cast<uint32_t>(row), retained);
-  context_->storage->mutable_heap_graph_object_table()
-      ->mutable_unique_retained_size()
-      ->Set(static_cast<uint32_t>(row), unique_retained);
-}
+void HeapGraphTracker::SetRetained(int64_t, int64_t, int64_t) {}
 
 void HeapGraphTracker::NotifyEndOfFile() {
   if (!sequence_state_.empty()) {
