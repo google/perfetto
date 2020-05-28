@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -36,8 +35,6 @@
 
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/util/descriptors.h"
-
-#include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

@@ -49,6 +49,7 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #include "src/trace_processor/metrics/metrics.descriptor.h"
@@ -828,7 +829,7 @@ util::Status TraceProcessorImpl::DisableAndReadMetatrace(
     auto* evt = packet->set_perfetto_metatrace();
     evt->set_event_name(record->event_name);
     evt->set_event_duration_ns(record->duration_ns);
-    evt->set_thread_id(static_cast<uint32_t>(base::GetThreadId()));
+    evt->set_thread_id(1);  // Not really important, just required for the ui.
 
     if (record->args_buffer_size == 0)
       return;
