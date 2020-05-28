@@ -95,3 +95,20 @@ message ComputeMetricResult {
   optional perfetto.protos.TraceMetrics metrics = 1;
   optional string error = 2;
 }
+
+// Input for the /enable_metatrace endpoint.
+message EnableMetatraceArgs {}
+
+// Output for the /enable_metatrace endpoint.
+message EnableMetatraceResult {}
+
+// Input for the /disable_and_read_metatrace endpoint.
+message DisableAndReadMetatraceArgs {}
+
+// Output for the /disable_and_read_metatrace endpoint.
+message DisableAndReadMetatraceResult {
+  // Bytes of perfetto.protos.Trace message. Stored as bytes
+  // to avoid adding a dependency on trace.proto.
+  optional bytes metatrace = 1;
+  optional string error = 2;
+}
