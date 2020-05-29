@@ -33,7 +33,7 @@
     "@types/puppeteer": "^1.12.4",
     "dingusjs": "^0.0.3",
     "jest": "^23.6.0",
-    "node-sass": "^4.12.0",
+    "node-sass": "^4.14.1",
     "puppeteer": "^1.16.0",
     "rollup": "^1.17.0",
     "rollup-plugin-commonjs": "^9.3.4",
