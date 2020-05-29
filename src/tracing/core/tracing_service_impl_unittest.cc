@@ -157,9 +157,9 @@ class TracingServiceImplTest : public testing::Test {
   }
 
   void WaitForNextSyncMarker() {
-    tracing_session()->last_snapshot_time = base::TimeMillis(0);
+    tracing_session()->should_emit_sync_marker = true;
     static int attempt = 0;
-    while (tracing_session()->last_snapshot_time == base::TimeMillis(0)) {
+    while (tracing_session()->should_emit_sync_marker) {
       auto checkpoint_name = "wait_snapshot_" + std::to_string(attempt++);
       auto timer_expired = task_runner.CreateCheckpoint(checkpoint_name);
       task_runner.PostDelayedTask([timer_expired] { timer_expired(); }, 1);
