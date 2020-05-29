@@ -51,11 +51,15 @@ struct PathFromRoot {
     std::map<tables::HeapGraphClassTable::Id, size_t> children;
   };
   std::vector<Node> nodes{Node{}};
-  std::set<uint32_t> visited;
+  std::set<tables::HeapGraphObjectTable::Id> visited;
 };
 
-void MarkRoot(TraceStorage* s, uint32_t row, StringPool::Id type);
-void FindPathFromRoot(const TraceStorage& s, uint32_t row, PathFromRoot* path);
+void MarkRoot(TraceStorage* s,
+              tables::HeapGraphObjectTable::Id id,
+              StringPool::Id type);
+void FindPathFromRoot(const TraceStorage& s,
+                      tables::HeapGraphObjectTable::Id id,
+                      PathFromRoot* path);
 
 base::Optional<std::string> PackageFromLocation(base::StringView location);
 base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type);
@@ -161,7 +165,7 @@ class HeapGraphTracker : public Destructible {
     std::map<uint64_t, InternedType> interned_types;
     std::map<uint64_t, StringPool::Id> interned_location_names;
     std::map<uint64_t, InternedField> interned_fields;
-    std::map<uint64_t, uint32_t> object_id_to_row;
+    std::map<uint64_t, tables::HeapGraphObjectTable::Id> object_id_to_db_id;
     base::Optional<uint64_t> prev_index;
   };
 
@@ -179,7 +183,9 @@ class HeapGraphTracker : public Destructible {
   std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
            StringPool::Id>
       deobfuscation_mapping_;
-  std::map<std::pair<UniquePid, int64_t>, std::vector<uint32_t>> roots_;
+  std::map<std::pair<UniquePid, int64_t>,
+           std::vector<tables::HeapGraphObjectTable::Id>>
+      roots_;
 };
 
 }  // namespace trace_processor
