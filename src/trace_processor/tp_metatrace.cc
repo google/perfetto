@@ -43,14 +43,21 @@ void RingBuffer::ReadAll(std::function<void(Record*)> fn) {
   // trace events.
   is_reading_ = true;
 
-  uint64_t start = write_idx_ < kCapacity ? 0 : write_idx_ - kCapacity;
+  uint64_t start = (write_idx_ - start_idx_) < kCapacity
+                       ? start_idx_
+                       : write_idx_ - kCapacity;
   uint64_t end = write_idx_;
+
+  // Increment the write index by kCapacity + 1. This ensures that if
+  // ScopedEntry is destoryed in |fn| below, we won't get overwrites
+  // while reading the buffer.
+  // This works because of the logic in ~ScopedEntry and
+  // RingBuffer::HasOverwritten which ensures that we don't overwrite entries
+  // more than kCapcity elements in the past.
+  write_idx_ += kCapacity + 1;
+
   for (uint64_t i = start; i < end; ++i) {
     Record* record = At(i);
-
-    // Increment the generation number so that we won't overwrite this entry
-    // if there's accidental reentrancy which destroys the ScopedEntry.
-    record->generation++;
 
     // If the slice was unfinished for some reason, don't emit it.
     if (record->duration_ns != 0) {
@@ -58,9 +65,8 @@ void RingBuffer::ReadAll(std::function<void(Record*)> fn) {
     }
   }
 
-  // Reset the write pointer so we start at the beginning of the ring buffer
-  // if we reenable metatracing.
-  write_idx_ = 0;
+  // Ensure that the start pointer is updated to the write pointer.
+  start_idx_ = write_idx_;
 
   // Remove the reading marker.
   is_reading_ = false;
