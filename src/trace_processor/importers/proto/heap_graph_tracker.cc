@@ -43,13 +43,16 @@ base::Optional<base::StringView> PackageFromApp(base::StringView location) {
   return location.substr(0, minus);
 }
 
-std::set<uint32_t> GetChildren(const TraceStorage& storage, uint32_t row) {
+std::set<tables::HeapGraphObjectTable::Id> GetChildren(
+    const TraceStorage& storage,
+    tables::HeapGraphObjectTable::Id id) {
+  uint32_t row = *storage.heap_graph_object_table().id().IndexOf(id);
   base::Optional<uint32_t> reference_set_id =
       storage.heap_graph_object_table().reference_set_id()[row];
   if (!reference_set_id)
     return {};
   uint32_t cur_reference_set_id;
-  std::set<uint32_t> children;
+  std::set<tables::HeapGraphObjectTable::Id> children;
   for (uint32_t reference_row = *reference_set_id;
        reference_row < storage.heap_graph_reference_table().row_count();
        ++reference_row) {
@@ -59,7 +62,7 @@ std::set<uint32_t> GetChildren(const TraceStorage& storage, uint32_t row) {
       break;
 
     PERFETTO_CHECK(
-        storage.heap_graph_reference_table().owner_id()[reference_row] == row);
+        storage.heap_graph_reference_table().owner_id()[reference_row] == id);
     children.emplace(
         storage.heap_graph_reference_table().owned_id()[reference_row]);
   }
@@ -67,30 +70,39 @@ std::set<uint32_t> GetChildren(const TraceStorage& storage, uint32_t row) {
 }
 }  // namespace
 
-void MarkRoot(TraceStorage* storage, uint32_t row, StringPool::Id type) {
+void MarkRoot(TraceStorage* storage,
+              tables::HeapGraphObjectTable::Id id,
+              StringPool::Id type) {
+  uint32_t row = *storage->heap_graph_object_table().id().IndexOf(id);
   storage->mutable_heap_graph_object_table()->mutable_root_type()->Set(row,
                                                                        type);
 
   // Calculate shortest distance to a GC root.
-  std::deque<std::pair<int32_t, uint32_t>> reachable_nodes{{0, row}};
+  std::deque<std::pair<int32_t, tables::HeapGraphObjectTable::Id>>
+      reachable_nodes{{0, id}};
   while (!reachable_nodes.empty()) {
-    uint32_t cur_node;
+    tables::HeapGraphObjectTable::Id cur_node;
     int32_t distance;
     std::tie(distance, cur_node) = reachable_nodes.front();
     reachable_nodes.pop_front();
+    uint32_t cur_row =
+        *storage->heap_graph_object_table().id().IndexOf(cur_node);
     int32_t cur_distance =
-        storage->heap_graph_object_table().root_distance()[cur_node];
+        storage->heap_graph_object_table().root_distance()[cur_row];
     if (cur_distance == -1 || cur_distance > distance) {
       if (cur_distance == -1) {
         storage->mutable_heap_graph_object_table()->mutable_reachable()->Set(
-            cur_node, 1);
+            cur_row, 1);
       }
       storage->mutable_heap_graph_object_table()->mutable_root_distance()->Set(
-          cur_node, distance);
+          cur_row, distance);
 
-      for (uint32_t child_node : GetChildren(*storage, cur_node)) {
+      for (tables::HeapGraphObjectTable::Id child_node :
+           GetChildren(*storage, cur_node)) {
+        uint32_t child_row =
+            *storage->heap_graph_object_table().id().IndexOf(child_node);
         int32_t child_distance =
-            storage->heap_graph_object_table().root_distance()[child_node];
+            storage->heap_graph_object_table().root_distance()[child_row];
         if (child_distance == -1 || child_distance > distance + 1)
           reachable_nodes.emplace_back(distance + 1, child_node);
       }
@@ -426,15 +438,14 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
              /*reachable=*/0, db_id,
              /*root_type=*/base::nullopt,
              /*root_distance*/ -1});
-    uint32_t row = id_and_row.row;
-    sequence_state.object_id_to_row.emplace(obj.object_id, row);
+    sequence_state.object_id_to_db_id.emplace(obj.object_id, id_and_row.id);
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
-    auto it = sequence_state.object_id_to_row.find(obj.object_id);
-    if (it == sequence_state.object_id_to_row.end())
+    auto it = sequence_state.object_id_to_db_id.find(obj.object_id);
+    if (it == sequence_state.object_id_to_db_id.end())
       continue;
-    uint32_t owner_row = it->second;
+    tables::HeapGraphObjectTable::Id owner_id = it->second;
 
     uint32_t reference_set_id =
         context_->storage->heap_graph_reference_table().row_count();
@@ -444,13 +455,13 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       if (ref.owned_object_id == 0)
         continue;
 
-      it = sequence_state.object_id_to_row.find(ref.owned_object_id);
+      it = sequence_state.object_id_to_db_id.find(ref.owned_object_id);
       // This can only happen for an invalid type string id, which is already
       // reported as an error. Silently continue here.
-      if (it == sequence_state.object_id_to_row.end())
+      if (it == sequence_state.object_id_to_db_id.end())
         continue;
 
-      uint32_t owned_row = it->second;
+      tables::HeapGraphObjectTable::Id owned_id = it->second;
 
       auto field_it = sequence_state.interned_fields.find(ref.field_name_id);
       if (field_it == sequence_state.interned_fields.end()) {
@@ -461,16 +472,17 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       }
       const InternedField& interned_field = field_it->second;
       StringPool::Id field_name = interned_field.name;
-      context_->storage->mutable_heap_graph_reference_table()->Insert(
-          {reference_set_id, owner_row, owned_row, interned_field.name,
-           interned_field.type_name,
-           /*deobfuscated_field_name=*/base::nullopt});
-      uint32_t row =
-          context_->storage->heap_graph_reference_table().row_count() - 1;
-      field_to_rows_[field_name].emplace_back(row);
+      auto ref_id_and_row =
+          context_->storage->mutable_heap_graph_reference_table()->Insert(
+              {reference_set_id, owner_id, owned_id, interned_field.name,
+               interned_field.type_name,
+               /*deobfuscated_field_name=*/base::nullopt});
+      field_to_rows_[field_name].emplace_back(ref_id_and_row.row);
       any_references = true;
     }
     if (any_references) {
+      uint32_t owner_row =
+          *context_->storage->heap_graph_object_table().id().IndexOf(owner_id);
       context_->storage->mutable_heap_graph_object_table()
           ->mutable_reference_set_id()
           ->Set(owner_row, reference_set_id);
@@ -479,17 +491,17 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   for (const SourceRoot& root : sequence_state.current_roots) {
     for (uint64_t obj_id : root.object_ids) {
-      auto it = sequence_state.object_id_to_row.find(obj_id);
+      auto it = sequence_state.object_id_to_db_id.find(obj_id);
       // This can only happen for an invalid type string id, which is already
       // reported as an error. Silently continue here.
-      if (it == sequence_state.object_id_to_row.end())
+      if (it == sequence_state.object_id_to_db_id.end())
         continue;
 
-      uint32_t obj_row = it->second;
+      tables::HeapGraphObjectTable::Id db_id = it->second;
       roots_[std::make_pair(sequence_state.current_upid,
                             sequence_state.current_ts)]
-          .emplace_back(obj_row);
-      MarkRoot(context_->storage.get(), obj_row, root.root_type);
+          .emplace_back(db_id);
+      MarkRoot(context_->storage.get(), db_id, root.root_type);
     }
   }
 
@@ -497,51 +509,54 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 }
 
 void FindPathFromRoot(const TraceStorage& storage,
-                      uint32_t row,
+                      tables::HeapGraphObjectTable::Id id,
                       PathFromRoot* path) {
   // We have long retention chains (e.g. from LinkedList). If we use the stack
   // here, we risk running out of stack space. This is why we use a vector to
   // simulate the stack.
   struct StackElem {
-    uint32_t node;     // Node in the original graph.
+    tables::HeapGraphObjectTable::Id node;  // Node in the original graph.
     size_t parent_id;  // id of parent node in the result tree.
     size_t i;          // Index of the next child of this node to handle.
     uint32_t depth;    // Depth in the resulting tree
                        // (including artifical root).
-    std::vector<uint32_t> children;
+    std::vector<tables::HeapGraphObjectTable::Id> children;
   };
 
-  std::vector<StackElem> stack{{row, PathFromRoot::kRoot, 0, 0, {}}};
+  std::vector<StackElem> stack{{id, PathFromRoot::kRoot, 0, 0, {}}};
 
   while (!stack.empty()) {
-    uint32_t n = stack.back().node;
+    tables::HeapGraphObjectTable::Id n = stack.back().node;
+    uint32_t row = *storage.heap_graph_object_table().id().IndexOf(n);
     size_t parent_id = stack.back().parent_id;
     uint32_t depth = stack.back().depth;
     size_t& i = stack.back().i;
-    std::vector<uint32_t>& children = stack.back().children;
+    std::vector<tables::HeapGraphObjectTable::Id>& children =
+        stack.back().children;
 
     tables::HeapGraphClassTable::Id type_id =
-        storage.heap_graph_object_table().type_id()[n];
+        storage.heap_graph_object_table().type_id()[row];
     auto it = path->nodes[parent_id].children.find(type_id);
     if (it == path->nodes[parent_id].children.end()) {
-      size_t id = path->nodes.size();
+      size_t path_id = path->nodes.size();
       path->nodes.emplace_back(PathFromRoot::Node{});
       std::tie(it, std::ignore) =
-          path->nodes[parent_id].children.emplace(type_id, id);
+          path->nodes[parent_id].children.emplace(type_id, path_id);
       path->nodes.back().type_id = type_id;
       path->nodes.back().depth = depth;
       path->nodes.back().parent_id = parent_id;
     }
-    size_t id = it->second;
-    PathFromRoot::Node* output_tree_node = &path->nodes[id];
+    size_t path_id = it->second;
+    PathFromRoot::Node* output_tree_node = &path->nodes[path_id];
 
     if (i == 0) {
       // This is the first time we are looking at this node, so add its
       // size to the relevant node in the resulting tree.
       output_tree_node->size +=
-          storage.heap_graph_object_table().self_size()[n];
+          storage.heap_graph_object_table().self_size()[row];
       output_tree_node->count++;
-      std::set<uint32_t> children_set = GetChildren(storage, n);
+      std::set<tables::HeapGraphObjectTable::Id> children_set =
+          GetChildren(storage, n);
       children.assign(children_set.cbegin(), children_set.cend());
       PERFETTO_CHECK(children.size() == children_set.size());
     }
@@ -549,13 +564,16 @@ void FindPathFromRoot(const TraceStorage& storage,
     // i-th child.
     if (!children.empty()) {
       PERFETTO_CHECK(i < children.size());
-      uint32_t child = children[i];
+      tables::HeapGraphObjectTable::Id child = children[i];
+      uint32_t child_row =
+          *storage.heap_graph_object_table().id().IndexOf(child);
       if (++i == children.size())
         stack.pop_back();
 
       int32_t child_distance =
-          storage.heap_graph_object_table().root_distance()[child];
-      int32_t n_distance = storage.heap_graph_object_table().root_distance()[n];
+          storage.heap_graph_object_table().root_distance()[child_row];
+      int32_t n_distance =
+          storage.heap_graph_object_table().root_distance()[row];
       PERFETTO_CHECK(n_distance >= 0);
       PERFETTO_CHECK(child_distance >= 0);
 
@@ -563,7 +581,7 @@ void FindPathFromRoot(const TraceStorage& storage,
 
       if (child_distance == n_distance + 1 && !visited) {
         path->visited.emplace(child);
-        stack.emplace_back(StackElem{child, id, 0, depth + 1, {}});
+        stack.emplace_back(StackElem{child, path_id, 0, depth + 1, {}});
       }
     } else {
       stack.pop_back();
@@ -578,14 +596,14 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   if (it == roots_.end())
     return nullptr;
 
-  const std::vector<uint32_t>& roots = it->second;
+  const std::vector<tables::HeapGraphObjectTable::Id>& roots = it->second;
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
           context_->storage->mutable_string_pool(), nullptr));
 
   PathFromRoot init_path;
-  for (uint32_t root : roots) {
+  for (tables::HeapGraphObjectTable::Id root : roots) {
     FindPathFromRoot(*context_->storage, root, &init_path);
   }
   auto profile_type = context_->storage->InternString("graph");
