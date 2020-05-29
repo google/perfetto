@@ -23,6 +23,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -40,8 +41,6 @@
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/id_allocator.h"
-
-#include "protos/perfetto/common/builtin_clock.gen.h"
 
 namespace perfetto {
 
@@ -472,13 +471,13 @@ class TracingServiceImpl : public TracingService {
         packet_sequence_ids;
     PacketSequenceID last_packet_sequence_id = kServicePacketSequenceID;
 
-    // When the last snapshots (clock, stats, sync marker) were emitted into
-    // the output stream.
-    base::TimeMillis last_snapshot_time = {};
-
     // Whether we should emit the trace stats next time we reach EOF while
     // performing ReadBuffers.
     bool should_emit_stats = false;
+
+    // Whether we should emit the sync marker the next time ReadBuffers() is
+    // called.
+    bool should_emit_sync_marker = false;
 
     // Whether we mirrored the trace config back to the trace output yet.
     bool did_emit_config = false;
@@ -497,10 +496,18 @@ class TracingServiceImpl : public TracingService {
     bool did_emit_all_data_source_started = false;
     base::TimeNanos time_all_data_source_started = {};
 
-    // Initial clock snapshot, captured at trace start time (when state goes
-    // to TracingSession::STARTED). Emitted into the trace when the consumer
-    // first begins reading the trace.
-    std::vector<TracePacket> initial_clock_snapshot_;
+    using ClockSnapshotData =
+        std::vector<std::pair<uint32_t /*clock_id*/, uint64_t /*ts*/>>;
+
+    // Initial clock snapshot, captured at trace start time (when state goes to
+    // TracingSession::STARTED). Emitted into the trace when the consumer first
+    // begins reading the trace.
+    ClockSnapshotData initial_clock_snapshot_;
+
+    // Most recent clock snapshot, captured periodically after the trace was
+    // started. Emitted into the trace when the consumer next calls
+    // ReadBuffers().
+    ClockSnapshotData last_clock_snapshot_;
 
     State state = DISABLED;
 
@@ -548,10 +555,14 @@ class TracingServiceImpl : public TracingService {
                               TracingSession* tracing_session,
                               DataSourceInstance* instance,
                               bool disable_immediately);
+  void PeriodicSnapshotTask(TracingSession* tracing_session,
+                            bool is_initial_snapshot);
   void SnapshotSyncMarker(std::vector<TracePacket>*);
-  void SnapshotClocks(std::vector<TracePacket>*,
-                      protos::gen::BuiltinClock trace_clock,
-                      bool set_root_timestamp);
+  void SnapshotClocks(TracingSession::ClockSnapshotData*);
+  void EmitClockSnapshot(TracingSession* tracing_session,
+                         TracingSession::ClockSnapshotData,
+                         bool set_root_timestamp,
+                         std::vector<TracePacket>*);
   void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
   void MaybeEmitServiceEvents(TracingSession*, std::vector<TracePacket>*);
