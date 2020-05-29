@@ -134,7 +134,8 @@ struct TypedColumn : public Column {
         (column->IsNullable() == TH::is_optional) && !column->IsId()) {
       return reinterpret_cast<const TypedColumn<T>*>(column);
     } else {
-      PERFETTO_FATAL("Unsafe to convert Column to TypedColumn.");
+      PERFETTO_FATAL("Unsafe to convert Column TypedColumn (%s)",
+                     column->name());
     }
   }
 
@@ -162,6 +163,17 @@ struct IdColumn : public Column {
   Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
   base::Optional<uint32_t> IndexOf(Id id) const {
     return row_map().IndexOf(id.value);
+  }
+
+  // Reinterpret cast a Column to IdColumn or crash if that is likely to be
+  // unsafe.
+  static const IdColumn<Id>* FromColumn(const Column* column) {
+    if (column->IsId()) {
+      return reinterpret_cast<const IdColumn<Id>*>(column);
+    } else {
+      PERFETTO_FATAL("Unsafe to convert Column to IdColumn (%s)",
+                     column->name());
+    }
   }
 
   // Helper functions to create constraints for the given value.

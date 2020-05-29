@@ -98,18 +98,20 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeTable(
   return AddLayoutColumn(*slice_table_, selected_tracks, filter_id);
 }
 
-// Union-Find style logic to find the stack_id of the BaseParent (depth 0) slice
-// that the current slice belongs to
-int64_t ExperimentalSliceLayoutGenerator::GetBaseParentStackId(
-    std::map<int64_t, int64_t>& stack_id_map,
-    int64_t stack_id,
-    int64_t parent_stack_id) {
-  if (parent_stack_id == 0 || stack_id == parent_stack_id) {
-    return stack_id;
+// Build up a table of slice id -> root slice id by observing each
+// (id, opt_parent_id) pair in order.
+tables::SliceTable::Id ExperimentalSliceLayoutGenerator::InsertSlice(
+    std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
+    tables::SliceTable::Id id,
+    base::Optional<tables::SliceTable::Id> parent_id) {
+  if (parent_id) {
+    tables::SliceTable::Id root_id = id_map[parent_id.value()];
+    id_map[id] = root_id;
+    return root_id;
+  } else {
+    id_map[id] = id;
+    return id;
   }
-  stack_id_map[stack_id] = stack_id_map[parent_stack_id];
-  return GetBaseParentStackId(stack_id_map, parent_stack_id,
-                              stack_id_map[parent_stack_id]);
 }
 
 // The problem we're trying to solve is this: given a number of tracks each of
@@ -141,23 +143,23 @@ int64_t ExperimentalSliceLayoutGenerator::GetBaseParentStackId(
 // 3. Go though each slice and give it a layout_depth by summing it's
 //    current depth and the root layout_depth of the stalactite it belongs to.
 //
-//
 std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     const Table& table,
     const std::set<TrackId>& selected,
     StringPool::Id filter_id) {
   const auto& track_id_col =
       *table.GetTypedColumnByName<tables::TrackTable::Id>("track_id");
-  const auto& stack_id_col = *table.GetTypedColumnByName<int64_t>("stack_id");
-  const auto& parent_stack_id_col =
-      *table.GetTypedColumnByName<int64_t>("parent_stack_id");
+  const auto& id_col = *table.GetIdColumnByName<tables::SliceTable::Id>("id");
+  const auto& parent_id_col =
+      *table.GetTypedColumnByName<base::Optional<tables::SliceTable::Id>>(
+          "parent_id");
   const auto& depth_col = *table.GetTypedColumnByName<uint32_t>("depth");
   const auto& ts_col = *table.GetTypedColumnByName<int64_t>("ts");
   const auto& dur_col = *table.GetTypedColumnByName<int64_t>("dur");
 
-  std::map<int64_t, GroupInfo> groups;
-  // Map of stack_id -> parent_stack_id
-  std::map<int64_t, int64_t> stack_id_map;
+  std::map<tables::SliceTable::Id, GroupInfo> groups;
+  // Map of id -> root_id
+  std::map<tables::SliceTable::Id, tables::SliceTable::Id> id_map;
 
   // Step 1:
   // Find the bounding box (start ts, end ts, and max depth) for each group
@@ -168,18 +170,17 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
       continue;
     }
 
-    int64_t stack_id = stack_id_col[i];
-    int64_t parent_stack_id = parent_stack_id_col[i];
+    tables::SliceTable::Id id = id_col[i];
+    base::Optional<tables::SliceTable::Id> parent_id = parent_id_col[i];
     uint32_t depth = depth_col[i];
     int64_t start = ts_col[i];
     int64_t dur = dur_col[i];
     int64_t end = start + dur;
-    stack_id_map[stack_id] =
-        GetBaseParentStackId(stack_id_map, stack_id, parent_stack_id);
-    std::map<int64_t, GroupInfo>::iterator it;
+    InsertSlice(id_map, id, parent_id);
+    std::map<tables::SliceTable::Id, GroupInfo>::iterator it;
     bool inserted;
     std::tie(it, inserted) = groups.emplace(
-        std::piecewise_construct, std::forward_as_tuple(stack_id_map[stack_id]),
+        std::piecewise_construct, std::forward_as_tuple(id_map[id]),
         std::forward_as_tuple(start, end, depth + 1));
     if (!inserted) {
       it->second.max_height = std::max(it->second.max_height, depth + 1);
@@ -259,7 +260,7 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
 
   for (uint32_t i = 0; i < table.row_count(); ++i) {
     TrackId track_id = track_id_col[i];
-    int64_t stack_id = stack_id_col[i];
+    tables::SliceTable::Id id = id_col[i];
     uint32_t depth = depth_col[i];
     if (selected.count(track_id) == 0) {
       // Don't care about depth for slices from non-selected tracks:
@@ -270,8 +271,7 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     } else {
       // Each slice depth is it's current slice depth + root slice depth of the
       // group:
-      layout_depth_column->Append(
-          depth + groups.at(stack_id_map[stack_id]).layout_depth);
+      layout_depth_column->Append(depth + groups.at(id_map[id]).layout_depth);
       // We must set this to the value we got in the constraint to ensure our
       // rows are not filtered out:
       filter_column->Append(filter_id);
