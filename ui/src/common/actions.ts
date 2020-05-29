@@ -53,6 +53,12 @@ export interface AddTrackArgs {
   config: {};
 }
 
+export interface PostedTrace {
+  title: string;
+  url?: string;
+  buffer: ArrayBuffer;
+}
+
 function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
@@ -91,13 +97,13 @@ export const StateActions = {
     state.route = `/viewer`;
   },
 
-  openTraceFromBuffer(state: StateDraft, args: {buffer: ArrayBuffer}): void {
+  openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
     clearTraceState(state);
     const id = `${state.nextId++}`;
     state.engines[id] = {
       id,
       ready: false,
-      source: {type: 'ARRAY_BUFFER', buffer: args.buffer},
+      source: {type: 'ARRAY_BUFFER', ...args},
     };
     state.route = `/viewer`;
   },
