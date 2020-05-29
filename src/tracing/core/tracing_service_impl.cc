@@ -2494,12 +2494,10 @@ void TracingServiceImpl::SnapshotClocks(
   // The default trace clock is boot time, so we always need to emit a path to
   // it. However since we don't actually have a boot time source on these
   // platforms, pretend that wall time equals boot time.
-  new_snapshot_data.push_back(std::make_pair(
-      protos::pbzero::BUILTIN_CLOCK_BOOTTIME,
-      wall_time_ns);
-  new_snapshot_data.push_back(std::make_pair(
-      protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
-      wall_time_ns);
+  new_snapshot_data.push_back(
+      std::make_pair(protos::pbzero::BUILTIN_CLOCK_BOOTTIME, wall_time_ns));
+  new_snapshot_data.push_back(
+      std::make_pair(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, wall_time_ns));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
         // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
         // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
