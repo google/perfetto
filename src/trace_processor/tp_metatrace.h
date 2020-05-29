@@ -54,10 +54,6 @@ struct Record {
   // This is assumed to be a static/long lived string.
   const char* event_name;
 
-  // Indicates whether this record is currently already
-  // held.
-  uint64_t generation = 0;
-
   // Extra context for some types of events.
   // This buffer is leaked once per record - every time a record is
   // reused, the old memory is released and a new allocation is performed.
@@ -99,16 +95,17 @@ class RingBuffer {
   RingBuffer();
   ~RingBuffer() = default;
 
-  Record* AppendRecord(const char* event_name) {
+  std::pair<uint64_t, Record*> AppendRecord(const char* event_name) {
     PERFETTO_DCHECK_THREAD(thread_checker_);
     PERFETTO_DCHECK(!is_reading_);
-    Record* record = At(write_idx_++);
+
+    uint64_t idx = write_idx_++;
+    Record* record = At(idx);
     record->timestamp_ns = TraceTimeNowNs();
     record->duration_ns = 0;
     record->event_name = event_name;
     record->args_buffer_size = 0;
-    record->generation++;
-    return record;
+    return std::make_pair(idx, record);
   }
 
   Record* At(uint64_t idx) { return &data_[idx % kCapacity]; }
@@ -124,10 +121,15 @@ class RingBuffer {
     return static_cast<uint64_t>(std::distance(data_.data(), record));
   }
 
+  // Returns whether the record at the |index| has been overwritten because
+  // of wraps of the ring buffer.
+  bool HasOverwritten(uint64_t index) { return index + kCapacity < write_idx_; }
+
  private:
   bool is_reading_ = false;
-  uint64_t write_idx_ = 0;
 
+  uint64_t start_idx_ = 0;
+  uint64_t write_idx_ = 0;
   std::array<Record, kCapacity> data_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
@@ -140,7 +142,7 @@ class ScopedEvent {
   ~ScopedEvent() {
     if (PERFETTO_LIKELY(!record_))
       return;
-    if (record_->generation != generation_)
+    if (RingBuffer::GetInstance()->HasOverwritten(record_idx_))
       return;
     auto now = TraceTimeNowNs();
     record_->duration_ns = static_cast<uint32_t>(now - record_->timestamp_ns);
@@ -148,7 +150,7 @@ class ScopedEvent {
 
   ScopedEvent(ScopedEvent&& value) {
     record_ = value.record_;
-    generation_ = value.generation_;
+    record_idx_ = value.record_idx_;
     value.record_ = nullptr;
   }
 
@@ -160,8 +162,8 @@ class ScopedEvent {
       return ScopedEvent();
 
     ScopedEvent event;
-    event.record_ = RingBuffer::GetInstance()->AppendRecord(event_id);
-    event.generation_ = event.record_->generation;
+    std::tie(event.record_idx_, event.record_) =
+        RingBuffer::GetInstance()->AppendRecord(event_id);
     args_fn(event.record_);
     return event;
   }
@@ -173,7 +175,7 @@ class ScopedEvent {
   ScopedEvent& operator=(ScopedEvent&& value) = delete;
 
   Record* record_ = nullptr;
-  uint64_t generation_ = 0;
+  uint64_t record_idx_ = 0;
 };
 
 // Enables meta-tracing of trace-processor.
