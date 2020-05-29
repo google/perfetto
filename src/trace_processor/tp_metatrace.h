@@ -69,10 +69,11 @@ struct Record {
     size_t new_buffer_size = args_buffer_size + key.size() + value.size() + 2;
     args_buffer = static_cast<char*>(realloc(args_buffer, new_buffer_size));
 
-    strncpy(&args_buffer[args_buffer_size], key.data(), key.size());
+    memcpy(&args_buffer[args_buffer_size], key.data(), key.size());
     args_buffer[args_buffer_size + key.size()] = '\0';
-    strncpy(&args_buffer[args_buffer_size + key.size() + 1], value.data(),
-            value.size());
+    memcpy(&args_buffer[args_buffer_size + key.size() + 1], value.data(),
+           value.size());
+    args_buffer[new_buffer_size - 1] = '\0';
 
     args_buffer_size = static_cast<uint32_t>(new_buffer_size);
   }
