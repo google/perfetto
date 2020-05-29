@@ -33,7 +33,7 @@ void DisableAndReadBuffer(std::function<void(Record*)> fn) {
   RingBuffer::GetInstance()->ReadAll(fn);
 }
 
-RingBuffer::RingBuffer() : data_{} {
+RingBuffer::RingBuffer() {
   static_assert((kCapacity & (kCapacity - 1)) == 0,
                 "Capacity should be a power of 2");
 }
