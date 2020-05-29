@@ -253,7 +253,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
   C(base::Optional<uint32_t>, reference_set_id)            \
   C(int32_t, reachable)                                    \
   C(HeapGraphClassTable::Id, type_id)                      \
-  C(base::Optional<StringPool::Id>, root_type)
+  C(base::Optional<StringPool::Id>, root_type)             \
+  C(int32_t, root_distance, Column::Flag::kHidden)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
 
@@ -273,8 +274,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
   NAME(HeapGraphReferenceTable, "heap_graph_reference")       \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
   C(uint32_t, reference_set_id, Column::Flag::kSorted)        \
-  C(int64_t, owner_id)                                        \
-  C(int64_t, owned_id)                                        \
+  C(uint32_t, owner_id)                                       \
+  C(uint32_t, owned_id)                                       \
   C(StringPool::Id, field_name)                               \
   C(StringPool::Id, field_type_name)                          \
   C(base::Optional<StringPool::Id>, deobfuscated_field_name)
