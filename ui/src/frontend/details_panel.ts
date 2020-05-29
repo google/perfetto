@@ -19,6 +19,7 @@ import {LogExists, LogExistsKey} from '../common/logs';
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {CounterDetailsPanel} from './counter_panel';
+import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {HeapProfileDetailsPanel} from './heap_profile_panel';
@@ -191,6 +192,11 @@ export class DetailsPanel implements m.ClassComponent {
           detailsPanels.set(
               'current_selection',
               m(HeapProfileDetailsPanel, {key: 'heap_profile'}));
+          break;
+        case 'CPU_PROFILE_SAMPLE':
+          detailsPanels.set('current_selection', m(CpuProfileDetailsPanel, {
+                              key: 'cpu_profile_sample',
+                            }));
           break;
         case 'CHROME_SLICE':
           detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
