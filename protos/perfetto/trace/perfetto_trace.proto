@@ -1158,8 +1158,14 @@ message TraceConfig {
     // into the trace as part of the ClockSnapshots emitted by the service.
     // Trace processor will attempt to translate packet/event timestamps from
     // various data sources (and their chosen clock domains) to this domain
-    // during import. Added in Android S.
+    // during import. Added in Android R.
     optional BuiltinClock primary_trace_clock = 5;
+
+    // Time interval in between snapshotting of sync markers, clock snapshots,
+    // stats, and other periodic service-emitted events. Note that the service
+    // only keeps track of the first and the most recent snapshot until
+    // ReadBuffers() is called.
+    optional uint32 snapshot_interval_ms = 6;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
