@@ -40,6 +40,7 @@ import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
+import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
 import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
@@ -56,6 +57,10 @@ import {
   ThreadAggregationController
 } from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
+import {
+  CpuProfileController,
+  CpuProfileControllerArgs
+} from './cpu_profile_controller';
 import {globals} from './globals';
 import {
   HeapProfileController,
@@ -155,6 +160,10 @@ export class TraceController extends Controller<States> {
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
           Child('selection', SelectionController, selectionArgs));
+
+        const cpuProfileArgs: CpuProfileControllerArgs = {engine};
+        childControllers.push(
+            Child('cpuProfile', CpuProfileController, cpuProfileArgs));
 
         const heapProfileArgs: HeapProfileControllerArgs = {engine};
         childControllers.push(
@@ -612,11 +621,15 @@ export class TraceController extends Controller<States> {
           thread.name as threadName,
           process.name as processName,
           total_dur as totalDur,
-          ifnull(has_sched, false) as hasSched
+          ifnull(has_sched, false) as hasSched,
+          ifnull(has_cpu_samples, false) as hasCpuSamples
         from
           thread
           left join (select utid, count(1), true as has_sched
               from sched group by utid
+          ) using(utid)
+          left join (select utid, count(1), true as has_cpu_samples
+              from cpu_profile_stack_sample group by utid
           ) using(utid)
           left join process using(upid)
           left join (select upid, sum(dur) as total_dur
@@ -644,6 +657,7 @@ export class TraceController extends Controller<States> {
            processName: STR_NULL,
            totalDur: NUM_NULL,
            hasSched: NUM,
+           hasCpuSamples: NUM,
          })) {
       const utid = row.utid;
       const tid = row.tid;
@@ -653,6 +667,7 @@ export class TraceController extends Controller<States> {
       const processName = row.processName;
       const hasSchedEvents = !!row.totalDur;
       const threadHasSched = !!row.hasSched;
+      const threadHasCpuSamples = !!row.hasCpuSamples;
 
       const threadTrack =
           utid === null ? undefined : utidToThreadTrack.get(utid);
@@ -747,7 +762,7 @@ export class TraceController extends Controller<States> {
           tracksToAdd.push({
             engineId: this.engineId,
             kind: 'CounterTrack',
-            name: element.name,
+            name: `${threadName} (${element.name})`,
             trackGroup: pUuid,
             config: {
               name: element.name,
@@ -758,6 +773,17 @@ export class TraceController extends Controller<States> {
           });
         });
       }
+
+      if (threadHasCpuSamples) {
+        tracksToAdd.push({
+          engineId: this.engineId,
+          kind: CPU_PROFILE_TRACK_KIND,
+          name: `${threadName} (CPU Stack Samples)`,
+          trackGroup: pUuid,
+          config: {utid},
+        });
+      }
+
       if (threadHasSched) {
         tracksToAdd.push({
           engineId: this.engineId,
