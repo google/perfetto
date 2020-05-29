@@ -19,6 +19,8 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 
+#include <set>
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -40,7 +42,61 @@ base::Optional<base::StringView> PackageFromApp(base::StringView location) {
   }
   return location.substr(0, minus);
 }
+
+std::set<uint32_t> GetChildren(const TraceStorage& storage, uint32_t row) {
+  base::Optional<uint32_t> reference_set_id =
+      storage.heap_graph_object_table().reference_set_id()[row];
+  if (!reference_set_id)
+    return {};
+  uint32_t cur_reference_set_id;
+  std::set<uint32_t> children;
+  for (uint32_t reference_row = *reference_set_id;
+       reference_row < storage.heap_graph_reference_table().row_count();
+       ++reference_row) {
+    cur_reference_set_id =
+        storage.heap_graph_reference_table().reference_set_id()[reference_row];
+    if (cur_reference_set_id != *reference_set_id)
+      break;
+
+    PERFETTO_CHECK(
+        storage.heap_graph_reference_table().owner_id()[reference_row] == row);
+    children.emplace(
+        storage.heap_graph_reference_table().owned_id()[reference_row]);
+  }
+  return children;
+}
 }  // namespace
+
+void MarkRoot(TraceStorage* storage, uint32_t row, StringPool::Id type) {
+  storage->mutable_heap_graph_object_table()->mutable_root_type()->Set(row,
+                                                                       type);
+
+  // Calculate shortest distance to a GC root.
+  std::deque<std::pair<int32_t, uint32_t>> reachable_nodes{{0, row}};
+  while (!reachable_nodes.empty()) {
+    uint32_t cur_node;
+    int32_t distance;
+    std::tie(distance, cur_node) = reachable_nodes.front();
+    reachable_nodes.pop_front();
+    int32_t cur_distance =
+        storage->heap_graph_object_table().root_distance()[cur_node];
+    if (cur_distance == -1 || cur_distance > distance) {
+      if (cur_distance == -1) {
+        storage->mutable_heap_graph_object_table()->mutable_reachable()->Set(
+            cur_node, 1);
+      }
+      storage->mutable_heap_graph_object_table()->mutable_root_distance()->Set(
+          cur_node, distance);
+
+      for (uint32_t child_node : GetChildren(*storage, cur_node)) {
+        int32_t child_distance =
+            storage->heap_graph_object_table().root_distance()[child_node];
+        if (child_distance == -1 || child_distance > distance + 1)
+          reachable_nodes.emplace_back(distance + 1, child_node);
+      }
+    }
+  }
+}
 
 base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type) {
   static const base::StringView kJavaClassTemplate("java.lang.Class<");
@@ -183,11 +239,7 @@ base::Optional<std::string> HeapGraphTracker::PackageFromLocation(
 
 HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
     uint32_t seq_id) {
-  auto seq_it = sequence_state_.find(seq_id);
-  if (seq_it == sequence_state_.end()) {
-    std::tie(seq_it, std::ignore) = sequence_state_.emplace(seq_id, this);
-  }
-  return seq_it->second;
+  return sequence_state_[seq_id];
 }
 
 bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
@@ -372,15 +424,10 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
              static_cast<int64_t>(obj.self_size),
              /*reference_set_id=*/base::nullopt,
              /*reachable=*/0, db_id,
-             /*root_type=*/base::nullopt});
-    int64_t row = id_and_row.row;
+             /*root_type=*/base::nullopt,
+             /*root_distance*/ -1});
+    uint32_t row = id_and_row.row;
     sequence_state.object_id_to_row.emplace(obj.object_id, row);
-    int64_t type_row =
-        *context_->storage->heap_graph_class_table().id().IndexOf(db_id);
-    // Still using raw rows for the HeapGraphWalker to not tie it to the
-    // data base and make it useable independently.
-    // We will eventually want to use that client-side for summarization.
-    sequence_state.walker.AddNode(row, obj.self_size, type_row);
   }
 
   for (const SourceObject& obj : sequence_state.current_objects) {
@@ -391,7 +438,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
     uint32_t reference_set_id =
         context_->storage->heap_graph_reference_table().row_count();
-    std::set<int64_t> seen_owned;
+    bool any_references = false;
     for (const SourceObject::Reference& ref : obj.references) {
       // This is true for unset reference fields.
       if (ref.owned_object_id == 0)
@@ -403,11 +450,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       if (it == sequence_state.object_id_to_row.end())
         continue;
 
-      int64_t owned_row = it->second;
-      bool inserted;
-      std::tie(std::ignore, inserted) = seen_owned.emplace(owned_row);
-      if (inserted)
-        sequence_state.walker.AddEdge(owner_row, owned_row);
+      uint32_t owned_row = it->second;
 
       auto field_it = sequence_state.interned_fields.find(ref.field_name_id);
       if (field_it == sequence_state.interned_fields.end()) {
@@ -425,8 +468,9 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       uint32_t row =
           context_->storage->heap_graph_reference_table().row_count() - 1;
       field_to_rows_[field_name].emplace_back(row);
+      any_references = true;
     }
-    if (!seen_owned.empty()) {
+    if (any_references) {
       context_->storage->mutable_heap_graph_object_table()
           ->mutable_reference_set_id()
           ->Set(owner_row, reference_set_id);
@@ -441,33 +485,109 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       if (it == sequence_state.object_id_to_row.end())
         continue;
 
-      int64_t obj_row = it->second;
-      sequence_state.walker.MarkRoot(obj_row);
-      context_->storage->mutable_heap_graph_object_table()
-          ->mutable_root_type()
-          ->Set(static_cast<uint32_t>(obj_row), root.root_type);
+      uint32_t obj_row = it->second;
+      roots_[std::make_pair(sequence_state.current_upid,
+                            sequence_state.current_ts)]
+          .emplace_back(obj_row);
+      MarkRoot(context_->storage.get(), obj_row, root.root_type);
     }
   }
 
-  walkers_.emplace(
-      std::make_pair(sequence_state.current_upid, sequence_state.current_ts),
-      std::move(sequence_state.walker));
-
   sequence_state_.erase(seq_id);
+}
+
+void FindPathFromRoot(const TraceStorage& storage,
+                      uint32_t row,
+                      PathFromRoot* path) {
+  // We have long retention chains (e.g. from LinkedList). If we use the stack
+  // here, we risk running out of stack space. This is why we use a vector to
+  // simulate the stack.
+  struct StackElem {
+    uint32_t node;     // Node in the original graph.
+    size_t parent_id;  // id of parent node in the result tree.
+    size_t i;          // Index of the next child of this node to handle.
+    uint32_t depth;    // Depth in the resulting tree
+                       // (including artifical root).
+    std::vector<uint32_t> children;
+  };
+
+  std::vector<StackElem> stack{{row, PathFromRoot::kRoot, 0, 0, {}}};
+
+  while (!stack.empty()) {
+    uint32_t n = stack.back().node;
+    size_t parent_id = stack.back().parent_id;
+    uint32_t depth = stack.back().depth;
+    size_t& i = stack.back().i;
+    std::vector<uint32_t>& children = stack.back().children;
+
+    tables::HeapGraphClassTable::Id type_id =
+        storage.heap_graph_object_table().type_id()[n];
+    auto it = path->nodes[parent_id].children.find(type_id);
+    if (it == path->nodes[parent_id].children.end()) {
+      size_t id = path->nodes.size();
+      path->nodes.emplace_back(PathFromRoot::Node{});
+      std::tie(it, std::ignore) =
+          path->nodes[parent_id].children.emplace(type_id, id);
+      path->nodes.back().type_id = type_id;
+      path->nodes.back().depth = depth;
+      path->nodes.back().parent_id = parent_id;
+    }
+    size_t id = it->second;
+    PathFromRoot::Node* output_tree_node = &path->nodes[id];
+
+    if (i == 0) {
+      // This is the first time we are looking at this node, so add its
+      // size to the relevant node in the resulting tree.
+      output_tree_node->size +=
+          storage.heap_graph_object_table().self_size()[n];
+      output_tree_node->count++;
+      std::set<uint32_t> children_set = GetChildren(storage, n);
+      children.assign(children_set.cbegin(), children_set.cend());
+      PERFETTO_CHECK(children.size() == children_set.size());
+    }
+    // Otherwise we have already handled this node and just need to get its
+    // i-th child.
+    if (!children.empty()) {
+      PERFETTO_CHECK(i < children.size());
+      uint32_t child = children[i];
+      if (++i == children.size())
+        stack.pop_back();
+
+      int32_t child_distance =
+          storage.heap_graph_object_table().root_distance()[child];
+      int32_t n_distance = storage.heap_graph_object_table().root_distance()[n];
+      PERFETTO_CHECK(n_distance >= 0);
+      PERFETTO_CHECK(child_distance >= 0);
+
+      bool visited = path->visited.count(child);
+
+      if (child_distance == n_distance + 1 && !visited) {
+        path->visited.emplace(child);
+        stack.emplace_back(StackElem{child, id, 0, depth + 1, {}});
+      }
+    } else {
+      stack.pop_back();
+    }
+  }
 }
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
                                   const UniquePid current_upid) {
-  auto it = walkers_.find(std::make_pair(current_upid, current_ts));
-  if (it == walkers_.end())
+  auto it = roots_.find(std::make_pair(current_upid, current_ts));
+  if (it == roots_.end())
     return nullptr;
+
+  const std::vector<uint32_t>& roots = it->second;
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
           context_->storage->mutable_string_pool(), nullptr));
 
-  HeapGraphWalker::PathFromRoot init_path = it->second.FindPathsFromRoot();
+  PathFromRoot init_path;
+  for (uint32_t root : roots) {
+    FindPathFromRoot(*context_->storage, root, &init_path);
+  }
   auto profile_type = context_->storage->InternString("graph");
   auto java_mapping = context_->storage->InternString("JAVA");
 
@@ -475,7 +595,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   std::vector<int32_t> node_to_cumulative_count(init_path.nodes.size());
   // i > 0 is to skip the artifical root node.
   for (size_t i = init_path.nodes.size() - 1; i > 0; --i) {
-    const HeapGraphWalker::PathFromRoot::Node& node = init_path.nodes[i];
+    const PathFromRoot::Node& node = init_path.nodes[i];
 
     node_to_cumulative_size[i] += node.size;
     node_to_cumulative_count[i] += node.count;
@@ -486,19 +606,20 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   std::vector<FlamegraphId> node_to_id(init_path.nodes.size());
   // i = 1 is to skip the artifical root node.
   for (size_t i = 1; i < init_path.nodes.size(); ++i) {
-    const HeapGraphWalker::PathFromRoot::Node& node = init_path.nodes[i];
+    const PathFromRoot::Node& node = init_path.nodes[i];
     PERFETTO_CHECK(node.parent_id < i);
     base::Optional<FlamegraphId> parent_id;
     if (node.parent_id != 0)
       parent_id = node_to_id[node.parent_id];
     const uint32_t depth = node.depth;
 
+    uint32_t type_row =
+        *context_->storage->heap_graph_class_table().id().IndexOf(node.type_id);
     base::Optional<StringPool::Id> name =
         context_->storage->heap_graph_class_table()
-            .deobfuscated_name()[static_cast<uint32_t>(node.class_name)];
+            .deobfuscated_name()[type_row];
     if (!name) {
-      name = context_->storage->heap_graph_class_table()
-                 .name()[static_cast<uint32_t>(node.class_name)];
+      name = context_->storage->heap_graph_class_table().name()[type_row];
     }
     PERFETTO_CHECK(name);
 
@@ -520,14 +641,6 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   }
   return tbl;
 }
-
-void HeapGraphTracker::MarkReachable(int64_t row) {
-  context_->storage->mutable_heap_graph_object_table()
-      ->mutable_reachable()
-      ->Set(static_cast<uint32_t>(row), 1);
-}
-
-void HeapGraphTracker::SetRetained(int64_t, int64_t, int64_t) {}
 
 void HeapGraphTracker::NotifyEndOfFile() {
   if (!sequence_state_.empty()) {
@@ -559,6 +672,8 @@ void HeapGraphTracker::AddDeobfuscationMapping(
   deobfuscation_mapping_.emplace(std::make_pair(package_name, obfuscated_name),
                                  deobfuscated_name);
 }
+
+HeapGraphTracker::~HeapGraphTracker() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto
