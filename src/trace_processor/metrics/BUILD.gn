@@ -20,6 +20,7 @@ sql_files = [
   "android/android_batt.sql",
   "android/android_cpu.sql",
   "android/android_cpu_agg.sql",
+  "android/android_cpu_raw_metrics_per_core.sql",
   "android/android_mem.sql",
   "android/android_mem_unagg.sql",
   "android/android_ion.sql",

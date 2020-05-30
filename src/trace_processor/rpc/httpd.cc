@@ -304,6 +304,17 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
                      res.size());
   }
 
+  if (req.uri == "/enable_metatrace") {
+    trace_processor_rpc_.EnableMetatrace();
+    return HttpReply(client->sock.get(), "200 OK", headers);
+  }
+
+  if (req.uri == "/disable_and_read_metatrace") {
+    std::vector<uint8_t> res = trace_processor_rpc_.DisableAndReadMetatrace();
+    return HttpReply(client->sock.get(), "200 OK", headers, res.data(),
+                     res.size());
+  }
+
   return HttpReply(client->sock.get(), "404 Not Found", headers);
 }
 

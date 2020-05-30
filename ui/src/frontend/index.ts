@@ -34,6 +34,7 @@ import {AnalyzePage} from './analyze_page';
 import {maybeShowErrorDialog} from './error_dialog';
 import {
   CounterDetails,
+  CpuProfileDetails,
   globals,
   HeapProfileDetails,
   QuantizedLoad,
@@ -128,6 +129,11 @@ class FrontendApi {
 
   publishHeapProfileDetails(click: HeapProfileDetails) {
     globals.heapProfileDetails = click;
+    this.redraw();
+  }
+
+  publishCpuProfileDetails(details: CpuProfileDetails) {
+    globals.cpuProfileDetails = details;
     this.redraw();
   }
 

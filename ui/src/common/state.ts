@@ -190,6 +190,13 @@ export interface HeapProfileFlamegraph {
   expandedCallsite?: CallsiteInfo;
 }
 
+export interface CpuProfileSampleSelection {
+  kind: 'CPU_PROFILE_SAMPLE';
+  id: number;
+  utid: number;
+  ts: number;
+}
+
 export interface ChromeSliceSelection {
   kind: 'CHROME_SLICE';
   id: number;
@@ -205,9 +212,9 @@ export interface ThreadStateSelection {
   cpu: number;
 }
 
-type Selection =
-    (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
-     ChromeSliceSelection|ThreadStateSelection)&{trackId?: string};
+type Selection = (NoteSelection|SliceSelection|CounterSelection|
+                  HeapProfileSelection|CpuProfileSampleSelection|
+                  ChromeSliceSelection|ThreadStateSelection)&{trackId?: string};
 
 export interface LogsPagination {
   offset: number;

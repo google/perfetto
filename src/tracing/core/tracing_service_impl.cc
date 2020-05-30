@@ -68,6 +68,7 @@
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_buffer.h"
 
+#include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -86,7 +87,7 @@ namespace perfetto {
 
 namespace {
 constexpr int kMaxBuffersPerConsumer = 128;
-constexpr base::TimeMillis kSnapshotsInterval(10 * 1000);
+constexpr uint32_t kDefaultSnapshotsIntervalMs = 10 * 1000;
 constexpr int kDefaultWriteIntoFilePeriodMs = 5000;
 constexpr int kMaxConcurrentTracingSessions = 15;
 constexpr int kMaxConcurrentTracingSessionsPerUid = 5;
@@ -900,13 +901,18 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   tracing_session->state = TracingSession::STARTED;
 
-  if (!tracing_session->config.builtin_data_sources()
-           .disable_clock_snapshotting()) {
-    SnapshotClocks(
-        &tracing_session->initial_clock_snapshot_,
-        tracing_session->config.builtin_data_sources().primary_trace_clock(),
-        /*set_root_timestamp=*/true);
-  }
+  // Periodically snapshot clocks, stats, sync markers while the trace is
+  // active. The snapshots are emitted on the future ReadBuffers() calls, which
+  // means that:
+  //  (a) If we're streaming to a file (or to a consumer) while tracing, we
+  //      write snapshots periodically into the trace.
+  //  (b) If ReadBuffers() is only called after tracing ends, we emit the latest
+  //      snapshot into the trace. For clock snapshots, we keep track of a
+  //      snapshot recorded at the beginning of the session as well as the most
+  //      recent snapshot that showed significant new drift between different
+  //      clocks. This way, we emit useful snapshots for both stop-when-full and
+  //      ring-buffer tracing modes.
+  PeriodicSnapshotTask(tracing_session, /*is_initial_snapshot=*/true);
 
   // Trigger delayed task if the trace is time limited.
   const uint32_t trace_duration_ms = tracing_session->config.duration_ms();
@@ -1679,33 +1685,27 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
-  std::move(tracing_session->initial_clock_snapshot_.begin(),
-            tracing_session->initial_clock_snapshot_.end(),
-            std::back_inserter(packets));
-  tracing_session->initial_clock_snapshot_.clear();
-
-  base::TimeMillis now = base::GetWallTimeMs();
-  if (now >= tracing_session->last_snapshot_time + kSnapshotsInterval) {
-    tracing_session->last_snapshot_time = now;
-    // Don't emit the stats immediately, but instead wait until no more trace
-    // data is available to read. That way, any problems that occur while
-    // reading from the buffers are reflected in the emitted stats. This is
-    // particularly important for use cases where ReadBuffers is only ever
-    // called after the tracing session is stopped.
-    tracing_session->should_emit_stats = true;
-    SnapshotSyncMarker(&packets);
-
-    if (!tracing_session->config.builtin_data_sources()
-             .disable_clock_snapshotting()) {
-      // We don't want to put a root timestamp in this snapshot as the packet
-      // may be very out of order with respect to the actual trace packets
-      // since consuming the trace may happen at any point after it starts.
-      SnapshotClocks(
-          &packets,
-          tracing_session->config.builtin_data_sources().primary_trace_clock(),
-          /*set_root_timestamp=*/false);
-    }
+  if (!tracing_session->initial_clock_snapshot_.empty()) {
+    EmitClockSnapshot(tracing_session,
+                      std::move(tracing_session->initial_clock_snapshot_),
+                      /*set_root_timestamp=*/true, &packets);
   }
+
+  if (!tracing_session->last_clock_snapshot_.empty()) {
+    // We don't want to put a root timestamp in periodic clock snapshot packets
+    // as they may be emitted very out of order with respect to the actual trace
+    // packets, since consuming the trace may happen at any point after it
+    // starts.
+    EmitClockSnapshot(tracing_session,
+                      std::move(tracing_session->last_clock_snapshot_),
+                      /*set_root_timestamp=*/false, &packets);
+  }
+
+  if (tracing_session->should_emit_sync_marker) {
+    SnapshotSyncMarker(&packets);
+    tracing_session->should_emit_sync_marker = false;
+  }
+
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
     MaybeEmitTraceConfig(tracing_session, &packets);
     MaybeEmitReceivedTriggers(tracing_session, &packets);
@@ -1800,6 +1800,12 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   }    // for(buffers...)
 
   const bool has_more = did_hit_threshold;
+
+  // Only emit the stats when there is no more trace data is available to read.
+  // That way, any problems that occur while reading from the buffers are
+  // reflected in the emitted stats. This is particularly important for use
+  // cases where ReadBuffers is only ever called after the tracing session is
+  // stopped.
   if (!has_more && tracing_session->should_emit_stats) {
     size_t prev_packets_size = packets.size();
     SnapshotStats(tracing_session, &packets);
@@ -2388,6 +2394,40 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 #endif
 }
 
+void TracingServiceImpl::PeriodicSnapshotTask(TracingSession* tracing_session,
+                                              bool is_initial_snapshot) {
+  tracing_session->should_emit_sync_marker = true;
+  tracing_session->should_emit_stats = true;
+
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_clock_snapshotting()) {
+    if (is_initial_snapshot)
+      SnapshotClocks(&tracing_session->initial_clock_snapshot_);
+    SnapshotClocks(&tracing_session->last_clock_snapshot_);
+  }
+
+  uint32_t interval_ms =
+      tracing_session->config.builtin_data_sources().snapshot_interval_ms();
+  if (!interval_ms)
+    interval_ms = kDefaultSnapshotsIntervalMs;
+
+  TracingSessionID tsid = tracing_session->id;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostDelayedTask(
+      [weak_this, tsid] {
+        if (!weak_this)
+          return;
+        auto* tracing_session_ptr = weak_this->GetTracingSession(tsid);
+        if (!tracing_session_ptr)
+          return;
+        if (tracing_session_ptr->state != TracingSession::STARTED)
+          return;
+        weak_this->PeriodicSnapshotTask(tracing_session_ptr,
+                                        /*is_initial_snapshot=*/false);
+      },
+      interval_ms - (base::GetWallTimeMs().count() % interval_ms));
+}
+
 void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
   // The sync marks are used to tokenize large traces efficiently.
   // See description in trace_packet.proto.
@@ -2408,17 +2448,13 @@ void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
 
-void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
-                                        protos::gen::BuiltinClock trace_clock,
-                                        bool set_root_timestamp) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  uint64_t root_timestamp_ns = 0;
-  auto* clock_snapshot = packet->set_clock_snapshot();
+void TracingServiceImpl::SnapshotClocks(
+    TracingSession::ClockSnapshotData* snapshot_data) {
+  // Minimum drift that justifies replacing a prior clock snapshot that hasn't
+  // been emitted into the trace yet (see comment below).
+  static constexpr int64_t kSignificantDriftNs = 10 * 1000 * 1000;  // 10 ms
 
-  if (!trace_clock)
-    trace_clock = protos::gen::BUILTIN_CLOCK_BOOTTIME;
-  clock_snapshot->set_primary_trace_clock(
-      static_cast<protos::pbzero::BuiltinClock>(trace_clock));
+  TracingSession::ClockSnapshotData new_snapshot_data;
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&    \
@@ -2447,39 +2483,95 @@ void TracingServiceImpl::SnapshotClocks(std::vector<TracePacket>* packets,
       PERFETTO_DLOG("clock_gettime failed for clock %d", clock.id);
   }
   for (auto& clock : clocks) {
-    if (set_root_timestamp &&
-        clock.type == protos::pbzero::BUILTIN_CLOCK_BOOTTIME) {
-      root_timestamp_ns =
-          static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count());
-    }
-    auto* c = clock_snapshot->add_clocks();
-    c->set_clock_id(static_cast<uint32_t>(clock.type));
-    c->set_timestamp(
-        static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count()));
+    new_snapshot_data.push_back(std::make_pair(
+        static_cast<uint32_t>(clock.type),
+        static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count())));
   }
-#else  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
-       // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
-       // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
+        // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
+        // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
-  if (set_root_timestamp)
-    root_timestamp_ns = wall_time_ns;
-  auto* c = clock_snapshot->add_clocks();
-  c->set_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-  c->set_timestamp(wall_time_ns);
   // The default trace clock is boot time, so we always need to emit a path to
   // it. However since we don't actually have a boot time source on these
   // platforms, pretend that wall time equals boot time.
-  c = clock_snapshot->add_clocks();
-  c->set_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
-  c->set_timestamp(wall_time_ns);
+  new_snapshot_data.push_back(
+      std::make_pair(protos::pbzero::BUILTIN_CLOCK_BOOTTIME, wall_time_ns));
+  new_snapshot_data.push_back(
+      std::make_pair(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, wall_time_ns));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
-        // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+        // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
+        // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 
-  if (root_timestamp_ns)
-    packet->set_timestamp(root_timestamp_ns);
+  // If we're about to update a session's latest clock snapshot that hasn't been
+  // emitted into the trace yet, check whether the clocks have drifted enough to
+  // warrant overriding the current snapshot values. The older snapshot would be
+  // valid for a larger part of the currently buffered trace data because the
+  // clock sync protocol in trace processor uses the latest clock <= timestamp
+  // to translate times (see https://perfetto.dev/docs/concepts/clock-sync), so
+  // we try to keep it if we can.
+  if (!snapshot_data->empty()) {
+    PERFETTO_DCHECK(snapshot_data->size() == new_snapshot_data.size());
+    PERFETTO_DCHECK((*snapshot_data)[0].first ==
+                    protos::gen::BUILTIN_CLOCK_BOOTTIME);
+
+    bool update_snapshot = false;
+    uint64_t old_boot_ns = (*snapshot_data)[0].second;
+    uint64_t new_boot_ns = new_snapshot_data[0].second;
+    int64_t boot_diff =
+        static_cast<int64_t>(new_boot_ns) - static_cast<int64_t>(old_boot_ns);
+
+    for (size_t i = 1; i < snapshot_data->size(); i++) {
+      uint64_t old_ns = (*snapshot_data)[i].second;
+      uint64_t new_ns = new_snapshot_data[i].second;
+
+      int64_t diff =
+          static_cast<int64_t>(new_ns) - static_cast<int64_t>(old_ns);
+
+      // Compare the boottime delta against the delta of this clock.
+      if (std::abs(boot_diff - diff) >= kSignificantDriftNs) {
+        update_snapshot = true;
+        break;
+      }
+    }
+    if (!update_snapshot)
+      return;
+    snapshot_data->clear();
+  }
+
+  *snapshot_data = std::move(new_snapshot_data);
+}
+
+void TracingServiceImpl::EmitClockSnapshot(
+    TracingSession* tracing_session,
+    TracingSession::ClockSnapshotData snapshot_data,
+    bool set_root_timestamp,
+    std::vector<TracePacket>* packets) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  if (set_root_timestamp) {
+    // First timestamp from the snapshot is the default time domain (BOOTTIME on
+    // systems that support it, or walltime otherwise).
+    PERFETTO_DCHECK(snapshot_data[0].first ==
+                    protos::gen::BUILTIN_CLOCK_BOOTTIME);
+    packet->set_timestamp(snapshot_data[0].second);
+  }
+
+  auto* snapshot = packet->set_clock_snapshot();
+
+  protos::gen::BuiltinClock trace_clock =
+      tracing_session->config.builtin_data_sources().primary_trace_clock();
+  if (!trace_clock)
+    trace_clock = protos::gen::BUILTIN_CLOCK_BOOTTIME;
+  snapshot->set_primary_trace_clock(
+      static_cast<protos::pbzero::BuiltinClock>(trace_clock));
+
+  for (auto& clock_id_and_ts : snapshot_data) {
+    auto* c = snapshot->add_clocks();
+    c->set_clock_id(clock_id_and_ts.first);
+    c->set_timestamp(clock_id_and_ts.second);
+  }
+
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
-
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
