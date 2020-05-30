@@ -71,22 +71,26 @@ void ExpectOutput(const Table& table, const std::string& expected) {
       << "Actual:" << actual << "\nExpected:" << expected;
 }
 
-tables::SliceTable::Row SliceRow(int64_t ts,
-                                 int64_t dur,
-                                 uint32_t depth,
-                                 uint32_t track_id,
-                                 StringId name,
-                                 int64_t stack_id = 0,
-                                 int64_t parent_stack_id = 0) {
+tables::SliceTable::Id Insert(
+    tables::SliceTable* table,
+    int64_t ts,
+    int64_t dur,
+    uint32_t track_id,
+    StringId name,
+    base::Optional<tables::SliceTable::Id> parent_id) {
   tables::SliceTable::Row row;
   row.ts = ts;
   row.dur = dur;
-  row.depth = depth;
+  row.depth = 0;
+  base::Optional<tables::SliceTable::Id> id = parent_id;
+  while (id) {
+    row.depth++;
+    id = table->parent_id()[id.value().value];
+  }
   row.track_id = tables::TrackTable::Id{track_id};
   row.name = name;
-  row.stack_id = stack_id;
-  row.parent_stack_id = parent_stack_id;
-  return row;
+  row.parent_id = parent_id;
+  return table->Insert(row).id;
 }
 
 TEST(ExperimentalSliceLayoutGeneratorTest, SingleRow) {
@@ -94,8 +98,8 @@ TEST(ExperimentalSliceLayoutGeneratorTest, SingleRow) {
   tables::SliceTable slice_table(&pool, nullptr);
   StringId name = pool.InternString("SingleRow");
 
-  slice_table.Insert(SliceRow(1 /*ts*/, 5 /*dur*/, 0u /*depth*/, 1u /*id*/,
-                              name /*slice_name*/));
+  Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
+         base::nullopt /*parent*/);
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
@@ -106,21 +110,37 @@ TEST(ExperimentalSliceLayoutGeneratorTest, SingleRow) {
 )");
 }
 
+TEST(ExperimentalSliceLayoutGeneratorTest, DoubleRow) {
+  StringPool pool;
+  tables::SliceTable slice_table(&pool, nullptr);
+  StringId name = pool.InternString("SingleRow");
+
+  auto id = Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
+                   base::nullopt);
+  Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name, id);
+
+  ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
+
+  std::unique_ptr<Table> table = gen.ComputeTable(
+      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {});
+  ExpectOutput(*table, R"(
+ #####
+ #####
+)");
+}
+
 TEST(ExperimentalSliceLayoutGeneratorTest, MultipleRows) {
   StringPool pool;
   tables::SliceTable slice_table(&pool, nullptr);
   StringId name = pool.InternString("MultipleRows");
 
-  slice_table.Insert(SliceRow(1 /*ts*/, 5 /*dur*/, 0u /*depth*/, 1u /*id*/,
-                              name /*slice_name*/));
-  slice_table.Insert(SliceRow(1 /*ts*/, 4 /*dur*/, 1u /*depth*/, 1u /*id*/,
-                              name /*slice_name*/));
-  slice_table.Insert(SliceRow(1 /*ts*/, 3 /*dur*/, 2u /*depth*/, 1u /*id*/,
-                              name /*slice_name*/));
-  slice_table.Insert(SliceRow(1 /*ts*/, 2 /*dur*/, 3u /*depth*/, 1u /*id*/,
-                              name /*slice_name*/));
-  slice_table.Insert(SliceRow(1 /*ts*/, 1 /*dur*/, 4u /*depth*/, 1u /*id*/,
-                              name /*slice_name*/));
+  auto a = Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
+                  base::nullopt);
+  auto b = Insert(&slice_table, 1 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name, a);
+  auto c = Insert(&slice_table, 1 /*ts*/, 3 /*dur*/, 1 /*track_id*/, name, b);
+  auto d = Insert(&slice_table, 1 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name, c);
+  auto e = Insert(&slice_table, 1 /*ts*/, 1 /*dur*/, 1 /*track_id*/, name, d);
+  base::ignore_result(e);
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
@@ -143,26 +163,24 @@ TEST(ExperimentalSliceLayoutGeneratorTest, MultipleTracks) {
   StringId name3 = pool.InternString("Slice3");
   StringId name4 = pool.InternString("Track4");
 
-  slice_table.Insert(SliceRow(0 /*ts*/, 4 /*dur*/, 0u /*depth*/, 1u /*id*/,
-                              name1 /*slice_name*/, 1 /*stack_id*/));
-  slice_table.Insert(SliceRow(0 /*ts*/, 2 /*dur*/, 1u /*depth*/, 1u /*id*/,
-                              name2 /*slice_name*/, 2 /*stack_id*/,
-                              1 /*parent_stack_id*/));
-  slice_table.Insert(SliceRow(3 /*ts*/, 4 /*dur*/, 0u /*depth*/, 2u /*id*/,
-                              name3 /*slice_name*/, 3 /*stack_id*/));
-  slice_table.Insert(SliceRow(3 /*ts*/, 2 /*dur*/, 1u /*depth*/, 2u /*id*/,
-                              name4 /*slice_name*/, 4 /*stack_id*/,
-                              3 /*parent_stack_id*/));
+  auto a = Insert(&slice_table, 1 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name1,
+                  base::nullopt);
+  auto b = Insert(&slice_table, 1 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name2, a);
+  auto x = Insert(&slice_table, 4 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name3,
+                  base::nullopt);
+  auto y = Insert(&slice_table, 4 /*ts*/, 2 /*dur*/, 2 /*track_id*/, name4, x);
+  base::ignore_result(b);
+  base::ignore_result(y);
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
   std::unique_ptr<Table> table = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {});
   ExpectOutput(*table, R"(
-####
-##
-   ####
-   ##
+ ####
+ ##
+    ####
+    ##
 )");
 }
 
@@ -176,26 +194,23 @@ TEST(ExperimentalSliceLayoutGeneratorTest, MultipleTracksWithGap) {
   StringId name5 = pool.InternString("Slice5");
   StringId name6 = pool.InternString("Slice6");
 
-  slice_table.Insert(SliceRow(0 /*ts*/, 4 /*dur*/, 0u /*depth*/, 1u /*id*/,
-                              name1 /*slice_name*/, 1 /*stack_id*/));
-  slice_table.Insert(SliceRow(0 /*ts*/, 2 /*dur*/, 1u /*depth*/, 1u /*id*/,
-                              name2 /*slice_name*/, 2 /*stack_id*/,
-                              1 /*parent_stack_id*/));
-  slice_table.Insert(SliceRow(3 /*ts*/, 4 /*dur*/, 0u /*depth*/, 2u /*id*/,
-                              name3 /*slice_name*/, 3 /*stack_id*/));
-  slice_table.Insert(SliceRow(3 /*ts*/, 2 /*dur*/, 1u /*depth*/, 2u /*id*/,
-                              name4 /*slice_name*/, 4 /*stack_id*/,
-                              3 /*parent_stack_id*/));
-  slice_table.Insert(SliceRow(5 /*ts*/, 4 /*dur*/, 0u /*depth*/, 1u /*id*/,
-                              name5 /*slice_name*/, 5 /*stack_id*/));
-  slice_table.Insert(SliceRow(5 /*ts*/, 2 /*dur*/, 1u /*depth*/, 1u /*id*/,
-                              name6 /*slice_name*/, 6 /*stack_id*/,
-                              5 /*parent_stack_id*/));
+  auto a = Insert(&slice_table, 0 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name1,
+                  base::nullopt);
+  auto b = Insert(&slice_table, 0 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name2, a);
+  auto p = Insert(&slice_table, 3 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name3,
+                  base::nullopt);
+  auto q = Insert(&slice_table, 3 /*ts*/, 2 /*dur*/, 2 /*track_id*/, name4, p);
+  auto x = Insert(&slice_table, 5 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name5,
+                  base::nullopt);
+  auto y = Insert(&slice_table, 5 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name6, x);
+  base::ignore_result(b);
+  base::ignore_result(q);
+  base::ignore_result(y);
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
   std::unique_ptr<Table> table = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2,3")}}, {});
+      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {});
   ExpectOutput(*table, R"(
 #### ####
 ##   ##
@@ -213,19 +228,17 @@ TEST(ExperimentalSliceLayoutGeneratorTest, FilterOutTracks) {
   StringId name4 = pool.InternString("Slice4");
   StringId name5 = pool.InternString("Slice5");
 
-  slice_table.Insert(SliceRow(0 /*ts*/, 4 /*dur*/, 0u /*depth*/, 1u /*id*/,
-                              name1 /*slice_name*/, 1 /*stack_id*/));
-  slice_table.Insert(SliceRow(0 /*ts*/, 2 /*dur*/, 1u /*depth*/, 1u /*id*/,
-                              name2 /*slice_name*/, 2 /*stack_id*/,
-                              1 /*parent_stack_id*/));
-  slice_table.Insert(SliceRow(3 /*ts*/, 4 /*dur*/, 0u /*depth*/, 2u /*id*/,
-                              name3 /*slice_name*/, 3 /*stack_id*/));
-  slice_table.Insert(SliceRow(3 /*ts*/, 2 /*dur*/, 1u /*depth*/, 2u /*id*/,
-                              name4 /*slice_name*/, 4 /*stack_id*/,
-                              3 /*parent_stack_id*/));
+  auto a = Insert(&slice_table, 0 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name1,
+                  base::nullopt);
+  auto b = Insert(&slice_table, 0 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name2, a);
+  auto p = Insert(&slice_table, 3 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name3,
+                  base::nullopt);
+  auto q = Insert(&slice_table, 3 /*ts*/, 2 /*dur*/, 2 /*track_id*/, name4, p);
   // This slice should be ignored as it's not in the filter below:
-  slice_table.Insert(SliceRow(0 /*ts*/, 9 /*dur*/, 0u /*depth*/, 3u /*id*/,
-                              name5 /*slice_name*/, 5 /*stack_id*/));
+  Insert(&slice_table, 0 /*ts*/, 9 /*dur*/, 3 /*track_id*/, name5,
+         base::nullopt);
+  base::ignore_result(b);
+  base::ignore_result(q);
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
   std::unique_ptr<Table> table = gen.ComputeTable(

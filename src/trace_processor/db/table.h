@@ -182,6 +182,11 @@ class Table {
     return TypedColumn<T>::FromColumn(GetColumnByName(name));
   }
 
+  template <typename T>
+  const IdColumn<T>* GetIdColumnByName(const char* name) const {
+    return IdColumn<T>::FromColumn(GetColumnByName(name));
+  }
+
   // Returns the number of columns in the Table.
   uint32_t GetColumnCount() const {
     return static_cast<uint32_t>(columns_.size());

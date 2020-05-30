@@ -46,9 +46,10 @@ class ExperimentalSliceLayoutGenerator
   std::unique_ptr<Table> AddLayoutColumn(const Table& table,
                                          const std::set<TrackId>& selected,
                                          StringPool::Id filter_id);
-  int64_t GetBaseParentStackId(std::map<int64_t, int64_t>& stack_id_map,
-                               int64_t stack_id,
-                               int64_t parent_stack_id);
+  tables::SliceTable::Id InsertSlice(
+      std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
+      tables::SliceTable::Id id,
+      base::Optional<tables::SliceTable::Id> parent_id);
 
   StringPool* string_pool_;
   const tables::SliceTable* slice_table_;
