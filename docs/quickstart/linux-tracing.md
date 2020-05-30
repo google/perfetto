@@ -40,6 +40,7 @@ For a quick start, the [tools/tmux](/tools/tmux) script takes care of building,
 setting up and running everything.
 As an example, let's look at the process scheduling data, which will be obtained
 from the Linux kernel via the [ftrace] interface.
+
 [ftrace]: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
 
 1. Run the convenience script with an example tracing config (10s duration):
