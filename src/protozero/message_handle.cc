@@ -22,8 +22,6 @@
 
 namespace protozero {
 
-MessageHandleBase::FinalizationListener::~FinalizationListener() {}
-
 MessageHandleBase::MessageHandleBase(Message* message) : message_(message) {
 #if PERFETTO_DCHECK_IS_ON()
   generation_ = message_ ? message->generation_ : 0;
@@ -58,8 +56,6 @@ MessageHandleBase& MessageHandleBase::operator=(MessageHandleBase&& other) {
 void MessageHandleBase::Move(MessageHandleBase&& other) {
   message_ = other.message_;
   other.message_ = nullptr;
-  listener_ = other.listener_;
-  other.listener_ = nullptr;
 #if PERFETTO_DCHECK_IS_ON()
   if (message_) {
     generation_ = message_->generation_;

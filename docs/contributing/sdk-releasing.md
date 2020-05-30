@@ -97,7 +97,7 @@ git push origin vX.Y
 
 5. Update the documentation to point to the latest release.
 
-   - [docs/instrumentation/tracing-sdk.md](../instrumentation/tracing-sdk.md)
-   - [examples/sdk/README.md](../../examples/sdk/README.md)
+   - [docs/instrumentation/tracing-sdk.md](/docs/instrumentation/tracing-sdk.md)
+   - [examples/sdk/README.md](/examples/sdk/README.md)
 
 Phew, you're done!

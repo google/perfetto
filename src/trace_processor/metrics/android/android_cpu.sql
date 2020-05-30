@@ -17,40 +17,9 @@
 -- Create all the views used to generate the Android Cpu metrics proto.
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
 SELECT RUN_METRIC('android/cpu_info.sql');
-
-CREATE TABLE raw_metrics_per_core AS
-SELECT
-  utid,
-  cpu,
-  (
-    SELECT
-      CASE
-        WHEN layout = 'big_little_bigger' AND cpu < 4 THEN 'little'
-        WHEN layout = 'big_little_bigger' AND cpu < 7 THEN 'big'
-        WHEN layout = 'big_little_bigger' AND cpu = 7 THEN 'bigger'
-        WHEN layout = 'big_little' AND cpu < 4 THEN 'little'
-        WHEN layout = 'big_little' AND cpu < 8 THEN 'big'
-        ELSE 'unknown'
-      END
-    FROM core_layout_type
-  ) AS core_type,
-  -- We divide by 1e3 here as dur is in ns and freq_khz in khz. In total
-  -- this means we need to divide the duration by 1e9 and multiply the
-  -- frequency by 1e3 then multiply again by 1e3 to get millicycles
-  -- i.e. divide by 1e3 in total.
-  -- We use millicycles as we want to preserve this level of precision
-  -- for future calculations.
-  SUM(dur * freq_khz / 1000) AS millicycles,
-  CAST(SUM(dur * freq_khz / 1000000 / 1000000) AS INT) AS mcycles,
-  SUM(dur) AS runtime_ns,
-  MIN(freq_khz) AS min_freq_khz,
-  MAX(freq_khz) AS max_freq_khz,
-  -- We choose to work in micros space in both the numerator and
-  -- denominator as this gives us good enough precision without risking
-  -- overflows.
-  CAST(SUM(dur * freq_khz / 1000) / SUM(dur / 1000) AS INT) AS avg_freq_khz
-FROM cpu_freq_sched_per_thread
-GROUP BY utid, cpu;
+SELECT RUN_METRIC('android/android_cpu_raw_metrics_per_core.sql',
+  'input_table', 'cpu_freq_sched_per_thread',
+  'output_table', 'raw_metrics_per_core');
 
 CREATE VIEW metrics_per_core_type AS
 SELECT

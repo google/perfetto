@@ -18,13 +18,13 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
 
 #include <map>
+#include <set>
 #include <vector>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
-#include "src/trace_processor/importers/proto/heap_graph_walker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -39,6 +39,28 @@ struct NormalizedType {
   size_t number_of_arrays;
 };
 
+struct PathFromRoot {
+  static constexpr size_t kRoot = 0;
+  struct Node {
+    uint32_t depth = 0;
+    // Invariant: parent_id < id of this node.
+    size_t parent_id = 0;
+    int64_t size = 0;
+    int64_t count = 0;
+    tables::HeapGraphClassTable::Id type_id = {};
+    std::map<tables::HeapGraphClassTable::Id, size_t> children;
+  };
+  std::vector<Node> nodes{Node{}};
+  std::set<tables::HeapGraphObjectTable::Id> visited;
+};
+
+void MarkRoot(TraceStorage* s,
+              tables::HeapGraphObjectTable::Id id,
+              StringPool::Id type);
+void FindPathFromRoot(const TraceStorage& s,
+                      tables::HeapGraphObjectTable::Id id,
+                      PathFromRoot* path);
+
 base::Optional<std::string> PackageFromLocation(base::StringView location);
 base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type);
 size_t NumberOfArrays(base::StringView type);
@@ -47,7 +69,7 @@ base::StringView NormalizeTypeName(base::StringView type);
 std::string DenormalizeTypeName(NormalizedType normalized,
                                 base::StringView deobfuscated_type_name);
 
-class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
+class HeapGraphTracker : public Destructible {
  public:
   struct SourceObject {
     // All ids in this are in the trace iid space, not in the trace processor
@@ -94,12 +116,7 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   void FinalizeProfile(uint32_t seq);
   void SetPacketIndex(uint32_t seq_id, uint64_t index);
 
-  ~HeapGraphTracker() override = default;
-  // HeapGraphTracker::Delegate
-  void MarkReachable(int64_t row) override;
-  void SetRetained(int64_t row,
-                   int64_t retained,
-                   int64_t unique_retained) override;
+  ~HeapGraphTracker() override;
   void NotifyEndOfFile();
 
   void AddDeobfuscationMapping(base::Optional<StringPool::Id> package_name,
@@ -141,8 +158,6 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
     base::Optional<uint64_t> location_id;
   };
   struct SequenceState {
-    SequenceState(HeapGraphTracker* tracker) : walker(tracker) {}
-
     UniquePid current_upid = 0;
     int64_t current_ts = 0;
     std::vector<SourceObject> current_objects;
@@ -150,9 +165,8 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
     std::map<uint64_t, InternedType> interned_types;
     std::map<uint64_t, StringPool::Id> interned_location_names;
     std::map<uint64_t, InternedField> interned_fields;
-    std::map<uint64_t, uint32_t> object_id_to_row;
+    std::map<uint64_t, tables::HeapGraphObjectTable::Id> object_id_to_db_id;
     base::Optional<uint64_t> prev_index;
-    HeapGraphWalker walker;
   };
 
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
@@ -160,7 +174,6 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
 
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
-  std::map<std::pair<UniquePid, int64_t /* ts */>, HeapGraphWalker> walkers_;
 
   std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
            std::vector<tables::HeapGraphClassTable::Id>>
@@ -170,6 +183,9 @@ class HeapGraphTracker : public HeapGraphWalker::Delegate, public Destructible {
   std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
            StringPool::Id>
       deobfuscation_mapping_;
+  std::map<std::pair<UniquePid, int64_t>,
+           std::vector<tables::HeapGraphObjectTable::Id>>
+      roots_;
 };
 
 }  // namespace trace_processor
