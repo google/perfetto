@@ -497,6 +497,16 @@ export const StateActions = {
     };
   },
 
+  selectCpuProfileSample(
+      state: StateDraft, args: {id: number, utid: number, ts: number}): void {
+    state.currentSelection = {
+      kind: 'CPU_PROFILE_SAMPLE',
+      id: args.id,
+      utid: args.utid,
+      ts: args.ts,
+    };
+  },
+
   expandHeapProfileFlamegraph(
       state: StateDraft, args: {expandedCallsite?: CallsiteInfo}): void {
     if (state.currentHeapProfileFlamegraph === null) return;

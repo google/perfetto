@@ -235,10 +235,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 // All rows with the same (upid, graph_sample_ts) are one dump.
 // @param upid UniquePid of the target {@joinable process.upid}.
 // @param graph_sample_ts timestamp this dump was taken at.
-// @param object_id ARTs ID of the object. Either a pointer or a hashCode.
 // @param self_size size this object uses on the Java Heap.
-// @param retained_size DO NOT USE.
-// @param unique_retained_size DO NOT USE.
 // @param reference_set_id join key with heap_graph_reference containing all
 //        objects referred in this object's fields.
 //        {@joinable heap_graph_reference.reference_set_id}
@@ -252,14 +249,12 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
   C(uint32_t, upid)                                        \
   C(int64_t, graph_sample_ts)                              \
-  C(int64_t, object_id)                                    \
   C(int64_t, self_size)                                    \
-  C(int64_t, retained_size)                                \
-  C(int64_t, unique_retained_size)                         \
   C(base::Optional<uint32_t>, reference_set_id)            \
   C(int32_t, reachable)                                    \
   C(HeapGraphClassTable::Id, type_id)                      \
-  C(base::Optional<StringPool::Id>, root_type)
+  C(base::Optional<StringPool::Id>, root_type)             \
+  C(int32_t, root_distance, Column::Flag::kHidden)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
 
@@ -279,8 +274,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
   NAME(HeapGraphReferenceTable, "heap_graph_reference")       \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
   C(uint32_t, reference_set_id, Column::Flag::kSorted)        \
-  C(int64_t, owner_id)                                        \
-  C(int64_t, owned_id)                                        \
+  C(HeapGraphObjectTable::Id, owner_id)                       \
+  C(HeapGraphObjectTable::Id, owned_id)                       \
   C(StringPool::Id, field_name)                               \
   C(StringPool::Id, field_type_name)                          \
   C(base::Optional<StringPool::Id>, deobfuscated_field_name)
