@@ -33,9 +33,10 @@ base::Optional<base::StringView> PackageFromApp(base::StringView location) {
   }
   size_t second_slash = location.find('/', slash + 1);
   if (second_slash == std::string::npos) {
-    return base::nullopt;
+    location = location.substr(0, slash);
+  } else {
+    location = location.substr(slash + 1, second_slash - slash);
   }
-  location = location.substr(slash + 1, second_slash - slash);
   size_t minus = location.find('-');
   if (minus == std::string::npos) {
     return base::nullopt;
@@ -241,6 +242,7 @@ base::Optional<std::string> HeapGraphTracker::PackageFromLocation(
   if (location.substr(0, data_app.size()) == data_app) {
     auto package = PackageFromApp(location);
     if (!package) {
+      PERFETTO_DLOG("Failed to parse %s", location.ToStdString().c_str());
       context_->storage->IncrementStats(stats::heap_graph_location_parse_error);
       return base::nullopt;
     }
