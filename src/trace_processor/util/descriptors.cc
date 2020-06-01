@@ -74,8 +74,12 @@ util::Status DescriptorPool::AddExtensionField(
   FieldDescriptorProto::Decoder f_decoder(field_desc_proto);
   auto field = CreateFieldFromDecoder(f_decoder);
 
-  auto extendee_name =
-      package_name + "." + base::StringView(f_decoder.extendee()).ToStdString();
+  auto extendee_name = base::StringView(f_decoder.extendee()).ToStdString();
+  PERFETTO_CHECK(!extendee_name.empty());
+  if (extendee_name[0] != '.') {
+    // Only prepend if the extendee is not fully qualified
+    extendee_name = package_name + "." + extendee_name;
+  }
   auto extendee = FindDescriptorIdx(extendee_name);
   if (!extendee.has_value()) {
     return util::ErrStatus("Extendee does not exist %s", extendee_name.c_str());
