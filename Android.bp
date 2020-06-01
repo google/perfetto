@@ -6543,6 +6543,7 @@ filegroup {
     "src/trace_processor/importers/common/global_args_tracker.cc",
     "src/trace_processor/importers/common/process_tracker.cc",
     "src/trace_processor/importers/common/slice_tracker.cc",
+    "src/trace_processor/importers/common/system_info_tracker.cc",
     "src/trace_processor/importers/common/track_tracker.cc",
   ],
 }

@@ -558,8 +558,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   WindowOperatorTable::RegisterTable(*db_, storage);
 
   // New style tables but with some custom logic.
-  SqliteRawTable::RegisterTable(*db_, query_cache_.get(),
-                                context_.storage.get());
+  SqliteRawTable::RegisterTable(*db_, query_cache_.get(), &context_);
 
   // Tables dynamically generated at query time.
   RegisterDynamicTable(std::unique_ptr<ExperimentalFlamegraphGenerator>(
