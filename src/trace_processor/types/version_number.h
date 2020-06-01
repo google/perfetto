@@ -14,24 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
-#define SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
+#ifndef SRC_TRACE_PROCESSOR_TYPES_VERSION_NUMBER_H_
+#define SRC_TRACE_PROCESSOR_TYPES_VERSION_NUMBER_H_
 
-#include "perfetto/ext/base/optional.h"
-#include "perfetto/ext/base/string_writer.h"
-#include "src/trace_processor/types/version_number.h"
+#include <tuple>
 
 namespace perfetto {
 namespace trace_processor {
 
-// GFP flags in ftrace events should be parsed and read differently depending
-// the kernel version. This function writes a human readable version of the
-// flag.
-void WriteGfpFlag(uint64_t value,
-                  base::Optional<VersionNumber> version,
-                  base::StringWriter* writer);
+struct VersionNumber {
+  uint32_t major;
+  uint32_t minor;
+
+  bool operator<(const VersionNumber& other) {
+    return std::tie(major, minor) < std::tie(other.major, other.minor);
+  }
+  bool operator>=(const VersionNumber& other) {
+    return std::tie(major, minor) >= std::tie(other.major, other.minor);
+  }
+};
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
+#endif  // SRC_TRACE_PROCESSOR_TYPES_VERSION_NUMBER_H_

@@ -19,10 +19,13 @@
 
 #include <stddef.h>
 #include <array>
+#include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
+#include "src/trace_processor/types/version_number.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,49 +52,43 @@ class TaskState {
     kWaking = 256,
     kParked = 512,
     kNoLoad = 1024,
+    // This was added in kernel v4.9 but is never used.
+    kTaskNew = 2048,
 
-    // kMaxState is used by sched switch to show a task was kernel preempted.
-    // The difficult thing is that in newer kernels a task_new state is added
-    // and kMaxState increases to 4096. Without the kernel version and the
-    // mapping of this to the correct version of this enum we cannot be
-    // accurate. Since task_new is rare we ignore it for now.
-    kTaskNewOrMaxState = 2048,
-    kMaxState = 4096,
     kValid = 0x8000,
   };
 
   TaskState() = default;
-  explicit TaskState(uint16_t raw_state);
+  explicit TaskState(uint16_t raw_state,
+                     base::Optional<VersionNumber> = VersionNumber{4, 4});
   explicit TaskState(const char* state_str);
 
   // Returns if this TaskState has a valid representation.
   bool is_valid() const { return state_ & kValid; }
 
   // Returns the string representation of this (valid) TaskState. This array
-  // is null terminated. |seperator| specifies if a separator should be printed
+  // is null terminated. |separator| specifies if a separator should be printed
   // between the atoms (default: \0 meaning no separator).
   // Note: This function CHECKs that |is_valid()| is true.
   TaskStateStr ToString(char separator = '\0') const;
 
-  // Returns the raw state this class was created from.
+  // Returns the raw state this class can be recreated from.
   uint16_t raw_state() const {
     PERFETTO_DCHECK(is_valid());
     return state_ & ~kValid;
   }
 
   // Returns if this TaskState is runnable.
-  bool is_runnable() const {
-    return ((state_ & (kMaxState - 1)) == 0) ||
-           ((state_ & (kTaskNewOrMaxState - 1)) == 0);
-  }
+  bool is_runnable() const { return ((state_ & (max_state_ - 1)) == 0); }
 
   // Returns whether kernel preemption caused the exit state.
-  bool is_kernel_preempt() const {
-    return state_ & kTaskNewOrMaxState || state_ & kMaxState;
-  }
+  bool is_kernel_preempt() const { return state_ & max_state_; }
 
  private:
+  // One of Atom - based on given raw_state and version. Will have isValid set
+  // if valid.
   uint16_t state_ = 0;
+  uint16_t max_state_ = 2048;
 };
 
 }  // namespace ftrace_utils
