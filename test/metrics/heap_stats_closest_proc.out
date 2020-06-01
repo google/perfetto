@@ -12,6 +12,11 @@ java_heap_stats {
       obj_count: 1
       reachable_obj_count: 1
       anon_rss_and_swap_size: 2048
+      roots {
+        root_type: "ROOT_JAVA_FRAME"
+        type_name: "FactoryProducerDelegateImplActor"
+        obj_count: 1
+      }
     }
   }
 }
@@ -29,6 +34,11 @@ java_heap_stats {
       obj_count: 1
       reachable_obj_count: 1
       anon_rss_and_swap_size: 3072
+      roots {
+        root_type: "ROOT_JAVA_FRAME"
+        type_name: "FactoryProducerDelegateImplActor"
+        obj_count: 1
+      }
     }
   }
 }
