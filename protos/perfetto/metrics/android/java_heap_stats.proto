@@ -20,6 +20,12 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message JavaHeapStats {
+  message HeapRoots {
+    optional string root_type = 1;
+    optional string type_name = 2;
+    optional int64 obj_count = 3;
+  }
+
   // Next id: 7
   message Sample {
     optional int64 ts = 1;
@@ -31,6 +37,9 @@ message JavaHeapStats {
     optional int64 reachable_obj_count = 5;
     // Sum of anonymous RSS + swap pages in bytes.
     optional int64 anon_rss_and_swap_size = 6;
+
+    // ART root objects
+    repeated HeapRoots roots = 7;
   }
 
   // Heap stats per process. One sample per dump (can be > 1 if continuous
